@@ -9,3 +9,4 @@ generate.py - generates key pairs if you don't have them yet and saves them to a
 client.py - client application, which tries to connect to the server defined in the peer file
 server.py - active listener, which waits messages (transactions) from client and confirms them
 
+Warning: I am not very skilled in object programming and would like to keep this as simple as possible
