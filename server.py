@@ -69,18 +69,37 @@ while True:
                     try:
                         conn = sqlite3.connect('thincoin.db')
                         c = conn.cursor()
+                        c.execute('''CREATE TABLE IF NOT EXISTS transactions (block_height, address, to_address, amount)''')
+                        #verify block
                         c.execute('''SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;''')
                         block_latest = c.fetchone()[0]
                         print "Latest block in db: "+block_latest
-                        if block_height != int(block_latest)+1:
+                        if int(block_height) != int(block_latest)+1:
                             print "Block height invalid"
-                        # Create table
-                        c.execute('''CREATE TABLE IF NOT EXISTS transactions (block_height, address, to_address, amount)''')
-                        # Insert a row of data
-                        c.execute("INSERT INTO transactions VALUES ('"+block_height+"','"+address+"','"+to_address+"','"+amount+"')")
-                        # Save (commit) the changes
-                        conn.commit()
-                        print "Saved"
+                            #verify block
+                        else:                      
+                            #verify balance and blockchain
+                            print "Verifying blockchain"
+
+                            
+                            print "Verifying balance"
+                            print address
+                            c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '"+address+"'")
+                            inputs = c.fetchone()[0]
+                            print "Total inputs: "+str(inputs)
+                            c.execute("SELECT sum(amount) FROM transactions WHERE address = '"+address+"'")
+                            outputs = c.fetchone()[0]
+                            print "Total outputs: "+str(outputs)
+                            if int(inputs) - int(outputs) - int(amount) < 0:
+                                print "Your balance is too low for this transaction"
+                            else:
+                                print "Processing transaction"
+                            #verify balance and blockchain                            
+                                #execute transaction
+                                c.execute("INSERT INTO transactions VALUES ('"+block_height+"','"+address+"','"+to_address+"','"+amount+"')") # Insert a row of data                    
+                                #execute transaction                                
+                            conn.commit() # Save (commit) the changes                            
+                            print "Saved"
                     except sqlite3.Error, e:                        
                         print "Error %s:" % e.args[0]
                         sys.exit(1)                        

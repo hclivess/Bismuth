@@ -1,6 +1,7 @@
 import hashlib
 import socket
 import re
+import sqlite3
 
 from Crypto.Hash import SHA256
 from Crypto.PublicKey import RSA
@@ -87,8 +88,20 @@ for x in server_peer_tuples:
 #network client program
 
 #playground
-block_height = 2
-to_address = 2
+con = None
+try:
+    conn = sqlite3.connect('thincoin.db')
+    c = conn.cursor()
+    c.execute('''SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;''')
+    block_height = int(c.fetchone()[0])+1
+except sqlite3.Error, e:                        
+    print "Error %s:" % e.args[0]
+    sys.exit(1)                        
+finally:                        
+    if conn:
+        conn.close()       
+
+to_address = "dummy2"
 amount = 3
 
 transaction = ""+str(block_height) +":"+ str(address) +":"+ str(to_address) +":"+ str(amount)
