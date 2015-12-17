@@ -87,11 +87,11 @@ for x in server_peer_tuples:
 #network client program
 
 #playground
-block_height = 1
+block_height = 2
 to_address = 2
 amount = 3
 
-transaction = "Block_Height:"+str(block_height) +" From:"+ str(address) +" To:"+ str(to_address) +" Amount:"+ str(amount)
+transaction = ""+str(block_height) +":"+ str(address) +":"+ str(to_address) +":"+ str(amount)
 signature = key.sign(transaction, '')
 print "Signature: "+str(signature)
 
