@@ -130,7 +130,7 @@ finally:
 to_address = "dummy2"
 amount = 3
 
-transaction = ""+str(block_height) +":"+ str(address) +":"+ str(to_address) +":"+ str(amount)
+transaction = str(block_height) +":"+ str(address) +":"+ str(to_address) +":"+ str(amount)
 signature = key.sign(transaction, '')
 print "Signature: "+str(signature)
 

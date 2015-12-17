@@ -69,7 +69,7 @@ while True:
                     try:
                         conn = sqlite3.connect('thincoin.db')
                         c = conn.cursor()
-                        c.execute('''CREATE TABLE IF NOT EXISTS transactions (block_height, address, to_address, amount)''')
+                        c.execute('''CREATE TABLE IF NOT EXISTS transactions (block_height, address, to_address, amount, signature, public_key)''')
                         #verify block
                         c.execute('''SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;''')
                         block_latest = c.fetchone()[0]
@@ -96,7 +96,7 @@ while True:
                                 print "Processing transaction"
                             #verify balance and blockchain                            
                                 #execute transaction
-                                c.execute("INSERT INTO transactions VALUES ('"+block_height+"','"+address+"','"+to_address+"','"+amount+"')") # Insert a row of data                    
+                                c.execute("INSERT INTO transactions VALUES ('"+block_height+"','"+address+"','"+to_address+"','"+amount+"','"+received_signature+"','"+received_public_key_readable+"')") # Insert a row of data                    
                                 #execute transaction                                
                             conn.commit() # Save (commit) the changes                            
                             print "Saved"
