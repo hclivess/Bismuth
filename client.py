@@ -136,7 +136,7 @@ print "Signature: "+str(signature)
 
 if public_key.verify(transaction, signature) == True:
     print "The signature is valid, proceeding to send transaction, signature and the public key"
-    s.sendall(transaction+";"+str(signature)+";"+public_key_readable) #need to resolve how to convert back to format in server
+    s.sendall(transaction+";"+str(signature)+";"+public_key_readable)
 else:
     print "Invalid signature"
 #playground
