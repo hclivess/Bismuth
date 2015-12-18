@@ -22,28 +22,23 @@ sock.listen(1)
 
 #verify blockchain
 con = None
-db_i = 0
 
 conn = sqlite3.connect('thincoin.db')
 c = conn.cursor()
 c.execute('''CREATE TABLE IF NOT EXISTS transactions (block_height, address, to_address, amount, signature, public_key)''')
-c.execute("SELECT COALESCE(MAX(block_height)+1, 0) FROM transactions")
+c.execute("SELECT Count(*) FROM transactions")
 db_rows = c.fetchone()[0]
-print db_rows
+print "Total steps: "+str(db_rows)
 
 try:
-    while db_rows > db_i:
-        c.execute("SELECT * FROM transactions LIMIT 5 OFFSET '"+str(db_i)+"';")
-        db_address = c.fetchone()[1]
-        db_signature = c.fetchone()[4]
-        db_public_key = c.fetchone()[5]
-        
-        print db_address
-        print db_signature
-        print db_public_key
+    for row in c.execute('SELECT * FROM transactions ORDER BY block_height'):
+        block_height = row[0]
+        address = row[1]
+        signature = row[4]
+        public_key = row[5]
 
-        db_i = db_i + 1
-    
+        print block_height+" "+address+" "+signature+" "+public_key
+        
 except sqlite3.Error, e:                        
     print "Error %s:" % e.args[0]
     sys.exit(1)                        
