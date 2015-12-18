@@ -20,6 +20,38 @@ sock.bind(server_address)
 # Listen for incoming connections
 sock.listen(1)
 
+#verify blockchain
+con = None
+db_i = 0
+
+conn = sqlite3.connect('thincoin.db')
+c = conn.cursor()
+c.execute('''CREATE TABLE IF NOT EXISTS transactions (block_height, address, to_address, amount, signature, public_key)''')
+c.execute("SELECT COALESCE(MAX(block_height)+1, 0) FROM transactions")
+db_rows = c.fetchone()[0]
+print db_rows
+
+try:
+    while db_rows > db_i:
+        c.execute("SELECT * FROM transactions LIMIT 5 OFFSET '"+str(db_i)+"';")
+        db_address = c.fetchone()[1]
+        db_signature = c.fetchone()[4]
+        db_public_key = c.fetchone()[5]
+        
+        print db_address
+        print db_signature
+        print db_public_key
+
+        db_i = db_i + 1
+    
+except sqlite3.Error, e:                        
+    print "Error %s:" % e.args[0]
+    sys.exit(1)                        
+finally:                        
+    if conn:
+        conn.close()
+#verify blockchain
+
 while True:
     # Wait for a connection
     print 'waiting for a connection'
@@ -69,7 +101,6 @@ while True:
                     try:
                         conn = sqlite3.connect('thincoin.db')
                         c = conn.cursor()
-                        c.execute('''CREATE TABLE IF NOT EXISTS transactions (block_height, address, to_address, amount, signature, public_key)''')
                         #verify block
                         c.execute('''SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;''')
                         block_latest = c.fetchone()[0]
@@ -78,10 +109,7 @@ while True:
                             print "Block height invalid"
                             #verify block
                         else:                      
-                            #verify balance and blockchain
-                            print "Verifying blockchain"
-
-                            
+                            #verify balance and blockchain                           
                             print "Verifying balance"
                             print address
                             c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '"+address+"'")
@@ -98,7 +126,8 @@ while True:
                                 #execute transaction
                                 c.execute("INSERT INTO transactions VALUES ('"+block_height+"','"+address+"','"+to_address+"','"+amount+"','"+received_signature+"','"+received_public_key_readable+"')") # Insert a row of data                    
                                 #execute transaction                                
-                            conn.commit() # Save (commit) the changes                            
+                            conn.commit() # Save (commit) the changes
+                            #todo: broadcast
                             print "Saved"
                     except sqlite3.Error, e:                        
                         print "Error %s:" % e.args[0]
