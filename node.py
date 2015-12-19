@@ -25,10 +25,19 @@ con = None
 
 conn = sqlite3.connect('thincoin.db')
 c = conn.cursor()
-c.execute("CREATE TABLE IF NOT EXISTS transactions (block_height, address, to_address, amount, signature, public_key)")
+#c.execute("CREATE TABLE IF NOT EXISTS transactions (block_height, address, to_address, amount, signature, public_key)")
 c.execute("SELECT Count(*) FROM transactions")
 db_rows = c.fetchone()[0]
 print "Total steps: "+str(db_rows)
+
+#verify genesis
+c.execute("SELECT * FROM transactions ORDER BY block_height ASC LIMIT 1")
+genesis = c.fetchone()[2]
+print "Genesis: "+genesis
+if str(genesis) != "b813b03700c22478d7480cd6810a85dd704acec9030f587c5d8ed0f6": #change this line to your genesis address if you want to clone
+    print "Invalid genesis"
+    sys.exit(1)
+#verify genesis
 
 try:
     for row in c.execute('SELECT * FROM transactions ORDER BY block_height'):
