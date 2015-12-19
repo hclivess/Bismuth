@@ -35,7 +35,7 @@ c.execute("SELECT * FROM transactions ORDER BY block_height ASC LIMIT 1")
 genesis = c.fetchone()[2]
 print "Genesis: "+genesis
 if str(genesis) != "b813b03700c22478d7480cd6810a85dd704acec9030f587c5d8ed0f6": #change this line to your genesis address if you want to clone
-    print "Invalid genesis"
+    print "Invalid genesis address"
     sys.exit(1)
 #verify genesis
 
@@ -54,7 +54,12 @@ try:
         db_signature_tuple = ast.literal_eval(db_signature) #converting to tuple
         
         if db_public_key.verify(db_transaction, db_signature_tuple) == True:
-            print "Step "+str(db_block_height)+" is valid"        
+            print "Step "+str(db_block_height)+" is valid"
+        else:
+            print "Step "+str(db_block_height)+" is invalid"
+            if db_block_height == str(1):
+                print "Your genesis signature is invalid, someone meddled with the database"
+                sys.exit(1)
         
 except sqlite3.Error, e:                        
     print "Error %s:" % e.args[0]

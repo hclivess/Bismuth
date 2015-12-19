@@ -3,6 +3,7 @@ import socket
 import re
 import sqlite3
 import os
+import sys
 
 from Crypto.Hash import SHA256
 from Crypto.PublicKey import RSA
@@ -47,8 +48,11 @@ print "Your private key:\n "+ str(private_key_readable)
 print "Your public key:\n "+ str(public_key_readable)
 # import keys
 
+transaction = "1:genesis:"+address+":100000000"
+signature = key.sign(transaction, '')
+print "Signature: "+str(signature)
 
-if os.path.isfile("keys.pem") is True:
+if os.path.isfile("thincoin.db") is True:
     print "You are beyond genesis"
 else:
     #transaction processing
@@ -57,7 +61,7 @@ else:
         conn = sqlite3.connect('thincoin.db')
         c = conn.cursor()
         c.execute("CREATE TABLE transactions (block_height, address, to_address, amount, signature, public_key)")
-        c.execute("INSERT INTO transactions VALUES ('"+block_height+"','genesis','"+to_address+"','100000000','"+received_signature+"','"+received_public_key_readable+"')") # Insert a row of data                    
+        c.execute("INSERT INTO transactions VALUES ('1','genesis','"+address+"','100000000','"+str(signature)+"','"+public_key_readable+"')") # Insert a row of data                    
                
         conn.commit() # Save (commit) the changes
         #todo: broadcast
