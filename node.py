@@ -25,19 +25,27 @@ con = None
 
 conn = sqlite3.connect('thincoin.db')
 c = conn.cursor()
-c.execute('''CREATE TABLE IF NOT EXISTS transactions (block_height, address, to_address, amount, signature, public_key)''')
+c.execute("CREATE TABLE IF NOT EXISTS transactions (block_height, address, to_address, amount, signature, public_key)")
 c.execute("SELECT Count(*) FROM transactions")
 db_rows = c.fetchone()[0]
 print "Total steps: "+str(db_rows)
 
 try:
     for row in c.execute('SELECT * FROM transactions ORDER BY block_height'):
-        block_height = row[0]
-        address = row[1]
-        signature = row[4]
-        public_key = row[5]
+        db_block_height = row[0]
+        db_address = row[1]
+        db_to_address = row[2]
+        db_amount = row [3]
+        db_signature = row[4]
+        db_public_key = RSA.importKey(row[5])
+        db_transaction = str(db_block_height) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount)
 
-        print block_height+" "+address+" "+signature+" "+public_key
+        #print db_transaction
+
+        db_signature_tuple = ast.literal_eval(db_signature) #converting to tuple
+        
+        if db_public_key.verify(db_transaction, db_signature_tuple) == True:
+            print "Step "+str(db_block_height)+" is valid"        
         
 except sqlite3.Error, e:                        
     print "Error %s:" % e.args[0]
@@ -51,8 +59,7 @@ while True:
     # Wait for a connection
     print 'waiting for a connection'
     connection, client_address = sock.accept()
-
-    talkie = 0
+    
     try:
         print 'connection from', client_address
 
@@ -99,7 +106,7 @@ while True:
                         #verify block
                         c.execute('''SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;''')
                         block_latest = c.fetchone()[0]
-                        print "Latest block in db: "+block_latest
+                        print "Latest block in db: "+str(block_latest)
                         if int(block_height) != int(block_latest)+1:
                             print "Block height invalid"
                             #verify block
@@ -109,11 +116,17 @@ while True:
                             print address
                             c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '"+address+"'")
                             inputs = c.fetchone()[0]
-                            print "Total inputs: "+str(inputs)
+
                             c.execute("SELECT sum(amount) FROM transactions WHERE address = '"+address+"'")
                             outputs = c.fetchone()[0]
+                            if outputs == None:
+                                outputs = 0
+                            print "Total inputs: "+str(inputs)                                
                             print "Total outputs: "+str(outputs)
-                            if int(inputs) - int(outputs) - int(amount) < 0:
+                            balance = int(inputs) - int(outputs)
+                            print "Your balance: "+str(balance) 
+
+                            if  int(balance) - int(amount) < 0:
                                 print "Your balance is too low for this transaction"
                             else:
                                 print "Processing transaction"
@@ -124,7 +137,7 @@ while True:
                             conn.commit() # Save (commit) the changes
                             #todo: broadcast
                             print "Saved"
-                    except sqlite3.Error, e:                        
+                    except sqlite3.Error, e:                      
                         print "Error %s:" % e.args[0]
                         sys.exit(1)                        
                     finally:                        
