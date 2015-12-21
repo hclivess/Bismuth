@@ -1,4 +1,4 @@
-# thincoin
+# hopium
 looking for alternatives to blockchain technology
 
 WARNING: This project is in the Proof of Concept stage!
