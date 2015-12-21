@@ -88,6 +88,10 @@ while True:
                     print peers
                     connection.sendall(peers)
                     
+            sync = connection.recv(4096)
+            if sync:
+                print "Client is at block:"+(sync)
+            
             data = connection.recv(4096)
             if data:
                 data_split = data.split(";")

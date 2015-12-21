@@ -3,6 +3,7 @@ import socket
 import re
 import sqlite3
 import os
+import sys
 
 from Crypto.Hash import SHA256
 from Crypto.PublicKey import RSA
@@ -78,7 +79,6 @@ while connected == 0:
 
 s.sendall('Hello, server')
 
-
 peer = s.getpeername()
 data = s.recv(1024) #receive data
 print 'Received data from '+ str(peer) +"\n"+ str(data)
@@ -110,16 +110,19 @@ for x in server_peer_tuples:
     else:
         print str(x)+" is not a new peer, skipping."
 
-
-#network client program
-
-#playground
+#broadcast
 con = None
 try:
     conn = sqlite3.connect('thincoin.db')
     c = conn.cursor()
-    c.execute('''SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;''')
-    block_height = int(c.fetchone()[0])+1
+    c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
+    block_height = int(c.fetchone()[0])   
+    block_height_new = block_height+1
+
+    #request block update
+    s.sendall (str(block_height))
+    #request block update
+    
 except sqlite3.Error, e:                        
     print "Error %s:" % e.args[0]
     sys.exit(1)                        
@@ -130,7 +133,7 @@ finally:
 to_address = "dummy2"
 amount = 3
 
-transaction = str(block_height) +":"+ str(address) +":"+ str(to_address) +":"+ str(amount)
+transaction = str(block_height_new) +":"+ str(address) +":"+ str(to_address) +":"+ str(amount)
 signature = key.sign(transaction, '')
 print "Signature: "+str(signature)
 
@@ -139,6 +142,9 @@ if public_key.verify(transaction, signature) == True:
     s.sendall(transaction+";"+str(signature)+";"+public_key_readable)
 else:
     print "Invalid signature"
-#playground
+#broadcast
 
 s.close()
+
+#network client program
+
