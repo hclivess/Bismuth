@@ -60,7 +60,7 @@ else:
     try:
         conn = sqlite3.connect('thincoin.db')
         c = conn.cursor()
-        c.execute("CREATE TABLE transactions (block_height, address, to_address, amount, signature, public_key)")
+        c.execute("CREATE TABLE transactions (block_height INTEGER, address, to_address, amount, signature, public_key)")
         c.execute("INSERT INTO transactions VALUES ('1','genesis','"+address+"','100000000','"+str(signature)+"','"+public_key_readable+"')") # Insert a row of data                    
                
         conn.commit() # Save (commit) the changes
