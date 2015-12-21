@@ -98,7 +98,7 @@ while True:
                 print "Received: Client is at block: "+(sync)
 
                 #latest local block
-                sync = 1 #pretend desync for TEST PURPOSES, client block no. x
+                #sync = 1 #pretend desync for TEST PURPOSES, client block no. x
                 
                 try:
                     conn = sqlite3.connect('thincoin.db')
