@@ -111,8 +111,7 @@ while True:
                         block_difference = abs(int(sync) - int(block_latest))
                         print "Sending "+str(block_difference)+" blocks"
                         #calcualte sync data
-                        block_send_list = []
-                        for row in c.execute("SELECT * FROM transactions ORDER BY block_height DESC LIMIT '"+str(block_difference)+"';"):
+                        for row in c.execute("SELECT * FROM transactions ORDER BY block_height ASC LIMIT '"+str(sync)+"','"+str(block_difference)+"';"):
                             print row
                         
                     else:
