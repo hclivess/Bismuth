@@ -115,9 +115,9 @@ for x in server_peer_tuples:
 
         
 #broadcast
-
+con = None
 try:
-    conn = sqlite3.connect('thincoin.db')
+    conn = sqlite3.connect('test.db')
     c = conn.cursor()
     c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
     block_height = int(c.fetchone()[0])   
@@ -170,18 +170,18 @@ while int(i) <= int(block_difference):
     received_public_key_readable = sync_list[5]
     received_public_key = RSA.importKey(sync_list[5])
     received_transaction = str(received_block_height) +":"+ str(received_address) +":"+ str(received_to_address) +":"+ str(received_amount) #todo: why not have bare list instead of converting?
+
     received_signature_tuple = ast.literal_eval(received_signature) #converting to tuple
     if received_public_key.verify(received_transaction, received_signature_tuple) == True:
         print "Received step "+str(received_block_height)+" is valid"
         #verify
         #save step to db
-        
+        con = None
         try:
-            conn = sqlite3.connect('thincoin.db') #use a different db here for TEST PURPOSES
+            conn = sqlite3.connect('test.db')
             c = conn.cursor()
             c.execute("INSERT INTO transactions VALUES ('"+str(received_block_height)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_to_address)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"')") # Insert a row of data
             print "Ledger updated with a received transaction"
-            conn.commit() # Save (commit) the changes
             
         except sqlite3.Error, e:                        
             print "Error %s:" % e.args[0]
