@@ -79,7 +79,9 @@ while True:
 
         # Receive and send data
         while True:
+            
             hello = connection.recv(4096)
+            #hello message
             print 'received '+ hello
             
             if hello:
@@ -87,11 +89,43 @@ while True:
                     peers=peer_list.read()
                     print peers
                     connection.sendall(peers)
-                    
+            #hello message                    
+            
             sync = connection.recv(4096)
+            #send sync data to client
             if sync:
                 print "Client is at block:"+(sync)
-            
+
+                #latest local block
+                sync = 5 #pretend desync for TEST PURPOSES, client block no. x
+                
+                try:
+                    conn = sqlite3.connect('thincoin.db')
+                    c = conn.cursor()
+                    c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
+                    block_latest = c.fetchone()[0]
+                    print "Latest block in db: "+str(block_latest)
+                    if int(sync) < block_latest:
+                        print "Client is not up to date, sending new blocks"
+                        #calculate sync data
+                        block_difference = abs(int(sync) - int(block_latest))
+                        print "Sending "+str(block_difference)+" blocks"
+                        #calcualte sync data
+                        block_send_list = []
+                        for row in c.execute("SELECT * FROM transactions ORDER BY block_height DESC LIMIT '"+str(block_difference)+"';"):
+                            print row
+                        
+                    else:
+                        print "Client is up to date"
+                except sqlite3.Error, e:
+                    print "Error %s:" % e.args[0]
+                    sys.exit(1)                        
+                finally:                        
+                    if conn:
+                        conn.close()
+                #latest local block                        
+
+                
             data = connection.recv(4096)
             if data:
                 data_split = data.split(";")
@@ -122,7 +156,7 @@ while True:
                         conn = sqlite3.connect('thincoin.db')
                         c = conn.cursor()
                         #verify block
-                        c.execute('''SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;''')
+                        c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
                         block_latest = c.fetchone()[0]
                         print "Latest block in db: "+str(block_latest)
                         if int(block_height) != int(block_latest)+1:
