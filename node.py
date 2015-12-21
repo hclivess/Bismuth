@@ -11,16 +11,34 @@ from Crypto import Random
 
 #connectivity to self node
 port = int(2829)
+
 r = requests.get(r'http://jsonip.com')
 ip= r.json()['ip']
 print 'Your IP is', ip
-#ip = "127.0.0.1" #enable for test
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 sock.settimeout(1)
 result = sock.connect_ex((ip,port))
+#result = 0 #enable for test
 if result == 0:
     print "Port is open"   
     #todo:save self as node to peerlist
+#get local peers into tuples
+    peer_file = open("peers.txt", 'r')
+    peer_tuples = []
+    for line in peer_file:
+        extension = re.findall ("'([\d\.]+)', '([\d]+)'",line)
+        peer_tuples.extend(extension)
+    peer_file.close()
+    peer_me = ("('"+str(ip)+"', '"+str(port)+"')")
+    if peer_me not in str(peer_tuples): #stringing tuple is a nasty way
+        peer_list_file = open("peers.txt", 'a')
+        peer_list_file.write((peer_me)+"\n")
+        print "Local node saved to peer file"
+        peer_list_file.close()
+    else:
+        print "Self node already saved"
+        
+#get local peers into tuples    
 else:
    print "Port is not open"
 #connectivity to self node
