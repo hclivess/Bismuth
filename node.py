@@ -76,13 +76,14 @@ while True:
     
     try:
         print 'connection from', client_address
-
+### LOCAL CHECKS FINISHED ###
+        
         # Receive and send data
         while True:
             
             hello = connection.recv(4096)
             #hello message
-            print 'received '+ hello
+            print 'Received: '+ hello
             
             if hello:
                 with open ("peers.txt", "r") as peer_list:
@@ -94,7 +95,7 @@ while True:
             sync = connection.recv(4096)
             #send sync data to client
             if sync:
-                print "Client is at block:"+(sync)
+                print "Received: Client is at block: "+(sync)
 
                 #latest local block
                 sync = 1 #pretend desync for TEST PURPOSES, client block no. x
@@ -202,7 +203,6 @@ while True:
                 else:
                     print "Signature invalid"
 
- 
             else:
                 print 'no more data from', client_address
                 break
