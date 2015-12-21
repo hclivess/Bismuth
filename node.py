@@ -23,7 +23,6 @@ sock.listen(1)
 
 #verify blockchain
 con = None
-
 conn = sqlite3.connect('thincoin.db')
 c = conn.cursor()
 #c.execute("CREATE TABLE IF NOT EXISTS transactions (block_height, address, to_address, amount, signature, public_key)")

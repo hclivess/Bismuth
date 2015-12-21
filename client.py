@@ -150,6 +150,10 @@ else:
 
 
 #sync from node
+#request block update
+s.sendall (str(block_height))
+#request block update
+    
 block_difference = s.recv(1024)
 print "Receiving "+block_difference+" steps to sync"
 i = 1
@@ -172,15 +176,12 @@ while int(i) <= int(block_difference):
         print "Received step "+str(received_block_height)+" is valid"
         #verify
         #save step to db
+        con = None
         try:
             conn = sqlite3.connect('thincoin.db')
             c = conn.cursor()
-            c.execute("INSERT INTO transactions VALUES ('"+str(received_block_height)+"','"+received_address+"','"+received_to_address+"','"+received_to_address+"','"+received_signature+"','"+received_public_key_readable+"')") # Insert a row of data
+            c.execute("INSERT INTO transactions VALUES ('"+str(received_block_height)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_to_address)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"')") # Insert a row of data
             print "Ledger updated with a received transaction"
-
-            #request block update
-            s.sendall (str(block_height))
-            #request block update
             
         except sqlite3.Error, e:                        
             print "Error %s:" % e.args[0]
