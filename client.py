@@ -110,6 +110,8 @@ for x in server_peer_tuples:
     else:
         print str(x)+" is not a new peer, skipping."
 
+
+        
 #broadcast
 con = None
 try:
@@ -140,8 +142,26 @@ print "Signature: "+str(signature)
 if public_key.verify(transaction, signature) == True:
     print "The signature is valid, proceeding to send transaction, signature and the public key"
     s.sendall(transaction+";"+str(signature)+";"+public_key_readable)
+
 else:
     print "Invalid signature"
+
+
+#sync from node
+block_difference = s.recv(1024)
+print "Receiving "+block_difference+" steps to sync"
+i = 1
+while int(i) <= int(block_difference):
+    sync = s.recv(1024)
+    i = i+1
+    #insert received block to db
+    sync_split = sync.split(' ')
+    received_block = sync_split[0]
+    print received_block
+    #insert received block to db
+print "Synchronization finished"
+#sync from node
+    
 #broadcast
 
 s.close()

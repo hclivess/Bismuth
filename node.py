@@ -3,6 +3,7 @@ import sys
 import re
 import ast
 import sqlite3
+import time
 
 from Crypto.Hash import SHA256
 from Crypto.PublicKey import RSA
@@ -97,7 +98,7 @@ while True:
                 print "Client is at block:"+(sync)
 
                 #latest local block
-                sync = 5 #pretend desync for TEST PURPOSES, client block no. x
+                sync = 1 #pretend desync for TEST PURPOSES, client block no. x
                 
                 try:
                     conn = sqlite3.connect('thincoin.db')
@@ -111,8 +112,12 @@ while True:
                         block_difference = abs(int(sync) - int(block_latest))
                         print "Sending "+str(block_difference)+" blocks"
                         #calcualte sync data
+                        connection.sendall(str(block_difference)) #inform the client how much data he will receive
+                        
                         for row in c.execute("SELECT * FROM transactions ORDER BY block_height ASC LIMIT '"+str(sync)+"','"+str(block_difference)+"';"):
-                            print row
+                            time.sleep(0.1)
+                            connection.sendall(str(row)) #send data
+                        print "All new transactions sent to client"
                         
                     else:
                         print "Client is up to date"
@@ -166,15 +171,15 @@ while True:
                             print "Verifying balance"
                             print address
                             c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '"+address+"'")
-                            inputs = c.fetchone()[0]
+                            credit = c.fetchone()[0]
 
                             c.execute("SELECT sum(amount) FROM transactions WHERE address = '"+address+"'")
-                            outputs = c.fetchone()[0]
-                            if outputs == None:
-                                outputs = 0
-                            print "Total inputs: "+str(inputs)                                
-                            print "Total outputs: "+str(outputs)
-                            balance = int(inputs) - int(outputs)
+                            debit = c.fetchone()[0]
+                            if debit == None:
+                                debit = 0
+                            print "Total credit: "+str(credit)                                
+                            print "Total debit: "+str(debit)
+                            balance = int(credit) - int(debit)
                             print "Your balance: "+str(balance) 
 
                             if  int(balance) - int(amount) < 0:
