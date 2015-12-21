@@ -56,7 +56,7 @@ sock.listen(1)
 
 #verify blockchain
 con = None
-conn = sqlite3.connect('thincoin.db')
+conn = sqlite3.connect('ledger.db')
 c = conn.cursor()
 #c.execute("CREATE TABLE IF NOT EXISTS transactions (block_height, address, to_address, amount, signature, public_key)")
 c.execute("SELECT Count(*) FROM transactions")
@@ -134,7 +134,7 @@ while True:
                 #sync = 1 #pretend desync for TEST PURPOSES, client block no. x
                 
                 try:
-                    conn = sqlite3.connect('thincoin.db')
+                    conn = sqlite3.connect('ledger.db')
                     c = conn.cursor()
                     c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
                     block_latest = c.fetchone()[0]
@@ -190,7 +190,7 @@ while True:
                     #transaction processing
                     con = None
                     try:
-                        conn = sqlite3.connect('thincoin.db')
+                        conn = sqlite3.connect('ledger.db')
                         c = conn.cursor()
                         #verify block
                         c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
