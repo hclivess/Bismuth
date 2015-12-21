@@ -4,17 +4,32 @@ import re
 import ast
 import sqlite3
 import time
-
+import requests
 from Crypto.Hash import SHA256
 from Crypto.PublicKey import RSA
 from Crypto import Random
 
-
+#connectivity to self node
+port = int(2829)
+r = requests.get(r'http://jsonip.com')
+ip= r.json()['ip']
+print 'Your IP is', ip
+#ip = "127.0.0.1" #enable for test
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.settimeout(1)
+result = sock.connect_ex((ip,port))
+if result == 0:
+    print "Port is open"   
+    #todo:save self as node to peerlist
+else:
+   print "Port is not open"
+#connectivity to self node
+   
 # Create a TCP/IP socket
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 # Bind the socket to the port
-server_address = ('localhost', 2829)
+server_address = ('localhost', port)
 print 'starting up on %s port %s' % server_address
 sock.bind(server_address)
 
