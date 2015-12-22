@@ -164,6 +164,7 @@ for tuple in peer_tuples:
             received_signature_tuple = ast.literal_eval(received_signature) #converting to tuple
             if received_public_key.verify(received_transaction, received_signature_tuple) == True:
                 print "Received step "+str(received_block_height)+" is valid"
+                #todo:WE SHOULD CHECK IF THE GUY HAS CREDIT HERE
                 #verify
                 #save step to db
                 
