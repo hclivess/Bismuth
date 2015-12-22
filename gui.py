@@ -42,9 +42,9 @@ def generate():
 def send():
     print "Received tx command"
     to_address_input = to_address_gui.get()
-    print to_address_input
+    #print to_address_input
     amount_input = amount_gui.get()
-    print amount_input
+    #print amount_input
 
     # import keys
     key_file = open('keys.pem','r')
@@ -133,8 +133,8 @@ def send():
                 if conn:
                     conn.close()       
 
-            to_address = "dummy2"
-            amount = 3
+            to_address = to_address_input #import from gui
+            amount = amount_input #import from gui
 
             transaction = str(block_height_new) +":"+ str(address) +":"+ str(to_address) +":"+ str(amount)
             signature = key.sign(transaction, '')
@@ -237,4 +237,5 @@ quit_b = Button(window, text="Quit", command=app_quit, height=1, width=15)
 quit_b.grid(row=3, column=3, sticky=W, pady=4)
 #buttons
 
-mainloop()
+#window.after(2000, task)
+window.mainloop()
