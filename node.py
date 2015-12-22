@@ -21,7 +21,6 @@ result = sock.connect_ex((ip,port))
 #result = 0 #enable for test
 if result == 0:
     print "Port is open"   
-    #todo:save self as node to peerlist
 #get local peers into tuples
     peer_file = open("peers.txt", 'r')
     peer_tuples = []
@@ -118,7 +117,7 @@ while True:
             #hello message
             print 'Received: '+ hello
             
-            if hello:
+            if hello == 'Hello, server':
                 with open ("peers.txt", "r") as peer_list:
                     peers=peer_list.read()
                     print peers
