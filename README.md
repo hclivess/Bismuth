@@ -27,13 +27,22 @@ server.py - active listener, which waits for messages (transactions) from client
 
 Communication structure:
 Node startup: Add self to peers if port is publicly accessible
+
 Client -> Node: Hello, please send peers
+
 Node -> Client: Here you go, my whole peerlist
+
 Client -> Node: My latest block is xx, what is yours?
+
 Node -> Client: My latest block is xx+n, sending the missing blocks
+
+
 Client -> Node: Thanks, I'll need to verify that (verifies, saves)
+
 Client -> Node: I want to send this amount of tokens to that address, this is my signature
+
 Node -> Client: I'll need to verify your transaction signature before adding this to the blockchain (verifies, saves)
+
 Client goes to the next node and repeats
 
 
