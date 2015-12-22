@@ -1,14 +1,15 @@
 from Tkinter import *
 
-def callback():
-    print "clicked!"
+def send():
+    print "Received tx command"
 
-def callback2():
-    print "clicked too!"
+def node():
+    print "Received node start command"
 
-b = Button(text="click me", command=callback)
-b2 = Button(text="click me too", command=callback2)
+b = Button(text="Send transaction", command=send)
 b.pack()
+
+b2 = Button(text="Start node", command=node)
 b2.pack()
 
 mainloop()
