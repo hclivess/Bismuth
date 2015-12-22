@@ -1,3 +1,5 @@
+#todo: all txs must be float
+
 import socket
 import sys
 import re
@@ -9,14 +11,15 @@ from Crypto.Hash import SHA256
 from Crypto.PublicKey import RSA
 from Crypto import Random
 
-#connectivity to self node
 port = int(2829)
+"""
+#connectivity to self node
 
 r = requests.get(r'http://jsonip.com')
 ip= r.json()['ip']
 print 'Your IP is', ip
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-sock.settimeout(1)
+#sock.settimeout(5)
 result = sock.connect_ex((ip,port))
 #result = 0 #enable for test
 if result == 0:
@@ -41,6 +44,7 @@ if result == 0:
 else:
    print "Port is not open"
 #connectivity to self node
+"""
    
 # Create a TCP/IP socket
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -130,7 +134,7 @@ while True:
                 print "Received: Client is at block: "+(sync)
 
                 #latest local block
-                #sync = 1 #pretend desync for TEST PURPOSES, client block no. x
+                sync = 1 #pretend desync for TEST PURPOSES, client block no. x
                 
                 try:
                     conn = sqlite3.connect('ledger.db')
