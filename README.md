@@ -46,3 +46,4 @@ Node -> Client: I'll need to verify your transaction signature before adding thi
 Client goes to the next node and repeats
 
 
+todo: check balance before adding to database on every occasion
