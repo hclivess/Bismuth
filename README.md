@@ -44,6 +44,3 @@ Client -> Node: I want to send this amount of tokens to that address, this is my
 Node -> Client: I'll need to verify your transaction signature before adding this to the blockchain (verifies, saves)
 
 Client goes to the next node and repeats
-
-
-todo: check balance before adding to database on every occasion
