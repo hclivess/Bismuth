@@ -74,7 +74,7 @@ def send():
 
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(1)
+            s.settimeout(3)
             s.connect((HOST, PORT))
             print "Connected to "+str(HOST)+" "+str(PORT)
             #network client program
