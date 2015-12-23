@@ -192,6 +192,7 @@ for tuple in peer_tuples:
             if conn:
                 conn.close()       
 
+        #send tx
         to_address = str(raw_input ("Send to address: "))
         amount = str(raw_input ("How much to send: "))
 
@@ -205,7 +206,7 @@ for tuple in peer_tuples:
 
         else:
             print "Invalid signature"
-
+        #send tx
 
    
             

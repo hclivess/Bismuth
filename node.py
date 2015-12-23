@@ -13,12 +13,14 @@ port = int(2829)
 #"""
 #connectivity to self node
 
+    
 r = requests.get(r'http://jsonip.com')
 ip= r.json()['ip']
 print 'Your IP is', ip
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-sock.settimeout(1)
-result = sock.connect_ex((ip,port))
+sock_self = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock_self.settimeout(1)
+result = sock_self.connect_ex((ip,port))
+sock_self.close()
 #result = 0 #enable for test
 if result == 0:
     print "Port is open"   
@@ -53,6 +55,7 @@ print 'starting up on %s port %s' % server_address
 sock.bind(server_address)
 
 # Listen for incoming connections
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 sock.listen(1)
 
 #verify blockchain
