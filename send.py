@@ -106,7 +106,7 @@ for tuple in peer_tuples:
         #broadcast
 
         try:
-            conn = sqlite3.connect('test.db')
+            conn = sqlite3.connect('ledger.db')
             c = conn.cursor()
             c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
             block_height = int(c.fetchone()[0])   
@@ -163,7 +163,7 @@ for tuple in peer_tuples:
             if received_public_key.verify(received_transaction, received_signature_tuple) == True:
                 print "Received step "+str(received_block_height)+" is valid"
                 try:                    
-                    conn = sqlite3.connect('test.db')
+                    conn = sqlite3.connect('ledger.db')
                     c = conn.cursor()
                     print "Verifying balance"
                     print received_address
@@ -190,7 +190,7 @@ for tuple in peer_tuples:
                 #verify
                     #save step to db
                     try:
-                        conn = sqlite3.connect('test.db') #use a different db here for TEST PURPOSES
+                        conn = sqlite3.connect('ledger.db') #use a different db here for TEST PURPOSES
                         c = conn.cursor()
                         c.execute("INSERT INTO transactions VALUES ('"+str(received_block_height)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_to_address)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"')") # Insert a row of data
                         print "Ledger updated with a received transaction"
