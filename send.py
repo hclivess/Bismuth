@@ -112,9 +112,78 @@ for tuple in peer_tuples:
             block_height = int(c.fetchone()[0])   
             block_height_new = block_height+1
 
+            #sync from node
             #request block update
             s.sendall (str(block_height))
             #request block update
+                
+            block_difference = s.recv(1024)
+            i = 1
+            if str(block_difference) != "No new blocks here":
+                print "Receiving "+block_difference+" steps to sync"
+                
+            
+                
+                while int(i) <= int(block_difference):
+                    sync = s.recv(1024)
+                    i = i+1
+                    #verify
+                    sync_list = ast.literal_eval(sync) #this is great, need to add it to client -> node sync
+                    received_block_height = sync_list[0]
+                    received_address = sync_list[1]
+                    received_to_address = sync_list[2]
+                    received_amount = sync_list [3]
+                    received_signature = sync_list[4]
+                    received_public_key_readable = sync_list[5]
+                    received_public_key = RSA.importKey(sync_list[5])
+                    received_transaction = str(received_block_height) +":"+ str(received_address) +":"+ str(received_to_address) +":"+ str(received_amount) #todo: why not have bare list instead of converting?
+                    received_signature_tuple = ast.literal_eval(received_signature) #converting to tuple
+                    if received_public_key.verify(received_transaction, received_signature_tuple) == True:
+                        print "Received step "+str(received_block_height)+" is valid"
+                        try:                    
+                            conn = sqlite3.connect('ledger.db')
+                            c = conn.cursor()
+                            print "Verifying balance"
+                            print received_address
+                            c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '"+received_address+"'")
+                            credit = c.fetchone()[0]
+                            c.execute("SELECT sum(amount) FROM transactions WHERE address = '"+received_address+"'")
+                            debit = c.fetchone()[0]
+                            if debit == None:
+                                debit = 0
+                            print "Total credit: "+str(credit)                                
+                            print "Total debit: "+str(debit)
+                            balance = int(credit) - int(debit)
+                            print "Transction address balance: "+str(balance)
+                        except sqlite3.Error, e:                      
+                            print "Error %s:" % e.args[0]
+                            sys.exit(1)                        
+                        finally:                        
+                            if conn:
+                                conn.close()                       
+
+                        if  int(balance) - int(amount) < 0:
+                            print "Their balance is too low for this transaction"
+                        else:
+                        #verify
+                            #save step to db
+                            try:
+                                conn = sqlite3.connect('ledger.db') #use a different db here for TEST PURPOSES
+                                c = conn.cursor()
+                                c.execute("INSERT INTO transactions VALUES ('"+str(received_block_height)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_to_address)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"')") # Insert a row of data
+                                print "Ledger updated with a received transaction"
+                                conn.commit() # Save (commit) the changes
+                                
+                            except sqlite3.Error, e:                        
+                                print "Error %s:" % e.args[0]
+                                sys.exit(1)                        
+                            finally:                        
+                                if conn:
+                                    conn.close()
+                            #save step to db
+                        print "Ledger synchronization finished"
+                    
+                #sync from node
             
         except sqlite3.Error, e:                        
             print "Error %s:" % e.args[0]
@@ -123,8 +192,8 @@ for tuple in peer_tuples:
             if conn:
                 conn.close()       
 
-        to_address = raw_input ("Send to address: ")
-        amount = raw_input ("How much to send: ")
+        to_address = str(raw_input ("Send to address: "))
+        amount = str(raw_input ("How much to send: "))
 
         transaction = str(block_height_new) +":"+ str(address) +":"+ str(to_address) +":"+ str(amount)
         signature = key.sign(transaction, '')
@@ -138,74 +207,7 @@ for tuple in peer_tuples:
             print "Invalid signature"
 
 
-        #sync from node
-        #request block update
-        s.sendall (str(block_height))
-        #request block update
-            
-        block_difference = s.recv(1024)
-        print "Receiving "+block_difference+" steps to sync"
-        i = 1
-        while int(i) <= int(block_difference):
-            sync = s.recv(1024)
-            i = i+1
-            #verify
-            sync_list = ast.literal_eval(sync) #this is great, need to add it to client -> node sync
-            received_block_height = sync_list[0]
-            received_address = sync_list[1]
-            received_to_address = sync_list[2]
-            received_amount = sync_list [3]
-            received_signature = sync_list[4]
-            received_public_key_readable = sync_list[5]
-            received_public_key = RSA.importKey(sync_list[5])
-            received_transaction = str(received_block_height) +":"+ str(received_address) +":"+ str(received_to_address) +":"+ str(received_amount) #todo: why not have bare list instead of converting?
-            received_signature_tuple = ast.literal_eval(received_signature) #converting to tuple
-            if received_public_key.verify(received_transaction, received_signature_tuple) == True:
-                print "Received step "+str(received_block_height)+" is valid"
-                try:                    
-                    conn = sqlite3.connect('ledger.db')
-                    c = conn.cursor()
-                    print "Verifying balance"
-                    print received_address
-                    c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '"+received_address+"'")
-                    credit = c.fetchone()[0]
-                    c.execute("SELECT sum(amount) FROM transactions WHERE address = '"+received_address+"'")
-                    debit = c.fetchone()[0]
-                    if debit == None:
-                        debit = 0
-                    print "Total credit: "+str(credit)                                
-                    print "Total debit: "+str(debit)
-                    balance = int(credit) - int(debit)
-                    print "Transction address balance: "+str(balance)
-                except sqlite3.Error, e:                      
-                    print "Error %s:" % e.args[0]
-                    sys.exit(1)                        
-                finally:                        
-                    if conn:
-                        conn.close()                       
-
-                if  int(balance) - int(amount) < 0:
-                    print "Their balance is too low for this transaction"
-                else:
-                #verify
-                    #save step to db
-                    try:
-                        conn = sqlite3.connect('ledger.db') #use a different db here for TEST PURPOSES
-                        c = conn.cursor()
-                        c.execute("INSERT INTO transactions VALUES ('"+str(received_block_height)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_to_address)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"')") # Insert a row of data
-                        print "Ledger updated with a received transaction"
-                        conn.commit() # Save (commit) the changes
-                        
-                    except sqlite3.Error, e:                        
-                        print "Error %s:" % e.args[0]
-                        sys.exit(1)                        
-                    finally:                        
-                        if conn:
-                            conn.close()
-                    #save step to db
-                print "Ledger synchronization finished"
-            
-        #sync from node
+   
             
         #broadcast
         s.close()

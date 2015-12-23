@@ -1,5 +1,3 @@
-#todo: all txs must be float
-
 import socket
 import sys
 import re
@@ -108,9 +106,10 @@ finally:
 while True:
     # Wait for a connection
     print 'waiting for a connection'
-    connection, client_address = sock.accept()
+    
     
     try:
+        connection, client_address = sock.accept()
         print 'connection from', client_address
 ### LOCAL CHECKS FINISHED ###
         
@@ -157,6 +156,7 @@ while True:
                         
                     else:
                         print "Client is up to date"
+                        connection.sendall("No new blocks here")
                 except sqlite3.Error, e:
                     print "Error %s:" % e.args[0]
                     sys.exit(1)                        
@@ -177,7 +177,7 @@ while True:
                     block_height = int(received_transaction_split[0])
                     address = received_transaction_split[1]
                     to_address = received_transaction_split[2]
-                    amount = float(received_transaction_split[3])
+                    amount = int(received_transaction_split[3])
                 except Exception as e:
                     print "Something wrong with the transaction ("+str(e)+")"
                     break
@@ -228,7 +228,8 @@ while True:
                                 print "Processing transaction"
                             #verify balance and blockchain                            
                                 #execute transaction
-                                c.execute("INSERT INTO transactions VALUES ('"+block_height+"','"+address+"','"+to_address+"','"+amount+"','"+received_signature+"','"+received_public_key_readable+"')") # Insert a row of data                    
+                                
+                                c.execute("INSERT INTO transactions VALUES ('"+str(block_height)+"','"+str(address)+"','"+str(to_address)+"','"+str(amount)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"')") # Insert a row of data                    
                                 #execute transaction                                
                             conn.commit() # Save (commit) the changes
                             #todo: broadcast
@@ -238,7 +239,9 @@ while True:
                         sys.exit(1)                        
                     finally:                        
                         if conn:
-                            conn.close()    
+                            conn.close()
+                            print "Database closed"
+                            
                     #transaction processing
                 else:
                     print "Signature invalid"
@@ -249,4 +252,5 @@ while True:
             
     finally:
         # Clean up the connection
-        connection.close()
+        if connection:
+            connection.close()
