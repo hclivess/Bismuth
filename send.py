@@ -124,7 +124,7 @@ for tuple in peer_tuples:
                 conn.close()       
 
         to_address = "dummy2"
-        amount = 3
+        amount = 5
 
         transaction = str(block_height_new) +":"+ str(address) +":"+ str(to_address) +":"+ str(amount)
         signature = key.sign(transaction, '')
@@ -140,7 +140,7 @@ for tuple in peer_tuples:
 
         #sync from node
         #request block update
-        #s.sendall (str(block_height))
+        s.sendall (str(block_height))
         #request block update
             
         block_difference = s.recv(1024)

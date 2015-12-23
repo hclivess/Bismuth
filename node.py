@@ -12,14 +12,14 @@ from Crypto.PublicKey import RSA
 from Crypto import Random
 
 port = int(2829)
-"""
+#"""
 #connectivity to self node
 
 r = requests.get(r'http://jsonip.com')
 ip= r.json()['ip']
 print 'Your IP is', ip
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-#sock.settimeout(5)
+sock.settimeout(1)
 result = sock.connect_ex((ip,port))
 #result = 0 #enable for test
 if result == 0:
@@ -44,7 +44,7 @@ if result == 0:
 else:
    print "Port is not open"
 #connectivity to self node
-"""
+#"""
    
 # Create a TCP/IP socket
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -134,7 +134,7 @@ while True:
                 print "Received: Client is at block: "+(sync)
 
                 #latest local block
-                sync = 1 #pretend desync for TEST PURPOSES, client block no. x
+                #sync = 1 #pretend desync for TEST PURPOSES, client block no. x
                 
                 try:
                     conn = sqlite3.connect('ledger.db')
@@ -172,11 +172,15 @@ while True:
                 received_transaction = data_split[0]
                 print "Received transaction: "+received_transaction
                 #split message into values
-                received_transaction_split = received_transaction.split(":")
-                block_height = received_transaction_split[0]
-                address = received_transaction_split[1]
-                to_address = received_transaction_split[2]
-                amount =received_transaction_split[3]
+                try:
+                    received_transaction_split = received_transaction.split(":")
+                    block_height = int(received_transaction_split[0])
+                    address = received_transaction_split[1]
+                    to_address = received_transaction_split[2]
+                    amount = float(received_transaction_split[3])
+                except Exception as e:
+                    print "Something wrong with the transaction ("+str(e)+")"
+                    break
                 #split message into values
                 received_signature = data_split[1] #needs to be converted
                 received_signature_tuple = ast.literal_eval(received_signature) #converting to tuple
