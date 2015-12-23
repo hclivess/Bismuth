@@ -123,8 +123,8 @@ for tuple in peer_tuples:
             if conn:
                 conn.close()       
 
-        to_address = "dummy2"
-        amount = 5
+        to_address = raw_input "Send to address: "
+        amount = raw_input "How much to send: "
 
         transaction = str(block_height_new) +":"+ str(address) +":"+ str(to_address) +":"+ str(amount)
         signature = key.sign(transaction, '')
