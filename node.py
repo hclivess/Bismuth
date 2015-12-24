@@ -1,3 +1,5 @@
+#todo : node needs to broadcast to other nodes so there is no fork in case of malicious send client
+
 import socket
 import sys
 import re
