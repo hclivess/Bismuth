@@ -1,0 +1,4 @@
+blockheight	from	to 	amount	txhash
+genesis	x	y	10	hash=hash(tx)
+1	y	g	10	hash2=hash(tx+hash)
+2	x	g	10	hash3=hash(tx+hash2)
