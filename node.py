@@ -87,7 +87,7 @@ try:
         db_signature = row[4]
         db_public_key = RSA.importKey(row[5])
         db_txhash = row[6]
-        db_transaction = str(db_block_height) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount) #+":"+ str(db_txhash)
+        db_transaction = str(db_block_height) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount) 
 
         #print db_transaction
 
