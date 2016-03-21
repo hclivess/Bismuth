@@ -112,6 +112,11 @@ for tuple in peer_tuples:
             block_height = int(c.fetchone()[0])   
             block_height_new = block_height+1
 
+            c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
+            txhash = c.fetchone()[0]
+            print txhash
+            #DEFINE NEW TXHASH HERE?
+
             #sync from node
             #request block update
             s.sendall (str(block_height))
@@ -136,6 +141,7 @@ for tuple in peer_tuples:
                     received_signature = sync_list[4]
                     received_public_key_readable = sync_list[5]
                     received_public_key = RSA.importKey(sync_list[5])
+                    received_txhash = sync_list[6]
                     received_transaction = str(received_block_height) +":"+ str(received_address) +":"+ str(received_to_address) +":"+ str(received_amount) #todo: why not have bare list instead of converting?
                     received_signature_tuple = ast.literal_eval(received_signature) #converting to tuple
                     if received_public_key.verify(received_transaction, received_signature_tuple) == True:
@@ -199,10 +205,11 @@ for tuple in peer_tuples:
         transaction = str(block_height_new) +":"+ str(address) +":"+ str(to_address) +":"+ str(amount)
         signature = key.sign(transaction, '')
         print "Signature: "+str(signature)
+        txhash_new = 1
 
         if public_key.verify(transaction, signature) == True:
             print "The signature is valid, proceeding to send transaction, signature and the public key"
-            s.sendall(transaction+";"+str(signature)+";"+public_key_readable)
+            s.sendall(transaction+";"+str(signature)+";"+public_key_readable+";"+str(txhash_new))
 
         else:
             print "Invalid signature"

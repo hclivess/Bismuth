@@ -86,7 +86,8 @@ try:
         db_amount = row [3]
         db_signature = row[4]
         db_public_key = RSA.importKey(row[5])
-        db_transaction = str(db_block_height) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount)
+        db_txhash = row[6]
+        db_transaction = str(db_block_height) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount) +":"+ str(db_txhash)
 
         #print db_transaction
 
@@ -192,6 +193,7 @@ while True:
                 print "Received signature: "+received_signature
                 received_public_key_readable = data_split[2]
                 print "Received public key: "+received_public_key_readable
+                received_txhash = data_split[3]
 
                 #convert received strings
                 received_public_key = RSA.importKey(received_public_key_readable)
@@ -234,7 +236,7 @@ while True:
                             #verify balance and blockchain                            
                                 #execute transaction
                                 
-                                c.execute("INSERT INTO transactions VALUES ('"+str(block_height)+"','"+str(address)+"','"+str(to_address)+"','"+str(amount)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"')") # Insert a row of data                    
+                                c.execute("INSERT INTO transactions VALUES ('"+str(block_height)+"','"+str(address)+"','"+str(to_address)+"','"+str(amount)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data                    
                                 #execute transaction                                
                             conn.commit() # Save (commit) the changes
                             #todo: broadcast
