@@ -144,12 +144,17 @@ for tuple in peer_tuples:
 
                      ######wip / compare db and received txhash(db+1) TODO
 
-                            
+                    conn = sqlite3.connect('ledger.db')
+                    c = conn.cursor()
                     c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
                     txhash = c.fetchone()[0]
+                    conn.close()
+                    
                     print "Last db txhash: "+str(txhash)
                     print "Received txhash: "+str(received_txhash)
 
+                    conn = sqlite3.connect('ledger.db')
+                    c = conn.cursor()
                     for row in c.execute('SELECT * FROM transactions ORDER BY block_height'):
                         db_block_height = row[0]
                         db_address = row[1]
@@ -159,6 +164,7 @@ for tuple in peer_tuples:
                         #db_public_key = RSA.importKey(row[5])
                         db_txhash = row[6]                        
                         db_transaction = str(db_block_height) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount)
+                    conn.close()
                         
                     if received_txhash == hashlib.sha224(db_transaction+txhash).hexdigest():
                         print "txhash valid"
@@ -192,7 +198,7 @@ for tuple in peer_tuples:
                             print "Transction address balance: "+str(balance)
                         except sqlite3.Error, e:                      
                             print "Error %s:" % e.args[0]
-                            sys.exit(1)                        
+                            raise                        
                         finally:                        
                             if conn:
                                 conn.close()
@@ -214,7 +220,7 @@ for tuple in peer_tuples:
                                 
                             except sqlite3.Error, e:                        
                                 print "Error %s:" % e.args[0]
-                                sys.exit(1)                        
+                                raise                        
                             finally:                        
                                 if conn:
                                     conn.close()
@@ -225,7 +231,8 @@ for tuple in peer_tuples:
             
         except sqlite3.Error, e:                        
             print "Error %s:" % e.args[0]
-            sys.exit(1)                        
+            raise
+            
         finally:                        
             if conn:
                 conn.close()       
@@ -247,6 +254,7 @@ for tuple in peer_tuples:
             print "New txhash to go with your transaction: "+txhash_new
             conn.close()
             ###todo2
+            
             print "The signature and control txhash is valid, proceeding to send transaction, signature, new txhash and the public key"           
             s.sendall(transaction+";"+str(signature)+";"+public_key_readable+";"+str(txhash_new))
 
