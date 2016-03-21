@@ -115,7 +115,6 @@ for tuple in peer_tuples:
             c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
             txhash = c.fetchone()[0]
             print "Last txhash: "+str(txhash)
-            txhash_new = hashlib.sha224(txhash).hexdigest()
 
             #sync from node
             #request block update
@@ -205,6 +204,7 @@ for tuple in peer_tuples:
         transaction = str(block_height_new) +":"+ str(address) +":"+ str(to_address) +":"+ str(amount)
         signature = key.sign(transaction, '')
         print "Signature: "+str(signature)
+        txhash_new = hashlib.sha224(transaction+txhash).hexdigest() #define new tx hash based on previous
 
         if public_key.verify(transaction, signature) == True:
             print "The signature is valid, proceeding to send transaction, signature and the public key"
