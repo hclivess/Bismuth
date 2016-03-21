@@ -109,16 +109,12 @@ for tuple in peer_tuples:
         to_address = str(raw_input ("Send to address: "))
         amount = str(raw_input ("How much to send: "))
                 
-        try:
+        try: #start constructing new tx
             conn = sqlite3.connect('ledger.db')
             c = conn.cursor()
             c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
             block_height = int(c.fetchone()[0])           
             block_height_new = block_height+1
-
-            c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
-            txhash = c.fetchone()[0]
-            print "Last txhash: "+str(txhash)
 
             #sync from node
             #request block update
@@ -130,7 +126,7 @@ for tuple in peer_tuples:
             if str(block_difference) != "No new blocks here":
                 print "Receiving "+block_difference+" steps to sync"
                                 
-                while int(i) <= int(block_difference):
+                while int(i) <= int(block_difference): #while blocks are not synced
                     sync = s.recv(1024)
                     i = i+1
                     #verify
@@ -146,9 +142,35 @@ for tuple in peer_tuples:
                     received_transaction = str(received_block_height) +":"+ str(received_address) +":"+ str(received_to_address) +":"+ str(received_amount) #todo: why not have bare list instead of converting?
                     received_signature_tuple = ast.literal_eval(received_signature) #converting to tuple
 
-                    if received_txhash ==  hashlib.sha224(txhash).hexdigest():
+                     ######wip / compare db and received txhash(db+1) TODO
+
+                            
+                    c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
+                    txhash = c.fetchone()[0]
+                    print "Last db txhash: "+str(txhash)
+                    print "Received txhash: "+str(received_txhash)
+
+                    for row in c.execute('SELECT * FROM transactions ORDER BY block_height'):
+                        db_block_height = row[0]
+                        db_address = row[1]
+                        db_to_address = row[2]
+                        db_amount = row [3]
+                        #db_signature = row[4]
+                        #db_public_key = RSA.importKey(row[5])
+                        db_txhash = row[6]                        
+                        db_transaction = str(db_block_height) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount)
+                        
+                    if received_txhash == hashlib.sha224(db_transaction+txhash).hexdigest():
                         print "txhash valid"
+                        txhash_new = hashlib.sha224(received_transaction+received_txhash).hexdigest() #define new tx hash based on previous
+                    else:
+                        print "txhash invalid"
+                   
+                        ######wip TODO
                     
+
+
+                        
                     if received_public_key.verify(received_transaction, received_signature_tuple) == True:
                         print "Received step "+str(received_block_height)+" is valid"
                         try:                    
@@ -180,10 +202,11 @@ for tuple in peer_tuples:
         
                         
                         else:
-                        #verify
+                            #verify
+                                
                             #save step to db
                             try:
-                                conn = sqlite3.connect('ledger.db') #use a different db here for TEST PURPOSES
+                                conn = sqlite3.connect('ledger.db') 
                                 c = conn.cursor()
                                 c.execute("INSERT INTO transactions VALUES ('"+str(received_block_height)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_amount)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data
                                 print "Ledger updated with a received transaction"
@@ -207,17 +230,27 @@ for tuple in peer_tuples:
             if conn:
                 conn.close()       
 
-
-
         transaction = str(block_height_new) +":"+ str(address) +":"+ str(to_address) +":"+ str(amount)
         signature = key.sign(transaction, '')
         print "Signature: "+str(signature)
-        txhash_new = hashlib.sha224(transaction+txhash).hexdigest() #define new tx hash based on previous
+
+    
 
         if public_key.verify(transaction, signature) == True:
-            print "The signature is valid, proceeding to send transaction, signature and the public key"
+
+            ###todo2 (we still need to verify with node, or is reject enough?)
+            conn = sqlite3.connect('ledger.db')
+            c = conn.cursor()
+            c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
+            txhash = str(c.fetchone()[0])
+            txhash_new = hashlib.sha224(transaction+txhash).hexdigest() #define new tx hash based on previous
+            print "New txhash to go with your transaction: "+txhash_new
+            conn.close()
+            ###todo2
+            print "The signature and control txhash is valid, proceeding to send transaction, signature, new txhash and the public key"           
             s.sendall(transaction+";"+str(signature)+";"+public_key_readable+";"+str(txhash_new))
 
+            
         else:
             print "Invalid signature"
         #send tx
@@ -233,5 +266,5 @@ for tuple in peer_tuples:
     except Exception as e:
         print e
         print "Cannot connect to "+str(HOST)+" "+str(PORT)
-        pass
+        raise
 
