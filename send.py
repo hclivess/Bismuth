@@ -109,7 +109,8 @@ for tuple in peer_tuples:
             conn = sqlite3.connect('ledger.db')
             c = conn.cursor()
             c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
-            block_height = int(c.fetchone()[0])   
+            block_height = int(c.fetchone()[0])
+            #block_height = 1 #test
             block_height_new = block_height+1
 
             c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
@@ -143,6 +144,10 @@ for tuple in peer_tuples:
                     received_txhash = sync_list[6]
                     received_transaction = str(received_block_height) +":"+ str(received_address) +":"+ str(received_to_address) +":"+ str(received_amount) #todo: why not have bare list instead of converting?
                     received_signature_tuple = ast.literal_eval(received_signature) #converting to tuple
+
+                    if received_txhash ==  hashlib.sha224(txhash).hexdigest():
+                        print "txhash valid"
+                    
                     if received_public_key.verify(received_transaction, received_signature_tuple) == True:
                         print "Received step "+str(received_block_height)+" is valid"
                         try:                    
@@ -169,13 +174,15 @@ for tuple in peer_tuples:
 
                         if  int(balance) - int(amount) < 0:
                             print "Their balance is too low for this transaction"
+        
+                        
                         else:
                         #verify
                             #save step to db
                             try:
                                 conn = sqlite3.connect('ledger.db') #use a different db here for TEST PURPOSES
                                 c = conn.cursor()
-                                c.execute("INSERT INTO transactions VALUES ('"+str(received_block_height)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_to_address)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"')") # Insert a row of data
+                                c.execute("INSERT INTO transactions VALUES ('"+str(received_block_height)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_to_address)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data
                                 print "Ledger updated with a received transaction"
                                 conn.commit() # Save (commit) the changes
                                 
