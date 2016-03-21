@@ -20,7 +20,7 @@ r = requests.get(r'http://jsonip.com')
 ip= r.json()['ip']
 print 'Your IP is', ip
 sock_self = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-sock_self.settimeout(1)
+sock_self.settimeout(3)
 result = sock_self.connect_ex((ip,port))
 sock_self.close()
 #result = 0 #enable for test
@@ -224,6 +224,8 @@ while True:
                             debit = c.fetchone()[0]
                             if debit == None:
                                 debit = 0
+                            if credit == None:
+                                credit = 0                                
                             print "Total credit: "+str(credit)                                
                             print "Total debit: "+str(debit)
                             balance = int(credit) - int(debit)
