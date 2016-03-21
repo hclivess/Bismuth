@@ -51,6 +51,8 @@ print "Your public key:\n "+ str(public_key_readable)
 transaction = "1:genesis:"+address+":100000000"
 signature = key.sign(transaction, '')
 print "Signature: "+str(signature)
+txhash = hashlib.sha224(str(transaction) + str(signature) + str(public_key_readable)).hexdigest()
+print "Transaction Hash:" + txhash
 
 if os.path.isfile("ledger.db") is True:
     print "You are beyond genesis"
@@ -60,8 +62,8 @@ else:
     try:
         conn = sqlite3.connect('ledger.db')
         c = conn.cursor()
-        c.execute("CREATE TABLE transactions (block_height INTEGER, address, to_address, amount, signature, public_key)")
-        c.execute("INSERT INTO transactions VALUES ('1','genesis','"+address+"','100000000','"+str(signature)+"','"+public_key_readable+"')") # Insert a row of data                    
+        c.execute("CREATE TABLE transactions (block_height INTEGER, address, to_address, amount, signature, public_key, txhash)")
+        c.execute("INSERT INTO transactions VALUES ('1','genesis','"+address+"','100000000','"+str(signature)+"','"+public_key_readable+"','"+txhash+"')") # Insert a row of data                    
                
         conn.commit() # Save (commit) the changes
         #todo: broadcast
