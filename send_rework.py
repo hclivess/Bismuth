@@ -154,22 +154,8 @@ for tuple in peer_tuples:
                     print "Received txhash: "+str(received_txhash)
                     print "Received transaction: "+str(received_transaction)
 
-                    #load latest local txhash from last local tx
-                    conn = sqlite3.connect('ledger.db')
-                    c = conn.cursor()
-                    for row in c.execute('SELECT * FROM transactions ORDER BY block_height'):
-                        db_block_height = row[0]
-                        db_address = row[1]
-                        db_to_address = row[2]
-                        db_amount = row [3]
-                        db_signature = row[4]
-                        db_public_key = RSA.importKey(row[5])                        
-                        db_txhash = row[6]                        
-                        db_transaction = str(db_block_height) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount)
-                    conn.close()
-                    #load latest local txhash from last local tx
                     
-                    if received_txhash == hashlib.sha224(str(db_transaction) + str(db_signature) +str(txhash)).hexdigest(): #compare local to received, nned to exclude run 1 #fix asap
+                    if received_txhash == hashlib.sha224(str(received_transaction) + str(received_signature) +str(txhash)).hexdigest(): #new hash = new tx + new sig + old txhash
                         print "txhash valid"
                     else:
                         print "txhash invalid"
