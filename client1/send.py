@@ -118,6 +118,7 @@ for tuple in peer_tuples:
 
             #sync from node
             #request block update
+            s.sendall("Block height")
             s.sendall (str(block_height))
             #request block update
                 
@@ -248,7 +249,8 @@ for tuple in peer_tuples:
                     conn.close()                
             ###todo2
             
-            print "The signature and control txhash is valid, proceeding to send transaction, signature, new txhash and the public key"           
+            print "The signature and control txhash is valid, proceeding to send transaction, signature, new txhash and the public key"
+            s.sendall("Transaction")
             s.sendall(transaction+";"+str(signature)+";"+public_key_readable+";"+str(txhash_new))
 
             

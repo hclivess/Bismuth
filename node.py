@@ -132,10 +132,12 @@ while True:
                     print peers
                     connection.sendall(peers)
             #hello message                    
-            
-            sync = connection.recv(4096)
+
+                
             #send sync data to client
-            if sync:
+            sync = connection.recv(4096)
+            if sync == "Block height":
+                sync = connection.recv(4096)
                 print "Received: Client is at block: "+(sync)
 
                 #latest local block
@@ -171,9 +173,10 @@ while True:
                         conn.close()
                 #latest local block                        
 
-                
-            data = connection.recv(4096)
-            if data:
+            
+            data = connection.recv(4096)             
+            if data == "Transaction":
+                data = connection.recv(4096)
                 data_split = data.split(";")
                 received_transaction = data_split[0]
                 print "Received transaction: "+received_transaction
@@ -257,8 +260,8 @@ while True:
                             #verify balance and blockchain                            
                                 #execute transaction
                                 
-                                c.execute("INSERT INTO transactions VALUES ('"+str(block_height)+"','"+str(address)+"','"+str(to_address)+"','"+str(amount)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data                    
-                                #execute transaction                                
+                            c.execute("INSERT INTO transactions VALUES ('"+str(block_height)+"','"+str(address)+"','"+str(to_address)+"','"+str(amount)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data                    
+                            #execute transaction                                
                             conn.commit() # Save (commit) the changes
                             #todo: broadcast
                             print "Saved"

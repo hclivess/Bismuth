@@ -1,10 +1,12 @@
 # hopium
 looking for alternatives to blockchain technology
 
-development plan: 
+development plan:
+
 enable longest chain rule though regression/rollbacks to latest known hash (now that txhash is in place)
 enable transaction fees to prevent spam
-nodes should send out transactions to prevent forks and rollbacks
+nodes (not only clients) should send out transactions to prevent forks and rollbacks
+maybe convert node communication to one channel
 
 WARNING: This project is in the Proof of Concept stage!
 
