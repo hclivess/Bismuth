@@ -1,0 +1,4 @@
+the process happens during the ledger synchronization phase
+when the txhash is invalid, the client and node enter a subloop
+client requests i-1 (lower than the latest received) transaction
+and seeks the hash received
