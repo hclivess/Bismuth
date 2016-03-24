@@ -1,5 +1,6 @@
 New rollback proposal, which reworks sync entirely:
 
+
 txhash invalid - 
 node sends latest hash to client
 	if client knows the hash, it sends all following txs to the node
