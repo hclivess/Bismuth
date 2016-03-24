@@ -145,44 +145,39 @@ while True:
                 #latest local block
                 #sync = 1 #pretend desync for TEST PURPOSES, client block no. x
                 
-                try:
-                    conn = sqlite3.connect('ledger.db')
-                    c = conn.cursor()
-                    c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
-                    block_latest = c.fetchone()[0]
-                    print "Latest block in db: "+str(block_latest)
-                    if int(data) < block_latest:
-                        print "Client is not up to date, sending new blocks"
-                        #calculate sync data
-                        block_difference = abs(int(data) - int(block_latest))
-                        print "Sending "+str(block_difference)+" blocks"
-                        #calcualte sync data
-                        connection.sendall(str(block_difference)) #inform the client how much data he will receive
-                        
-                        for row in c.execute("SELECT * FROM transactions ORDER BY block_height ASC LIMIT '"+str(data)+"','"+str(block_difference)+"';"):
-                            time.sleep(0.1)
-                            connection.sendall(str(row)) #send data
-                        print "All new transactions sent to client"
-                        
-                    else:
-                        print "Client is up to date"
-                        connection.sendall("No new blocks here")
-                except sqlite3.Error, e:
-                    print "Error %s:" % e.args[0]
-                    sys.exit(1)                        
-                finally:                        
-                    if conn:
-                        conn.close()
+                conn = sqlite3.connect('ledger.db')
+                c = conn.cursor()
+                c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
+                block_latest = c.fetchone()[0]
+                print "Latest block in db: "+str(block_latest)
+                if int(data) < block_latest:
+                    print "Client is not up to date, sending new blocks"
+                    #calculate sync data
+                    block_difference = abs(int(data) - int(block_latest))
+                    print "Sending "+str(block_difference)+" blocks"
+                    #calcualte sync data
+                    connection.sendall(str(block_difference)) #inform the client how much data he will receive
+                    
+                    for row in c.execute("SELECT * FROM transactions ORDER BY block_height ASC LIMIT '"+str(data)+"','"+str(block_difference)+"';"):
+                        time.sleep(0.1)
+                        connection.sendall(str(row)) #send data
+                    print "All new transactions sent to client"
+                    
+                else:
+                    print "Client is up to date"
+                    connection.sendall("No new blocks here")
+                conn.close()
+                
                 #latest local block
 
             #rollback start
-            rollback_hash = connection.recv(4096) #todo unify by removing this
-            if rollback_hash == "Invalid txhash":
-                rollback_hash = connection.recv(4096) #received client's latest synched hash, find it in the database and send followup txs; if not found, send info and wait for regression
-
+            data = connection.recv(4096) #todo unify by removing this
+            if data == "Invalid txhash":
+                data = connection.recv(4096) #received client's latest synched hash, find it in the database and send followup txs; if not found, send info and wait for regression
+                print "Received txhash related data: "+str(data)
                 conn = sqlite3.connect('ledger.db')
                 c = conn.cursor()
-                c.execute("SELECT block_height FROM transactions WHERE txhash='"+rollback_hash+"';") #todo select a range using limit and offset
+                c.execute("SELECT block_height FROM transactions WHERE txhash='"+data+"';") #todo select a range using limit and offset
                 try:
                     block_height_sync = c.fetchone()[0]
                     print "Client's last block valid in our database is at the following height: "+str(block_height_sync) #now we should send it to the client which should delete all transactions following this block height
@@ -209,7 +204,7 @@ while True:
             #data = connection.recv(4096)             
             if data == "Transaction":
                 data = connection.recv(4096)
-                data_split = sync.split(";")
+                data_split = data.split(";")
                 received_transaction = data_split[0]
                 print "Received transaction: "+received_transaction
                 #split message into values

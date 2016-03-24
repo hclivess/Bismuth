@@ -46,8 +46,8 @@ public_key_readable = str(key.publickey().exportKey())
 address = hashlib.sha224(public_key_readable).hexdigest()
 
 print "Your address: "+ str(address)
-print "Your private key:\n "+ str(private_key_readable)
-print "Your public key:\n "+ str(public_key_readable)
+#print "Your private key:\n "+ str(private_key_readable)
+#print "Your public key:\n "+ str(public_key_readable)
 # import keys
 
 
