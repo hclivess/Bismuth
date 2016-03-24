@@ -112,13 +112,32 @@ for tuple in peer_tuples:
         try:
             conn = sqlite3.connect('ledger.db')
             c = conn.cursor()
-            c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
-            db_txhash = int(c.fetchone()[0]) #get latest txhash
-            conn.close()
 
-            s.sendall "txhash"
-            s.sendall(db_txhash) #send latest txhash
-            
+            i = 0
+            synced = 0
+            while synced != 1:
+                conn = sqlite3.connect('ledger.db')
+                c = conn.cursor()                
+                c.execute('SELECT TOP "'+ str(i) +'" txhash FROM transaction ORDER BY block_height ')
+                db_txhash = int(c.fetchone()[0]) #get latest txhash
+                conn.close()
+                
+                print db_txhash
+                
+
+                s.sendall ("txhash")
+                s.sendall(db_txhash) #send latest txhash
+                
+                data = s.recv(1024) #receive either "Block not found" or start receiving new txs
+                if data == "Block not found":
+                    ...
+                if data == "Block found":
+                    ...
+
+
+
+
+
 
 
 
