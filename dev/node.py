@@ -192,13 +192,17 @@ while True:
                     for row in c.execute('SELECT * FROM transactions ORDER BY block_height WHERE block_height => "'+block_height_sync+'" ')
                         followup_tx = str(row)
                         print followup_tx
-                        #send all followup txs
+                        connection.sendall(followup_tx) #send all followup txs
+
+                        
                     connection.sendall("No more blocks")
 
                 except:
                     print "Client's block not found in local database"
-                    #request a -1 hash from client to seek it in the local database
-                    connection.sendall("Block not found")
+                    
+                    connection.sendall("Block not found") #inform client, who will send -1 hash in return until hash is found
+                    while str(data) != "Sync finished":
+                    
                 
             #rollback end    
 

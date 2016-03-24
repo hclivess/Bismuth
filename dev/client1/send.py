@@ -166,11 +166,19 @@ for tuple in peer_tuples:
                         s.sendall(txhash) #this is my last txhash, please send me a followup; if node informs it was not found, send previous
 
                         data = s.recv(1024) #will receive either the block id from which to followup or "Block not found"
-                        if data == "Block not found":
+
+                        while data == "Block not found":
+                            conn = sqlite3.connect('ledger.db')
+                            c = conn.cursor()
+                            c.execute('SELECT txhash FROM transactions ORDER BY block_height WHERE block_height = "'+ block_height - i +'" ') #select previous hash
+                            txhash = c.fetchone()[0]
+                            conn.close()
+                            s.sendall(txhash) #send previous hash
+
                             #send a -1 block
                         if data == "Block found":
                                 last_block = s.recv(1024)
-                                #delete database entries following this block start TODO SHOULD VERIFY IF NODE IS NOT ROGUE - fees in db?
+                                #delete database entries following this block start
                                 conn = sqlite3.connect('ledger.db')
                                 c = conn.cursor()
                                 c.execute("DELETE * FROM transactions WHERE block_height > '"+last_block+"' ")
@@ -178,11 +186,63 @@ for tuple in peer_tuples:
                                 conn.close()
                                 #delete database entries following this block end                            
                                 while str(data) != "No more blocks":
-                                    #receive blocks, save blocks start
+                                    #receive blocks, verify, save blocks start
+                                    sync = s.recv(1024)
+                                    sync_list = ast.literal_eval(sync)
+                                    received_block_height = sync_list[0]
+                                    received_address = sync_list[1]
+                                    received_to_address = sync_list[2]
+                                    received_amount = sync_list [3]
+                                    received_signature = sync_list[4]
+                                    received_public_key_readable = sync_list[5]
+                                    received_public_key = RSA.importKey(sync_list[5])
+                                    received_txhash = sync_list[6]
+                                    received_transaction = str(received_block_height) +":"+ str(received_address) +":"+ str(received_to_address) +":"+ str(received_amount) #todo: why not have bare list instead of converting?
+                                    received_signature_tuple = ast.literal_eval(received_signature) #converting to tuple
                                     
-                                    #receive blocks, save blocks end
-                                
-                            
+                                    txhash_valid = 0
+                                    if received_txhash == hashlib.sha224(str(received_transaction) + str(received_signature) +str(txhash)).hexdigest(): #new hash = new tx + new sig + old txhash
+                                        print "txhash valid"
+                                        txhash_valid = 1
+
+                                    conn = sqlite3.connect('ledger.db')
+                                    c = conn.cursor()
+                                    print "Verifying balance"
+                                    print "Received address: " +str(received_address)
+                                    c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '"+received_address+"'")
+                                    credit = c.fetchone()[0]
+                                    c.execute("SELECT sum(amount) FROM transactions WHERE address = '"+received_address+"'")
+                                    debit = c.fetchone()[0]
+                                    if debit == None:
+                                        debit = 0
+                                    if credit == None:
+                                        credit = 0                                
+                                    print "Total credit: "+str(credit)                                
+                                    print "Total debit: "+str(debit)
+                                    balance = int(credit) - int(debit)
+                                    print "Transction address balance: "+str(balance)                       
+                                        conn.close()
+                                            
+                                    if  int(balance) - int(amount) < 0:
+                                        print "Their balance is too low for this transaction"
+                                    else:                              
+                                        #save step to db
+                                        conn = sqlite3.connect('ledger.db') 
+                                        c = conn.cursor()
+                                        c.execute("INSERT INTO transactions VALUES ('"+str(received_block_height)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_amount)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data
+                                        print "Ledger updated with a received transaction"
+                                        conn.commit() # Save (commit) the changes
+                                        conn.close()
+                                        #save step to db
+                                    print "Ledger synchronization finished"
+                                s.sendall("Sync finished")
+
+                                        
+                                    else:
+                                        print "txhash invalid"
+                                        #here we should block the node for sending invalid blocks
+                                        
+                                    #receive blocks, verify, save blocks end                            
                         #rollback end
                         
                    
@@ -190,51 +250,35 @@ for tuple in peer_tuples:
                     
                     if received_public_key.verify(received_transaction, received_signature_tuple) == True and txhash_valid == 1:
                         print "Received step "+str(received_block_height)+" is valid"
-                        try:                    
-                            conn = sqlite3.connect('ledger.db')
-                            c = conn.cursor()
-                            print "Verifying balance"
-                            print "Received address: " +str(received_address)
-                            c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '"+received_address+"'")
-                            credit = c.fetchone()[0]
-                            c.execute("SELECT sum(amount) FROM transactions WHERE address = '"+received_address+"'")
-                            debit = c.fetchone()[0]
-                            if debit == None:
-                                debit = 0
-                            if credit == None:
-                                credit = 0                                
-                            print "Total credit: "+str(credit)                                
-                            print "Total debit: "+str(debit)
-                            balance = int(credit) - int(debit)
-                            print "Transction address balance: "+str(balance)
-                        except sqlite3.Error, e:                      
-                            print "Error %s:" % e.args[0]
-                            raise                        
-                        finally:                        
-                            if conn:
-                                conn.close()
+               
+                        conn = sqlite3.connect('ledger.db')
+                        c = conn.cursor()
+                        print "Verifying balance"
+                        print "Received address: " +str(received_address)
+                        c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '"+received_address+"'")
+                        credit = c.fetchone()[0]
+                        c.execute("SELECT sum(amount) FROM transactions WHERE address = '"+received_address+"'")
+                        debit = c.fetchone()[0]
+                        if debit == None:
+                            debit = 0
+                        if credit == None:
+                            credit = 0                                
+                        print "Total credit: "+str(credit)                                
+                        print "Total debit: "+str(debit)
+                        balance = int(credit) - int(debit)
+                        print "Transction address balance: "+str(balance)                       
+                            conn.close()
                                 
                         if  int(balance) - int(amount) < 0:
                             print "Their balance is too low for this transaction"
-        
-                        
-                        else:
-                            #verify
-                                
+                        else:                              
                             #save step to db
-                            try:
-                                conn = sqlite3.connect('ledger.db') 
-                                c = conn.cursor()
-                                c.execute("INSERT INTO transactions VALUES ('"+str(received_block_height)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_amount)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data
-                                print "Ledger updated with a received transaction"
-                                conn.commit() # Save (commit) the changes
-                                
-                            except sqlite3.Error, e:                        
-                                print "Error %s:" % e.args[0]
-                                raise                        
-                            finally:                        
-                                if conn:
-                                    conn.close()
+                            conn = sqlite3.connect('ledger.db') 
+                            c = conn.cursor()
+                            c.execute("INSERT INTO transactions VALUES ('"+str(received_block_height)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_amount)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data
+                            print "Ledger updated with a received transaction"
+                            conn.commit() # Save (commit) the changes
+                            conn.close()
                             #save step to db
                         print "Ledger synchronization finished"
                     
@@ -262,7 +306,7 @@ for tuple in peer_tuples:
                 c = conn.cursor()
                 c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
                 txhash = str(c.fetchone()[0])
-                txhash_new = hashlib.sha224(str(transaction) + str(signature) + str(txhash)).hexdigest() #define new tx hash based on previous #fix asap
+                txhash_new = hashlib.sha224(str(transaction) + str(signature) + str(txhash)).hexdigest() #define new tx hash based on previous
                 print "New txhash to go with your transaction: "+txhash_new
                 conn.close()
             except sqlite3.Error, e:                        
