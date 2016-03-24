@@ -15,10 +15,12 @@ port = int(2829)
 #"""
 #connectivity to self node
 
-    
-r = requests.get(r'http://jsonip.com')
-ip= r.json()['ip']
-print 'Your IP is', ip
+try:    
+    r = requests.get(r'http://jsonip.com')
+    ip= r.json()['ip']
+    print 'Your IP is', ip
+except:
+    pass
 sock_self = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 sock_self.settimeout(3)
 result = sock_self.connect_ex((ip,port))
@@ -184,8 +186,19 @@ while True:
                 try:
                     block_height_sync = c.fetchone()[0]
                     print "Client's last block valid in our database is at the following height: "+str(block_height_sync) #now we should send it to the client which should delete all transactions following this block height
+                    connection.sendall("Block found")
+                    connection.sendall(block_height_sync) #client must delete all txs following this one from their db
+
+                    for row in c.execute('SELECT * FROM transactions ORDER BY block_height WHERE block_height => "'+block_height_sync+'" ')
+                        followup_tx = str(row)
+                        print followup_tx
+                        #send all followup txs
+                    connection.sendall("No more blocks")
+
                 except:
                     print "Client's block not found in local database"
+                    #request a -1 hash from client to seek it in the local database
+                    connection.sendall("Block not found")
                 
             #rollback end    
 

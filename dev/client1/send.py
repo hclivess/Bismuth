@@ -164,6 +164,25 @@ for tuple in peer_tuples:
                         #rollback start
                         s.sendall("Invalid txhash")
                         s.sendall(txhash) #this is my last txhash, please send me a followup; if node informs it was not found, send previous
+
+                        data = s.recv(1024) #will receive either the block id from which to followup or "Block not found"
+                        if data == "Block not found":
+                            #send a -1 block
+                        if data == "Block found":
+                                last_block = s.recv(1024)
+                                #delete database entries following this block start TODO SHOULD VERIFY IF NODE IS NOT ROGUE - fees in db?
+                                conn = sqlite3.connect('ledger.db')
+                                c = conn.cursor()
+                                c.execute("DELETE * FROM transactions WHERE block_height > '"+last_block+"' ")
+                                conn.commit() # Save (commit) the changes
+                                conn.close()
+                                #delete database entries following this block end                            
+                                while str(data) != "No more blocks":
+                                    #receive blocks, save blocks start
+                                    
+                                    #receive blocks, save blocks end
+                                
+                            
                         #rollback end
                         
                    
