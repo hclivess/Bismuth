@@ -338,4 +338,3 @@ for tuple in peer_tuples:
         print e
         print "Cannot connect to "+str(HOST)+" "+str(PORT)
         raise
-

@@ -137,10 +137,10 @@ while True:
 
                 
             #send sync data to client
-            sync = connection.recv(4096)
-            if sync == "Block height":
-                sync = connection.recv(4096)
-                print "Received: Client is at block: "+(sync)
+            data = connection.recv(4096)
+            if data == "Block height":
+                data = connection.recv(4096)
+                print "Received: Client is at block: "+(data)
 
                 #latest local block
                 #sync = 1 #pretend desync for TEST PURPOSES, client block no. x
@@ -151,15 +151,15 @@ while True:
                     c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
                     block_latest = c.fetchone()[0]
                     print "Latest block in db: "+str(block_latest)
-                    if int(sync) < block_latest:
+                    if int(data) < block_latest:
                         print "Client is not up to date, sending new blocks"
                         #calculate sync data
-                        block_difference = abs(int(sync) - int(block_latest))
+                        block_difference = abs(int(data) - int(block_latest))
                         print "Sending "+str(block_difference)+" blocks"
                         #calcualte sync data
                         connection.sendall(str(block_difference)) #inform the client how much data he will receive
                         
-                        for row in c.execute("SELECT * FROM transactions ORDER BY block_height ASC LIMIT '"+str(sync)+"','"+str(block_difference)+"';"):
+                        for row in c.execute("SELECT * FROM transactions ORDER BY block_height ASC LIMIT '"+str(data)+"','"+str(block_difference)+"';"):
                             time.sleep(0.1)
                             connection.sendall(str(row)) #send data
                         print "All new transactions sent to client"
@@ -206,10 +206,10 @@ while True:
             #rollback end    
 
             
-            data = connection.recv(4096)             
+            #data = connection.recv(4096)             
             if data == "Transaction":
                 data = connection.recv(4096)
-                data_split = data.split(";")
+                data_split = sync.split(";")
                 received_transaction = data_split[0]
                 print "Received transaction: "+received_transaction
                 #split message into values
@@ -310,6 +310,7 @@ while True:
                     print "Signature invalid"
 
             else:
+                print 'last data before connection termination: '+str(data)
                 print 'no more data from', client_address
                 break
             
