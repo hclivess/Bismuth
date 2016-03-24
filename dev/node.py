@@ -270,19 +270,15 @@ while True:
 
                             #txhash verification here TODO
                             #new hash = new tx + new sig + old txhash
-                            try:
-                                for row in c.execute('SELECT * FROM transactions ORDER BY block_height'):
-                                    txhash = row[6]
-                            except sqlite3.Error, e:                        
-                                print "Error %s:" % e.args[0]
-                                sys.exit(1)                                                        
+                            for row in c.execute('SELECT * FROM transactions ORDER BY block_height'):
+                                    txhash = row[6]                                                   
 
                             if received_txhash == hashlib.sha224(str(received_transaction) + str(received_signature) +str(txhash)).hexdigest(): #new hash = new tx + new sig + old txhash
                                 print "txhash valid"
                                 txhash_valid = 1
                             else:
                                 print "txhash invalid"
-                                break
+                                #start sending each other hashes??
                                                             
                             #verify balance and blockchain                            
                                 #execute transaction

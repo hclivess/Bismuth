@@ -170,7 +170,7 @@ for tuple in peer_tuples:
                         while data == "Block not found":
                             conn = sqlite3.connect('ledger.db')
                             c = conn.cursor()
-                            c.execute('SELECT txhash FROM transactions ORDER BY block_height WHERE block_height = "'+ block_height - i +'" ') #select previous hash
+                            c.execute('SELECT txhash FROM transactions WHERE block_height = "'+ str(block_height - i) +'" ORDER BY block_height ') #select previous hash
                             txhash = c.fetchone()[0]
                             conn.close()
                             s.sendall(txhash) #send previous hash
