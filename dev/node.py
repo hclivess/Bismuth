@@ -189,7 +189,7 @@ while True:
                     connection.sendall("Block found")
                     connection.sendall(block_height_sync) #client must delete all txs following this one from their db
 
-                    for row in c.execute('SELECT * FROM transactions ORDER BY block_height WHERE block_height => "'+block_height_sync+'" ')
+                    for row in c.execute('SELECT * FROM transactions ORDER BY block_height WHERE block_height => "'+block_height_sync+'" '):
                         followup_tx = str(row)
                         print followup_tx
                         connection.sendall(followup_tx) #send all followup txs
@@ -201,7 +201,6 @@ while True:
                     print "Client's block not found in local database"
                     
                     connection.sendall("Block not found") #inform client, who will send -1 hash in return until hash is found
-                    while str(data) != "Sync finished":
                     
                 
             #rollback end    
