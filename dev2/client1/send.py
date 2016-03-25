@@ -126,6 +126,10 @@ for tuple in peer_tuples:
             if data == "Block not found":
                 i = i + 1
                 print "Node didn't find the block, sending previous one"
+
+
+
+                #do
             if data == "Block found":
                 print "Node has the block" #node should start sending txs in this step
 
@@ -168,85 +172,30 @@ for tuple in peer_tuples:
                     
                
                 #txhash validation end
+
+
+                conn = sqlite3.connect('ledger.db')
+                c = conn.cursor()
+                c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
+                txhash = c.fetchone()[0]
+                conn.close()
                 
-                if received_public_key.verify(received_transaction, received_signature_tuple) == True and txhash_valid == 1:
-                    print "Received step "+str(received_block_height)+" is valid"
-                    try:                    
-                        conn = sqlite3.connect('ledger.db')
-                        c = conn.cursor()
-                        print "Verifying balance"
-                        print "Received address: " +str(received_address)
-                        c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '"+received_address+"'")
-                        credit = c.fetchone()[0]
-                        c.execute("SELECT sum(amount) FROM transactions WHERE address = '"+received_address+"'")
-                        debit = c.fetchone()[0]
-                        if debit == None:
-                            debit = 0
-                        if credit == None:
-                            credit = 0                                
-                        print "Total credit: "+str(credit)                                
-                        print "Total debit: "+str(debit)
-                        balance = int(credit) - int(debit)
-                        print "Transction address balance: "+str(balance)
-                    except sqlite3.Error, e:                      
-                        print "Error %s:" % e.args[0]
-                        raise                        
-                    finally:                        
-                        if conn:
-                            conn.close()
-                            
-                    if  int(balance) - int(amount) < 0:
-                        print "Their balance is too low for this transaction"
-    
-                    
-                    else:
-                        #verify
-                            
-                        #save step to db
-                        try:
-                            conn = sqlite3.connect('ledger.db') 
-                            c = conn.cursor()
-                            c.execute("INSERT INTO transactions VALUES ('"+str(received_block_height)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_amount)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data
-                            print "Ledger updated with a received transaction"
-                            conn.commit() # Save (commit) the changes
-                            
-                        except sqlite3.Error, e:                        
-                            print "Error %s:" % e.args[0]
-                            raise                        
-                        finally:                        
-                            if conn:
-                                conn.close()
-                        #save step to db
-                    print "Ledger synchronization finished"
-                
-            #sync from node
-        s.sendall("stop")
         
-
-
         transaction = str(block_height_new) +":"+ str(address) +":"+ str(to_address) +":"+ str(amount)
         signature = key.sign(transaction, '')
         print "Signature: "+str(signature)
 
-
-
         if public_key.verify(transaction, signature) == True:
 
-            ###todo2 (we still need to verify with node, or is reject enough?)
-            try:
-                conn = sqlite3.connect('ledger.db')
-                c = conn.cursor()
-                c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
-                txhash = str(c.fetchone()[0])
-                txhash_new = hashlib.sha224(str(transaction) + str(signature) + str(txhash)).hexdigest() #define new tx hash based on previous #fix asap
-                print "New txhash to go with your transaction: "+txhash_new
-                conn.close()
-            except sqlite3.Error, e:                        
-                print "Error %s:" % e.args[0]
-                raise
-            finally:                        
-                if conn:
-                    conn.close()                
+ 
+            conn = sqlite3.connect('ledger.db')
+            c = conn.cursor()
+            c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
+            txhash = str(c.fetchone()[0])
+            txhash_new = hashlib.sha224(str(transaction) + str(signature) + str(txhash)).hexdigest() #define new tx hash based on previous #fix asap
+            print "New txhash to go with your transaction: "+txhash_new
+            conn.close()
+               
             ###todo2
             
             print "The signature and control txhash is valid, proceeding to send transaction, signature, new txhash and the public key"

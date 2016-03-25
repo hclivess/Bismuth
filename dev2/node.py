@@ -14,18 +14,19 @@ from Crypto import Random
 port = int(2829)
 #"""
 #connectivity to self node
+prod = 0
 
-    
-r = requests.get(r'http://jsonip.com')
-ip= r.json()['ip']
-print 'Your IP is', ip
-sock_self = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-sock_self.settimeout(3)
-result = sock_self.connect_ex((ip,port))
-sock_self.close()
-#result = 0 #enable for test
-if result == 0:
-    print "Port is open"   
+if prod == 1:
+    r = requests.get(r'http://jsonip.com')
+    ip= r.json()['ip']
+    print 'Your IP is', ip
+    sock_self = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock_self.settimeout(3)
+    result = sock_self.connect_ex((ip,port))
+    sock_self.close()
+    #result = 0 #enable for test
+    if result == 0:
+        print "Port is open"   
 #get local peers into tuples
     peer_file = open("peers.txt", 'r')
     peer_tuples = []
@@ -137,8 +138,7 @@ while True:
             #send sync data to client
             #data = connection.recv(4096)
                     
-            data = None
-            while data != "stop":
+            while True:
                 data = connection.recv(4096)
                 print "Will seek the following block: " + str(data)
                 conn = sqlite3.connect('ledger.db')
@@ -146,17 +146,28 @@ while True:
 
                 c.execute("SELECT * FROM transactions WHERE txhash='"+data+"'") #select incoming transaction + 1!!!
                 txhash_client_block = c.fetchone()[0]
-                print "Client is at block "+str(txhash_client_block)
-                c.execute("SELECT * FROM transactions WHERE block_height='"+str(int(txhash_client_block) + 1)+"'")
-                txhash_send = c.fetchone()
-                print "Selected "+str(txhash_send)+" to send"
-                
-                conn.close()
-                connection.sendall("Block found")
-                connection.sendall(str(txhash_send))
+                print "Client is at block "+str(txhash_client_block) #now check if we have any newer
+
+                c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
+                db_txhash = c.fetchone()[0] #get latest txhash
+                if db_txhash == data:
+                    print "Client has the latest block"
+                    connection.sendall("No new blocks here")
+                    break #sync finished, time to break the loop
+ 
+                else:
+                    c.execute("SELECT * FROM transactions WHERE block_height='"+str(int(txhash_client_block) + 1)+"'")
+                    txhash_send = c.fetchone()
+
+ 
+                    print "Selected "+str(txhash_send)+" to send"
+                    
+                    conn.close()
+                    connection.sendall("Block found")
+                    connection.sendall(str(txhash_send))
                         
             else:
-                print "Client is up to date"
+                print "Client is up to date, received "+str(data)
                 connection.sendall("No new blocks here")
 
             #latest local block
