@@ -26,8 +26,8 @@ else:
     #generate key pair and an address
 
     print "Your address: "+ str(address)
-    #print "Your private key:\n "+ str(private_key_readable)
-    #print "Your public key:\n "+ str(public_key_readable)
+    print "Your private key:\n "+ str(private_key_readable)
+    print "Your public key:\n "+ str(public_key_readable)
 
     pem_file = open("keys.pem", 'a')
     pem_file.write(str(private_key_readable)+"\n"+str(public_key_readable) + "\n\n")
@@ -46,8 +46,8 @@ public_key_readable = str(key.publickey().exportKey())
 address = hashlib.sha224(public_key_readable).hexdigest()
 
 print "Your address: "+ str(address)
-print "Your private key:\n "+ str(private_key_readable)
-print "Your public key:\n "+ str(public_key_readable)
+#print "Your private key:\n "+ str(private_key_readable)
+#print "Your public key:\n "+ str(public_key_readable)
 # import keys
 
 
@@ -152,15 +152,15 @@ for tuple in peer_tuples:
                 conn = sqlite3.connect('ledger.db')
                 c = conn.cursor()
                 c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
-                txhash = c.fetchone()[0]
+                txhash_db = c.fetchone()[0]
                 conn.close()
                 
-                print "Last db txhash: "+str(txhash)
+                print "Last db txhash: "+str(txhash_db)
                 print "Received txhash: "+str(received_txhash)
                 print "Received transaction: "+str(received_transaction)
 
                 txhash_valid = 0
-                if received_txhash == hashlib.sha224(str(received_transaction) + str(received_signature) +str(txhash)).hexdigest(): #new hash = new tx + new sig + old txhash
+                if received_txhash == hashlib.sha224(str(received_transaction) + str(received_signature) +str(txhash_db)).hexdigest(): #new hash = new tx + new sig + old txhash
                     print "txhash valid"
                     txhash_valid = 1
                 else:
@@ -181,7 +181,7 @@ for tuple in peer_tuples:
                 conn.close()
                 
         
-        transaction = str(block_height_new) +":"+ str(address) +":"+ str(to_address) +":"+ str(amount)
+        transaction = str(address) +":"+ str(to_address) +":"+ str(amount)
         signature = key.sign(transaction, '')
         print "Signature: "+str(signature)
 
@@ -196,11 +196,9 @@ for tuple in peer_tuples:
             print "New txhash to go with your transaction: "+txhash_new
             conn.close()
                
-            ###todo2
-            
             print "The signature and control txhash is valid, proceeding to send transaction, signature, new txhash and the public key"
             s.sendall("Transaction")
-            s.sendall(transaction+";"+str(signature)+";"+public_key_readable+";"+str(txhash_new))
+            s.sendall(transaction+";"+str(signature)+";"+public_key_readable+";"+str(txhash_new)) #todo send list
 
             
         else:

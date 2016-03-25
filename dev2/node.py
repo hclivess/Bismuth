@@ -144,7 +144,7 @@ while True:
                 conn = sqlite3.connect('ledger.db')
                 c = conn.cursor()
 
-                c.execute("SELECT * FROM transactions WHERE txhash='"+data+"'") #select incoming transaction + 1!!!
+                c.execute("SELECT * FROM transactions WHERE txhash='"+data+"'") #select incoming transaction + 1!!! (?)
                 txhash_client_block = c.fetchone()[0]
                 print "Client is at block "+str(txhash_client_block) #now check if we have any newer
 
@@ -181,11 +181,10 @@ while True:
                 print "Received transaction: "+received_transaction
                 #split message into values
                 try:
-                    received_transaction_split = received_transaction.split(":")
-                    block_height = int(received_transaction_split[0])
-                    address = received_transaction_split[1]
-                    to_address = received_transaction_split[2]
-                    amount = int(received_transaction_split[3])
+                    received_transaction_split = received_transaction.split(":")#todo receive list
+                    address = received_transaction_split[0]
+                    to_address = received_transaction_split[1]
+                    amount = int(received_transaction_split[2])
                 except Exception as e:
                     print "Something wrong with the transaction ("+str(e)+")"
                     break
@@ -196,6 +195,7 @@ while True:
                 received_public_key_readable = data_split[2]
                 print "Received public key: "+received_public_key_readable
                 received_txhash = data_split[3]
+                print "Received txhash: "+received_txhash
 
                 #convert received strings
                 received_public_key = RSA.importKey(received_public_key_readable)
@@ -204,75 +204,74 @@ while True:
                 if received_public_key.verify(received_transaction, received_signature_tuple) == True:
                     print "The signature is valid"
                     #transaction processing
-                    con = None
-                    try:
-                        conn = sqlite3.connect('ledger.db')
-                        c = conn.cursor()
-                        #verify block
-                        c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
-                        block_latest = c.fetchone()[0]
-                        print "Latest block in db: "+str(block_latest)
-                        if int(block_height) != int(block_latest)+1:
-                            print "Block height invalid"
-                            #verify block
-                        else:                      
-                            #verify balance and blockchain                           
-                            print "Verifying balance"
-                            print address
-                            c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '"+address+"'")
-                            credit = c.fetchone()[0]
 
-                            c.execute("SELECT sum(amount) FROM transactions WHERE address = '"+address+"'")
-                            debit = c.fetchone()[0]
-                            if debit == None:
-                                debit = 0
-                            if credit == None:
-                                credit = 0                                
-                            print "Total credit: "+str(credit)                                
-                            print "Total debit: "+str(debit)
-                            balance = int(credit) - int(debit)
-                            print "Your balance: "+str(balance) 
+                    conn = sqlite3.connect('ledger.db')
+                    c = conn.cursor()
+                 
+                    #verify balance and blockchain                           
+                    print "Verifying balance"
+                    print "Address:" +address
+                    c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '"+address+"'")
+                    credit = c.fetchone()[0]
+                    c.execute("SELECT sum(amount) FROM transactions WHERE address = '"+address+"'")
+                    debit = c.fetchone()[0]
+                    if debit == None:
+                        debit = 0
+                    if credit == None:
+                        credit = 0                                
+                    print "Total credit: "+str(credit)                                
+                    print "Total debit: "+str(debit)
+                    balance = int(credit) - int(debit)
+                    print "Your balance: "+str(balance) 
 
-                            if  int(balance) - int(amount) < 0:
-                                print "Your balance is too low for this transaction"
+                    if  int(balance) - int(amount) < 0:
+                        print "Your balance is too low for this transaction"
+                   
+                    else:
+                        print "Processing transaction"
 
-                           
-                            else:
-                                print "Processing transaction"
+                    c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
+                    txhash = c.fetchone()
+                    c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
+                    block_height = c.fetchone()[0]
+                    print "Current top block:" +str(block_height)
+                    block_height_new = block_height + 1
+                    
+                    
 
-                            #txhash verification here TODO
-                            #new hash = new tx + new sig + old txhash
-                            try:
-                                for row in c.execute('SELECT * FROM transactions ORDER BY block_height'):
-                                    txhash = row[6]
-                            except sqlite3.Error, e:                        
-                                print "Error %s:" % e.args[0]
-                                sys.exit(1)                                                        
+                    if received_txhash == hashlib.sha224(str(received_transaction) + str(received_signature) +str(txhash)).hexdigest(): #new hash = new tx + new sig + old txhash
+                        print "txhash valid"
+                        txhash_valid = 1
+                        
+                        c.execute("INSERT INTO transactions VALUES ('"+str(block_height_new)+"','"+str(address)+"','"+str(to_address)+"','"+str(amount)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data                    
+                        #execute transaction                                
+                        conn.commit() # Save (commit) the changes
+                        #todo: broadcast
+                        print "Saved"
 
-                            if received_txhash == hashlib.sha224(str(received_transaction) + str(received_signature) +str(txhash)).hexdigest(): #new hash = new tx + new sig + old txhash
-                                print "txhash valid"
-                                txhash_valid = 1
-                            else:
-                                print "txhash invalid"
-                                break
-                                                            
-                            #verify balance and blockchain                            
-                                #execute transaction
+                        conn.close()
+                        print "Database closed"
                                 
-                            c.execute("INSERT INTO transactions VALUES ('"+str(block_height)+"','"+str(address)+"','"+str(to_address)+"','"+str(amount)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data                    
-                            #execute transaction                                
-                            conn.commit() # Save (commit) the changes
-                            #todo: broadcast
-                            print "Saved"
-                    except sqlite3.Error, e:                      
-                        print "Error %s:" % e.args[0]
-                        sys.exit(1)                        
-                    finally:                        
-                        if conn:
-                            conn.close()
-                            print "Database closed"
-                            
-                    #transaction processing
+                        #transaction processing                        
+                        
+                    else:
+                        print "txhash invalid"
+
+                        print block_height_new
+                        print address
+                        print to_address
+                        print amount
+                        print received_signature
+                        print received_public_key_readable
+                        print received_txhash
+                        
+                        conn.close()
+                        break # or something
+                                                    
+                    #verify balance and blockchain                            
+                        #execute transaction
+                        
+
                 else:
                     print "Signature invalid"
 
