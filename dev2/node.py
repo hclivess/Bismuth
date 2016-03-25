@@ -74,7 +74,7 @@ print "Total steps: "+str(db_rows)
 c.execute("SELECT * FROM transactions ORDER BY block_height ASC LIMIT 1")
 genesis = c.fetchone()[2]
 print "Genesis: "+genesis
-if str(genesis) != "b813b03700c22478d7480cd6810a85dd704acec9030f587c5d8ed0f6": #change this line to your genesis address if you want to clone
+if str(genesis) != "352e5c8ca3751061e63ecb45d4c8dda4deaf773b6cb1e6c18be80072": #change this line to your genesis address if you want to clone
     print "Invalid genesis address"
     sys.exit(1)
 #verify genesis
@@ -88,7 +88,7 @@ try:
         db_signature = row[4]
         db_public_key = RSA.importKey(row[5])
         db_txhash = row[6]
-        db_transaction = str(db_block_height) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount) 
+        db_transaction = str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount) 
 
         #print db_transaction
 

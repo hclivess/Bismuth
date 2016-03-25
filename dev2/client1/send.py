@@ -144,7 +144,7 @@ for tuple in peer_tuples:
                 received_public_key_readable = sync_list[5]
                 received_public_key = RSA.importKey(sync_list[5])
                 received_txhash = sync_list[6]
-                received_transaction = str(received_block_height) +":"+ str(received_address) +":"+ str(received_to_address) +":"+ str(received_amount) #todo: why not have bare list instead of converting?
+                received_transaction = str(received_address) +":"+ str(received_to_address) +":"+ str(received_amount) #todo: why not have bare list instead of converting?
                 received_signature_tuple = ast.literal_eval(received_signature) #converting to tuple
 
                 #txhash validation start
@@ -163,11 +163,47 @@ for tuple in peer_tuples:
                 if received_txhash == hashlib.sha224(str(received_transaction) + str(received_signature) +str(txhash_db)).hexdigest(): #new hash = new tx + new sig + old txhash
                     print "txhash valid"
                     txhash_valid = 1
+
+                    #update local db with received tx
+                    conn = sqlite3.connect('ledger.db')
+                    c = conn.cursor()
+                    print "Verifying balance"
+                    print "Received address: " +str(received_address)
+                    c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '"+received_address+"'")
+                    credit = c.fetchone()[0]
+                    c.execute("SELECT sum(amount) FROM transactions WHERE address = '"+received_address+"'")
+                    debit = c.fetchone()[0]
+                    if debit == None:
+                        debit = 0
+                    if credit == None:
+                        credit = 0                                
+                    print "Total credit: "+str(credit)                                
+                    print "Total debit: "+str(debit)
+                    balance = int(credit) - int(debit)
+                    print "Transction address balance: "+str(balance)                       
+                    conn.close()
+                            
+                    if  int(balance) - int(amount) < 0:
+                        print "Their balance is too low for this transaction"
+                    else:                              
+                        #save step to db
+                        conn = sqlite3.connect('ledger.db') 
+                        c = conn.cursor()
+                        c.execute("INSERT INTO transactions VALUES ('"+str(received_block_height)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_amount)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data
+                        print "Ledger updated with a received transaction"
+                        conn.commit() # Save (commit) the changes
+                        conn.close()
+                        #save step to db
+                    print "Ledger synchronization finished"
+                    s.sendall("Sync finished")
+                    #update local db with received tx                    
+
+
+                    
                 else:
                     print "txhash invalid"
                     #rollback start
-                    s.sendall("Invalid txhash")
-                    s.sendall(txhash) #this is my last txhash, please send me a followup; if node informs it was not found, send previous
+                    s.sendall(txhash_db) #this is my last txhash, please send me a followup; if node informs it was not found, send previous
                     #rollback end
                     
                
