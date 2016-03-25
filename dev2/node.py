@@ -135,8 +135,10 @@ while True:
 
                 
             #send sync data to client
-            data_message = connection.recv(4096)
-            while data_message == "Block height":
+            #data = connection.recv(4096)
+                    
+            data = None
+            while data != "stop":
                 data = connection.recv(4096)
                 print "Will seek the following block: " + str(data)
                 conn = sqlite3.connect('ledger.db')
