@@ -26,8 +26,8 @@ else:
     #generate key pair and an address
 
     print "Your address: "+ str(address)
-    print "Your private key:\n "+ str(private_key_readable)
-    print "Your public key:\n "+ str(public_key_readable)
+    #print "Your private key:\n "+ str(private_key_readable)
+    #print "Your public key:\n "+ str(public_key_readable)
 
     pem_file = open("keys.pem", 'a')
     pem_file.write(str(private_key_readable)+"\n"+str(public_key_readable) + "\n\n")
@@ -118,47 +118,25 @@ for tuple in peer_tuples:
             while synced != 1:
                 conn = sqlite3.connect('ledger.db')
                 c = conn.cursor()                
-                c.execute('SELECT TOP "'+ str(i) +'" txhash FROM transaction ORDER BY block_height ')
-                db_txhash = int(c.fetchone()[0]) #get latest txhash
+                c.execute('SELECT txhash FROM transactions ORDER BY block_height LIMIT 1 OFFSET "'+str(i)+'" ')
+                db_txhash = c.fetchone()[0] #get latest txhash
                 conn.close()
                 
-                print db_txhash
-                
+                print "txhash to send: " +str(db_txhash)
 
-                s.sendall ("txhash")
+                s.sendall ("Block height")
                 s.sendall(db_txhash) #send latest txhash
                 
                 data = s.recv(1024) #receive either "Block not found" or start receiving new txs
                 if data == "Block not found":
-                    ...
+                    i = i + 1
+                    print "Node didn't find the block, sending previous one"
                 if data == "Block found":
-                    ...
+                    print "Node has the block" #node should start sending txs in this step
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+                    data = s.recv(1024)
                     #verify
-                    sync_list = ast.literal_eval(sync) #this is great, need to add it to client -> node sync
+                    sync_list = ast.literal_eval(data) #this is great, need to add it to client -> node sync
                     received_block_height = sync_list[0]
                     received_address = sync_list[1]
                     received_to_address = sync_list[2]
@@ -260,7 +238,7 @@ for tuple in peer_tuples:
         signature = key.sign(transaction, '')
         print "Signature: "+str(signature)
 
-    
+
 
         if public_key.verify(transaction, signature) == True:
 
@@ -290,7 +268,7 @@ for tuple in peer_tuples:
             print "Invalid signature"
         #send tx
 
-   
+
             
         #broadcast
         s.close()

@@ -135,59 +135,29 @@ while True:
 
                 
             #send sync data to client
-            sync = connection.recv(4096)
-            if sync == "Block height":
-                sync = connection.recv(4096)
-                print "Received: Client is at block: "+(sync)
-
-                #latest local block
-                #sync = 1 #pretend desync for TEST PURPOSES, client block no. x
-                
-                try:
-                    conn = sqlite3.connect('ledger.db')
-                    c = conn.cursor()
-                    c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
-                    block_latest = c.fetchone()[0]
-                    print "Latest block in db: "+str(block_latest)
-                    if int(sync) < block_latest:
-                        print "Client is not up to date, sending new blocks"
-                        #calculate sync data
-                        block_difference = abs(int(sync) - int(block_latest))
-                        print "Sending "+str(block_difference)+" blocks"
-                        #calcualte sync data
-                        connection.sendall(str(block_difference)) #inform the client how much data he will receive
-                        
-                        for row in c.execute("SELECT * FROM transactions ORDER BY block_height ASC LIMIT '"+str(sync)+"','"+str(block_difference)+"';"):
-                            time.sleep(0.1)
-                            connection.sendall(str(row)) #send data
-                        print "All new transactions sent to client"
-                        
-                    else:
-                        print "Client is up to date"
-                        connection.sendall("No new blocks here")
-                except sqlite3.Error, e:
-                    print "Error %s:" % e.args[0]
-                    sys.exit(1)                        
-                finally:                        
-                    if conn:
-                        conn.close()
-                #latest local block
-
-            #rollback start
-            rollback_hash = connection.recv(4096) #todo unify by removing this
-            if rollback_hash == "Invalid txhash":
-                rollback_hash = connection.recv(4096) #received client's latest synched hash, find it in the database and send followup txs; if not found, send info and wait for regression
-
+            data_message = connection.recv(4096)
+            while data_message == "Block height":
+                data = connection.recv(4096)
+                print "Will seek the following block: " + str(data)
                 conn = sqlite3.connect('ledger.db')
                 c = conn.cursor()
-                c.execute("SELECT block_height FROM transactions WHERE txhash='"+rollback_hash+"';") #todo select a range using limit and offset
-                try:
-                    block_height_sync = c.fetchone()[0]
-                    print "Client's last block valid in our database is at the following height: "+str(block_height_sync) #now we should send it to the client which should delete all transactions following this block height
-                except:
-                    print "Client's block not found in local database"
+
+                c.execute("SELECT * FROM transactions WHERE txhash='"+data+"'") #select incoming transaction + 1!!!
+                txhash_client_block = c.fetchone()[0]
+                print "Client is at block "+str(txhash_client_block)
+                c.execute("SELECT * FROM transactions WHERE block_height='"+str(int(txhash_client_block) + 1)+"'")
+                txhash_send = c.fetchone()
+                print "Selected "+str(txhash_send)+" to send"
                 
-            #rollback end    
+                conn.close()
+                connection.sendall("Block found")
+                connection.sendall(str(txhash_send))
+                        
+            else:
+                print "Client is up to date"
+                connection.sendall("No new blocks here")
+
+            #latest local block
 
             
             data = connection.recv(4096)             
