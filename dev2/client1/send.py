@@ -118,7 +118,7 @@ for tuple in peer_tuples:
             while synced != 1:
                 conn = sqlite3.connect('ledger.db')
                 c = conn.cursor()                
-                c.execute('SELECT txhash FROM transactions ORDER BY block_height LIMIT 1 OFFSET "'+str(i)+'" ')
+                c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1 OFFSET "'+str(i)+'" ')
                 db_txhash = c.fetchone()[0] #get latest txhash
                 conn.close()
                 
