@@ -231,10 +231,11 @@ while True:
                         print "Processing transaction"
 
                     c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
-                    txhash = c.fetchone()
+                    txhash = c.fetchone()[0]
                     c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
                     block_height = c.fetchone()[0]
-                    print "Current top block:" +str(block_height)
+                    print "Current latest txhash: "+str(txhash)
+                    print "Current top block: " +str(block_height)
                     block_height_new = block_height + 1
                     
                     
@@ -256,15 +257,6 @@ while True:
                         
                     else:
                         print "txhash invalid"
-
-                        print block_height_new
-                        print address
-                        print to_address
-                        print amount
-                        print received_signature
-                        print received_public_key_readable
-                        print received_txhash
-                        
                         conn.close()
                         break # or something
                                                     
