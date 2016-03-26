@@ -51,7 +51,6 @@ else:
    
 # Create a TCP/IP socket
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
 # Bind the socket to the port
 server_address = ('localhost', port)
 print 'starting up on %s port %s' % server_address
@@ -121,24 +120,25 @@ while True:
 ### LOCAL CHECKS FINISHED ###
         
         # Receive and send data
-        while True:
-            
-            hello = connection.recv(4096)
+        while True:            
+            data = connection.recv(4096) #one and the only root connection
             #hello message
-            print 'Received: '+ hello
+            print 'Received: '+ data
             
-            if hello == 'Hello, server':
+            if data == 'Hello, server':
                 with open ("peers.txt", "r") as peer_list:
                     peers=peer_list.read()
                     print peers
+                    connection.sendall("Peers")
                     connection.sendall(peers)
             #hello message                    
 
                 
             #send sync data to client
             #data = connection.recv(4096)
-                    
-            while True:
+
+            #data = connection.recv(4096)
+            if data == "Latest txhash":
                 data = connection.recv(4096)
                 print "Will seek the following block: " + str(data)
                 conn = sqlite3.connect('ledger.db')
@@ -153,27 +153,21 @@ while True:
                 if db_txhash == data:
                     print "Client has the latest block"
                     connection.sendall("No new blocks here")
-                    break #sync finished, time to break the loop
  
                 else:
                     c.execute("SELECT * FROM transactions WHERE block_height='"+str(int(txhash_client_block) + 1)+"'")
                     txhash_send = c.fetchone()
 
- 
                     print "Selected "+str(txhash_send)+" to send"
                     
                     conn.close()
                     connection.sendall("Block found")
                     connection.sendall(str(txhash_send))
                         
-            else:
-                print "Client is up to date, received "+str(data)
-                connection.sendall("No new blocks here")
-
             #latest local block
 
             
-            data = connection.recv(4096)             
+            #data = connection.recv(4096)             
             if data == "Transaction":
                 data = connection.recv(4096)
                 data_split = data.split(";")
@@ -269,7 +263,10 @@ while True:
 
             else:
                 print 'no more data from', client_address
-                break
+                #break
+
+    except:
+        raise
             
     finally:
         # Clean up the connection
