@@ -65,7 +65,7 @@ for tuple in peer_tuples:
 
     while True:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        #s.settimeout(5)
+        s.settimeout(5)
         s.connect((HOST, PORT))
         print "Connected to "+str(HOST)+" "+str(PORT)
         #network client program
@@ -120,6 +120,7 @@ for tuple in peer_tuples:
         print "txhash to send: " +str(db_txhash)
 
         s.sendall ("Latest txhash")
+        time.sleep(0.1)
         s.sendall(db_txhash) #send latest txhash
         
         #data = s.recv(1024) #receive either "Block not found" or start receiving new txs or sync finished
@@ -236,6 +237,7 @@ for tuple in peer_tuples:
                
             print "The signature and control txhash is valid, proceeding to send transaction, signature, new txhash and the public key"
             s.sendall("Transaction")
+            time.sleep(0.1)
             s.sendall(transaction+";"+str(signature)+";"+public_key_readable+";"+str(txhash_new)) #todo send list
 
             
@@ -246,6 +248,6 @@ for tuple in peer_tuples:
 
             
         #broadcast
-        s.close()
+        #s.close()
 
         #network client program
