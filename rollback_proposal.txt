@@ -9,15 +9,3 @@ node sends latest hash to client
 	if client does not know the hash, it sends it's latest hash to node
 		node finds client's latest hash in the database and sends all newer blocks
 			client verifies the blocks and saves them to local database
-
-
-
-
-
-
---
-OLD:
-the process happens during the ledger synchronization phase
-when the txhash is invalid, the client and node enter a subloop
-client requests i-1 (lower than the latest received) transaction
-and seeks the hash received
