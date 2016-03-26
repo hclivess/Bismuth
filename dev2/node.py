@@ -121,7 +121,7 @@ while True:
         
         # Receive and send data
         while True:            
-            data = connection.recv(4096) #one and the only root connection
+            data = connection.recv(1024) #one and the only root connection
             #hello message
             print 'Received: '+ data
             
@@ -130,16 +130,20 @@ while True:
                     peers=peer_list.read()
                     print peers
                     connection.sendall("Peers")
+                    time.sleep(0.1)
                     connection.sendall(peers)
+                    time.sleep(0.1)
+                    print "Sending sync request"
+                    connection.sendall("Sync")
             #hello message                    
 
                 
             #send sync data to client
-            #data = connection.recv(4096)
+            #data = connection.recv(1024)
 
-            #data = connection.recv(4096)
-            if data == "Latest txhash":
-                data = connection.recv(4096)
+            #data = connection.recv(1024)
+            if data == "My latest txhash is as follows":
+                data = connection.recv(1024)
                 print "Will seek the following block: " + str(data)
                 conn = sqlite3.connect('ledger.db')
                 c = conn.cursor()
@@ -162,14 +166,15 @@ while True:
                     
                     conn.close()
                     connection.sendall("Block found")
+                    time.sleep(0.1)
                     connection.sendall(str(txhash_send))
                         
             #latest local block
 
             
-            #data = connection.recv(4096)             
+            #data = connection.recv(1024)             
             if data == "Transaction":
-                data = connection.recv(4096)
+                data = connection.recv(1024)
                 data_split = data.split(";")
                 received_transaction = data_split[0]
                 print "Received transaction: "+received_transaction
