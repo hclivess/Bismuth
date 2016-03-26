@@ -46,8 +46,8 @@ public_key_readable = str(key.publickey().exportKey())
 address = hashlib.sha224(public_key_readable).hexdigest()
 
 print "Your address: "+ str(address)
-print "Your private key:\n "+ str(private_key_readable)
-print "Your public key:\n "+ str(public_key_readable)
+#print "Your private key:\n "+ str(private_key_readable)
+#print "Your public key:\n "+ str(public_key_readable)
 # import keys
 
 
@@ -63,216 +63,196 @@ for tuple in peer_tuples:
     PORT = int(tuple[1])
     #print PORT
 
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        #s.settimeout(5)
-        s.connect((HOST, PORT))
-        print "Connected to "+str(HOST)+" "+str(PORT)
-        #network client program
+ 
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    #s.settimeout(5)
+    s.connect((HOST, PORT))
+    print "Connected to "+str(HOST)+" "+str(PORT)
+    #network client program
+
+    while True:
 
         s.sendall('Hello, server')
 
         peer = s.getpeername()
-        data = s.recv(1024) #receive data
+        
+        data = s.recv(1024) #receive data, one and the only root point
         print 'Received data from '+ str(peer) +"\n"+ str(data)
 
-        #get remote peers into tuples
-        server_peer_tuples = re.findall ("'([\d\.]+)', '([\d]+)'",data)
-        print server_peer_tuples
-        print len(server_peer_tuples)
-        #get remote peers into tuples
+        if data == "Peers":
+            #get remote peers into tuples
+            server_peer_tuples = re.findall ("'([\d\.]+)', '([\d]+)'",data)
+            print server_peer_tuples
+            print len(server_peer_tuples)
+            #get remote peers into tuples
 
-        #get local peers into tuples
-        peer_file = open("peers.txt", 'r')
-        peer_tuples = []
-        for line in peer_file:
-            extension = re.findall ("'([\d\.]+)', '([\d]+)'",line)
-            peer_tuples.extend(extension)
-        peer_file.close()
-        print peer_tuples
-        #get local peers into tuples
+            #get local peers into tuples
+            peer_file = open("peers.txt", 'r')
+            peer_tuples = []
+            for line in peer_file:
+                extension = re.findall ("'([\d\.]+)', '([\d]+)'",line)
+                peer_tuples.extend(extension)
+            peer_file.close()
+            print peer_tuples
+            #get local peers into tuples
 
-        for x in server_peer_tuples:
-            if x not in peer_tuples:
-                print str(x)+" is a new peer, saving."
+            for x in server_peer_tuples:
+                if x not in peer_tuples:
+                    print str(x)+" is a new peer, saving."
 
-                peer_list_file = open("peers.txt", 'a')
-                peer_list_file.write(str(x)+"\n")
-                peer_list_file.close()        
-                
-            else:
-                print str(x)+" is not a new peer, skipping."
+                    peer_list_file = open("peers.txt", 'a')
+                    peer_list_file.write(str(x)+"\n")
+                    peer_list_file.close()        
+                    
+                else:
+                    print str(x)+" is not a new peer, skipping."
 
-        #broadcast
-                
-        #send tx
-        to_address = str(raw_input ("Send to address: "))
-        amount = str(raw_input ("How much to send: "))
-                
-        try: #start constructing new tx
+
+        if data == "Sync":            
+            #sync start
             conn = sqlite3.connect('ledger.db')
-            c = conn.cursor()
-            c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
-            block_height = int(c.fetchone()[0])           
-            block_height_new = block_height+1
-
-            #sync from node
-            #request block update
-            s.sendall("Block height")
-            s.sendall (str(block_height))
-            #request block update
-                
-            block_difference = s.recv(1024)
-            i = 1
-            if str(block_difference) != "No new blocks here":
-                print "Receiving "+block_difference+" steps to sync"
-                                
-                while int(i) <= int(block_difference): #while blocks are not synced
-                    sync = s.recv(1024)
-                    i = i+1
-                    #verify
-                    sync_list = ast.literal_eval(sync) #this is great, need to add it to client -> node sync
-                    received_block_height = sync_list[0]
-                    received_address = sync_list[1]
-                    received_to_address = sync_list[2]
-                    received_amount = sync_list [3]
-                    received_signature = sync_list[4]
-                    received_public_key_readable = sync_list[5]
-                    received_public_key = RSA.importKey(sync_list[5])
-                    received_txhash = sync_list[6]
-                    received_transaction = str(received_block_height) +":"+ str(received_address) +":"+ str(received_to_address) +":"+ str(received_amount) #todo: why not have bare list instead of converting?
-                    received_signature_tuple = ast.literal_eval(received_signature) #converting to tuple
-
-                    #txhash validation start
-
-                    conn = sqlite3.connect('ledger.db')
-                    c = conn.cursor()
-                    c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
-                    txhash = c.fetchone()[0]
-                    conn.close()
-                    
-                    print "Last db txhash: "+str(txhash)
-                    print "Received txhash: "+str(received_txhash)
-                    print "Received transaction: "+str(received_transaction)
-
-                    txhash_valid = 0
-                    if received_txhash == hashlib.sha224(str(received_transaction) + str(received_signature) +str(txhash)).hexdigest(): #new hash = new tx + new sig + old txhash
-                        print "txhash valid"
-                        txhash_valid = 1
-                    else:
-                        print "txhash invalid"
-                        #rollback start
-                        s.sendall("Invalid txhash")
-                        s.sendall(txhash) #this is my last txhash, please send me a followup; if node informs it was not found, send previous
-                        #rollback end
-                        
-                   
-                    #txhash validation end
-                    
-                    if received_public_key.verify(received_transaction, received_signature_tuple) == True and txhash_valid == 1:
-                        print "Received step "+str(received_block_height)+" is valid"
-                        try:                    
-                            conn = sqlite3.connect('ledger.db')
-                            c = conn.cursor()
-                            print "Verifying balance"
-                            print "Received address: " +str(received_address)
-                            c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '"+received_address+"'")
-                            credit = c.fetchone()[0]
-                            c.execute("SELECT sum(amount) FROM transactions WHERE address = '"+received_address+"'")
-                            debit = c.fetchone()[0]
-                            if debit == None:
-                                debit = 0
-                            if credit == None:
-                                credit = 0                                
-                            print "Total credit: "+str(credit)                                
-                            print "Total debit: "+str(debit)
-                            balance = int(credit) - int(debit)
-                            print "Transction address balance: "+str(balance)
-                        except sqlite3.Error, e:                      
-                            print "Error %s:" % e.args[0]
-                            raise                        
-                        finally:                        
-                            if conn:
-                                conn.close()
-                                
-                        if  int(balance) - int(amount) < 0:
-                            print "Their balance is too low for this transaction"
+            c = conn.cursor()                
+            c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
+            db_txhash = c.fetchone()[0] #get latest txhash
+            conn.close()
+            print "txhash to send: " +str(db_txhash)
+            
+            s.sendall ("My latest txhash is as follows")
+            time.sleep(0.1)
+            s.sendall(db_txhash) #send latest txhash
+            
+            subdata = s.recv(1024) 
         
-                        
-                        else:
-                            #verify
-                                
-                            #save step to db
-                            try:
-                                conn = sqlite3.connect('ledger.db') 
-                                c = conn.cursor()
-                                c.execute("INSERT INTO transactions VALUES ('"+str(received_block_height)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_amount)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data
-                                print "Ledger updated with a received transaction"
-                                conn.commit() # Save (commit) the changes
-                                
-                            except sqlite3.Error, e:                        
-                                print "Error %s:" % e.args[0]
-                                raise                        
-                            finally:                        
-                                if conn:
-                                    conn.close()
-                            #save step to db
-                        print "Ledger synchronization finished"
-                    
-                #sync from node
-            
-        except sqlite3.Error, e:                        
-            print "Error %s:" % e.args[0]
-            raise
-            
-        finally:                        
-            if conn:
-                conn.close()       
+        
+            if subdata == "Block not found":
+                i = i + 1
+                print "Node didn't find the block, sending previous one"
+                ##todo
+                
+                   
+            if subdata == "Block found":
+                ##todo delete all own followups
+                
+                print "Node has the block" #node should start sending txs in this step
+                data = s.recv(1024)
+                #verify
+                sync_list = ast.literal_eval(data) #this is great, need to add it to client -> node sync
+                received_block_height = sync_list[0]
+                received_address = sync_list[1]
+                received_to_address = sync_list[2]
+                received_amount = sync_list [3]
+                received_signature = sync_list[4]
+                received_public_key_readable = sync_list[5]
+                received_public_key = RSA.importKey(sync_list[5])
+                received_txhash = sync_list[6]
+                received_transaction = str(received_address) +":"+ str(received_to_address) +":"+ str(received_amount) #todo: why not have bare list instead of converting?
+                received_signature_tuple = ast.literal_eval(received_signature) #converting to tuple
 
-        transaction = str(block_height_new) +":"+ str(address) +":"+ str(to_address) +":"+ str(amount)
-        signature = key.sign(transaction, '')
-        print "Signature: "+str(signature)
+                #txhash validation start
 
-    
-
-        if public_key.verify(transaction, signature) == True:
-
-            ###todo2 (we still need to verify with node, or is reject enough?)
-            try:
                 conn = sqlite3.connect('ledger.db')
                 c = conn.cursor()
                 c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
-                txhash = str(c.fetchone()[0])
-                txhash_new = hashlib.sha224(str(transaction) + str(signature) + str(txhash)).hexdigest() #define new tx hash based on previous #fix asap
-                print "New txhash to go with your transaction: "+txhash_new
+                txhash_db = c.fetchone()[0]
                 conn.close()
-            except sqlite3.Error, e:                        
-                print "Error %s:" % e.args[0]
-                raise
-            finally:                        
-                if conn:
-                    conn.close()                
-            ###todo2
-            
-            print "The signature and control txhash is valid, proceeding to send transaction, signature, new txhash and the public key"
-            s.sendall("Transaction")
-            s.sendall(transaction+";"+str(signature)+";"+public_key_readable+";"+str(txhash_new))
+                
+                print "Last db txhash: "+str(txhash_db)
+                print "Received txhash: "+str(received_txhash)
+                print "Received transaction: "+str(received_transaction)
 
-            
-        else:
-            print "Invalid signature"
-        #send tx
+                txhash_valid = 0
+                if received_txhash == hashlib.sha224(str(received_transaction) + str(received_signature) +str(txhash_db)).hexdigest(): #new hash = new tx + new sig + old txhash
+                    print "txhash valid"
+                    txhash_valid = 1
 
-   
-            
-        #broadcast
-        s.close()
+                    #update local db with received tx
+                    conn = sqlite3.connect('ledger.db')
+                    c = conn.cursor()
+                    print "Verifying balance"
+                    print "Received address: " +str(received_address)
+                    c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '"+received_address+"'")
+                    credit = c.fetchone()[0]
+                    c.execute("SELECT sum(amount) FROM transactions WHERE address = '"+received_address+"'")
+                    debit = c.fetchone()[0]
+                    if debit == None:
+                        debit = 0
+                    if credit == None:
+                        credit = 0                                
+                    print "Total credit: "+str(credit)                                
+                    print "Total debit: "+str(debit)
+                    balance = int(credit) - int(debit)
+                    print "Transction address balance: "+str(balance)                       
+                    conn.close()
+                            
+                    if  int(balance) - int(received_amount) < 0:
+                        print "Their balance is too low for this transaction"
+                    else:                              
+                        #save step to db
+                        conn = sqlite3.connect('ledger.db') 
+                        c = conn.cursor()
+                        c.execute("INSERT INTO transactions VALUES ('"+str(received_block_height)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_amount)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data
+                        print "Ledger updated with a received transaction"
+                        conn.commit() # Save (commit) the changes
+                        conn.close()
+                        #save step to db
+                    print "Ledger synchronization finished"
+                    #s.sendall("Sync finished")
+                    #update local db with received tx                    
 
-        #network client program
+
+                    
+                else:
+                    print "txhash invalid"
+                    #rollback start
+                    s.sendall(txhash_db) #this is my last txhash, please send me a followup; if node informs it was not found, send previous
+                    #rollback end
+                    
+               
+                #txhash validation end
+
+            if subdata == "No new blocks here":
+                print "We seem to be at the latest block"
+
+                #send tx
+                conn = sqlite3.connect('ledger.db')
+                c = conn.cursor()
+                c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
+                txhash = c.fetchone()[0]
+                conn.close()
+                    
+                to_address = str(raw_input ("Send to address: "))
+                amount = str(raw_input ("How much to send: "))
+                
+                transaction = str(address) +":"+ str(to_address) +":"+ str(amount)
+                signature = key.sign(transaction, '')
+                print "Signature: "+str(signature)
+
+                if public_key.verify(transaction, signature) == True:
+
+         
+                    conn = sqlite3.connect('ledger.db')
+                    c = conn.cursor()
+                    c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
+                    txhash = str(c.fetchone()[0])
+                    txhash_new = hashlib.sha224(str(transaction) + str(signature) + str(txhash)).hexdigest() #define new tx hash based on previous #fix asap
+                    print "New txhash to go with your transaction: "+txhash_new
+                    conn.close()
+                       
+                    print "The signature and control txhash is valid, proceeding to send transaction, signature, new txhash and the public key"
+                    s.sendall("Transaction")
+                    time.sleep(0.1)
+                    s.sendall(transaction+";"+str(signature)+";"+public_key_readable+";"+str(txhash_new)) #todo send list
+
+                    
+                else:
+                    print "Invalid signature"
+
+                    
 
 
-    except Exception as e:
-        print e
-        print "Cannot connect to "+str(HOST)+" "+str(PORT)
-        raise
 
+                
+            #broadcast
+            #s.close()
+
+            #network client program
