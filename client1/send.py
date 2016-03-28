@@ -107,7 +107,6 @@ for tuple in peer_tuples:
                 else:
                     print str(x)+" is not a new peer, skipping."
 
-
         if data == "Sync":            
             #sync start
             conn = sqlite3.connect('ledger.db')
@@ -121,19 +120,26 @@ for tuple in peer_tuples:
             time.sleep(0.1)
             s.sendall(db_txhash) #send latest txhash
             
-            subdata = s.recv(1024) 
-        
-        
+            subdata = s.recv(1024)         
+
             if subdata == "Block not found":
-                i = i + 1
-                print "Node didn't find the block, sending previous one"
+                print "Node didn't find the block, deleting latest entry"
+                conn = sqlite3.connect('ledger.db')
+                c = conn.cursor()
+                c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
+                db_block_height = c.fetchone()[0]
+                c.execute('DELETE FROM transactions WHERE block_height ="'+str(db_block_height)+'"')
+                conn.commit()
+                conn.close()
+                
                 ##todo
                 
                    
             if subdata == "Block found":
                 ##todo delete all own followups
-                
+               
                 print "Node has the block" #node should start sending txs in this step
+                #todo critical: make sure that received block height is correct
                 data = s.recv(1024)
                 #verify
                 sync_list = ast.literal_eval(data) #this is great, need to add it to client -> node sync
@@ -154,7 +160,11 @@ for tuple in peer_tuples:
                 c = conn.cursor()
                 c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
                 txhash_db = c.fetchone()[0]
+
+                #delete all local followups
+                c.execute('DELETE FROM transactions WHERE block_height > "'+str(received_block_height)+'"')
                 conn.close()
+                #delete all local followups
                 
                 print "Last db txhash: "+str(txhash_db)
                 print "Received txhash: "+str(received_txhash)
@@ -204,7 +214,7 @@ for tuple in peer_tuples:
                 else:
                     print "txhash invalid"
                     #rollback start
-                    s.sendall(txhash_db) #this is my last txhash, please send me a followup; if node informs it was not found, send previous
+                    print "Received invalid txhash"
                     #rollback end
                     
                

@@ -149,25 +149,32 @@ while True:
                 c = conn.cursor()
 
                 c.execute("SELECT * FROM transactions WHERE txhash='"+data+"'") #select incoming transaction + 1!!! (?)
-                txhash_client_block = c.fetchone()[0]
-                print "Client is at block "+str(txhash_client_block) #now check if we have any newer
+                try:
+                    txhash_client_block = c.fetchone()[0]
 
-                c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
-                db_txhash = c.fetchone()[0] #get latest txhash
-                if db_txhash == data:
-                    print "Client has the latest block"
-                    connection.sendall("No new blocks here")
- 
-                else:
-                    c.execute("SELECT * FROM transactions WHERE block_height='"+str(int(txhash_client_block) + 1)+"'")
-                    txhash_send = c.fetchone()
+                    print "Client is at block "+str(txhash_client_block) #now check if we have any newer
 
-                    print "Selected "+str(txhash_send)+" to send"
+                    c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
+                    db_txhash = c.fetchone()[0] #get latest txhash
+                    if db_txhash == data:
+                        print "Client has the latest block"
+                        connection.sendall("No new blocks here")
+     
+                    else:
+                        c.execute("SELECT * FROM transactions WHERE block_height='"+str(int(txhash_client_block) + 1)+"'")
+                        txhash_send = c.fetchone()
+
+                        print "Selected "+str(txhash_send)+" to send"
+                        
+                        conn.close()
+                        connection.sendall("Block found")
+                        time.sleep(0.1)
+                        connection.sendall(str(txhash_send))
                     
-                    conn.close()
-                    connection.sendall("Block found")
-                    time.sleep(0.1)
-                    connection.sendall(str(txhash_send))
+                except:
+                    print "Block not found"
+                    connection.sendall("Block not found")
+                    
                         
             #latest local block
 
@@ -268,7 +275,7 @@ while True:
 
             else:
                 print 'no more data from', client_address
-                #break
+                #break #experimental break
 
     except:
         raise
