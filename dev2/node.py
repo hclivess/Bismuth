@@ -121,6 +121,7 @@ while True:
         
         # Receive and send data
         terminate = 0
+        first_run = 1
         while True:
             try:
                 data = connection.recv(11) #one and the only root connection
@@ -138,16 +139,13 @@ while True:
                     print "Sending sync request"
                     connection.sendall("sync_______")
                     time.sleep(0.1)
-                #hello message                    
 
                 if data == "blockheight":
-                    subdata = connection.recv(30)
+                    subdata = connection.recv(30) #receive client's last block height
                     received_block_height = subdata
                     print "Received block height: "+(received_block_height)
                     
-                #send sync data to client
-                if data == "mylasttxhas":
-                    data = connection.recv(56)
+                    data = connection.recv(56) #receive client's last txhash
                     print "Will seek the following block: " + str(data)
                     conn = sqlite3.connect('ledger.db')
                     c = conn.cursor()
@@ -162,7 +160,8 @@ while True:
                         db_txhash = c.fetchone()[0] #get latest txhash
                         if db_txhash == data:
                             print "Client has the latest block"
-                            connection.sendall("No new blocks here")
+                            connection.sendall("nonewblocks")
+                            time.sleep(0.1)
          
                         else:
                             c.execute("SELECT * FROM transactions WHERE block_height='"+str(int(txhash_client_block) + 1)+"'") #select incoming transaction + 1
@@ -171,13 +170,15 @@ while True:
                             print "Selected "+str(txhash_send)+" to send"
                             
                             conn.close()
-                            connection.sendall("Block found")
+                            connection.sendall("blockfound_")
                             time.sleep(0.1)
                             connection.sendall(str(txhash_send))
+                            time.sleep(0.1)
                         
                     except:
                         print "Block not found"
-                        connection.sendall("Block not found")
+                        connection.sendall("blocknotfoun")
+                        time.sleep(0.1)
                         
                             
                 #latest local block          
