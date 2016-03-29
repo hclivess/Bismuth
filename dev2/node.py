@@ -156,42 +156,59 @@ while True:
                         db_block_height = "0"+str(db_block_height)
                     connection.sendall(db_block_height)
                     time.sleep(0.1)
-                    #send own block height            
+                    #send own block height
                     
-                    data = connection.recv(56) #receive client's last txhash
-                    print "Will seek the following block: " + str(data)
-                    conn = sqlite3.connect('ledger.db')
-                    c = conn.cursor()
-
-                    c.execute("SELECT * FROM transactions WHERE txhash='"+data+"'")
-                    try:
-                        txhash_client_block = c.fetchone()[0]
-
-                        print "Client is at block "+str(txhash_client_block) #now check if we have any newer
-
-                        c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
-                        db_txhash = c.fetchone()[0] #get latest txhash
-                        if db_txhash == data:
-                            print "Client has the latest block"
-                            connection.sendall("nonewblocks")
-                            time.sleep(0.1)
-         
-                        else:
-                            c.execute("SELECT * FROM transactions WHERE block_height='"+str(int(txhash_client_block) + 1)+"'") #select incoming transaction + 1
-                            txhash_send = c.fetchone()
-
-                            print "Selected "+str(txhash_send)+" to send"
-                            
-                            conn.close()
-                            connection.sendall("blockfound_")
-                            time.sleep(0.1)
-                            connection.sendall(str(txhash_send))
-                            time.sleep(0.1)
+                    if received_block_height > db_block_height:
+                        print "Client has higher block, receiving"
+                        update_me = 1
+                        #todo
                         
-                    except:
-                        print "Block not found"
-                        connection.sendall("blocknotfoun")
-                        time.sleep(0.1)
+                    if received_block_height <= db_block_height:
+                        print "We have a higher or equal block, sending"
+                        update_me = 0
+                        #todo
+
+                    if received_block_height == db_block_height:
+                        print "We have the same block height, hash will be verified"
+                        update_me = 0                        
+
+                        if update_me == 0: #update them if update_me is 0
+                            data = connection.recv(56) #receive client's last txhash
+                            #send all our followup hashes
+                            print "Will seek the following block: " + str(data)
+                            conn = sqlite3.connect('ledger.db')
+                            c = conn.cursor()
+
+                            c.execute("SELECT * FROM transactions WHERE txhash='"+data+"'")
+                            try:
+                                txhash_client_block = c.fetchone()[0]
+
+                                print "Client is at block "+str(txhash_client_block) #now check if we have any newer
+
+                                c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
+                                db_txhash = c.fetchone()[0] #get latest txhash
+                                if db_txhash == data:
+                                    print "Client has the latest block"
+                                    connection.sendall("nonewblocks")
+                                    time.sleep(0.1)
+                 
+                                else:
+                                    c.execute("SELECT * FROM transactions WHERE block_height='"+str(int(txhash_client_block) + 1)+"'") #select incoming transaction + 1
+                                    txhash_send = c.fetchone()
+
+                                    print "Selected "+str(txhash_send)+" to send"
+                                    
+                                    conn.close()
+                                    connection.sendall("blockfound_")
+                                    time.sleep(0.1)
+                                    connection.sendall(str(txhash_send))
+                                    time.sleep(0.1)
+                                
+                            except:
+                                print "Block not found"
+                                connection.sendall("blocknotfoun")
+                                time.sleep(0.1)
+                            #send all our followup hashes
                         
                             
                 #latest local block          

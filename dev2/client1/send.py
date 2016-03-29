@@ -137,16 +137,32 @@ for tuple in peer_tuples:
             subdata = s.recv(30) #receive node's block height
             received_block_height = subdata
             print "Node is at block height: "+str(received_block_height)
-                       
-            conn = sqlite3.connect('ledger.db')
-            c = conn.cursor()                
-            c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
-            db_txhash = c.fetchone()[0] #get latest txhash
-            conn.close()
-            print "txhash to send: " +str(db_txhash)
+
+            if received_block_height < db_block_height:
+                print "We have a higher or equal block, sending"
+                update_me = 0
+                #todo
             
-            s.sendall(db_txhash) #send latest txhash
-            time.sleep(0.1)
+            if received_block_height > db_block_height:
+                print "Node has higher block, receiving"
+                update_me = 1
+                #todo
+
+            if received_block_height == db_block_height:
+                print "We have the same block height, hash will be verified"
+                update_me = 1
+                #todo                
+
+            if update_me == 1:                
+                conn = sqlite3.connect('ledger.db')
+                c = conn.cursor()                
+                c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
+                db_txhash = c.fetchone()[0] #get latest txhash
+                conn.close()
+                print "txhash to send: " +str(db_txhash)
+                
+                s.sendall(db_txhash) #send latest txhash
+                time.sleep(0.1)
                    
         if data == "blocknotfou":
             print "Node didn't find the block, deleting latest entry"
@@ -279,8 +295,6 @@ for tuple in peer_tuples:
                 time.sleep(0.1)
                 s.sendall(transaction+";"+str(signature)+";"+public_key_readable+";"+str(txhash_new)) #todo send list
                 time.sleep(0.1)
-                
-
                 
             else:
                 print "Invalid signature"
