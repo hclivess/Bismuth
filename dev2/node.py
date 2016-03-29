@@ -120,7 +120,6 @@ while True:
 ### LOCAL CHECKS FINISHED ###
         
         # Receive and send data
-        terminate = 0
         first_run = 1
         while True:
             try:
@@ -144,6 +143,20 @@ while True:
                     subdata = connection.recv(30) #receive client's last block height
                     received_block_height = subdata
                     print "Received block height: "+(received_block_height)
+                    
+                    #send own block height
+                    conn = sqlite3.connect('ledger.db')
+                    c = conn.cursor()                    
+                    c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
+                    db_block_height = c.fetchone()[0]
+                    conn.close()
+
+                    #append zeroes to get static length
+                    while len(str(db_block_height)) != 30:
+                        db_block_height = "0"+str(db_block_height)
+                    connection.sendall(db_block_height)
+                    time.sleep(0.1)
+                    #send own block height            
                     
                     data = connection.recv(56) #receive client's last txhash
                     print "Will seek the following block: " + str(data)
@@ -277,10 +290,6 @@ while True:
 
                 else:
                     print 'no more data from', client_address
-                    terminate = terminate + 1
-                    print "Terminate trigger at: "+str(terminate)
-                    if terminate == 25:
-                        break
 
             except: #forcibly closed connection
                 print "Lost connection"

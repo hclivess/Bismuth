@@ -133,7 +133,10 @@ for tuple in peer_tuples:
                 db_block_height = "0"+str(db_block_height)
             s.sendall(str(db_block_height))
             time.sleep(0.1)
-            subdata = s.recv(11)
+            
+            subdata = s.recv(30) #receive node's block height
+            received_block_height = subdata
+            print "Node is at block height: "+str(received_block_height)
                        
             conn = sqlite3.connect('ledger.db')
             c = conn.cursor()                
