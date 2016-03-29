@@ -113,6 +113,47 @@ for tuple in peer_tuples:
                 else:
                     print str(x)+" is not a new peer, skipping."
 
+
+        if data == "mytxhash__":
+                data = s.recv(56) #receive client's last txhash
+                #send all our followup hashes
+                print "Will seek the following block: " + str(data)
+                conn = sqlite3.connect('ledger.db')
+                c = conn.cursor()
+
+                c.execute("SELECT * FROM transactions WHERE txhash='"+data+"'")
+                try:
+                    txhash_client_block = c.fetchone()[0]
+
+                    print "Client is at block "+str(txhash_client_block) #now check if we have any newer
+
+                    c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
+                    db_txhash = c.fetchone()[0] #get latest txhash
+                    if db_txhash == data:
+                        print "Client has the latest block"
+                        s.sendall("nonewblocks")
+                        time.sleep(0.1)
+     
+                    else:
+                        c.execute("SELECT * FROM transactions WHERE block_height='"+str(int(txhash_client_block) + 1)+"'") #select incoming transaction + 1
+                        txhash_send = c.fetchone()
+
+                        print "Selected "+str(txhash_send)+" to send"
+                        
+                        conn.close()
+                        s.sendall("blockfound_")
+                        time.sleep(0.1)
+                        s.sendall(str(txhash_send))
+                        time.sleep(0.1)
+                    
+                except:
+                    print "Block not found"
+                    s.sendall("blocknotfoun")
+                    time.sleep(0.1)
+                #send all our followup hashes        
+            
+        if data == "nonewblocks":
+            print "We seem to be at the latest block"
             
         if data == "sync_______":            
             #sync start
