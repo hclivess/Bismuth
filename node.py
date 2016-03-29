@@ -14,7 +14,7 @@ from Crypto import Random
 port = int(2829)
 #"""
 #connectivity to self node
-prod = 0
+prod = 1
 
 if prod == 1:
     r = requests.get(r'http://jsonip.com')
@@ -52,7 +52,7 @@ else:
 # Create a TCP/IP socket
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 # Bind the socket to the port
-server_address = ('localhost', port)
+server_address = ('0.0.0.0', port)
 print 'starting up on %s port %s' % server_address
 sock.bind(server_address)
 
@@ -120,163 +120,167 @@ while True:
 ### LOCAL CHECKS FINISHED ###
         
         # Receive and send data
-        while True:            
-            data = connection.recv(1024) #one and the only root connection
-            #hello message
-            print 'Received: '+ data
-            
-            if data == 'Hello, server':
-                with open ("peers.txt", "r") as peer_list:
-                    peers=peer_list.read()
-                    print peers
-                    connection.sendall("Peers")
-                    time.sleep(0.1)
-                    connection.sendall(peers)
-                    time.sleep(0.1)
-                    print "Sending sync request"
-                    connection.sendall("Sync")
-            #hello message                    
+        terminate = 0
+        while True:
+            try:
+                data = connection.recv(1024) #one and the only root connection
 
+                #hello message
+                print 'Received: '+ data
                 
-            #send sync data to client
-            #data = connection.recv(1024)
+                if data == 'Hello, server':
+                    with open ("peers.txt", "r") as peer_list:
+                        peers=peer_list.read()
+                        print peers
+                        connection.sendall("Peers")
+                        time.sleep(0.5)
+                        connection.sendall(peers)
+                        time.sleep(0.5)
+                        print "Sending sync request"
+                        connection.sendall("Sync")
+                #hello message                    
 
-            #data = connection.recv(1024)
-            if data == "My latest txhash is as follows":
-                data = connection.recv(1024)
-                print "Will seek the following block: " + str(data)
-                conn = sqlite3.connect('ledger.db')
-                c = conn.cursor()
-
-                c.execute("SELECT * FROM transactions WHERE txhash='"+data+"'") #select incoming transaction + 1!!! (?)
-                try:
-                    txhash_client_block = c.fetchone()[0]
-
-                    print "Client is at block "+str(txhash_client_block) #now check if we have any newer
-
-                    c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
-                    db_txhash = c.fetchone()[0] #get latest txhash
-                    if db_txhash == data:
-                        print "Client has the latest block"
-                        connection.sendall("No new blocks here")
-     
-                    else:
-                        c.execute("SELECT * FROM transactions WHERE block_height='"+str(int(txhash_client_block) + 1)+"'")
-                        txhash_send = c.fetchone()
-
-                        print "Selected "+str(txhash_send)+" to send"
-                        
-                        conn.close()
-                        connection.sendall("Block found")
-                        time.sleep(0.1)
-                        connection.sendall(str(txhash_send))
                     
-                except:
-                    print "Block not found"
-                    connection.sendall("Block not found")
-                    
-                        
-            #latest local block
-
-            
-            #data = connection.recv(1024)             
-            if data == "Transaction":
-                data = connection.recv(1024)
-                data_split = data.split(";")
-                received_transaction = data_split[0]
-                print "Received transaction: "+received_transaction
-                #split message into values
-                try:
-                    received_transaction_split = received_transaction.split(":")#todo receive list
-                    address = received_transaction_split[0]
-                    to_address = received_transaction_split[1]
-                    amount = int(received_transaction_split[2])
-                except Exception as e:
-                    print "Something wrong with the transaction ("+str(e)+")"
-                    break
-                #split message into values
-                received_signature = data_split[1] #needs to be converted
-                received_signature_tuple = ast.literal_eval(received_signature) #converting to tuple
-                print "Received signature: "+received_signature
-                received_public_key_readable = data_split[2]
-                print "Received public key: "+received_public_key_readable
-                received_txhash = data_split[3]
-                print "Received txhash: "+received_txhash
-
-                #convert received strings
-                received_public_key = RSA.importKey(received_public_key_readable)
-                #convert received strings
-                
-                if received_public_key.verify(received_transaction, received_signature_tuple) == True:
-                    print "The signature is valid"
-                    #transaction processing
-
+                #send sync data to client
+                if data == "My latest txhash is as follows":
+                    data = connection.recv(1024)
+                    print "Will seek the following block: " + str(data)
                     conn = sqlite3.connect('ledger.db')
                     c = conn.cursor()
-                 
-                    #verify balance and blockchain                           
-                    print "Verifying balance"
-                    print "Address:" +address
-                    c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '"+address+"'")
-                    credit = c.fetchone()[0]
-                    c.execute("SELECT sum(amount) FROM transactions WHERE address = '"+address+"'")
-                    debit = c.fetchone()[0]
-                    if debit == None:
-                        debit = 0
-                    if credit == None:
-                        credit = 0                                
-                    print "Total credit: "+str(credit)                                
-                    print "Total debit: "+str(debit)
-                    balance = int(credit) - int(debit)
-                    print "Your balance: "+str(balance) 
 
-                    if  int(balance) - int(amount) < 0:
-                        print "Your balance is too low for this transaction"
-                   
-                    else:
-                        print "Processing transaction"
+                    c.execute("SELECT * FROM transactions WHERE txhash='"+data+"'")
+                    try:
+                        txhash_client_block = c.fetchone()[0]
 
-                    c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
-                    txhash = c.fetchone()[0]
-                    c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
-                    block_height = c.fetchone()[0]
-                    print "Current latest txhash: "+str(txhash)
-                    print "Current top block: " +str(block_height)
-                    block_height_new = block_height + 1
-                    
-                    
+                        print "Client is at block "+str(txhash_client_block) #now check if we have any newer
 
-                    if received_txhash == hashlib.sha224(str(received_transaction) + str(received_signature) +str(txhash)).hexdigest(): #new hash = new tx + new sig + old txhash
-                        print "txhash valid"
-                        txhash_valid = 1
+                        c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
+                        db_txhash = c.fetchone()[0] #get latest txhash
+                        if db_txhash == data:
+                            print "Client has the latest block"
+                            connection.sendall("No new blocks here")
+         
+                        else:
+                            c.execute("SELECT * FROM transactions WHERE block_height='"+str(int(txhash_client_block) + 1)+"'") #select incoming transaction + 1
+                            txhash_send = c.fetchone()
+
+                            print "Selected "+str(txhash_send)+" to send"
+                            
+                            conn.close()
+                            connection.sendall("Block found")
+                            time.sleep(0.1)
+                            connection.sendall(str(txhash_send))
                         
-                        c.execute("INSERT INTO transactions VALUES ('"+str(block_height_new)+"','"+str(address)+"','"+str(to_address)+"','"+str(amount)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data                    
-                        #execute transaction                                
-                        conn.commit() # Save (commit) the changes
-                        #todo: broadcast
-                        print "Saved"
+                    except:
+                        print "Block not found"
+                        connection.sendall("Block not found")
+                        
+                            
+                #latest local block          
+                if data == "Transaction":
+                    data = connection.recv(1024)
+                    data_split = data.split(";")
+                    received_transaction = data_split[0]
+                    print "Received transaction: "+received_transaction
+                    #split message into values
+                    try:
+                        received_transaction_split = received_transaction.split(":")#todo receive list
+                        address = received_transaction_split[0]
+                        to_address = received_transaction_split[1]
+                        amount = int(received_transaction_split[2])
+                    except Exception as e:
+                        print "Something wrong with the transaction ("+str(e)+")"
+                        break
+                    #split message into values
+                    received_signature = data_split[1] #needs to be converted
+                    received_signature_tuple = ast.literal_eval(received_signature) #converting to tuple
+                    print "Received signature: "+received_signature
+                    received_public_key_readable = data_split[2]
+                    print "Received public key: "+received_public_key_readable
+                    received_txhash = data_split[3]
+                    print "Received txhash: "+received_txhash
 
-                        conn.close()
-                        print "Database closed"
+                    #convert received strings
+                    received_public_key = RSA.importKey(received_public_key_readable)
+                    #convert received strings
+                    
+                    if received_public_key.verify(received_transaction, received_signature_tuple) == True:
+                        print "The signature is valid"
+                        #transaction processing
+
+                        conn = sqlite3.connect('ledger.db')
+                        c = conn.cursor()
+                     
+                        #verify balance and blockchain                           
+                        print "Verifying balance"
+                        print "Address:" +address
+                        c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '"+address+"'")
+                        credit = c.fetchone()[0]
+                        c.execute("SELECT sum(amount) FROM transactions WHERE address = '"+address+"'")
+                        debit = c.fetchone()[0]
+                        if debit == None:
+                            debit = 0
+                        if credit == None:
+                            credit = 0                                
+                        print "Total credit: "+str(credit)                                
+                        print "Total debit: "+str(debit)
+                        balance = int(credit) - int(debit)
+                        print "Your balance: "+str(balance) 
+
+                        if  int(balance) - int(amount) < 0:
+                            print "Your balance is too low for this transaction"
+                            break
+                        else:
+                            print "Processing transaction"
+
+                            c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
+                            txhash = c.fetchone()[0]
+                            c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
+                            block_height = c.fetchone()[0]
+                            print "Current latest txhash: "+str(txhash)
+                            print "Current top block: " +str(block_height)
+                            block_height_new = block_height + 1
+                            
+                            
+
+                            if received_txhash == hashlib.sha224(str(received_transaction) + str(received_signature) +str(txhash)).hexdigest(): #new hash = new tx + new sig + old txhash
+                                print "txhash valid"
+                                txhash_valid = 1
                                 
-                        #transaction processing                        
-                        
+                                c.execute("INSERT INTO transactions VALUES ('"+str(block_height_new)+"','"+str(address)+"','"+str(to_address)+"','"+str(amount)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data                    
+                                #execute transaction                                
+                                conn.commit() # Save (commit) the changes
+                                #todo: broadcast
+                                print "Saved"
+
+                                conn.close()
+                                print "Database closed"
+                                        
+                                #transaction processing                        
+                                
+                            else:
+                                print "txhash invalid"
+                                conn.close()
+                                break # or something
+                                                            
+                            #verify balance and blockchain                            
+                                #execute transaction
+                            
+
                     else:
-                        print "txhash invalid"
-                        conn.close()
-                        break # or something
-                                                    
-                    #verify balance and blockchain                            
-                        #execute transaction
-                        
+                        print "Signature invalid"
 
                 else:
-                    print "Signature invalid"
+                    print 'no more data from', client_address
+                    terminate = terminate + 1
+                    print "Terminate trigger at: "+str(terminate)
+                    if terminate == 25:
+                        break
+                    #break #experimental break
 
-            else:
-                print 'no more data from', client_address
-                #break #experimental break
-
+            except: #forcibly closed connection
+                print "Lost connection"
+                break
     except:
         raise
             

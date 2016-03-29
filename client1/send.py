@@ -73,6 +73,7 @@ for tuple in peer_tuples:
     while True:
 
         s.sendall('Hello, server')
+        time.sleep(0.5)
 
         peer = s.getpeername()
         
@@ -256,11 +257,6 @@ for tuple in peer_tuples:
                     
                 else:
                     print "Invalid signature"
-
-                    
-
-
-
                 
             #broadcast
             #s.close()
