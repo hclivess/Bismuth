@@ -2,6 +2,7 @@ development plan:
 
 -enable transaction fees to prevent spam 
 -nodes (not only clients) should send out transactions to prevent forks and rollbacks
+-unite node and client to one
 
 WARNING: This project is in the Proof of Concept stage!
 
