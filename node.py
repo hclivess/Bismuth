@@ -14,14 +14,14 @@ from Crypto import Random
 port = int(2829)
 #"""
 #connectivity to self node
-prod = 1
+prod = 0
 
 if prod == 1:
     r = requests.get(r'http://jsonip.com')
     ip= r.json()['ip']
     print 'Your IP is', ip
     sock_self = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock_self.settimeout(3)
+    #sock_self.settimeout(1)
     result = sock_self.connect_ex((ip,port))
     sock_self.close()
     #result = 0 #enable for test
@@ -120,64 +120,193 @@ while True:
 ### LOCAL CHECKS FINISHED ###
         
         # Receive and send data
-        terminate = 0
+        first_run = 1
         while True:
             try:
-                data = connection.recv(1024) #one and the only root connection
-
-                #hello message
+                data = connection.recv(11) #one and the only root connection
                 print 'Received: '+ data
                 
-                if data == 'Hello, server':
+                if data == 'helloserver':
                     with open ("peers.txt", "r") as peer_list:
                         peers=peer_list.read()
                         print peers
-                        connection.sendall("Peers")
-                        time.sleep(0.5)
+                        connection.sendall("peers______")
+                        time.sleep(0.1)
                         connection.sendall(peers)
-                        time.sleep(0.5)
-                        print "Sending sync request"
-                        connection.sendall("Sync")
-                #hello message                    
+                        time.sleep(0.1)
+                        
+                    print "Sending sync request"
+                    connection.sendall("sync_______")
+                    time.sleep(0.1)
 
-                    
-                #send sync data to client
-                if data == "My latest txhash is as follows":
+                if data == "blockfound_":
+                    ##todo delete all own followups
+                   
+                    print "Node has the block" #node should start sending txs in this step
+                    #todo critical: make sure that received block height is correct
                     data = connection.recv(1024)
-                    print "Will seek the following block: " + str(data)
+                    #verify
+                    sync_list = ast.literal_eval(data) #this is great, need to add it to client -> node sync
+                    received_block_height = sync_list[0]
+                    received_address = sync_list[1]
+                    received_to_address = sync_list[2]
+                    received_amount = sync_list [3]
+                    received_signature = sync_list[4]
+                    received_public_key_readable = sync_list[5]
+                    received_public_key = RSA.importKey(sync_list[5])
+                    received_txhash = sync_list[6]
+                    received_transaction = str(received_address) +":"+ str(received_to_address) +":"+ str(received_amount) #todo: why not have bare list instead of converting?
+                    received_signature_tuple = ast.literal_eval(received_signature) #converting to tuple
+
+                    #txhash validation start
+
                     conn = sqlite3.connect('ledger.db')
                     c = conn.cursor()
+                    c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
+                    txhash_db = c.fetchone()[0]
 
-                    c.execute("SELECT * FROM transactions WHERE txhash='"+data+"'")
-                    try:
-                        txhash_client_block = c.fetchone()[0]
+                    #delete all local followups
+                    c.execute('DELETE FROM transactions WHERE block_height > "'+str(received_block_height)+'"')
+                    conn.close()
+                    #delete all local followups
+                    
+                    print "Last db txhash: "+str(txhash_db)
+                    print "Received txhash: "+str(received_txhash)
+                    print "Received transaction: "+str(received_transaction)
 
-                        print "Client is at block "+str(txhash_client_block) #now check if we have any newer
+                    txhash_valid = 0
+                    if received_txhash == hashlib.sha224(str(received_transaction) + str(received_signature) +str(txhash_db)).hexdigest(): #new hash = new tx + new sig + old txhash
+                        print "txhash valid"
+                        txhash_valid = 1
 
+                        #update local db with received tx
+                        conn = sqlite3.connect('ledger.db')
+                        c = conn.cursor()
+                        print "Verifying balance"
+                        print "Received address: " +str(received_address)
+                        c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '"+received_address+"'")
+                        credit = c.fetchone()[0]
+                        c.execute("SELECT sum(amount) FROM transactions WHERE address = '"+received_address+"'")
+                        debit = c.fetchone()[0]
+                        if debit == None:
+                            debit = 0
+                        if credit == None:
+                            credit = 0                                
+                        print "Total credit: "+str(credit)                                
+                        print "Total debit: "+str(debit)
+                        balance = int(credit) - int(debit)
+                        print "Transction address balance: "+str(balance)                       
+                        conn.close()
+                                
+                        if  int(balance) - int(received_amount) < 0:
+                            print "Their balance is too low for this transaction"
+                        else:                              
+                            #save step to db
+                            conn = sqlite3.connect('ledger.db') 
+                            c = conn.cursor()
+                            c.execute("INSERT INTO transactions VALUES ('"+str(received_block_height)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_amount)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data
+                            print "Ledger updated with a received transaction"
+                            conn.commit() # Save (commit) the changes
+                            conn.close()
+                            #save step to db
+                        print "Ledger synchronization finished"
+                        connection.sendall("sync_______")
+                        time.sleep(0.1)
+                        #update local db with received tx                    
+
+
+                        
+                    else:
+                        print "txhash invalid"
+                        #rollback start
+                        print "Received invalid txhash"
+                        #rollback end
+
+                if data == "blockheight":
+                    subdata = connection.recv(30) #receive client's last block height
+                    received_block_height = subdata
+                    print "Received block height: "+(received_block_height)
+                    
+                    #send own block height
+                    conn = sqlite3.connect('ledger.db')
+                    c = conn.cursor()                    
+                    c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
+                    db_block_height = c.fetchone()[0]
+                    conn.close()
+
+                    #append zeroes to get static length
+                    while len(str(db_block_height)) != 30:
+                        db_block_height = "0"+str(db_block_height)
+                    connection.sendall(db_block_height)
+                    time.sleep(0.1)
+                    #send own block height
+                    
+                    if received_block_height > db_block_height:
+                        print "Client has higher block, receiving"
+                        update_me = 1
+                        #todo
+                        
+                    if received_block_height <= db_block_height:
+                        print "We have a higher or equal block, hash will be verified"
+                        update_me = 0
+
+                    if received_block_height == db_block_height:
+                        print "We have the same block height, hash will be verified"
+                        update_me = 0
+
+                    if update_me == 1:
+                        conn = sqlite3.connect('ledger.db')
+                        c = conn.cursor()                
                         c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
                         db_txhash = c.fetchone()[0] #get latest txhash
-                        if db_txhash == data:
-                            print "Client has the latest block"
-                            connection.sendall("No new blocks here")
-         
-                        else:
-                            c.execute("SELECT * FROM transactions WHERE block_height='"+str(int(txhash_client_block) + 1)+"'") #select incoming transaction + 1
-                            txhash_send = c.fetchone()
+                        conn.close()
+                        print "txhash to send: " +str(db_txhash)
+                        connection.sendall("mytxhash__")
+                        time.sleep(0.1)
+                        connection.sendall(db_txhash) #send latest txhash
+                        time.sleep(0.1)
 
-                            print "Selected "+str(txhash_send)+" to send"
+                    if update_me == 0: #update them if update_me is 0
+                        data = connection.recv(56) #receive client's last txhash
+                        #send all our followup hashes
+                        print "Will seek the following block: " + str(data)
+                        conn = sqlite3.connect('ledger.db')
+                        c = conn.cursor()
+
+                        c.execute("SELECT * FROM transactions WHERE txhash='"+data+"'")
+                        try:
+                            txhash_client_block = c.fetchone()[0]
+
+                            print "Client is at block "+str(txhash_client_block) #now check if we have any newer
+
+                            c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
+                            db_txhash = c.fetchone()[0] #get latest txhash
+                            if db_txhash == data:
+                                print "Client has the latest block"
+                                connection.sendall("nonewblocks")
+                                time.sleep(0.1)
+             
+                            else:
+                                c.execute("SELECT * FROM transactions WHERE block_height='"+str(int(txhash_client_block) + 1)+"'") #select incoming transaction + 1
+                                txhash_send = c.fetchone()
+
+                                print "Selected "+str(txhash_send)+" to send"
+                                
+                                conn.close()
+                                connection.sendall("blockfound_")
+                                time.sleep(0.1)
+                                connection.sendall(str(txhash_send))
+                                time.sleep(0.1)
                             
-                            conn.close()
-                            connection.sendall("Block found")
+                        except:
+                            print "Block not found"
+                            connection.sendall("blocknotfoun")
                             time.sleep(0.1)
-                            connection.sendall(str(txhash_send))
-                        
-                    except:
-                        print "Block not found"
-                        connection.sendall("Block not found")
-                        
+                        #send all our followup hashes
+                    
                             
                 #latest local block          
-                if data == "Transaction":
+                if data == "transaction":
                     data = connection.recv(1024)
                     data_split = data.split(";")
                     received_transaction = data_split[0]
@@ -272,14 +401,10 @@ while True:
 
                 else:
                     print 'no more data from', client_address
-                    terminate = terminate + 1
-                    print "Terminate trigger at: "+str(terminate)
-                    if terminate == 25:
-                        break
-                    #break #experimental break
 
             except: #forcibly closed connection
                 print "Lost connection"
+                raise #for test purposes only
                 break
     except:
         raise
