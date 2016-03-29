@@ -1,0 +1,11 @@
+New rollback proposal, which reworks sync entirely:
+
+
+txhash invalid - 
+node sends latest hash to client
+	if client knows the hash, it sends all following txs to the node
+		node verifies the incoming txs and saves them to the local database
+
+	if client does not know the hash, it sends it's latest hash to node
+		node finds client's latest hash in the database and sends all newer blocks
+			client verifies the blocks and saves them to local database
