@@ -149,7 +149,7 @@ for tuple in peer_tuples:
                     print "Block not found"
                     s.sendall("blocknotfoun")
                     time.sleep(0.1)
-                #send all our followup hashes        
+                    #todo send previous
             
         if data == "sync_______":            
             #sync start
@@ -213,19 +213,20 @@ for tuple in peer_tuples:
             mempool = sqlite3.connect('mempool.db')
             m = mempool.cursor()
 
-            for row in c.execute('SELECT * FROM transactions WHERE block_height > "'+str(received_block_height)+'"'):
-                db_block_height = row[0]
-                db_timestamp = row[1]
-                db_address = row[2]
-                db_to_address = row[3]
-                db_amount = row [4]
-                db_signature = row[5]
-                db_public_key_readable = row[6]
-                db_public_key = RSA.importKey(row[6])
-                db_txhash = row[7]
-                db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount) 
+            c.execute('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1')
+            results = c.fetchone()
+            db_block_height = results[0]
+            db_timestamp = results[1]
+            db_address = results[2]
+            db_to_address = results[3]
+            db_amount = results[4]
+            db_signature = results[5]
+            db_public_key_readable = results[6]
+            db_public_key = RSA.importKey(results[6])
+            db_txhash = results[7]
+            db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount) 
 
-                m.execute("INSERT INTO transactions VALUES ('"+str(db_block_height)+"','"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable)+"','"+str(db_txhash)+"')") # Insert a row of data
+            m.execute("INSERT INTO transactions VALUES ('"+str(db_block_height)+"','"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable)+"','"+str(db_txhash)+"')") # Insert a row of data
 
             mempool.commit()
             mempool.close()
