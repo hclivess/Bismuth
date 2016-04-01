@@ -57,8 +57,8 @@ db_rows = c.fetchone()[0]
 print "Total steps: "+str(db_rows)
 
 #verify genesis
-c.execute("SELECT * FROM transactions ORDER BY block_height ASC LIMIT 1")
-genesis = c.fetchone()[2]
+c.execute("SELECT to_address FROM transactions ORDER BY block_height ASC LIMIT 1")
+genesis = c.fetchone()[0]
 print "Genesis: "+genesis
 if str(genesis) != "352e5c8ca3751061e63ecb45d4c8dda4deaf773b6cb1e6c18be80072": #change this line to your genesis address if you want to clone
     print "Invalid genesis address"
@@ -68,19 +68,20 @@ if str(genesis) != "352e5c8ca3751061e63ecb45d4c8dda4deaf773b6cb1e6c18be80072": #
 try:
     for row in c.execute('SELECT * FROM transactions ORDER BY block_height'):
         db_block_height = row[0]
-        db_address = row[1]
-        db_to_address = row[2]
-        db_amount = row [3]
-        db_signature = row[4]
-        db_public_key = RSA.importKey(row[5])
-        db_txhash = row[6]
-        db_transaction = str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount) 
+        db_timestamp = row[1]
+        db_address = row[2]
+        db_to_address = row[3]
+        db_amount = row [4]
+        db_signature = row[5]
+        db_public_key = RSA.importKey(row[6])
+        db_txhash = row[7]
+        db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount) 
 
         #print db_transaction
 
         db_signature_tuple = ast.literal_eval(db_signature) #converting to tuple
         
-        if db_public_key.verify(db_transaction, db_signature_tuple) == True:
+        if db_public_key.verify(db_transaction, db_signature_tuple) == True: #TODO: ADD TXHASH VALIDATION?
             print "Step "+str(db_block_height)+" is valid"
         else:
             print "Step "+str(db_block_height)+" is invalid"
@@ -105,7 +106,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             data = self.request.recv(11)
             cur_thread = threading.current_thread()
             
-            print "received: "+data
+            #print "received: "+data
 
             if data == 'helloserver':
                 with open ("peers.txt", "r") as peer_list:
@@ -123,18 +124,19 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             if data == "blockfound_":                  
                 print "Node has the block" #node should start sending txs in this step
                 #todo critical: make sure that received block height is correct
-                data = self.request.recv(1024)
+                data = self.request.recv(2048)
                 #verify
                 sync_list = ast.literal_eval(data) #this is great, need to add it to client -> node sync
                 received_block_height = sync_list[0]
-                received_address = sync_list[1]
-                received_to_address = sync_list[2]
-                received_amount = sync_list [3]
-                received_signature = sync_list[4]
-                received_public_key_readable = sync_list[5]
-                received_public_key = RSA.importKey(sync_list[5])
-                received_txhash = sync_list[6]
-                received_transaction = str(received_address) +":"+ str(received_to_address) +":"+ str(received_amount) #todo: why not have bare list instead of converting?
+                received_timestamp = sync_list[1]
+                received_address = sync_list[2]
+                received_to_address = sync_list[3]
+                received_amount = sync_list [4]
+                received_signature = sync_list[5]
+                received_public_key_readable = sync_list[6]
+                received_public_key = RSA.importKey(sync_list[7])
+                received_txhash = sync_list[8]
+                received_transaction = str(received_timestamp) +":"+ str(received_address) +":"+ str(received_to_address) +":"+ str(received_amount) #todo: why not have bare list instead of converting?
                 received_signature_tuple = ast.literal_eval(received_signature) #converting to tuple
 
                 #txhash validation start
@@ -183,7 +185,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         #save step to db
                         conn = sqlite3.connect('ledger.db') 
                         c = conn.cursor()
-                        c.execute("INSERT INTO transactions VALUES ('"+str(received_block_height)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_amount)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data
+                        c.execute("INSERT INTO transactions VALUES ('"+str(received_block_height)+"','"+str(received_timestamp)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_amount)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data
                         print "Ledger updated with a received transaction"
                         conn.commit() # Save (commit) the changes
                         conn.close()
@@ -286,21 +288,23 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         
             #latest local block          
             if data == "transaction":
-                data = self.request.recv(1024)
+                data = self.request.recv(2048)
                 data_split = data.split(";")
                 received_transaction = data_split[0]
                 print "Received transaction: "+received_transaction
                 #split message into values
                 try:
                     received_transaction_split = received_transaction.split(":")#todo receive list
-                    address = received_transaction_split[0]
-                    to_address = received_transaction_split[1]
-                    amount = int(received_transaction_split[2])
+                    received_timestamp = received_transaction_split[0]
+                    address = received_transaction_split[1]
+                    to_address = received_transaction_split[2]
+                    amount = int(received_transaction_split[3])
                 except Exception as e:
                     print "Something wrong with the transaction ("+str(e)+")"
                 #split message into values
                 received_signature = data_split[1] #needs to be converted
                 received_signature_tuple = ast.literal_eval(received_signature) #converting to tuple
+                
                 print "Received signature: "+received_signature
                 received_public_key_readable = data_split[2]
                 print "Received public key: "+received_public_key_readable
@@ -353,7 +357,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             print "txhash valid"
                             txhash_valid = 1
                             
-                            c.execute("INSERT INTO transactions VALUES ('"+str(block_height_new)+"','"+str(address)+"','"+str(to_address)+"','"+str(amount)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data                    
+                            c.execute("INSERT INTO transactions VALUES ('"+str(block_height_new)+"','"+str(received_timestamp)+"','"+str(address)+"','"+str(to_address)+"','"+str(amount)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data                    
                             #execute transaction                                
                             conn.commit() # Save (commit) the changes
                             #todo: broadcast
