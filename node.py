@@ -80,14 +80,23 @@ try:
         #print db_transaction
 
         db_signature_tuple = ast.literal_eval(db_signature) #converting to tuple
+
+        invalid = 0
         
         if db_public_key.verify(db_transaction, db_signature_tuple) == True: #TODO: ADD TXHASH VALIDATION?
-            print "Step "+str(db_block_height)+" is valid"
+            pass
         else:
-            print "Step "+str(db_block_height)+" is invalid"
+            #print "Step "+str(db_block_height)+" is invalid"
+            invalid = invalid + 1
             if db_block_height == str(1):
                 print "Your genesis signature is invalid, someone meddled with the database"
                 sys.exit(1)
+
+    if invalid > 0:
+        print str(invalid)+" of the transactions in the local ledger are invalid"
+
+    if invalid == 0:
+        print "All transacitons in the local ledger are valid"            
         
 except sqlite3.Error, e:                        
     print "Error %s:" % e.args[0]
