@@ -310,7 +310,7 @@ for tuple in peer_tuples:
         if data == "nonewblocks":
             print "We seem to be at the latest block"
 
-            #send tx
+            #enter transaction start
             conn = sqlite3.connect('ledger.db')
             c = conn.cursor()
             c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
@@ -344,8 +344,4 @@ for tuple in peer_tuples:
                 
             else:
                 print "Invalid signature"
-                
-            #broadcast
-            #s.close()
-
-            #network client program
+            #enter transaction end
