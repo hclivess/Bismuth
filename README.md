@@ -1,8 +1,9 @@
 development plan:
 
 -enable transaction fees to prevent spam 
--nodes (not only clients) should send out transactions to prevent forks and rollbacks
--unite node and client to one
+-wrap up communication and network integration of nodes/clients using recently implemented multithreading
+-unite node and client to one (partially complete)
+-resubmit mempool transactions
 
 WARNING: This project is in the Proof of Concept stage!
 
