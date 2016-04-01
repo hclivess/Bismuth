@@ -85,7 +85,7 @@ for tuple in peer_tuples:
         print 'Received data from '+ str(peer) +"\n"+ str(data)   
 
         if data == "peers______":
-            subdata = s.recv(1024) #peers are larger 
+            subdata = s.recv(2048) #peers are larger 
             #get remote peers into tuples
             server_peer_tuples = re.findall ("'([\d\.]+)', '([\d]+)'",subdata)
             print server_peer_tuples
@@ -212,6 +212,7 @@ for tuple in peer_tuples:
             c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
             db_block_height = c.fetchone()[0]
             c.execute('DELETE FROM transactions WHERE block_height ="'+str(db_block_height)+'"')
+            #todo:sidepools
             conn.commit()
             conn.close()
             
@@ -223,18 +224,20 @@ for tuple in peer_tuples:
            
             print "Node has the block" #node should start sending txs in this step
             #todo critical: make sure that received block height is correct
-            data = s.recv(1024)
+            data = s.recv(2048)
+            print data
             #verify
             sync_list = ast.literal_eval(data) #this is great, need to add it to client -> node sync
             received_block_height = sync_list[0]
-            received_address = sync_list[1]
-            received_to_address = sync_list[2]
-            received_amount = sync_list [3]
-            received_signature = sync_list[4]
-            received_public_key_readable = sync_list[5]
-            received_public_key = RSA.importKey(sync_list[5])
-            received_txhash = sync_list[6]
-            received_transaction = str(received_address) +":"+ str(received_to_address) +":"+ str(received_amount) #todo: why not have bare list instead of converting?
+            received_timestamp = sync_list[1]
+            received_address = sync_list[2]
+            received_to_address = sync_list[3]
+            received_amount = sync_list [4]
+            received_signature = sync_list[5]
+            received_public_key_readable = sync_list[6]
+            received_public_key = RSA.importKey(sync_list[6])
+            received_txhash = sync_list[7]
+            received_transaction = str(received_timestamp) +":"+ str(received_address) +":"+ str(received_to_address) +":"+ str(received_amount) #todo: why not have bare list instead of converting?
             received_signature_tuple = ast.literal_eval(received_signature) #converting to tuple
 
             #txhash validation start
@@ -247,6 +250,7 @@ for tuple in peer_tuples:
             #delete all local followups
             c.execute('DELETE FROM transactions WHERE block_height > "'+str(received_block_height)+'"')
             conn.close()
+            #todo:sidepools
             #delete all local followups
             
             print "Last db txhash: "+str(txhash_db)
@@ -283,7 +287,7 @@ for tuple in peer_tuples:
                     #save step to db
                     conn = sqlite3.connect('ledger.db') 
                     c = conn.cursor()
-                    c.execute("INSERT INTO transactions VALUES ('"+str(received_block_height)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_amount)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data
+                    c.execute("INSERT INTO transactions VALUES ('"+str(received_block_height)+"','"+str(received_timestamp)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_amount)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data
                     print "Ledger updated with a received transaction"
                     conn.commit() # Save (commit) the changes
                     conn.close()
@@ -315,8 +319,9 @@ for tuple in peer_tuples:
                 
             to_address = str(raw_input ("Send to address: "))
             amount = str(raw_input ("How much to send: "))
-            
-            transaction = str(address) +":"+ str(to_address) +":"+ str(amount)
+
+            timestamp = str(time.time())
+            transaction = str(timestamp) +":"+ str(address) +":"+ str(to_address) +":"+ str(amount)
             signature = key.sign(transaction, '')
             print "Signature: "+str(signature)
 

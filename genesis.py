@@ -4,6 +4,7 @@ import re
 import sqlite3
 import os
 import sys
+import time
 
 from Crypto.Hash import SHA256
 from Crypto.PublicKey import RSA
@@ -48,7 +49,9 @@ print "Your private key:\n "+ str(private_key_readable)
 print "Your public key:\n "+ str(public_key_readable)
 # import keys
 
-transaction = "1:genesis:"+address+":100000000"
+timestamp = str(time.time())
+print "Timestamp: "+timestamp
+transaction = timestamp+":genesis:"+address+":100000000"
 signature = key.sign(transaction, '')
 print "Signature: "+str(signature)
 txhash = hashlib.sha224(str(transaction) + str(signature) + str(public_key_readable)).hexdigest()
@@ -62,8 +65,8 @@ else:
     try:
         conn = sqlite3.connect('ledger.db')
         c = conn.cursor()
-        c.execute("CREATE TABLE transactions (block_height INTEGER, address, to_address, amount, signature, public_key, txhash)")
-        c.execute("INSERT INTO transactions VALUES ('1','genesis','"+address+"','100000000','"+str(signature)+"','"+public_key_readable+"','"+txhash+"')") # Insert a row of data                    
+        c.execute("CREATE TABLE transactions (block_height INTEGER, timestamp, address, to_address, amount, signature, public_key, txhash)")
+        c.execute("INSERT INTO transactions VALUES ('1','"+timestamp+"','genesis','"+address+"','100000000','"+str(signature)+"','"+public_key_readable+"','"+txhash+"')") # Insert a row of data                    
                
         conn.commit() # Save (commit) the changes
         #todo: broadcast
