@@ -148,8 +148,7 @@ for tuple in peer_tuples:
                 except:
                     print "Block not found"
                     s.sendall("blocknotfoun")
-                    time.sleep(0.1)
-                    #todo send previous
+                    time.sleep(0.1)                    
             
         if data == "sync_______":            
             #sync start
@@ -208,7 +207,6 @@ for tuple in peer_tuples:
             c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
             db_block_height = c.fetchone()[0]
 
-
             #backup all followups to mempool
             mempool = sqlite3.connect('mempool.db')
             m = mempool.cursor()
@@ -237,6 +235,7 @@ for tuple in peer_tuples:
             conn.commit()
             conn.close()
             #delete followups
+            s.sendall("helloserver") #experimental 
                    
         if data == "blockfound_":          
             print "Node has the block" #node should start sending txs in this step

@@ -354,6 +354,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     conn.commit()
                     conn.close()
                     #delete followups
+                    self.request.sendall("sync_______") #experimental
+                    
                    
                             
                 #latest local block          
