@@ -36,7 +36,6 @@ else:
     address_file.write(str(address)+"\n")
     address_file.close()
 
-
 # import keys
 key_file = open('keys.pem','r')
 key = RSA.importKey(key_file.read())
@@ -152,9 +151,6 @@ for tuple in peer_tuples:
                     time.sleep(0.1)
                 #send all our followup hashes        
             
-        if data == "nonewblocks":
-            print "We seem to be at the latest block"
-            
         if data == "sync_______":            
             #sync start
 
@@ -211,17 +207,37 @@ for tuple in peer_tuples:
             c = conn.cursor()
             c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
             db_block_height = c.fetchone()[0]
+
+
+            #backup all followups to mempool
+            mempool = sqlite3.connect('mempool.db')
+            m = mempool.cursor()
+
+            for row in c.execute('SELECT * FROM transactions WHERE block_height > "'+str(received_block_height)+'"'):
+                db_block_height = row[0]
+                db_timestamp = row[1]
+                db_address = row[2]
+                db_to_address = row[3]
+                db_amount = row [4]
+                db_signature = row[5]
+                db_public_key_readable = row[6]
+                db_public_key = RSA.importKey(row[6])
+                db_txhash = row[7]
+                db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount) 
+
+                m.execute("INSERT INTO transactions VALUES ('"+str(db_block_height)+"','"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable)+"','"+str(db_txhash)+"')") # Insert a row of data
+
+            mempool.commit()
+            mempool.close()
+            #backup all followups to mempool
+            
+            #delete followups
             c.execute('DELETE FROM transactions WHERE block_height ="'+str(db_block_height)+'"')
-            #todo:sidepools
             conn.commit()
             conn.close()
-            
-            ##todo
-                
+            #delete followups
                    
-        if data == "blockfound_":
-            ##todo delete all own followups
-           
+        if data == "blockfound_":          
             print "Node has the block" #node should start sending txs in this step
             #todo critical: make sure that received block height is correct
             data = s.recv(2048)
@@ -246,11 +262,32 @@ for tuple in peer_tuples:
             c = conn.cursor()
             c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
             txhash_db = c.fetchone()[0]
+            
+            #backup all followups to mempool
+            mempool = sqlite3.connect('mempool.db')
+            m = mempool.cursor()
 
+            for row in c.execute('SELECT * FROM transactions WHERE block_height > "'+str(received_block_height)+'"'):
+                db_block_height = row[0]
+                db_timestamp = row[1]
+                db_address = row[2]
+                db_to_address = row[3]
+                db_amount = row [4]
+                db_signature = row[5]
+                db_public_key_readable = row[6]
+                db_public_key = RSA.importKey(row[6])
+                db_txhash = row[7]
+                db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount) 
+
+                m.execute("INSERT INTO transactions VALUES ('"+str(db_block_height)+"','"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable)+"','"+str(db_txhash)+"')") # Insert a row of data
+
+            mempool.commit()
+            mempool.close()
+            #backup all followups to mempool       
+            
             #delete all local followups
             c.execute('DELETE FROM transactions WHERE block_height > "'+str(received_block_height)+'"')
             conn.close()
-            #todo:sidepools
             #delete all local followups
             
             print "Last db txhash: "+str(txhash_db)
@@ -296,15 +333,12 @@ for tuple in peer_tuples:
                 #s.sendall("Sync finished")
                 #update local db with received tx                    
 
-
-                
             else:
                 print "txhash invalid"
                 #rollback start
                 print "Received invalid txhash"
                 #rollback end
-                
-           
+                        
             #txhash validation end
 
         if data == "nonewblocks":
@@ -327,7 +361,6 @@ for tuple in peer_tuples:
 
             if public_key.verify(transaction, signature) == True:
 
-     
                 conn = sqlite3.connect('ledger.db')
                 c = conn.cursor()
                 c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")

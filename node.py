@@ -135,19 +135,42 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     received_amount = sync_list [4]
                     received_signature = sync_list[5]
                     received_public_key_readable = sync_list[6]
-                    received_public_key = RSA.importKey(sync_list[7])
-                    received_txhash = sync_list[8]
+                    received_public_key = RSA.importKey(sync_list[6])
+                    received_txhash = sync_list[7]
                     received_transaction = str(received_timestamp) +":"+ str(received_address) +":"+ str(received_to_address) +":"+ str(received_amount) #todo: why not have bare list instead of converting?
                     received_signature_tuple = ast.literal_eval(received_signature) #converting to tuple
 
                     #txhash validation start
 
+                    #open dbs for mempool backup and followup deletion
                     conn = sqlite3.connect('ledger.db')
                     c = conn.cursor()
                     c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
                     txhash_db = c.fetchone()[0]
 
-                    #delete all local followups
+                    #backup all followups to mempool
+                    mempool = sqlite3.connect('mempool.db')
+                    m = mempool.cursor()
+
+                    for row in c.execute('SELECT * FROM transactions WHERE block_height > "'+str(received_block_height)+'"'):
+                        db_block_height = row[0]
+                        db_timestamp = row[1]
+                        db_address = row[2]
+                        db_to_address = row[3]
+                        db_amount = row [4]
+                        db_signature = row[5]
+                        db_public_key_readable = row[6]
+                        db_public_key = RSA.importKey(row[6])
+                        db_txhash = row[7]
+                        db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount) 
+
+                        m.execute("INSERT INTO transactions VALUES ('"+str(db_block_height)+"','"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable)+"','"+str(db_txhash)+"')") # Insert a row of data
+
+                    mempool.commit()
+                    mempool.close()
+                    #backup all followups to mempool
+                    
+                    #delete all local followups                   
                     c.execute('DELETE FROM transactions WHERE block_height > "'+str(received_block_height)+'"')
                     conn.close()
                     #delete all local followups
@@ -285,7 +308,43 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             self.request.sendall("blocknotfoun")
                             time.sleep(0.1)
                         #send all our followup hashes
+
+                if data == "blocknotfou":
+                    print "Node didn't find the block, deleting latest entry"
+                    conn = sqlite3.connect('ledger.db')
+                    c = conn.cursor()
+                    c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
+                    db_block_height = c.fetchone()[0]
+
+
+                    #backup all followups to mempool
+                    mempool = sqlite3.connect('mempool.db')
+                    m = mempool.cursor()
+
+                    for row in c.execute('SELECT * FROM transactions WHERE block_height > "'+str(received_block_height)+'"'):
+                        db_block_height = row[0]
+                        db_timestamp = row[1]
+                        db_address = row[2]
+                        db_to_address = row[3]
+                        db_amount = row [4]
+                        db_signature = row[5]
+                        db_public_key_readable = row[6]
+                        db_public_key = RSA.importKey(row[6])
+                        db_txhash = row[7]
+                        db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount) 
+
+                        m.execute("INSERT INTO transactions VALUES ('"+str(db_block_height)+"','"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable)+"','"+str(db_txhash)+"')") # Insert a row of data
+
+                    mempool.commit()
+                    mempool.close()
+                    #backup all followups to mempool
                     
+                    #delete followups
+                    c.execute('DELETE FROM transactions WHERE block_height ="'+str(db_block_height)+'"')
+                    conn.commit()
+                    conn.close()
+                    #delete followups
+                   
                             
                 #latest local block          
                 if data == "transaction":

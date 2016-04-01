@@ -66,10 +66,15 @@ else:
         conn = sqlite3.connect('ledger.db')
         c = conn.cursor()
         c.execute("CREATE TABLE transactions (block_height INTEGER, timestamp, address, to_address, amount, signature, public_key, txhash)")
-        c.execute("INSERT INTO transactions VALUES ('1','"+timestamp+"','genesis','"+address+"','100000000','"+str(signature)+"','"+public_key_readable+"','"+txhash+"')") # Insert a row of data                    
-               
+        c.execute("INSERT INTO transactions VALUES ('1','"+timestamp+"','genesis','"+address+"','100000000','"+str(signature)+"','"+public_key_readable+"','"+txhash+"')") # Insert a row of data                           
         conn.commit() # Save (commit) the changes
-        #todo: broadcast
+
+        mempool = sqlite3.connect('mempool.db')
+        m = mempool.cursor()
+        m.execute("CREATE TABLE transactions (block_height INTEGER, timestamp, address, to_address, amount, signature, public_key, txhash)")
+        m.commit()
+        mempool.close()
+        
         print "Genesis created, don't forget to hardcode your genesis address"
     except sqlite3.Error, e:                      
         print "Error %s:" % e.args[0]
