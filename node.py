@@ -224,9 +224,62 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             conn.close()
                             #save step to db
                         print "Ledger synchronization finished"
+
+                        #digest mempool start
+                        while True:                            
+                            print "Digesting mempool"
+                            mempool = sqlite3.connect('mempool.db')
+                            m = mempool.cursor()
+                            try:
+                                m.execute("SELECT signature FROM transactions ORDER BY block_height DESC LIMIT 1;")
+                                signature_mempool = m.fetchone()[0]
+                                try:
+                                    conn = sqlite3.connect('ledger.db') 
+                                    c = conn.cursor()
+                                    c.execute("SELECT * FROM transactions WHERE signature ='"+signature_mempool+"';")
+                                    txhash_match = c.fetchone()[0]
+                                    
+                                    print "Mempool tx sig found in the local ledger, deleting tx"
+                                    m.execute("DELETE FROM transactions WHERE signature ='"+signature_mempool+"';")
+                                    mempool.commit()
+    
+                                except:
+                                    "Mempool tx sig not found in the local ledger, proceeding to insert"
+
+                                    #calculate block height from the ledger
+                                    for row in c.execute('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1;'):
+                                        db_block_height = row[0]
+                                        db_txhash = row[7]
+                                    
+                                    for row in m.execute("SELECT * FROM transactions WHERE signature = '"+signature_mempool+"';"):
+                                        db_timestamp = row[1]
+                                        db_address = row[2]
+                                        db_to_address = row[3]
+                                        db_amount = row[4]
+                                        db_signature = row[5]
+                                        db_public_key_readable = row[6]
+                                        db_public_key = RSA.importKey(row[6])
+                                        db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount)
+                                        txhash = hashlib.sha224(str(db_transaction) + str(db_signature) +str(db_txhash)).hexdigest() #calculate txhash from the ledger
+
+                                    c.execute("INSERT INTO transactions VALUES ('"+str(db_block_height+1)+"','"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable)+"','"+str(txhash)+"')") # Insert a row of data
+                                    conn.commit()
+                                    conn.close()                                    
+                                
+                                    m.execute("DELETE FROM transactions WHERE txhash = '"+db_txhash+"';") #delete tx from mempool now that it is in the ledger
+                                    mempool.commit()                                    
+                                    mempool.close()
+                                    #raise #testing purposes
+                                    
+                            except:
+                                print "Mempool digestion complete, mempool empty"
+                                #raise #testing purposes
+                                break
+                            #digest mempool end
+
                         self.request.sendall("sync_______")
                         time.sleep(0.1)
-                        #update local db with received tx                    
+                        #update local db with received tx
 
 
                         
@@ -343,7 +396,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     db_txhash = results[7]
                     db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount) 
 
-                    m.execute("INSERT INTO transactions VALUES ('"+str(db_block_height)+"','"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable)+"','"+str(db_txhash)+"')") # Insert a row of data
+                    txhash = hashlib.sha224(str(db_transaction) + str(db_signature) +str(db_txhash)).hexdigest() #calculate new txhash from ledger latest tx and the new tx
+
+                    m.execute("INSERT INTO transactions VALUES ('"+str(int(db_block_height)+1)+"','"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable)+"','"+str(txhash)+"')") # Insert a row of data
 
                     mempool.commit()
                     mempool.close()
