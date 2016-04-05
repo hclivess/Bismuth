@@ -12,6 +12,15 @@ from Crypto import Random
 import threading
 import SocketServer
 
+#db maintenance
+conn=sqlite3.connect("ledger.db")
+conn.execute("VACUUM")
+conn.close()
+conn=sqlite3.connect("mempool.db")
+conn.execute("VACUUM")
+conn.close()
+print "Database maintenance finished"
+
 #connectivity to self node
 prod = 0
 port = 2829
@@ -214,11 +223,13 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                 
                         if  int(balance) - int(received_amount) < 0:
                             print "Their balance is too low for this transaction"
+                        elif int(received_amount) < 0:
+                            print "Cannot use negative amounts"
                         else:                              
                             #save step to db
                             conn = sqlite3.connect('ledger.db') 
                             c = conn.cursor()
-                            c.execute("INSERT INTO transactions VALUES ('"+str(received_block_height)+"','"+str(received_timestamp)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_amount)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data
+                            c.execute("INSERT INTO transactions VALUES ('"+str(received_block_height)+"','"+str(received_timestamp)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(abs(received_amount))+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data
                             print "Ledger updated with a received transaction"
                             conn.commit() # Save (commit) the changes
                             conn.close()
@@ -467,6 +478,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                         if  int(balance) - int(amount) < 0:
                             print "Your balance is too low for this transaction"
+                        elif int(received_amount) < 0:
+                            print "Cannot use negative amounts"                            
                         else:
                             print "Processing transaction"
 

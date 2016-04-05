@@ -11,6 +11,15 @@ from Crypto.Hash import SHA256
 from Crypto.PublicKey import RSA
 from Crypto import Random
 
+#db maintenance
+conn=sqlite3.connect("ledger.db")
+conn.execute("VACUUM")
+conn.close()
+conn=sqlite3.connect("mempool.db")
+conn.execute("VACUUM")
+conn.close()
+print "Database maintenance finished"
+
 if os.path.isfile("keys.pem") is True:
     print "keys.pem found"
 
@@ -320,6 +329,8 @@ for tuple in peer_tuples:
                         
                 if  int(balance) - int(received_amount) < 0:
                     print "Their balance is too low for this transaction"
+                elif int(received_amount) < 0:
+                    print "Cannot use negative amounts"
                 else:                              
                     #save step to db
                     conn = sqlite3.connect('ledger.db') 
@@ -360,20 +371,23 @@ for tuple in peer_tuples:
             print "Signature: "+str(signature)
 
             if public_key.verify(transaction, signature) == True:
+                if int(amount) < 0:
+                    print "Signature OK, but cannot use negative amounts"
 
-                conn = sqlite3.connect('ledger.db')
-                c = conn.cursor()
-                c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
-                txhash = str(c.fetchone()[0])
-                txhash_new = hashlib.sha224(str(transaction) + str(signature) + str(txhash)).hexdigest() #define new tx hash based on previous #fix asap
-                print "New txhash to go with your transaction: "+txhash_new
-                conn.close()
-                   
-                print "The signature and control txhash is valid, proceeding to send transaction, signature, new txhash and the public key"
-                s.sendall("transaction")
-                time.sleep(0.1)
-                s.sendall(transaction+";"+str(signature)+";"+public_key_readable+";"+str(txhash_new)) #todo send list
-                time.sleep(0.1)
+                else:
+                    conn = sqlite3.connect('ledger.db')
+                    c = conn.cursor()
+                    c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
+                    txhash = str(c.fetchone()[0])
+                    txhash_new = hashlib.sha224(str(transaction) + str(signature) + str(txhash)).hexdigest() #define new tx hash based on previous #fix asap
+                    print "New txhash to go with your transaction: "+txhash_new
+                    conn.close()
+                       
+                    print "The signature and control txhash is valid, proceeding to send transaction, signature, new txhash and the public key"
+                    s.sendall("transaction")
+                    time.sleep(0.1)
+                    s.sendall(transaction+";"+str(signature)+";"+public_key_readable+";"+str(txhash_new)) #todo send list
+                    time.sleep(0.1)
                 
             else:
                 print "Invalid signature"
