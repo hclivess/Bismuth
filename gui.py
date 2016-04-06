@@ -6,6 +6,7 @@ from Crypto.PublicKey import RSA
 
 from Tkinter import *
 window = Tk()
+window.wm_title("[XCO] CODE")
 
 # import keys
 key_file = open('keys.pem','r')
@@ -17,9 +18,30 @@ address = hashlib.sha224(public_key_readable).hexdigest()
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 #s.settimeout(1)
-s.connect(("127.0.0.1", int("2829")))
+try:
+    s.connect(("127.0.0.1", int("2829")))
+except:
+    print "Cannot connect to local node, please start it first"
+    sys.exit(1)
 print "Connected"
 
+def balance_get():
+    conn = sqlite3.connect('ledger.db')
+    c = conn.cursor()
+    c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '"+address+"'")
+    credit = c.fetchone()[0]
+    c.execute("SELECT sum(amount) FROM transactions WHERE address = '"+address+"'")
+    debit = c.fetchone()[0]
+    if debit == None:
+        debit = 0
+    if credit == None:
+        credit = 0
+    balance = credit - debit
+    print "Node: Transction address balance: "+str(balance)                       
+    conn.close()
+    #updata balance label
+    balance_msg = Label(window, text = "Balance: "+str(balance))
+    balance_msg.grid(row = 3, column = 1, columnspan = 3)
 
 def send():
     print "Received tx command"
@@ -72,26 +94,35 @@ def app_quit():
     print "Received quit command"
     window.destroy()
 
+balance_get() #get balance on start
+
 #address and amount
 Label(window, text="To address", width=20).grid(row=0)
 Label(window, text="Amount", width=20).grid(row=1)
 
-to_address = Entry(window, width=60)
+to_address = Entry(window, width=30)
 to_address.grid(row=0, column=1)
 
-amount = Entry(window, width=60)
+amount = Entry(window, width=30)
 amount.grid(row=1, column=1)
+
+balance_enumerator = Entry(window, width=10)
 #address and amount
-    
+
 #buttons
+
 send_b = Button(window, text="Send transaction", command=send, height=1, width=15)
-send_b.grid(row=3, column=0, sticky=W, pady=4)
+send_b.grid(row=4, column=1, sticky=W, pady=4)
 
 start_b = Button(window, text="Start node", command=node, height=1, width=15)
-start_b.grid(row=3, column=1, sticky=W, pady=4)
+start_b.grid(row=5, column=1, sticky=W, pady=4)
+
+balance_b = Button(window, text="Check balance", command=balance_get, height=1, width=15)
+balance_b.grid(row=6, column=1, sticky=W, pady=4)
 
 quit_b = Button(window, text="Quit", command=app_quit, height=1, width=15)
-quit_b.grid(row=3, column=2, sticky=W, pady=4)
+quit_b.grid(row=7, column=1, sticky=W, pady=4)
+
 #buttons
 
 mainloop()
