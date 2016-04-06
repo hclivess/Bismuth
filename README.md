@@ -1,5 +1,7 @@
 development plan:
 
+-broadcast to nodes from peerlist
+
 -optimize
 -exception handling improvements
 -framework for decentralized apps
