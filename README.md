@@ -1,15 +1,16 @@
 development plan:
 
--enable transaction fees to prevent spam 
--wrap up communication and network integration of nodes/clients using recently implemented multithreading
--unite node and client to one (partially complete)
--resubmit mempool transactions
+-optimize
+-exception handling improvements
+-framework for decentralized apps
+-framework for sidechains and hyperblocks
 
-WARNING: This project is in the Proof of Concept stage!
+WARNING: This project is in the alpha stage!
 
 Dependencies:
 
--pycrypto -python 2.7 or newer -requests
+-pycrypto -python 2.7 or newer
+-requests
 
 Features:
 
@@ -17,8 +18,8 @@ Features:
 -transaction size limit: 0.002048 MB
 -real transaction size: 0.00075 MB (750 MB per 1 million txs)
 
--Secured by RSA
--hashing by sha224
+-cryptography by RSA
+-hashing by SHA224
 -socket functions
 -mutual rollback
 -asynchronous multithreading
