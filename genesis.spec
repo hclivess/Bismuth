@@ -4,7 +4,7 @@ block_cipher = None
 
 
 a = Analysis(['genesis.py'],
-             pathex=['C:\\Users\\HCLivess\\Documents\\GitHub\\hopium'],
+             pathex=['C:\\Users\\HCLivess\\Documents\\GitHub\\XTN-Twine'],
              binaries=None,
              datas=None,
              hiddenimports=[],

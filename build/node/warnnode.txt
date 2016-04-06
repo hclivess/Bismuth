@@ -13,54 +13,21 @@ missing module named binascii.hexlify - imported by binascii, random, requests.p
 missing module named errno.EINVAL - imported by errno, StringIO
 missing module named errno.errorcode - imported by errno, OpenSSL.SSL
 missing module named errno.ENOENT - imported by errno, gettext
-missing module named cStringIO.StringIO - imported by cStringIO, gettext, pprint, shlex, tempfile, pickle, socket, quopri, httplib, email.parser, email.message, email.generator, email.iterators, urllib, cgi, plistlib, urllib2, xml.sax, encodings.uu_codec, encodings.quopri_codec
-missing module named _subprocess.STD_OUTPUT_HANDLE - imported by _subprocess, subprocess
-missing module named _subprocess.CREATE_NEW_PROCESS_GROUP - imported by _subprocess, subprocess
-missing module named _subprocess.STD_INPUT_HANDLE - imported by _subprocess, subprocess
-missing module named _subprocess.STARTF_USESHOWWINDOW - imported by _subprocess, subprocess
-missing module named _subprocess.CREATE_NEW_CONSOLE - imported by _subprocess, subprocess
-missing module named _subprocess.STD_ERROR_HANDLE - imported by _subprocess, subprocess
-missing module named _subprocess.STARTF_USESTDHANDLES - imported by _subprocess, subprocess
-missing module named _subprocess.SW_HIDE - imported by _subprocess, subprocess
-missing module named collections.namedtuple - imported by collections, inspect, unittest.util, difflib, doctest, ssl, urlparse, requests.packages.urllib3.util.url, decimal
-missing module named collections.Mapping - imported by collections, requests.packages.urllib3._collections, requests.sessions
-missing module named collections.MutableMapping - imported by collections, requests.packages.urllib3._collections
-missing module named cPickle.loads - imported by cPickle, collections, Cookie
-missing module named cPickle.dumps - imported by cPickle, collections, Cookie
-missing module named thread.get_ident - imported by thread, collections, requests.packages.urllib3.packages.ordered_dict
-missing module named thread._local - imported by thread, threading
-missing module named thread.stack_size - imported by thread, threading
-missing module named thread.allocate_lock - imported by thread, _strptime
-missing module named itertools.imap - imported by itertools, heapq, collections
-missing module named itertools.chain - imported by itertools, tokenize, heapq, collections, OpenSSL.SSL, decimal
-missing module named itertools.starmap - imported by itertools, collections
-missing module named itertools.repeat - imported by itertools, collections, decimal
-missing module named itertools.tee - imported by itertools, heapq
-missing module named itertools.izip - imported by itertools, heapq
-missing module named itertools.count - imported by itertools, heapq, threading, OpenSSL.SSL
-missing module named itertools.islice - imported by itertools, repr, heapq
-missing module named collections.deque - imported by collections, shlex, threading, ast, Queue
-missing module named collections.OrderedDict - imported by collections, unittest.util, requests.packages.urllib3._collections, enum, requests.compat
-missing module named operator.itemgetter - imported by operator, collections, heapq, simplejson.encoder
-missing module named operator.eq - imported by operator, collections
-missing module named operator.getitem - imported by operator, pyasn1.type.tag
-missing module named operator.__ge__ - imported by operator, OpenSSL.crypto
-missing module named operator.__eq__ - imported by operator, OpenSSL.crypto
-missing module named operator.__lt__ - imported by operator, OpenSSL.crypto
-missing module named operator.__gt__ - imported by operator, OpenSSL.crypto
-missing module named operator.__le__ - imported by operator, OpenSSL.crypto
-missing module named operator.__ne__ - imported by operator, OpenSSL.crypto
-missing module named operator._compare_digest - imported by operator, hmac
-missing module named operator.attrgetter - imported by operator, inspect, cgi
-missing module named _collections.deque - imported by _collections, collections
-missing module named _collections.defaultdict - imported by _collections, collections
-missing module named _weakref.ref - imported by _weakref, _weakrefset, weakref
-missing module named _weakref.ReferenceType - imported by _weakref, weakref
-missing module named _weakref.proxy - imported by _weakref, weakref
-missing module named _weakref.getweakrefs - imported by _weakref, weakref
-missing module named _weakref.getweakrefcount - imported by _weakref, weakref
-missing module named _weakref.ProxyType - imported by _weakref, weakref
-missing module named _weakref.CallableProxyType - imported by _weakref, weakref
+missing module named cStringIO.StringIO - imported by cStringIO, gettext, pprint, shlex, tempfile, pickle, socket, quopri, httplib, email.parser, email.message, email.generator, email.iterators, urllib, cgi, plistlib, urllib2, SocketServer, xml.sax, encodings.uu_codec, encodings.quopri_codec
+missing module named strop.whitespace - imported by strop, string
+missing module named strop.maketrans - imported by strop, string
+missing module named strop.lowercase - imported by strop, string
+missing module named strop.uppercase - imported by strop, string
+missing module named struct.calcsize - imported by struct, ctypes
+missing module named _struct.__doc__ - imported by _struct, struct
+missing module named _struct._clearcache - imported by _struct, struct
+missing module named _dummy_threading.__all__ - imported by _dummy_threading, dummy_threading
+missing module named _dummy_threading - imported by dummy_threading
+missing module named sys.modules - imported by sys, dummy_threading
+missing module named select.select - imported by select, requests.packages.urllib3.util.connection
+missing module named select.POLLIN - imported by select, requests.packages.urllib3.util.connection
+missing module named select.poll - imported by select, requests.packages.urllib3.util.connection
+missing module named os.urandom - imported by os, random
 missing module named math.sin - imported by math, random
 missing module named math.sqrt - imported by math, random
 missing module named math.cos - imported by math, random
@@ -71,6 +38,24 @@ missing module named math.log - imported by math, random
 missing module named math.e - imported by math, random
 missing module named math.pi - imported by math, random
 missing module named math.floor - imported by math, Crypto.Random._UserFriendlyRNG
+missing module named threading.RLock - imported by threading, _threading_local, requests.packages.urllib3._collections
+missing module named threading.current_thread - imported by threading, _threading_local
+missing module named thread._local - imported by thread, threading
+missing module named thread.stack_size - imported by thread, threading
+missing module named time.time - imported by time, threading, Queue, Cookie
+missing module named time.sleep - imported by time, threading
+missing module named itertools.count - imported by itertools, heapq, threading, OpenSSL.SSL
+missing module named itertools.starmap - imported by itertools, collections
+missing module named itertools.repeat - imported by itertools, collections, decimal
+missing module named itertools.imap - imported by itertools, heapq, collections
+missing module named itertools.tee - imported by itertools, heapq
+missing module named itertools.izip - imported by itertools, heapq
+missing module named itertools.chain - imported by itertools, tokenize, heapq, collections, OpenSSL.SSL, decimal
+missing module named itertools.islice - imported by itertools, repr, heapq
+missing module named collections.deque - imported by collections, shlex, threading, ast, Queue
+missing module named collections.Mapping - imported by collections, requests.packages.urllib3._collections, requests.sessions
+missing module named collections.MutableMapping - imported by collections, requests.packages.urllib3._collections
+missing module named fcntl - imported by tempfile, subprocess
 missing module named _io.DEFAULT_BUFFER_SIZE - imported by _io, io
 missing module named _io.BytesIO - imported by _io, io
 missing module named _io.open - imported by _io, io
@@ -84,38 +69,68 @@ missing module named _io.StringIO - imported by _io, io
 missing module named _io.BufferedRWPair - imported by _io, io
 missing module named _io.TextIOWrapper - imported by _io, io
 missing module named _io.UnsupportedOperation - imported by _io, io
+missing module named _weakref.ref - imported by _weakref, _weakrefset, weakref
+missing module named _weakref.ReferenceType - imported by _weakref, weakref
+missing module named _weakref.proxy - imported by _weakref, weakref
+missing module named _weakref.getweakrefs - imported by _weakref, weakref
+missing module named _weakref.getweakrefcount - imported by _weakref, weakref
+missing module named _weakref.ProxyType - imported by _weakref, weakref
+missing module named _weakref.CallableProxyType - imported by _weakref, weakref
+missing module named nt._isdir - imported by nt, ntpath
+missing module named nt._getfullpathname - imported by nt, ntpath
+missing module named nt._exit - imported by nt, os
 missing module named readline - imported by cmd, pdb
-missing module named strop.whitespace - imported by strop, string
-missing module named strop.maketrans - imported by strop, string
-missing module named strop.lowercase - imported by strop, string
-missing module named strop.uppercase - imported by strop, string
+missing module named pwd - imported by posixpath, getpass, netrc
 missing module named _functools.partial - imported by _functools, functools
 missing module named _functools.reduce - imported by _functools, functools
 missing module named copy.deepcopy - imported by copy, weakref
 missing module named org.PyStringMap - imported by org, copy
 missing module named org - imported by copy
 missing module named exceptions.ReferenceError - imported by exceptions, weakref
+missing module named operator.attrgetter - imported by operator, inspect, cgi
 missing module named imp.reload - imported by imp, simplejson.compat
-missing module named 'org.python'.PyStringMap - imported by 'org.python', pickle
-missing module named 'org.python' - imported by pickle, xml.sax
-missing module named 'org.python'.imp - imported by 'org.python', xml.sax
-missing module named struct.calcsize - imported by struct, ctypes
-missing module named _struct.__doc__ - imported by _struct, struct
-missing module named _struct._clearcache - imported by _struct, struct
-missing module named fcntl - imported by tempfile, subprocess
-missing module named select.select - imported by select, requests.packages.urllib3.util.connection
-missing module named select.POLLIN - imported by select, requests.packages.urllib3.util.connection
-missing module named select.poll - imported by select, requests.packages.urllib3.util.connection
-missing module named threading.RLock - imported by threading, _threading_local, requests.packages.urllib3._collections
-missing module named threading.current_thread - imported by threading, _threading_local
-missing module named time.time - imported by time, threading, Queue, Cookie
-missing module named time.sleep - imported by time, threading
-missing module named os.urandom - imported by os, random
+missing module named cPickle.loads - imported by cPickle, collections, Cookie
+missing module named cPickle.dumps - imported by cPickle, collections, Cookie
+missing module named thread.get_ident - imported by thread, collections, requests.packages.urllib3.packages.ordered_dict
+missing module named collections.OrderedDict - imported by collections, unittest.util, requests.packages.urllib3._collections, enum, requests.compat
+missing module named collections.namedtuple - imported by collections, inspect, unittest.util, difflib, doctest, ssl, urlparse, requests.packages.urllib3.util.url, decimal
+missing module named operator.itemgetter - imported by operator, collections, heapq, simplejson.encoder
+missing module named operator.eq - imported by operator, collections
+missing module named operator.getitem - imported by operator, pyasn1.type.tag
+missing module named operator.__ge__ - imported by operator, OpenSSL.crypto
+missing module named operator.__eq__ - imported by operator, OpenSSL.crypto
+missing module named operator.__lt__ - imported by operator, OpenSSL.crypto
+missing module named operator.__gt__ - imported by operator, OpenSSL.crypto
+missing module named operator.__le__ - imported by operator, OpenSSL.crypto
+missing module named operator.__ne__ - imported by operator, OpenSSL.crypto
+missing module named operator._compare_digest - imported by operator, hmac
+missing module named _collections.deque - imported by _collections, collections
+missing module named _collections.defaultdict - imported by _collections, collections
 missing module named _warnings.warn_explicit - imported by _warnings, warnings
 missing module named _warnings.filters - imported by _warnings, warnings
 missing module named _warnings.once_registry - imported by _warnings, warnings
 missing module named _warnings.default_action - imported by _warnings, warnings
 missing module named _warnings.warn - imported by _warnings, warnings
+missing module named thread.allocate_lock - imported by thread, _strptime
+missing module named Crypto.Util.number.bytes_to_long - imported by Crypto.Util.number, Crypto.Random.random, Crypto.PublicKey.RSA, Crypto.Util.asn1
+missing module named Crypto.Util.number.long_to_bytes - imported by Crypto.Util.number, Crypto.Random.random, Crypto.PublicKey.RSA, Crypto.Util.asn1
+missing module named Crypto.Util.number.size - imported by Crypto.Util.number, Crypto.Random.random, Crypto.PublicKey._slowmath
+missing module named Crypto.PublicKey._fastmath - imported by Crypto.PublicKey, Crypto.Util.number, Crypto.PublicKey.RSA
+missing module named hashlib.md5 - imported by hashlib, requests.packages.urllib3.util.ssl_, uuid, md5
+missing module named Crypto.Util.strxor.strxor_c - imported by Crypto.Util.strxor, Crypto.Hash.HMAC
+missing module named Crypto.Util.strxor.strxor - imported by Crypto.Util.strxor, Crypto.Protocol.KDF
+missing module named hashlib.sha1 - imported by hashlib, requests.packages.urllib3.util.ssl_, uuid, sha
+missing module named _subprocess.STD_OUTPUT_HANDLE - imported by _subprocess, subprocess
+missing module named _subprocess.CREATE_NEW_PROCESS_GROUP - imported by _subprocess, subprocess
+missing module named _subprocess.STD_INPUT_HANDLE - imported by _subprocess, subprocess
+missing module named _subprocess.STARTF_USESHOWWINDOW - imported by _subprocess, subprocess
+missing module named _subprocess.CREATE_NEW_CONSOLE - imported by _subprocess, subprocess
+missing module named _subprocess.STD_ERROR_HANDLE - imported by _subprocess, subprocess
+missing module named _subprocess.STARTF_USESTDHANDLES - imported by _subprocess, subprocess
+missing module named _subprocess.SW_HIDE - imported by _subprocess, subprocess
+missing module named 'org.python'.PyStringMap - imported by 'org.python', pickle
+missing module named 'org.python' - imported by pickle, xml.sax
+missing module named 'org.python'.imp - imported by 'org.python', xml.sax
 missing module named riscosenviron._Environ - imported by riscosenviron, os
 missing module named riscosenviron - imported by os
 missing module named riscospath - imported by os
@@ -127,21 +142,9 @@ missing module named _emx_link.link - imported by _emx_link, os
 missing module named _emx_link - imported by os
 missing module named os2._exit - imported by os2, os
 missing module named os2 - imported by os
-missing module named nt._isdir - imported by nt, ntpath
-missing module named nt._getfullpathname - imported by nt, ntpath
-missing module named nt._exit - imported by nt, os
-missing module named pwd - imported by posixpath, getpass, netrc
 missing module named posix._exit - imported by posix, os
 missing module named posix - imported by os
 missing module named resource - imported by posix
-missing module named Crypto.Util.number.bytes_to_long - imported by Crypto.Util.number, Crypto.Random.random, Crypto.PublicKey.RSA, Crypto.Util.asn1
-missing module named Crypto.Util.number.long_to_bytes - imported by Crypto.Util.number, Crypto.Random.random, Crypto.PublicKey.RSA, Crypto.Util.asn1
-missing module named Crypto.Util.number.size - imported by Crypto.Util.number, Crypto.Random.random, Crypto.PublicKey._slowmath
-missing module named Crypto.PublicKey._fastmath - imported by Crypto.PublicKey, Crypto.Util.number, Crypto.PublicKey.RSA
-missing module named Crypto.Util.strxor.strxor - imported by Crypto.Util.strxor, Crypto.Protocol.KDF
-missing module named Crypto.Util.strxor.strxor_c - imported by Crypto.Util.strxor, Crypto.Hash.HMAC
-missing module named hashlib.sha1 - imported by hashlib, requests.packages.urllib3.util.ssl_, uuid, sha
-missing module named hashlib.md5 - imported by hashlib, requests.packages.urllib3.util.ssl_, uuid, md5
 missing module named chardet - imported by requests.packages
 missing module named sys.version_info - imported by sys, requests.packages.chardet, pyasn1.compat.octets
 missing module named urllib3 - imported by requests.packages
@@ -271,9 +274,6 @@ missing module named _ctypes._Pointer - imported by _ctypes, ctypes
 missing module named _ctypes.Structure - imported by _ctypes, ctypes
 missing module named _ctypes.Array - imported by _ctypes, ctypes
 missing module named _ctypes.Union - imported by _ctypes, ctypes
-missing module named _dummy_threading.__all__ - imported by _dummy_threading, dummy_threading
-missing module named _dummy_threading - imported by dummy_threading
-missing module named sys.modules - imported by sys, dummy_threading
 missing module named queue.Empty - imported by queue, requests.packages.urllib3.connectionpool
 missing module named queue.Full - imported by queue, requests.packages.urllib3.connectionpool
 missing module named queue.LifoQueue - imported by queue, requests.packages.urllib3.connectionpool

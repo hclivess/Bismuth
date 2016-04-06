@@ -3,8 +3,8 @@
 block_cipher = None
 
 
-a = Analysis(['client1\\send.py'],
-             pathex=['C:\\Users\\HCLivess\\Documents\\GitHub\\hopium'],
+a = Analysis(['send.py'],
+             pathex=['C:\\Users\\HCLivess\\Documents\\GitHub\\XTN-Twine'],
              binaries=None,
              datas=None,
              hiddenimports=[],
