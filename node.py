@@ -144,10 +144,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     self.request.sendall("sync_______")
                     time.sleep(0.1)
 
-                if data == "clientdone_":
-                    self.request.sendall("sync_______")
-                    time.sleep(0.1)           
-
                 if data == "blockfound_":                  
                     print "Node has the block" #node should start sending txs in this step
                     #todo critical: make sure that received block height is correct
@@ -309,7 +305,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         #rollback end
 
                 if data == "blockheight":
-                    subdata = self.request.recv(30) #receive client's last block height
+                    subdata = self.request.recv(11) #receive client's last block height
                     received_block_height = subdata
                     print "Received block height: "+(received_block_height) +"\n"                    
                     #send own block height
@@ -320,7 +316,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     conn.close()
 
                     #append zeroes to get static length
-                    while len(str(db_block_height)) != 30:
+                    while len(str(db_block_height)) != 11:
                         db_block_height = "0"+str(db_block_height)
                     self.request.sendall(db_block_height)
                     time.sleep(0.1)
@@ -428,6 +424,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     conn.close()
                     #delete followups
                     self.request.sendall("sync_______") #experimental
+                    time.sleep(0.1)
                     
                    
                             
@@ -512,6 +509,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                                 conn.close()
                                 print "Database closed"
+                                self.request.sendall("sync_______")
+                                time.sleep(0.1)
                                         
                                 #transaction processing                        
                                 
@@ -600,10 +599,6 @@ def worker():
                     s.sendall('helloserver')
                     time.sleep(0.1)
                     peer = s.getpeername()
-                else:
-                    print "Informing server we are done"
-                    s.sendall("clientdone_")
-                    time.sleep(0.1)
                 
                 #communication starter
 
@@ -692,12 +687,12 @@ def worker():
                     
                     print "Sending block height to compare: "+str(db_block_height)
                     #append zeroes to get static length
-                    while len(str(db_block_height)) != 30:
+                    while len(str(db_block_height)) != 11:
                         db_block_height = "0"+str(db_block_height)
                     s.sendall(str(db_block_height))
                     time.sleep(0.1)
                     
-                    subdata = s.recv(30) #receive node's block height
+                    subdata = s.recv(11) #receive node's block height
                     received_block_height = subdata
                     print "Node is at block height: "+str(received_block_height)+"\n"
 
