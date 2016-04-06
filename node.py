@@ -9,7 +9,7 @@ import requests
 import os
 import sys
 
-from Crypto.Hash import SHA256
+#from Crypto.Hash import SHA256
 from Crypto.PublicKey import RSA
 from Crypto import Random
 
@@ -143,6 +143,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     print "Node: Sending sync request"
                     self.request.sendall("sync_______")
                     time.sleep(0.1)
+
+                if data == "sendsync___":
+                    self.request.sendall("sync_______")
+                    time.sleep(0.1)                  
 
                 if data == "blockfound_":                  
                     print "Node: Client has the block" #node should start sending txs in this step
@@ -323,16 +327,16 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     #send own block height
                     
                     if received_block_height > db_block_height:
-                        print "Node: Client has higher block, receiving"
+                        print "Node: Client has higher block, receiving\n"
                         update_me = 1
                         #todo
                         
                     if received_block_height <= db_block_height:
-                        print "Node: We have a higher or equal block, hash will be verified"
+                        print "Node: We have a higher or equal block, hash will be verified\n"
                         update_me = 0
 
                     if received_block_height == db_block_height:
-                        print "Node: We have the same block height, hash will be verified"
+                        print "Node: We have the same block height, hash will be verified\n"
                         update_me = 0
 
                     if update_me == 1:
@@ -697,17 +701,17 @@ def worker():
                     print "Client: Node is at block height: "+str(received_block_height)+"\n"
 
                     if received_block_height < db_block_height:
-                        print "Client: We have a higher or equal block, sending"
+                        print "Client: We have a higher or equal block, sending\n"
                         update_me = 0
                         #todo
                     
                     if received_block_height > db_block_height:
-                        print "Client: Node has higher block, receiving"
+                        print "Client: Node has higher block, receiving\n"
                         update_me = 1
                         #todo
 
                     if received_block_height == db_block_height:
-                        print "Client: We have the same block height, hash will be verified"
+                        print "Client: We have the same block height, hash will be verified\n"
                         update_me = 1
                         #todo                
 
@@ -757,7 +761,8 @@ def worker():
                     conn.commit()
                     conn.close()
                     #delete followups
-                    s.sendall("helloserver") #experimental 
+                    s.sendall("helloserver") #experimental
+                    time.sleep(0.1)
                            
                 if data == "blockfound_":          
                     print "Client: Node has the block" #node should start sending txs in this step
@@ -865,45 +870,11 @@ def worker():
                     #txhash validation end
 
                 if data == "nonewblocks":
-                    print "Client: We seem to be at the latest block"
+                    print "Client: We seem to be at the latest block. Sleeping before recheck"
+                    time.sleep(10)
+                    s.sendall("sendsync___")
+                    time.sleep(0.1)
 
-                    #enter transaction start
-                    conn = sqlite3.connect('ledger.db')
-                    c = conn.cursor()
-                    c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
-                    txhash = c.fetchone()[0]
-                    conn.close()
-                        
-                    to_address = str(raw_input ("Send to address: "))
-                    amount = str(raw_input ("How much to send: "))
-
-                    timestamp = str(time.time())
-                    transaction = str(timestamp) +":"+ str(address) +":"+ str(to_address) +":"+ str(amount)
-                    signature = key.sign(transaction, '')
-                    print "Client: Signature: "+str(signature)
-
-                    if public_key.verify(transaction, signature) == True:
-                        if int(amount) < 0:
-                            print "Client: Signature OK, but cannot use negative amounts"
-
-                        else:
-                            conn = sqlite3.connect('ledger.db')
-                            c = conn.cursor()
-                            c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
-                            txhash = str(c.fetchone()[0])
-                            txhash_new = hashlib.sha224(str(transaction) + str(signature) + str(txhash)).hexdigest() #define new tx hash based on previous #fix asap
-                            print "Client: New txhash to go with your transaction: "+txhash_new
-                            conn.close()
-                               
-                            print "Client: The signature and control txhash is valid, proceeding to send transaction, signature, new txhash and the public key"
-                            s.sendall("transaction")
-                            time.sleep(0.1)
-                            s.sendall(transaction+";"+str(signature)+";"+public_key_readable+";"+str(txhash_new)) #todo send list
-                            time.sleep(0.1)
-                        
-                    else:
-                        print "Client: Invalid signature"
-                    #enter transaction end
     return
 
 t = threading.Thread(target=worker)

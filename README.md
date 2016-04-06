@@ -17,6 +17,8 @@ Features:
 -transaction size limit: 0.002048 MB
 -real transaction size: 0.00075 MB (750 MB per 1 million txs)
 
+-Secured by RSA
+-hashing by sha224
 -socket functions
 -mutual rollback
 -asynchronous multithreading
