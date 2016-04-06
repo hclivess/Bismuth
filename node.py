@@ -524,7 +524,19 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 raise #for test purposes only
                 break                        
 
-                    
+#client thread
+def worker():
+    """thread worker function"""
+    while True:
+        print 'Worker'
+        time.sleep(1)
+    return
+
+t = threading.Thread(target=worker)
+t.start()
+
+#client thread
+
 
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     pass
@@ -540,7 +552,8 @@ if __name__ == "__main__":
     # Start a thread with the server -- that thread will then start one
     # more thread for each request
     server_thread = threading.Thread(target=server.serve_forever)
-    # Exit the server thread when the main thread terminates
+    # Exit the server thread when the main thread terminates    
+    
     server_thread.daemon = True
     server_thread.start()
     print "Server loop running in thread:", server_thread.name
