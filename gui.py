@@ -19,7 +19,7 @@ address = hashlib.sha224(public_key_readable).hexdigest()
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 #s.settimeout(1)
 try:
-    s.connect(("127.0.0.1", int("2829")))
+    s.connect(("127.0.0.1", int("2829"))) #connect to local node
 except:
     print "Cannot connect to local node, please start it first"
     sys.exit(1)
@@ -41,7 +41,7 @@ def balance_get():
     conn.close()
     #updata balance label
     balance_msg = Label(window, text = "Balance: "+str(balance))
-    balance_msg.grid(row = 3, column = 1, columnspan = 3)
+    balance_msg.grid(row = 3, column = 1, columnspan = 3, pady=4)
 
 def send():
     print "Received tx command"
@@ -101,10 +101,10 @@ Label(window, text="To address", width=20).grid(row=0)
 Label(window, text="Amount", width=20).grid(row=1)
 
 to_address = Entry(window, width=30)
-to_address.grid(row=0, column=1)
+to_address.grid(row=0, column=1, pady=4)
 
 amount = Entry(window, width=30)
-amount.grid(row=1, column=1)
+amount.grid(row=1, column=1, pady=4)
 
 balance_enumerator = Entry(window, width=10)
 #address and amount
