@@ -13,8 +13,18 @@ Dependencies:
 
 Features:
 
+-instant transactions
+-transaction size limit: 0.002048 MB
+-real transaction size: 0.00075 MB (750 MB per 1 million txs)
+
+-socket functions
+-mutual rollback
+-asynchronous multithreading
+-transaction scraping
+-mempool
 -longest chain rule 
 -mutual rollback 
 -single channel communications
 
 Licensed under GPL
+
