@@ -119,32 +119,34 @@ print "Core: Database maintenance finished"
 prod = 1
 port = 2829
 if prod == 1:
-    r = requests.get(r'http://jsonip.com')
-    ip= r.json()['ip']
-    print 'Core: Your IP is', ip
-    sock_self = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock_self.settimeout(1)
-    result = sock_self.connect_ex((ip,port))
-    sock_self.close()
-    #result = 0 #enable for test
-    if result == 0:
-        print "Core: Port is open"   
-#get local peers into tuples
-    peer_file = open("peers.txt", 'r')
-    peer_tuples = []
-    for line in peer_file:
-        extension = re.findall ("'([\d\.]+)', '([\d]+)'",line)
-        peer_tuples.extend(extension)
-    peer_file.close()
-    peer_me = ("('"+str(ip)+"', '"+str(port)+"')")
-    if peer_me not in str(peer_tuples) and result == 0: #stringing tuple is a nasty way
-        peer_list_file = open("peers.txt", 'a')
-        peer_list_file.write((peer_me)+"\n")
-        print "Core: Local node saved to peer file"
-        peer_list_file.close()
-    else:
-        print "Core: Self node already saved or not reachable"
-        
+    try:
+        r = requests.get(r'http://jsonip.com')
+        ip_me= r.json()['ip']
+        print 'Core: Your IP is', ip_me
+        sock_self = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock_self.settimeout(1)
+        result = sock_self.connect_ex((ip_me,port))
+        sock_self.close()
+        #result = 0 #enable for test
+        if result == 0:
+            print "Core: Port is open"   
+    #get local peers into tuples
+        peer_file = open("peers.txt", 'r')
+        peer_tuples = []
+        for line in peer_file:
+            extension = re.findall ("'([\d\.]+)', '([\d]+)'",line)
+            peer_tuples.extend(extension)
+        peer_file.close()
+        peer_me = ("('"+str(ip_me)+"', '"+str(port)+"')")
+        if peer_me not in str(peer_tuples) and result == 0: #stringing tuple is a nasty way
+            peer_list_file = open("peers.txt", 'a')
+            peer_list_file.write((peer_me)+"\n")
+            print "Core: Local node saved to peer file"
+            peer_list_file.close()
+        else:
+            print "Core: Self node already saved or not reachable"
+    except:
+        pass
 #get local peers into tuples    
 else:
    print "Core: Port is not open"
@@ -577,7 +579,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 #client thread
 def worker(HOST,PORT):
     while True:
-        try:                   
+        try:        
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             #s.settimeout(1)
             s.connect((HOST, PORT))
@@ -892,11 +894,15 @@ for tuple in peer_tuples:
         print HOST+":"+str(PORT)+" will be saved"
         peer_list_file.close()
     except:
-        print HOST+":"+str(PORT)+" will be purged"
+        #raise #for testing purposes only
+        print "Unreachable nodes purged"
     #purge nodes end
-    
-    t = threading.Thread(target=worker, args=(HOST,PORT))#threaded connectivity to nodes here
-    t.start()
+
+    if str(HOST) != str(ip_me):
+        t = threading.Thread(target=worker, args=(HOST,PORT))#threaded connectivity to nodes here
+        t.start()
+    else:
+        print "Skipped self node"
 
 #client thread handling
 
