@@ -616,6 +616,7 @@ def worker(HOST,PORT):
                     except:
                         print "Could not connect to "+str(HOST)+":"+str(PORT)+", purged"
                         raise #for testing purposes only
+                        break
                     #purge nodes end                    
 
                 data = s.recv(11) #receive data, one and the only root point
