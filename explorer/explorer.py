@@ -19,6 +19,7 @@ class index:
         i=0
         while i < imax:
             for row in c.execute('SELECT * FROM transactions ORDER BY block_height ASC LIMIT 1 OFFSET '+str(i)+';'):
+                block_height = row[0]
                 address = row[2]
                 to_address = row[3]
                 amount = row[4]
@@ -26,6 +27,7 @@ class index:
                 print to_address
                 print amount
                 view.append("<tr>")
+                view.append("<td>"+str(block_height)+"</td>")
                 view.append("<td>"+address+"</td>")
                 view.append("<td>"+to_address+"</td>")
                 view.append("<td>"+amount+"</td>")
@@ -41,8 +43,8 @@ class index:
               "<link rel='stylesheet' type='text/css' href='static/style.css'>"\
               "</head>"\
               "<META http-equiv='cache-control' content='no-cache'>"\
-              "<TITLE>'Block Explorer'</TITLE>"\
-              "<body><table style='width:100%'><tr><td>From</td><td>To</td><td>Amount</td></tr>"+str(''.join(view))+\
+              "<TITLE>Transaction Explorer</TITLE>"\
+              "<body><table style='width:100%'><tr><td>No.</td><td>From</td><td>To</td><td>Amount</td></tr>"+str(''.join(view))+\
               "</table></body>"\
               "</html>"\
               
