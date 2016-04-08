@@ -869,7 +869,6 @@ def worker(HOST,PORT):
             
     return
 
-
 #client thread handling
 with open ("peers.txt", "r") as peer_list:
     peers=peer_list.read()
@@ -884,19 +883,21 @@ for tuple in peer_tuples:
 
     #purge nodes start
     s_purge = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    open("peers.txt", 'w').close() #purge file completely
     try:
-        print "Checking peers"
-        s_purge.connect((HOST, PORT))
-        s_purge.close()
-        #save a new peer file with only active nodes
-        peer_list_file = open("peers.txt", 'w')
-        peer_list_file.write("('"+str(HOST)+"', '"+str(PORT)+"')"+"\n")
-        print HOST+":"+str(PORT)+" will be saved"
-        peer_list_file.close()
-    except:
-        #raise #for testing purposes only
-        print "Unreachable nodes purged"
-    #purge nodes end
+        if str(PORT) != "localhost" or str(PORT) != "127.0.0.1"
+            print "Checking peers"
+            s_purge.connect((HOST, PORT))#save a new peer file with only active nodes
+            s_purge.close()
+            
+            peer_list_file = open("peers.txt", 'a') 
+            peer_list_file.write("('"+str(HOST)+"', '"+str(PORT)+"')"+"\n")
+            print HOST+":"+str(PORT)+" kept" #append peers to which connection is possible
+            peer_list_file.close()
+        except:
+            print "Could not connect to "+str(HOST)+":"+str(PORT)+", purged"
+            raise #for testing purposes only
+        #purge nodes end
 
     if str(HOST) != str(ip_me):
         t = threading.Thread(target=worker, args=(HOST,PORT))#threaded connectivity to nodes here
