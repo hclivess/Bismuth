@@ -1,7 +1,0 @@
-Sidepool is a combination of sidechain and flat file memory pool system. 
-During blockchain synchronization, "invalid" transactions are saved to a side database,
-from which they are recovered if the node is found as malicious.
-
-Also, sidechains need to be implemented on their own, because they provide great resource
-purging opportunity, need to alow user to choose to which chain they want to send
-their transaction

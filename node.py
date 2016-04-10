@@ -8,8 +8,10 @@ import time
 import requests
 import os
 import sys
-
-#from Crypto.Hash import SHA256
+import base64
+from Crypto.PublicKey import RSA
+from Crypto.Signature import PKCS1_v1_5
+from Crypto.Hash import SHA
 from Crypto.PublicKey import RSA
 from Crypto import Random
 
@@ -70,8 +72,8 @@ def digest_mempool():
         #digest mempool end    
 
 #key maintenance
-if os.path.isfile("keys.pem") is True:
-            print "Client: keys.pem found"
+if os.path.isfile("privkey.der") is True:
+            print "Client: privkey.der found"
 else:   
     #generate key pair and an address
     random_generator = Random.new().read
@@ -87,16 +89,20 @@ else:
     print "Client: Your private key:\n "+ str(private_key_readable)
     print "Client: Your public key:\n "+ str(public_key_readable)
 
-    pem_file = open("keys.pem", 'a')
-    pem_file.write(str(private_key_readable)+"\n"+str(public_key_readable) + "\n\n")
+    pem_file = open("privkey.der", 'a')
+    pem_file.write(str(private_key_readable))
     pem_file.close()
+
+    pem_file = open("pubkey.der", 'a')
+    pem_file.write(str(public_key_readable))
+    pem_file.close()
+    
     address_file = open ("address.txt", 'a')
     address_file.write(str(address)+"\n")
     address_file.close()
 
 # import keys
-key_file = open('keys.pem','r')
-key = RSA.importKey(key_file.read())
+key = RSA.importKey(open('privkey.der').read())
 public_key = key.publickey()
 private_key_readable = str(key.exportKey())
 public_key_readable = str(key.publickey().exportKey())
@@ -165,7 +171,7 @@ print "Core: Total steps: "+str(db_rows)
 c.execute("SELECT to_address FROM transactions ORDER BY block_height ASC LIMIT 1")
 genesis = c.fetchone()[0]
 print "Core: Genesis: "+genesis
-if str(genesis) != "352e5c8ca3751061e63ecb45d4c8dda4deaf773b6cb1e6c18be80072": #change this line to your genesis address if you want to clone
+if str(genesis) != "824437b7fb468bd5e584d80a091c9bac4085b3e48d7aa9182319473a": #change this line to your genesis address if you want to clone
     print "Core: Invalid genesis address"
     sys.exit(1)
 #verify genesis
@@ -177,21 +183,21 @@ try:
         db_address = row[2]
         db_to_address = row[3]
         db_amount = row [4]
-        db_signature = row[5]
+        db_signature_enc = row[5]
         db_public_key = RSA.importKey(row[6])
         db_txhash = row[7]
         db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount) 
 
         #print db_transaction
 
-        db_signature_tuple = ast.literal_eval(db_signature) #converting to tuple
-
         invalid = 0
-        
-        if db_public_key.verify(db_transaction, db_signature_tuple) == True: #TODO: ADD TXHASH VALIDATION?
+
+        db_signature_dec = base64.b64decode(db_signature_enc)
+        verifier = PKCS1_v1_5.new(db_public_key)
+        h = SHA.new(db_transaction)
+        if verifier.verify(h, db_signature_dec) == True:
             pass
         else:
-            #print "Step "+str(db_block_height)+" is invalid"
             invalid = invalid + 1
             if db_block_height == str(1):
                 print "Core: Your genesis signature is invalid, someone meddled with the database"
@@ -251,12 +257,11 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     received_address = sync_list[2]
                     received_to_address = sync_list[3]
                     received_amount = sync_list [4]
-                    received_signature = sync_list[5]
+                    received_signature_enc = sync_list[5]
                     received_public_key_readable = sync_list[6]
                     received_public_key = RSA.importKey(sync_list[6])
                     received_txhash = sync_list[7]
                     received_transaction = str(received_timestamp) +":"+ str(received_address) +":"+ str(received_to_address) +":"+ str(received_amount) #todo: why not have bare list instead of converting?
-                    received_signature_tuple = ast.literal_eval(received_signature) #converting to tuple
 
                     #txhash validation start
 
@@ -298,7 +303,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     print "Node: Received transaction: "+str(received_transaction)
 
                     txhash_valid = 0
-                    if received_txhash == hashlib.sha224(str(received_transaction) + str(received_signature) +str(txhash_db)).hexdigest(): #new hash = new tx + new sig + old txhash
+                    if received_txhash == hashlib.sha224(str(received_transaction) + str(received_signature_enc) +str(txhash_db)).hexdigest(): #new hash = new tx + new sig + old txhash
                         print "Node: txhash valid"
                         txhash_valid = 1
 
@@ -329,7 +334,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             #save step to db
                             conn = sqlite3.connect('ledger.db') 
                             c = conn.cursor()
-                            c.execute("INSERT INTO transactions VALUES ('"+str(received_block_height)+"','"+str(received_timestamp)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(abs(received_amount))+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data
+                            c.execute("INSERT INTO transactions VALUES ('"+str(received_block_height)+"','"+str(received_timestamp)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(abs(received_amount))+"','"+str(received_signature_enc)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data
                             print "Node: Ledger updated with a received transaction"
                             conn.commit() # Save (commit) the changes
                             conn.close()
@@ -490,10 +495,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     except Exception as e:
                         print "Node: Something wrong with the transaction ("+str(e)+")"
                     #split message into values
-                    received_signature = data_split[1] #needs to be converted
-                    received_signature_tuple = ast.literal_eval(received_signature) #converting to tuple
+                    received_signature_enc = data_split[1]
+                    print "!!!"+str(received_signature_enc)
                     
-                    print "Node: Received signature: "+received_signature
+                    print "Node: Received signature: "+received_signature_enc
                     received_public_key_readable = data_split[2]
                     print "Node: Received public key: "+received_public_key_readable
                     received_txhash = data_split[3]
@@ -502,8 +507,12 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     #convert received strings
                     received_public_key = RSA.importKey(received_public_key_readable)
                     #convert received strings
+
+                    db_signature_dec = base64.b64decode(received_signature_enc)
+                    verifier = PKCS1_v1_5.new(received_public_key)
+                    h = SHA.new(received_transaction)
                     
-                    if received_public_key.verify(received_transaction, received_signature_tuple) == True:
+                    if verifier.verify(h, db_signature_dec) == True:
                         print "Node: The signature is valid"
                         #transaction processing
 
@@ -543,11 +552,11 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             
                             
 
-                            if received_txhash == hashlib.sha224(str(received_transaction) + str(received_signature) +str(txhash)).hexdigest(): #new hash = new tx + new sig + old txhash
+                            if received_txhash == hashlib.sha224(str(received_transaction) + str(received_signature_enc) +str(txhash)).hexdigest(): #new hash = new tx + new sig + old txhash
                                 print "Node: txhash valid"
                                 txhash_valid = 1
                                 
-                                c.execute("INSERT INTO transactions VALUES ('"+str(block_height_new)+"','"+str(received_timestamp)+"','"+str(address)+"','"+str(to_address)+"','"+str(amount)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data                    
+                                c.execute("INSERT INTO transactions VALUES ('"+str(block_height_new)+"','"+str(received_timestamp)+"','"+str(address)+"','"+str(to_address)+"','"+str(amount)+"','"+str(received_signature_enc)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data                    
                                 #execute transaction                                
                                 conn.commit() # Save (commit) the changes
                                 #todo: broadcast
@@ -794,7 +803,6 @@ def worker(HOST,PORT):
                     received_public_key = RSA.importKey(sync_list[6])
                     received_txhash = sync_list[7]
                     received_transaction = str(received_timestamp) +":"+ str(received_address) +":"+ str(received_to_address) +":"+ str(received_amount) #todo: why not have bare list instead of converting?
-                    received_signature_tuple = ast.literal_eval(received_signature) #converting to tuple
 
                     #txhash validation start
 
