@@ -33,12 +33,12 @@ def digest_mempool():
                 c.execute("SELECT * FROM transactions WHERE signature ='"+signature_mempool+"';")
                 txhash_match = c.fetchone()[0]
                 
-                print "Node: Mempool tx sig found in the local ledger, deleting tx"
+                print "Mempool: tx sig found in the local ledger, deleting tx"
                 m.execute("DELETE FROM transactions WHERE signature ='"+signature_mempool+"';")
                 mempool.commit()
 
             except:
-                print "Node: Mempool tx sig not found in the local ledger, proceeding to insert"
+                print "Mempool: tx sig not found in the local ledger, proceeding to insert"
 
                 #calculate block height from the ledger
                 for row in c.execute('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1;'):
@@ -310,42 +310,53 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         #update local db with received tx
                         conn = sqlite3.connect('ledger.db')
                         c = conn.cursor()
-                        print "Node: Verifying balance"
-                        print "Node: Received address: " +str(received_address)
-                        c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '"+received_address+"'")
-                        credit = c.fetchone()[0]
-                        c.execute("SELECT sum(amount) FROM transactions WHERE address = '"+received_address+"'")
-                        debit = c.fetchone()[0]
-                        if debit == None:
-                            debit = 0
-                        if credit == None:
-                            credit = 0                                
-                        print "Node: Total credit: "+str(credit)                                
-                        print "Node: Total debit: "+str(debit)
-                        balance = int(credit) - int(debit)
-                        print "Node: Transction address balance: "+str(balance)                       
-                        conn.close()
+
+                        #duplicity verification
+                        print "verifying duplicity"
+                        c.execute("SELECT signature FROM transactions WHERE signature = '"+received_signature_enc+"'")
+                        try:
+                            c.fetchone()[0]
+                            print "Duplicate transaciton"
+                        except:
+                            print "Node: Not a duplicate"
+                            #duplicity verification
                                 
-                        if  int(balance) - int(received_amount) < 0:
-                            print "Node: Their balance is too low for this transaction"
-                        elif int(received_amount) < 0:
-                            print "Node: Cannot use negative amounts"
-                        else:                              
-                            #save step to db
-                            conn = sqlite3.connect('ledger.db') 
-                            c = conn.cursor()
-                            c.execute("INSERT INTO transactions VALUES ('"+str(received_block_height)+"','"+str(received_timestamp)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_amount)+"','"+str(received_signature_enc)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data
-                            print "Node: Ledger updated with a received transaction"
-                            conn.commit() # Save (commit) the changes
+                            print "Node: Verifying balance"
+                            print "Node: Received address: " +str(received_address)
+                            c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '"+received_address+"'")
+                            credit = c.fetchone()[0]
+                            c.execute("SELECT sum(amount) FROM transactions WHERE address = '"+received_address+"'")
+                            debit = c.fetchone()[0]
+                            if debit == None:
+                                debit = 0
+                            if credit == None:
+                                credit = 0                                
+                            print "Node: Total credit: "+str(credit)                                
+                            print "Node: Total debit: "+str(debit)
+                            balance = int(credit) - int(debit)
+                            print "Node: Transction address balance: "+str(balance)                       
                             conn.close()
-                            #save step to db
-                        print "Node: Ledger synchronization finished"
-                        digest_mempool()
+                                    
+                            if  int(balance) - int(received_amount) < 0:
+                                print "Node: Their balance is too low for this transaction"
+                            elif int(received_amount) < 0:
+                                print "Node: Cannot use negative amounts"
+                            else:                              
+                                #save step to db
+                                conn = sqlite3.connect('ledger.db') 
+                                c = conn.cursor()
+                                c.execute("INSERT INTO transactions VALUES ('"+str(received_block_height)+"','"+str(received_timestamp)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_amount)+"','"+str(received_signature_enc)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data
+                                print "Node: Ledger updated with a received transaction"
+                                conn.commit() # Save (commit) the changes
+                                conn.close()
+                                #save step to db
+                            print "Node: Ledger synchronization finished"
+                            digest_mempool()
 
-
-                        self.request.sendall("sync_______")
-                        time.sleep(0.1)
-                        #update local db with received tx
+                            print "Node: Sending sync request"
+                            self.request.sendall("sync_______")
+                            time.sleep(0.1)
+                            #update local db with received tx
 
 
                         
@@ -518,63 +529,73 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                         conn = sqlite3.connect('ledger.db')
                         c = conn.cursor()
+
+                        #duplicity verification
+                        print "verifying duplicity"
+                        c.execute("SELECT signature FROM transactions WHERE signature = '"+received_signature_enc+"'")
+                        try:
+                            c.fetchone()[0]
+                            print "Duplicate transaciton"
+                        except:
+                            print "Node: Not a duplicate"
+                            #duplicity verification
                      
-                        #verify balance and blockchain                           
-                        print "Node: Verifying balance"
-                        print "Node: Address:" +address
-                        c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '"+address+"'")
-                        credit = c.fetchone()[0]
-                        c.execute("SELECT sum(amount) FROM transactions WHERE address = '"+address+"'")
-                        debit = c.fetchone()[0]
-                        if debit == None:
-                            debit = 0
-                        if credit == None:
-                            credit = 0                                
-                        print "Node: Total credit: "+str(credit)                                
-                        print "Node: Total debit: "+str(debit)
-                        balance = int(credit) - int(debit)
-                        print "Node: Your balance: "+str(balance) 
+                            #verify balance and blockchain                           
+                            print "Node: Verifying balance"
+                            print "Node: Address:" +address
+                            c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '"+address+"'")
+                            credit = c.fetchone()[0]
+                            c.execute("SELECT sum(amount) FROM transactions WHERE address = '"+address+"'")
+                            debit = c.fetchone()[0]
+                            if debit == None:
+                                debit = 0
+                            if credit == None:
+                                credit = 0                                
+                            print "Node: Total credit: "+str(credit)                                
+                            print "Node: Total debit: "+str(debit)
+                            balance = int(credit) - int(debit)
+                            print "Node: Your balance: "+str(balance) 
 
-                        if  int(balance) - int(amount) < 0:
-                            print "Node: Your balance is too low for this transaction"
-                        elif int(amount) < 0:
-                            print "Node: Cannot use negative amounts"                            
-                        else:
-                            print "Node: Processing transaction"
-
-                            c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
-                            txhash = c.fetchone()[0]
-                            c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
-                            block_height = c.fetchone()[0]
-                            print "Node: Current latest txhash: "+str(txhash)
-                            print "Node: Current top block: " +str(block_height)
-                            block_height_new = block_height + 1
-                            
-                            
-
-                            if received_txhash == hashlib.sha224(str(received_transaction) + str(received_signature_enc) +str(txhash)).hexdigest(): #new hash = new tx + new sig + old txhash
-                                print "Node: txhash valid"
-                                txhash_valid = 1
-                                
-                                c.execute("INSERT INTO transactions VALUES ('"+str(block_height_new)+"','"+str(received_timestamp)+"','"+str(address)+"','"+str(to_address)+"','"+str(amount)+"','"+str(received_signature_enc)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data                    
-                                #execute transaction                                
-                                conn.commit() # Save (commit) the changes
-                                #todo: broadcast
-                                print "Node: Saved"
-
-                                conn.close()
-                                print "Node: Database closed"
-                                self.request.sendall("sync_______")
-                                time.sleep(0.1)
-                                        
-                                #transaction processing                        
-                                
+                            if  int(balance) - int(amount) < 0:
+                                print "Node: Your balance is too low for this transaction"
+                            elif int(amount) < 0:
+                                print "Node: Cannot use negative amounts"                            
                             else:
-                                print "Node: txhash invalid"
-                                conn.close()
-                                                            
-                            #verify balance and blockchain                            
-                                #execute transaction
+                                print "Node: Processing transaction"
+
+                                c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
+                                txhash = c.fetchone()[0]
+                                c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
+                                block_height = c.fetchone()[0]
+                                print "Node: Current latest txhash: "+str(txhash)
+                                print "Node: Current top block: " +str(block_height)
+                                block_height_new = block_height + 1
+                                
+                                
+
+                                if received_txhash == hashlib.sha224(str(received_transaction) + str(received_signature_enc) +str(txhash)).hexdigest(): #new hash = new tx + new sig + old txhash
+                                    print "Node: txhash valid"
+                                    txhash_valid = 1
+                                    
+                                    c.execute("INSERT INTO transactions VALUES ('"+str(block_height_new)+"','"+str(received_timestamp)+"','"+str(address)+"','"+str(to_address)+"','"+str(amount)+"','"+str(received_signature_enc)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data                    
+                                    #execute transaction                                
+                                    conn.commit() # Save (commit) the changes
+                                    #todo: broadcast
+                                    print "Node: Saved"
+
+                                    conn.close()
+                                    print "Node: Database closed"
+                                    self.request.sendall("sync_______")
+                                    time.sleep(0.1)
+                                            
+                                    #transaction processing                        
+                                
+                                else:
+                                    print "Node: txhash invalid"
+                                    conn.close()
+                                                                
+                                #verify balance and blockchain                            
+                                    #execute transaction
                             
 
                     else:
@@ -783,7 +804,7 @@ def worker(HOST,PORT):
                     conn.commit()
                     conn.close()
                     #delete followups
-                    s.sendall("helloserver") #experimental
+                    s.sendall("sendsync___") #experimental
                     time.sleep(0.1)
                            
                 if data == "blockfound_":          
@@ -850,6 +871,17 @@ def worker(HOST,PORT):
                         #update local db with received tx
                         conn = sqlite3.connect('ledger.db')
                         c = conn.cursor()
+
+                        #duplicity verification
+                        print "verifying duplicity"
+                        c.execute("SELECT signature FROM transactions WHERE signature = '"+received_signature+"'")
+                        try:
+                            c.fetchone()[0]
+                            print "Duplicate transaciton"
+                        except:
+                            print "Client: Not a duplicate"
+                            #duplicity verification
+                        
                         print "Client: Verifying balance"
                         print "Client: Received address: " +str(received_address)
                         c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '"+received_address+"'")
@@ -880,11 +912,14 @@ def worker(HOST,PORT):
                             conn.close()
                             #save step to db
                         print "Client: Ledger synchronization finished"
-                        digest_mempool()               
+                        digest_mempool()
+
+                        #experimental
+                        s.sendall("sendsync___")
+                        time.sleep(0.1)
+                        #experimental
 
                     else:
-                        print "Client: txhash invalid"
-                        #rollback start
                         print "Client: Received invalid txhash"
                         #rollback end
                                 
