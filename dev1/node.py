@@ -123,7 +123,7 @@ print "Core: Database maintenance finished"
 
 #connectivity to self node
 prod = 1
-port = 2829
+port = 2830
 if prod == 1:
     try:
         r = requests.get(r'http://jsonip.com')
