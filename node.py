@@ -1,6 +1,5 @@
 import hashlib
 import socket
-import sys
 import re
 import ast
 import sqlite3
@@ -9,7 +8,6 @@ import requests
 import os
 import sys
 import base64
-from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
 from Crypto.PublicKey import RSA
@@ -52,7 +50,7 @@ def digest_mempool():
                     db_amount = row[4]
                     db_signature = row[5]
                     db_public_key_readable = row[6]
-                    db_public_key = RSA.importKey(row[6])
+                    #db_public_key = RSA.importKey(row[6])
                     db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount)
                     txhash = hashlib.sha224(str(db_transaction) + str(db_signature) +str(db_txhash)).hexdigest() #calculate txhash from the ledger
 
@@ -103,15 +101,11 @@ else:
 
 # import keys
 key = RSA.importKey(open('privkey.der').read())
-public_key = key.publickey()
 private_key_readable = str(key.exportKey())
 public_key_readable = str(key.publickey().exportKey())
 address = hashlib.sha224(public_key_readable).hexdigest()
 
 print "Client: Local address: "+ str(address)
-#key maintenance
-
-
 #db maintenance
 conn=sqlite3.connect("ledger.db")
 conn.execute("VACUUM")
@@ -247,7 +241,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     time.sleep(0.1)                  
 
                 if data == "blockfound_":                  
-                    print "Node: Client has the block" #node should start sending txs in this step
+                    print "Node: Client has the block" #client should start sending txs in this step
                     #todo critical: make sure that received block height is correct
                     data = self.request.recv(2048)
                     #verify
@@ -259,7 +253,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     received_amount = sync_list [4]
                     received_signature_enc = sync_list[5]
                     received_public_key_readable = sync_list[6]
-                    received_public_key = RSA.importKey(sync_list[6])
+                    #received_public_key = RSA.importKey(sync_list[6])
                     received_txhash = sync_list[7]
                     received_transaction = str(received_timestamp) +":"+ str(received_address) +":"+ str(received_to_address) +":"+ str(received_amount) #todo: why not have bare list instead of converting?
 
@@ -293,7 +287,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     mempool.close()
                     #backup all followups to mempool
                     
-                    #delete all local followups                   
+                    #delete all local followups
                     c.execute('DELETE FROM transactions WHERE block_height > "'+str(received_block_height)+'"')
                     conn.close()
                     #delete all local followups
@@ -302,10 +296,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     print "Node: Received txhash: "+str(received_txhash)
                     print "Node: Received transaction: "+str(received_transaction)
 
-                    txhash_valid = 0
                     if received_txhash == hashlib.sha224(str(received_transaction) + str(received_signature_enc) +str(txhash_db)).hexdigest(): #new hash = new tx + new sig + old txhash
                         print "Node: txhash valid"
-                        txhash_valid = 1
 
                         #update local db with received tx
                         conn = sqlite3.connect('ledger.db')
@@ -447,47 +439,53 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             time.sleep(0.1)
                             #todo send previous
 
+                rollback_counter = 0
+                rollback_limit = 25
                 if data == "blocknotfou":
-                    print "Node: Client didn't find the block, deleting latest entry"
-                    conn = sqlite3.connect('ledger.db')
-                    c = conn.cursor()
-                    c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
-                    db_block_height = c.fetchone()[0]
+                    while rollback_counter <= rollback_limit:
+                        print "Client: Node didn't find the block, deleting latest entry, limit of " + str(rollback_counter) + "/" + str(rollback_limit)
+                        conn = sqlite3.connect('ledger.db')
+                        c = conn.cursor()
+                        c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
+                        db_block_height = c.fetchone()[0]
 
 
-                    #backup all followups to mempool
-                    mempool = sqlite3.connect('mempool.db')
-                    m = mempool.cursor()
+                        #backup all followups to mempool
+                        mempool = sqlite3.connect('mempool.db')
+                        m = mempool.cursor()
 
-                    c.execute('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1')
-                    results = c.fetchone()
-                    db_block_height = results[0]
-                    db_timestamp = results[1]
-                    db_address = results[2]
-                    db_to_address = results[3]
-                    db_amount = results[4]
-                    db_signature = results[5]
-                    db_public_key_readable = results[6]
-                    db_public_key = RSA.importKey(results[6])
-                    db_txhash = results[7]
-                    db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount) 
+                        c.execute('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1')
+                        results = c.fetchone()
+                        db_block_height = results[0]
+                        db_timestamp = results[1]
+                        db_address = results[2]
+                        db_to_address = results[3]
+                        db_amount = results[4]
+                        db_signature = results[5]
+                        db_public_key_readable = results[6]
+                        db_public_key = RSA.importKey(results[6])
+                        db_txhash = results[7]
+                        db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount)
 
-                    txhash = hashlib.sha224(str(db_transaction) + str(db_signature) +str(db_txhash)).hexdigest() #calculate new txhash from ledger latest tx and the new tx
+                        txhash = hashlib.sha224(str(db_transaction) + str(db_signature) +str(db_txhash)).hexdigest() #calculate new txhash from ledger latest tx and the new tx
 
-                    m.execute("INSERT INTO transactions VALUES ('"+str(int(db_block_height)+1)+"','"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable)+"','"+str(txhash)+"')") # Insert a row of data
+                        m.execute("INSERT INTO transactions VALUES ('"+str(int(db_block_height)+1)+"','"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable)+"','"+str(txhash)+"')") # Insert a row of data
 
-                    mempool.commit()
-                    mempool.close()
-                    #backup all followups to mempool
-                    
-                    #delete followups
-                    c.execute('DELETE FROM transactions WHERE block_height ="'+str(db_block_height)+'"')
-                    conn.commit()
-                    conn.close()
-                    #delete followups
-                    self.request.sendall("sync_______") #experimental
-                    time.sleep(0.1)
-                    
+                        mempool.commit()
+                        mempool.close()
+                        #backup all followups to mempool
+
+                        #delete followups
+                        c.execute('DELETE FROM transactions WHERE block_height ="'+str(db_block_height)+'"')
+                        conn.commit()
+                        conn.close()
+                        #delete followups
+                        self.request.sendall("sync_______")
+                        time.sleep(0.1)
+
+                        rollback_counter = rollback_counter + 1
+                    print "Limit reached, closing thread for suspicious node activity"
+                    self.exit()
                    
                             
                 #latest local block          
@@ -768,45 +766,52 @@ def worker(HOST,PORT):
                         
                         s.sendall(db_txhash) #send latest txhash
                         time.sleep(0.1)
-                           
+
+                rollback_counter = 0
+                rollback_limit = 25
                 if data == "blocknotfou":
-                    print "Client: Node didn't find the block, deleting latest entry"
-                    conn = sqlite3.connect('ledger.db')
-                    c = conn.cursor()
-                    c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
-                    db_block_height = c.fetchone()[0]
+                    while rollback_counter <= rollback_limit:
+                        print "Client: Node didn't find the block, deleting latest entry, limit of "+str(rollback_counter)+"/"+str(rollback_limit)
+                        conn = sqlite3.connect('ledger.db')
+                        c = conn.cursor()
+                        c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
+                        db_block_height = c.fetchone()[0]
 
-                    #backup all followups to mempool
-                    mempool = sqlite3.connect('mempool.db')
-                    m = mempool.cursor()
+                        #backup all followups to mempool
+                        mempool = sqlite3.connect('mempool.db')
+                        m = mempool.cursor()
 
-                    c.execute('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1')
-                    results = c.fetchone()
-                    db_block_height = results[0]
-                    db_timestamp = results[1]
-                    db_address = results[2]
-                    db_to_address = results[3]
-                    db_amount = results[4]
-                    db_signature = results[5]
-                    db_public_key_readable = results[6]
-                    db_public_key = RSA.importKey(results[6])
-                    db_txhash = results[7]
-                    db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount) 
+                        c.execute('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1')
+                        results = c.fetchone()
+                        db_block_height = results[0]
+                        db_timestamp = results[1]
+                        db_address = results[2]
+                        db_to_address = results[3]
+                        db_amount = results[4]
+                        db_signature = results[5]
+                        db_public_key_readable = results[6]
+                        db_public_key = RSA.importKey(results[6])
+                        db_txhash = results[7]
+                        db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount)
 
-                    m.execute("INSERT INTO transactions VALUES ('"+str(db_block_height)+"','"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable)+"','"+str(db_txhash)+"')") # Insert a row of data
+                        m.execute("INSERT INTO transactions VALUES ('"+str(db_block_height)+"','"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable)+"','"+str(db_txhash)+"')") # Insert a row of data
 
-                    mempool.commit()
-                    mempool.close()
-                    #backup all followups to mempool
-                    
-                    #delete followups
-                    c.execute('DELETE FROM transactions WHERE block_height ="'+str(db_block_height)+'"')
-                    conn.commit()
-                    conn.close()
-                    #delete followups
-                    s.sendall("sendsync___") #experimental
-                    time.sleep(0.1)
-                           
+                        mempool.commit()
+                        mempool.close()
+                        #backup all followups to mempool
+
+                        #delete followups
+                        c.execute('DELETE FROM transactions WHERE block_height ="'+str(db_block_height)+'"')
+                        conn.commit()
+                        conn.close()
+                        #delete followups
+                        s.sendall("sendsync___") #experimental
+                        time.sleep(0.1)
+                        rollback_counter = rollback_counter + 1
+
+                    print "Limit reached, closing thread for suspicious node activity"
+                    self.exit()
+
                 if data == "blockfound_":          
                     print "Client: Node has the block" #node should start sending txs in this step
                     #todo critical: make sure that received block height is correct
@@ -949,7 +954,7 @@ for tuple in peer_tuples:
     print PORT
 
     t = threading.Thread(target=worker, args=(HOST,PORT))#threaded connectivity to nodes here
-    t.start()
+    t.start() #todo KEEP THREAD COUNT STABLE
 
 #client thread handling
 
