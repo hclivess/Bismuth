@@ -90,7 +90,7 @@ def digest_mempool():
                 m.execute("DELETE FROM transactions WHERE txhash = '"+db_txhash+"';") #delete tx from mempool now that it is in the ledger
                 mempool.commit()                                    
                 mempool.close()
-                raise #testing purposes
+                #raise #testing purposes
                 
         except:
             print "Node: Mempool digestion complete, mempool empty"
@@ -630,7 +630,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
             except: #forcibly closed connection
                 print "Node: Lost connection"
-                raise #for test purposes only ***CAUSES LEAK***
+                #raise #for test purposes only ***CAUSES LEAK***
                 break                        
 
 #client thread
@@ -672,7 +672,7 @@ def worker(HOST,PORT):
                         peer_list_file.close()
                     except:
                         print "Could not connect to "+str(HOST)+":"+str(PORT)+", purged"
-                        raise #for testing purposes only
+                        #raise #for testing purposes only
                         break
                     #purge nodes end                    
 
