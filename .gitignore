@@ -221,3 +221,5 @@ pip-log.txt
 .idea/vcs.xml
 ledger.db
 mempool.db
+ledger.db
+mempool.db
