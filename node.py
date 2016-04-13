@@ -947,14 +947,23 @@ with open ("peers.txt", "r") as peer_list:
     peer_tuples = re.findall ("'([\d\.]+)', '([\d]+)'",peers)
     #print peer_tuples
 
-for tuple in peer_tuples:
-    HOST = tuple[0]
-    print HOST
-    PORT = int(tuple[1])
-    print PORT
+threads_count = threading.active_count()
+threads_limit = 5
 
-    t = threading.Thread(target=worker, args=(HOST,PORT))#threaded connectivity to nodes here
-    t.start() #todo KEEP THREAD COUNT STABLE
+
+for tuple in peer_tuples:
+    while threads_count < threads_limit and threads_count <= len(peer_tuples):
+        print "Threads count " + str(threads_count)
+
+        HOST = tuple[0]
+        print HOST
+        PORT = int(tuple[1])
+        print PORT
+
+        t = threading.Thread(target=worker, args=(HOST,PORT))#threaded connectivity to nodes here
+        t.start() #todo KEEP THREAD COUNT STABLE
+
+        threads_count = threads_count + 1
 
 #client thread handling
 
