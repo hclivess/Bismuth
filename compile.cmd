@@ -7,5 +7,4 @@ del genesis.spec
 del gui.spec
 del node.spec
 del send.spec
-del build
 pause

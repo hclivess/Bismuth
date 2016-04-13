@@ -214,3 +214,10 @@ pip-log.txt
 
 #Mr Developer
 .mr.developer.cfg
+.idea/misc.xml
+.idea/workspace.xml
+.idea/modules.xml
+.idea/XBM-Bismuth.iml
+.idea/vcs.xml
+ledger.db
+mempool.db
