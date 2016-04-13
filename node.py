@@ -632,6 +632,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     else:
                         print "Node: Signature invalid"
 
+                time.sleep(0.1)
+                #print "Server resting" #prevent cpu overload
             except: #forcibly closed connection
                 print "Node: Lost connection"
                 #raise #for test purposes only ***CAUSES LEAK***
@@ -642,7 +644,7 @@ def worker(HOST,PORT):
     while True:
         try:        
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            #s.settimeout(1)
+            s.settimeout(25)
             s.connect((HOST, PORT))
             print "Client: Connected to "+str(HOST)+" "+str(PORT)
 
