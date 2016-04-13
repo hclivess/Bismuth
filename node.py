@@ -514,7 +514,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                         rollback_counter = rollback_counter + 1
                     print "Limit reached, closing thread for suspicious node activity"
-                    self.exit()
+                    # todo add thread to temporary banlist
+                    return #exit thread
                    
                             
                 #latest local block          
@@ -839,7 +840,8 @@ def worker(HOST,PORT):
                         rollback_counter = rollback_counter + 1
 
                     print "Limit reached, closing thread for suspicious node activity"
-                    self.exit()
+                    #todo add thread to temporary banlist
+                    return  # exit thread
 
                 if data == "blockfound_":          
                     print "Client: Node has the block" #node should start sending txs in this step
