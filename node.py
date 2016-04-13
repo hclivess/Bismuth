@@ -25,9 +25,9 @@ def manager():
             #print peer_tuples
 
             threads_count = threading.active_count()
-            threads_limit = 5
+            threads_limit = 15
 
-            if threads_count <= threads_limit and threads_count <= len(peer_tuples):  # because thread counter is shared with server
+            if threads_count <= threads_limit and threads_count <= len(peer_tuples):  # hopefully limited by peerlist
                 for tuple in peer_tuples:
                     HOST = tuple[0]
                     print HOST
@@ -39,7 +39,7 @@ def manager():
                     t.start()
 
             #client thread handling
-        print "Connection manager: Threads at " + str(threads_count) + "/" + str(threads_limit) + ", peer list at " + str(threads_count-1) + "/" + str(len(peer_tuples))
+        print "Connection manager: Threads at " + str(threads_count) + "/" + str(threads_limit)
         time.sleep(5)
 
 def digest_mempool():
@@ -257,6 +257,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         time.sleep(0.1)
                         self.request.sendall(peers)
                         time.sleep(0.1)
+                    peer_list.close()
                         
                     print "Node: Sending sync request"
                     self.request.sendall("sync_______")
@@ -672,7 +673,7 @@ def worker(HOST,PORT):
                         print "Could not connect to "+str(HOST)+":"+str(PORT)+", purged"
                         #raise #for testing purposes only
                         break
-                    #purge nodes end                    
+                    #purge nodes end
 
                 data = s.recv(11) #receive data, one and the only root point
                 print 'Client: Received data from '+ str(peer) +"\n"+ str(data)   
@@ -697,11 +698,16 @@ def worker(HOST,PORT):
 
                     for x in server_peer_tuples:
                         if x not in peer_tuples:
-                            print "Client: "+str(x)+" is a new peer, saving."
+                            print "Client: "+str(x)+" is a new peer, saving if connectible."
+                            try:
+                                s_purge.connect((x[0], x[1]))  # save a new peer file with only active nodes
+                                s_purge.close()
 
-                            peer_list_file = open("peers.txt", 'a')
-                            peer_list_file.write(str(x)+"\n")
-                            peer_list_file.close()        
+                                peer_list_file = open("peers.txt", 'a')
+                                peer_list_file.write(str(x)+"\n")
+                                peer_list_file.close()
+                            except:
+                                print "Not connectible."
                             
                         else:
                             print "Client: "+str(x)+" is not a new peer, skipping."
@@ -965,15 +971,17 @@ def worker(HOST,PORT):
                     time.sleep(0.1)
         except Exception as e:
             print "Thread terminated due to "+ str(e)
-            break
+            return
             
     return
 
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     pass
 
+
+
 if __name__ == "__main__":
-    try:        
+    try:
         # Port 0 means to select an arbitrary unused port
         HOST, PORT = "localhost", port
 
@@ -990,12 +998,16 @@ if __name__ == "__main__":
         server_thread.daemon = True
         server_thread.start()
         print "Server loop running in thread:", server_thread.name
+
+        #start connection manager
+        t_manager = threading.Thread(target=manager())
+        print "Starting connection manager"
+        t_manager.start()
+        #start connection manager
+
         server.serve_forever() #added
         server.shutdown()
         server.server_close()
+
     except:
         print "Node already running, only client part will be started"
-
-t_manager = threading.Thread(target=manager())
-print "Starting connection manager"
-t_manager.start()
