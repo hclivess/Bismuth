@@ -16,6 +16,35 @@ from Crypto import Random
 import threading
 import SocketServer
 
+
+def manager():
+    while True:
+        with open ("peers.txt", "r") as peer_list:
+            peers=peer_list.read()
+            peer_tuples = re.findall ("'([\d\.]+)', '([\d]+)'",peers)
+            #print peer_tuples
+
+            threads_count = threading.active_count()
+            threads_limit = 5
+
+        while threads_count < threads_limit or threads_count < len(peer_tuples):
+            print "Threads count: " + str(threads_count)
+            for tuple in peer_tuples:
+
+                HOST = tuple[0]
+                print HOST
+                PORT = int(tuple[1])
+                print PORT
+
+                t = threading.Thread(target=worker, args=(HOST,PORT))#threaded connectivity to nodes here
+                threads_count = threading.active_count() #count number of threads
+                print "Starting a thread"
+                t.start()
+
+            #client thread handling
+            print "Connection manager: Threads at "+str(threads_count)+"/"+str(threads_limit)+", peer list at "+str(threads_count)+"/"+str(len(peer_tuples))
+            time.sleep(10)
+
 def digest_mempool():
     #digest mempool start
     while True:                            
@@ -941,35 +970,6 @@ def worker(HOST,PORT):
             
     return
 
-#client thread handling
-with open ("peers.txt", "r") as peer_list:
-    peers=peer_list.read()
-    peer_tuples = re.findall ("'([\d\.]+)', '([\d]+)'",peers)
-    #print peer_tuples
-
-threads_count = threading.active_count()
-threads_limit = 5
-
-
-for tuple in peer_tuples:
-    while threads_count < threads_limit and threads_count <= len(peer_tuples):
-        print "Threads count " + str(threads_count)
-
-        HOST = tuple[0]
-        print HOST
-        PORT = int(tuple[1])
-        print PORT
-
-        t = threading.Thread(target=worker, args=(HOST,PORT))#threaded connectivity to nodes here
-        t.start() #todo KEEP THREAD COUNT STABLE
-
-        threads_count = threads_count + 1
-
-#client thread handling
-
-#client thread
-
-
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     pass
     
@@ -998,3 +998,7 @@ if __name__ == "__main__":
     except:
         print "Node already running, only client part will be started"
 
+#client thread handling
+t_manager = threading.Thread(target=manager())
+print "Starting connection manager"
+t_manager.start()
