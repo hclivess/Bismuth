@@ -27,23 +27,21 @@ def manager():
             threads_count = threading.active_count()
             threads_limit = 5
 
-        while threads_count < threads_limit or threads_count < len(peer_tuples):
-            print "Threads count: " + str(threads_count)
-            for tuple in peer_tuples:
+            if threads_count <= threads_limit:  # because thread counter is shared with server
+                for tuple in peer_tuples:
+                    if threads_count <= len(peer_tuples):
+                        HOST = tuple[0]
+                        print HOST
+                        PORT = int(tuple[1])
+                        print PORT
 
-                HOST = tuple[0]
-                print HOST
-                PORT = int(tuple[1])
-                print PORT
-
-                t = threading.Thread(target=worker, args=(HOST,PORT))#threaded connectivity to nodes here
-                threads_count = threading.active_count() #count number of threads
-                print "Starting a thread"
-                t.start()
+                        t = threading.Thread(target=worker, args=(HOST,PORT))#threaded connectivity to nodes here
+                        print "Starting a thread"
+                        t.start()
 
             #client thread handling
-            print "Connection manager: Threads at "+str(threads_count)+"/"+str(threads_limit)+", peer list at "+str(threads_count)+"/"+str(len(peer_tuples))
-            time.sleep(10)
+        print "Connection manager: Threads at " + str(threads_count) + "/" + str(threads_limit) + ", peer list at " + str(threads_count-1) + "/" + str(len(peer_tuples))
+        time.sleep(5)
 
 def digest_mempool():
     #digest mempool start
@@ -976,6 +974,11 @@ class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     pass
     
 
+#client thread handling
+t_manager = threading.Thread(target=manager())
+print "Starting connection manager"
+t_manager.start()
+
 if __name__ == "__main__":
     try:        
         # Port 0 means to select an arbitrary unused port
@@ -1000,7 +1003,3 @@ if __name__ == "__main__":
     except:
         print "Node already running, only client part will be started"
 
-#client thread handling
-t_manager = threading.Thread(target=manager())
-print "Starting connection manager"
-t_manager.start()
