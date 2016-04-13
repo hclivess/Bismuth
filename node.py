@@ -1,3 +1,4 @@
+import gc
 import hashlib
 import socket
 import re
@@ -15,7 +16,7 @@ from Crypto import Random
 
 import threading
 import SocketServer
-
+gc.enable()
 
 def manager():
     while True:
@@ -27,7 +28,7 @@ def manager():
             threads_count = threading.active_count()
             threads_limit = 15
 
-            if threads_count <= threads_limit and threads_count-2 <= len(peer_tuples):  # hopefully limited by peerlist
+            if threads_count <= threads_limit and threads_count-2 <= len(peer_tuples):  # hopefully limited by peerlist needs tuning todo!!
                 for tuple in peer_tuples:
                     HOST = tuple[0]
                     print HOST
@@ -40,11 +41,13 @@ def manager():
 
             #client thread handling
         print "Connection manager: Threads at " + str(threads_count) + "/" + str(threads_limit)
-        time.sleep(5)
+        gc.collect
+        time.sleep(10)
+    return
 
 def digest_mempool():
     #digest mempool start
-    while True:                            
+    while True:
         print "Node: Digesting mempool"
         mempool = sqlite3.connect('mempool.db')
         m = mempool.cursor()
@@ -52,11 +55,11 @@ def digest_mempool():
             m.execute("SELECT signature FROM transactions ORDER BY block_height DESC LIMIT 1;")
             signature_mempool = m.fetchone()[0]
             try:
-                conn = sqlite3.connect('ledger.db') 
+                conn = sqlite3.connect('ledger.db')
                 c = conn.cursor()
                 c.execute("SELECT * FROM transactions WHERE signature ='"+signature_mempool+"';")
                 txhash_match = c.fetchone()[0]
-                
+
                 print "Mempool: tx sig found in the local ledger, deleting tx"
                 m.execute("DELETE FROM transactions WHERE signature ='"+signature_mempool+"';")
                 mempool.commit()
@@ -68,7 +71,7 @@ def digest_mempool():
                 for row in c.execute('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1;'):
                     db_block_height = row[0]
                     db_txhash = row[7]
-                
+
                 for row in m.execute("SELECT * FROM transactions WHERE signature = '"+signature_mempool+"';"):
                     db_timestamp = row[1]
                     db_address = row[2]
@@ -82,18 +85,20 @@ def digest_mempool():
 
                 c.execute("INSERT INTO transactions VALUES ('"+str(db_block_height+1)+"','"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable)+"','"+str(txhash)+"')") # Insert a row of data
                 conn.commit()
-                conn.close()                                    
-            
+                conn.close()
+
                 m.execute("DELETE FROM transactions WHERE txhash = '"+db_txhash+"';") #delete tx from mempool now that it is in the ledger
-                mempool.commit()                                    
+                mempool.commit()
                 mempool.close()
                 #raise #testing purposes
-                
+
         except:
             print "Node: Mempool digestion complete, mempool empty"
             #raise #testing purposes
             break
-        #digest mempool end    
+        #digest mempool end
+        return
+        
 
 #key maintenance
 if os.path.isfile("privkey.der") is True:
@@ -1005,9 +1010,11 @@ if __name__ == "__main__":
         t_manager.start()
         #start connection manager
 
-        server.serve_forever() #added
+        #server.serve_forever() #added
         server.shutdown()
         server.server_close()
 
     except:
-        print "Node already running, only client part will be started"
+        print "Node already running."
+        raise #only test
+sys.exit()
