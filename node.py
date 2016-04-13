@@ -27,7 +27,7 @@ def manager():
             threads_count = threading.active_count()
             threads_limit = 15
 
-            if threads_count <= threads_limit and threads_count <= len(peer_tuples):  # hopefully limited by peerlist
+            if threads_count <= threads_limit and threads_count-2 <= len(peer_tuples):  # hopefully limited by peerlist
                 for tuple in peer_tuples:
                     HOST = tuple[0]
                     print HOST
@@ -35,7 +35,7 @@ def manager():
                     print PORT
 
                     t = threading.Thread(target=worker, args=(HOST,PORT))#threaded connectivity to nodes here
-                    print "Starting a thread"
+                    print "Starting a client thread"
                     t.start()
 
             #client thread handling
@@ -408,8 +408,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         update_me = 1
                         #todo
                         
-                    if received_block_height <= db_block_height:
-                        print "Node: We have a higher or equal block, hash will be verified\n"
+                    if received_block_height < db_block_height:
+                        print "Node: We have a higher block, hash will be verified\n"
                         update_me = 0
 
                     if received_block_height == db_block_height:
@@ -775,7 +775,7 @@ def worker(HOST,PORT):
                     print "Client: Node is at block height: "+str(received_block_height)+"\n"
 
                     if received_block_height < db_block_height:
-                        print "Client: We have a higher or equal block, sending\n"
+                        print "Client: We have a higher, sending\n"
                         update_me = 0
                         #todo
                     
