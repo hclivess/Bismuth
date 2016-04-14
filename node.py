@@ -960,10 +960,8 @@ def worker(HOST,PORT):
                         print "Client: Ledger synchronization finished"
                         digest_mempool()
 
-                        #experimental
                         s.sendall("sendsync___")
                         time.sleep(0.1)
-                        #experimental
 
                     else:
                         print "Client: Received invalid txhash"
@@ -990,7 +988,7 @@ class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
 if __name__ == "__main__":
     try:
         # Port 0 means to select an arbitrary unused port
-        HOST, PORT = "localhost", port
+        HOST, PORT = "0.0.0.0", port
 
         server = ThreadedTCPServer((HOST, PORT), ThreadedTCPRequestHandler)
         ip, port = server.server_address
