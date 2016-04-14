@@ -19,6 +19,9 @@ from Crypto.Signature import PKCS1_v1_5
 
 gc.enable()
 
+global tried
+tried = []
+
 def manager():
     while True:
         with open ("peers.txt", "r") as peer_list:
@@ -29,19 +32,23 @@ def manager():
             threads_count = threading.active_count()
             threads_limit = 15
 
-            if threads_count <= threads_limit and threads_count-4 <= len(peer_tuples):  # minus server thread, client thread, connectivity manager thread
-                for tuple in peer_tuples:
-                    HOST = tuple[0]
-                    print HOST
-                    PORT = int(tuple[1])
-                    print PORT
+            for tuple in peer_tuples:
+                HOST = tuple[0]
+                #print HOST
+                PORT = int(tuple[1])
+                #print PORT
 
-                    t = threading.Thread(target=worker, args=(HOST,PORT))#threaded connectivity to nodes here
-                    print "Starting a client thread"
-                    t.start()
+            print str(tuple)
+            if threads_count <= threads_limit and str(tuple) not in tried:  # minus server thread, client thread, connectivity manager thread
+                tried.append(str(tuple))
+                t = threading.Thread(target=worker, args=(HOST,PORT))#threaded connectivity to nodes here
+                print "---Starting a client thread "+str(threading.currentThread())+"---"
+                t.start()
 
             #client thread handling
         print "Connection manager: Threads at " + str(threads_count) + "/" + str(threads_limit)
+        print "Tried: " + str(tried)
+        #print threading.enumerate() all threads
         time.sleep(10)
     return
 
@@ -644,7 +651,7 @@ def worker(HOST,PORT):
     while True:
         try:        
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(25)
+            #s.settimeout(25)
             s.connect((HOST, PORT))
             print "Client: Connected to "+str(HOST)+" "+str(PORT)
 
@@ -707,7 +714,7 @@ def worker(HOST,PORT):
                         if x not in peer_tuples:
                             print "Client: "+str(x)+" is a new peer, saving if connectible."
                             try:
-                                s_purge.connect((x[0], x[1]))  # save a new peer file with only active nodes
+                                s_purge.connect((HOST[x], PORT[x]))  # save a new peer file with only active nodes
                                 s_purge.close()
 
                                 peer_list_file = open("peers.txt", 'a')
@@ -976,6 +983,10 @@ def worker(HOST,PORT):
                     time.sleep(0.1)
         except Exception as e:
             print "Thread terminated due to "+ str(e)
+            this_client = (HOST,str(PORT))
+            print "Will remove "+str(this_client) +" from "+str(tried)
+            tried.remove(str(this_client))
+            print "---thread "+str(threading.currentThread())+" ended---"
             return
             
     return
