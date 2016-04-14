@@ -1,21 +1,22 @@
+import SocketServer
+import ast
+import base64
 import gc
 import hashlib
-import socket
-import re
-import ast
-import sqlite3
-import time
-import requests
 import os
+import re
+import socket
+import sqlite3
 import sys
-import base64
-from Crypto.Signature import PKCS1_v1_5
+import threading
+import time
+
+import requests
+from Crypto import Random
 from Crypto.Hash import SHA
 from Crypto.PublicKey import RSA
-from Crypto import Random
+from Crypto.Signature import PKCS1_v1_5
 
-import threading
-import SocketServer
 gc.enable()
 
 def manager():
@@ -28,7 +29,7 @@ def manager():
             threads_count = threading.active_count()
             threads_limit = 15
 
-            if threads_count <= threads_limit and threads_count-2 <= len(peer_tuples):  # hopefully limited by peerlist needs tuning todo!!
+            if threads_count <= threads_limit and threads_count-4 <= len(peer_tuples):  # minus server thread, client thread, connectivity manager thread
                 for tuple in peer_tuples:
                     HOST = tuple[0]
                     print HOST
@@ -41,7 +42,6 @@ def manager():
 
             #client thread handling
         print "Connection manager: Threads at " + str(threads_count) + "/" + str(threads_limit)
-        gc.collect
         time.sleep(10)
     return
 
