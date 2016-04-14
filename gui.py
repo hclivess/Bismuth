@@ -9,7 +9,7 @@ from Crypto.Hash import SHA
 
 from Tkinter import *
 window = Tk()
-window.wm_title("[XCO] CODE")
+window.wm_title("[XBM] Bismuth")
 
 # import keys
 key = RSA.importKey(open('privkey.der').read())
