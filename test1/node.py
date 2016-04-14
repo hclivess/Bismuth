@@ -22,7 +22,7 @@ gc.enable()
 global tried
 tried = []
 
-port = 2829
+port = 2830
 
 def manager():
     while True:
@@ -518,7 +518,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     conn.commit()
                     conn.close()
                     #delete followups
-                    print "Client: Deletion complete, sending sync request"
+                    print "Deletion complete, sending sync request"
                     self.request.sendall("sync_______")
                     time.sleep(0.1)
 
