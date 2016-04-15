@@ -1,3 +1,6 @@
+from time import strftime
+from datetime import datetime
+
 import hashlib
 import sqlite3
 import socket
@@ -132,13 +135,34 @@ quit_b.grid(row=7, column=1, sticky=W, pady=4)
 
 #buttons
 
+#transaction table
+#data
+datasheet = []
+
+conn = sqlite3.connect('ledger.db')
+c = conn.cursor()
+for row in c.execute("SELECT * FROM transactions WHERE address = '"+str(address)+"' ORDER BY block_height DESC LIMIT 5;"):
+    db_timestamp = row[1]
+    datasheet.append(datetime.fromtimestamp(float(db_timestamp)).strftime('%Y-%m-%d %H:%M:%S'))
+    db_address = row[2]
+    datasheet.append(db_address)
+    db_to_address = row[3]
+    datasheet.append(db_to_address)
+    db_amount = row[4]
+    datasheet.append(db_amount)
+conn.close()
+#data
+
+print datasheet
+
 rows = []
-for i in range(5):
+for i in range(10):
+    
     cols = []
     for j in range(4):
         e = Entry(relief=RIDGE)
-        e.grid(row=i+5, column=j+5, sticky=NSEW)
-        e.insert(END, '%d.%d' % (i, j))
+        e.grid(row=i+8, column=j, sticky=NSEW)
+        e.insert(END,(datasheet[j]))
         cols.append(e)
     rows.append(cols)
 
@@ -150,6 +174,6 @@ def onPress():
 
 fetch = Button(text='Fetch', command=onPress)
 fetch.grid()
-
+#transaction table
 
 mainloop()
