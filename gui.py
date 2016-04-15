@@ -132,4 +132,24 @@ quit_b.grid(row=7, column=1, sticky=W, pady=4)
 
 #buttons
 
+rows = []
+for i in range(5):
+    cols = []
+    for j in range(4):
+        e = Entry(relief=RIDGE)
+        e.grid(row=i+5, column=j+5, sticky=NSEW)
+        e.insert(END, '%d.%d' % (i, j))
+        cols.append(e)
+    rows.append(cols)
+
+def onPress():
+    for row in rows:
+        for col in row:
+            print col.get(),
+        print
+
+fetch = Button(text='Fetch', command=onPress)
+fetch.grid()
+
+
 mainloop()
