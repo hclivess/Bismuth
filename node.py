@@ -60,55 +60,63 @@ def digest_mempool():
         print "Node: Digesting mempool"
         mempool = sqlite3.connect('mempool.db')
         m = mempool.cursor()
+
+        m.execute("SELECT signature FROM transactions ORDER BY block_height DESC LIMIT 1;")
+
         try:
-            m.execute("SELECT signature FROM transactions ORDER BY block_height DESC LIMIT 1;")
             signature_mempool = m.fetchone()[0]
-            try:
-                conn = sqlite3.connect('ledger.db')
-                c = conn.cursor()
-                c.execute("SELECT * FROM transactions WHERE signature ='"+signature_mempool+"';")
-                txhash_match = c.fetchone()[0]
-
-                print "Mempool: tx sig found in the local ledger, deleting tx"
-                m.execute("DELETE FROM transactions WHERE signature ='"+signature_mempool+"';")
-                mempool.commit()
-
-            except:
-                print "Mempool: tx sig not found in the local ledger, proceeding to insert"
-
-                #calculate block height from the ledger
-                for row in c.execute('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1;'):
-                    db_block_height = row[0]
-                    db_txhash = row[7]
-
-                for row in m.execute("SELECT * FROM transactions WHERE signature = '"+signature_mempool+"';"):
-                    db_timestamp = row[1]
-                    db_address = row[2]
-                    db_to_address = row[3]
-                    db_amount = row[4]
-                    db_signature = row[5]
-                    db_public_key_readable = row[6]
-                    #db_public_key = RSA.importKey(row[6])
-                    db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount)
-                    txhash = hashlib.sha224(str(db_transaction) + str(db_signature) +str(db_txhash)).hexdigest() #calculate txhash from the ledger
-
-                c.execute("INSERT INTO transactions VALUES ('"+str(db_block_height+1)+"','"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable)+"','"+str(txhash)+"')") # Insert a row of data
-                conn.commit()
-                conn.close()
-
-                m.execute("DELETE FROM transactions WHERE txhash = '"+db_txhash+"';") #delete tx from mempool now that it is in the ledger
-                mempool.commit()
-                mempool.close()
-                raise #testing purposes
-
         except:
-            print "Node: Mempool digestion complete, mempool empty"
-            raise #testing purposes
-            break
-        #digest mempool end
-        return
-        
+            print "Mempool empty"
+            break   
 
+        conn = sqlite3.connect('ledger.db')
+        c = conn.cursor()
+        c.execute("SELECT * FROM transactions WHERE signature ='"+signature_mempool+"';")
+        try:
+            txhash_match = c.fetchone()[0]
+           
+            print "Mempool: tx sig found in the local ledger, deleting tx"
+            m.execute("DELETE FROM transactions WHERE signature ='"+signature_mempool+"';")
+            mempool.commit()
+
+        except:       
+            print "Mempool: tx sig not found in the local ledger, proceeding to insert"
+
+            #calculate block height from the ledger
+            for row in c.execute('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1;'):
+                db_block_height = row[0]
+                db_txhash = row[7]
+
+            for row in m.execute("SELECT * FROM transactions WHERE signature = '"+signature_mempool+"';"):
+                db_timestamp = row[1]
+                db_address = row[2]
+                db_to_address = row[3]
+                db_amount = row[4]
+                db_signature = row[5]
+                db_public_key_readable = row[6]
+                #db_public_key = RSA.importKey(row[6])
+                db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount)
+                txhash = hashlib.sha224(str(db_transaction) + str(db_signature) +str(db_txhash)).hexdigest() #calculate txhash from the ledger
+
+            c.execute("INSERT INTO transactions VALUES ('"+str(db_block_height+1)+"','"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable)+"','"+str(txhash)+"')") # Insert a row of data
+            conn.commit()
+            conn.close()
+
+            m.execute("DELETE FROM transactions WHERE txhash = '"+db_txhash+"';") #delete tx from mempool now that it is in the ledger
+            mempool.commit()
+            mempool.close()
+            return
+        
+def db_maintenance():
+    #db maintenance
+    conn=sqlite3.connect("ledger.db")
+    conn.execute("VACUUM")
+    conn.close()
+    conn=sqlite3.connect("mempool.db")
+    conn.execute("VACUUM")
+    conn.close()
+    print "Core: Database maintenance finished"
+    
 #key maintenance
 if os.path.isfile("privkey.der") is True:
             print "Client: privkey.der found"
@@ -146,15 +154,10 @@ public_key_readable = str(key.publickey().exportKey())
 address = hashlib.sha224(public_key_readable).hexdigest()
 
 print "Client: Local address: "+ str(address)
-#db maintenance
-conn=sqlite3.connect("ledger.db")
-conn.execute("VACUUM")
-conn.close()
-conn=sqlite3.connect("mempool.db")
-conn.execute("VACUUM")
-conn.close()
-print "Core: Database maintenance finished"
 
+
+
+db_maintenance()
 #connectivity to self node
 prod = 1
 
@@ -638,7 +641,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 #print "Server resting" #prevent cpu overload
             except: #forcibly closed connection
                 print "Node: Lost connection"
-                raise #for test purposes only ***CAUSES LEAK***
+                #raise #for test purposes only ***CAUSES LEAK***
                 break                        
 
 #client thread
@@ -680,7 +683,7 @@ def worker(HOST,PORT):
                         peer_list_file.close()
                     except:
                         print "Could not connect to "+str(HOST)+":"+str(PORT)+", purged"
-                        raise #for testing purposes only
+                        #raise #for testing purposes only
                         break
                     #purge nodes end
 
@@ -917,7 +920,7 @@ def worker(HOST,PORT):
                         c.execute("SELECT signature FROM transactions WHERE signature = '"+received_signature+"'")
                         try:
                             c.fetchone()[0]
-                            print "Duplicate transaciton"
+                            print "Duplicate transaction"
                         except:
                             print "Client: Not a duplicate"
                             #duplicity verification
@@ -974,7 +977,7 @@ def worker(HOST,PORT):
             print "Will remove "+str(this_client) +" from "+str(tried)
             tried.remove(str(this_client))
             print "---thread "+str(threading.currentThread())+" ended---"
-            raise #test only
+            #raise #test only
             return
             
     return
@@ -1015,5 +1018,5 @@ if __name__ == "__main__":
 
     except:
         print "Node already running."
-        raise #only test
+        #raise #only test
 sys.exit()
