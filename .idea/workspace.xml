@@ -407,7 +407,14 @@
       <option name="project" value="LOCAL" />
       <updated>1460725919109</updated>
     </task>
-    <option name="localTasksCounter" value="5" />
+    <task id="LOCAL-00005" summary="awesome tx table in gui">
+      <created>1460730719928</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1460730719928</updated>
+    </task>
+    <option name="localTasksCounter" value="6" />
     <servers />
   </component>
   <component name="ToolWindowManager">
@@ -450,7 +457,8 @@
     <MESSAGE value="fixed client threading" />
     <MESSAGE value="compiled+branding fix in gui" />
     <MESSAGE value="tx table impl start" />
-    <option name="LAST_COMMIT_MESSAGE" value="tx table impl start" />
+    <MESSAGE value="awesome tx table in gui" />
+    <option name="LAST_COMMIT_MESSAGE" value="awesome tx table in gui" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager />
