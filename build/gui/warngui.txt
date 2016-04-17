@@ -25,8 +25,6 @@ missing module named collections.deque - imported by collections, shlex, threadi
 missing module named collections.OrderedDict - imported by collections, unittest.util
 missing module named operator.itemgetter - imported by operator, collections, heapq
 missing module named operator.eq - imported by operator, collections
-missing module named operator.isNumberType - imported by operator, PIL.Image
-missing module named operator.isSequenceType - imported by operator, PIL.Image
 missing module named operator.attrgetter - imported by operator, inspect
 missing module named _collections.deque - imported by _collections, collections
 missing module named _collections.defaultdict - imported by _collections, collections
@@ -38,15 +36,15 @@ missing module named _weakref.getweakrefcount - imported by _weakref, weakref
 missing module named _weakref.ProxyType - imported by _weakref, weakref
 missing module named _weakref.CallableProxyType - imported by _weakref, weakref
 missing module named binascii.hexlify - imported by binascii, random, Crypto.Hash.hashalgo
-missing module named math.sin - imported by math, random, PIL.GimpGradientFile
-missing module named math.sqrt - imported by math, random, PIL.GimpGradientFile
+missing module named math.sin - imported by math, random
+missing module named math.sqrt - imported by math, random
 missing module named math.cos - imported by math, random
 missing module named math.acos - imported by math, random
 missing module named math.ceil - imported by math, random
 missing module named math.exp - imported by math, random
-missing module named math.log - imported by math, random, PIL.GimpGradientFile
+missing module named math.log - imported by math, random
 missing module named math.e - imported by math, random
-missing module named math.pi - imported by math, random, PIL.GimpGradientFile
+missing module named math.pi - imported by math, random
 missing module named math.floor - imported by math, Crypto.Random._UserFriendlyRNG
 missing module named warnings.warn - imported by warnings, random, contextlib, Crypto.Util.number
 missing module named _io.DEFAULT_BUFFER_SIZE - imported by _io, io
@@ -158,8 +156,6 @@ missing module named _ctypes._Pointer - imported by _ctypes, ctypes
 missing module named _ctypes.Structure - imported by _ctypes, ctypes
 missing module named _ctypes.Array - imported by _ctypes, ctypes
 missing module named _ctypes.Union - imported by _ctypes, ctypes
-missing module named ICCProfile - imported by PIL.PngImagePlugin
-missing module named _imaging_gif - imported by PIL.GifImagePlugin
 missing module named hashlib.sha1 - imported by hashlib, sha
 missing module named Crypto.Util.number.ceil_div - imported by Crypto.Util.number, Crypto.Signature.PKCS1_v1_5
 missing module named Crypto.Util.number.bytes_to_long - imported by Crypto.Util.number, Crypto.Random.random, Crypto.PublicKey.RSA, Crypto.Util.asn1
@@ -169,6 +165,8 @@ missing module named Crypto.PublicKey._fastmath - imported by Crypto.PublicKey, 
 missing module named hashlib.md5 - imported by hashlib, md5
 missing module named Crypto.Util.strxor.strxor_c - imported by Crypto.Util.strxor, Crypto.Hash.HMAC
 missing module named Crypto.Util.strxor.strxor - imported by Crypto.Util.strxor, Crypto.Protocol.KDF
+missing module named time.strptime - imported by time, ssl
+missing module named datetime.date - imported by datetime, _strptime
 missing module named _ssl.RAND_egd - imported by _ssl, ssl, socket
 missing module named _ssl.SSL_ERROR_EOF - imported by _ssl, socket
 missing module named _ssl.SSL_ERROR_WANT_READ - imported by _ssl, socket
@@ -182,7 +180,6 @@ missing module named _ssl.SSL_ERROR_WANT_WRITE - imported by _ssl, socket
 missing module named _ssl.RAND_add - imported by _ssl, ssl, socket
 missing module named _ssl.SSL_ERROR_SYSCALL - imported by _ssl, socket
 missing module named _ssl.SSLError - imported by _ssl, ssl, socket
-missing module named time.strptime - imported by time, ssl
 missing module named _ssl.enum_crls - imported by _ssl, ssl
 missing module named _ssl.enum_certificates - imported by _ssl, ssl
 missing module named _ssl._OPENSSL_API_VERSION - imported by _ssl, ssl
@@ -215,5 +212,3 @@ missing module named socket._delegate_methods - imported by socket, ssl
 missing module named socket._fileobject - imported by socket, ssl
 missing module named _hashlib.pbkdf2_hmac - imported by _hashlib, hashlib
 missing module named datetime.datetime - imported by datetime, C:\Users\HCLivess\Documents\GitHub\XBM-Bismuth\gui.py
-missing module named datetime.date - imported by datetime, _strptime
-missing module named time.strftime - imported by time, C:\Users\HCLivess\Documents\GitHub\XBM-Bismuth\gui.py
