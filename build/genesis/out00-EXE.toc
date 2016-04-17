@@ -6,7 +6,7 @@
  None,
  False,
  False,
- <PyInstaller.utils.win32.winmanifest.Manifest object at 0x047792B0>,
+ <PyInstaller.utils.win32.winmanifest.Manifest object at 0x04A5A2B0>,
  True,
  'genesis.pkg',
  [('out00-PYZ.pyz',
@@ -77,7 +77,7 @@
  [],
  False,
  False,
- 1460859502L,
+ 1460860655L,
  [('run.exe',
    'C:\\Python27\\lib\\site-packages\\PyInstaller\\bootloader\\Windows-32bit\\run.exe',
    'EXECUTABLE')])

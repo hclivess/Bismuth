@@ -670,7 +670,7 @@ def worker(HOST,PORT):
                 print 'Client: Received data from '+ str(peer) +"\n"+ str(data)
                 if data == "":
                     print "Communication error"
-                    return
+                    raise
                     
                 if data == "peers______":
                     subdata = s.recv(2048) #peers are larger 
