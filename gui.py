@@ -32,6 +32,19 @@ except:
     sys.exit(1)
 print "Connected"
 
+#frames
+"""
+f = Frame(root, bg = "orange", width = 500, height = 500)
+f.pack(side=LEFT, expand = 1)
+
+f3 = Frame(f, bg = "red", width = 500)
+f3.pack(side=LEFT, expand = 1, pady = 5, padx = 50)
+
+f2 = Frame(root, bg = "black", height=100, width = 100)
+f2.pack(side=LEFT, fill = Y)
+"""
+#frames
+
 def table():
     # transaction table
     # data
@@ -151,14 +164,18 @@ balance_get() #get balance on start
 table()
 
 #address and amount
-Label(root, text="To address", width=20).grid(row=0)
-Label(root, text="Amount", width=20).grid(row=1)
+Label(root, text="Your Address:", width=20).grid(row=0,pady=15)
+gui_address = Entry(root,width=57)
+gui_address.grid(row=0,column=1)
+gui_address.insert(0,address)
+Label(root, text="Recipient:", width=20).grid(row=1)
+Label(root, text="Amount:", width=20).grid(row=2)
 
 to_address = Entry(root, width=57)
-to_address.grid(row=0, column=1, pady=4)
+to_address.grid(row=1, column=1, pady=4)
 
 amount = Entry(root, width=57)
-amount.grid(row=1, column=1, pady=4)
+amount.grid(row=2, column=1, pady=4)
 
 balance_enumerator = Entry(root, width=10)
 #address and amount
@@ -185,7 +202,7 @@ quit_b.grid(row=5, column=1, sticky=W, pady=4,padx=4)
 #logo
 logo=PhotoImage(file="graphics/logo.gif")
 image = Label(image=logo)
-image.grid(row=0, column=2, columnspan=2, rowspan=2, sticky=W+E+N+S, padx=5, pady=5)
+image.grid(row=1, column=2, columnspan=1, rowspan=2, sticky=W+E+N+S, padx=5, pady=5)
 #logo
 
 mainloop()
