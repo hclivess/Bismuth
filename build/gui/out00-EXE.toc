@@ -6,7 +6,7 @@
  None,
  False,
  False,
- <PyInstaller.utils.win32.winmanifest.Manifest object at 0x0504D810>,
+ <PyInstaller.utils.win32.winmanifest.Manifest object at 0x04146370>,
  True,
  'gui.pkg',
  [('out00-PYZ.pyz',
@@ -2473,7 +2473,7 @@
  [],
  False,
  False,
- 1460902495L,
+ 1460923252L,
  [('runw.exe',
    'C:\\Python27\\lib\\site-packages\\PyInstaller\\bootloader\\Windows-32bit\\runw.exe',
    'EXECUTABLE')])
