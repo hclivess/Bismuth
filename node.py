@@ -40,12 +40,12 @@ def manager():
                 PORT = int(tuple[1])
                 #print PORT
 
-            print str(tuple)
-            if threads_count <= threads_limit and str(tuple) not in tried:  # minus server thread, client thread, connectivity manager thread
-                tried.append(str(tuple))
-                t = threading.Thread(target=worker, args=(HOST,PORT))#threaded connectivity to nodes here
-                print "---Starting a client thread "+str(threading.currentThread())+"---"
-                t.start()
+                print str(tuple)
+                if threads_count <= threads_limit and str(tuple) not in tried:  # minus server thread, client thread, connectivity manager thread
+                    tried.append(str(tuple))
+                    t = threading.Thread(target=worker, args=(HOST,PORT))#threaded connectivity to nodes here
+                    print "---Starting a client thread "+str(threading.currentThread())+"---"
+                    t.start()
 
             #client thread handling
         print "Connection manager: Threads at " + str(threads_count) + "/" + str(threads_limit)
@@ -667,7 +667,10 @@ def worker(HOST,PORT):
 
 
                 data = s.recv(11) #receive data, one and the only root point
-                print 'Client: Received data from '+ str(peer) +"\n"+ str(data)   
+                print 'Client: Received data from '+ str(peer) +"\n"+ str(data)
+                if data == "":
+                    print "Communication error"
+                    return
                     
                 if data == "peers______":
                     subdata = s.recv(2048) #peers are larger 
