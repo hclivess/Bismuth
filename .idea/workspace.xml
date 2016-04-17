@@ -2,15 +2,11 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="d3769ae9-115c-486e-a6fd-bd5203ad75e5" name="Default" comment="">
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/build/node/out00-PKG.pkg" afterPath="$PROJECT_DIR$/build/node/out00-PKG.pkg" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/dist/node.exe" afterPath="$PROJECT_DIR$/dist/node.exe" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/ledger.db" afterPath="$PROJECT_DIR$/ledger.db" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/mempool.db" afterPath="$PROJECT_DIR$/mempool.db" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/test1/ledger.db" afterPath="$PROJECT_DIR$/test1/ledger.db" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/test1/mempool.db" afterPath="$PROJECT_DIR$/test1/mempool.db" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/build/genesis/out00-EXE.toc" afterPath="$PROJECT_DIR$/build/genesis/out00-EXE.toc" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/build/gui/out00-EXE.toc" afterPath="$PROJECT_DIR$/build/gui/out00-EXE.toc" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/build/node/out00-EXE.toc" afterPath="$PROJECT_DIR$/build/node/out00-EXE.toc" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/build/send/out00-EXE.toc" afterPath="$PROJECT_DIR$/build/send/out00-EXE.toc" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/node.py" afterPath="$PROJECT_DIR$/node.py" />
     </list>
     <ignored path="XBM-Bismuth.iws" />
@@ -36,8 +32,8 @@
       <file leaf-file-name="node.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/node.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="466">
-              <caret line="672" column="25" selection-start-line="672" selection-start-column="25" selection-end-line="672" selection-end-column="25" />
+            <state relative-caret-position="1416">
+              <caret line="107" column="10" selection-start-line="107" selection-start-column="10" selection-end-line="107" selection-end-column="10" />
               <folding>
                 <element signature="e#0#19#0" expanded="true" />
               </folding>
@@ -150,6 +146,10 @@
       <foldersAlwaysOnTop value="true" />
     </navigator>
     <panes>
+      <pane id="Scratches" />
+      <pane id="Scope">
+        <subPane subId="Project Files" />
+      </pane>
       <pane id="ProjectPane">
         <subPane>
           <PATH>
@@ -184,10 +184,6 @@
           </PATH>
         </subPane>
       </pane>
-      <pane id="Scratches" />
-      <pane id="Scope">
-        <subPane subId="Project Files" />
-      </pane>
     </panes>
   </component>
   <component name="PropertiesComponent">
@@ -201,7 +197,7 @@
       <recent name="C:\Users\HCLivess\Documents\GitHub\XBM-Bismuth" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.node">
+  <component name="RunManager" selected="Python.gui">
     <configuration default="false" name="node" type="PythonConfigurationType" factoryName="Python" temporary="true">
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
@@ -503,7 +499,14 @@
       <option name="project" value="LOCAL" />
       <updated>1460860608391</updated>
     </task>
-    <option name="localTasksCounter" value="12" />
+    <task id="LOCAL-00012" summary="tuning">
+      <created>1460861519664</created>
+      <option name="number" value="00012" />
+      <option name="presentableId" value="LOCAL-00012" />
+      <option name="project" value="LOCAL" />
+      <updated>1460861519664</updated>
+    </task>
+    <option name="localTasksCounter" value="13" />
     <servers />
   </component>
   <component name="ToolWindowManager">
@@ -515,19 +518,19 @@
       <window_info id="Event Log" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="7" side_tool="true" content_ui="tabs" />
       <window_info id="Python Console" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
       <window_info id="Version Control" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.34743875" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
+      <window_info id="Run" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.32875264" sideWeight="0.5" order="2" side_tool="false" content_ui="tabs" />
       <window_info id="Structure" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
       <window_info id="Terminal" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
       <window_info id="Favorites" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="2" side_tool="true" content_ui="tabs" />
+      <window_info id="Debug" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.397463" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" />
       <window_info id="Cvs" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="4" side_tool="false" content_ui="tabs" />
       <window_info id="Message" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="0" side_tool="false" content_ui="tabs" />
       <window_info id="Commander" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.4" sideWeight="0.5" order="0" side_tool="false" content_ui="tabs" />
       <window_info id="Inspection" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.4" sideWeight="0.5" order="5" side_tool="false" content_ui="tabs" />
-      <window_info id="Run" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.32875264" sideWeight="0.5" order="2" side_tool="false" content_ui="tabs" />
       <window_info id="Hierarchy" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.21354167" sideWeight="0.5" order="2" side_tool="false" content_ui="combo" />
       <window_info id="Find" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
       <window_info id="Database" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" />
       <window_info id="Ant Build" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
-      <window_info id="Debug" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.397463" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" />
     </layout>
   </component>
   <component name="Vcs.Log.UiProperties">
@@ -552,7 +555,8 @@
     <MESSAGE value="align update" />
     <MESSAGE value="changed icon from default to ours" />
     <MESSAGE value="fixed indentation bug in peer handling..finally" />
-    <option name="LAST_COMMIT_MESSAGE" value="fixed indentation bug in peer handling..finally" />
+    <MESSAGE value="tuning" />
+    <option name="LAST_COMMIT_MESSAGE" value="tuning" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -989,8 +993,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/node.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="466">
-          <caret line="672" column="25" selection-start-line="672" selection-start-column="25" selection-end-line="672" selection-end-column="25" />
+        <state relative-caret-position="1416">
+          <caret line="107" column="10" selection-start-line="107" selection-start-column="10" selection-end-line="107" selection-end-column="10" />
           <folding>
             <element signature="e#0#19#0" expanded="true" />
           </folding>

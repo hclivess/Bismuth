@@ -105,7 +105,7 @@ def digest_mempool():
             m.execute("DELETE FROM transactions WHERE txhash = '"+db_txhash+"';") #delete tx from mempool now that it is in the ledger
             mempool.commit()
             mempool.close()
-            return
+    return
         
 def db_maintenance():
     #db maintenance
@@ -386,13 +386,13 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                 conn.commit() # Save (commit) the changes
                                 conn.close()
                                 #save step to db
-                            print "Node: Ledger synchronization finished"
-                            digest_mempool()
+                                print "Node: Ledger synchronization finished"
+                                digest_mempool()
 
-                            print "Node: Sending sync request"
-                            self.request.sendall("sync_______")
-                            time.sleep(0.1)
-                            #update local db with received tx
+                                print "Node: Sending sync request"
+                                self.request.sendall("sync_______")
+                                time.sleep(0.1)
+                                #update local db with received tx
 
 
                         
@@ -936,11 +936,11 @@ def worker(HOST,PORT):
                             conn.commit() # Save (commit) the changes
                             conn.close()
                             #save step to db
-                        print "Client: Ledger synchronization finished"
-                        digest_mempool()
+                            print "Client: Ledger synchronization finished"
+                            digest_mempool()
 
-                        s.sendall("sendsync___")
-                        time.sleep(0.1)
+                            s.sendall("sendsync___")
+                            time.sleep(0.1)
 
                     else:
                         print "Client: Received invalid txhash"
