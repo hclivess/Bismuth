@@ -207,4 +207,6 @@ image.grid(pady=5, padx=5)
 #logo
 
 balance_get() #get balance on start
+
+root.iconbitmap("graphics\icon.ico")
 root.mainloop()
