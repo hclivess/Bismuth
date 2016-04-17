@@ -6,7 +6,7 @@
  None,
  False,
  False,
- <PyInstaller.utils.win32.winmanifest.Manifest object at 0x05D9D9B0>,
+ <PyInstaller.utils.win32.winmanifest.Manifest object at 0x04F13D50>,
  True,
  'node.pkg',
  [('out00-PYZ.pyz',
@@ -92,7 +92,7 @@
  [],
  False,
  False,
- 1460860653L,
+ 1460902502L,
  [('run.exe',
    'C:\\Python27\\lib\\site-packages\\PyInstaller\\bootloader\\Windows-32bit\\run.exe',
    'EXECUTABLE')])

@@ -189,7 +189,7 @@ if prod == 1:
         else:
             print "Core: Self node already saved or not reachable"
     except:
-        pass
+        raise
 #get local peers into tuples    
 else:
    print "Core: Port is not open"
@@ -203,6 +203,15 @@ c = conn.cursor()
 c.execute("SELECT Count(*) FROM transactions")
 db_rows = c.fetchone()[0]
 print "Core: Total steps: "+str(db_rows)
+
+#create empty mempool
+mempool = sqlite3.connect('mempool.db')
+m = mempool.cursor()
+m.execute("CREATE TABLE IF NOT EXISTS transactions (block_height, address, to_address, amount, signature, public_key)")
+mempool.commit()
+mempool.close()
+"Print created mempool file"
+#create empty mempool
 
 #verify genesis
 c.execute("SELECT to_address FROM transactions ORDER BY block_height ASC LIMIT 1")

@@ -6,7 +6,7 @@
  None,
  False,
  False,
- <PyInstaller.utils.win32.winmanifest.Manifest object at 0x0466BCF0>,
+ <PyInstaller.utils.win32.winmanifest.Manifest object at 0x048FCCF0>,
  True,
  'send.pkg',
  [('out00-PYZ.pyz',
@@ -77,7 +77,7 @@
  [],
  False,
  False,
- 1460860657L,
+ 1460902506L,
  [('run.exe',
    'C:\\Python27\\lib\\site-packages\\PyInstaller\\bootloader\\Windows-32bit\\run.exe',
    'EXECUTABLE')])

@@ -37,8 +37,7 @@ def table():
 
     conn = sqlite3.connect('ledger.db')
     c = conn.cursor()
-    for row in c.execute("SELECT * FROM transactions WHERE address = '" + str(address) + "' OR to_address = '" + str(
-            address) + "' ORDER BY block_height DESC LIMIT 19;"):
+    for row in c.execute("SELECT * FROM transactions WHERE address = '" + str(address) + "' OR to_address = '" + str(address) + "' ORDER BY block_height DESC LIMIT 19;"):
         db_timestamp = row[1]
         datasheet.append(datetime.fromtimestamp(float(db_timestamp)).strftime('%Y-%m-%d %H:%M:%S'))
         db_address = row[2]
@@ -51,15 +50,29 @@ def table():
     # data
 
     print datasheet
+    print len(datasheet)
 
-    k = 0
-    for i in range(20):
-        for j in range(4):
-            e = Entry(f4,justify=RIGHT)
-            e.grid(row=i+1, column=j, sticky=EW)
-            e.insert(END,datasheet[k])
 
-            k = k + 1
+    if len (datasheet) == 4:
+        print "Looks like a new address"
+        return
+
+    elif len(datasheet) < 20*4:
+        print len(datasheet)
+        table_limit = len(datasheet)/4
+    else:
+        table_limit = 20
+    
+    if len(datasheet) > 3:
+        k = 0
+        for i in range(table_limit):
+            for j in range(4):
+                e = Entry(f4,justify=RIGHT)
+                e.grid(row=i+1, column=j, sticky=EW)
+                e.insert(END,datasheet[k])
+
+                k = k + 1
+        
 
 
     # transaction table
@@ -78,7 +91,9 @@ def balance_get():
     balance = credit - debit
     print "Node: Transction address balance: "+str(balance)
     conn.close()
-    #updata balance label
+
+
+    #update balance label
     balance_msg = Label(f5, text = "Balance: "+str(balance))
     balance_msg.grid(row = 0, column = 0, sticky=E, padx = 15, pady=(15,0))
 
