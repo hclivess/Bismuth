@@ -55,8 +55,8 @@ def table():
     k = 0
     for i in range(20):
         for j in range(4):
-            e = Entry(f4)
-            e.grid(row=i+1, column=j, sticky=NSEW)
+            e = Entry(f4,justify=RIGHT)
+            e.grid(row=i+1, column=j, sticky=EW)
             e.insert(END,datasheet[k])
 
             k = k + 1
