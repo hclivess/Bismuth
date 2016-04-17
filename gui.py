@@ -1,5 +1,4 @@
 from datetime import datetime
-
 import hashlib
 import sqlite3
 import socket
@@ -8,7 +7,6 @@ import base64
 from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
-#from PIL import ImageTk, Image
 
 from Tkinter import *
 root = Tk()
@@ -31,19 +29,6 @@ except:
     print "Cannot connect to local node, please start it first"
     sys.exit(1)
 print "Connected"
-
-#frames
-"""
-f = Frame(root, bg = "orange", width = 500, height = 500)
-f.pack(side=LEFT, expand = 1)
-
-f3 = Frame(f, bg = "red", width = 500)
-f3.pack(side=LEFT, expand = 1, pady = 5, padx = 50)
-
-f2 = Frame(root, bg = "black", height=100, width = 100)
-f2.pack(side=LEFT, fill = Y)
-"""
-#frames
 
 def table():
     # transaction table
@@ -70,11 +55,12 @@ def table():
     k = 0
     for i in range(20):
         for j in range(4):
-            e = Entry()
-            e.grid(row=i + 8, column=j, sticky=NSEW)
+            e = Entry(f4)
+            e.grid(row=i+1, column=j, sticky=NSEW)
             e.insert(END,datasheet[k])
 
             k = k + 1
+
 
     # transaction table
 
@@ -90,17 +76,17 @@ def balance_get():
     if credit == None:
         credit = 0
     balance = credit - debit
-    print "Node: Transction address balance: "+str(balance)                       
+    print "Node: Transction address balance: "+str(balance)
     conn.close()
     #updata balance label
-    balance_msg = Label(root, text = "Balance: "+str(balance))
-    balance_msg.grid(row = 3, column = 1, sticky=E)
+    balance_msg = Label(f5, text = "Balance: "+str(balance))
+    balance_msg.grid(row = 0, column = 0, sticky=E, padx = 15, pady=(15,0))
 
-    spent_msg = Label(root, text="Spent Total: " + str(debit))
-    spent_msg.grid(row=4, column=1, sticky=E)
+    spent_msg = Label(f5, text="Spent Total: " + str(debit))
+    spent_msg.grid(row = 1, column = 0, sticky=E, padx = 15)
 
-    received_msg = Label(root, text="Received Total: " + str(credit))
-    received_msg.grid(row=5, column=1, sticky=E)
+    received_msg = Label(f5, text="Received Total: " + str(credit))
+    received_msg.grid(row = 2, column = 0, sticky=E, padx = 15)
     table()
 
 def send():
@@ -115,7 +101,7 @@ def send():
     c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
     txhash = c.fetchone()[0]
     conn.close()
-        
+
     timestamp = str(time.time())
 
     transaction = str(timestamp) +":"+ str(address) +":"+ str(to_address_input) +":"+ str(amount_input)
@@ -139,70 +125,86 @@ def send():
             txhash_new = hashlib.sha224(str(transaction) + str(signature_enc) + str(txhash)).hexdigest() #define new tx hash based on previous #fix asap
             print "Client: New txhash to go with your transaction: "+txhash_new
             conn.close()
-               
+
             print "Client: The signature and control txhash is valid, proceeding to send transaction, signature, new txhash and the public key"
             s.sendall("transaction")
             time.sleep(0.1)
             s.sendall(transaction+";"+str(signature_enc)+";"+public_key_readable+";"+str(txhash_new)) #todo send list
             time.sleep(0.1)
             balance_get()
-        
+
     else:
         print "Client: Invalid signature"
     #enter transaction end
-    
+
 
 def node():
     print "Received node start command"
-    
+
 
 def app_quit():
     print "Received quit command"
     root.destroy()
 
-balance_get() #get balance on start
-table()
+#frames
+f2 = Frame(root, height=100, width = 100)
+f2.grid(row = 0, column = 1, sticky = W+E+N+S)
+
+f3 = Frame(root, width = 500)
+f3.grid(row = 0, column = 0, sticky = W+E+N+S)
+
+f4 = Frame(root, height=100, width = 100)
+f4.grid(row = 1, column = 0, sticky = W+E+N+S)
+
+f5 = Frame(root, height=100, width = 100)
+f5.grid(row = 1, column = 1, sticky = W+E+N+S)
+#frames
+
+#buttons
+
+send_b = Button(f5, text="Send Bismuth", command=send, height=1, width=15)
+send_b.grid(row=3, column=0, sticky=W+E+N+S, pady=(100, 4), padx=15)
+
+start_b = Button(f5, text="Start node", command=node, height=1, width=15)
+start_b.grid(row=4, column=0, sticky=W+E+N+S, pady=4,padx=15,columnspan=4)
+
+balance_b = Button(f5, text="Check balance", command=balance_get, height=1, width=15)
+balance_b.grid(row=5, column=0, sticky=W+E+N+S, pady=4,padx=15)
+
+balance_b = Button(f5, text="Refresh table", command=table, height=1, width=15)
+balance_b.grid(row=6, column=0, sticky=W+E+N+S, pady=4,padx=15)
+
+quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=15)
+quit_b.grid(row=7, column=0, sticky=W+E+N+S, pady=4,padx=15)
+
+#buttons
 
 #address and amount
-Label(root, text="Your Address:", width=20).grid(row=0,pady=15)
-gui_address = Entry(root,width=57)
+Label(f3, text="Your Address:", width=20).grid(row=0, pady=15)
+gui_address = Entry(f3,width=57)
 gui_address.grid(row=0,column=1)
 gui_address.insert(0,address)
-Label(root, text="Recipient:", width=20).grid(row=1)
-Label(root, text="Amount:", width=20).grid(row=2)
 
-to_address = Entry(root, width=57)
-to_address.grid(row=1, column=1, pady=4)
+Label(f3, text="Recipient:", width=20).grid(row=1)
+Label(f3, text="Amount:", width=20).grid(row=2)
 
-amount = Entry(root, width=57)
-amount.grid(row=2, column=1, pady=4)
+to_address = Entry(f3, width=57)
+to_address.grid(row=1, column=1, pady=15)
 
-balance_enumerator = Entry(root, width=10)
+amount = Entry(f3, width=57)
+amount.grid(row=2, column=1, pady=15)
+amount.grid(row=2, column=1, pady=15)
+
+balance_enumerator = Entry(f3, width=10)
 #address and amount
 
-#buttons
-
-send_b = Button(root, text="Send transaction", command=send, height=1, width=15)
-send_b.grid(row=3, column=0, sticky=W, pady=4,padx=4)
-
-start_b = Button(root, text="Start node", command=node, height=1, width=15)
-start_b.grid(row=4, column=0, sticky=W, pady=4,padx=4,columnspan=4)
-
-balance_b = Button(root, text="Check balance", command=balance_get, height=1, width=15)
-balance_b.grid(row=3, column=1, sticky=W, pady=4,padx=4)
-
-balance_b = Button(root, text="Refresh table", command=table, height=1, width=15)
-balance_b.grid(row=4, column=1, sticky=W, pady=4,padx=4)
-
-quit_b = Button(root, text="Quit", command=app_quit, height=1, width=15)
-quit_b.grid(row=5, column=1, sticky=W, pady=4,padx=4)
-
-#buttons
+Label(f4, text="Your latest transactions:", width=20).grid(row=0)
 
 #logo
 logo=PhotoImage(file="graphics/logo.gif")
-image = Label(image=logo)
-image.grid(row=1, column=2, columnspan=1, rowspan=2, sticky=W+E+N+S, padx=5, pady=5)
+image = Label(f2, image=logo)
+image.grid(pady=5, padx=5)
 #logo
 
-mainloop()
+balance_get() #get balance on start
+root.mainloop()
