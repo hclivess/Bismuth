@@ -1,10 +1,11 @@
 development plan:
 
--broadcast to nodes from peerlist
-
--optimize
+-remove requests by internal function
+-minimize sybil attack options though consensus inquiry on block height and deviation calculation
+-optimize node stability
 -framework for decentralized apps
 -framework for sidechains and hyperblocks
+-compile with nuitka
 
 WARNING: This project is in the beta stage!
 
@@ -12,7 +13,7 @@ Dependencies:
 
 -python 2.7
 -pycrypto 
--requests
+-requests (to be removed)
 
 Features:
 
