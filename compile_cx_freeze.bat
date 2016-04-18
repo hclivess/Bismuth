@@ -1,0 +1,1 @@
+C:\Python27\Scripts\cxfreeze gui.py --target-dir dist --icon graphics\icon.ico
