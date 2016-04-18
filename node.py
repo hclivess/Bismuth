@@ -189,7 +189,7 @@ if prod == 1:
         else:
             print "Core: Self node already saved or not reachable"
     except:
-        raise
+        pass
 #get local peers into tuples    
 else:
    print "Core: Port is not open"
