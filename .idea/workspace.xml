@@ -2,7 +2,6 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="d3769ae9-115c-486e-a6fd-bd5203ad75e5" name="Default" comment="replaced compiler">
-      <change type="DELETED" beforePath="$PROJECT_DIR$/compile_cx_freeze.bat" afterPath="" />
       <change type="DELETED" beforePath="$PROJECT_DIR$/dist/Crypto.Cipher._AES.pyd" afterPath="" />
       <change type="DELETED" beforePath="$PROJECT_DIR$/dist/Crypto.Cipher._DES.pyd" afterPath="" />
       <change type="DELETED" beforePath="$PROJECT_DIR$/dist/Crypto.Cipher._DES3.pyd" afterPath="" />
@@ -10,30 +9,14 @@
       <change type="DELETED" beforePath="$PROJECT_DIR$/dist/Crypto.Random.OSRNG.winrandom.pyd" afterPath="" />
       <change type="DELETED" beforePath="$PROJECT_DIR$/dist/Crypto.Util._counter.pyd" afterPath="" />
       <change type="DELETED" beforePath="$PROJECT_DIR$/dist/Crypto.Util.strxor.pyd" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/_ctypes.pyd" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/_hashlib.pyd" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/_socket.pyd" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/_sqlite3.pyd" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/_ssl.pyd" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/_tkinter.pyd" afterPath="" />
       <change type="DELETED" beforePath="$PROJECT_DIR$/dist/bismuth_installer.exe" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/bz2.pyd" afterPath="" />
       <change type="DELETED" beforePath="$PROJECT_DIR$/dist/cryptography.hazmat.bindings._openssl.pyd" afterPath="" />
       <change type="DELETED" beforePath="$PROJECT_DIR$/dist/mempool.db" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/pyexpat.pyd" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/python27.dll" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/select.pyd" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/sqlite3.dll" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/tcl85.dll" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/tk85.dll" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/unicodedata.pyd" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/win32pipe.pyd" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/win32wnet.pyd" afterPath="" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/dist/gui.exe" afterPath="$PROJECT_DIR$/dist/gui.exe" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/dist/node.exe" afterPath="$PROJECT_DIR$/dist/node.exe" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/dist/win32pipe.pyd" afterPath="$PROJECT_DIR$/dist/win32pipe.pyd" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/dist/win32wnet.pyd" afterPath="$PROJECT_DIR$/dist/win32wnet.pyd" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/compile_pyinstaller.cmd" afterPath="$PROJECT_DIR$/compile_pyinstaller.cmd" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/node.py" afterPath="$PROJECT_DIR$/node.py" />
     </list>
     <ignored path="XBM-Bismuth.iws" />
     <ignored path=".idea/workspace.xml" />
@@ -58,8 +41,8 @@
       <file leaf-file-name="node.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/node.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="576">
-              <caret line="193" column="5" selection-start-line="193" selection-start-column="5" selection-end-line="193" selection-end-column="5" />
+            <state relative-caret-position="304">
+              <caret line="177" column="24" selection-start-line="177" selection-start-column="24" selection-end-line="177" selection-end-column="24" />
               <folding>
                 <element signature="e#0#19#0" expanded="true" />
               </folding>
@@ -530,7 +513,14 @@
       <option name="project" value="LOCAL" />
       <updated>1460937689966</updated>
     </task>
-    <option name="localTasksCounter" value="16" />
+    <task id="LOCAL-00016" summary="fixed error for closed networks">
+      <created>1460966808976</created>
+      <option name="number" value="00016" />
+      <option name="presentableId" value="LOCAL-00016" />
+      <option name="project" value="LOCAL" />
+      <updated>1460966808976</updated>
+    </task>
+    <option name="localTasksCounter" value="17" />
     <servers />
   </component>
   <component name="ToolWindowManager">
@@ -569,6 +559,7 @@
     <option name="myLimit" value="2678400000" />
   </component>
   <component name="VcsManagerConfiguration">
+    <option name="OFFER_MOVE_TO_ANOTHER_CHANGELIST_ON_PARTIAL_COMMIT" value="false" />
     <option name="CHECK_NEW_TODO" value="false" />
     <MESSAGE value="fixed build to new version of pyinstaller, also fixed address binding to all" />
     <MESSAGE value="fixed client threading" />
@@ -585,7 +576,8 @@
     <MESSAGE value="made things work for newcomers" />
     <MESSAGE value="added installer to test with friends" />
     <MESSAGE value="replaced compiler" />
-    <option name="LAST_COMMIT_MESSAGE" value="replaced compiler" />
+    <MESSAGE value="fixed error for closed networks" />
+    <option name="LAST_COMMIT_MESSAGE" value="fixed error for closed networks" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -989,8 +981,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/node.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="576">
-          <caret line="193" column="5" selection-start-line="193" selection-start-column="5" selection-end-line="193" selection-end-column="5" />
+        <state relative-caret-position="304">
+          <caret line="177" column="24" selection-start-line="177" selection-start-column="24" selection-end-line="177" selection-end-column="24" />
           <folding>
             <element signature="e#0#19#0" expanded="true" />
           </folding>
