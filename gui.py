@@ -216,12 +216,12 @@ balance_enumerator = Entry(f3, width=10)
 Label(f4, text="Your latest transactions:", width=20).grid(row=0)
 
 #logo
-logo=PhotoImage(file="logo.gif")
+logo=PhotoImage(file="graphics\\logo.gif")
 image = Label(f2, image=logo)
 image.grid(pady=5, padx=5)
 #logo
 
 balance_get() #get balance on start
 
-root.iconbitmap("icon.ico")
+root.iconbitmap("graphics\\icon.ico")
 root.mainloop()
