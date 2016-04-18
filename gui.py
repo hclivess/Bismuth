@@ -4,6 +4,8 @@ import sqlite3
 import socket
 import time
 import base64
+import logging
+
 from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
@@ -26,9 +28,9 @@ s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 try:
     s.connect(("127.0.0.1", int("2829"))) #connect to local node
 except:
-    print "Cannot connect to local node, please start it first"
+    logging.warning("Cannot connect to local node, please start it first")
     sys.exit(1)
-print "Connected"
+logging.warning("Connected")
 
 def table():
     # transaction table
@@ -49,16 +51,16 @@ def table():
     conn.close()
     # data
 
-    print datasheet
-    print len(datasheet)
+    logging.warning(datasheet)
+    logging.warning(len(datasheet))
 
 
     if len (datasheet) == 4:
-        print "Looks like a new address"
+        logging.warning("Looks like a new address")
         return
 
     elif len(datasheet) < 20*4:
-        print len(datasheet)
+        logging.warning(len(datasheet))
         table_limit = len(datasheet)/4
     else:
         table_limit = 20
@@ -89,7 +91,7 @@ def balance_get():
     if credit == None:
         credit = 0
     balance = credit - debit
-    print "Node: Transction address balance: "+str(balance)
+    logging.warning("Node: Transction address balance: "+str(balance))
     conn.close()
 
 
@@ -105,11 +107,11 @@ def balance_get():
     table()
 
 def send():
-    print "Received tx command"
+    logging.warning("Received tx command")
     to_address_input = to_address.get()
-    print to_address_input
+    logging.warning(to_address_input)
     amount_input = amount.get()
-    print amount_input
+    logging.warning(amount_input)
     #enter transaction start
     conn = sqlite3.connect('ledger.db')
     c = conn.cursor()
@@ -125,12 +127,12 @@ def send():
     signer = PKCS1_v1_5.new(key)
     signature = signer.sign(h)
     signature_enc = base64.b64encode(signature)
-    print "Client: Encoded Signature: "+str(signature_enc)
+    logging.warning("Client: Encoded Signature: "+str(signature_enc))
 
     verifier = PKCS1_v1_5.new(key)
     if verifier.verify(h, signature) == True:
         if int(amount_input) < 0:
-            print "Client: Signature OK, but cannot use negative amounts"
+            logging.warning("Client: Signature OK, but cannot use negative amounts")
 
         else:
             conn = sqlite3.connect('ledger.db')
@@ -138,10 +140,10 @@ def send():
             c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
             txhash = str(c.fetchone()[0])
             txhash_new = hashlib.sha224(str(transaction) + str(signature_enc) + str(txhash)).hexdigest() #define new tx hash based on previous #fix asap
-            print "Client: New txhash to go with your transaction: "+txhash_new
+            logging.warning("Client: New txhash to go with your transaction: "+txhash_new)
             conn.close()
 
-            print "Client: The signature and control txhash is valid, proceeding to send transaction, signature, new txhash and the public key"
+            logging.warning("Client: The signature and control txhash is valid, proceeding to send transaction, signature, new txhash and the public key")
             s.sendall("transaction")
             time.sleep(0.1)
             s.sendall(transaction+";"+str(signature_enc)+";"+public_key_readable+";"+str(txhash_new)) #todo send list
@@ -149,16 +151,16 @@ def send():
             balance_get()
 
     else:
-        print "Client: Invalid signature"
+        logging.warning("Client: Invalid signature")
     #enter transaction end
 
 
 def node():
-    print "Received node start command"
+    logging.warning("Received node start command")
 
 
 def app_quit():
-    print "Received quit command"
+    logging.warning("Received quit command")
     root.destroy()
 
 #frames
