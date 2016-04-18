@@ -1,0 +1,119 @@
+png2ico(1)                                             png2ico(1)
+
+
+
+NAME
+       png2ico  -  convert  .PNG  file(s)  to  Windows  .ICO icon
+       resource
+
+
+SYNOPSIS
+       png2ico   outfile.ico   [--colors    <num>]    infile1.png
+       [infile2.png ...]
+
+
+DESCRIPTION
+       png2ico  takes the input files and stores them in the out­
+       put file as a Windows icon  resource.  Usually  the  input
+       files would all represent the same image in different res­
+       olutions (common resolutions are 16x16, 32x32 and  64x64).
+       A  program  reading  the icon resource will pick the image
+       closest to its desired resolution and will then  scale  it
+       if necessary.
+
+       Using the parameter --colors you can specify the number of
+       colors to use for the images that follow --colors  on  the
+       command  line.  Allowed values are 2, 16 and 256. If omit­
+       ted, 256 colors will be used. --colors  can  be  specified
+       multiple  times  to store images with different numbers of
+       colors in the same icon file. If the source image has more
+       than  the specified number of colors, color reduction will
+       be performed.
+
+
+FAVICON.ICO
+       Most graphical  browsers  today  support  the  favicon.ico
+       file.  When  a user bookmarks a web page, the browser will
+       automatically check if it finds a favicon.ico file on  the
+       web  server and display it in the bookmarks menu.  Depend­
+       ing on the browser and configuration the  favicon.ico  may
+       also appear in other places.
+
+       To  create  a  favicon.ico simply create a 16x16 .PNG file
+       and convert it to an icon resource with png2ico.  You  may
+       of  course  add  other  alternative  resolutions  but most
+       browsers only use a 16x16 image. Keep in mind that  for  a
+       user with a slow modem a favicon.ico may increase the page
+       loading time by a few seconds if it is too large, so don't
+       overdo  it. Adding a 32x32 alternative should be enough to
+       make sure the image will look good even in  contexts  with
+       larger  icons. Adding even more and larger alternatives is
+       unnecessary bloat.  Try to keep the number of colors below
+       16 and create a 16-color icon using the --colors 16 switch
+       of png2ico (or even create a b/w icon using the --colors 2
+       switch).  This  will  result  in a smaller file that loads
+       faster.
+
+       Don't forget that the favicon.ico may be composed  against
+       backgrounds  of  different colors so you should use trans­
+       parency rather than a solid  background  if  you  want  to
+       avoid that your icon appears inside a box.
+
+       To  add  your  new favicon.ico to a web page put it on the
+       server into the same directory as the web  page.  That  is
+       the  1st place a browser will look.  If it doesn't find an
+       icon there, it checks the top-level directory of  the  web
+       server,  so  by  putting  it  there you can have a default
+       favicon for all the pages in your  domain.   Depending  on
+       browser  and  configuration, the favicon.ico is not always
+       rendered, even if it is in one  of  the  above  locations,
+       unless  the  web page explicitly declares its presence. To
+       declare that your web page has an icon, you add  the  fol­
+       lowing 2 lines into the <head> section of your page:
+
+              <link         rel="icon"         href="favicon.ico"
+              type="image/x-icon">
+
+              <link    rel="shortcut icon"     href="favicon.ico"
+              type="image/x-icon">
+
+
+EXAMPLES
+       To  create  a  favicon.ico  from  2 logo files (the 1st in
+       16x16 resolution and the  2nd  in  32x32  resolution)  you
+       could use the following command:
+
+              png2ico favicon.ico logo16x16.png logo32x32.png
+
+
+BUGS
+       The  color  reduction  algorithm  used  by png2ico is very
+       slow. If you have an input file with several thousand col­
+       ors (very unlikely), it may take several seconds to create
+       the icon. If possible, reduce the number of colors in your
+       .PNG files before passing them to png2ico.
+
+       The handling of the transparency mask is very inconsistent
+       in programs.  The same program will sometimes interpret it
+       differently  depending  on context.  png2ico takes precau­
+       tions to make sure that the  icon  will  always  look  the
+       same.  For  doing this, png2ico uses one palette entry for
+       black  (0,0,0)   and   one   palette   entry   for   white
+       (255,255,255),  even  if  the  icon does not have a single
+       black or white pixel. This means that 2-color  icons  will
+       always  be  black  and  white. In 16/256-color icons, only
+       14/254 colors can be chosen freely.
+
+
+AUTHOR
+       Matthias S. Benkmann <matthias@winterdrache.de>.
+
+       png2ico lives at http://www.winterdrache.de/freeware
+
+
+SEE ALSO
+       convert(1), gimp(1)
+
+
+
+                           1 June 2002                 png2ico(1)
