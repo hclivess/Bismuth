@@ -18,7 +18,7 @@ class index:
         print "imax:"+str(imax)
         i=0
         while i < imax:
-            for row in c.execute('SELECT * FROM transactions ORDER BY block_height ASC LIMIT 1 OFFSET '+str(i)+';'):
+            for row in c.execute('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1 OFFSET '+str(i)+';'):
                 block_height = row[0]
                 address = row[2]
                 to_address = row[3]

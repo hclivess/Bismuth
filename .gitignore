@@ -3,3 +3,5 @@
 build/
 test1/
 dist/
+gui.build/
+node.build/
