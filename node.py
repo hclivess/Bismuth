@@ -11,7 +11,6 @@ import sys
 import threading
 import time
 
-import requests
 from Crypto import Random
 from Crypto.Hash import SHA
 from Crypto.PublicKey import RSA
@@ -159,42 +158,7 @@ print "Client: Local address: "+ str(address)
 
 db_maintenance()
 #connectivity to self node
-prod = 1
 
-if prod == 1:
-    try:
-        r = requests.get(r'http://jsonip.com')
-        ip_me= r.json()['ip']
-        print 'Core: Your IP is', ip_me
-        sock_self = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock_self.settimeout(1)
-        result = sock_self.connect_ex((ip_me,port))
-        sock_self.close()
-        #result = 0 #enable for test
-        if result == 0:
-            print "Core: Port is open"   
-    #get local peers into tuples
-        peer_file = open("peers.txt", 'r')
-        peer_tuples = []
-        for line in peer_file:
-            extension = re.findall ("'([\d\.]+)', '([\d]+)'",line)
-            peer_tuples.extend(extension)
-        peer_file.close()
-        peer_me = ("('"+str(ip_me)+"', '"+str(port)+"')")
-        if peer_me not in str(peer_tuples) and result == 0: #stringing tuple is a nasty way
-            peer_list_file = open("peers.txt", 'a')
-            peer_list_file.write((peer_me)+"\n")
-            print "Core: Local node saved to peer file"
-            peer_list_file.close()
-        else:
-            print "Core: Self node already saved or not reachable"
-    except:
-        pass
-#get local peers into tuples    
-else:
-   print "Core: Port is not open"
-#connectivity to self node
-  
 #verify blockchain
 con = None
 conn = sqlite3.connect('ledger.db')
@@ -271,9 +235,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         while True:
             try:
                 data = self.request.recv(11)
-                cur_thread = threading.current_thread()
+                #cur_thread = threading.current_thread()
                 
-                #print "received: "+data
+                print "Node: Received: "+data+ " from " +str(self.request.getpeername()[0]) #will add custom ports later
 
                 if data == 'helloserver':
                     with open ("peers.txt", "r") as peer_list:
@@ -284,6 +248,38 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         self.request.sendall(peers)
                         time.sleep(0.1)
                     peer_list.close()
+
+
+
+                    # save peer if connectible
+                    peer_file = open("peers.txt", 'r')
+                    peer_tuples = []
+                    for line in peer_file:
+                        extension = re.findall ("'([\d\.]+)', '([\d]+)'",line)
+                        peer_tuples.extend(extension)
+                    peer_file.close()
+                    peer_ip = str(self.request.getpeername()[0])
+                    peer_tuple = ("('"+peer_ip+"', '"+str(port)+"')")
+
+                    try:
+                        print "Testing connectivity to: "+str(peer_ip)
+                        peer_test = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        peer_test.connect((str(peer_ip), 2829)) #double parentheses mean tuple
+                        print "Node: Distant peer connectible"
+                        if peer_tuple not in str(peer_tuples): #stringing tuple is a nasty way
+                            peer_list_file = open("peers.txt", 'a')
+                            peer_list_file.write((peer_tuple)+"\n")
+                            print "Node: Distant peer saved to peer list"
+                            peer_list_file.close()
+                        else:
+                            print "Core: Distant peer already in peer list"
+                    except:
+                        print "Node: Distant peer not connectible"
+                        #raise #test only
+
+                    #save peer if connectible
+
+
                         
                     print "Node: Sending sync request"
                     self.request.sendall("sync_______")
@@ -703,6 +699,7 @@ def worker(HOST,PORT):
                         if x not in peer_tuples:
                             print "Client: "+str(x)+" is a new peer, saving if connectible."
                             try:
+                                s_purge = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                                 s_purge.connect((HOST[x], PORT[x]))  # save a new peer file with only active nodes
                                 s_purge.close()
 
