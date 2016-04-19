@@ -4,7 +4,7 @@ block_cipher = None
 
 
 a = Analysis(['node.py'],
-             pathex=['C:\\Users\\kucerjan\\Documents\\GitHub\\XBM-Bismuth'],
+             pathex=['C:\\Users\\HCLivess\\Documents\\GitHub\\XBM-Bismuth'],
              binaries=None,
              datas=None,
              hiddenimports=[],

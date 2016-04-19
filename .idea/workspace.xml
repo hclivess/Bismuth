@@ -1,43 +1,32 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="d3769ae9-115c-486e-a6fd-bd5203ad75e5" name="Default" comment="replaced print with logging(gui)">
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/compile_cx_freeze.bat" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/png2ico/icon_128x128.png" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/Output/bismuth_installer.exe" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/png2ico/icon_64x64.png" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/png2ico/icon_16x16.png" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/png2ico/icon.ico" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/win32pipe.pyd" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/png2ico/png2ico.exe" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/gui.build/__helpers.cpp" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/gui.build/__constants.cpp" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/png2ico/VERSION" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/gui.build/__constants.bin" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/png2ico/LICENSE" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/png2ico/README" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/win32wnet.pyd" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/pyexpat.pyd" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/png2ico/doc/png2ico.txt" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/gui.build/module.__main__.cpp" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/compile_cx_freeze_gui.bat" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/png2ico/make.bat" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/gui.build/module.runtime.cpp" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/png2ico/icon_48x48.png" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/gui.build/__frozen.cpp" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/gui.build/__helpers.hpp" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/compile_cx_freeze_node.bat" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/png2ico/icon_32x32.png" afterPath="" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/compile_nuitka.bat" afterPath="$PROJECT_DIR$/compile_nuitka.bat" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/dist/node.exe" afterPath="$PROJECT_DIR$/dist/node.exe" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/mempool.db" afterPath="$PROJECT_DIR$/mempool.db" />
+    <list default="true" id="d3769ae9-115c-486e-a6fd-bd5203ad75e5" name="Default" comment="0.3">
+      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/_ctypes.pyd" afterPath="" />
+      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/_hashlib.pyd" afterPath="" />
+      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/_socket.pyd" afterPath="" />
+      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/_sqlite3.pyd" afterPath="" />
+      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/_ssl.pyd" afterPath="" />
+      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/_tkinter.pyd" afterPath="" />
+      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/bz2.pyd" afterPath="" />
+      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/python27.dll" afterPath="" />
+      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/select.pyd" afterPath="" />
+      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/sqlite3.dll" afterPath="" />
+      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/tcl85.dll" afterPath="" />
+      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/tk85.dll" afterPath="" />
+      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/unicodedata.pyd" afterPath="" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/Output/bismuth_installer.exe" afterPath="$PROJECT_DIR$/Output/bismuth_installer.exe" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/dist/gui.exe" afterPath="$PROJECT_DIR$/dist/gui.exe" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/dist/graphics/icon.ico" afterPath="$PROJECT_DIR$/dist/graphics/icon.ico" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/ledger.db" afterPath="$PROJECT_DIR$/ledger.db" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.gitignore" afterPath="$PROJECT_DIR$/.gitignore" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/explorer/explorer.py" afterPath="$PROJECT_DIR$/explorer/explorer.py" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/dist/ledger.db" afterPath="$PROJECT_DIR$/dist/ledger.db" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/dist/node.exe" afterPath="$PROJECT_DIR$/dist/node.exe" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/ledger.db" afterPath="$PROJECT_DIR$/ledger.db" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/mempool.db" afterPath="$PROJECT_DIR$/mempool.db" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/compile_pyinstaller.cmd" afterPath="$PROJECT_DIR$/compile_pyinstaller.cmd" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/gui.spec" afterPath="$PROJECT_DIR$/gui.spec" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/node.py" afterPath="$PROJECT_DIR$/node.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/node.spec" afterPath="$PROJECT_DIR$/node.spec" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/send.spec" afterPath="$PROJECT_DIR$/send.spec" />
     </list>
     <ignored path="XBM-Bismuth.iws" />
     <ignored path=".idea/workspace.xml" />
@@ -62,11 +51,21 @@
       <file leaf-file-name="node.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/node.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="853">
-              <caret line="266" column="78" selection-start-line="266" selection-start-column="78" selection-end-line="266" selection-end-column="78" />
+            <state relative-caret-position="430">
+              <caret line="644" column="43" selection-start-line="644" selection-start-column="43" selection-end-line="644" selection-end-column="43" />
               <folding>
                 <element signature="e#0#19#0" expanded="true" />
               </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="compile_pyinstaller.cmd" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/compile_pyinstaller.cmd">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="85">
+              <caret line="5" column="5" selection-start-line="5" selection-start-column="5" selection-end-line="5" selection-end-column="5" />
+              <folding />
             </state>
           </provider>
         </entry>
@@ -94,8 +93,8 @@
       <file leaf-file-name="gui.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/gui.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="187">
-              <caret line="23" column="51" selection-start-line="23" selection-start-column="49" selection-end-line="23" selection-end-column="51" />
+            <state relative-caret-position="328">
+              <caret line="33" column="0" selection-start-line="33" selection-start-column="0" selection-end-line="33" selection-end-column="0" />
               <folding>
                 <element signature="e#0#29#0" expanded="true" />
               </folding>
@@ -132,6 +131,7 @@
         <option value="$PROJECT_DIR$/peers.txt" />
         <option value="$PROJECT_DIR$/test.py" />
         <option value="$PROJECT_DIR$/gui.py" />
+        <option value="$PROJECT_DIR$/compile_pyinstaller.cmd" />
         <option value="$PROJECT_DIR$/node.py" />
       </list>
     </option>
@@ -174,6 +174,16 @@
               <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ProjectViewProjectNode" />
             </PATH_ELEMENT>
           </PATH>
+          <PATH>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="XBM-Bismuth" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ProjectViewProjectNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="XBM-Bismuth" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+          </PATH>
         </subPane>
       </pane>
       <pane id="Scratches" />
@@ -193,7 +203,7 @@
       <recent name="C:\Users\HCLivess\Documents\GitHub\XBM-Bismuth" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.node">
+  <component name="RunManager" selected="Python.gui">
     <configuration default="false" name="node" type="PythonConfigurationType" factoryName="Python" temporary="true">
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
@@ -544,31 +554,38 @@
       <option name="project" value="LOCAL" />
       <updated>1461016760287</updated>
     </task>
-    <option name="localTasksCounter" value="19" />
+    <task id="LOCAL-00019" summary="0.3">
+      <created>1461023923917</created>
+      <option name="number" value="00019" />
+      <option name="presentableId" value="LOCAL-00019" />
+      <option name="project" value="LOCAL" />
+      <updated>1461023923917</updated>
+    </task>
+    <option name="localTasksCounter" value="20" />
     <servers />
   </component>
   <component name="ToolWindowManager">
     <frame x="-4" y="0" width="1924" height="1048" extended-state="0" />
     <editor active="false" />
     <layout>
-      <window_info id="Project" active="true" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.17954071" sideWeight="0.5" order="0" side_tool="false" content_ui="combo" />
+      <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.17954071" sideWeight="0.5" order="0" side_tool="false" content_ui="combo" />
       <window_info id="TODO" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="6" side_tool="false" content_ui="tabs" />
       <window_info id="Event Log" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="7" side_tool="true" content_ui="tabs" />
       <window_info id="Python Console" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
       <window_info id="Version Control" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.34743875" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
+      <window_info id="Run" active="true" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.3308668" sideWeight="0.5" order="2" side_tool="false" content_ui="tabs" />
       <window_info id="Structure" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
       <window_info id="Terminal" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
       <window_info id="Favorites" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="2" side_tool="true" content_ui="tabs" />
+      <window_info id="Debug" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.397463" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" />
       <window_info id="Cvs" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="4" side_tool="false" content_ui="tabs" />
       <window_info id="Message" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="0" side_tool="false" content_ui="tabs" />
       <window_info id="Commander" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.4" sideWeight="0.5" order="0" side_tool="false" content_ui="tabs" />
       <window_info id="Inspection" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.4" sideWeight="0.5" order="5" side_tool="false" content_ui="tabs" />
-      <window_info id="Run" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.3308668" sideWeight="0.5" order="2" side_tool="false" content_ui="tabs" />
       <window_info id="Hierarchy" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.21354167" sideWeight="0.5" order="2" side_tool="false" content_ui="combo" />
       <window_info id="Find" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
       <window_info id="Database" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" />
       <window_info id="Ant Build" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
-      <window_info id="Debug" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.397463" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" />
     </layout>
   </component>
   <component name="Vcs.Log.UiProperties">
@@ -603,7 +620,8 @@
     <MESSAGE value="fixed error for closed networks" />
     <MESSAGE value="replaced print with logging" />
     <MESSAGE value="replaced print with logging(gui)" />
-    <option name="LAST_COMMIT_MESSAGE" value="replaced print with logging(gui)" />
+    <MESSAGE value="0.3" />
+    <option name="LAST_COMMIT_MESSAGE" value="0.3" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -618,14 +636,6 @@
     <watches-manager />
   </component>
   <component name="editorHistoryManager">
-    <entry file="file://$PROJECT_DIR$/genesis.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="765">
-          <caret line="58" column="28" selection-start-line="58" selection-start-column="28" selection-end-line="58" selection-end-column="28" />
-          <folding />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/gui.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="0">
@@ -963,14 +973,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/genesis.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="765">
-          <caret line="58" column="28" selection-start-line="58" selection-start-column="28" selection-end-line="58" selection-end-column="28" />
-          <folding />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://C:/Python27/Lib/lib-tk/Tkconstants.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="153">
@@ -988,10 +990,26 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/test.py" />
     <entry file="file://$PROJECT_DIR$/compile_cx_freeze.bat" />
+    <entry file="file://$PROJECT_DIR$/compile_pyinstaller.cmd">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="85">
+          <caret line="5" column="5" selection-start-line="5" selection-start-column="5" selection-end-line="5" selection-end-column="5" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/genesis.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="765">
+          <caret line="58" column="28" selection-start-line="58" selection-start-column="28" selection-end-line="58" selection-end-column="28" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/gui.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="187">
-          <caret line="23" column="51" selection-start-line="23" selection-start-column="49" selection-end-line="23" selection-end-column="51" />
+        <state relative-caret-position="328">
+          <caret line="33" column="0" selection-start-line="33" selection-start-column="0" selection-end-line="33" selection-end-column="0" />
           <folding>
             <element signature="e#0#29#0" expanded="true" />
           </folding>
@@ -1000,8 +1018,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/node.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="853">
-          <caret line="266" column="78" selection-start-line="266" selection-start-column="78" selection-end-line="266" selection-end-column="78" />
+        <state relative-caret-position="430">
+          <caret line="644" column="43" selection-start-line="644" selection-start-column="43" selection-end-line="644" selection-end-column="43" />
           <folding>
             <element signature="e#0#19#0" expanded="true" />
           </folding>

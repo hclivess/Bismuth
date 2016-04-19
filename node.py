@@ -641,6 +641,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     else:
                         logging.warning("Node: Signature invalid")
 
+                if data=="":
+                    logging.warning("Node: Communication error")
+                    return
                 time.sleep(0.1)
                 #logging.warning("Server resting") #prevent cpu overload
             except: #forcibly closed connection
