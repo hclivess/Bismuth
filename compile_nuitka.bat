@@ -1,2 +1,2 @@
-start nuitka --recurse-all --portable --windows-disable-console --icon="C:\Users\HCLivess\Documents\GitHub\XBM-Bismuth\graphics\icon.ico" gui.py
-start nuitka --recurse-all --portable --icon="C:\Users\HCLivess\Documents\GitHub\XBM-Bismuth\graphics\icon.ico" node.py
+start nuitka --recurse-all --portable --standalone --windows-disable-console --icon="C:\Users\HCLivess\Documents\GitHub\XBM-Bismuth\graphics\icon.ico" gui.py
+start nuitka --recurse-all --portable --standalone --icon="C:\Users\HCLivess\Documents\GitHub\XBM-Bismuth\graphics\icon.ico" node.py

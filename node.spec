@@ -1,28 +1,22 @@
 # -*- mode: python -*-
-
-block_cipher = None
-
-
 a = Analysis(['node.py'],
-             pathex=['C:\\Users\\kucerjan\\Documents\\GitHub\\XBM-Bismuth'],
-             binaries=None,
-             datas=None,
+             pathex=['C:\\Users\\HCLivess\\Documents\\GitHub\\XBM-Bismuth'],
              hiddenimports=[],
-             hookspath=[],
-             runtime_hooks=[],
-             excludes=[],
-             win_no_prefer_redirects=False,
-             win_private_assemblies=False,
-             cipher=block_cipher)
-pyz = PYZ(a.pure, a.zipped_data,
-             cipher=block_cipher)
+             hookspath=None,
+             runtime_hooks=None)
+pyz = PYZ(a.pure)
 exe = EXE(pyz,
           a.scripts,
-          a.binaries,
-          a.zipfiles,
-          a.datas,
-          name='node',
+          exclude_binaries=True,
+          name='node.exe',
           debug=False,
-          strip=False,
+          strip=None,
           upx=True,
           console=True , icon='graphics\\icon.ico')
+coll = COLLECT(exe,
+               a.binaries,
+               a.zipfiles,
+               a.datas,
+               strip=None,
+               upx=True,
+               name='node')
