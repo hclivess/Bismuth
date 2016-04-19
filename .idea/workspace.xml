@@ -2,46 +2,14 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="d3769ae9-115c-486e-a6fd-bd5203ad75e5" name="Default" comment="">
-      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/graphics/icon.ico" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/graphics/logo.gif" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/ledger.db" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/node.exe" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/peers.txt" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/graphics_files/icon.png" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/graphics_files/logo.bmp" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/graphics_files/logo.png" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/graphics_files/png2ico/LICENSE" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/graphics_files/png2ico/README" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/graphics_files/png2ico/VERSION" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/graphics_files/png2ico/doc/png2ico.txt" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/graphics_files/png2ico/icon.ico" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/graphics_files/png2ico/icon_128x128.png" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/graphics_files/png2ico/icon_16x16.png" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/graphics_files/png2ico/icon_32x32.png" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/graphics_files/png2ico/icon_48x48.png" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/graphics_files/png2ico/icon_64x64.png" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/graphics_files/png2ico/make.bat" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/graphics_files/png2ico/png2ico.exe" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/outdated/purge.py" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/outdated/test.py" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/redist/ActiveTcl8.6.4.1.299124-win32-ix86-threaded.exe" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/redist/Nuitka-5.1.200.win32.py27.msi" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/redist/pycrypto-2.6.win32-py2.7.exe" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/send.spec" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/test1/graphics/icon.ico" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/test1/graphics/logo.gif" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/test1/gui.exe" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/test1/ledger.db" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/test1/mempool.db" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/test1/node.exe" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/test1/peers.txt" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/test1/privkey.der" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/test1/pubkey.der" afterPath="" />
+      <change type="DELETED" beforePath="$PROJECT_DIR$/graphics/icon.png" afterPath="" />
+      <change type="DELETED" beforePath="$PROJECT_DIR$/graphics/logo.bmp" afterPath="" />
+      <change type="DELETED" beforePath="$PROJECT_DIR$/graphics/logo.png" afterPath="" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/Output/bismuth_installer.exe" afterPath="$PROJECT_DIR$/Output/bismuth_installer.exe" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/compile_nuitka.bat" afterPath="$PROJECT_DIR$/compile_nuitka.bat" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/compile_pyinstaller.cmd" afterPath="$PROJECT_DIR$/compile_pyinstaller.cmd" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/node.spec" afterPath="$PROJECT_DIR$/node.spec" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/peers.txt" afterPath="$PROJECT_DIR$/peers.txt" />
     </list>
     <ignored path="XBM-Bismuth.iws" />
     <ignored path=".idea/workspace.xml" />
@@ -63,7 +31,7 @@
   </component>
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
-      <file leaf-file-name="node.py" pinned="false" current-in-tab="true">
+      <file leaf-file-name="node.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/node.py">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="17">
@@ -83,11 +51,11 @@
           </provider>
         </entry>
       </file>
-      <file leaf-file-name=".gitignore" pinned="false" current-in-tab="false">
+      <file leaf-file-name=".gitignore" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/.gitignore">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="68">
-              <caret line="4" column="0" selection-start-line="4" selection-start-column="0" selection-end-line="4" selection-end-column="0" />
+            <state relative-caret-position="102">
+              <caret line="6" column="11" selection-start-line="6" selection-start-column="11" selection-end-line="6" selection-end-column="11" />
               <folding />
             </state>
           </provider>
@@ -193,6 +161,20 @@
             </PATH_ELEMENT>
             <PATH_ELEMENT>
               <option name="myItemId" value="XBM-Bismuth" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+          </PATH>
+          <PATH>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="XBM-Bismuth" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ProjectViewProjectNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="XBM-Bismuth" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="workspace" />
               <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
             </PATH_ELEMENT>
           </PATH>
@@ -594,7 +576,14 @@
       <option name="project" value="LOCAL" />
       <updated>1461077013726</updated>
     </task>
-    <option name="localTasksCounter" value="23" />
+    <task id="LOCAL-00023" summary="first really working release?">
+      <created>1461101875192</created>
+      <option name="number" value="00023" />
+      <option name="presentableId" value="LOCAL-00023" />
+      <option name="project" value="LOCAL" />
+      <updated>1461101875192</updated>
+    </task>
+    <option name="localTasksCounter" value="24" />
     <servers />
   </component>
   <component name="ToolWindowManager">
@@ -657,7 +646,8 @@
     <MESSAGE value="ancient bug fix" />
     <MESSAGE value="added logging" />
     <MESSAGE value="update" />
-    <option name="LAST_COMMIT_MESSAGE" value="update" />
+    <MESSAGE value="first really working release?" />
+    <option name="LAST_COMMIT_MESSAGE" value="first really working release?" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -971,14 +961,6 @@
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/compile.cmd" />
-    <entry file="file://$PROJECT_DIR$/.gitignore">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="68">
-          <caret line="4" column="0" selection-start-line="4" selection-start-column="0" selection-end-line="4" selection-end-column="0" />
-          <folding />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://C:/Python27/Lib/lib-tk/Tkconstants.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="153">
@@ -1024,6 +1006,14 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="17">
           <caret line="28" column="14" selection-start-line="28" selection-start-column="14" selection-end-line="28" selection-end-column="14" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/.gitignore">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="102">
+          <caret line="6" column="11" selection-start-line="6" selection-start-column="11" selection-end-line="6" selection-end-column="11" />
           <folding />
         </state>
       </provider>
