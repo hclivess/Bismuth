@@ -19,7 +19,7 @@ from Crypto.Signature import PKCS1_v1_5
 
 gc.enable()
 
-logging.basicConfig(format='%(levelname)s:%(message)s',filename='node.log', level=logging.DEBUG)
+logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG) #,filename='node.log'
 
 global tried
 tried = []
@@ -81,7 +81,7 @@ def digest_mempool():
             m.execute("DELETE FROM transactions WHERE signature ='"+signature_mempool+"';")
             mempool.commit()
 
-        except:       
+        except:
             logging.info("Mempool: tx sig not found in the local ledger, proceeding to insert")
 
             #calculate block height from the ledger
@@ -100,13 +100,36 @@ def digest_mempool():
                 db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount)
                 txhash = hashlib.sha224(str(db_transaction) + str(db_signature) +str(db_txhash)).hexdigest() #calculate txhash from the ledger
 
-            c.execute("INSERT INTO transactions VALUES ('"+str(db_block_height+1)+"','"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable)+"','"+str(txhash)+"')") # Insert a row of data
-            conn.commit()
-            conn.close()
+                #verify balance
+                logging.info("Mempool: Verifying balance")
+                logging.info("Mempool: Received address: " + str(db_address))
+                c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '" + db_address + "'")
+                credit = c.fetchone()[0]
+                c.execute("SELECT sum(amount) FROM transactions WHERE address = '" + db_address + "'")
+                debit = c.fetchone()[0]
+                if debit == None:
+                    debit = 0
+                if credit == None:
+                    credit = 0
+                logging.info("Mempool: Total credit: " + str(credit))
+                logging.info("Mempool: Total debit: " + str(debit))
+                balance = int(credit) - int(debit)
+                logging.info("Node: Transction address balance: " + str(balance))
+                conn.close()
 
-            m.execute("DELETE FROM transactions WHERE txhash = '"+db_txhash+"';") #delete tx from mempool now that it is in the ledger
-            mempool.commit()
-            mempool.close()
+                if int(balance) - int(db_amount) < 0:
+                    logging.info("Mempool: Their balance is too low for this transaction, possible double spend attack")
+                elif int(db_amount) < 0:
+                    logging.info("Mempool: Cannot use negative amounts")
+                #verify balance
+                else:
+                    c.execute("INSERT INTO transactions VALUES ('"+str(db_block_height+1)+"','"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable)+"','"+str(txhash)+"')") # Insert a row of data
+                    conn.commit()
+                    conn.close()
+
+                m.execute("DELETE FROM transactions WHERE txhash = '"+db_txhash+"';") #delete tx from mempool now that it is in the ledger or if it was a double spend
+                mempool.commit()
+                mempool.close()
     return
         
 def db_maintenance():

@@ -15,7 +15,7 @@ root = Tk()
 
 root.wm_title("[XBM] Bismuth")
 
-logging.basicConfig(format='%(levelname)s:%(message)s',filename='gui.log', level=logging.DEBUG)
+logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG) #, filename='gui.log'
 
 # import keys
 key = RSA.importKey(open('privkey.der').read())
