@@ -15,6 +15,7 @@ root = Tk()
 
 root.wm_title("[XBM] Bismuth")
 
+logging.basicConfig(format='%(levelname)s:%(message)s',filename='gui.log', level=logging.DEBUG)
 
 # import keys
 key = RSA.importKey(open('privkey.der').read())
@@ -28,9 +29,9 @@ s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 try:
     s.connect(("127.0.0.1", int("2829"))) #connect to local node
 except:
-    logging.warning("Cannot connect to local node, please start it first")
+    logging.info("Cannot connect to local node, please start it first")
     sys.exit(1)
-logging.warning("Connected")
+logging.info("Connected")
 
 def table():
     # transaction table
@@ -51,16 +52,16 @@ def table():
     conn.close()
     # data
 
-    logging.warning(datasheet)
-    logging.warning(len(datasheet))
+    logging.info(datasheet)
+    logging.info(len(datasheet))
 
 
     if len (datasheet) == 4:
-        logging.warning("Looks like a new address")
+        logging.info("Looks like a new address")
         return
 
     elif len(datasheet) < 20*4:
-        logging.warning(len(datasheet))
+        logging.info(len(datasheet))
         table_limit = len(datasheet)/4
     else:
         table_limit = 20
@@ -91,7 +92,7 @@ def balance_get():
     if credit == None:
         credit = 0
     balance = credit - debit
-    logging.warning("Node: Transction address balance: "+str(balance))
+    logging.info("Node: Transction address balance: "+str(balance))
     conn.close()
 
 
@@ -107,11 +108,11 @@ def balance_get():
     table()
 
 def send():
-    logging.warning("Received tx command")
+    logging.info("Received tx command")
     to_address_input = to_address.get()
-    logging.warning(to_address_input)
+    logging.info(to_address_input)
     amount_input = amount.get()
-    logging.warning(amount_input)
+    logging.info(amount_input)
     #enter transaction start
     conn = sqlite3.connect('ledger.db')
     c = conn.cursor()
@@ -127,12 +128,12 @@ def send():
     signer = PKCS1_v1_5.new(key)
     signature = signer.sign(h)
     signature_enc = base64.b64encode(signature)
-    logging.warning("Client: Encoded Signature: "+str(signature_enc))
+    logging.info("Client: Encoded Signature: "+str(signature_enc))
 
     verifier = PKCS1_v1_5.new(key)
     if verifier.verify(h, signature) == True:
         if int(amount_input) < 0:
-            logging.warning("Client: Signature OK, but cannot use negative amounts")
+            logging.info("Client: Signature OK, but cannot use negative amounts")
 
         else:
             conn = sqlite3.connect('ledger.db')
@@ -140,10 +141,10 @@ def send():
             c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
             txhash = str(c.fetchone()[0])
             txhash_new = hashlib.sha224(str(transaction) + str(signature_enc) + str(txhash)).hexdigest() #define new tx hash based on previous #fix asap
-            logging.warning("Client: New txhash to go with your transaction: "+txhash_new)
+            logging.info("Client: New txhash to go with your transaction: "+txhash_new)
             conn.close()
 
-            logging.warning("Client: The signature and control txhash is valid, proceeding to send transaction, signature, new txhash and the public key")
+            logging.info("Client: The signature and control txhash is valid, proceeding to send transaction, signature, new txhash and the public key")
             s.sendall("transaction")
             time.sleep(0.1)
             s.sendall(transaction+";"+str(signature_enc)+";"+public_key_readable+";"+str(txhash_new)) #todo send list
@@ -151,16 +152,16 @@ def send():
             balance_get()
 
     else:
-        logging.warning("Client: Invalid signature")
+        logging.info("Client: Invalid signature")
     #enter transaction end
 
 
 def node():
-    logging.warning("Received node start command")
+    logging.info("Received node start command")
 
 
 def app_quit():
-    logging.warning("Received quit command")
+    logging.info("Received quit command")
     root.destroy()
 
 #frames

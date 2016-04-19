@@ -4,7 +4,7 @@ block_cipher = None
 
 
 a = Analysis(['gui.py'],
-             pathex=['C:\\Users\\HCLivess\\Documents\\GitHub\\XBM-Bismuth'],
+             pathex=['C:\\Users\\kucerjan\\Documents\\GitHub\\XBM-Bismuth'],
              binaries=None,
              datas=None,
              hiddenimports=['tcl', 'tk'],

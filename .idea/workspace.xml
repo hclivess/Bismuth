@@ -2,11 +2,19 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="d3769ae9-115c-486e-a6fd-bd5203ad75e5" name="Default" comment="">
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/Output/bismuth_installer.exe" afterPath="$PROJECT_DIR$/Output/bismuth_installer.exe" />
+      <change type="DELETED" beforePath="$PROJECT_DIR$/compile_cx_freeze.bat" afterPath="" />
+      <change type="DELETED" beforePath="$PROJECT_DIR$/compile_py2exe.bat" afterPath="" />
+      <change type="DELETED" beforePath="$PROJECT_DIR$/dist/gui.exe" afterPath="" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/dist/ledger.db" afterPath="$PROJECT_DIR$/dist/ledger.db" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/dist/node.exe" afterPath="$PROJECT_DIR$/dist/node.exe" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/ledger.db" afterPath="$PROJECT_DIR$/ledger.db" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/mempool.db" afterPath="$PROJECT_DIR$/mempool.db" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/compile_pyinstaller.cmd" afterPath="$PROJECT_DIR$/compile_pyinstaller.cmd" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/gui.py" afterPath="$PROJECT_DIR$/gui.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/gui.spec" afterPath="$PROJECT_DIR$/gui.spec" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/node.py" afterPath="$PROJECT_DIR$/node.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/node.spec" afterPath="$PROJECT_DIR$/node.spec" />
     </list>
     <ignored path="XBM-Bismuth.iws" />
     <ignored path=".idea/workspace.xml" />
@@ -28,19 +36,17 @@
   </component>
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
-      <file leaf-file-name="node.py" pinned="false" current-in-tab="false">
+      <file leaf-file-name="node.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/node.py">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="736">
-              <caret line="644" column="62" selection-start-line="644" selection-start-column="57" selection-end-line="644" selection-end-column="62" />
-              <folding>
-                <element signature="e#0#19#0" expanded="true" />
-              </folding>
+              <caret line="644" column="0" selection-start-line="644" selection-start-column="0" selection-end-line="644" selection-end-column="0" />
+              <folding />
             </state>
           </provider>
         </entry>
       </file>
-      <file leaf-file-name="compile_pyinstaller.cmd" pinned="false" current-in-tab="true">
+      <file leaf-file-name="compile_pyinstaller.cmd" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/compile_pyinstaller.cmd">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="85">
@@ -53,8 +59,8 @@
       <file leaf-file-name=".gitignore" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/.gitignore">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="85">
-              <caret line="5" column="0" selection-start-line="5" selection-start-column="0" selection-end-line="5" selection-end-column="0" />
+            <state relative-caret-position="68">
+              <caret line="4" column="0" selection-start-line="4" selection-start-column="0" selection-end-line="4" selection-end-column="0" />
               <folding />
             </state>
           </provider>
@@ -73,10 +79,10 @@
       <file leaf-file-name="gui.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/gui.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="357">
-              <caret line="33" column="0" selection-start-line="33" selection-start-column="0" selection-end-line="33" selection-end-column="0" />
+            <state relative-caret-position="408">
+              <caret line="36" column="0" selection-start-line="36" selection-start-column="0" selection-end-line="36" selection-end-column="0" />
               <folding>
-                <element signature="e#0#29#0" expanded="true" />
+                <marker date="1461075964403" expanded="true" signature="0:100" placeholder="import ..." />
               </folding>
             </state>
           </provider>
@@ -117,10 +123,10 @@
     </option>
   </component>
   <component name="ProjectFrameBounds">
-    <option name="x" value="-27" />
-    <option name="y" value="106" />
-    <option name="width" value="1924" />
-    <option name="height" value="1048" />
+    <option name="x" value="90" />
+    <option name="y" value="429" />
+    <option name="width" value="1532" />
+    <option name="height" value="951" />
   </component>
   <component name="ProjectLevelVcsManager" settingsEditedManually="false">
     <OptionsSetting value="true" id="Add" />
@@ -553,10 +559,10 @@
     <servers />
   </component>
   <component name="ToolWindowManager">
-    <frame x="-27" y="106" width="1924" height="1048" extended-state="0" />
-    <editor active="true" />
+    <frame x="90" y="429" width="1532" height="951" extended-state="0" />
+    <editor active="false" />
     <layout>
-      <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.17954071" sideWeight="0.5" order="0" side_tool="false" content_ui="combo" />
+      <window_info id="Project" active="true" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.17941953" sideWeight="0.5" order="0" side_tool="false" content_ui="combo" />
       <window_info id="TODO" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="6" side_tool="false" content_ui="tabs" />
       <window_info id="Event Log" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="7" side_tool="true" content_ui="tabs" />
       <window_info id="Python Console" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
@@ -630,7 +636,7 @@
         <state relative-caret-position="0">
           <caret line="0" column="0" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
           <folding>
-            <element signature="e#0#29#0" expanded="true" />
+            <marker date="1461075964403" expanded="true" signature="0:100" placeholder="import ..." />
           </folding>
         </state>
       </provider>
@@ -648,9 +654,7 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="11611">
           <caret line="700" column="56" selection-start-line="700" selection-start-column="56" selection-end-line="700" selection-end-column="56" />
-          <folding>
-            <element signature="e#0#19#0" expanded="true" />
-          </folding>
+          <folding />
         </state>
       </provider>
     </entry>
@@ -675,7 +679,7 @@
         <state relative-caret-position="2601">
           <caret line="162" column="21" selection-start-line="162" selection-start-column="0" selection-end-line="163" selection-end-column="0" />
           <folding>
-            <element signature="e#0#29#0" expanded="true" />
+            <marker date="1461075964403" expanded="true" signature="0:100" placeholder="import ..." />
           </folding>
         </state>
       </provider>
@@ -693,9 +697,7 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="0">
           <caret line="0" column="0" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
-          <folding>
-            <element signature="e#0#19#0" expanded="true" />
-          </folding>
+          <folding />
         </state>
       </provider>
     </entry>
@@ -720,7 +722,7 @@
         <state relative-caret-position="714">
           <caret line="54" column="0" selection-start-line="54" selection-start-column="0" selection-end-line="54" selection-end-column="0" />
           <folding>
-            <element signature="e#0#29#0" expanded="true" />
+            <marker date="1461075964403" expanded="true" signature="0:100" placeholder="import ..." />
           </folding>
         </state>
       </provider>
@@ -737,9 +739,7 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="7854">
           <caret line="479" column="31" selection-start-line="479" selection-start-column="31" selection-end-line="479" selection-end-column="31" />
-          <folding>
-            <element signature="e#0#19#0" expanded="true" />
-          </folding>
+          <folding />
         </state>
       </provider>
     </entry>
@@ -764,7 +764,7 @@
         <state relative-caret-position="714">
           <caret line="54" column="0" selection-start-line="54" selection-start-column="0" selection-end-line="54" selection-end-column="0" />
           <folding>
-            <element signature="e#0#29#0" expanded="true" />
+            <marker date="1461075964403" expanded="true" signature="0:100" placeholder="import ..." />
           </folding>
         </state>
       </provider>
@@ -781,9 +781,7 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="7854">
           <caret line="479" column="31" selection-start-line="479" selection-start-column="31" selection-end-line="479" selection-end-column="31" />
-          <folding>
-            <element signature="e#0#19#0" expanded="true" />
-          </folding>
+          <folding />
         </state>
       </provider>
     </entry>
@@ -808,7 +806,7 @@
         <state relative-caret-position="0">
           <caret line="0" column="0" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
           <folding>
-            <element signature="e#0#29#0" expanded="true" />
+            <marker date="1461075964403" expanded="true" signature="0:100" placeholder="import ..." />
           </folding>
         </state>
       </provider>
@@ -817,9 +815,7 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="7854">
           <caret line="479" column="31" selection-start-line="479" selection-start-column="31" selection-end-line="479" selection-end-column="31" />
-          <folding>
-            <element signature="e#0#19#0" expanded="true" />
-          </folding>
+          <folding />
         </state>
       </provider>
     </entry>
@@ -844,7 +840,7 @@
         <state relative-caret-position="0">
           <caret line="0" column="0" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
           <folding>
-            <element signature="e#0#29#0" expanded="true" />
+            <marker date="1461075964403" expanded="true" signature="0:100" placeholder="import ..." />
           </folding>
         </state>
       </provider>
@@ -853,9 +849,7 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="0">
           <caret line="0" column="0" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
-          <folding>
-            <element signature="e#0#19#0" expanded="true" />
-          </folding>
+          <folding />
         </state>
       </provider>
     </entry>
@@ -863,9 +857,7 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="0">
           <caret line="0" column="0" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
-          <folding>
-            <element signature="e#0#19#0" expanded="true" />
-          </folding>
+          <folding />
         </state>
       </provider>
     </entry>
@@ -887,9 +879,7 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="10693">
           <caret line="646" column="13" selection-start-line="646" selection-start-column="13" selection-end-line="646" selection-end-column="13" />
-          <folding>
-            <element signature="e#0#19#0" expanded="true" />
-          </folding>
+          <folding />
         </state>
       </provider>
     </entry>
@@ -919,9 +909,7 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="0">
           <caret line="0" column="0" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
-          <folding>
-            <element signature="e#0#19#0" expanded="true" />
-          </folding>
+          <folding />
         </state>
       </provider>
     </entry>
@@ -956,8 +944,8 @@
     <entry file="file://$PROJECT_DIR$/compile.cmd" />
     <entry file="file://$PROJECT_DIR$/.gitignore">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="85">
-          <caret line="5" column="0" selection-start-line="5" selection-start-column="0" selection-end-line="5" selection-end-column="0" />
+        <state relative-caret-position="68">
+          <caret line="4" column="0" selection-start-line="4" selection-start-column="0" selection-end-line="4" selection-end-column="0" />
           <folding />
         </state>
       </provider>
@@ -989,20 +977,10 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/gui.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="357">
-          <caret line="33" column="0" selection-start-line="33" selection-start-column="0" selection-end-line="33" selection-end-column="0" />
+        <state relative-caret-position="408">
+          <caret line="36" column="0" selection-start-line="36" selection-start-column="0" selection-end-line="36" selection-end-column="0" />
           <folding>
-            <element signature="e#0#29#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/node.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="736">
-          <caret line="644" column="62" selection-start-line="644" selection-start-column="57" selection-end-line="644" selection-end-column="62" />
-          <folding>
-            <element signature="e#0#19#0" expanded="true" />
+            <marker date="1461075964403" expanded="true" signature="0:100" placeholder="import ..." />
           </folding>
         </state>
       </provider>
@@ -1011,6 +989,14 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="85">
           <caret line="5" column="5" selection-start-line="5" selection-start-column="5" selection-end-line="5" selection-end-column="5" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/node.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="736">
+          <caret line="644" column="0" selection-start-line="644" selection-start-column="0" selection-end-line="644" selection-end-column="0" />
           <folding />
         </state>
       </provider>
