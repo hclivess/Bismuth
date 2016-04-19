@@ -1,4 +1,2 @@
-#run from vs command line
-nuitka --recurse-all node.py --windows-icon="graphics\icon.ico"
-nuitka --recurse-all gui.py --windows-icon="graphics\icon.ico" --windows-disable-console
-pause
+start nuitka --recurse-all --portable --windows-disable-console --icon="C:\Users\HCLivess\Documents\GitHub\XBM-Bismuth\graphics\icon.ico" gui.py
+start nuitka --recurse-all --portable --icon="C:\Users\HCLivess\Documents\GitHub\XBM-Bismuth\graphics\icon.ico" node.py

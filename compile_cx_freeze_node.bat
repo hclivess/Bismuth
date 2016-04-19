@@ -1,1 +1,0 @@
-C:\Python27\Scripts\cxfreeze node.py --target-dir dist --icon graphics\icon.ico
