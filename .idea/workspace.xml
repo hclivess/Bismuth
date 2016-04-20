@@ -2,8 +2,6 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="d3769ae9-115c-486e-a6fd-bd5203ad75e5" name="Default" comment="">
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/ledger.db" afterPath="$PROJECT_DIR$/ledger.db" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/mempool.db" afterPath="$PROJECT_DIR$/mempool.db" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/node.py" afterPath="$PROJECT_DIR$/node.py" />
     </list>
@@ -30,8 +28,8 @@
       <file leaf-file-name="node.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/node.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="193">
-              <caret line="1056" column="36" selection-start-line="1056" selection-start-column="36" selection-end-line="1056" selection-end-column="36" />
+            <state relative-caret-position="172">
+              <caret line="749" column="31" selection-start-line="749" selection-start-column="31" selection-end-line="749" selection-end-column="31" />
               <folding>
                 <element signature="e#0#19#0" expanded="true" />
               </folding>
@@ -628,7 +626,14 @@
       <option name="project" value="LOCAL" />
       <updated>1461176402494</updated>
     </task>
-    <option name="localTasksCounter" value="31" />
+    <task id="LOCAL-00031" summary="consensus RC3 (first usable version)">
+      <created>1461180236871</created>
+      <option name="number" value="00031" />
+      <option name="presentableId" value="LOCAL-00031" />
+      <option name="project" value="LOCAL" />
+      <updated>1461180236871</updated>
+    </task>
+    <option name="localTasksCounter" value="32" />
     <servers />
   </component>
   <component name="ToolWindowManager">
@@ -669,7 +674,6 @@
   <component name="VcsManagerConfiguration">
     <option name="OFFER_MOVE_TO_ANOTHER_CHANGELIST_ON_PARTIAL_COMMIT" value="false" />
     <option name="CHECK_NEW_TODO" value="false" />
-    <MESSAGE value="tx table impl start" />
     <MESSAGE value="awesome tx table in gui" />
     <MESSAGE value="gui final draft" />
     <MESSAGE value="gui final draft2" />
@@ -694,7 +698,8 @@
     <MESSAGE value="plan update" />
     <MESSAGE value="initial consensus pool commit" />
     <MESSAGE value="consensus RC2" />
-    <option name="LAST_COMMIT_MESSAGE" value="consensus RC2" />
+    <MESSAGE value="consensus RC3 (first usable version)" />
+    <option name="LAST_COMMIT_MESSAGE" value="consensus RC3 (first usable version)" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -1077,8 +1082,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/node.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="193">
-          <caret line="1056" column="36" selection-start-line="1056" selection-start-column="36" selection-end-line="1056" selection-end-column="36" />
+        <state relative-caret-position="172">
+          <caret line="749" column="31" selection-start-line="749" selection-start-column="31" selection-end-line="749" selection-end-column="31" />
           <folding>
             <element signature="e#0#19#0" expanded="true" />
           </folding>

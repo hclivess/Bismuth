@@ -61,7 +61,7 @@ def manager():
             #client thread handling
         logging.info("Connection manager: Threads at " + str(threads_count) + "/" + str(threads_limit))
         logging.info("Tried: " + str(tried))
-        print "Current active pool: " + str(active_pool)
+        logging.info("Current active pool: " + str(active_pool))
         #logging.info(threading.enumerate() all threads)
         time.sleep(10)
     return
@@ -474,13 +474,13 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         logging.info("Assigning " + str(consensus_opinion) + " to peer's opinion list")
                         consensus_opinion_list.append(int(consensus_opinion))
 
-                    print "Consensus IP list:" + str(consensus_ip_list)
-                    print "Consensus opinion list:" + str(consensus_opinion_list)
+                    logging.info("Consensus IP list:" + str(consensus_ip_list))
+                    logging.info("Consensus opinion list:" + str(consensus_opinion_list))
 
                     consensus = most_common(consensus_opinion_list)
                     consensus_percentage = (consensus_opinion_list.count(consensus)/len(consensus_opinion_list))*100
-                    print "Current active connections: " +str(len(active_pool))
-                    print "Current block consensus: "+str(consensus)+" = "+str(consensus_percentage)+"%"
+                    logging.info("Current active connections: " +str(len(active_pool)))
+                    logging.info("Current block consensus: "+str(consensus)+" = "+str(consensus_percentage)+"%")
                     # consensus pool
 
                     conn = sqlite3.connect('ledger.db')
@@ -499,10 +499,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     if received_block_height > db_block_height:
                         logging.info("Node: Client has higher block, checking consensus deviation")
                         if int(received_block_height) - consensus <= 50:
-                            print "Node: Deviation within normal"
+                            logging.info("Node: Deviation within normal")
                             update_me = 1
                         else:
-                            print "Suspiciously high deviation, disconnecting"
+                            logging.info("Suspiciously high deviation, disconnecting")
                             return
 
                         
@@ -741,7 +741,7 @@ def worker(HOST,PORT):
             connected = 1
             if this_client not in active_pool:
                 active_pool.append(this_client)
-                print "Current active pool: "+str(active_pool)
+                logging.info("Current active pool: "+str(active_pool))
 
             first_run=1
             while True:
