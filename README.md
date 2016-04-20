@@ -1,6 +1,6 @@
 development plan:
 
--implement consensus pool from the connected nodes using statistics.mode(data)
+-implement consensus pool from the connected nodes using statistics.median(data)
 -optimize node stability
 -framework for decentralized apps
 -framework for sidechains and hyperblocks
