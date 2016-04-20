@@ -11,8 +11,7 @@ WARNING: This project is in the beta stage!
 Dependencies:
 
 -python 2.7
--pycrypto 
--requests (to be removed)
+-pycrypto
 
 Features:
 
@@ -27,7 +26,9 @@ Features:
 -asynchronous multithreading
 -transaction scraping
 -mempool
--longest chain rule  
+-longest chain rule
+-dynamic connection pool
+-automatic node management
 
 Licensed under GPL
 
