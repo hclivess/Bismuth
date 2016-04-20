@@ -11,15 +11,14 @@ import sys
 import threading
 import time
 import logging
-import numpy
 
 from Crypto import Random
 from Crypto.Hash import SHA
 from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 
-def median(lst):
-    return numpy.median(numpy.array(lst))
+def most_common(lst):
+    return max(set(lst), key=lst.count)
 
 gc.enable()
 
@@ -478,12 +477,11 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     print "Consensus IP list:" + str(consensus_ip_list)
                     print "Consensus opinion list:" + str(consensus_opinion_list)
 
-                    consensus = median(consensus_opinion_list)
+                    consensus = most_common(consensus_opinion_list)
                     consensus_percentage = (consensus_opinion_list.count(consensus)/len(consensus_opinion_list))*100
                     print "Current active connections: " +str(len(active_pool))
-                    print "Current consensus: "+str(consensus)+" = "+str(consensus_percentage)+"%"
+                    print "Current block consensus: "+str(consensus)+" = "+str(consensus_percentage)+"%"
                     # consensus pool
-
 
                     conn = sqlite3.connect('ledger.db')
                     c = conn.cursor()                    
@@ -499,9 +497,14 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     #send own block height
                     
                     if received_block_height > db_block_height:
-                        logging.info("Node: Client has higher block, receiving")
-                        update_me = 1
-                        #todo
+                        logging.info("Node: Client has higher block, checking consensus deviation")
+                        if int(received_block_height) - consensus <= 50:
+                            print "Node: Deviation within normal"
+                            update_me = 1
+                        else:
+                            print "Suspiciously high deviation, disconnecting"
+                            return
+
                         
                     if received_block_height < db_block_height:
                         logging.info("Node: We have a higher block, hash will be verified")
@@ -730,10 +733,10 @@ def worker(HOST,PORT):
     while True:
         try:
             connected = 0
+            this_client = (HOST + ":" + str(PORT))
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             #s.settimeout(25)
             s.connect((HOST, PORT))
-            this_client = (HOST + ":" + str(PORT))
             logging.info("Client: Connected to "+str(HOST)+" "+str(PORT))
             connected = 1
             if this_client not in active_pool:
@@ -1051,7 +1054,7 @@ def worker(HOST,PORT):
                 del consensus_opinion_list[consensus_index]  # remove ip's opinion
                 # remove from consensus
 
-            logging.info("Thread terminated due to "+ str(e))
+            logging.info("Connection to "+this_client+" terminated due to "+ str(e))
             logging.info("---thread "+str(threading.currentThread())+" ended---")
             #raise #test only
             return
