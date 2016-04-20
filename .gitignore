@@ -1,4 +1,5 @@
 .pydevproject
+.idea/
 *.project
 build/
 test1/
