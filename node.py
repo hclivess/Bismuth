@@ -491,8 +491,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             if x.split(":")[0] not in tried_ips:
                                 tried_ips.append(x.split(":")[0])
 
-                        logging.info(str(tried_ips))
-                        logging.info(consensus_ip)
+                        #logging.info(str(tried_ips))
+                        #logging.info(consensus_ip)
 
 
                         if consensus_ip in tried_ips and consensus_ip in consensus_ip_list:
