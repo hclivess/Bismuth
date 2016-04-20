@@ -1,11 +1,10 @@
 development plan:
 
--remove requests by internal function
--minimize sybil attack options though consensus inquiry on block height and deviation calculation
+-implement consensus pool from the connected nodes using statistics.mode(data)
 -optimize node stability
 -framework for decentralized apps
 -framework for sidechains and hyperblocks
--compile with nuitka
+-improve gui memory handling by implementing updates instead of redraws
 
 WARNING: This project is in the beta stage!
 
