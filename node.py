@@ -21,6 +21,10 @@ gc.enable()
 
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG) #,filename='node.log'
 
+global consensus_ip_list
+consensus_ip_list = []
+global consensus_opinion_list
+consensus_opinion_list = []
 global tried
 tried = []
 
@@ -42,9 +46,9 @@ def manager():
                 PORT = int(tuple[1])
                 #logging.info(PORT)
 
-                logging.info(str(tuple))
-                if threads_count <= threads_limit and str(tuple) not in tried:  # minus server thread, client thread, connectivity manager thread
-                    tried.append(str(tuple))
+                logging.info(HOST+":"+str(PORT))
+                if threads_count <= threads_limit and str(HOST+":"+str(PORT)) not in tried:  # minus server thread, client thread, connectivity manager thread
+                    tried.append(HOST+":"+str(PORT))
                     t = threading.Thread(target=worker, args=(HOST,PORT))#threaded connectivity to nodes here
                     logging.info("---Starting a client thread "+str(threading.currentThread())+"---")
                     t.start()
@@ -478,6 +482,41 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     if update_me == 0: #update them if update_me is 0
                         data = self.request.recv(56) #receive client's last txhash
+
+                        # consensus pool
+                        consensus_ip = self.request.getpeername()[0]
+                        consensus_opinion = data
+                        tried_ips = []
+                        for x in tried:
+                            if x.split(":")[0] not in tried_ips:
+                                tried_ips.append(x.split(":")[0])
+
+                        logging.info(str(tried_ips))
+                        logging.info(consensus_ip)
+
+
+                        if consensus_ip in tried_ips and consensus_ip in consensus_ip_list:
+                            consensus_index = consensus_ip_list.index(consensus_ip)  # get where in this list it is
+                            if consensus_opinion_list[consensus_index] == consensus_opinion:
+                                logging.info("IP's opinion hasn't changed")
+
+                            else:
+                                del consensus_ip_list[consensus_index]  # remove ip
+                                del consensus_opinion_list[consensus_index]  # remove ip's opinion
+                                logging.info("Updating " + str(consensus_ip) + " in consensus")
+                                consensus_ip_list.append(consensus_ip)
+                                consensus_opinion_list.append(consensus_opinion)
+
+                        if consensus_ip not in consensus_ip_list:
+                            logging.info("Adding " + str(consensus_ip) + " to consensus peer list")
+                            consensus_ip_list.append(consensus_ip)
+                            logging.info("Assigning " + str(consensus_opinion) + " to peer's opinion list")
+                            consensus_opinion_list.append(consensus_opinion)
+
+
+
+                        # consensus pool
+
                         #send all our followup hashes
                         logging.info("Node: Will seek the following block: " + str(data))
                         conn = sqlite3.connect('ledger.db')
@@ -671,9 +710,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     return
                 time.sleep(0.1)
                 #logging.info("Server resting") #prevent cpu overload
-            except: #forcibly closed connection
+            except Exception, e:
                 logging.info("Node: Lost connection")
-                #raise #for test purposes only ***CAUSES LEAK***
+                logging.info(e)
+                raise #for test purposes only ***CAUSES LEAK***
                 break                        
 
 #client thread
@@ -742,6 +782,7 @@ def worker(HOST,PORT):
 
                 if data == "mytxhash__":
                         data = s.recv(56) #receive client's last txhash
+
                         #send all our followup hashes
                         logging.info("Client: Will seek the following block: " + str(data))
                         conn = sqlite3.connect('ledger.db')
@@ -988,9 +1029,20 @@ def worker(HOST,PORT):
                     time.sleep(0.1)
         except Exception as e:
             logging.info("Thread terminated due to "+ str(e))
-            this_client = (HOST,str(PORT))
+            this_client = (HOST+":"+str(PORT))
             logging.info("Will remove "+str(this_client) +" from "+str(tried))
             tried.remove(str(this_client))
+
+            # remove from consensus
+            try:
+                consensus_index = consensus_ip_list.index(this_client[0])
+                del consensus_ip_list[consensus_index]  # remove ip
+                del consensus_opinion_list[consensus_index]  # remove ip's opinion
+            except Exception as e:
+                #logging.info( e
+                logging.info(this_client.split(":")[0]+" not found in the consensus pool, won't remove")
+            # remove from consensus
+
             logging.info("---thread "+str(threading.currentThread())+" ended---")
             #raise #test only
             return
@@ -1031,7 +1083,8 @@ if __name__ == "__main__":
         server.shutdown()
         server.server_close()
 
-    except:
-        logging.info("Node already running.")
+    except Exception, e:
+        logging.info("Node already running?")
+        logging.info(e)
         #raise #only test
 sys.exit()
