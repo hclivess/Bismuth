@@ -11,16 +11,22 @@ import sys
 import threading
 import time
 import logging
+import numpy
 
 from Crypto import Random
 from Crypto.Hash import SHA
 from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 
+def median(lst):
+    return numpy.median(numpy.array(lst))
+
 gc.enable()
 
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG) #,filename='node.log'
 
+global active_pool
+active_pool = []
 global consensus_ip_list
 consensus_ip_list = []
 global consensus_opinion_list
@@ -56,6 +62,7 @@ def manager():
             #client thread handling
         logging.info("Connection manager: Threads at " + str(threads_count) + "/" + str(threads_limit))
         logging.info("Tried: " + str(tried))
+        print "Current active pool: " + str(active_pool)
         #logging.info(threading.enumerate() all threads)
         time.sleep(10)
     return
@@ -441,7 +448,43 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     subdata = self.request.recv(11) #receive client's last block height
                     received_block_height = subdata
                     logging.info("Node: Received block height: "+(received_block_height))
-                    #send own block height
+
+                    # consensus pool
+                    consensus_ip = self.request.getpeername()[0]
+                    consensus_opinion = subdata
+
+                    active_pool_ips = []
+                    for x in active_pool:
+                        if x.split(":")[0] not in consensus_ip_list:
+                            active_pool_ips.append(x.split(":")[0])
+                    if consensus_ip in consensus_ip_list:
+                        consensus_index = consensus_ip_list.index(consensus_ip)  # get where in this list it is
+                        if consensus_opinion_list[consensus_index] == consensus_opinion:
+                            logging.info("Opinion of "+str(consensus_ip)+" hasn't changed")
+
+                        else:
+                            del consensus_ip_list[consensus_index]  # remove ip
+                            del consensus_opinion_list[consensus_index]  # remove ip's opinion
+                            logging.info("Updating " + str(consensus_ip) + " in consensus")
+                            consensus_ip_list.append(consensus_ip)
+                            consensus_opinion_list.append(int(consensus_opinion))
+
+                    if consensus_ip not in consensus_ip_list:
+                        logging.info("Adding " + str(consensus_ip) + " to consensus peer list")
+                        consensus_ip_list.append(consensus_ip)
+                        logging.info("Assigning " + str(consensus_opinion) + " to peer's opinion list")
+                        consensus_opinion_list.append(int(consensus_opinion))
+
+                    print "Consensus IP list:" + str(consensus_ip_list)
+                    print "Consensus opinion list:" + str(consensus_opinion_list)
+
+                    consensus = median(consensus_opinion_list)
+                    consensus_percentage = (consensus_opinion_list.count(consensus)/len(consensus_opinion_list))*100
+                    print "Current active connections: " +str(len(active_pool))
+                    print "Current consensus: "+str(consensus)+" = "+str(consensus_percentage)+"%"
+                    # consensus pool
+
+
                     conn = sqlite3.connect('ledger.db')
                     c = conn.cursor()                    
                     c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
@@ -482,40 +525,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     if update_me == 0: #update them if update_me is 0
                         data = self.request.recv(56) #receive client's last txhash
-
-                        # consensus pool
-                        consensus_ip = self.request.getpeername()[0]
-                        consensus_opinion = data
-                        tried_ips = []
-                        for x in tried:
-                            if x.split(":")[0] not in tried_ips:
-                                tried_ips.append(x.split(":")[0])
-
-                        #logging.info(str(tried_ips))
-                        #logging.info(consensus_ip)
-
-
-                        if consensus_ip in tried_ips and consensus_ip in consensus_ip_list:
-                            consensus_index = consensus_ip_list.index(consensus_ip)  # get where in this list it is
-                            if consensus_opinion_list[consensus_index] == consensus_opinion:
-                                logging.info("IP's opinion hasn't changed")
-
-                            else:
-                                del consensus_ip_list[consensus_index]  # remove ip
-                                del consensus_opinion_list[consensus_index]  # remove ip's opinion
-                                logging.info("Updating " + str(consensus_ip) + " in consensus")
-                                consensus_ip_list.append(consensus_ip)
-                                consensus_opinion_list.append(consensus_opinion)
-
-                        if consensus_ip not in consensus_ip_list:
-                            logging.info("Adding " + str(consensus_ip) + " to consensus peer list")
-                            consensus_ip_list.append(consensus_ip)
-                            logging.info("Assigning " + str(consensus_opinion) + " to peer's opinion list")
-                            consensus_opinion_list.append(consensus_opinion)
-
-
-
-                        # consensus pool
 
                         #send all our followup hashes
                         logging.info("Node: Will seek the following block: " + str(data))
@@ -719,11 +728,17 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 #client thread
 def worker(HOST,PORT):
     while True:
-        try:        
+        try:
+            connected = 0
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             #s.settimeout(25)
             s.connect((HOST, PORT))
+            this_client = (HOST + ":" + str(PORT))
             logging.info("Client: Connected to "+str(HOST)+" "+str(PORT))
+            connected = 1
+            if this_client not in active_pool:
+                active_pool.append(this_client)
+                print "Current active pool: "+str(active_pool)
 
             first_run=1
             while True:
@@ -735,11 +750,8 @@ def worker(HOST,PORT):
                     peer = s.getpeername()
                 
                 #communication starter
-
-
-
                 data = s.recv(11) #receive data, one and the only root point
-                logging.info('Client: Received data from '+ str(peer) +": "+ str(data))
+                logging.info('Client: Received data from '+ this_client)
                 if data == "":
                     logging.info("Communication error")
                     raise
@@ -1028,21 +1040,18 @@ def worker(HOST,PORT):
                     s.sendall("sendsync___")
                     time.sleep(0.1)
         except Exception as e:
-            logging.info("Thread terminated due to "+ str(e))
-            this_client = (HOST+":"+str(PORT))
-            logging.info("Will remove "+str(this_client) +" from "+str(tried))
-            tried.remove(str(this_client))
 
-            # remove from consensus
-            try:
-                consensus_index = consensus_ip_list.index(this_client[0])
+            if connected == 1:
+                logging.info("Will remove " + str(this_client) + " from active pool " + str(active_pool))
+                active_pool.remove(this_client)
+
+                # remove from consensus
+                consensus_index = consensus_ip_list.index(this_client.split(":")[0])
                 del consensus_ip_list[consensus_index]  # remove ip
                 del consensus_opinion_list[consensus_index]  # remove ip's opinion
-            except Exception as e:
-                #logging.info( e
-                logging.info(this_client.split(":")[0]+" not found in the consensus pool, won't remove")
-            # remove from consensus
+                # remove from consensus
 
+            logging.info("Thread terminated due to "+ str(e))
             logging.info("---thread "+str(threading.currentThread())+" ended---")
             #raise #test only
             return
