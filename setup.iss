@@ -5,6 +5,7 @@
 
 [Setup]
 AppName=Bismuth
+AppVersion=Beta
 DefaultDirName={pf}\Bismuth
 DefaultGroupName=Bismuth
 UninstallDisplayIcon={app}\node.exe
