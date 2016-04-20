@@ -34,6 +34,7 @@ except:
 logging.info("Connected")
 
 def table():
+
     # transaction table
     # data
     datasheet = ["time","from","to","amount"]
