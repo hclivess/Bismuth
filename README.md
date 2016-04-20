@@ -2,9 +2,10 @@ development plan:
 
 -implement consensus pool from the connected nodes using statistics.median(data)
 -optimize node stability
--framework for decentralized apps
+-framework for decentralized apps and open communication fields through OpenField™
 -framework for sidechains and hyperblocks
 -improve gui memory handling by implementing updates instead of redraws
+-
 
 WARNING: This project is in the beta stage!
 
