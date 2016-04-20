@@ -995,40 +995,40 @@ def worker(HOST,PORT):
                             logging.info("Client: Not a duplicate")
                             #duplicity verification
                         
-                        logging.info("Client: Verifying balance")
-                        logging.info("Client: Received address: " +str(received_address))
-                        c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '"+received_address+"'")
-                        credit = c.fetchone()[0]
-                        c.execute("SELECT sum(amount) FROM transactions WHERE address = '"+received_address+"'")
-                        debit = c.fetchone()[0]
-                        if debit == None:
-                            debit = 0
-                        if credit == None:
-                            credit = 0                                
-                        logging.info("Client: Total credit: "+str(credit))
-                        logging.info("Client: Total debit: "+str(debit))
-                        balance = int(credit) - int(debit)
-                        logging.info("Client: Transction address balance: "+str(balance))
-                        conn.close()
-                                
-                        if  int(balance) - int(received_amount) < 0:
-                            logging.info("Client: Their balance is too low for this transaction")
-                        elif int(received_amount) < 0:
-                            logging.info("Client: Cannot use negative amounts")
-                        else:                              
-                            #save step to db
-                            conn = sqlite3.connect('ledger.db') 
-                            c = conn.cursor()
-                            c.execute("INSERT INTO transactions VALUES ('"+str(received_block_height)+"','"+str(received_timestamp)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_amount)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data
-                            logging.info("Client: Ledger updated with a received transaction")
-                            conn.commit() # Save (commit) the changes
+                            logging.info("Client: Verifying balance")
+                            logging.info("Client: Received address: " +str(received_address))
+                            c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '"+received_address+"'")
+                            credit = c.fetchone()[0]
+                            c.execute("SELECT sum(amount) FROM transactions WHERE address = '"+received_address+"'")
+                            debit = c.fetchone()[0]
+                            if debit == None:
+                                debit = 0
+                            if credit == None:
+                                credit = 0
+                            logging.info("Client: Total credit: "+str(credit))
+                            logging.info("Client: Total debit: "+str(debit))
+                            balance = int(credit) - int(debit)
+                            logging.info("Client: Transction address balance: "+str(balance))
                             conn.close()
-                            #save step to db
-                            logging.info("Client: Ledger synchronization finished")
-                            digest_mempool()
 
-                            s.sendall("sendsync___")
-                            time.sleep(0.1)
+                            if  int(balance) - int(received_amount) < 0:
+                                logging.info("Client: Their balance is too low for this transaction")
+                            elif int(received_amount) < 0:
+                                logging.info("Client: Cannot use negative amounts")
+                            else:
+                                #save step to db
+                                conn = sqlite3.connect('ledger.db')
+                                c = conn.cursor()
+                                c.execute("INSERT INTO transactions VALUES ('"+str(received_block_height)+"','"+str(received_timestamp)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_amount)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data
+                                logging.info("Client: Ledger updated with a received transaction")
+                                conn.commit() # Save (commit) the changes
+                                conn.close()
+                                #save step to db
+                                logging.info("Client: Ledger synchronization finished")
+                                digest_mempool()
+
+                                s.sendall("sendsync___")
+                                time.sleep(0.1)
 
                     else:
                         logging.info("Client: Received invalid txhash")
