@@ -5,7 +5,6 @@
 
 [Setup]
 AppName=Bismuth
-AppVersion=0.2
 DefaultDirName={pf}\Bismuth
 DefaultGroupName=Bismuth
 UninstallDisplayIcon={app}\node.exe
@@ -14,13 +13,22 @@ SolidCompression=yes
 OutputBaseFilename=bismuth_installer
 SetupIconFile=graphics\icon.ico
 
+WizardImageFile=graphics\left.bmp
+WizardSmallImageFile=graphics\mini.bmp
+
+
 [Files]
 Source: "Dist\*" ; DestDir: "{app}"; Flags: recursesubdirs;
 
 [Icons]
-Name: "{group}\Start Node"; Filename: "{app}\node.exe"
-Name: "{group}\Open GUI"; Filename: "{app}\gui.exe"
+Name: "{group}\Start"; Filename: "{app}\node.exe"
+Name: "{group}\Send"; Filename: "{app}\gui.exe"
 Name: "{group}\Uninstall Bismuth"; Filename: "{uninstallexe}"
 
 Name: "{commondesktop}\Start Node"; Filename: "{app}\node.exe"
 Name: "{commondesktop}\Open GUI"; Filename: "{app}\gui.exe"
+
+
+[Run]
+Filename: "{app}\node.exe"; Description: "Start"; Flags: postinstall shellexec skipifsilent
+Filename: "{app}\gui.exe"; Description: "Send"; Flags: postinstall nowait skipifsilent unchecked
