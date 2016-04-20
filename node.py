@@ -750,8 +750,7 @@ def worker(HOST,PORT):
                     first_run=0
                     s.sendall('helloserver')
                     time.sleep(0.1)
-                    peer = s.getpeername()
-                
+
                 #communication starter
                 data = s.recv(11) #receive data, one and the only root point
                 logging.info('Client: Received data from '+ this_client)
