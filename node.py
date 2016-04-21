@@ -36,6 +36,8 @@ tried = []
 port = 2829
 
 def manager():
+    tried_reset = 0
+    tried = []
     while True:
         with open ("peers.txt", "r") as peer_list:
             peers=peer_list.read()
@@ -58,16 +60,17 @@ def manager():
                     logging.info("---Starting a client thread "+str(threading.currentThread())+"---")
                     t.start()
 
+            tried_reset = tried_reset + 1
+            if tried_reset == len(peer_tuples):
+                logging.info("Will retry unreachable nodes, because end of the list was reached at " + str(
+                    len(peer_tuples)))
+                tried = []
+                tried_reset = 0
+
             #client thread handling
         logging.info("Connection manager: Threads at " + str(threads_count) + "/" + str(threads_limit))
-
-        if len(active_pool) < 5:
-            del tried[:]
-            logging.info("Removing tried hosts, because there are too few connections")
-
         logging.info("Tried: " + str(tried))
         logging.info("Current active pool: " + str(active_pool))
-
         #logging.info(threading.enumerate() all threads)
         time.sleep(10)
     return
@@ -480,7 +483,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     logging.info("Consensus opinion list:" + str(consensus_opinion_list))
 
                     consensus = most_common(consensus_opinion_list)
-                    consensus_percentage = (consensus_opinion_list.count(consensus) / len(consensus_opinion_list)) * 100
+                    consensus_percentage = float(consensus_opinion_list.count(float(consensus)) / float(len(consensus_opinion_list))) * 100
                     logging.info("Current active connections: " + str(len(active_pool)))
                     logging.info("Current block consensus: " + str(consensus) + " = " + str(consensus_percentage) + "%")
                     # consensus pool

@@ -1,8 +1,11 @@
 .pydevproject
-.idea
+.idea/
 *.project
 build/
 test1/
 dist/
-gui.build
-node.build
+gui.build/
+node.build/
+.idea/XBM-Bismuth.iml
+.idea/misc.xml
+.idea/workspace.xml

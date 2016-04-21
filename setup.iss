@@ -31,5 +31,5 @@ Name: "{commondesktop}\Open GUI"; Filename: "{app}\gui.exe"
 
 
 [Run]
-Filename: "{app}\node.exe"; Description: "Start"; Flags: postinstall shellexec skipifsilent
-Filename: "{app}\gui.exe"; Description: "Send"; Flags: postinstall nowait skipifsilent unchecked
+Filename: "{app}\node.exe"; Description: "Start Node"; Flags: postinstall shellexec skipifsilent
+Filename: "{app}\gui.exe"; Description: "Open GUI"; Flags: postinstall nowait skipifsilent unchecked
