@@ -1048,7 +1048,9 @@ def worker(HOST,PORT):
                 active_pool.remove(this_client)
 
                 # remove from consensus
-                consensus_index = consensus_ip_list.index(this_client.split(":")[0])
+                this_client_ip = this_client.split(":")[0]
+                logging.info("Will remove " + str(this_client_ip) + " from consensus pool " + str(consensus_ip_list))
+                consensus_index = consensus_ip_list.index(this_client_ip)
                 del consensus_ip_list[consensus_index]  # remove ip
                 del consensus_opinion_list[consensus_index]  # remove ip's opinion
                 # remove from consensus
