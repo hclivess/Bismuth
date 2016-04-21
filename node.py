@@ -722,13 +722,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 logging.info("Node: Lost connection")
                 logging.info(e)
 
-                # remove from consensus
-                logging.info("Will remove " + str(consensus_ip) + " from consensus pool " + str(consensus_ip_list))
-                consensus_index = consensus_ip_list.index(consensus_ip)
-                del consensus_ip_list[consensus_index]  # remove ip
-                del consensus_opinion_list[consensus_index]  # remove ip's opinion
-                # remove from consensus
-
                 #raise #for test purposes only ***CAUSES LEAK***
                 break                        
 
@@ -1050,6 +1043,17 @@ def worker(HOST,PORT):
             if connected == 1:
                 logging.info("Will remove " + str(this_client) + " from active pool " + str(active_pool))
                 active_pool.remove(this_client)
+
+                # remove from consensus
+                if this_client in consensus_ip_list:
+                    logging.info("Will remove " + str(this_client) + " from consensus pool " + str(consensus_ip_list))
+                    consensus_index = consensus_ip_list.index(this_client)
+                    del consensus_ip_list[consensus_index]  # remove ip
+                    del consensus_opinion_list[consensus_index]  # remove ip's opinion
+                    # remove from consensus
+                else:
+                    logging.info("Client " + str(this_client) + "not present in the consensus pool"
+
 
             logging.info("Connection to "+this_client+" terminated due to "+ str(e))
             logging.info("---thread "+str(threading.currentThread())+" ended---")
