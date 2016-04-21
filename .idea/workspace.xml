@@ -28,8 +28,8 @@
       <file leaf-file-name="node.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/node.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="238">
-              <caret line="52" column="35" selection-start-line="0" selection-start-column="0" selection-end-line="1079" selection-end-column="0" />
+            <state relative-caret-position="306">
+              <caret line="56" column="64" selection-start-line="56" selection-start-column="64" selection-end-line="56" selection-end-column="64" />
               <folding>
                 <element signature="e#0#19#0" expanded="true" />
               </folding>
@@ -889,7 +889,14 @@
       <option name="project" value="LOCAL" />
       <updated>1461244367546</updated>
     </task>
-    <option name="localTasksCounter" value="46" />
+    <task id="LOCAL-00046" summary="retry on inactive nodes after some time">
+      <created>1461244840976</created>
+      <option name="number" value="00046" />
+      <option name="presentableId" value="LOCAL-00046" />
+      <option name="project" value="LOCAL" />
+      <updated>1461244840976</updated>
+    </task>
+    <option name="localTasksCounter" value="47" />
     <servers />
   </component>
   <component name="ToolWindowManager">
@@ -930,7 +937,6 @@
   <component name="VcsManagerConfiguration">
     <option name="OFFER_MOVE_TO_ANOTHER_CHANGELIST_ON_PARTIAL_COMMIT" value="false" />
     <option name="CHECK_NEW_TODO" value="false" />
-    <MESSAGE value="tuning" />
     <MESSAGE value="mempool fix" />
     <MESSAGE value="made things work for newcomers" />
     <MESSAGE value="added installer to test with friends" />
@@ -955,7 +961,8 @@
     <MESSAGE value="duplicity verification indentation fix in one location" />
     <MESSAGE value="update" />
     <MESSAGE value="connectible peers reconnection enabled" />
-    <option name="LAST_COMMIT_MESSAGE" value="connectible peers reconnection enabled" />
+    <MESSAGE value="retry on inactive nodes after some time" />
+    <option name="LAST_COMMIT_MESSAGE" value="retry on inactive nodes after some time" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -1344,8 +1351,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/node.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="238">
-          <caret line="52" column="35" selection-start-line="0" selection-start-column="0" selection-end-line="1079" selection-end-column="0" />
+        <state relative-caret-position="306">
+          <caret line="56" column="64" selection-start-line="56" selection-start-column="64" selection-end-line="56" selection-end-column="64" />
           <folding>
             <element signature="e#0#19#0" expanded="true" />
           </folding>

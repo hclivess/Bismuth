@@ -54,7 +54,7 @@ def manager():
 
                 tried_reset = tried_reset+1
                 if tried_reset == 15:
-                    print "Will retry unreachable nodes"
+                    logging.info("Will retry unreachable nodes")
                     tried = []
                     tried_reset = 0
 
