@@ -1052,7 +1052,7 @@ def worker(HOST,PORT):
                     del consensus_opinion_list[consensus_index]  # remove ip's opinion
                     # remove from consensus
                 else:
-                    logging.info("Client " + str(this_client) + "not present in the consensus pool"
+                    logging.info("Client " + str(this_client) + "not present in the consensus pool")
 
 
             logging.info("Connection to "+this_client+" terminated due to "+ str(e))
