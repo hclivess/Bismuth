@@ -36,6 +36,7 @@ tried = []
 port = 2829
 
 def manager():
+    tried_reset = 0
     while True:
         with open ("peers.txt", "r") as peer_list:
             peers=peer_list.read()
@@ -50,6 +51,12 @@ def manager():
                 #logging.info(HOST)
                 PORT = int(tuple[1])
                 #logging.info(PORT)
+
+                tried_reset = tried_reset+1
+                if tried_reset == 15:
+                    print "Will retry unreachable nodes"
+                    tried = []
+                    tried_reset = 0
 
                 logging.info(HOST+":"+str(PORT))
                 if threads_count <= threads_limit and str(HOST+":"+str(PORT)) not in tried:  # minus server thread, client thread, connectivity manager thread
@@ -1012,7 +1019,6 @@ def worker(HOST,PORT):
             if connected == 1:
                 logging.info("Will remove " + str(this_client) + " from active pool " + str(active_pool))
                 active_pool.remove(this_client)
-                tried.remove(HOST + ":" + str(PORT))
 
                 # remove from consensus
                 if this_client in consensus_ip_list:
