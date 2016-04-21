@@ -470,8 +470,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             consensus_ip_list.append(consensus_ip)
                             consensus_opinion_list.append(int(consensus_opinion))
 
-
-
                     logging.info("Consensus IP list:" + str(consensus_ip_list))
                     logging.info("Consensus opinion list:" + str(consensus_opinion_list))
 
@@ -717,12 +715,20 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                 if data=="":
                     logging.info("Node: Communication error")
-                    return
+                    raise
                 time.sleep(0.1)
                 #logging.info("Server resting") #prevent cpu overload
             except Exception, e:
                 logging.info("Node: Lost connection")
                 logging.info(e)
+
+                # remove from consensus
+                logging.info("Will remove " + str(consensus_ip) + " from consensus pool " + str(consensus_ip_list))
+                consensus_index = consensus_ip_list.index(consensus_ip)
+                del consensus_ip_list[consensus_index]  # remove ip
+                del consensus_opinion_list[consensus_index]  # remove ip's opinion
+                # remove from consensus
+
                 #raise #for test purposes only ***CAUSES LEAK***
                 break                        
 
@@ -1044,14 +1050,6 @@ def worker(HOST,PORT):
             if connected == 1:
                 logging.info("Will remove " + str(this_client) + " from active pool " + str(active_pool))
                 active_pool.remove(this_client)
-
-                # remove from consensus
-                this_client_ip = this_client.split(":")[0]
-                logging.info("Will remove " + str(this_client_ip) + " from consensus pool " + str(consensus_ip_list))
-                consensus_index = consensus_ip_list.index(this_client_ip)
-                del consensus_ip_list[consensus_index]  # remove ip
-                del consensus_opinion_list[consensus_index]  # remove ip's opinion
-                # remove from consensus
 
             logging.info("Connection to "+this_client+" terminated due to "+ str(e))
             logging.info("---thread "+str(threading.currentThread())+" ended---")
