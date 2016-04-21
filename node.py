@@ -453,9 +453,12 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     consensus_opinion = subdata
 
                     for x in active_pool:
-                        if x.split(":")[0] not in consensus_ip_list:
-                            consensus_ip_list.append(x.split(":")[0])
+                        if (x.split(":")[0]) not in consensus_ip_list:
+                            logging.info("Adding " + str(consensus_ip) + " to consensus peer list")
+                            consensus_ip_list.append(consensus_ip)
+                            logging.info("Assigning " + str(consensus_opinion) + " to peer's opinion list")
                             consensus_opinion_list.append(int(consensus_opinion))
+
                     if consensus_ip in consensus_ip_list:
                         consensus_index = consensus_ip_list.index(consensus_ip)  # get where in this list it is
                         if consensus_opinion_list[consensus_index] == consensus_opinion:
@@ -468,11 +471,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             consensus_ip_list.append(consensus_ip)
                             consensus_opinion_list.append(int(consensus_opinion))
 
-                    if consensus_ip not in consensus_ip_list:
-                        logging.info("Adding " + str(consensus_ip) + " to consensus peer list")
-                        consensus_ip_list.append(consensus_ip)
-                        logging.info("Assigning " + str(consensus_opinion) + " to peer's opinion list")
-                        consensus_opinion_list.append(int(consensus_opinion))
+
 
                     logging.info("Consensus IP list:" + str(consensus_ip_list))
                     logging.info("Consensus opinion list:" + str(consensus_opinion_list))
