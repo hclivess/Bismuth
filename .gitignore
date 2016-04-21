@@ -1,8 +1,8 @@
 .pydevproject
-.idea/
+.idea
 *.project
 build/
 test1/
 dist/
-gui.build/
-node.build/
+gui.build
+node.build
