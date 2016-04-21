@@ -465,7 +465,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         logging.info("Adding " + str(consensus_ip) + " to consensus peer list")
                         consensus_ip_list.append(consensus_ip)
                         logging.info("Assigning " + str(consensus_opinion) + " to peer's opinion list")
-                        consensus_opinion_list.append(consensus_opinion)
+                        consensus_opinion_list.append(str(int(consensus_opinion)))
 
                     if consensus_ip in consensus_ip_list:
                         consensus_index = consensus_ip_list.index(consensus_ip)  # get where in this list it is
