@@ -452,10 +452,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     consensus_ip = self.request.getpeername()[0]
                     consensus_opinion = subdata
 
-                    active_pool_ips = []
                     for x in active_pool:
                         if x.split(":")[0] not in consensus_ip_list:
-                            active_pool_ips.append(x.split(":")[0])
+                            consensus_ip_list.append(x.split(":")[0])
+                            consensus_opinion_list.append(int(consensus_opinion))
                     if consensus_ip in consensus_ip_list:
                         consensus_index = consensus_ip_list.index(consensus_ip)  # get where in this list it is
                         if consensus_opinion_list[consensus_index] == consensus_opinion:
