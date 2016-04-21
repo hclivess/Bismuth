@@ -1043,6 +1043,7 @@ def worker(HOST,PORT):
             if connected == 1:
                 logging.info("Will remove " + str(this_client) + " from active pool " + str(active_pool))
                 active_pool.remove(this_client)
+                tried.remove(HOST + ":" + str(PORT))
 
                 # remove from consensus
                 if this_client in consensus_ip_list:
