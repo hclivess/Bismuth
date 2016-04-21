@@ -37,6 +37,7 @@ port = 2829
 
 def manager():
     tried_reset = 0
+    tried = []
     while True:
         with open ("peers.txt", "r") as peer_list:
             peers=peer_list.read()
@@ -52,18 +53,19 @@ def manager():
                 PORT = int(tuple[1])
                 #logging.info(PORT)
 
-                tried_reset = tried_reset+1
-                if tried_reset == 15:
-                    logging.info("Will retry unreachable nodes")
-                    tried = []
-                    tried_reset = 0
-
                 logging.info(HOST+":"+str(PORT))
-                if threads_count <= threads_limit and str(HOST+":"+str(PORT)) not in tried:  # minus server thread, client thread, connectivity manager thread
+                if threads_count <= threads_limit and str(HOST+":"+str(PORT)) not in tried and str(HOST+":"+str(PORT)) not in active_pool:
                     tried.append(HOST+":"+str(PORT))
                     t = threading.Thread(target=worker, args=(HOST,PORT))#threaded connectivity to nodes here
                     logging.info("---Starting a client thread "+str(threading.currentThread())+"---")
                     t.start()
+
+            tried_reset = tried_reset + 1
+            if tried_reset == len(peer_tuples):
+                logging.info("Will retry unreachable nodes, because end of the list was reached at " + str(
+                    len(peer_tuples)))
+                tried = []
+                tried_reset = 0
 
             #client thread handling
         logging.info("Connection manager: Threads at " + str(threads_count) + "/" + str(threads_limit))
@@ -454,6 +456,37 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     subdata = self.request.recv(11) #receive client's last block height
                     received_block_height = subdata
                     logging.info("Node: Received block height: "+(received_block_height))
+
+                    # consensus pool
+                    consensus_ip = self.request.getpeername()[0]
+                    consensus_opinion = subdata
+
+                    if consensus_ip not in consensus_ip_list:
+                        logging.info("Adding " + str(consensus_ip) + " to consensus peer list")
+                        consensus_ip_list.append(consensus_ip)
+                        logging.info("Assigning " + str(consensus_opinion) + " to peer's opinion list")
+                        consensus_opinion_list.append(consensus_opinion)
+
+                    if consensus_ip in consensus_ip_list:
+                        consensus_index = consensus_ip_list.index(consensus_ip)  # get where in this list it is
+                        if consensus_opinion_list[consensus_index] == (consensus_opinion):
+                            logging.info("Opinion of " + str(consensus_ip) + " hasn't changed")
+
+                        else:
+                            del consensus_ip_list[consensus_index]  # remove ip
+                            del consensus_opinion_list[consensus_index]  # remove ip's opinion
+                            logging.info("Updating " + str(consensus_ip) + " in consensus")
+                            consensus_ip_list.append(consensus_ip)
+                            consensus_opinion_list.append(int(consensus_opinion))
+
+                    logging.info("Consensus IP list:" + str(consensus_ip_list))
+                    logging.info("Consensus opinion list:" + str(consensus_opinion_list))
+
+                    consensus = most_common(consensus_opinion_list)
+                    consensus_percentage = (consensus_opinion_list.count(consensus) / len(consensus_opinion_list)) * 100
+                    logging.info("Current active connections: " + str(len(active_pool)))
+                    logging.info("Current block consensus: " + str(consensus) + " = " + str(consensus_percentage) + "%")
+                    # consensus pool
 
                     conn = sqlite3.connect('ledger.db')
                     c = conn.cursor()                    
