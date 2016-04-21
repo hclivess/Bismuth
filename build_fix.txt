@@ -1,3 +1,0 @@
-Go to C:\Python27\Lib\site-packages\PyInstaller\build.py
-Find the def append(self, tpl): function.
-Change if tpl[2] == "BINARY": to if tpl[2] in ["BINARY", "DATA"]:
