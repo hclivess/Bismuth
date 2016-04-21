@@ -725,7 +725,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             except Exception, e:
                 logging.info("Node: Lost connection")
                 logging.info(e)
-                raise #for test purposes only ***CAUSES LEAK***
+                #raise #for test purposes only ***CAUSES LEAK***
                 break                        
 
 #client thread
