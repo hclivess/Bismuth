@@ -43,7 +43,7 @@ def manager():
             #logging.info(peer_tuples)
 
             threads_count = threading.active_count()
-            threads_limit = 15
+            threads_limit = 25
 
             for tuple in peer_tuples:
                 HOST = tuple[0]
