@@ -534,8 +534,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         conn = sqlite3.connect('ledger.db')
                         c = conn.cursor()
 
-                        c.execute("SELECT * FROM transactions WHERE txhash='"+data+"'")
                         try:
+                            c.execute("SELECT * FROM transactions WHERE txhash='" + data + "'")
                             txhash_client_block = c.fetchone()[0]
 
                             logging.info("Node: Client is at block "+str(txhash_client_block)) #now check if we have any newer
@@ -648,8 +648,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                         #duplicity verification
                         logging.info("verifying duplicity")
-                        c.execute("SELECT signature FROM transactions WHERE signature = '"+received_signature_enc+"'")
                         try:
+                            c.execute("SELECT signature FROM transactions WHERE signature = '" + received_signature_enc + "'")
                             c.fetchone()[0]
                             logging.info("Duplicate transaciton")
                         except:
@@ -803,8 +803,8 @@ def worker(HOST,PORT):
                         conn = sqlite3.connect('ledger.db')
                         c = conn.cursor()
 
-                        c.execute("SELECT * FROM transactions WHERE txhash='"+data+"'")
                         try:
+                            c.execute("SELECT * FROM transactions WHERE txhash='" + data + "'")
                             txhash_client_block = c.fetchone()[0]
 
                             logging.info("Client: Node is at block "+str(txhash_client_block)) #now check if we have any newer
