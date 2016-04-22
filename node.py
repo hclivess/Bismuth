@@ -36,8 +36,6 @@ tried = []
 port = 2829
 
 def manager():
-    tried_reset = 0
-    tried = []
     while True:
         with open ("peers.txt", "r") as peer_list:
             peers=peer_list.read()
@@ -60,14 +58,11 @@ def manager():
                     logging.info("---Starting a client thread "+str(threading.currentThread())+"---")
                     t.start()
 
-            tried_reset = tried_reset + 1
-            if tried_reset == len(peer_tuples):
-                logging.info("Will retry unreachable nodes, because end of the list was reached at " + str(
-                    len(peer_tuples)))
-                tried = []
-                tried_reset = 0
-
             #client thread handling
+        if len(active_pool) < 3:
+            logging.info("Only " + str(len(active_pool)) + " connections active, resetting the try list")
+            del tried[:]
+
         logging.info("Connection manager: Threads at " + str(threads_count) + "/" + str(threads_limit))
         logging.info("Tried: " + str(tried))
         logging.info("Current active pool: " + str(active_pool))
