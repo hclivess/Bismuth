@@ -22,7 +22,7 @@ def most_common(lst):
 
 gc.enable()
 
-logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG) #,filename='node.log'
+logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG, filename='node.log')
 
 global active_pool
 active_pool = []
