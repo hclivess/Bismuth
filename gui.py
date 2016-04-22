@@ -5,6 +5,7 @@ import socket
 import time
 import base64
 import logging
+from logging.handlers import RotatingFileHandler
 
 from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
@@ -15,7 +16,14 @@ root = Tk()
 
 root.wm_title("[XBM] Bismuth")
 
-logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG, filename='gui.log')
+log_formatter = logging.Formatter('%(asctime)s %(levelname)s %(funcName)s(%(lineno)d) %(message)s')
+logFile = 'gui.log'
+my_handler = RotatingFileHandler(logFile, mode='a', maxBytes=5*1024*1024, backupCount=2, encoding=None, delay=0)
+my_handler.setFormatter(log_formatter)
+my_handler.setLevel(logging.INFO)
+app_log = logging.getLogger('root')
+app_log.setLevel(logging.INFO)
+app_log.addHandler(my_handler)
 
 # import keys
 key = RSA.importKey(open('privkey.der').read())
@@ -29,9 +37,9 @@ s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 try:
     s.connect(("127.0.0.1", int("2829"))) #connect to local node
 except:
-    logging.info("Cannot connect to local node, please start it first")
+    app_log.info("Cannot connect to local node, please start it first")
     sys.exit(1)
-logging.info("Connected")
+app_log.info("Connected")
 
 def table():
 
@@ -53,16 +61,16 @@ def table():
     conn.close()
     # data
 
-    logging.info(datasheet)
-    logging.info(len(datasheet))
+    app_log.info(datasheet)
+    app_log.info(len(datasheet))
 
 
     if len (datasheet) == 4:
-        logging.info("Looks like a new address")
+        app_log.info("Looks like a new address")
         return
 
     elif len(datasheet) < 20*4:
-        logging.info(len(datasheet))
+        app_log.info(len(datasheet))
         table_limit = len(datasheet)/4
     else:
         table_limit = 20
@@ -93,7 +101,7 @@ def balance_get():
     if credit == None:
         credit = 0
     balance = credit - debit
-    logging.info("Node: Transction address balance: "+str(balance))
+    app_log.info("Node: Transction address balance: "+str(balance))
     conn.close()
 
 
@@ -109,11 +117,11 @@ def balance_get():
     table()
 
 def send():
-    logging.info("Received tx command")
+    app_log.info("Received tx command")
     to_address_input = to_address.get()
-    logging.info(to_address_input)
+    app_log.info(to_address_input)
     amount_input = amount.get()
-    logging.info(amount_input)
+    app_log.info(amount_input)
     #enter transaction start
     conn = sqlite3.connect('ledger.db')
     c = conn.cursor()
@@ -129,12 +137,12 @@ def send():
     signer = PKCS1_v1_5.new(key)
     signature = signer.sign(h)
     signature_enc = base64.b64encode(signature)
-    logging.info("Client: Encoded Signature: "+str(signature_enc))
+    app_log.info("Client: Encoded Signature: "+str(signature_enc))
 
     verifier = PKCS1_v1_5.new(key)
     if verifier.verify(h, signature) == True:
         if int(amount_input) < 0:
-            logging.info("Client: Signature OK, but cannot use negative amounts")
+            app_log.info("Client: Signature OK, but cannot use negative amounts")
 
         else:
             conn = sqlite3.connect('ledger.db')
@@ -142,10 +150,10 @@ def send():
             c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
             txhash = str(c.fetchone()[0])
             txhash_new = hashlib.sha224(str(transaction) + str(signature_enc) + str(txhash)).hexdigest() #define new tx hash based on previous #fix asap
-            logging.info("Client: New txhash to go with your transaction: "+txhash_new)
+            app_log.info("Client: New txhash to go with your transaction: "+txhash_new)
             conn.close()
 
-            logging.info("Client: The signature and control txhash is valid, proceeding to send transaction, signature, new txhash and the public key")
+            app_log.info("Client: The signature and control txhash is valid, proceeding to send transaction, signature, new txhash and the public key")
             s.sendall("transaction")
             time.sleep(0.1)
             s.sendall(transaction+";"+str(signature_enc)+";"+public_key_readable+";"+str(txhash_new)) #todo send list
@@ -153,16 +161,16 @@ def send():
             balance_get()
 
     else:
-        logging.info("Client: Invalid signature")
+        app_log.info("Client: Invalid signature")
     #enter transaction end
 
 
 def node():
-    logging.info("Received node start command")
+    app_log.info("Received node start command")
 
 
 def app_quit():
-    logging.info("Received quit command")
+    app_log.info("Received quit command")
     root.destroy()
 
 #frames
