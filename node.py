@@ -319,8 +319,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     #save peer if connectible
 
-
-                        
                     logging.info("Node: Sending sync request")
                     self.request.sendall("sync_______")
                     time.sleep(0.1)
@@ -331,7 +329,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                 if data == "blockfound_":                  
                     logging.info("Node: Client has the block") #client should start sending txs in this step
-                    #todo critical: make sure that received block height is correct
                     data = self.request.recv(2048)
                     #verify
                     sync_list = ast.literal_eval(data) #this is great, need to add it to client -> node sync
@@ -521,7 +518,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         db_txhash = c.fetchone()[0] #get latest txhash
                         conn.close()
                         logging.info("Node: txhash to send: " +str(db_txhash))
-                        self.request.sendall("mytxhash__")
+                        self.request.sendall("mytxhash___")
                         time.sleep(0.1)
                         self.request.sendall(db_txhash) #send latest txhash
                         time.sleep(0.1)
@@ -795,7 +792,7 @@ def worker(HOST,PORT):
                             logging.info("Client: "+str(x)+" is not a new peer, skipping.")
 
 
-                if data == "mytxhash__":
+                if data == "mytxhash___":
                         data = s.recv(56) #receive client's last txhash
 
                         #send all our followup hashes
@@ -870,7 +867,7 @@ def worker(HOST,PORT):
                     if received_block_height == db_block_height:
                         logging.info("Client: We have the same block height, hash will be verified")
                         update_me = 1
-                        #todo                
+                        #todo
 
                     if update_me == 1:                
                         conn = sqlite3.connect('ledger.db')
