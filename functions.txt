@@ -2,24 +2,24 @@ Communicatiion functions documentation:
 
 Node:
 
-Outgoing:
-
 peers______
 sync_______
 mytxhash___
 nonewblocks
 blockfound_
 blocknotfou
+blockfound_
 
 ---
 
 Client
 
-Outgoing:
-
 helloserver
+sendsync___
 nonewblocks
 blockfound_
 blocknotfou
 blockheight
-sendsync___ 
+ 
+ 
+ just a draft, not precise or complete

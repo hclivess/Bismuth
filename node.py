@@ -289,8 +289,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         time.sleep(0.1)
                     peer_list.close()
 
-
-
                     # save peer if connectible
                     peer_file = open("peers.txt", 'r')
                     peer_tuples = []
@@ -322,6 +320,44 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     logging.info("Node: Sending sync request")
                     self.request.sendall("sync_______")
                     time.sleep(0.1)
+
+                if data == "mytxhash___":
+                    data = self.request.recv(56)  # receive client's last txhash
+
+                    # send all our followup hashes
+                    logging.info("Node: Will seek the following block: " + str(data))
+                    conn = sqlite3.connect('ledger.db')
+                    c = conn.cursor()
+
+                    try:
+                        c.execute("SELECT * FROM transactions WHERE txhash='" + data + "'")
+                        txhash_client_block = c.fetchone()[0]
+
+                        logging.info("Node: Client is at block " + str(txhash_client_block))  # now check if we have any newer
+
+                        c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
+                        db_txhash = c.fetchone()[0]  # get latest txhash
+                        if db_txhash == data:
+                            logging.info("Client: Node has the latest block")
+                            self.request.sendall("nonewblocks")
+                            time.sleep(0.1)
+
+                        else:
+                            c.execute("SELECT * FROM transactions WHERE block_height='" + str(int(txhash_client_block) + 1) + "'")  # select incoming transaction + 1
+                            txhash_send = c.fetchone()
+                            logging.info("Node: Selected " + str(txhash_send) + " to send")
+
+                            conn.close()
+                            self.request.sendall("blockfound_")
+                            time.sleep(0.1)
+                            self.request.sendall(str(txhash_send))
+                            time.sleep(0.1)
+
+                    except:
+                        logging.info("Client: Block not found")
+                        self.request.sendall("blocknotfou")
+                        time.sleep(0.1)
+
 
                 if data == "sendsync___":
                     self.request.sendall("sync_______")
@@ -443,6 +479,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         #rollback start
                         logging.info("Node: Received invalid txhash")
                         #rollback end
+
 
                 if data == "blockheight":
                     subdata = self.request.recv(11) #receive client's last block height
@@ -857,19 +894,19 @@ def worker(HOST,PORT):
                     if received_block_height < db_block_height:
                         logging.info("Client: We have a higher, sending")
                         update_me = 0
-                        #todo
-                    
+                        #sendall txhash announce
+                        #sendall txhash
+
                     if received_block_height > db_block_height:
                         logging.info("Client: Node has higher block, receiving")
                         update_me = 1
-                        #todo
 
                     if received_block_height == db_block_height:
                         logging.info("Client: We have the same block height, hash will be verified")
                         update_me = 1
                         #todo
 
-                    if update_me == 1:                
+                    if update_me == 1:
                         conn = sqlite3.connect('ledger.db')
                         c = conn.cursor()                
                         c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
@@ -879,6 +916,19 @@ def worker(HOST,PORT):
                         
                         s.sendall(db_txhash) #send latest txhash
                         time.sleep(0.1)
+
+                    if update_me == 0:
+                        conn = sqlite3.connect('ledger.db')
+                        c = conn.cursor()
+                        c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
+                        db_txhash = c.fetchone()[0]  # get latest txhash
+                        conn.close()
+                        logging.info("Client: txhash to send: " + str(db_txhash))
+                        s.sendall("mytxhash___")
+                        time.sleep(0.1)
+                        s.sendall(db_txhash)  # send latest txhash
+                        time.sleep(0.1)
+
 
                 if data == "blocknotfou":
                         logging.info("Client: Node didn't find the block, deleting latest entry")
@@ -974,10 +1024,9 @@ def worker(HOST,PORT):
                     logging.info("Client: Received txhash: "+str(received_txhash))
                     logging.info("Client: Received transaction: "+str(received_transaction))
 
-                    txhash_valid = 0
+
                     if received_txhash == hashlib.sha224(str(received_transaction) + str(received_signature) +str(txhash_db)).hexdigest(): #new hash = new tx + new sig + old txhash
                         logging.info("Client: txhash valid")
-                        txhash_valid = 1
 
                         #update local db with received tx
                         conn = sqlite3.connect('ledger.db')
