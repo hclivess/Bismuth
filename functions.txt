@@ -1,0 +1,25 @@
+Communicatiion functions documentation:
+
+Node:
+
+Outgoing:
+
+peers______
+sync_______
+mytxhash___
+nonewblocks
+blockfound_
+blocknotfou
+
+---
+
+Client
+
+Outgoing:
+
+helloserver
+nonewblocks
+blockfound_
+blocknotfou
+blockheight
+sendsync___ 
