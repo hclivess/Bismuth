@@ -100,10 +100,11 @@ def digest_mempool():
             c = conn.cursor()
 
             try:
-                m.execute("SELECT signature FROM transactions ORDER BY block_height DESC LIMIT 1;")
+                m.execute("SELECT signature FROM transactions ORDER BY timestamp ASC LIMIT 1;")
                 signature_mempool = m.fetchone()[0]
             except:
                 app_log.info("Mempool empty")
+                #raise #test
                 break
 
             try:
@@ -120,50 +121,53 @@ def digest_mempool():
                 #calculate block height from the ledger
                 for row in c.execute('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1;'):
                     db_block_height = row[0]
+                    block_height_new = db_block_height + 1
                     db_txhash = row[7]
 
-                for row in m.execute("SELECT * FROM transactions WHERE signature = '"+signature_mempool+"';"):
-                    db_timestamp = row[1]
-                    db_address = row[2]
-                    db_to_address = row[3]
-                    db_amount = row[4]
-                    db_signature = row[5]
-                    db_public_key_readable = row[6]
+                for row in m.execute('SELECT * FROM transactions ORDER BY timestamp ASC LIMIT 1;'):
+                    db_timestamp = row[0]
+                    db_address = row[1]
+                    db_to_address = row[2]
+                    db_amount = row[3]
+                    db_signature = row[4]
+                    db_public_key_readable = row[5]
                     #db_public_key = RSA.importKey(row[6])
                     db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount)
                     txhash = hashlib.sha224(str(db_transaction) + str(db_signature) +str(db_txhash)).hexdigest() #calculate txhash from the ledger
 
-                    #verify balance
-                    app_log.info("Mempool: Verifying balance")
-                    app_log.info("Mempool: Received address: " + str(db_address))
-                    c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '" + db_address + "'")
-                    credit = c.fetchone()[0]
-                    c.execute("SELECT sum(amount) FROM transactions WHERE address = '" + db_address + "'")
-                    debit = c.fetchone()[0]
-                    if debit == None:
-                        debit = 0
-                    if credit == None:
-                        credit = 0
-                    app_log.info("Mempool: Total credit: " + str(credit))
-                    app_log.info("Mempool: Total debit: " + str(debit))
-                    balance = int(credit) - int(debit)
-                    app_log.info("Mempool: Transction address balance: " + str(balance))
+                #verify balance
+                app_log.info("Mempool: Verifying balance")
+                app_log.info("Mempool: Received address: " + str(db_address))
+                c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '" + db_address + "'")
+                credit = c.fetchone()[0]
+                c.execute("SELECT sum(amount) FROM transactions WHERE address = '" + db_address + "'")
+                debit = c.fetchone()[0]
+                if debit == None:
+                    debit = 0
+                if credit == None:
+                    credit = 0
+                app_log.info("Mempool: Total credit: " + str(credit))
+                app_log.info("Mempool: Total debit: " + str(debit))
+                balance = int(credit) - int(debit)
+                app_log.info("Mempool: Transction address balance: " + str(balance))
 
-                    if int(balance) - int(db_amount) < 0:
-                        app_log.info("Mempool: Their balance is too low for this transaction, possible double spend attack")
-                    elif int(db_amount) < 0:
-                        app_log.info("Mempool: Cannot use negative amounts")
-                    #verify balance
-                    else:
-                        c.execute("INSERT INTO transactions VALUES ('"+str(db_block_height+1)+"','"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable)+"','"+str(txhash)+"')") # Insert a row of data
-                        conn.commit()
-                        conn.close()
+                if int(balance) - int(db_amount) < 0:
+                    app_log.info("Mempool: Their balance is too low for this transaction, possible double spend attack")
+                elif int(db_amount) < 0:
+                    app_log.info("Mempool: Cannot use negative amounts")
+                #verify balance
+                else:
+                    c.execute("INSERT INTO transactions VALUES ('"+str(block_height_new)+"','"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable)+"','"+str(txhash)+"')") # Insert a row of data
+                    conn.commit()
+                    conn.close()
 
-                    m.execute("DELETE FROM transactions WHERE txhash = '"+db_txhash+"';") #delete tx from mempool now that it is in the ledger or if it was a double spend
-                    mempool.commit()
-                    mempool.close()
+                m.execute("DELETE FROM transactions WHERE txhash = '"+db_txhash+"';") #delete tx from mempool now that it is in the ledger or if it was a double spend
+                mempool.commit()
+                mempool.close()
+
         except Exception as e:
-            print "There was a following error in the mempool: "+e
+            app_log.info("There was a following error in the mempool: "+str(e))
+            raise
     return
         
 def db_maintenance():
@@ -218,7 +222,7 @@ if not os.path.exists('mempool.db') == True:
     # create empty mempool
     mempool = sqlite3.connect('mempool.db')
     m = mempool.cursor()
-    m.execute("CREATE TABLE IF NOT EXISTS transactions (block_height, address, to_address, amount, signature, public_key)")
+    m.execute("CREATE TABLE IF NOT EXISTS transactions (timestamp, address, to_address, amount, signature, public_key, txhash)")
     mempool.commit()
     mempool.close()
     app_log.info("Core: Created mempool file")
@@ -427,7 +431,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         db_txhash = row[7]
                         db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount) 
 
-                        m.execute("INSERT INTO transactions VALUES ('"+str(db_block_height)+"','"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable)+"','"+str(db_txhash)+"')") # Insert a row of data
+                        m.execute("INSERT INTO transactions VALUES ('"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable)+"','"+str(db_txhash)+"')") # Insert a row of data
 
                     mempool.commit()
                     mempool.close()
@@ -449,7 +453,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         mempool = sqlite3.connect('mempool.db')
                         m = conn.cursor()
 
-                        m.execute("INSERT INTO transactions VALUES ('"+str(received_block_height)+"','"+str(received_timestamp)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_amount)+"','"+str(received_signature_enc)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data
+                        m.execute("INSERT INTO transactions VALUES ('"+str(received_timestamp)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_amount)+"','"+str(received_signature_enc)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data
                         app_log.info("Node: Mempool updated with a received transaction")
                         mempool.commit() # Save (commit) the changes
                         mempool.close()
@@ -584,7 +588,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     conn = sqlite3.connect('ledger.db')
                     c = conn.cursor()
                     c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
-                    db_block_height = c.fetchone()[0]
 
 
                     #backup all followups to mempool
@@ -593,7 +596,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     c.execute('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1')
                     results = c.fetchone()
-                    db_block_height = results[0]
+                    #db_block_height = results[0]
                     db_timestamp = results[1]
                     db_address = results[2]
                     db_to_address = results[3]
@@ -606,7 +609,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     txhash = hashlib.sha224(str(db_transaction) + str(db_signature) +str(db_txhash)).hexdigest() #calculate new txhash from ledger latest tx and the new tx
 
-                    m.execute("INSERT INTO transactions VALUES ('"+str(int(db_block_height)+1)+"','"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable)+"','"+str(txhash)+"')") # Insert a row of data
+                    m.execute("INSERT INTO transactions VALUES ('"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable)+"','"+str(txhash)+"')") # Insert a row of data
 
                     mempool.commit()
                     mempool.close()
@@ -657,65 +660,21 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         app_log.info("Node: The signature is valid")
                         #transaction processing
 
-                        conn = sqlite3.connect('ledger.db')
-                        c = conn.cursor()
+                        #insert to mempool
+                        mempool = sqlite3.connect('mempool.db')
+                        m = mempool.cursor()
 
-                        #verify balance and blockchain
-                        app_log.info("Node: Verifying balance")
-                        app_log.info("Node: Address:" +address)
-                        c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '"+address+"'")
-                        credit = c.fetchone()[0]
-                        c.execute("SELECT sum(amount) FROM transactions WHERE address = '"+address+"'")
-                        debit = c.fetchone()[0]
-                        if debit == None:
-                            debit = 0
-                        if credit == None:
-                            credit = 0
-                        app_log.info("Node: Total credit: "+str(credit))
-                        app_log.info("Node: Total debit: "+str(debit))
-                        balance = int(credit) - int(debit)
-                        app_log.info("Node: Your balance: "+str(balance))
+                        m.execute("INSERT INTO transactions VALUES ('" + str(received_timestamp) + "','" + str(address) + "','" + str(to_address) + "','" + str(amount) + "','" + str(received_signature_enc) + "','" + str(received_public_key_readable) + "','" + str(received_txhash) + "')")  # Insert a row of data
+                        mempool.commit()  # Save (commit) the changes
+                        mempool.close()
+                        app_log.info("Client: Mempool updated with a received transaction")
 
-                        if  int(balance) - int(amount) < 0:
-                            app_log.info("Node: Your balance is too low for this transaction")
-                        elif int(amount) < 0:
-                            app_log.info("Node: Cannot use negative amounts")
-                        else:
-                            app_log.info("Node: Processing transaction")
+                        digest_mempool()
+                        # insert to mempool
 
-                            c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
-                            txhash = c.fetchone()[0]
-                            c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
-                            block_height = c.fetchone()[0]
-                            conn.close()
-                            app_log.info("Node: Current latest txhash: "+str(txhash))
-                            app_log.info("Node: Current top block: " +str(block_height))
-                            block_height_new = block_height + 1
-
-                            if received_txhash == hashlib.sha224(str(received_transaction) + str(received_signature_enc) +str(txhash)).hexdigest(): #new hash = new tx + new sig + old txhash
-                                app_log.info("Node: txhash valid")
-
-                                #insert to mempool
-                                mempool = sqlite3.connect('mempool.db')
-                                m = mempool.cursor()
-
-                                m.execute("INSERT INTO transactions VALUES ('" + str(block_height_new) + "','" + str(received_timestamp) + "','" + str(address) + "','" + str(to_address) + "','" + str(amount) + "','" + str(received_signature_enc) + "','" + str(received_public_key_readable) + "','" + str(received_txhash) + "')")  # Insert a row of data
-                                mempool.commit()  # Save (commit) the changes
-                                mempool.close()
-                                app_log.info("Client: Mempool updated with a received transaction")
-
-                                digest_mempool()
-                                # insert to mempool
-
-                                app_log.info("Node: Database closed")
-                                self.request.sendall("sync_______")
-                                time.sleep(0.1)
-
-
-                            else:
-                                app_log.info("Node: txhash invalid")
-
-                            
+                        app_log.info("Node: Database closed")
+                        self.request.sendall("sync_______")
+                        time.sleep(0.1)
 
                     else:
                         app_log.info("Node: Signature invalid")
@@ -923,7 +882,7 @@ def worker(HOST,PORT):
                         db_txhash = results[7]
                         db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount)
 
-                        m.execute("INSERT INTO transactions VALUES ('"+str(db_block_height)+"','"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable)+"','"+str(db_txhash)+"')") # Insert a row of data
+                        m.execute("INSERT INTO transactions VALUES ('"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable)+"','"+str(db_txhash)+"')") # Insert a row of data
 
                         mempool.commit()
                         mempool.close()
@@ -978,7 +937,7 @@ def worker(HOST,PORT):
                         db_txhash = row[7]
                         db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount) 
 
-                        m.execute("INSERT INTO transactions VALUES ('"+str(db_block_height)+"','"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable)+"','"+str(db_txhash)+"')") # Insert a row of data
+                        m.execute("INSERT INTO transactions VALUES ('"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable)+"','"+str(db_txhash)+"')") # Insert a row of data
 
                     mempool.commit()
                     mempool.close()
@@ -999,7 +958,7 @@ def worker(HOST,PORT):
                         #insert to mempool
                         mempool = sqlite3.connect('mempool.db')
                         m = mempool.cursor()
-                        m.execute("INSERT INTO transactions VALUES ('"+str(received_block_height)+"','"+str(received_timestamp)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_amount)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data
+                        m.execute("INSERT INTO transactions VALUES ('"+str(received_timestamp)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_amount)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data
                         app_log.info("Client: Mempool updated with a received transaction")
                         mempool.commit() # Save (commit) the changes
                         mempool.close()
