@@ -32,6 +32,12 @@ app_log = logging.getLogger('root')
 app_log.setLevel(logging.INFO)
 app_log.addHandler(my_handler)
 
+ch = logging.StreamHandler(sys.stdout)
+ch.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+ch.setFormatter(formatter)
+app_log.addHandler(ch)
+
 global active_pool
 active_pool = []
 global consensus_ip_list
