@@ -157,11 +157,11 @@ def digest_mempool():
                     app_log.info("Mempool: Cannot use negative amounts")
                 #verify balance
                 else:
-                    c.execute("INSERT INTO transactions VALUES ('"+str(block_height_new)+"','"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable)+"','"+str(txhash)+"')") # Insert a row of data
+                    c.execute("INSERT INTO transactions VALUES ('"+str(block_height_new)+"','"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','" + str(db_public_key_readable) + "','" + str(txhash) + "')") # Insert a row of data
                     conn.commit()
                     conn.close()
 
-                m.execute("DELETE FROM transactions WHERE txhash = '"+db_txhash+"';") #delete tx from mempool now that it is in the ledger or if it was a double spend
+                m.execute("DELETE FROM transactions WHERE signature = '"+db_signature+"';") #delete tx from mempool now that it is in the ledger or if it was a double spend
                 mempool.commit()
                 mempool.close()
 
@@ -169,7 +169,7 @@ def digest_mempool():
             app_log.info("There was a following error in the mempool: "+str(e))
             raise
     return
-        
+
 def db_maintenance():
     #db maintenance
     conn=sqlite3.connect("ledger.db")
@@ -179,11 +179,11 @@ def db_maintenance():
     conn.execute("VACUUM")
     conn.close()
     app_log.info("Core: Database maintenance finished")
-    
+
 #key maintenance
 if os.path.isfile("privkey.der") is True:
             app_log.info("Client: privkey.der found")
-else:   
+else:
     #generate key pair and an address
     random_generator = Random.new().read
     key = RSA.generate(1024, random_generator)
@@ -205,7 +205,7 @@ else:
     pem_file = open("pubkey.der", 'a')
     pem_file.write(str(public_key_readable))
     pem_file.close()
-    
+
     address_file = open ("address.txt", 'a')
     address_file.write(str(address)+"\n")
     address_file.close()
@@ -222,7 +222,7 @@ if not os.path.exists('mempool.db') == True:
     # create empty mempool
     mempool = sqlite3.connect('mempool.db')
     m = mempool.cursor()
-    m.execute("CREATE TABLE IF NOT EXISTS transactions (timestamp, address, to_address, amount, signature, public_key, txhash)")
+    m.execute("CREATE TABLE IF NOT EXISTS transactions (timestamp, address, to_address, amount, signature, public_key)")
     mempool.commit()
     mempool.close()
     app_log.info("Core: Created mempool file")
@@ -264,7 +264,7 @@ try:
         db_signature_enc = row[5]
         db_public_key = RSA.importKey(row[6])
         db_txhash = row[7]
-        db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount) 
+        db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount)
 
         #app_log.info(db_transaction)
 
@@ -286,11 +286,11 @@ try:
 
     if invalid == 0:
         app_log.info("Core: All transacitons in the local ledger are valid")
-        
-except sqlite3.Error, e:                        
+
+except sqlite3.Error, e:
     app_log.info("Core: Error %s:" % e.args[0])
-    sys.exit(1)                        
-finally:                        
+    sys.exit(1)
+finally:
     if conn:
         conn.close()
 #verify blockchain
@@ -304,7 +304,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             try:
                 data = self.request.recv(11)
                 #cur_thread = threading.current_thread()
-                
+
                 app_log.info("Node: Received: "+data+ " from " +str(self.request.getpeername()[0])) #will add custom ports later
 
                 if data == 'helloserver':
@@ -389,9 +389,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                 if data == "sendsync___":
                     self.request.sendall("sync_______")
-                    time.sleep(0.1)                  
+                    time.sleep(0.1)
 
-                if data == "blockfound_":                  
+                if data == "blockfound_":
                     app_log.info("Node: Client has the block") #client should start sending txs in this step
                     data = self.request.recv(2048)
                     #verify
@@ -429,19 +429,19 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         db_public_key_readable = row[6]
                         db_public_key = RSA.importKey(row[6])
                         db_txhash = row[7]
-                        db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount) 
+                        db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount)
 
-                        m.execute("INSERT INTO transactions VALUES ('"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable)+"','"+str(db_txhash)+"')") # Insert a row of data
+                        m.execute("INSERT INTO transactions VALUES ('"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable) + "')") # Insert a row of data
 
                     mempool.commit()
                     mempool.close()
                     #backup all followups to mempool
-                    
+
                     #delete all local followups
                     c.execute('DELETE FROM transactions WHERE block_height > "'+str(received_block_height)+'"')
                     conn.close()
                     #delete all local followups
-                    
+
                     app_log.info("Node: Last db txhash: "+str(txhash_db))
                     app_log.info("Node: Received txhash: "+str(received_txhash))
                     app_log.info("Node: Received transaction: "+str(received_transaction))
@@ -453,7 +453,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         mempool = sqlite3.connect('mempool.db')
                         m = conn.cursor()
 
-                        m.execute("INSERT INTO transactions VALUES ('"+str(received_timestamp)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_amount)+"','"+str(received_signature_enc)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data
+                        m.execute("INSERT INTO transactions VALUES ('"+str(received_timestamp)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_amount)+"','"+str(received_signature_enc)+"','"+str(received_public_key_readable) + "')") # Insert a row of data
                         app_log.info("Node: Mempool updated with a received transaction")
                         mempool.commit() # Save (commit) the changes
                         mempool.close()
@@ -502,7 +502,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     # consensus pool
 
                     conn = sqlite3.connect('ledger.db')
-                    c = conn.cursor()                    
+                    c = conn.cursor()
                     c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
                     db_block_height = c.fetchone()[0]
                     conn.close()
@@ -513,7 +513,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     self.request.sendall(db_block_height)
                     time.sleep(0.1)
                     #send own block height
-                    
+
                     if received_block_height > db_block_height:
                         app_log.info("Node: Client has higher block, checking consensus deviation")
                         if int(received_block_height) - consensus <= 50:
@@ -523,7 +523,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             app_log.info("Suspiciously high deviation, disconnecting")
                             return
 
-                        
+
                     if received_block_height < db_block_height:
                         app_log.info("Node: We have a higher block, hash will be verified")
                         update_me = 0
@@ -534,7 +534,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     if update_me == 1:
                         conn = sqlite3.connect('ledger.db')
-                        c = conn.cursor()                
+                        c = conn.cursor()
                         c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
                         db_txhash = c.fetchone()[0] #get latest txhash
                         conn.close()
@@ -564,19 +564,19 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                 app_log.info("Node: Client has the latest block")
                                 self.request.sendall("nonewblocks")
                                 time.sleep(0.1)
-             
+
                             else:
                                 c.execute("SELECT * FROM transactions WHERE block_height='"+str(int(txhash_client_block) + 1)+"'") #select incoming transaction + 1
                                 txhash_send = c.fetchone()
 
                                 app_log.info("Node: Selected "+str(txhash_send)+" to send")
-                                
+
                                 conn.close()
                                 self.request.sendall("blockfound_")
                                 time.sleep(0.1)
                                 self.request.sendall(str(txhash_send))
                                 time.sleep(0.1)
-                            
+
                         except:
                             app_log.info("Node: Block not found")
                             self.request.sendall("blocknotfou")
@@ -609,7 +609,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     txhash = hashlib.sha224(str(db_transaction) + str(db_signature) +str(db_txhash)).hexdigest() #calculate new txhash from ledger latest tx and the new tx
 
-                    m.execute("INSERT INTO transactions VALUES ('"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable)+"','"+str(txhash)+"')") # Insert a row of data
+                    m.execute("INSERT INTO transactions VALUES ('"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable) + "')") # Insert a row of data
 
                     mempool.commit()
                     mempool.close()
@@ -624,8 +624,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     self.request.sendall("sync_______")
                     time.sleep(0.1)
 
-                            
-                #latest local block          
+
+                #latest local block
                 if data == "transaction":
                     data = self.request.recv(2048)
                     data_split = data.split(";")
@@ -655,7 +655,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     db_signature_dec = base64.b64decode(received_signature_enc)
                     verifier = PKCS1_v1_5.new(received_public_key)
                     h = SHA.new(received_transaction)
-                    
+
                     if verifier.verify(h, db_signature_dec) == True:
                         app_log.info("Node: The signature is valid")
                         #transaction processing
@@ -664,7 +664,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         mempool = sqlite3.connect('mempool.db')
                         m = mempool.cursor()
 
-                        m.execute("INSERT INTO transactions VALUES ('" + str(received_timestamp) + "','" + str(address) + "','" + str(to_address) + "','" + str(amount) + "','" + str(received_signature_enc) + "','" + str(received_public_key_readable) + "','" + str(received_txhash) + "')")  # Insert a row of data
+                        m.execute("INSERT INTO transactions VALUES ('" + str(received_timestamp) + "','" + str(address) + "','" + str(to_address) + "','" + str(amount) + "','" + str(received_signature_enc) + "','" + str(received_public_key_readable) + "')")  # Insert a row of data
                         mempool.commit()  # Save (commit) the changes
                         mempool.close()
                         app_log.info("Client: Mempool updated with a received transaction")
@@ -689,7 +689,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 app_log.info(e)
 
                 raise #for test purposes only ***CAUSES LEAK***
-                break                        
+                break
 
 #client thread
 def worker(HOST,PORT):
@@ -708,7 +708,7 @@ def worker(HOST,PORT):
 
             first_run=1
             while True:
-                #communication starter   
+                #communication starter
                 if first_run==1:
                     first_run=0
                     s.sendall('helloserver')
@@ -720,9 +720,9 @@ def worker(HOST,PORT):
                 if data == "":
                     app_log.info("Communication error")
                     raise
-                    
+
                 if data == "peers______":
-                    subdata = s.recv(2048) #peers are larger 
+                    subdata = s.recv(2048) #peers are larger
                     #get remote peers into tuples
                     server_peer_tuples = re.findall ("'([\d\.]+)', '([\d]+)'",subdata)
                     app_log.info(server_peer_tuples)
@@ -752,7 +752,7 @@ def worker(HOST,PORT):
                                 peer_list_file.close()
                             except:
                                 app_log.info("Not connectible.")
-                            
+
                         else:
                             app_log.info("Client: "+str(x)+" is not a new peer, skipping.")
 
@@ -777,44 +777,44 @@ def worker(HOST,PORT):
                                 app_log.info("Client: Node has the latest block")
                                 s.sendall("nonewblocks")
                                 time.sleep(0.1)
-             
+
                             else:
                                 c.execute("SELECT * FROM transactions WHERE block_height='"+str(int(txhash_client_block) + 1)+"'") #select incoming transaction + 1
                                 txhash_send = c.fetchone()
 
                                 app_log.info("Client: Selected "+str(txhash_send)+" to send")
-                                
+
                                 conn.close()
                                 s.sendall("blockfound_")
                                 time.sleep(0.1)
                                 s.sendall(str(txhash_send))
                                 time.sleep(0.1)
-                            
+
                         except:
                             app_log.info("Client: Block not found")
                             s.sendall("blocknotfou")
-                            time.sleep(0.1)                    
-                    
-                if data == "sync_______":            
+                            time.sleep(0.1)
+
+                if data == "sync_______":
                     #sync start
 
                     #send block height, receive block height
                     s.sendall("blockheight")
                     time.sleep(0.1)
-                    
+
                     conn = sqlite3.connect('ledger.db')
-                    c = conn.cursor()            
+                    c = conn.cursor()
                     c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
                     db_block_height = c.fetchone()[0]
                     conn.close()
-                    
+
                     app_log.info("Client: Sending block height to compare: "+str(db_block_height))
                     #append zeroes to get static length
                     while len(str(db_block_height)) != 11:
                         db_block_height = "0"+str(db_block_height)
                     s.sendall(str(db_block_height))
                     time.sleep(0.1)
-                    
+
                     subdata = s.recv(11) #receive node's block height
                     received_block_height = subdata
                     app_log.info("Client: Node is at block height: "+str(received_block_height))
@@ -836,12 +836,12 @@ def worker(HOST,PORT):
 
                     if update_me == 1:
                         conn = sqlite3.connect('ledger.db')
-                        c = conn.cursor()                
+                        c = conn.cursor()
                         c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
                         db_txhash = c.fetchone()[0] #get latest txhash
                         conn.close()
                         app_log.info("Client: txhash to send: " +str(db_txhash))
-                        
+
                         s.sendall(db_txhash) #send latest txhash
                         time.sleep(0.1)
 
@@ -882,7 +882,7 @@ def worker(HOST,PORT):
                         db_txhash = results[7]
                         db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount)
 
-                        m.execute("INSERT INTO transactions VALUES ('"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable)+"','"+str(db_txhash)+"')") # Insert a row of data
+                        m.execute("INSERT INTO transactions VALUES ('"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable) + "')") # Insert a row of data
 
                         mempool.commit()
                         mempool.close()
@@ -896,7 +896,7 @@ def worker(HOST,PORT):
                         s.sendall("sendsync___") #experimental
                         time.sleep(0.1)
 
-                if data == "blockfound_":          
+                if data == "blockfound_":
                     app_log.info("Client: Node has the block") #node should start sending txs in this step
                     #todo critical: make sure that received block height is correct
                     data = s.recv(2048)
@@ -920,7 +920,7 @@ def worker(HOST,PORT):
                     c = conn.cursor()
                     c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
                     txhash_db = c.fetchone()[0]
-                    
+
                     #backup all followups to mempool
                     mempool = sqlite3.connect('mempool.db')
                     m = mempool.cursor()
@@ -935,19 +935,19 @@ def worker(HOST,PORT):
                         db_public_key_readable = row[6]
                         db_public_key = RSA.importKey(row[6])
                         db_txhash = row[7]
-                        db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount) 
+                        db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount)
 
-                        m.execute("INSERT INTO transactions VALUES ('"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable)+"','"+str(db_txhash)+"')") # Insert a row of data
+                        m.execute("INSERT INTO transactions VALUES ('"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable) + "')") # Insert a row of data
 
                     mempool.commit()
                     mempool.close()
-                    #backup all followups to mempool       
-                    
+                    #backup all followups to mempool
+
                     #delete all local followups
                     c.execute('DELETE FROM transactions WHERE block_height > "'+str(received_block_height)+'"')
                     conn.close()
                     #delete all local followups
-                    
+
                     app_log.info("Client: Last db txhash: "+str(txhash_db))
                     app_log.info("Client: Received txhash: "+str(received_txhash))
                     app_log.info("Client: Received transaction: "+str(received_transaction))
@@ -958,7 +958,7 @@ def worker(HOST,PORT):
                         #insert to mempool
                         mempool = sqlite3.connect('mempool.db')
                         m = mempool.cursor()
-                        m.execute("INSERT INTO transactions VALUES ('"+str(received_timestamp)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_amount)+"','"+str(received_signature)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data
+                        m.execute("INSERT INTO transactions VALUES ('"+str(received_timestamp)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_amount)+"','"+str(received_signature)+"','"+str(received_public_key_readable) + "')") # Insert a row of data
                         app_log.info("Client: Mempool updated with a received transaction")
                         mempool.commit() # Save (commit) the changes
                         mempool.close()
@@ -972,7 +972,7 @@ def worker(HOST,PORT):
                     else:
                         app_log.info("Client: Received invalid txhash")
                         #rollback end
-                                
+
                     #txhash validation end
 
                 if data == "nonewblocks":
