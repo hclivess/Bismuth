@@ -21,6 +21,9 @@ from Crypto.Signature import PKCS1_v1_5
 def most_common(lst):
     return max(set(lst), key=lst.count)
 
+global inserting
+inserting = 0
+
 gc.enable()
 
 log_formatter = logging.Formatter('%(asctime)s %(levelname)s %(funcName)s(%(lineno)d) %(message)s')
@@ -441,8 +444,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                         #duplicity verification
                         app_log.info("verifying duplicity")
-                        c.execute("SELECT signature FROM transactions WHERE signature = '"+received_signature_enc+"'")
+
                         try:
+                            c.execute("SELECT signature FROM transactions WHERE signature = '" + received_signature_enc + "'")
                             c.fetchone()[0]
                             app_log.info("Duplicate transaciton")
                         except:
@@ -1048,8 +1052,9 @@ def worker(HOST,PORT):
 
                         #duplicity verification
                         app_log.info("verifying duplicity")
-                        c.execute("SELECT signature FROM transactions WHERE signature = '"+received_signature+"'")
+
                         try:
+                            c.execute("SELECT signature FROM transactions WHERE signature = '" + received_signature + "'")
                             c.fetchone()[0]
                             app_log.info("Duplicate transaction")
                         except:
