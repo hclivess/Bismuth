@@ -34,7 +34,7 @@ app_log.addHandler(my_handler)
 
 ch = logging.StreamHandler(sys.stdout)
 ch.setLevel(logging.DEBUG)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+formatter = logging.Formatter('%(asctime)s %(funcName)s(%(lineno)d) %(message)s')
 ch.setFormatter(formatter)
 app_log.addHandler(ch)
 
