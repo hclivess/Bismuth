@@ -869,14 +869,14 @@ def worker(HOST,PORT):
                                 app_log.info("Node: Selected " + str(txhash_send) + " to send")
 
                                 conn.close()
-                                self.request.sendall("blockfound_")
+                                s.sendall("blockfound_")
                                 time.sleep(0.1)
-                                self.request.sendall(str(txhash_send))
+                                s.sendall(str(txhash_send))
                                 time.sleep(0.1)
 
                         except:
                             app_log.info("Node: Block not found")
-                            self.request.sendall("blocknotfou")
+                            s.sendall("blocknotfou")
                             time.sleep(0.1)
 
 
