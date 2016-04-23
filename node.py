@@ -442,41 +442,42 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         conn = sqlite3.connect('ledger.db')
                         c = conn.cursor()
 
-                        #duplicity verification
-                        app_log.info("verifying duplicity")
+                        app_log.info("Node: Verifying balance")
+                        app_log.info("Node: Received address: " +str(received_address))
+                        c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '"+received_address+"'")
+                        credit = c.fetchone()[0]
+                        c.execute("SELECT sum(amount) FROM transactions WHERE address = '"+received_address+"'")
+                        debit = c.fetchone()[0]
+                        if debit == None:
+                            debit = 0
+                        if credit == None:
+                            credit = 0
+                        app_log.info("Node: Total credit: "+str(credit))
+                        app_log.info("Node: Total debit: "+str(debit))
+                        balance = int(credit) - int(debit)
+                        app_log.info("Node: Transction address balance: "+str(balance))
+                        conn.close()
 
-                        try:
-                            c.execute("SELECT signature FROM transactions WHERE signature = '" + received_signature_enc + "'")
-                            c.fetchone()[0]
-                            app_log.info("Duplicate transaciton")
-                        except:
-                            app_log.info("Node: Not a duplicate")
-                            #duplicity verification
-                                
-                            app_log.info("Node: Verifying balance")
-                            app_log.info("Node: Received address: " +str(received_address))
-                            c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '"+received_address+"'")
-                            credit = c.fetchone()[0]
-                            c.execute("SELECT sum(amount) FROM transactions WHERE address = '"+received_address+"'")
-                            debit = c.fetchone()[0]
-                            if debit == None:
-                                debit = 0
-                            if credit == None:
-                                credit = 0                                
-                            app_log.info("Node: Total credit: "+str(credit))
-                            app_log.info("Node: Total debit: "+str(debit))
-                            balance = int(credit) - int(debit)
-                            app_log.info("Node: Transction address balance: "+str(balance))
-                            conn.close()
-                                    
-                            if  int(balance) - int(received_amount) < 0:
-                                app_log.info("Node: Their balance is too low for this transaction")
-                            elif int(received_amount) < 0:
-                                app_log.info("Node: Cannot use negative amounts")
-                            else:                              
-                                #save step to db
-                                conn = sqlite3.connect('ledger.db') 
-                                c = conn.cursor()
+                        if int(balance) - int(received_amount) < 0:
+                            app_log.info("Node: Their balance is too low for this transaction")
+                        elif int(received_amount) < 0:
+                            app_log.info("Node: Cannot use negative amounts")
+                        else:
+                            #save step to db
+                            conn = sqlite3.connect('ledger.db')
+                            c = conn.cursor()
+
+                            # duplicity verification
+                            app_log.info("verifying duplicity")
+
+                            try:
+                                c.execute("SELECT signature FROM transactions WHERE signature = '" + received_signature_enc + "'")
+                                c.fetchone()[0]
+                                app_log.info("Duplicate transaciton")
+                            except:
+                                app_log.info("Node: Not a duplicate")
+                                # duplicity verification
+
                                 c.execute("INSERT INTO transactions VALUES ('"+str(received_block_height)+"','"+str(received_timestamp)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_amount)+"','"+str(received_signature_enc)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data
                                 app_log.info("Node: Ledger updated with a received transaction")
                                 conn.commit() # Save (commit) the changes
@@ -698,72 +699,69 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         conn = sqlite3.connect('ledger.db')
                         c = conn.cursor()
 
-                        #duplicity verification
-                        app_log.info("verifying duplicity")
-                        try:
-                            c.execute("SELECT signature FROM transactions WHERE signature = '" + received_signature_enc + "'")
-                            c.fetchone()[0]
-                            app_log.info("Duplicate transaciton")
-                        except:
-                            app_log.info("Node: Not a duplicate")
-                            #duplicity verification
-                     
-                            #verify balance and blockchain                           
-                            app_log.info("Node: Verifying balance")
-                            app_log.info("Node: Address:" +address)
-                            c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '"+address+"'")
-                            credit = c.fetchone()[0]
-                            c.execute("SELECT sum(amount) FROM transactions WHERE address = '"+address+"'")
-                            debit = c.fetchone()[0]
-                            if debit == None:
-                                debit = 0
-                            if credit == None:
-                                credit = 0                                
-                            app_log.info("Node: Total credit: "+str(credit))
-                            app_log.info("Node: Total debit: "+str(debit))
-                            balance = int(credit) - int(debit)
-                            app_log.info("Node: Your balance: "+str(balance))
+                        #verify balance and blockchain
+                        app_log.info("Node: Verifying balance")
+                        app_log.info("Node: Address:" +address)
+                        c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '"+address+"'")
+                        credit = c.fetchone()[0]
+                        c.execute("SELECT sum(amount) FROM transactions WHERE address = '"+address+"'")
+                        debit = c.fetchone()[0]
+                        if debit == None:
+                            debit = 0
+                        if credit == None:
+                            credit = 0
+                        app_log.info("Node: Total credit: "+str(credit))
+                        app_log.info("Node: Total debit: "+str(debit))
+                        balance = int(credit) - int(debit)
+                        app_log.info("Node: Your balance: "+str(balance))
 
-                            if  int(balance) - int(amount) < 0:
-                                app_log.info("Node: Your balance is too low for this transaction")
-                            elif int(amount) < 0:
-                                app_log.info("Node: Cannot use negative amounts")
-                            else:
-                                app_log.info("Node: Processing transaction")
+                        if  int(balance) - int(amount) < 0:
+                            app_log.info("Node: Your balance is too low for this transaction")
+                        elif int(amount) < 0:
+                            app_log.info("Node: Cannot use negative amounts")
+                        else:
+                            app_log.info("Node: Processing transaction")
 
-                                c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
-                                txhash = c.fetchone()[0]
-                                c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
-                                block_height = c.fetchone()[0]
-                                app_log.info("Node: Current latest txhash: "+str(txhash))
-                                app_log.info("Node: Current top block: " +str(block_height))
-                                block_height_new = block_height + 1
-                                
-                                
+                            c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
+                            txhash = c.fetchone()[0]
+                            c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
+                            block_height = c.fetchone()[0]
+                            app_log.info("Node: Current latest txhash: "+str(txhash))
+                            app_log.info("Node: Current top block: " +str(block_height))
+                            block_height_new = block_height + 1
 
-                                if received_txhash == hashlib.sha224(str(received_transaction) + str(received_signature_enc) +str(txhash)).hexdigest(): #new hash = new tx + new sig + old txhash
-                                    app_log.info("Node: txhash valid")
-                                    txhash_valid = 1
-                                    
-                                    c.execute("INSERT INTO transactions VALUES ('"+str(block_height_new)+"','"+str(received_timestamp)+"','"+str(address)+"','"+str(to_address)+"','"+str(amount)+"','"+str(received_signature_enc)+"','"+str(received_public_key_readable)+"','"+str(received_txhash)+"')") # Insert a row of data                    
-                                    #execute transaction                                
-                                    conn.commit() # Save (commit) the changes
-                                    #todo: broadcast
+                            if received_txhash == hashlib.sha224(str(received_transaction) + str(received_signature_enc) +str(txhash)).hexdigest(): #new hash = new tx + new sig + old txhash
+                                app_log.info("Node: txhash valid")
+
+                                # duplicity verification
+                                app_log.info("verifying duplicity")
+                                try:
+                                    c.execute("SELECT signature FROM transactions WHERE signature = '" + received_signature_enc + "'")
+                                    c.fetchone()[0]
+                                    app_log.info("Duplicate transaciton")
+
+                                except:
+                                    app_log.info("Node: Not a duplicate")
+                                    # duplicity verification
+                                    c.execute("INSERT INTO transactions VALUES ('" + str(block_height_new) + "','" + str(received_timestamp) + "','" + str(address) + "','" + str(to_address) + "','" + str(amount) + "','" + str(received_signature_enc) + "','" + str(received_public_key_readable) + "','" + str(received_txhash) + "')")  # Insert a row of data
+                                    # execute transaction
+                                    conn.commit()  # Save (commit) the changes
+                                    # todo: broadcast
                                     app_log.info("Node: Saved")
 
                                     conn.close()
                                     app_log.info("Node: Database closed")
                                     self.request.sendall("sync_______")
                                     time.sleep(0.1)
-                                            
-                                    #transaction processing                        
-                                
-                                else:
-                                    app_log.info("Node: txhash invalid")
-                                    conn.close()
-                                                                
-                                #verify balance and blockchain                            
-                                    #execute transaction
+
+                                #transaction processing
+
+                            else:
+                                app_log.info("Node: txhash invalid")
+                                conn.close()
+
+                            #verify balance and blockchain
+                                #execute transaction
                             
 
                     else:
@@ -1060,7 +1058,7 @@ def worker(HOST,PORT):
                         except:
                             app_log.info("Client: Not a duplicate")
                             #duplicity verification
-                        
+
                             app_log.info("Client: Verifying balance")
                             app_log.info("Client: Received address: " +str(received_address))
                             c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '"+received_address+"'")
