@@ -451,7 +451,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                         # insert to mempool
                         mempool = sqlite3.connect('mempool.db')
-                        m = conn.cursor()
+                        m = mempool.cursor()
 
                         m.execute("INSERT INTO transactions VALUES ('"+str(received_timestamp)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_amount)+"','"+str(received_signature_enc)+"','"+str(received_public_key_readable) + "')") # Insert a row of data
                         app_log.info("Node: Mempool updated with a received transaction")
@@ -1020,7 +1020,7 @@ def worker(HOST,PORT):
 
             app_log.info("Connection to "+this_client+" terminated due to "+ str(e))
             app_log.info("---thread "+str(threading.currentThread())+" ended---")
-            #raise #test only
+            raise #test only
             return
             
     return
@@ -1062,5 +1062,5 @@ if __name__ == "__main__":
     except Exception, e:
         app_log.info("Node already running?")
         app_log.info(e)
-        #raise #only test
+        raise #only test
 sys.exit()
