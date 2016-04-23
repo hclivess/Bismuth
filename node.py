@@ -539,8 +539,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         db_txhash = c.fetchone()[0] #get latest txhash
                         conn.close()
                         app_log.info("Node: txhash to send: " +str(db_txhash))
-                        self.request.sendall("mytxhash___")
-                        time.sleep(0.1)
                         self.request.sendall(db_txhash) #send latest txhash
                         time.sleep(0.1)
 
