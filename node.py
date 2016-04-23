@@ -581,7 +581,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             app_log.info("Node: Block not found")
                             self.request.sendall("blocknotfou")
                             time.sleep(0.1)
-                            #todo send previous
 
                 if data == "blocknotfou":
                     app_log.info("Client: Node didn't find the block, deleting latest entry")
@@ -822,8 +821,6 @@ def worker(HOST,PORT):
                     if received_block_height < db_block_height:
                         app_log.info("Client: We have a higher, sending")
                         update_me = 0
-                        #sendall txhash announce
-                        #sendall txhash
 
                     if received_block_height > db_block_height:
                         app_log.info("Client: Node has higher block, receiving")
@@ -832,7 +829,6 @@ def worker(HOST,PORT):
                     if received_block_height == db_block_height:
                         app_log.info("Client: We have the same block height, hash will be verified")
                         update_me = 1
-                        #todo
 
                     if update_me == 1:
                         conn = sqlite3.connect('ledger.db')
@@ -841,21 +837,48 @@ def worker(HOST,PORT):
                         db_txhash = c.fetchone()[0] #get latest txhash
                         conn.close()
                         app_log.info("Client: txhash to send: " +str(db_txhash))
-
                         s.sendall(db_txhash) #send latest txhash
                         time.sleep(0.1)
 
-                    if update_me == 0:
+                    if update_me == 0:  # update them if update_me is 0
+                        data = s.recv(56)  # receive client's last txhash
+
+                        # send all our followup hashes
+                        app_log.info("Client: Will seek the following block: " + str(data))
                         conn = sqlite3.connect('ledger.db')
                         c = conn.cursor()
-                        c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
-                        db_txhash = c.fetchone()[0]  # get latest txhash
-                        conn.close()
-                        app_log.info("Client: txhash to send: " + str(db_txhash))
-                        s.sendall("mytxhash___")
-                        time.sleep(0.1)
-                        s.sendall(db_txhash)  # send latest txhash
-                        time.sleep(0.1)
+
+                        try:
+                            c.execute("SELECT * FROM transactions WHERE txhash='" + data + "'")
+                            txhash_client_block = c.fetchone()[0]
+
+                            app_log.info("Client: Node is at block " + str(
+                                txhash_client_block))  # now check if we have any newer
+
+                            c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
+                            db_txhash = c.fetchone()[0]  # get latest txhash
+                            if db_txhash == data:
+                                app_log.info("Client: Node has the latest block")
+                                s.sendall("nonewblocks")
+                                time.sleep(0.1)
+
+                            else:
+                                c.execute("SELECT * FROM transactions WHERE block_height='" + str(int(txhash_client_block) + 1) + "'")  # select incoming transaction + 1
+                                txhash_send = c.fetchone()
+
+                                app_log.info("Node: Selected " + str(txhash_send) + " to send")
+
+                                conn.close()
+                                self.request.sendall("blockfound_")
+                                time.sleep(0.1)
+                                self.request.sendall(str(txhash_send))
+                                time.sleep(0.1)
+
+                        except:
+                            app_log.info("Node: Block not found")
+                            self.request.sendall("blocknotfou")
+                            time.sleep(0.1)
+
 
 
                 if data == "blocknotfou":
