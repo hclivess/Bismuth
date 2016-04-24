@@ -428,9 +428,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         db_amount = row [4]
                         db_signature = row[5]
                         db_public_key_readable = row[6]
-                        db_public_key = RSA.importKey(row[6])
-                        db_txhash = row[7]
-                        db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount)
+                        #db_public_key = RSA.importKey(row[6])
+                        #db_txhash = row[7]
+                        #db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount)
 
                         m.execute("INSERT INTO transactions VALUES ('"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable) + "')") # Insert a row of data
 
@@ -447,11 +447,11 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     app_log.info("Node: Received txhash: "+str(received_txhash))
                     app_log.info("Node: Received transaction: "+str(received_transaction))
 
-                    db_signature_dec = base64.b64decode(received_signature_enc)
+                    received_signature_dec = base64.b64decode(received_signature_enc)
                     verifier = PKCS1_v1_5.new(received_public_key)
                     h = SHA.new(received_transaction)
 
-                    if verifier.verify(h, db_signature_dec) == True:
+                    if verifier.verify(h, received_signature_dec) == True:
                         app_log.info("Node: The signature is valid")
                         # transaction processing
 
@@ -660,11 +660,11 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     received_public_key = RSA.importKey(received_public_key_readable)
                     #convert received strings
 
-                    db_signature_dec = base64.b64decode(received_signature_enc)
+                    received_signature_dec = base64.b64decode(received_signature_enc)
                     verifier = PKCS1_v1_5.new(received_public_key)
                     h = SHA.new(received_transaction)
 
-                    if verifier.verify(h, db_signature_dec) == True:
+                    if verifier.verify(h, received_signature_dec) == True:
                         app_log.info("Node: The signature is valid")
                         #transaction processing
 
@@ -984,11 +984,11 @@ def worker(HOST,PORT):
                     app_log.info("Client: Received txhash: "+str(received_txhash))
                     app_log.info("Client: Received transaction: "+str(received_transaction))
 
-                    db_signature_dec = base64.b64decode(received_signature_enc)
+                    received_signature_dec = base64.b64decode(received_signature_enc)
                     verifier = PKCS1_v1_5.new(received_public_key)
                     h = SHA.new(received_transaction)
 
-                    if verifier.verify(h, db_signature_dec) == True:
+                    if verifier.verify(h, received_signature_dec) == True:
                         app_log.info("Node: The signature is valid")
                         # transaction processing
 
