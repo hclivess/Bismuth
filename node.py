@@ -100,7 +100,7 @@ def digest_mempool():
             c = conn.cursor()
 
             try:
-                m.execute("SELECT signature FROM transactions ORDER BY timestamp ASC LIMIT 1;")
+                m.execute("SELECT signature FROM transactions ORDER BY timestamp DESC LIMIT 1;")
                 signature_mempool = m.fetchone()[0]
             except:
                 app_log.info("Mempool empty")
