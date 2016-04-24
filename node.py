@@ -22,9 +22,6 @@ from Crypto.Signature import PKCS1_v1_5
 def most_common(lst):
     return max(set(lst), key=lst.count)
 
-global inserting
-inserting = 0
-
 gc.enable()
 
 log_formatter = logging.Formatter('%(asctime)s %(levelname)s %(funcName)s(%(lineno)d) %(message)s')
@@ -98,12 +95,52 @@ def digest_mempool():
             m = mempool.cursor()
             conn = sqlite3.connect('ledger.db')
             c = conn.cursor()
+            backup = sqlite3.connect('backup.db')
+            b = backup.cursor()
 
             try:
                 m.execute("SELECT signature FROM transactions ORDER BY timestamp DESC LIMIT 1;")
                 signature_mempool = m.fetchone()[0]
             except:
-                app_log.info("Mempool empty")
+                app_log.info("Mempool empty, restoring transactions from backup")
+
+
+                # restore backup
+
+                # restore all followups
+
+
+                for row in b.execute("SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1;"):
+                    db_timestamp = row[1]
+                    db_address = row[2]
+                    db_to_address = row[3]
+                    db_amount = row[4]
+                    db_signature = row[5]
+                    db_public_key_readable = row[6]
+
+                    db_transaction = str(db_timestamp) + ":" + str(db_address) + ":" + str(db_to_address) + ":" + str(db_amount)
+
+                    for row in c.execute("SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1;"):
+                        db_txhash = row[7]
+                        db_block_height = row[0]
+
+                    txhash = hashlib.sha224(str(db_transaction) + str(db_signature) + str(db_txhash)).hexdigest()  # calculate txhash from the ledger
+                    block_height_new = db_block_height + 1
+
+                    c.execute("INSERT INTO transactions VALUES ('" + str(block_height_new) + "','" + str(db_timestamp) + "','" + str(db_address) + "','" + str(db_to_address) + "','" + str(db_amount) + "','" + str(db_signature) + "','" + str(db_public_key_readable) + "','" + str(txhash) + "')")  # Insert a row of data
+
+                # restore all followups
+
+
+                # delete restored from backup
+                b.execute('DELETE * FROM transactions')
+                backup.commit()
+                backup.close()
+                conn.close()
+                # delete restored from backup
+                # restore backup
+
+
                 #raise #test
                 break
 
@@ -217,6 +254,18 @@ public_key_readable = str(key.publickey().exportKey())
 address = hashlib.sha224(public_key_readable).hexdigest()
 
 app_log.info("Client: Local address: "+ str(address))
+
+if not os.path.exists('backup.db') == True:
+    # create empty backup
+    backup = sqlite3.connect('backup.db')
+    b = backup.cursor()
+    b.execute("CREATE TABLE IF NOT EXISTS transactions (timestamp, address, to_address, amount, signature, public_key)")
+    backup.commit()
+    backup.close()
+    app_log.info("Core: Created backup file")
+    #create empty backup
+else:
+    app_log.info("Mempool exists")
 
 if not os.path.exists('mempool.db') == True:
     # create empty mempool
@@ -410,15 +459,15 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     #txhash validation start
 
-                    #open dbs for mempool backup and followup deletion
+                    #open dbs for backup and followup deletion
                     conn = sqlite3.connect('ledger.db')
                     c = conn.cursor()
                     c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
                     txhash_db = c.fetchone()[0]
 
-                    #backup all followups to mempool
-                    mempool = sqlite3.connect('mempool.db')
-                    m = mempool.cursor()
+                    #backup all followups
+                    backup = sqlite3.connect('backup.db')
+                    b = backup.cursor()
 
                     for row in c.execute('SELECT * FROM transactions WHERE block_height > "'+str(received_block_height)+'"'):
                         db_block_height = row[0]
@@ -432,11 +481,11 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         #db_txhash = row[7]
                         #db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount)
 
-                        m.execute("INSERT INTO transactions VALUES ('"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable) + "')") # Insert a row of data
+                        b.execute("INSERT INTO transactions VALUES ('"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable) + "')") # Insert a row of data
 
-                    mempool.commit()
-                    mempool.close()
-                    #backup all followups to mempool
+                    backup.commit()
+                    backup.close()
+                    #backup all followups
 
                     #delete all local followups
                     c.execute('DELETE FROM transactions WHERE block_height > "'+str(received_block_height)+'"')
@@ -599,8 +648,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
 
                     #backup all followups to mempool
-                    mempool = sqlite3.connect('mempool.db')
-                    m = mempool.cursor()
+                    backup = sqlite3.connect('backup.db')
+                    b = backup.cursor()
 
                     c.execute('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1')
                     results = c.fetchone()
@@ -617,10 +666,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     txhash = hashlib.sha224(str(db_transaction) + str(db_signature) +str(db_txhash)).hexdigest() #calculate new txhash from ledger latest tx and the new tx
 
-                    m.execute("INSERT INTO transactions VALUES ('"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable) + "')") # Insert a row of data
+                    b.execute("INSERT INTO transactions VALUES ('"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable) + "')") # Insert a row of data
 
-                    mempool.commit()
-                    mempool.close()
+                    backup.commit()
+                    backup.close()
                     #backup all followups to mempool
 
                     #delete followups
