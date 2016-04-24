@@ -958,16 +958,16 @@ def worker(HOST,PORT):
                     m = mempool.cursor()
 
                     for row in c.execute('SELECT * FROM transactions WHERE block_height > "'+str(received_block_height)+'"'):
-                        db_block_height = row[0]
+                        #db_block_height = row[0]
                         db_timestamp = row[1]
                         db_address = row[2]
                         db_to_address = row[3]
                         db_amount = row [4]
-                        db_signature_enc = row[5]
+                        db_signature = row[5]
                         db_public_key_readable = row[6]
-                        db_public_key = RSA.importKey(row[6])
-                        db_txhash = row[7]
-                        db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount)
+                        #db_public_key = RSA.importKey(row[6])
+                        #db_txhash = row[7]
+                        #db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount)
 
                         m.execute("INSERT INTO transactions VALUES ('"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable) + "')") # Insert a row of data
 
