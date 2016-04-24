@@ -110,7 +110,7 @@ def digest_mempool():
                 # restore all followups
 
 
-                for row in b.execute("SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1;"):
+                for row in b.execute("SELECT * FROM transactions ORDER BY timestamp ASC LIMIT 1;"):
                     db_timestamp = row[1]
                     db_address = row[2]
                     db_to_address = row[3]
