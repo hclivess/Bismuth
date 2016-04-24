@@ -113,12 +113,12 @@ def digest_mempool():
                     b.execute("SELECT * FROM transactions ORDER BY timestamp ASC LIMIT 1;")
                     result=b.fetchall()
                     app_log.info("Retrieving" +str(result)+ "from backup")
-                    result[0]
-                    result[1]
-                    result[2]
-                    result[3]
-                    result[4]
-                    result[5]
+                    db_timestamp = result[0]
+                    db_address = result[1]
+                    db_to_address = result[2]
+                    db_amount = result[3]
+                    db_signature = result[4]
+                    db_public_key_readable = result[5]
 
                     db_transaction = str(db_timestamp) + ":" + str(db_address) + ":" + str(db_to_address) + ":" + str(db_amount)
 
