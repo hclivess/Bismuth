@@ -270,7 +270,7 @@ if not os.path.exists('backup.db') == True:
     app_log.info("Core: Created backup file")
     #create empty backup
 else:
-    app_log.info("Mempool exists")
+    app_log.info("Backup db exists")
 
 if not os.path.exists('mempool.db') == True:
     # create empty mempool
