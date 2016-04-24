@@ -133,7 +133,7 @@ def digest_mempool():
 
 
                 # delete restored from backup
-                b.execute('DELETE * FROM transactions')
+                b.execute('DELETE FROM transactions')
                 backup.commit()
                 backup.close()
                 conn.close()
