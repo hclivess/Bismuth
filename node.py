@@ -392,8 +392,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     time.sleep(0.1)
 
                 if data == "blockfound_":
-                    app_log.info("Node: Client has the block") #client should start sending txs in this step
+                    app_log.info("Client: Node has the block") #node should start sending txs in this step
                     data = self.request.recv(2048)
+                    app_log.info("Client: "+data)
                     #verify
                     sync_list = ast.literal_eval(data) #this is great, need to add it to client -> node sync
                     received_block_height = sync_list[0]
@@ -403,7 +404,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     received_amount = sync_list [4]
                     received_signature_enc = sync_list[5]
                     received_public_key_readable = sync_list[6]
-                    #received_public_key = RSA.importKey(sync_list[6])
+                    received_public_key = RSA.importKey(sync_list[6])
                     received_txhash = sync_list[7]
                     received_transaction = str(received_timestamp) +":"+ str(received_address) +":"+ str(received_to_address) +":"+ str(received_amount) #todo: why not have bare list instead of converting?
 
@@ -446,8 +447,13 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     app_log.info("Node: Received txhash: "+str(received_txhash))
                     app_log.info("Node: Received transaction: "+str(received_transaction))
 
-                    if received_txhash == hashlib.sha224(str(received_transaction) + str(received_signature_enc) +str(txhash_db)).hexdigest(): #new hash = new tx + new sig + old txhash
-                        app_log.info("Node: txhash valid")
+                    db_signature_dec = base64.b64decode(received_signature_enc)
+                    verifier = PKCS1_v1_5.new(received_public_key)
+                    h = SHA.new(received_transaction)
+
+                    if verifier.verify(h, db_signature_dec) == True:
+                        app_log.info("Node: The signature is valid")
+                        # transaction processing
 
                         # insert to mempool
                         mempool = sqlite3.connect('mempool.db')
@@ -464,6 +470,11 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         app_log.info("Node: Sending sync request")
                         self.request.sendall("sync_______")
                         time.sleep(0.1)
+
+                    else:
+                        app_log.info("Node: Signature invalid")
+                        #todo consequences
+
 
                 if data == "blockheight":
                     subdata = self.request.recv(11) #receive client's last block height
@@ -675,6 +686,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     else:
                         app_log.info("Node: Signature invalid")
+                        # todo consequences
 
                 if data=="":
                     app_log.info("Node: Communication error")
@@ -919,7 +931,6 @@ def worker(HOST,PORT):
 
                 if data == "blockfound_":
                     app_log.info("Client: Node has the block") #node should start sending txs in this step
-                    #todo critical: make sure that received block height is correct
                     data = s.recv(2048)
                     app_log.info("Client: "+data)
                     #verify
@@ -929,7 +940,7 @@ def worker(HOST,PORT):
                     received_address = sync_list[2]
                     received_to_address = sync_list[3]
                     received_amount = sync_list [4]
-                    received_signature = sync_list[5]
+                    received_signature_enc = sync_list[5]
                     received_public_key_readable = sync_list[6]
                     received_public_key = RSA.importKey(sync_list[6])
                     received_txhash = sync_list[7]
@@ -973,10 +984,15 @@ def worker(HOST,PORT):
                     app_log.info("Client: Received txhash: "+str(received_txhash))
                     app_log.info("Client: Received transaction: "+str(received_transaction))
 
-                    if received_txhash == hashlib.sha224(str(received_transaction) + str(received_signature) +str(txhash_db)).hexdigest(): #new hash = new tx + new sig + old txhash
-                        app_log.info("Client: txhash valid")
+                    db_signature_dec = base64.b64decode(received_signature_enc)
+                    verifier = PKCS1_v1_5.new(received_public_key)
+                    h = SHA.new(received_transaction)
 
-                        #insert to mempool
+                    if verifier.verify(h, db_signature_dec) == True:
+                        app_log.info("Node: The signature is valid")
+                        # transaction processing
+
+                        # insert to mempool
                         mempool = sqlite3.connect('mempool.db')
                         m = mempool.cursor()
                         m.execute("INSERT INTO transactions VALUES ('"+str(received_timestamp)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_amount)+"','"+str(received_signature)+"','"+str(received_public_key_readable) + "')") # Insert a row of data
@@ -991,7 +1007,7 @@ def worker(HOST,PORT):
                         time.sleep(0.1)
 
                     else:
-                        app_log.info("Client: Received invalid txhash")
+                        app_log.info("Client: Received invalid signature")
                         #rollback end
 
                     #txhash validation end
