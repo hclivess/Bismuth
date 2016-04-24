@@ -963,7 +963,7 @@ def worker(HOST,PORT):
                         db_address = row[2]
                         db_to_address = row[3]
                         db_amount = row [4]
-                        db_signature = row[5]
+                        db_signature_enc = row[5]
                         db_public_key_readable = row[6]
                         db_public_key = RSA.importKey(row[6])
                         db_txhash = row[7]
@@ -995,7 +995,7 @@ def worker(HOST,PORT):
                         # insert to mempool
                         mempool = sqlite3.connect('mempool.db')
                         m = mempool.cursor()
-                        m.execute("INSERT INTO transactions VALUES ('"+str(received_timestamp)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_amount)+"','"+str(received_signature)+"','"+str(received_public_key_readable) + "')") # Insert a row of data
+                        m.execute("INSERT INTO transactions VALUES ('"+str(received_timestamp)+"','"+str(received_address)+"','"+str(received_to_address)+"','"+str(received_amount)+"','"+str(received_signature_enc)+"','"+str(received_public_key_readable) + "')") # Insert a row of data
                         app_log.info("Client: Mempool updated with a received transaction")
                         mempool.commit() # Save (commit) the changes
                         mempool.close()
