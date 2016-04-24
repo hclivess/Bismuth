@@ -110,15 +110,21 @@ def digest_mempool():
                 # restore all followups
 
                 try:
-                    for row in b.execute("SELECT * FROM transactions ORDER BY timestamp ASC LIMIT 1;"):
-                        db_timestamp = row[0]
-                        db_address = row[1]
-                        db_to_address = row[2]
-                        db_amount = row[3]
-                        db_signature = row[4]
-                        db_public_key_readable = row[5]
+                    b.execute("SELECT * FROM transactions ORDER BY timestamp ASC LIMIT 1;")
+                    result=b.fetchall()
+                    app_log.info("Retrieving" +str(result)+ "from backup")
+                    result[0]
+                    result[1]
+                    result[2]
+                    result[3]
+                    result[4]
+                    result[5]
 
-                        db_transaction = str(db_timestamp) + ":" + str(db_address) + ":" + str(db_to_address) + ":" + str(db_amount)
+                    db_transaction = str(db_timestamp) + ":" + str(db_address) + ":" + str(db_to_address) + ":" + str(db_amount)
+
+                    b.execute("SELECT * FROM transactions WHERE signature = '"+db_signature+"';") #delete it
+                    backup.commit()
+
                 except:
                     app_log.info("Backup empty, sync finished")
                     break
@@ -136,12 +142,6 @@ def digest_mempool():
                 # restore all followups
 
 
-                # delete restored from backup
-                b.execute('DELETE FROM transactions')
-                backup.commit()
-                backup.close()
-                conn.close()
-                # delete restored from backup
                 # restore backup
 
 
@@ -155,6 +155,7 @@ def digest_mempool():
                 app_log.info("Mempool: tx sig found in the local ledger, deleting tx")
                 m.execute("DELETE FROM transactions WHERE signature ='"+signature_mempool+"';")
                 mempool.commit()
+
 
             except:
                 app_log.info("Mempool: tx sig not found in the local ledger, proceeding to insert")
