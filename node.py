@@ -109,25 +109,29 @@ def digest_mempool():
 
                 # restore all followups
 
+                try:
+                    for row in b.execute("SELECT * FROM transactions ORDER BY timestamp ASC LIMIT 1;"):
+                        db_timestamp = row[0]
+                        db_address = row[1]
+                        db_to_address = row[2]
+                        db_amount = row[3]
+                        db_signature = row[4]
+                        db_public_key_readable = row[5]
 
-                for row in b.execute("SELECT * FROM transactions ORDER BY timestamp ASC LIMIT 1;"):
-                    db_timestamp = row[1]
-                    db_address = row[2]
-                    db_to_address = row[3]
-                    db_amount = row[4]
-                    db_signature = row[5]
-                    db_public_key_readable = row[6]
+                        db_transaction = str(db_timestamp) + ":" + str(db_address) + ":" + str(db_to_address) + ":" + str(db_amount)
+                except:
+                    app_log.info("Backup empty, sync finished")
+                    break
 
-                    db_transaction = str(db_timestamp) + ":" + str(db_address) + ":" + str(db_to_address) + ":" + str(db_amount)
+                #if not empty
+                for row in c.execute("SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1;"):
+                    db_txhash = row[7]
+                    db_block_height = row[0]
 
-                    for row in c.execute("SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1;"):
-                        db_txhash = row[7]
-                        db_block_height = row[0]
+                txhash = hashlib.sha224(str(db_transaction) + str(db_signature) + str(db_txhash)).hexdigest()  # calculate txhash from the ledger
+                block_height_new = db_block_height + 1
 
-                    txhash = hashlib.sha224(str(db_transaction) + str(db_signature) + str(db_txhash)).hexdigest()  # calculate txhash from the ledger
-                    block_height_new = db_block_height + 1
-
-                    c.execute("INSERT INTO transactions VALUES ('" + str(block_height_new) + "','" + str(db_timestamp) + "','" + str(db_address) + "','" + str(db_to_address) + "','" + str(db_amount) + "','" + str(db_signature) + "','" + str(db_public_key_readable) + "','" + str(txhash) + "')")  # Insert a row of data
+                c.execute("INSERT INTO transactions VALUES ('" + str(block_height_new) + "','" + str(db_timestamp) + "','" + str(db_address) + "','" + str(db_to_address) + "','" + str(db_amount) + "','" + str(db_signature) + "','" + str(db_public_key_readable) + "','" + str(txhash) + "')")  # Insert a row of data
 
                 # restore all followups
 
@@ -142,7 +146,7 @@ def digest_mempool():
 
 
                 #raise #test
-                break
+
 
             try:
                 c.execute("SELECT * FROM transactions WHERE signature ='" + signature_mempool + "';")
