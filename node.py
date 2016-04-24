@@ -843,7 +843,7 @@ def worker(HOST,PORT):
 
                             else:
                                 c.execute("SELECT * FROM transactions WHERE block_height='"+str(int(txhash_client_block) + 1)+"'") #select incoming transaction + 1
-                                txhash_send = c.fetchone()
+                                txhash_send = c.fetchone()[0]
 
                                 app_log.info("Client: Selected "+str(txhash_send)+" to send")
 
@@ -916,8 +916,7 @@ def worker(HOST,PORT):
                             c.execute("SELECT * FROM transactions WHERE txhash='" + data + "'")
                             txhash_client_block = c.fetchone()[0]
 
-                            app_log.info("Client: Node is at block " + str(
-                                txhash_client_block))  # now check if we have any newer
+                            app_log.info("Client: Node is at block " + str(txhash_client_block))  # now check if we have any newer
 
                             c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
                             db_txhash = c.fetchone()[0]  # get latest txhash
@@ -928,7 +927,7 @@ def worker(HOST,PORT):
 
                             else:
                                 c.execute("SELECT * FROM transactions WHERE block_height='" + str(int(txhash_client_block) + 1) + "'")  # select incoming transaction + 1
-                                txhash_send = c.fetchone()
+                                txhash_send = c.fetchone()[0]
 
                                 app_log.info("Node: Selected " + str(txhash_send) + " to send")
 
