@@ -133,7 +133,7 @@ def digest_mempool():
             conn = sqlite3.connect('ledger.db')
             c = conn.cursor()
 
-            m.execute("SELECT * FROM transactions ORDER BY timestamp ASC LIMIT 1;")
+            m.execute("SELECT * FROM transactions ORDER BY timestamp DESC LIMIT 1;") #select tx from mempool to insert
             result = m.fetchall()
             db_timestamp = result[0][0]
             db_address = result[0][1]
