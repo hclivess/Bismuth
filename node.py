@@ -19,6 +19,8 @@ from Crypto.Hash import SHA
 from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 
+global sync_in_progress
+
 def most_common(lst):
     return max(set(lst), key=lst.count)
 
@@ -120,6 +122,8 @@ def restore_backup():
         except:
             digest_mempool()
             app_log.info("Backup empty, sync finished")
+            global sync_in_progress
+            sync_in_progress = 0
             return
 
 def digest_mempool():
@@ -133,7 +137,9 @@ def digest_mempool():
             conn = sqlite3.connect('ledger.db')
             c = conn.cursor()
 
-            m.execute("SELECT * FROM transactions ORDER BY timestamp DESC LIMIT 1;") #select tx from mempool to insert
+
+            #select
+            m.execute("SELECT * FROM transactions ORDER BY timestamp ASC LIMIT 1;") #select tx from mempool to insert
             result = m.fetchall()
             db_timestamp = result[0][0]
             db_address = result[0][1]
@@ -598,6 +604,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         update_me = 0
 
                     if update_me == 1:
+                        global sync_in_progress
+                        sync_in_progress = 1
+
                         conn = sqlite3.connect('ledger.db')
                         c = conn.cursor()
                         c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
@@ -897,6 +906,9 @@ def worker(HOST,PORT):
                         update_me = 1
 
                     if update_me == 1:
+                        global sync_in_progress
+                        sync_in_progress = 1
+
                         conn = sqlite3.connect('ledger.db')
                         c = conn.cursor()
                         c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
@@ -1070,7 +1082,13 @@ def worker(HOST,PORT):
                 if data == "nonewblocks":
                     app_log.info("Restoring local transactions from backup")
                     app_log.info("Client: We seem to be at the latest block. Paused before recheck.")
-                    restore_backup() #restores backup and digests mempool
+
+                    if sync_in_progress == 1:
+                        restore_backup() #restores backup and digests mempool
+                    else:
+                        app_log.info("Backup txs are waiting for sync to finish")
+
+
                     time.sleep(10)
                     s.sendall("sendsync___")
                     time.sleep(0.1)
