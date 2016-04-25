@@ -85,6 +85,43 @@ def manager():
         time.sleep(10)
     return
 
+def restore_backup():
+    while True:
+        try:
+            app_log.info("Node: Digesting backup")
+
+            backup = sqlite3.connect('backup.db')
+            b = backup.cursor()
+
+            b.execute("SELECT * FROM transactions ORDER BY timestamp ASC LIMIT 1;")
+            result = b.fetchall()
+            db_timestamp = result[0][0]
+            db_address = result[0][1]
+            db_to_address = result[0][2]
+            db_amount = result[0][3]
+            db_signature_enc = result[0][4]
+            db_public_key_readable = result[0][5]
+
+            # insert to mempool
+            mempool = sqlite3.connect('mempool.db')
+            m = mempool.cursor()
+
+            m.execute("INSERT INTO transactions VALUES ('" + str(db_timestamp) + "','" + str(db_address) + "','" + str(db_to_address) + "','" + str(db_amount) + "','" + str(db_signature_enc) + "','" + str(db_public_key_readable) + "')")  # Insert a row of data
+            app_log.info("Node: Mempool updated with a transaction from backup")
+            mempool.commit()  # Save (commit) the changes
+            mempool.close()
+
+            app_log.info("Backup: deleting digested tx")
+            b.execute("DELETE FROM transactions WHERE signature ='" + db_signature_enc + "';")
+            backup.commit()
+            backup.close()
+            # insert to mempool
+
+        except:
+            digest_mempool()
+            app_log.info("Backup empty, sync finished")
+            return
+
 def digest_mempool():
     #digest mempool start
     while True:
@@ -95,87 +132,32 @@ def digest_mempool():
             m = mempool.cursor()
             conn = sqlite3.connect('ledger.db')
             c = conn.cursor()
-            backup = sqlite3.connect('backup.db')
-            b = backup.cursor()
 
-            try:
-                m.execute("SELECT signature FROM transactions ORDER BY timestamp DESC LIMIT 1;")
-                signature_mempool = m.fetchone()[0]
-            except:
-                app_log.info("Mempool empty, restoring transactions from backup")
-
-
-                # restore backup
-
-                # restore all followups
-
-                try:
-                    b.execute("SELECT * FROM transactions ORDER BY timestamp ASC LIMIT 1;")
-                    result=b.fetchall()
-                    app_log.info("Retrieving" +str(result)+ "from backup")
-                    db_timestamp = result[0]
-                    db_address = result[1]
-                    db_to_address = result[2]
-                    db_amount = result[3]
-                    db_signature = result[4]
-                    db_public_key_readable = result[5]
-
-                    db_transaction = str(db_timestamp) + ":" + str(db_address) + ":" + str(db_to_address) + ":" + str(db_amount)
-
-                    b.execute("SELECT * FROM transactions WHERE signature = '"+db_signature+"';") #delete it
-                    backup.commit()
-
-                except:
-                    app_log.info("Backup empty, sync finished")
-                    break
-
-                #if not empty
-                for row in c.execute("SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1;"):
-                    db_txhash = row[7]
-                    db_block_height = row[0]
-
-                txhash = hashlib.sha224(str(db_transaction) + str(db_signature) + str(db_txhash)).hexdigest()  # calculate txhash from the ledger
-                block_height_new = db_block_height + 1
-
-                c.execute("INSERT INTO transactions VALUES ('" + str(block_height_new) + "','" + str(db_timestamp) + "','" + str(db_address) + "','" + str(db_to_address) + "','" + str(db_amount) + "','" + str(db_signature) + "','" + str(db_public_key_readable) + "','" + str(txhash) + "')")  # Insert a row of data
-
-                # restore all followups
-
-
-                # restore backup
-
-
-                #raise #test
+            m.execute("SELECT * FROM transactions ORDER BY timestamp ASC LIMIT 1;")
+            result = m.fetchall()
+            db_timestamp = result[0][0]
+            db_address = result[0][1]
+            db_to_address = result[0][2]
+            db_amount = result[0][3]
+            db_signature = result[0][4]
+            db_public_key_readable = result[0][5]
+            db_transaction = str(db_timestamp) + ":" + str(db_address) + ":" + str(db_to_address) + ":" + str(db_amount)
 
 
             try:
-                c.execute("SELECT * FROM transactions WHERE signature ='" + signature_mempool + "';")
+                c.execute("SELECT * FROM transactions WHERE signature ='" + db_signature + "';")
                 txhash_match = c.fetchone()[0]
 
-                app_log.info("Mempool: tx sig found in the local ledger, deleting tx")
-                m.execute("DELETE FROM transactions WHERE signature ='"+signature_mempool+"';")
-                mempool.commit()
+                #if previous passes
+                app_log.info("Mempool: tx already in the ledger, deleting")
 
+                m.execute("DELETE FROM transactions WHERE signature ='" + db_signature + "';")
+                mempool.commit()
 
             except:
                 app_log.info("Mempool: tx sig not found in the local ledger, proceeding to insert")
-
-                #calculate block height from the ledger
-                for row in c.execute('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1;'):
-                    db_block_height = row[0]
-                    block_height_new = db_block_height + 1
-                    db_txhash = row[7]
-
-                for row in m.execute('SELECT * FROM transactions ORDER BY timestamp ASC LIMIT 1;'):
-                    db_timestamp = row[0]
-                    db_address = row[1]
-                    db_to_address = row[2]
-                    db_amount = row[3]
-                    db_signature = row[4]
-                    db_public_key_readable = row[5]
-                    #db_public_key = RSA.importKey(row[6])
-                    db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount)
-                    txhash = hashlib.sha224(str(db_transaction) + str(db_signature) +str(db_txhash)).hexdigest() #calculate txhash from the ledger
+                # if not in ledger
+                # calculate block height from the ledger
 
                 #verify balance
                 app_log.info("Mempool: Verifying balance")
@@ -195,10 +177,26 @@ def digest_mempool():
 
                 if int(balance) - int(db_amount) < 0:
                     app_log.info("Mempool: Their balance is too low for this transaction, possible double spend attack")
+
+                    m.execute("DELETE FROM transactions WHERE signature ='" + db_signature + "';")
+                    mempool.commit()
+
                 elif int(db_amount) < 0:
                     app_log.info("Mempool: Cannot use negative amounts")
+
+                    m.execute("DELETE FROM transactions WHERE signature ='" + db_signature + "';")
+                    mempool.commit()
+
                 #verify balance
                 else:
+                    c.execute("SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1;")
+                    result = fetchall()
+                    db_txhash = row[0][7]
+                    db_block_height = row[0][0]
+                    block_height_new = db_block_height + 1
+
+                    txhash = hashlib.sha224(str(db_transaction) + str(db_signature) + str(db_txhash)).hexdigest()  # calculate txhash from the ledger
+
                     c.execute("INSERT INTO transactions VALUES ('"+str(block_height_new)+"','"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','" + str(db_public_key_readable) + "','" + str(txhash) + "')") # Insert a row of data
                     conn.commit()
                     conn.close()
@@ -207,10 +205,9 @@ def digest_mempool():
                 mempool.commit()
                 mempool.close()
 
-        except Exception as e:
-            app_log.info("There was a following error in the mempool: "+str(e))
-            raise
-    return
+        except:
+            app_log.info("Mempool empty")
+            return
 
 def db_maintenance():
     #db maintenance
@@ -218,6 +215,9 @@ def db_maintenance():
     conn.execute("VACUUM")
     conn.close()
     conn=sqlite3.connect("mempool.db")
+    conn.execute("VACUUM")
+    conn.close()
+    conn=sqlite3.connect("backup.db")
     conn.execute("VACUUM")
     conn.close()
     app_log.info("Core: Database maintenance finished")
@@ -581,7 +581,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     if received_block_height > db_block_height:
                         app_log.info("Node: Client has higher block, checking consensus deviation")
-                        if int(received_block_height) - consensus <= 50:
+                        if int(received_block_height) - consensus <= 500:
                             app_log.info("Node: Deviation within normal")
                             update_me = 1
                         else:
@@ -929,7 +929,7 @@ def worker(HOST,PORT):
 
                             else:
                                 c.execute("SELECT * FROM transactions WHERE block_height='" + str(int(txhash_client_block) + 1) + "'")  # select incoming transaction + 1
-                                txhash_send = c.fetchone()[0]
+                                txhash_send = c.fetchone()
 
                                 app_log.info("Node: Selected " + str(txhash_send) + " to send")
 
@@ -1068,6 +1068,8 @@ def worker(HOST,PORT):
                     #txhash validation end
 
                 if data == "nonewblocks":
+                    app_log.info("Restoring local transactions from backup")
+                    restore_backup()
                     app_log.info("Client: We seem to be at the latest block. Paused before recheck.")
                     time.sleep(10)
                     s.sendall("sendsync___")
