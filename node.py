@@ -843,7 +843,7 @@ def worker(HOST,PORT):
 
                             else:
                                 c.execute("SELECT * FROM transactions WHERE block_height='"+str(int(txhash_client_block) + 1)+"'") #select incoming transaction + 1
-                                txhash_send = c.fetchone()[0]
+                                txhash_send = c.fetchone()
 
                                 app_log.info("Client: Selected "+str(txhash_send)+" to send")
 
@@ -881,6 +881,8 @@ def worker(HOST,PORT):
                     subdata = s.recv(11) #receive node's block height
                     received_block_height = subdata
                     app_log.info("Client: Node is at block height: "+str(received_block_height))
+
+                    #todo deviation check here?
 
                     if received_block_height < db_block_height:
                         app_log.info("Client: We have a higher, sending")
