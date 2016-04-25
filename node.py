@@ -958,12 +958,10 @@ def worker(HOST,PORT):
                         app_log.info("Client: Node didn't find the block, deleting latest entry")
                         conn = sqlite3.connect('ledger.db')
                         c = conn.cursor()
-                        c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
-                        db_block_height = c.fetchone()[0]
 
-                        #backup all followups to mempool
-                        mempool = sqlite3.connect('mempool.db')
-                        m = mempool.cursor()
+                        #backup all followups to backup
+                        backup = sqlite3.connect('backup.db')
+                        b = backup.cursor()
 
                         c.execute('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1')
                         results = c.fetchone()
@@ -974,15 +972,15 @@ def worker(HOST,PORT):
                         db_amount = results[4]
                         db_signature = results[5]
                         db_public_key_readable = results[6]
-                        db_public_key = RSA.importKey(results[6])
-                        db_txhash = results[7]
-                        db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount)
+                        #db_public_key = RSA.importKey(results[6])
+                        #db_txhash = results[7]
+                        #db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount)
 
-                        m.execute("INSERT INTO transactions VALUES ('"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable) + "')") # Insert a row of data
+                        b.execute("INSERT INTO transactions VALUES ('"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable) + "')") # Insert a row of data
 
-                        mempool.commit()
-                        mempool.close()
-                        #backup all followups to mempool
+                        backup.commit()
+                        backup.close()
+                        #backup all followups to backup
 
                         #delete followups
                         c.execute('DELETE FROM transactions WHERE block_height ="'+str(db_block_height)+'"')
