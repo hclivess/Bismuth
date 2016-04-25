@@ -183,14 +183,10 @@ def digest_mempool():
 
                 if int(balance) - int(db_amount) < 0:
                     app_log.info("Mempool: Their balance is too low for this transaction, possible double spend attack")
-
-                    m.execute("DELETE FROM transactions WHERE signature ='" + db_signature + "';")
                     mempool.commit()
 
                 elif int(db_amount) < 0:
                     app_log.info("Mempool: Cannot use negative amounts")
-
-                    m.execute("DELETE FROM transactions WHERE signature ='" + db_signature + "';")
                     mempool.commit()
 
                 #verify balance
