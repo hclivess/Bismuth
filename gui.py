@@ -96,6 +96,8 @@ def balance_get():
     credit = c.fetchone()[0]
     c.execute("SELECT sum(amount) FROM transactions WHERE address = '"+address+"'")
     debit = c.fetchone()[0]
+    c.execute("SELECT MAX(block_height) FROM transactions")
+    bl_height = c.fetchone()[0]
     if debit == None:
         debit = 0
     if credit == None:
@@ -114,6 +116,10 @@ def balance_get():
 
     received_msg = Label(f5, text="Received Total: " + str(credit))
     received_msg.grid(row = 2, column = 0, sticky=E, padx = 15)
+
+    block_height = Label(f5, text="Block Height: " + str(bl_height))
+    block_height.grid(row = 3, column=0, sticky=E, padx=15)
+
     table()
 
 def send():
@@ -190,19 +196,19 @@ f5.grid(row = 1, column = 1, sticky = W+E+N+S)
 #buttons
 
 send_b = Button(f5, text="Send Bismuth", command=send, height=1, width=15)
-send_b.grid(row=3, column=0, sticky=W+E+N+S, pady=(100, 4), padx=15)
+send_b.grid(row=4, column=0, sticky=W+E+N+S, pady=(100, 4), padx=15)
 
 start_b = Button(f5, text="Start node", command=node, height=1, width=15)
-start_b.grid(row=4, column=0, sticky=W+E+N+S, pady=4,padx=15,columnspan=4)
+start_b.grid(row=5, column=0, sticky=W+E+N+S, pady=4,padx=15,columnspan=4)
 
 balance_b = Button(f5, text="Check balance", command=balance_get, height=1, width=15)
-balance_b.grid(row=5, column=0, sticky=W+E+N+S, pady=4,padx=15)
-
-balance_b = Button(f5, text="Refresh table", command=table, height=1, width=15)
 balance_b.grid(row=6, column=0, sticky=W+E+N+S, pady=4,padx=15)
 
+balance_b = Button(f5, text="Refresh table", command=table, height=1, width=15)
+balance_b.grid(row=7, column=0, sticky=W+E+N+S, pady=4,padx=15)
+
 quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=15)
-quit_b.grid(row=7, column=0, sticky=W+E+N+S, pady=4,padx=15)
+quit_b.grid(row=8, column=0, sticky=W+E+N+S, pady=4,padx=15)
 
 #buttons
 
