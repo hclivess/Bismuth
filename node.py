@@ -190,9 +190,9 @@ def digest_mempool():
                 #verify balance
                 else:
                     c.execute("SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1;")
-                    result = fetchall()
-                    db_txhash = row[0][7]
-                    db_block_height = row[0][0]
+                    result = c.fetchall()
+                    db_txhash = result[0][7]
+                    db_block_height = result[0][0]
                     block_height_new = db_block_height + 1
 
                     txhash = hashlib.sha224(str(db_transaction) + str(db_signature) + str(db_txhash)).hexdigest()  # calculate txhash from the ledger
