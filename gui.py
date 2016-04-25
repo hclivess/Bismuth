@@ -14,7 +14,7 @@ from Crypto.Hash import SHA
 from Tkinter import *
 root = Tk()
 
-root.wm_title("[XBM] Bismuth")
+root.wm_title("[BIS] Bismuth")
 
 log_formatter = logging.Formatter('%(asctime)s %(levelname)s %(funcName)s(%(lineno)d) %(message)s')
 logFile = 'gui.log'
