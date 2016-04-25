@@ -657,7 +657,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
 
 
-                    #backup all followups to mempool
+                    #backup all followups to backup
                     backup = sqlite3.connect('backup.db')
                     b = backup.cursor()
 
@@ -670,17 +670,17 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     db_amount = results[4]
                     db_signature = results[5]
                     db_public_key_readable = results[6]
-                    db_public_key = RSA.importKey(results[6])
-                    db_txhash = results[7]
-                    db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount)
+                    #db_public_key = RSA.importKey(results[6])
+                    #db_txhash = results[7]
+                    #db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount)
 
-                    txhash = hashlib.sha224(str(db_transaction) + str(db_signature) +str(db_txhash)).hexdigest() #calculate new txhash from ledger latest tx and the new tx
+                    #txhash = hashlib.sha224(str(db_transaction) + str(db_signature) +str(db_txhash)).hexdigest() #calculate new txhash from ledger latest tx and the new tx
 
                     b.execute("INSERT INTO transactions VALUES ('"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable) + "')") # Insert a row of data
 
                     backup.commit()
                     backup.close()
-                    #backup all followups to mempool
+                    #backup all followups to backup
 
                     #delete followups
                     c.execute('DELETE FROM transactions WHERE block_height ="'+str(db_block_height)+'"')
@@ -1014,9 +1014,9 @@ def worker(HOST,PORT):
                     c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
                     txhash_db = c.fetchone()[0]
 
-                    #backup all followups to mempool
-                    mempool = sqlite3.connect('mempool.db')
-                    m = mempool.cursor()
+                    #backup all followups to backup
+                    backup = sqlite3.connect('backup.db')
+                    b = backup.cursor()
 
                     for row in c.execute('SELECT * FROM transactions WHERE block_height > "'+str(received_block_height)+'"'):
                         #db_block_height = row[0]
@@ -1030,11 +1030,11 @@ def worker(HOST,PORT):
                         #db_txhash = row[7]
                         #db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount)
 
-                        m.execute("INSERT INTO transactions VALUES ('"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable) + "')") # Insert a row of data
+                        b.execute("INSERT INTO transactions VALUES ('"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable) + "')") # Insert a row of data
 
-                    mempool.commit()
-                    mempool.close()
-                    #backup all followups to mempool
+                    backup.commit()
+                    backup.close()
+                    #backup all followups to backup
 
                     #delete all local followups
                     c.execute('DELETE FROM transactions WHERE block_height > "'+str(received_block_height)+'"')
