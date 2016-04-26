@@ -448,6 +448,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     time.sleep(0.1)
 
                 if data == "blockfound_":
+                    #todo: receive mesage length and use it as buffer size
                     app_log.info("Client: Node has the block") #node should start sending txs in this step
                     data = self.request.recv(2048)
                     app_log.info("Client: "+data)
@@ -991,6 +992,7 @@ def worker(HOST,PORT):
                         time.sleep(0.1)
 
                 if data == "blockfound_":
+                    # todo: receive mesage length and use it as buffer size
                     app_log.info("Client: Node has the block") #node should start sending txs in this step
                     data = s.recv(2048)
                     app_log.info("Client: "+data)
