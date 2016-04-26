@@ -4,6 +4,8 @@ pyinstaller.exe --onefile --noconsole --log-level=INFO gui.py --icon=graphics\ic
 pyinstaller.exe --onefile --log-level=INFO node.py --icon=graphics\icon.ico
 copy peers.txt dist\peers.txt
 copy ledger.db dist\ledger.db
+copy node.exe.manifest dist\node.exe.manifest
+copy gui.exe.manifest dist\gui.exe.manifest
 robocopy /e graphics dist\graphics\
 robocopy /move /e dist\node\ dist\
 robocopy /move /e dist\gui\ dist\
