@@ -9,3 +9,5 @@ node.build/
 .idea/XBM-Bismuth.iml
 .idea/misc.xml
 .idea/workspace.xml
+*.log
+*.exe
