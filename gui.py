@@ -104,7 +104,7 @@ f3 = Frame(root, width = 500)
 f3.grid(row = 0, column = 0, sticky = W+E+N+S)
 
 f4 = Frame(root, height=100, width = 100)
-f4.grid(row = 1, column = 0, sticky = W+E+N+S)
+f4.grid(row = 1, column = 0, sticky = W+E+N+S, pady = 10, padx = 10)
 
 f5 = Frame(root, height=100, width = 100)
 f5.grid(row = 1, column = 1, sticky = W+E+N+S)
@@ -142,7 +142,7 @@ def refresh():
 send_b = Button(f5, text="Send Bismuth", command=send, height=1, width=15)
 send_b.grid(row=4, column=0, sticky=W+E+N+S, pady=(100, 4), padx=15)
 
-start_b = Button(f5, text="Start node", command=node, height=1, width=15)
+start_b = Button(f5, text="Start node", command=node, height=1, width=15, state=DISABLED)
 start_b.grid(row=5, column=0, sticky=W+E+N+S, pady=4,padx=15,columnspan=4)
 
 balance_b = Button(f5, text="Manual refresh", command=refresh, height=1, width=15)
@@ -212,6 +212,7 @@ def table():
         for i in range(table_limit):
             for j in range(4):
                 e = Entry(f4, justify=RIGHT)
+                e.configure(background='floralwhite')
                 e.grid(row=i + 1, column=j, sticky=EW)
                 e.insert(END, datasheet[k])
 
