@@ -11,3 +11,4 @@ node.build/
 .idea/workspace.xml
 *.log
 *.exe
+*.db
