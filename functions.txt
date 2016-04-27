@@ -1,5 +1,11 @@
 Communicatiion functions documentation:
 
+Communication Manager:
+Open peers.txt
+Count threads
+Start clients within the thread pool limit
+Manage "tried" list
+
 Node:
 
 peers______
@@ -8,7 +14,6 @@ mytxhash___
 nonewblocks
 blockfound_
 blocknotfou
-blockfound_
 
 ---
 

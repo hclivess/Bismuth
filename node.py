@@ -152,7 +152,7 @@ def digest_mempool():
 
             try:
                 c.execute("SELECT * FROM transactions WHERE signature ='" + db_signature + "';")
-                txhash_match = c.fetchone()[0]
+                fetch_test = c.fetchone()[0]
 
                 #if previous passes
                 app_log.info("Mempool: tx already in the ledger, deleting")
@@ -473,7 +473,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     received_signature_enc = sync_list[5]
                     received_public_key_readable = sync_list[6]
                     received_public_key = RSA.importKey(sync_list[6])
-                    received_txhash = sync_list[7]
+                    #received_txhash = sync_list[7]
                     received_transaction = str(received_timestamp) +":"+ str(received_address) +":"+ str(received_to_address) +":"+ str(received_amount) #todo: why not have bare list instead of converting?
 
                     #txhash validation start
@@ -512,7 +512,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     #delete all local followups
 
                     app_log.info("Node: Last db txhash: "+str(txhash_db))
-                    app_log.info("Node: Received txhash: "+str(received_txhash))
+                    #app_log.info("Node: Received txhash: "+str(received_txhash))
                     app_log.info("Node: Received transaction: "+str(received_transaction))
 
                     received_signature_dec = base64.b64decode(received_signature_enc)
@@ -731,8 +731,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     app_log.info("Node: Received signature: "+received_signature_enc)
                     received_public_key_readable = data_split[2]
                     app_log.info("Node: Received public key: "+received_public_key_readable)
-                    received_txhash = data_split[3]
-                    app_log.info("Node: Received txhash: "+received_txhash)
+                    #received_txhash = data_split[3]
+                    #app_log.info("Node: Received txhash: "+received_txhash)
 
                     #convert received strings
                     received_public_key = RSA.importKey(received_public_key_readable)
@@ -913,7 +913,9 @@ def worker(HOST,PORT):
                     received_block_height = subdata
                     app_log.info("Client: Node is at block height: "+str(received_block_height))
 
+                    #todo add to consensus pool here?
                     #todo deviation check here?
+                    #todo add to active pool here?
 
                     if received_block_height < db_block_height:
                         app_log.info("Client: We have a higher, sending")
@@ -1042,7 +1044,7 @@ def worker(HOST,PORT):
                     received_signature_enc = sync_list[5]
                     received_public_key_readable = sync_list[6]
                     received_public_key = RSA.importKey(sync_list[6])
-                    received_txhash = sync_list[7]
+                    #received_txhash = sync_list[7]
                     received_transaction = str(received_timestamp) +":"+ str(received_address) +":"+ str(received_to_address) +":"+ str(received_amount) #todo: why not have bare list instead of converting?
 
                     #txhash validation start
@@ -1080,7 +1082,7 @@ def worker(HOST,PORT):
                     #delete all local followups
 
                     app_log.info("Client: Last db txhash: "+str(txhash_db))
-                    app_log.info("Client: Received txhash: "+str(received_txhash))
+                    #app_log.info("Client: Received txhash: "+str(received_txhash))
                     app_log.info("Client: Received transaction: "+str(received_transaction))
 
                     received_signature_dec = base64.b64decode(received_signature_enc)
