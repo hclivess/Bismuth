@@ -438,7 +438,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             txhash_len = len(str(txhash_send))
                             while len(str(txhash_len)) != 10:
                                 txhash_len = "0" + str(txhash_len)
-                            self.request.sendall(str(len(txhash_len)))
+                            app_log.info("Announcing " + str(txhash_len) + " length of transaction")
+                            self.request.sendall(str(txhash_len))
                             time.sleep(0.1)
 
                             self.request.sendall(str(txhash_send))
@@ -658,7 +659,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                 txhash_len = len(str(txhash_send))
                                 while len(str(txhash_len)) != 10:
                                     txhash_len = "0" + str(txhash_len)
-                                self.request.sendall(str(len(txhash_len)))
+                                app_log.info("Announcing "+str(txhash_len)+ " length of transaction")
+                                self.request.sendall(str(txhash_len))
                                 time.sleep(0.1)
 
                                 self.request.sendall(str(txhash_send))
@@ -878,7 +880,8 @@ def worker(HOST,PORT):
                                 txhash_len = len(str(txhash_send))
                                 while len(str(txhash_len)) != 10:
                                     txhash_len = "0" + str(txhash_len)
-                                s.sendall(str(len(txhash_len)))
+                                app_log.info("Announcing " + str(txhash_len) + " length of transaction")
+                                s.sendall(str(txhash_len))
                                 time.sleep(0.1)
 
                                 s.sendall(str(txhash_send))
@@ -976,7 +979,8 @@ def worker(HOST,PORT):
                                 txhash_len = len(str(txhash_send))
                                 while len(str(txhash_len)) != 10:
                                     txhash_len = "0" + str(txhash_len)
-                                s.sendall(str(len(txhash_len)))
+                                app_log.info("Announcing " + str(txhash_len) + " length of transaction")
+                                s.sendall(str(txhash_len))
                                 time.sleep(0.1)
 
                                 s.sendall(str(txhash_send))
