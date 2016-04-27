@@ -41,87 +41,6 @@ except:
     sys.exit(1)
 app_log.info("Connected")
 
-def table():
-
-    # transaction table
-    # data
-    datasheet = ["time","from","to","amount"]
-
-    conn = sqlite3.connect('ledger.db')
-    c = conn.cursor()
-    for row in c.execute("SELECT * FROM transactions WHERE address = '" + str(address) + "' OR to_address = '" + str(address) + "' ORDER BY block_height DESC LIMIT 19;"):
-        db_timestamp = row[1]
-        datasheet.append(datetime.fromtimestamp(float(db_timestamp)).strftime('%Y-%m-%d %H:%M:%S'))
-        db_address = row[2]
-        datasheet.append(db_address)
-        db_to_address = row[3]
-        datasheet.append(db_to_address)
-        db_amount = row[4]
-        datasheet.append(db_amount)
-    conn.close()
-    # data
-
-    app_log.info(datasheet)
-    app_log.info(len(datasheet))
-
-
-    if len (datasheet) == 4:
-        app_log.info("Looks like a new address")
-        return
-
-    elif len(datasheet) < 20*4:
-        app_log.info(len(datasheet))
-        table_limit = len(datasheet)/4
-    else:
-        table_limit = 20
-    
-    if len(datasheet) > 3:
-        k = 0
-        for i in range(table_limit):
-            for j in range(4):
-                e = Entry(f4,justify=RIGHT)
-                e.grid(row=i+1, column=j, sticky=EW)
-                e.insert(END,datasheet[k])
-
-                k = k + 1
-        
-
-
-    # transaction table
-
-def balance_get():
-    conn = sqlite3.connect('ledger.db')
-    c = conn.cursor()
-    c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '"+address+"'")
-    credit = c.fetchone()[0]
-    c.execute("SELECT sum(amount) FROM transactions WHERE address = '"+address+"'")
-    debit = c.fetchone()[0]
-    c.execute("SELECT MAX(block_height) FROM transactions")
-    bl_height = c.fetchone()[0]
-    if debit == None:
-        debit = 0
-    if credit == None:
-        credit = 0
-    balance = credit - debit
-    app_log.info("Node: Transction address balance: "+str(balance))
-    conn.close()
-
-
-    #update balance label
-    balance_msg = Label(f5, text = "Balance: "+str(balance))
-    balance_msg.grid(row = 0, column = 0, sticky=E, padx = 15, pady=(15,0))
-
-    spent_msg = Label(f5, text="Spent Total: " + str(debit))
-    spent_msg.grid(row = 1, column = 0, sticky=E, padx = 15)
-
-    received_msg = Label(f5, text="Received Total: " + str(credit))
-    received_msg.grid(row = 2, column = 0, sticky=E, padx = 15)
-
-    block_height = Label(f5, text="Block Height: " + str(bl_height))
-    block_height.grid(row = 3, column=0, sticky=E, padx=15)
-
-    table()
-
 def send():
     app_log.info("Received tx command")
     to_address_input = to_address.get()
@@ -164,12 +83,10 @@ def send():
             time.sleep(0.1)
             s.sendall(transaction+";"+str(signature_enc)+";"+public_key_readable) #todo send list
             time.sleep(0.1)
-            balance_get()
 
     else:
         app_log.info("Client: Invalid signature")
     #enter transaction end
-
 
 def node():
     app_log.info("Received node start command")
@@ -193,6 +110,33 @@ f5 = Frame(root, height=100, width = 100)
 f5.grid(row = 1, column = 1, sticky = W+E+N+S)
 #frames
 
+
+def refresh():
+    conn = sqlite3.connect('ledger.db')
+    c = conn.cursor()
+    c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '" + address + "'")
+    credit = c.fetchone()[0]
+    c.execute("SELECT sum(amount) FROM transactions WHERE address = '" + address + "'")
+    debit = c.fetchone()[0]
+    c.execute("SELECT MAX(block_height) FROM transactions")
+    bl_height = c.fetchone()[0]
+    if debit == None:
+        debit = 0
+    if credit == None:
+        credit = 0
+    balance = credit - debit
+    app_log.info("Node: Transction address balance: " + str(balance))
+    conn.close()
+
+    balance_var.set("Balance: " + str(balance))
+    debit_var.set("Spent Total: " + str(debit))
+    credit_var.set("Received Total: " + str(credit))
+    bl_height_var.set("Block Height: " + str(bl_height))
+
+    table()
+
+    root.after(2000, refresh)
+
 #buttons
 
 send_b = Button(f5, text="Send Bismuth", command=send, height=1, width=15)
@@ -201,16 +145,80 @@ send_b.grid(row=4, column=0, sticky=W+E+N+S, pady=(100, 4), padx=15)
 start_b = Button(f5, text="Start node", command=node, height=1, width=15)
 start_b.grid(row=5, column=0, sticky=W+E+N+S, pady=4,padx=15,columnspan=4)
 
-balance_b = Button(f5, text="Check balance", command=balance_get, height=1, width=15)
+balance_b = Button(f5, text="Manual refresh", command=refresh, height=1, width=15)
 balance_b.grid(row=6, column=0, sticky=W+E+N+S, pady=4,padx=15)
-
-balance_b = Button(f5, text="Refresh table", command=table, height=1, width=15)
-balance_b.grid(row=7, column=0, sticky=W+E+N+S, pady=4,padx=15)
 
 quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=15)
 quit_b.grid(row=8, column=0, sticky=W+E+N+S, pady=4,padx=15)
 
 #buttons
+
+#refreshables
+
+# update balance label
+balance_var = StringVar()
+balance_msg = Label(f5, textvariable=balance_var)
+balance_msg.grid(row=0, column=0, sticky=E, padx=15, pady=(15, 0))
+
+debit_var = StringVar()
+spent_msg = Label(f5, textvariable=debit_var)
+spent_msg.grid(row=1, column=0, sticky=E, padx=15)
+
+credit_var = StringVar()
+received_msg = Label(f5, textvariable=credit_var)
+received_msg.grid(row=2, column=0, sticky=E, padx=15)
+
+bl_height_var = StringVar()
+block_height = Label(f5, textvariable=bl_height_var)
+block_height.grid(row=3, column=0, sticky=E, padx=15)
+
+global e
+
+
+def table():
+    global e
+    # transaction table
+    # data
+    datasheet = ["time", "from", "to", "amount"]
+
+    conn = sqlite3.connect('ledger.db')
+    c = conn.cursor()
+    for row in c.execute("SELECT * FROM transactions WHERE address = '" + str(address) + "' OR to_address = '" + str(address) + "' ORDER BY block_height DESC LIMIT 19;"):
+        db_timestamp = row[1]
+        datasheet.append(datetime.fromtimestamp(float(db_timestamp)).strftime('%Y-%m-%d %H:%M:%S'))
+        db_address = row[2]
+        datasheet.append(db_address)
+        db_to_address = row[3]
+        datasheet.append(db_to_address)
+        db_amount = row[4]
+        datasheet.append(db_amount)
+    conn.close()
+    # data
+
+    app_log.info(datasheet)
+    app_log.info(len(datasheet))
+
+    if len(datasheet) == 4:
+        app_log.info("Looks like a new address")
+
+    elif len(datasheet) < 20 * 4:
+        app_log.info(len(datasheet))
+        table_limit = len(datasheet) / 4
+    else:
+        table_limit = 20
+
+    if len(datasheet) > 3:
+        k = 0
+        for i in range(table_limit):
+            for j in range(4):
+                e = Entry(f4, justify=RIGHT)
+                e.grid(row=i + 1, column=j, sticky=EW)
+                e.insert(END, datasheet[k])
+
+                k = k + 1
+
+    # transaction table
+    #refreshables
 
 #address and amount
 Label(f3, text="Your Address:", width=20).grid(row=0, pady=15)
@@ -239,7 +247,9 @@ image = Label(f2, image=logo)
 image.grid(pady=5, padx=5)
 #logo
 
-balance_get() #get balance on start
-
 root.iconbitmap("graphics\\icon.ico")
+
+refresh()
 root.mainloop()
+
+
