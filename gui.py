@@ -12,6 +12,8 @@ from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
 
 from Tkinter import *
+#from ttk import *
+
 root = Tk()
 
 root.wm_title("[BIS] Bismuth")
