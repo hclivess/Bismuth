@@ -434,6 +434,13 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             conn.close()
                             self.request.sendall("blockfound_")
                             time.sleep(0.1)
+
+                            txhash_len = len(str(txhash_send))
+                            while len(str(txhash_len)) != 10:
+                                txhash_len = "0" + str(txhash_len)
+                            self.request.sendall(len(txhash_len))
+                            time.sleep(0.1)
+
                             self.request.sendall(str(txhash_send))
                             time.sleep(0.1)
 
@@ -448,9 +455,13 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     time.sleep(0.1)
 
                 if data == "blockfound_":
-                    #todo: receive mesage length and use it as buffer size
                     app_log.info("Client: Node has the block") #node should start sending txs in this step
-                    data = self.request.recv(2048)
+
+                    data = self.request.recv(10)
+                    app_log.info("Transaction length to receive: "+data)
+                    txhash_len = int(data)
+                    data = self.request.recv(txhash_len)
+
                     app_log.info("Client: "+data)
                     #verify
                     sync_list = ast.literal_eval(data) #this is great, need to add it to client -> node sync
@@ -643,6 +654,13 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                 conn.close()
                                 self.request.sendall("blockfound_")
                                 time.sleep(0.1)
+
+                                txhash_len = len(str(txhash_send))
+                                while len(str(txhash_len)) != 10:
+                                    txhash_len = "0" + str(txhash_len)
+                                self.request.sendall(len(txhash_len))
+                                time.sleep(0.1)
+
                                 self.request.sendall(str(txhash_send))
                                 time.sleep(0.1)
 
@@ -856,6 +874,13 @@ def worker(HOST,PORT):
                                 conn.close()
                                 s.sendall("blockfound_")
                                 time.sleep(0.1)
+
+                                txhash_len = len(str(txhash_send))
+                                while len(str(txhash_len)) != 10:
+                                    txhash_len = "0" + str(txhash_len)
+                                s.sendall(len(txhash_len))
+                                time.sleep(0.1)
+
                                 s.sendall(str(txhash_send))
                                 time.sleep(0.1)
 
@@ -945,6 +970,13 @@ def worker(HOST,PORT):
                                 conn.close()
                                 s.sendall("blockfound_")
                                 time.sleep(0.1)
+
+                                txhash_len = len(str(txhash_send))
+                                while len(str(txhash_len)) != 10:
+                                    txhash_len = "0" + str(txhash_len)
+                                s.sendall(len(txhash_len))
+                                time.sleep(0.1)
+
                                 s.sendall(str(txhash_send))
                                 time.sleep(0.1)
 
@@ -992,9 +1024,13 @@ def worker(HOST,PORT):
                         time.sleep(0.1)
 
                 if data == "blockfound_":
-                    # todo: receive mesage length and use it as buffer size
                     app_log.info("Client: Node has the block") #node should start sending txs in this step
-                    data = s.recv(2048)
+
+                    data = s.recv(10)
+                    app_log.info("Transaction length to receive: " + data)
+                    txhash_len = int(data)
+                    data = s.recv(txhash_len)
+
                     app_log.info("Client: "+data)
                     #verify
                     sync_list = ast.literal_eval(data) #this is great, need to add it to client -> node sync
