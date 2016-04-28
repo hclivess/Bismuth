@@ -5,7 +5,6 @@ development plan:
 -framework for decentralized apps and open communication fields through OpenField™
 -framework for sidechains and hyperblocks
 -improve gui memory handling by implementing updates instead of redraws
--
 
 WARNING: This project is in the beta stage!
 
