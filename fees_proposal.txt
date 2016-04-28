@@ -1,0 +1,14 @@
+Select timestamp of the (current block -50) from the ledger
+Calculate how much time has passed since that timestamp, the longer, the lower the transaction
+Fee =1/(timestamp_current - timestamp_50)
+Fee is added to the ledger as an extra column, verified by every node's mempool
+
+constant = 1
+
+current time: 12:30
+time before 50 txs: 12:15
+1/0,25(h) = 4 fee
+
+current time: 12:30
+time before 50 txs: 11:30
+1/1(h) = 1 fee
