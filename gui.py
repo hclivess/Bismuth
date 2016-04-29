@@ -245,24 +245,13 @@ balance_enumerator = Entry(f3, width=10)
 
 Label(f4, text="Your latest transactions:", width=20).grid(row=0)
 
-def resource_path(relative):
-    return os.path.join(
-        os.environ.get(
-            "_MEIPASS2",
-            os.path.abspath(".")
-        ),
-        relative
-    )
-
 #logo
-logo_file = resource_path("graphics\\logo.gif")
-logo=PhotoImage(file=logo_file)
+logo=PhotoImage(file="graphics\\logo.gif")
 image = Label(f2, image=logo)
 image.grid(pady=5, padx=5)
 #logo
 
-icon_file = resource_path("graphics\\icon.ico")
-root.iconbitmap(icon_file)
+root.iconbitmap("graphics\\icon.ico")
 
 refresh()
 root.mainloop()
