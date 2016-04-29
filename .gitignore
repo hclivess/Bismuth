@@ -6,6 +6,7 @@ test1/
 dist/
 gui.build/
 node.build/
+workspace/
 .idea/XBM-Bismuth.iml
 .idea/misc.xml
 .idea/workspace.xml
