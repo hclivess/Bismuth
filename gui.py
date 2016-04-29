@@ -1,3 +1,5 @@
+#icons created using http://www.winterdrache.de/freeware/png2ico/
+
 import os
 from datetime import datetime
 import hashlib
