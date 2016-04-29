@@ -167,7 +167,7 @@ def digest_mempool():
 
                 #verifying timestamp
                 time_now = str(time.time())
-                tolerance = 50
+                tolerance = 10
                 if float(db_timestamp) > (float(time_now) + float(tolerance)):
                     app_log.info("Mempool: Timestamp is too far in the future, deleting tx")
                     m.execute("DELETE FROM transactions WHERE signature ='" + db_signature + "';")
