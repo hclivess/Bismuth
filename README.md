@@ -12,6 +12,9 @@ Dependencies:
 
 -python 2.7
 -pycrypto
+-pillow
+-pyqrcode
+-pypng
 
 Features:
 

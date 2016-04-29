@@ -1,5 +1,9 @@
 #icons created using http://www.winterdrache.de/freeware/png2ico/
 
+import PIL.Image
+import PIL.ImageTk
+
+import pyqrcode
 import os
 from datetime import datetime
 import hashlib
@@ -15,7 +19,6 @@ from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
 
 from Tkinter import *
-#from ttk import *
 
 root = Tk()
 
@@ -79,13 +82,31 @@ def send():
         app_log.info("Client: Invalid signature")
     #enter transaction end
 
-def node():
-    app_log.info("Received node start command")
-
-
 def app_quit():
     app_log.info("Received quit command")
     root.destroy()
+
+def qr():
+    address_qr = pyqrcode.create(address)
+    address_qr.png('address_qr.png')
+
+    #popup
+    top = Toplevel()
+    top.title("About this application...")
+
+    im = PIL.Image.open("address_qr.png")
+
+    photo = PIL.ImageTk.PhotoImage(im.resize((320, 320)))
+    label = Label(top, image=photo)
+    label.image = photo  # keep a reference!
+    label.pack()
+
+    #msg = Message(top, text="hi")
+    #msg.pack()
+
+    button = Button(top, text="Dismiss", command=top.destroy)
+    button.pack()
+    # popup
 
 #frames
 f2 = Frame(root, height=100, width = 100)
@@ -133,10 +154,10 @@ def refresh():
 send_b = Button(f5, text="Send Bismuth", command=send, height=1, width=15)
 send_b.grid(row=4, column=0, sticky=W+E+N+S, pady=(100, 4), padx=15)
 
-start_b = Button(f5, text="Start node", command=node, height=1, width=15, state=DISABLED)
+start_b = Button(f5, text="Generate QR Code", command=qr, height=1, width=15)
 start_b.grid(row=5, column=0, sticky=W+E+N+S, pady=4,padx=15,columnspan=4)
 
-balance_b = Button(f5, text="Manual refresh", command=refresh, height=1, width=15)
+balance_b = Button(f5, text="Manual Refresh", command=refresh, height=1, width=15)
 balance_b.grid(row=6, column=0, sticky=W+E+N+S, pady=4,padx=15)
 
 quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=15)
@@ -258,5 +279,3 @@ os.remove(tempFile)
 
 refresh()
 root.mainloop()
-
-
