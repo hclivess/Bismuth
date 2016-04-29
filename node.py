@@ -161,9 +161,17 @@ def digest_mempool():
                 mempool.commit()
 
             except:
-                app_log.info("Mempool: tx sig not found in the local ledger, proceeding to insert")
+                app_log.info("Mempool: tx sig not found in the local ledger, proceeding to check before insert")
                 # if not in ledger
                 # calculate block height from the ledger
+
+                #verifying timestamp
+                time_now = str(time.time())
+                tolerance = 50
+                if float(db_timestamp) > float(time_now) + float(tolerance):
+                    app_log.info("Mempool: Timestamp is in the future")
+
+                # verifying timestamp
 
                 #verify balance
                 app_log.info("Mempool: Verifying balance")
@@ -183,11 +191,11 @@ def digest_mempool():
 
                 if int(balance) - int(db_amount) < 0:
                     app_log.info("Mempool: Their balance is too low for this transaction, possible double spend attack")
-                    mempool.commit()
+                    mempool.commit() #redundant?
 
                 elif int(db_amount) < 0:
                     app_log.info("Mempool: Cannot use negative amounts")
-                    mempool.commit()
+                    mempool.commit() #redundant?
 
                 #verify balance
                 else:
@@ -684,18 +692,12 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     c.execute('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1')
                     results = c.fetchone()
-                    #db_block_height = results[0]
                     db_timestamp = results[1]
                     db_address = results[2]
                     db_to_address = results[3]
                     db_amount = results[4]
                     db_signature = results[5]
                     db_public_key_readable = results[6]
-                    #db_public_key = RSA.importKey(results[6])
-                    #db_txhash = results[7]
-                    #db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount)
-
-                    #txhash = hashlib.sha224(str(db_transaction) + str(db_signature) +str(db_txhash)).hexdigest() #calculate new txhash from ledger latest tx and the new tx
 
                     b.execute("INSERT INTO transactions VALUES ('"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable) + "')") # Insert a row of data
 
@@ -733,8 +735,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     app_log.info("Node: Received signature: "+received_signature_enc)
                     received_public_key_readable = data_split[2]
                     app_log.info("Node: Received public key: "+received_public_key_readable)
-                    #received_txhash = data_split[3]
-                    #app_log.info("Node: Received txhash: "+received_txhash)
 
                     #convert received strings
                     received_public_key = RSA.importKey(received_public_key_readable)
@@ -1011,9 +1011,6 @@ def worker(HOST,PORT):
                         db_amount = results[4]
                         db_signature = results[5]
                         db_public_key_readable = results[6]
-                        #db_public_key = RSA.importKey(results[6])
-                        #db_txhash = results[7]
-                        #db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount)
 
                         b.execute("INSERT INTO transactions VALUES ('"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable) + "')") # Insert a row of data
 
@@ -1026,7 +1023,7 @@ def worker(HOST,PORT):
                         conn.commit()
                         conn.close()
                         #delete followups
-                        s.sendall("sendsync___") #experimental
+                        s.sendall("sendsync___")
                         time.sleep(0.1)
 
                 if data == "blockfound_":
@@ -1048,7 +1045,6 @@ def worker(HOST,PORT):
                     received_signature_enc = sync_list[5]
                     received_public_key_readable = sync_list[6]
                     received_public_key = RSA.importKey(sync_list[6])
-                    #received_txhash = sync_list[7]
                     received_transaction = str(received_timestamp) +":"+ str(received_address) +":"+ str(received_to_address) +":"+ str(received_amount) #todo: why not have bare list instead of converting?
 
                     #txhash validation start
@@ -1063,16 +1059,12 @@ def worker(HOST,PORT):
                     b = backup.cursor()
 
                     for row in c.execute('SELECT * FROM transactions WHERE block_height > "'+str(received_block_height)+'"'):
-                        #db_block_height = row[0]
                         db_timestamp = row[1]
                         db_address = row[2]
                         db_to_address = row[3]
                         db_amount = row [4]
                         db_signature = row[5]
                         db_public_key_readable = row[6]
-                        #db_public_key = RSA.importKey(row[6])
-                        #db_txhash = row[7]
-                        #db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount)
 
                         b.execute("INSERT INTO transactions VALUES ('"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable) + "')") # Insert a row of data
 
@@ -1086,7 +1078,6 @@ def worker(HOST,PORT):
                     #delete all local followups
 
                     app_log.info("Client: Last db txhash: "+str(txhash_db))
-                    #app_log.info("Client: Received txhash: "+str(received_txhash))
                     app_log.info("Client: Received transaction: "+str(received_transaction))
 
                     received_signature_dec = base64.b64decode(received_signature_enc)

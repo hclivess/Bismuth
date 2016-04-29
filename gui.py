@@ -52,17 +52,11 @@ def send():
     app_log.info(to_address_input)
     amount_input = amount.get()
     app_log.info(amount_input)
-    #enter transaction start
-    #conn = sqlite3.connect('ledger.db')
-    #c = conn.cursor()
-    #c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
-    #txhash = c.fetchone()[0]
-    #conn.close()
 
     timestamp = str(time.time())
 
     transaction = str(timestamp) +":"+ str(address) +":"+ str(to_address_input) +":"+ str(amount_input)
-    #signature = key.sign(transaction, '')
+
     h = SHA.new(transaction)
     signer = PKCS1_v1_5.new(key)
     signature = signer.sign(h)
@@ -75,20 +69,12 @@ def send():
             app_log.info("Client: Signature OK, but cannot use negative amounts")
 
         else:
-            #conn = sqlite3.connect('ledger.db')
-            #c = conn.cursor()
-            #c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
-            #txhash = str(c.fetchone()[0])
-            #txhash_new = hashlib.sha224(str(transaction) + str(signature_enc) + str(txhash)).hexdigest() #define new tx hash based on previous #fix asap
-            #app_log.info("Client: New txhash to go with your transaction: "+txhash_new)
-            #conn.close()
-
             app_log.info("Client: The signature and control txhash is valid, proceeding to send transaction, signature, new txhash and the public key")
             s.sendall("transaction")
             time.sleep(0.1)
             s.sendall(transaction+";"+str(signature_enc)+";"+public_key_readable) #todo send list
             time.sleep(0.1)
-
+            refresh()
     else:
         app_log.info("Client: Invalid signature")
     #enter transaction end
