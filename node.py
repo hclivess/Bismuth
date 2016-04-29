@@ -168,8 +168,11 @@ def digest_mempool():
                 #verifying timestamp
                 time_now = str(time.time())
                 tolerance = 50
-                if float(db_timestamp) > float(time_now) + float(tolerance):
-                    app_log.info("Mempool: Timestamp is in the future")
+                if float(db_timestamp) > (float(time_now) + float(tolerance)):
+                    app_log.info("Mempool: Timestamp is too far in the future, deleting tx")
+                    m.execute("DELETE FROM transactions WHERE signature ='" + db_signature + "';")
+                    mempool.commit()
+
 
                 # verifying timestamp
 
@@ -190,12 +193,14 @@ def digest_mempool():
                 app_log.info("Mempool: Transction address balance: " + str(balance))
 
                 if int(balance) - int(db_amount) < 0:
-                    app_log.info("Mempool: Their balance is too low for this transaction, possible double spend attack")
-                    mempool.commit() #redundant?
+                    app_log.info("Mempool: Their balance is too low for this transaction, possible double spend attack, deleting tx")
+                    m.execute("DELETE FROM transactions WHERE signature ='" + db_signature + "';")
+                    mempool.commit()
 
                 elif int(db_amount) < 0:
-                    app_log.info("Mempool: Cannot use negative amounts")
-                    mempool.commit() #redundant?
+                    app_log.info("Mempool: Cannot use negative amounts, deleting tx")
+                    m.execute("DELETE FROM transactions WHERE signature ='" + db_signature + "';")
+                    mempool.commit()
 
                 #verify balance
                 else:
