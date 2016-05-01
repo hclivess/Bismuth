@@ -12,3 +12,11 @@ time before 50 txs: 12:15
 current time: 12:30
 time before 50 txs: 11:30
 1/1(h) = 1 fee
+
+---
+
+mining proposal:
+
+if there is no block mined in previous 100 blocks:
+if your address hash matches one in the previous 100 block hashes partially
+mine -> your address (extra column)
