@@ -20,3 +20,10 @@ mining proposal:
 if there is no block mined in previous 100 blocks:
 if your address hash matches one in the previous 100 block hashes partially
 mine -> your address (extra column)
+
+--
+
+dapp proposal:
+
+easiest way is though a separate column/db, with binaries encoded as base64
+each dapp will have a limited life span, paid by block
