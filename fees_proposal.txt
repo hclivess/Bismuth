@@ -14,6 +14,10 @@ time before 50 txs: 11:30
 1/1(h) = 1 fee
 
 ---
+confirmation proposal:
+
+confirms are kept in a separate table/db, each client have their own, each txhash confirmation from any client adds one conf
+---
 
 mining proposal:
 
