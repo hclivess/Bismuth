@@ -17,6 +17,7 @@ time before 50 txs: 11:30
 confirmation proposal:
 
 confirms are kept in a separate table/db, each client have their own, each txhash confirmation from any client adds one conf
+EASIER: use transaction age instead of confirmation = only roll back if the previous transaction is not older than xy AND number of rollbacks condition?
 ---
 
 mining proposal:

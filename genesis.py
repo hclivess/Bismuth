@@ -75,13 +75,13 @@ else:
     try:
         conn = sqlite3.connect('ledger.db')
         c = conn.cursor()
-        c.execute("CREATE TABLE transactions (block_height INTEGER, timestamp, address, to_address, amount, signature, public_key, txhash)")
-        c.execute("INSERT INTO transactions VALUES ('1','"+timestamp+"','genesis','"+address+"','100000000','"+str(signature_enc)+"','"+public_key_readable+"','"+txhash+"')") # Insert a row of data                           
+        c.execute("CREATE TABLE transactions (block_height INTEGER, timestamp, address, to_address, amount, signature, public_key, txhash, fee, reward)")
+        c.execute("INSERT INTO transactions VALUES ('1','"+timestamp+"','genesis','"+address+"','100000000','"+str(signature_enc)+"','"+public_key_readable+"','"+txhash+"','0','0')") # Insert a row of data
         conn.commit() # Save (commit) the changes
 
         mempool = sqlite3.connect('mempool.db')
         m = mempool.cursor()
-        m.execute("CREATE TABLE transactions (block_height INTEGER, timestamp, address, to_address, amount, signature, public_key, txhash)")
+        m.execute("CREATE TABLE transactions (block_height INTEGER, timestamp, address, to_address, amount, signature, public_key)")
         mempool.commit()
         mempool.close()
         

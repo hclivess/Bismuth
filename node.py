@@ -126,7 +126,7 @@ def restore_backup():
             sync_in_progress = 0
             return
 
-def digest_mempool():
+def digest_mempool(): #this function has become the transaction engine core over time, rudimentary naming
     #digest mempool start
     while True:
         try:
@@ -136,7 +136,6 @@ def digest_mempool():
             m = mempool.cursor()
             conn = sqlite3.connect('ledger.db')
             c = conn.cursor()
-
 
             #select
             m.execute("SELECT * FROM transactions ORDER BY timestamp ASC LIMIT 1;") #select tx from mempool to insert
@@ -203,6 +202,13 @@ def digest_mempool():
                     mempool.commit()
 
                 #verify balance
+
+                # calculate fee
+                # calculate fee
+
+                # decide reward
+                # decide reward
+
                 else:
                     c.execute("SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1;")
                     result = c.fetchall()
@@ -510,9 +516,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         db_amount = row [4]
                         db_signature = row[5]
                         db_public_key_readable = row[6]
-                        #db_public_key = RSA.importKey(row[6])
-                        #db_txhash = row[7]
-                        #db_transaction = str(db_timestamp) +":"+ str(db_address) +":"+ str(db_to_address) +":"+ str(db_amount)
+
 
                         b.execute("INSERT INTO transactions VALUES ('"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','"+str(db_public_key_readable) + "')") # Insert a row of data
 
