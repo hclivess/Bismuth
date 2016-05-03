@@ -26,6 +26,7 @@ if there is no block mined in previous 100 blocks:
 if your address hash matches one in the previous 100 block hashes partially
 mine -> your address (extra column)
 
+mining could be limited to the fees paid (burned)
 --
 
 dapp proposal:
