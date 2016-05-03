@@ -155,29 +155,49 @@ def refresh():
         credit = 0
     balance = credit - debit - fees
     app_log.info("Node: Transction address balance: " + str(balance))
-    conn.close()
 
+    # calculate fee - identical to that in node
+    c.execute("SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1;")
+    result = c.fetchall()
+    db_timestamp_last = result[0][1]
+    db_block_height = result[0][0]
+    db_block_50 = int(db_block_height) - 50
+
+
+    try:
+        c.execute("SELECT timestamp FROM transactions WHERE block_height ='" + str(db_block_50) + "';")
+        db_timestamp_50 = c.fetchone()[0]
+        fee = 1 / (float(db_timestamp_last) - float(db_timestamp_50))
+        app_log.info("Fee: " + str(fee))
+
+    except Exception as e:
+        fee = 1  # presumably there are less than 50 txs
+        app_log.info("Fee error: " + str(e))
+    # calculate fee
+
+    fees_current_var.set("Current Fee: " + str(round(fee,5)))
     balance_var.set("Balance: " + str(round(balance,2)))
     debit_var.set("Spent Total: " + str(round(debit,2)))
     credit_var.set("Received Total: " + str(round(credit,2)))
-    fees_var.set("Total Fees: " + str(round(fees,2)))
+    fees_var.set("Fees Paid: " + str(round(fees,5)))
     bl_height_var.set("Block Height: " + str(round(bl_height,2)))
 
+    conn.close()
     table()
 
 #buttons
 
 send_b = Button(f5, text="Send Bismuth", command=send, height=1, width=15)
-send_b.grid(row=4, column=0, sticky=W+E+S, pady=(100, 4), padx=15)
+send_b.grid(row=7, column=0, sticky=W+E+S, pady=(100, 4), padx=15)
 
 start_b = Button(f5, text="Generate QR Code", command=qr, height=1, width=15)
-start_b.grid(row=5, column=0, sticky=W+E+S, pady=4,padx=15,columnspan=4)
+start_b.grid(row=8, column=0, sticky=W+E+S, pady=4,padx=15,columnspan=4)
 
 balance_b = Button(f5, text="Manual Refresh", command=refresh, height=1, width=15)
-balance_b.grid(row=6, column=0, sticky=W+E+S, pady=4,padx=15)
+balance_b.grid(row=9, column=0, sticky=W+E+S, pady=4,padx=15)
 
 quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=15)
-quit_b.grid(row=8, column=0, sticky=W+E+S, pady=4,padx=15)
+quit_b.grid(row=10, column=0, sticky=W+E+S, pady=4,padx=15)
 
 #buttons
 
@@ -200,9 +220,13 @@ fees_var = StringVar()
 fees_paid_msg = Label(f5, textvariable=fees_var)
 fees_paid_msg.grid(row=3, column=0, sticky=N+E, padx=15)
 
+fees_current_var = StringVar()
+fees_to_pay_msg = Label(f5, textvariable=fees_current_var)
+fees_to_pay_msg.grid(row=4, column=0, sticky=N+E, padx=15)
+
 bl_height_var = StringVar()
 block_height = Label(f5, textvariable=bl_height_var)
-block_height.grid(row=4, column=0, sticky=N+E, padx=15)
+block_height.grid(row=5, column=0, sticky=N+E, padx=15)
 
 global e
 

@@ -1,3 +1,6 @@
+#caution: fees are not redistributed at the moment
+#consideration: fees are not verified, but are dependent on a verified block chain, so should be ok
+
 import SocketServer
 import ast
 import base64
