@@ -180,21 +180,23 @@ def digest_mempool(): #this function has become the transaction engine core over
                 credit = c.fetchone()[0]
                 c.execute("SELECT sum(amount) FROM transactions WHERE address = '" + db_address + "'")
                 debit = c.fetchone()[0]
+                c.execute("SELECT sum(fee) FROM transactions WHERE address = '" + db_address + "'")
+                fees = c.fetchone()[0]
                 if debit == None:
                     debit = 0
                 if credit == None:
                     credit = 0
                 app_log.info("Mempool: Total credit: " + str(credit))
                 app_log.info("Mempool: Total debit: " + str(debit))
-                balance = int(credit) - int(debit)
+                balance = float(credit) - float(debit) - float(fees)
                 app_log.info("Mempool: Transction address balance: " + str(balance))
 
-                if int(balance) - int(db_amount) < 0:
+                if float(balance) - float(db_amount) < 0:
                     app_log.info("Mempool: Their balance is too low for this transaction, possible double spend attack, deleting tx")
                     m.execute("DELETE FROM transactions WHERE signature ='" + db_signature + "';")
                     mempool.commit()
 
-                elif int(db_amount) < 0:
+                elif float(db_amount) < 0:
                     app_log.info("Mempool: Cannot use negative amounts, deleting tx")
                     m.execute("DELETE FROM transactions WHERE signature ='" + db_signature + "';")
                     mempool.commit()
@@ -211,7 +213,6 @@ def digest_mempool(): #this function has become the transaction engine core over
 
                     # calculate fee
                     db_block_50 = int(db_block_height)-50
-                    print db_block_50
                     try:
                         c.execute("SELECT timestamp FROM transactions WHERE block_height ='" + str(db_block_50) + "';")
                         db_timestamp_50 = c.fetchone()[0]
@@ -750,7 +751,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         received_timestamp = received_transaction_split[0]
                         address = received_transaction_split[1]
                         to_address = received_transaction_split[2]
-                        amount = int(received_transaction_split[3])
+                        amount = float(received_transaction_split[3])
                     except Exception as e:
                         app_log.info("Node: Something wrong with the transaction ("+str(e)+")")
                     #split message into values

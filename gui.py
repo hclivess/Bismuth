@@ -82,7 +82,7 @@ def send():
 
     verifier = PKCS1_v1_5.new(key)
     if verifier.verify(h, signature) == True:
-        if int(amount_input) < 0:
+        if float(amount_input) < 0:
             app_log.info("Client: Signature OK, but cannot use negative amounts")
 
         else:
@@ -125,16 +125,16 @@ def qr():
 
 #frames
 f2 = Frame(root, height=100, width = 100)
-f2.grid(row = 0, column = 1, sticky = W+E+N+S)
+f2.grid(row = 0, column = 1, sticky = W+E+S)
 
 f3 = Frame(root, width = 500)
-f3.grid(row = 0, column = 0, sticky = W+E+N+S)
+f3.grid(row = 0, column = 0, sticky = W+E+S)
 
 f4 = Frame(root, height=100, width = 100)
-f4.grid(row = 1, column = 0, sticky = W+E+N+S, pady = 10, padx = 10)
+f4.grid(row = 1, column = 0, sticky = W+E+S, pady = 10, padx = 10)
 
 f5 = Frame(root, height=100, width = 100)
-f5.grid(row = 1, column = 1, sticky = W+E+N+S)
+f5.grid(row = 1, column = 1, sticky = W+E+S)
 #frames
 
 
@@ -145,38 +145,39 @@ def refresh():
     credit = c.fetchone()[0]
     c.execute("SELECT sum(amount) FROM transactions WHERE address = '" + address + "'")
     debit = c.fetchone()[0]
+    c.execute("SELECT sum(fee) FROM transactions WHERE address = '" + address + "'")
+    fees = c.fetchone()[0]
     c.execute("SELECT MAX(block_height) FROM transactions")
     bl_height = c.fetchone()[0]
     if debit == None:
         debit = 0
     if credit == None:
         credit = 0
-    balance = credit - debit
+    balance = credit - debit - fees
     app_log.info("Node: Transction address balance: " + str(balance))
     conn.close()
 
-    balance_var.set("Balance: " + str(balance))
-    debit_var.set("Spent Total: " + str(debit))
-    credit_var.set("Received Total: " + str(credit))
-    bl_height_var.set("Block Height: " + str(bl_height))
+    balance_var.set("Balance: " + str(round(balance,2)))
+    debit_var.set("Spent Total: " + str(round(debit,2)))
+    credit_var.set("Received Total: " + str(round(credit,2)))
+    fees_var.set("Total Fees: " + str(round(fees,2)))
+    bl_height_var.set("Block Height: " + str(round(bl_height,2)))
 
     table()
-
-    root.after(2000, refresh)
 
 #buttons
 
 send_b = Button(f5, text="Send Bismuth", command=send, height=1, width=15)
-send_b.grid(row=4, column=0, sticky=W+E+N+S, pady=(100, 4), padx=15)
+send_b.grid(row=4, column=0, sticky=W+E+S, pady=(100, 4), padx=15)
 
 start_b = Button(f5, text="Generate QR Code", command=qr, height=1, width=15)
-start_b.grid(row=5, column=0, sticky=W+E+N+S, pady=4,padx=15,columnspan=4)
+start_b.grid(row=5, column=0, sticky=W+E+S, pady=4,padx=15,columnspan=4)
 
 balance_b = Button(f5, text="Manual Refresh", command=refresh, height=1, width=15)
-balance_b.grid(row=6, column=0, sticky=W+E+N+S, pady=4,padx=15)
+balance_b.grid(row=6, column=0, sticky=W+E+S, pady=4,padx=15)
 
 quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=15)
-quit_b.grid(row=8, column=0, sticky=W+E+N+S, pady=4,padx=15)
+quit_b.grid(row=8, column=0, sticky=W+E+S, pady=4,padx=15)
 
 #buttons
 
@@ -185,19 +186,23 @@ quit_b.grid(row=8, column=0, sticky=W+E+N+S, pady=4,padx=15)
 # update balance label
 balance_var = StringVar()
 balance_msg = Label(f5, textvariable=balance_var)
-balance_msg.grid(row=0, column=0, sticky=E, padx=15, pady=(15, 0))
+balance_msg.grid(row=0, column=0, sticky=N+E, padx=15, pady=(15, 0))
 
 debit_var = StringVar()
 spent_msg = Label(f5, textvariable=debit_var)
-spent_msg.grid(row=1, column=0, sticky=E, padx=15)
+spent_msg.grid(row=1, column=0, sticky=N+E, padx=15)
 
 credit_var = StringVar()
 received_msg = Label(f5, textvariable=credit_var)
-received_msg.grid(row=2, column=0, sticky=E, padx=15)
+received_msg.grid(row=2, column=0, sticky=N+E, padx=15)
+
+fees_var = StringVar()
+fees_paid_msg = Label(f5, textvariable=fees_var)
+fees_paid_msg.grid(row=3, column=0, sticky=N+E, padx=15)
 
 bl_height_var = StringVar()
 block_height = Label(f5, textvariable=bl_height_var)
-block_height.grid(row=3, column=0, sticky=E, padx=15)
+block_height.grid(row=4, column=0, sticky=N+E, padx=15)
 
 global e
 
@@ -280,5 +285,6 @@ image.grid(pady=5, padx=5)
 
 refresh()
 
+root.after(2000, refresh)
 root.mainloop()
 os.remove(tempFile)
