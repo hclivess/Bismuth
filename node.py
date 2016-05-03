@@ -171,8 +171,6 @@ def digest_mempool(): #this function has become the transaction engine core over
                     app_log.info("Mempool: Timestamp is too far in the future, deleting tx")
                     m.execute("DELETE FROM transactions WHERE signature ='" + db_signature + "';")
                     mempool.commit()
-
-
                 # verifying timestamp
 
                 #verify balance
@@ -203,22 +201,37 @@ def digest_mempool(): #this function has become the transaction engine core over
 
                 #verify balance
 
-                # calculate fee
-                # calculate fee
-
-                # decide reward
-                # decide reward
-
                 else:
                     c.execute("SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1;")
                     result = c.fetchall()
                     db_txhash = result[0][7]
                     db_block_height = result[0][0]
                     block_height_new = db_block_height + 1
+                    db_timestamp_last =result[0][1] #for fee calc
+
+                    # calculate fee
+                    db_block_50 = int(db_block_height)-50
+                    print db_block_50
+                    try:
+                        c.execute("SELECT timestamp FROM transactions WHERE block_height ='" + str(db_block_50) + "';")
+                        db_timestamp_50 = c.fetchone()[0]
+                        fee = 1/(float(db_timestamp_last) - float(db_timestamp_50))
+                        app_log.info("Fee: "+str(fee))
+
+                    except Exception as e:
+                        fee = 1 #presumably there are less than 50 txs
+                        app_log.info("Fee error: "+str(e))
+                        #raise #debug
+                        #todo: should fees be verified or calculated every time?
+                    # calculate fee
+
+                    # decide reward
+                    reward = 0
+                    # decide reward
 
                     txhash = hashlib.sha224(str(db_transaction) + str(db_signature) + str(db_txhash)).hexdigest()  # calculate txhash from the ledger
 
-                    c.execute("INSERT INTO transactions VALUES ('"+str(block_height_new)+"','"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','" + str(db_public_key_readable) + "','" + str(txhash) + "')") # Insert a row of data
+                    c.execute("INSERT INTO transactions VALUES ('"+str(block_height_new)+"','"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','" + str(db_public_key_readable) + "','" + str(txhash) + "','" + str(fee) + "','" + str(reward) + "')") # Insert a row of data
                     conn.commit()
                     conn.close()
 
@@ -228,6 +241,7 @@ def digest_mempool(): #this function has become the transaction engine core over
 
         except:
             app_log.info("Mempool empty")
+            #raise #debug
             return
 
 def db_maintenance():
@@ -324,7 +338,7 @@ app_log.info("Core: Total steps: "+str(db_rows))
 c.execute("SELECT to_address FROM transactions ORDER BY block_height ASC LIMIT 1")
 genesis = c.fetchone()[0]
 app_log.info("Core: Genesis: "+genesis)
-if str(genesis) != "824437b7fb468bd5e584d80a091c9bac4085b3e48d7aa9182319473a": #change this line to your genesis address if you want to clone
+if str(genesis) != "07fb3a0e702f0eec167f1fd7ad094dcb8bdd398c91999d59e4dcb475": #change this line to your genesis address if you want to clone
     app_log.info("Core: Invalid genesis address")
     sys.exit(1)
 #verify genesis

@@ -234,7 +234,7 @@ def table():
     else:
         table_limit = 20
 
-    if len(datasheet) > 3:
+    if len(datasheet) > 4:
         k = 0
         for i in range(table_limit):
             for j in range(4):

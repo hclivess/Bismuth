@@ -81,7 +81,7 @@ else:
 
         mempool = sqlite3.connect('mempool.db')
         m = mempool.cursor()
-        m.execute("CREATE TABLE transactions (block_height INTEGER, timestamp, address, to_address, amount, signature, public_key)")
+        m.execute("CREATE TABLE transactions (timestamp, address, to_address, amount, signature, public_key)")
         mempool.commit()
         mempool.close()
         
