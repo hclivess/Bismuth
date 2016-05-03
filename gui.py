@@ -89,7 +89,18 @@ def send():
             app_log.info("Client: The signature and control txhash is valid, proceeding to send transaction, signature, new txhash and the public key")
             s.sendall("transaction")
             time.sleep(0.1)
-            s.sendall(transaction+";"+str(signature_enc)+";"+public_key_readable) #todo send list
+            transaction_send = (transaction+";"+str(signature_enc)+";"+public_key_readable)
+
+            #announce length
+            txhash_len = len(str(transaction_send))
+            while len(str(txhash_len)) != 10:
+                txhash_len = "0" + str(txhash_len)
+            app_log.info("Announcing " + str(txhash_len) + " length of transaction")
+            s.sendall(str(txhash_len))
+            time.sleep(0.1)
+            # announce length
+
+            s.sendall(transaction_send)
             time.sleep(0.1)
             refresh()
     else:
@@ -175,7 +186,7 @@ def refresh():
         app_log.info("Fee error: " + str(e))
     # calculate fee
 
-    fees_current_var.set("Current Fee: " + str(round(fee,5)))
+    fees_current_var.set("Current Fee: " + str('%f' % (fee)))
     balance_var.set("Balance: " + str(round(balance,2)))
     debit_var.set("Spent Total: " + str(round(debit,2)))
     credit_var.set("Received Total: " + str(round(credit,2)))

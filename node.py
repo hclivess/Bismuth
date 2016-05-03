@@ -744,7 +744,12 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                 #latest local block
                 if data == "transaction":
-                    data = self.request.recv(2048)
+
+                    data = self.request.recv(10)
+                    app_log.info("Transaction length to receive: " + data)
+                    txhash_len = int(data)
+                    data = self.request.recv(txhash_len)
+
                     data_split = data.split(";")
                     received_transaction = data_split[0]
                     app_log.info("Node: Received transaction: "+received_transaction)
