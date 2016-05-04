@@ -15,6 +15,7 @@ from Crypto.Hash import SHA
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
+
 #import keys
 key = RSA.importKey(open('privkey.der').read())
 private_key_readable = str(key.exportKey())
@@ -96,6 +97,9 @@ while True:
 
                     verifier = PKCS1_v1_5.new(key)
                     if verifier.verify(h, signature) == True:
+                        s.connect(("127.0.0.1", int("2829")))  # connect to local node
+                        app_log.info("Connected")
+
                         app_log.info("Miner: Proceeding to submit mined block")
                         s.sendall("transaction")
                         time.sleep(0.1)
@@ -112,6 +116,7 @@ while True:
 
                         s.sendall(transaction_send)
                         time.sleep(0.1)
+                        s.close()
                     #submit mined block to node
 
                 if reward == 0:
