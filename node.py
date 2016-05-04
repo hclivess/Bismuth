@@ -231,7 +231,7 @@ def digest_mempool(): #this function has become the transaction engine core over
 
                     # decide reward
                     try:
-                        c.execute("SELECT block_height FROM transactions WHERE reward !=0 ORDER BY block_height DESC LIMIT 50;") #check if there has been a reward in past 50 blocks
+                        c.execute("SELECT block_height FROM transactions WHERE reward !='0' ORDER BY block_height DESC LIMIT 50;") #check if there has been a reward in past 50 blocks
                         was_reward = c.fetchone()[0] #no error if there has been a reward
                         reward = 0 #no error? there has been a reward already, don't reward anymore
                         app_log.info("Mempool: Reward status: Mined ("+str(was_reward)+")")
