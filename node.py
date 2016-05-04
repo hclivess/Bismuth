@@ -230,7 +230,22 @@ def digest_mempool(): #this function has become the transaction engine core over
                     # calculate fee
 
                     # decide reward
-                    reward = 0
+                    try:
+                        c.execute("SELECT reward FROM transactions ORDER BY block_height DESC LIMIT 50;") #check if there has been a reward in past 50 blocks
+                        was_reward = c.fetchone()[0] #no error if there has been a reward
+                        reward = 0 #no error? there has been a reward already, don't reward anymore
+                    except: #no reward in the past x blocks
+                        c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 50;")  # check if there has been a reward in past 50 blocks
+                        db_txhash_list = c.fetchall()
+                        print db_txhash_list
+
+                        for x in db_txhash_list:
+                            if address[0:5] == x[0:5]:
+                                reward = 50
+                                app_log.info("Mempool: Heureka, reward mined: " + str(reward))
+                            else:
+                                reward = 0
+                                app_log.info("Mempool: Too bad, reward has already been given out for this interval")
                     # decide reward
 
                     txhash = hashlib.sha224(str(db_transaction) + str(db_signature) + str(db_txhash)).hexdigest()  # calculate txhash from the ledger
@@ -334,9 +349,6 @@ c = conn.cursor()
 c.execute("SELECT Count(*) FROM transactions")
 db_rows = c.fetchone()[0]
 app_log.info("Core: Total steps: "+str(db_rows))
-
-
-
 
 #verify genesis
 c.execute("SELECT to_address FROM transactions ORDER BY block_height ASC LIMIT 1")
