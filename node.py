@@ -243,8 +243,8 @@ def digest_mempool(): #this function has become the transaction engine core over
 
                         reward = 0
                         for x in db_txhash_list:
-                            if address[0:5] == x[0][0:5]:
-                                reward = 50
+                            if address[0:2] == x[0][0:2]:
+                                reward = 25
                                 app_log.info("Mempool: Heureka, reward mined: " + str(reward))
                         if reward == 0:
                             app_log.info("Mempool: Mining not successful")

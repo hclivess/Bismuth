@@ -1,3 +1,4 @@
+#error: for some reason produces different hashes than node, will be investigated
 #single address miner with timer limited to 2 decimal places, no customization of timestamp, no multithreading, no multiple-address mining
 #a part txhash must equal a part of address
 import base64
@@ -12,9 +13,6 @@ from logging.handlers import RotatingFileHandler
 from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
-
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
 
 #import keys
 key = RSA.importKey(open('privkey.der').read())
@@ -84,8 +82,7 @@ while True:
                 app_log.info("Txhash: "+txhash)
                 #start mining
 
-                if address[0:5] == txhash[0:5]:
-                    reward = 50
+                if address[0:2] == txhash[0:2]:
                     app_log.info("Miner: Found a good txhash")
 
                     #submit mined block to node
@@ -97,6 +94,7 @@ while True:
 
                     verifier = PKCS1_v1_5.new(key)
                     if verifier.verify(h, signature) == True:
+                        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                         s.connect(("127.0.0.1", int("2829")))  # connect to local node
                         app_log.info("Connected")
 
@@ -119,7 +117,7 @@ while True:
                         s.close()
                     #submit mined block to node
 
-                if reward == 0:
+                else:
                     app_log.info("Miner: Txhash not matching reward conditions")
                     break
             # decide reward
