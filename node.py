@@ -231,21 +231,23 @@ def digest_mempool(): #this function has become the transaction engine core over
 
                     # decide reward
                     try:
-                        c.execute("SELECT reward FROM transactions ORDER BY block_height DESC LIMIT 50;") #check if there has been a reward in past 50 blocks
+                        c.execute("SELECT block_height FROM transactions WHERE reward !=0 ORDER BY block_height DESC LIMIT 50;") #check if there has been a reward in past 50 blocks
                         was_reward = c.fetchone()[0] #no error if there has been a reward
                         reward = 0 #no error? there has been a reward already, don't reward anymore
-                    except: #no reward in the past x blocks
-                        c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 50;")  # check if there has been a reward in past 50 blocks
-                        db_txhash_list = c.fetchall()
-                        print db_txhash_list
+                        app_log.info("Mempool: Reward status: Mined ("+str(was_reward)+")")
 
+                    except: #no reward in the past x blocks
+                        c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 50;")  # select previous x transactions to start mining
+                        db_txhash_list = c.fetchall()
+                        app_log.info("Mempool: Reward status: Not mined")
+
+                        reward = 0
                         for x in db_txhash_list:
-                            if address[0:5] == x[0:5]:
+                            if address[0:5] == x[0][0:5]:
                                 reward = 50
                                 app_log.info("Mempool: Heureka, reward mined: " + str(reward))
-                            else:
-                                reward = 0
-                                app_log.info("Mempool: Too bad, reward has already been given out for this interval")
+                        if reward == 0:
+                            app_log.info("Mempool: Mining not successful")
                     # decide reward
 
                     txhash = hashlib.sha224(str(db_transaction) + str(db_signature) + str(db_txhash)).hexdigest()  # calculate txhash from the ledger
@@ -821,7 +823,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 app_log.info("Node: Lost connection")
                 app_log.info(e)
 
-                raise #for test purposes only ***CAUSES LEAK***
+                #raise #for test purposes
                 break
 
 #client thread
