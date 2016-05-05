@@ -169,8 +169,7 @@ def digest_mempool(): #this function has become the transaction engine core over
 
                 #verifying timestamp
                 time_now = str(time.time())
-                tolerance = 10
-                if float(db_timestamp) > (float(time_now) + float(tolerance)):
+                if float(db_timestamp) > (float(time_now)):
                     app_log.info("Mempool: Timestamp is too far in the future, deleting tx")
                     m.execute("DELETE FROM transactions WHERE signature ='" + db_signature + "';")
                     mempool.commit()
@@ -247,12 +246,18 @@ def digest_mempool(): #this function has become the transaction engine core over
                         reward = 0
                         diff = 3
                         if address[0:diff] == txhash[0:diff]: #current block
-                            reward = 25
+                            if float(time_now) < float(db_timestamp):
+                                reward = 25
+                            else:
+                                app_log.info("Mempool: Future mining not allowed")
 
                         for x in db_txhash_list: #previous x blocks
                             if address[0:diff] == x[0][0:diff]:
-                                reward = 25
-                                app_log.info("Mempool: Heureka, reward mined: " + str(reward))
+                                if float(time_now) < float(db_timestamp):
+                                    reward = 25
+                                    app_log.info("Mempool: Heureka, reward mined: " + str(reward))
+                                else:
+                                    app_log.info("Mempool: Future mining not allowed")
 
                         if reward == 0:
                             app_log.info("Mempool: Mining not successful")
