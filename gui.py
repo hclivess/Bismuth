@@ -148,6 +148,31 @@ f5 = Frame(root, height=100, width = 100)
 f5.grid(row = 1, column = 1, sticky = W+E+S)
 #frames
 
+def sign():
+    def sign_this():
+        print "hello"
+
+    # popup
+    top = Toplevel()
+    top.title("Sign message")
+
+    input_text = Text(top)
+    #label.image = photo  # keep a reference!
+    input_text.pack()
+
+    output_signature = Text(top)
+    output_signature.pack()
+
+    # msg = Message(top, text="hi")
+    # msg.pack()
+
+    sign_message = Button(top, text="Sign Message", command=sign_this)
+    sign_message.pack()
+
+    dismiss = Button(top, text="Dismiss", command=top.destroy)
+    dismiss.pack()
+    # popup
+
 
 def refresh():
     conn = sqlite3.connect('ledger.db')
@@ -210,8 +235,11 @@ start_b.grid(row=8, column=0, sticky=W+E+S, pady=4,padx=15,columnspan=4)
 balance_b = Button(f5, text="Manual Refresh", command=refresh, height=1, width=15)
 balance_b.grid(row=9, column=0, sticky=W+E+S, pady=4,padx=15)
 
+sign_b = Button(f5, text="Sign Message", command=sign, height=1, width=15)
+sign_b.grid(row=10, column=0, sticky=W+E+S, pady=4,padx=15)
+
 quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=15)
-quit_b.grid(row=10, column=0, sticky=W+E+S, pady=4,padx=15)
+quit_b.grid(row=11, column=0, sticky=W+E+S, pady=4,padx=15)
 
 #buttons
 
