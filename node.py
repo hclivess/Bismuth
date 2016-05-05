@@ -185,13 +185,15 @@ def digest_mempool(): #this function has become the transaction engine core over
                 debit = c.fetchone()[0]
                 c.execute("SELECT sum(fee) FROM transactions WHERE address = '" + db_address + "'")
                 fees = c.fetchone()[0]
+                c.execute("SELECT sum(reward) FROM transactions WHERE address = '" + db_address + "'")
+                rewards = c.fetchone()[0]
                 if debit == None:
                     debit = 0
                 if credit == None:
                     credit = 0
                 app_log.info("Mempool: Total credit: " + str(credit))
                 app_log.info("Mempool: Total debit: " + str(debit))
-                balance = float(credit) - float(debit) - float(fees)
+                balance = float(credit) - float(debit) - float(fees) +float(rewards)
                 app_log.info("Mempool: Transction address balance: " + str(balance))
 
                 if float(balance) - float(db_amount) < 0:
@@ -219,7 +221,7 @@ def digest_mempool(): #this function has become the transaction engine core over
                     try:
                         c.execute("SELECT timestamp FROM transactions WHERE block_height ='" + str(db_block_50) + "';")
                         db_timestamp_50 = c.fetchone()[0]
-                        fee = 1/(float(db_timestamp_last) - float(db_timestamp_50))
+                        fee = 100/(float(db_timestamp_last) - float(db_timestamp_50))
                         app_log.info("Fee: "+str(fee))
 
                     except Exception as e:
@@ -230,6 +232,7 @@ def digest_mempool(): #this function has become the transaction engine core over
                     # calculate fee
 
                     # decide reward
+                    txhash = hashlib.sha224(str(db_transaction) + str(db_signature) + str(db_txhash)).hexdigest()  # calculate txhash from the ledger
                     try:
                         c.execute("SELECT block_height FROM transactions WHERE reward !='0' ORDER BY block_height DESC LIMIT 50;") #check if there has been a reward in past 50 blocks
                         was_reward = c.fetchone()[0] #no error if there has been a reward
@@ -242,19 +245,18 @@ def digest_mempool(): #this function has become the transaction engine core over
                         app_log.info("Mempool: Reward status: Not mined")
 
                         reward = 0
-                        for x in db_txhash_list:
-                            if address[0:2] == x[0][0:2]:
+                        diff = 3
+                        if address[0:diff] == txhash[0:diff]: #current block
+                            reward = 25
+
+                        for x in db_txhash_list: #previous x blocks
+                            if address[0:diff] == x[0][0:diff]:
                                 reward = 25
                                 app_log.info("Mempool: Heureka, reward mined: " + str(reward))
+
                         if reward == 0:
                             app_log.info("Mempool: Mining not successful")
                     # decide reward
-
-                    txhash = hashlib.sha224(str(db_transaction) + str(db_signature) + str(db_txhash)).hexdigest()  # calculate txhash from the ledger
-
-                    print db_transaction
-                    print db_signature
-                    print db_txhash
 
                     c.execute("INSERT INTO transactions VALUES ('"+str(block_height_new)+"','"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','" + str(db_public_key_readable) + "','" + str(txhash) + "','" + str(fee) + "','" + str(reward) + "')") # Insert a row of data
                     conn.commit()

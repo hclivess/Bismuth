@@ -42,6 +42,8 @@ conn=sqlite3.connect("ledger.db")
 c = conn.cursor()
 
 timestamp = 0 #init
+tries = 0
+
 while True:
     # decide reward
     try:
@@ -62,6 +64,7 @@ while True:
 
         while True:
             if str(timestamp) != str(time.time()): #in case the time has changed
+                tries = tries +1
                 # calculate new hash (submit only if mining is successful)
                 c.execute("SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1;")
                 result = c.fetchall()
@@ -86,14 +89,13 @@ while True:
                 txhash = hashlib.sha224(str(transaction) + str(signature_enc) + str(db_txhash)).hexdigest()  # calculate txhash from the ledger
                 # calculate new hash
                 app_log.info("Txhash: "+txhash)
+                app_log.info("Attempt: " + str(tries))
                 #start mining
 
-                if address[0:2] == txhash[0:2]:
-                    app_log.info("Miner: Found a good txhash")
-
-                    print transaction
-                    print signature_enc
-                    print db_txhash
+                diff = 3
+                if address[0:diff] == txhash[0:diff]:
+                    app_log.info("Miner: Found a good txhash in "+str(tries)+" attempts")
+                    tries = 0
 
                     #submit mined block to node
                     app_log.info("Miner: Encoded Signature: " + str(signature_enc))

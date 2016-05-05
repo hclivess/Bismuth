@@ -158,13 +158,15 @@ def refresh():
     debit = c.fetchone()[0]
     c.execute("SELECT sum(fee) FROM transactions WHERE address = '" + address + "'")
     fees = c.fetchone()[0]
+    c.execute("SELECT sum(reward) FROM transactions WHERE address = '" + address + "'")
+    rewards = c.fetchone()[0]
     c.execute("SELECT MAX(block_height) FROM transactions")
     bl_height = c.fetchone()[0]
     if debit == None:
         debit = 0
     if credit == None:
         credit = 0
-    balance = credit - debit - fees
+    balance = credit - debit - fees + rewards
     app_log.info("Node: Transction address balance: " + str(balance))
 
     # calculate fee - identical to that in node
@@ -178,7 +180,7 @@ def refresh():
     try:
         c.execute("SELECT timestamp FROM transactions WHERE block_height ='" + str(db_block_50) + "';")
         db_timestamp_50 = c.fetchone()[0]
-        fee = 1 / (float(db_timestamp_last) - float(db_timestamp_50))
+        fee = 100 / (float(db_timestamp_last) - float(db_timestamp_50))
         app_log.info("Fee: " + str(fee))
 
     except Exception as e:
@@ -191,6 +193,7 @@ def refresh():
     debit_var.set("Spent Total: " + str(round(debit,2)))
     credit_var.set("Received Total: " + str(round(credit,2)))
     fees_var.set("Fees Paid: " + str(round(fees,5)))
+    rewards_var.set("Rewards: " + str(round(rewards, 2)))
     bl_height_var.set("Block Height: " + str(round(bl_height,2)))
 
     conn.close()
@@ -231,13 +234,17 @@ fees_var = StringVar()
 fees_paid_msg = Label(f5, textvariable=fees_var)
 fees_paid_msg.grid(row=3, column=0, sticky=N+E, padx=15)
 
+rewards_var = StringVar()
+rewards_paid_msg = Label(f5, textvariable=rewards_var)
+rewards_paid_msg.grid(row=4, column=0, sticky=N+E, padx=15)
+
 fees_current_var = StringVar()
 fees_to_pay_msg = Label(f5, textvariable=fees_current_var)
-fees_to_pay_msg.grid(row=4, column=0, sticky=N+E, padx=15)
+fees_to_pay_msg.grid(row=5, column=0, sticky=N+E, padx=15)
 
 bl_height_var = StringVar()
 block_height = Label(f5, textvariable=bl_height_var)
-block_height.grid(row=5, column=0, sticky=N+E, padx=15)
+block_height.grid(row=6, column=0, sticky=N+E, padx=15)
 
 global e
 
