@@ -86,7 +86,7 @@ def send():
             app_log.info("Client: Signature OK, but cannot use negative amounts")
 
         else:
-            app_log.info("Client: The signature and control txhash is valid, proceeding to send transaction, signature, new txhash and the public key")
+            app_log.info("Client: The signature is valid, proceeding to send transaction, signature, new txhash and the public key")
             s.sendall("transaction")
             time.sleep(0.1)
             transaction_send = (transaction+";"+str(signature_enc)+";"+public_key_readable)

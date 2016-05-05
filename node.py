@@ -207,7 +207,7 @@ def digest_mempool(): #this function has become the transaction engine core over
                 #verify balance
 
                 else:
-                    c.execute("SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1;")
+                    c.execute("SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1;") #extract data from ledger to construct new txhash
                     result = c.fetchall()
                     db_txhash = result[0][7]
                     db_block_height = result[0][0]
@@ -251,6 +251,10 @@ def digest_mempool(): #this function has become the transaction engine core over
                     # decide reward
 
                     txhash = hashlib.sha224(str(db_transaction) + str(db_signature) + str(db_txhash)).hexdigest()  # calculate txhash from the ledger
+
+                    print db_transaction
+                    print db_signature
+                    print db_txhash
 
                     c.execute("INSERT INTO transactions VALUES ('"+str(block_height_new)+"','"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','" + str(db_public_key_readable) + "','" + str(txhash) + "','" + str(fee) + "','" + str(reward) + "')") # Insert a row of data
                     conn.commit()

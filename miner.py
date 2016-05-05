@@ -75,9 +75,15 @@ while True:
 
                 timestamp = str(time.time())
                 app_log.info("Timestamp: " + timestamp)
-                transaction = str(timestamp) + ":" + str(address) + ":" + str(address) + ":" + str(1)
+                transaction = str(timestamp) + ":" + str(address) + ":" + str(address) + ":" + str(1.0)
 
-                txhash = hashlib.sha224(str(transaction) + str(db_signature) + str(db_txhash)).hexdigest()  # calculate txhash from the ledger
+                h = SHA.new(transaction)
+                signer = PKCS1_v1_5.new(key)
+                signature = signer.sign(h)
+                signature_enc = base64.b64encode(signature)
+
+
+                txhash = hashlib.sha224(str(transaction) + str(signature_enc) + str(db_txhash)).hexdigest()  # calculate txhash from the ledger
                 # calculate new hash
                 app_log.info("Txhash: "+txhash)
                 #start mining
@@ -85,11 +91,11 @@ while True:
                 if address[0:2] == txhash[0:2]:
                     app_log.info("Miner: Found a good txhash")
 
+                    print transaction
+                    print signature_enc
+                    print db_txhash
+
                     #submit mined block to node
-                    h = SHA.new(transaction)
-                    signer = PKCS1_v1_5.new(key)
-                    signature = signer.sign(h)
-                    signature_enc = base64.b64encode(signature)
                     app_log.info("Miner: Encoded Signature: " + str(signature_enc))
 
                     verifier = PKCS1_v1_5.new(key)
