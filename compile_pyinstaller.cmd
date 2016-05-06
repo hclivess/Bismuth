@@ -5,7 +5,6 @@ pyinstaller.exe --uac-admin --onefile --log-level=INFO node.py --icon=graphics\i
 pyinstaller.exe --uac-admin --onefile --log-level=INFO miner.py --icon=graphics\icon.ico
 copy peers.txt dist\peers.txt
 copy ledger.db dist\ledger.db
-robocopy graphics dist\graphics
 "C:\Program Files (x86)\Inno Setup 5\iscc" /q "setup.iss"
 pause
 

@@ -189,6 +189,8 @@ def refresh():
     bl_height = c.fetchone()[0]
     if debit == None:
         debit = 0
+    if fees == None:
+        fees = 0
     if rewards == None:
         rewards = 0
     if credit == None:
