@@ -188,6 +188,8 @@ def digest_mempool(): #this function has become the transaction engine core over
                 rewards = c.fetchone()[0]
                 if debit == None:
                     debit = 0
+                if rewards == None:
+                    rewards = 0
                 if credit == None:
                     credit = 0
                 app_log.info("Mempool: Total credit: " + str(credit))
