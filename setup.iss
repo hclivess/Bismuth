@@ -23,13 +23,15 @@ Source: "Dist\*" ; DestDir: "{app}"; Flags: recursesubdirs;
 
 [Icons]
 Name: "{group}\Start"; Filename: "{app}\node.exe"
-Name: "{group}\Send"; Filename: "{app}\gui.exe"
+Name: "{group}\Overview"; Filename: "{app}\gui.exe"
 Name: "{group}\Uninstall Bismuth"; Filename: "{uninstallexe}"
 
 Name: "{commondesktop}\Start Node"; Filename: "{app}\node.exe"
-Name: "{commondesktop}\Open GUI"; Filename: "{app}\gui.exe"
+Name: "{commondesktop}\Overview"; Filename: "{app}\gui.exe"
+Name: "{commondesktop}\Mining"; Filename: "{app}\miner.exe"
 
 
 [Run]
-Filename: "{app}\node.exe"; Description: "Start Node"; Flags: postinstall shellexec skipifsilent
-Filename: "{app}\gui.exe"; Description: "Open GUI"; Flags: postinstall nowait skipifsilent unchecked
+Filename: "{app}\node.exe"; Description: "Start"; Flags: postinstall shellexec skipifsilent
+Filename: "{app}\gui.exe"; Description: "Overview"; Flags: postinstall nowait skipifsilent unchecked
+Filename: "{app}\miner.exe"; Description: "Mining"; Flags: postinstall nowait skipifsilent unchecked
