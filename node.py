@@ -22,8 +22,6 @@ from Crypto.Hash import SHA
 from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 
-global sync_in_progress
-
 def most_common(lst):
     return max(set(lst), key=lst.count)
 
@@ -125,8 +123,6 @@ def restore_backup():
         except:
             digest_mempool()
             app_log.info("Backup empty, sync finished")
-            global sync_in_progress
-            sync_in_progress = 0
             return
 
 def digest_mempool(): #this function has become the transaction engine core over time, rudimentary naming
@@ -677,9 +673,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         update_me = 0
 
                     if update_me == 1:
-                        global sync_in_progress
-                        sync_in_progress = 1
-
                         conn = sqlite3.connect('ledger.db')
                         c = conn.cursor()
                         c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
@@ -845,13 +838,11 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 def worker(HOST,PORT):
     while True:
         try:
-            connected = 0
             this_client = (HOST + ":" + str(PORT))
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             #s.settimeout(25)
             s.connect((HOST, PORT))
             app_log.info("Client: Connected to "+str(HOST)+" "+str(PORT))
-            connected = 1
             if this_client not in active_pool:
                 active_pool.append(this_client)
                 app_log.info("Current active pool: "+str(active_pool))
@@ -994,9 +985,6 @@ def worker(HOST,PORT):
                         update_me = 1
 
                     if update_me == 1:
-                        global sync_in_progress
-                        sync_in_progress = 1
-
                         conn = sqlite3.connect('ledger.db')
                         c = conn.cursor()
                         c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
@@ -1173,37 +1161,33 @@ def worker(HOST,PORT):
                     app_log.info("Restoring local transactions from backup")
                     app_log.info("Client: We seem to be at the latest block. Paused before recheck.")
 
-                    if sync_in_progress == 1:
-                        restore_backup() #restores backup and digests mempool
-                    else:
-                        app_log.info("Backup txs are waiting for sync to finish")
+                    restore_backup() #restores backup and digests mempool
+
 
 
                     time.sleep(10)
                     s.sendall("sendsync___")
                     time.sleep(0.1)
         except Exception as e:
+            app_log.info("Will remove " + str(this_client) + " from active pool " + str(active_pool))
+            active_pool.remove(this_client)
 
-            if connected == 1:
-                app_log.info("Will remove " + str(this_client) + " from active pool " + str(active_pool))
-                active_pool.remove(this_client)
-
+            # remove from consensus
+            if this_client in consensus_ip_list:
+                app_log.info("Will remove " + str(this_client) + " from consensus pool " + str(consensus_ip_list))
+                consensus_index = consensus_ip_list.index(this_client)
+                del consensus_ip_list[consensus_index]  # remove ip
+                del consensus_opinion_list[consensus_index]  # remove ip's opinion
                 # remove from consensus
-                if this_client in consensus_ip_list:
-                    app_log.info("Will remove " + str(this_client) + " from consensus pool " + str(consensus_ip_list))
-                    consensus_index = consensus_ip_list.index(this_client)
-                    del consensus_ip_list[consensus_index]  # remove ip
-                    del consensus_opinion_list[consensus_index]  # remove ip's opinion
-                    # remove from consensus
-                else:
-                    app_log.info("Client " + str(this_client) + " not present in the consensus pool")
+            else:
+                app_log.info("Client " + str(this_client) + " not present in the consensus pool")
 
 
             app_log.info("Connection to "+this_client+" terminated due to "+ str(e))
             app_log.info("---thread "+str(threading.currentThread())+" ended---")
-            raise #test only
+            #raise #test only
             return
-            
+
     return
 
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
