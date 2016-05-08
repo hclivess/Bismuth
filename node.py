@@ -1159,15 +1159,12 @@ def worker(HOST,PORT):
 
                 if data == "nonewblocks":
                     app_log.info("Restoring local transactions from backup")
+                    restore_backup()  # restores backup and digests mempool
                     app_log.info("Client: We seem to be at the latest block. Paused before recheck.")
-
-                    restore_backup() #restores backup and digests mempool
-
-
-
                     time.sleep(10)
                     s.sendall("sendsync___")
                     time.sleep(0.1)
+
         except Exception as e:
             app_log.info("Will remove " + str(this_client) + " from active pool " + str(active_pool))
             active_pool.remove(this_client)
