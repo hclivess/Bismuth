@@ -1166,8 +1166,9 @@ def worker(HOST,PORT):
                     time.sleep(0.1)
 
         except Exception as e:
-            app_log.info("Will remove " + str(this_client) + " from active pool " + str(active_pool))
-            active_pool.remove(this_client)
+            if this_client in active_pool:
+                app_log.info("Will remove " + str(this_client) + " from active pool " + str(active_pool))
+                active_pool.remove(this_client)
 
             # remove from consensus
             if this_client in consensus_ip_list:
