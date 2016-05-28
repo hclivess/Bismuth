@@ -373,6 +373,7 @@ if str(genesis) != "07fb3a0e702f0eec167f1fd7ad094dcb8bdd398c91999d59e4dcb475": #
 #verify genesis
 
 try:
+    invalid = 0
     for row in c.execute('SELECT * FROM transactions ORDER BY block_height'):
         db_block_height = row[0]
         db_timestamp = row[1]
@@ -386,21 +387,21 @@ try:
 
         #app_log.info(db_transaction)
 
-        invalid = 0
-
         db_signature_dec = base64.b64decode(db_signature_enc)
         verifier = PKCS1_v1_5.new(db_public_key)
         h = SHA.new(db_transaction)
         if verifier.verify(h, db_signature_dec) == True:
             pass
         else:
+            app_log.info("The following transaction is invalid:")
+            app_log.info(row)
             invalid = invalid + 1
             if db_block_height == str(1):
                 app_log.info("Core: Your genesis signature is invalid, someone meddled with the database")
                 sys.exit(1)
 
     if invalid > 0:
-        app_log.info("Core: "+str(invalid)+" of the transactions in the local ledger are invalid")
+        app_log.info("Core: "+str(invalid)+" of the transactions in the local ledger are invalid: "+str(row))
 
     if invalid == 0:
         app_log.info("Core: All transacitons in the local ledger are valid")
@@ -656,7 +657,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     if received_block_height > db_block_height:
                         app_log.info("Node: Client has higher block, checking consensus deviation")
-                        if int(received_block_height) - consensus <= 500:
+                        if int(received_block_height) - consensus <= 500000:
                             app_log.info("Node: Deviation within normal")
                             update_me = 1
                         else:
@@ -1183,7 +1184,7 @@ def worker(HOST,PORT):
 
             app_log.info("Connection to "+this_client+" terminated due to "+ str(e))
             app_log.info("---thread "+str(threading.currentThread())+" ended---")
-            #raise #test only
+            raise #test only
             return
 
     return
