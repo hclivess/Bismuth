@@ -263,7 +263,7 @@ def digest_mempool(): #this function has become the transaction engine core over
                             app_log.info("Mempool: Mining not successful")
                     # decide reward
 
-                    c.execute("INSERT INTO transactions VALUES ('"+str(block_height_new)+"','"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(db_amount)+"','"+str(db_signature)+"','" + str(db_public_key_readable) + "','" + str(txhash) + "','" + str(fee) + "','" + str(reward) + "')") # Insert a row of data
+                    c.execute("INSERT INTO transactions VALUES ('"+str(block_height_new)+"','"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(float(db_amount))+"','"+str(db_signature)+"','" + str(db_public_key_readable) + "','" + str(txhash) + "','" + str(fee) + "','" + str(reward) + "')") # Insert a row of data
                     conn.commit()
                     conn.close()
 
@@ -538,7 +538,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     received_public_key_readable = sync_list[6]
                     received_public_key = RSA.importKey(sync_list[6])
                     #received_txhash = sync_list[7]
-                    received_transaction = str(received_timestamp) +":"+ str(received_address) +":"+ str(received_to_address) +":"+ str(received_amount) #todo: why not have bare list instead of converting?
+                    received_transaction = str(received_timestamp) +":"+ str(received_address) +":"+ str(received_to_address) +":"+ str(float(received_amount)) #todo: why not have bare list instead of converting?
 
                     #txhash validation start
 

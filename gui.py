@@ -72,7 +72,8 @@ def send():
 
     timestamp = str(time.time())
 
-    transaction = str(timestamp) +":"+ str(address) +":"+ str(to_address_input) +":"+ str(amount_input)
+    transaction = str(timestamp) +":"+ str(address) +":"+ str(to_address_input) +":"+ str(float(amount_input))
+    print transaction
 
     h = SHA.new(transaction)
     signer = PKCS1_v1_5.new(key)
