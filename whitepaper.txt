@@ -1,0 +1,3 @@
+Welcome to Bismuth, a digital distributed self-regulating database system whose primary application is currency, 
+and its first application is mining. Bismuth is not based on code of BTC or any of it's derivates, it is only inspired
+by some ideas laid down by Satoshi Nakamoto (BitCoin), SunnyKing (PeerCoin), John Connor (vCash), and NXT developers. 
