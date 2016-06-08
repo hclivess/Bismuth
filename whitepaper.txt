@@ -4,4 +4,4 @@ by some ideas laid down by Satoshi Nakamoto (BitCoin), SunnyKing (PeerCoin), Joh
 
 Bismuth does not draw any code from other repositories, instead it reformulates the cryptocurrency code to be easily readable,
 compatible across all platforms, integrated into business solutions with utmost ease and most importantly open for development
-to wide public through it's simplicity.
+to wide public through it's simplicity, while minimizing the security risk of custom code implementations.
