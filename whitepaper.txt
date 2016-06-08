@@ -14,6 +14,9 @@ feature is eliminated by flexible fees. With the growiing network usage, the fee
 used extensively, fees are almost non-existent. The fees are currently burned, to stimulate energy expenditure in real-life systems
 and eliminate issues associated with POS systems (hoarding).
 
+mempool/unified processing
+workflow
+
 
 
 
