@@ -11,6 +11,9 @@ performance and removal of deliberate, non-technical limitations like the block 
 between a block and a transactions, those are synonymous here. This means that coins can be spend instantly, because
 the transaction time is equal to zero + technical limitations of the network. The risk of network overload resulting from this
 feature is eliminated by flexible fees. With the growiing network usage, the fees also rise. However when the network is not
-used extensively, fees are almost non-existent.
+used extensively, fees are almost non-existent. The fees are currently burned, to stimulate energy expenditure in real-life systems
+and eliminate issues currently associated with POS systems.
+
+
 
 
