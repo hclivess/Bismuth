@@ -14,7 +14,7 @@ equal to zero + technical limitations of the network.
 The risk of network overload resulting from this feature is eliminated by flexible fees. With the growing network usage, the fees
 also rise. However when the network is not used extensively, fees are almost non-existent. The fees are currently burned, to stimulate
 energy expenditure in real-life systems and eliminate issues associated with POS systems (hoarding). The risk of double spending is
-mitigated through the longest chain rule, because every transaction is checked against balance. Unlike the sophisticated input/output 
+mitigated through the longest chain rule, and every transaction is checked against balance. Unlike the sophisticated input/output 
 system, Bismuth uses a simple balance addition, substraction and comparison.
 
 mempool/unified processing+flat file
