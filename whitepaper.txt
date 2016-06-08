@@ -16,6 +16,8 @@ and eliminate issues associated with POS systems (hoarding).
 
 mempool/unified processing
 workflow
+network functions accessible to anyone
+readable database system
 
 
 
