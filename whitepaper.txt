@@ -24,7 +24,9 @@ readable database system
 dapps/openfield
 mining system
 actual numeric specifications
-
+sidechains
+megablocks
+compressions
 
 
 
