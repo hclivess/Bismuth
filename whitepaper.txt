@@ -5,3 +5,9 @@ by some ideas laid down by Satoshi Nakamoto (BitCoin), SunnyKing (PeerCoin), Joh
 Bismuth does not draw any code from other repositories, instead it reformulates the cryptocurrency code to be easily readable,
 compatible across all platforms, integrated into business solutions with utmost ease and most importantly open for development
 to wide public through it's simplicity, while minimizing the security risk of custom code implementations.
+
+Bismuth vastly differs from the mentioned systems in many ways and some concepts are very different, in pursuit of improved
+performance and removal of deliberate, non-technical limitations like the block size. In fact, Bismuth does not differ
+between a block and a transactions, those are synonymous here. This means that coins can be spend instantly, because
+the transaction time is equal to zero + technical limitations of the network. The risk of network overload resulting from this
+feature is eliminated by flexible fees. With the growiing network usage, the fees also rise.
