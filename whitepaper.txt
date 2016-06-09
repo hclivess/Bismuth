@@ -19,15 +19,20 @@ mitigated through the longest chain rule, and every transaction is checked again
 system, Bismuth uses a simple balance addition, substraction and comparison.
 
 One of the improvements is derived from Bitcoin's issues with the memory pool overload, which is capable of crashing the client.
-Bismuth uses a database (backup.db) for this purpose, instead of storing incoming transactions in RAM. This enables Bismuth to run
-on low-end devices, since price of storage is significantly lower than that of RAM and does not need to impact system performance
-directly. When a fork occurs on the network and a different node is selected based on the longest chain rule, the same database is
+Bismuth uses a database (mempool.db) for this purpose, instead of storing incoming transactions in RAM. This enables
+Bismuth to run on low-end devices, since price of storage is significantly lower than that of RAM and does not need to impact system
+performance directly. When a fork occurs on the network and a different node is selected based on the longest chain rule, backup.db is
 used to backup local transactions in order to reinsert them later.
 
+There are currently three database files, ledger.db, mempool.db, and backup.db, they differ in processing priority in descending order
+to maintain efficiency of the network.
+
 There is a central transaction processing core in every node, which handles transaction verification and synchronization and makes
-this system reliable. However, there are multiple independent connectors in the peer to peer system, based on whether connections are
-incoming or outgoing and whether the node is active or passive. Active nodes are able to receive and send requests, while passive 
-nodes are only capable of sending.
+this system robust and reliable. However, there are multiple independent connectors in the peer to peer system, based on whether 
+connections are incoming or outgoing and whether the node is active or passive. Active nodes are able to receive and send requests, 
+while passive nodes are only capable of sending.
+
+Another great feature for third party integration are the socket functions. 
 
 workflow
 network functions accessible to anyone
