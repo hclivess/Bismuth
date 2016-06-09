@@ -1,3 +1,6 @@
+Bismuth Whitepaper
+expanded with technical specifications
+
 Welcome to Bismuth, a digital distributed self-regulating database system whose primary application is currency, 
 and its first application is mining. Bismuth is not based on code of BTC or any of it's derivates, it is only inspired
 by some ideas laid down by Andreas M. Antonopoulos, Satoshi Nakamoto (BitCoin), Sunny King (Peercoin), John Connor (vCash), NXT and
@@ -41,15 +44,15 @@ to humans.
 Author of this paper believes that the main success of Bitcoin is due to mining, but due to social implications and not the technical 
 ones. Mining or Proof of Work corresponds is Bitcoin's first "killer app", because it basically represents a decentralized lottery.
 Electrical power is used as input, exchanged for a chance of reward. For this reason, mining is included in Bismuth, based on the
-following rules: There is a chance of a reward to be mined every certain number of blocks (i.e. 50). This can be achieved by matching 
-a part of the transaction hash with client's own address, similar to Bitcoin. Since the transaction hash includes a signature in it
-and changing variables like timestamp or amount are used, hash must be different on each minimum time unit. Iterating hashes until a 
-match is found leads to successful mining. A miner is included with Bismuth (miner.py/miner.exe)
+following rules: There is a chance of one reward to be mined every certain number of blocks (i.e. 50). This can be achieved by 
+matching a part of the transaction hash with client's own address, similar to Bitcoin. Since the transaction hash includes a signature
+in it and changing variables like timestamp or amount are used, hash must be different on each minimum time unit. Iterating hashes
+until a match is found leads to successful mining. A miner is included with Bismuth (miner.py/miner.exe)
+
 
 workflow
 
 dapps/openfield
-mining system
 actual numeric specifications
 sidechains
 megablocks
