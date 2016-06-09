@@ -40,7 +40,11 @@ to humans.
 
 Author of this paper believes that the main success of Bitcoin is due to mining, but due to social implications and not the technical 
 ones. Mining or Proof of Work corresponds is Bitcoin's first "killer app", because it basically represents a decentralized lottery.
-Electrical power is used as input, exchanged for a chance of a reward.
+Electrical power is used as input, exchanged for a chance of reward. For this reason, mining is included in Bismuth, based on the
+following rules: There is a chance of a reward to be mined every certain number of blocks (i.e. 50). This can be achieved by matching 
+a part of the transaction hash with client's own address, similar to Bitcoin. Since the transaction hash includes a signature in it
+and changing variables like timestamp or amount are used, hash must be different on each minimum time unit. Iterating hashes until a 
+match is found leads to successful mining. A miner is included with Bismuth (miner.py/miner.exe)
 
 workflow
 
