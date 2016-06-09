@@ -25,18 +25,25 @@ performance directly. When a fork occurs on the network and a different node is 
 used to backup local transactions in order to reinsert them later.
 
 There are currently three database files, ledger.db, mempool.db, and backup.db, they differ in processing priority in descending order
-to maintain efficiency of the network.
+to maintain efficiency of the network. System chosen for databases is the sqlite3, default for every Python installation. It is ready
+on-the-fly and easily accessible though third party tools or the blockchain explorer, which is included with Bismuth. Also, sqlite3
+will make sidechain, dapp and megablock implementation very easy in the future.
 
 There is a central transaction processing core in every node, which handles transaction verification and synchronization and makes
 this system robust and reliable. However, there are multiple independent connectors in the peer to peer system, based on whether 
 connections are incoming or outgoing and whether the node is active or passive. Active nodes are able to receive and send requests, 
 while passive nodes are only capable of sending.
 
-Another great feature for third party integration are the socket functions. 
+Another great feature for third party integration are the socket functions. This makes up for both Bitcoin's RPC and custom APIs
+through unified and generic features on the fly in any programming language capable of handling sockets. The format is easily readable
+to humans.
+
+Author of this paper believes that the main success of Bitcoin is due to mining, but due to social implications and not the technical 
+ones. Mining or Proof of Work corresponds is Bitcoin's first "killer app", because it basically represents a decentralized lottery.
+Electrical power is used as input, exchanged for a chance of a reward.
 
 workflow
-network functions accessible to anyone
-readable database system
+
 dapps/openfield
 mining system
 actual numeric specifications
