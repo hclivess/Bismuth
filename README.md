@@ -2,7 +2,7 @@ Bismuth Readme
 =======
 
 Whitepaper:
-[https://github.com/hclivess/Bismuth/blob/master/whitepaper.md](https://github.com/hclivess/Bismuth/blob/master/whitepaper.md)
+https://github.com/hclivess/Bismuth/blob/master/whitepaper.md
 
 ###Dependencies:
 
@@ -13,8 +13,6 @@ Whitepaper:
 * pypng
 
 ###Development plan:
-
-Handled here:
 https://github.com/hclivess/Bismuth/issues
 
 *WARNING: This project is in the beta stage!*
