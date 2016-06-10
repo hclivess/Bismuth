@@ -1,7 +1,9 @@
 Bismuth Whitepaper
+=======
 expanded with technical specifications
+-----------
 
--Introduction:
+###Introduction:
 Welcome to Bismuth, a digital distributed self-regulating database system whose primary application is currency, 
 and its first application is mining. Bismuth is not based on code of BTC or any of it's derivates, it is only inspired
 by some ideas laid down by Andreas M. Antonopoulos, Satoshi Nakamoto (BitCoin), Sunny King (Peercoin), John Connor (vCash), NXT and
@@ -11,7 +13,7 @@ Bismuth does not draw any code from other repositories, instead it reformulates 
 readable, compatible across all platforms, integrated into business solutions with utmost ease and most importantly open for
 development to wide public through it's simplicity, while minimizing the security risk for custom code implementations.
 
--Specifications
+###Specifications
 Bismuth vastly differs from the mentioned systems in many ways and some concepts are very different, in pursuit of improved
 performance and removal of deliberate, non-technical limitations like the block size. The main difference is that Bismuth does not
 differ between a block and a transactions and regards them as synonymous. This means that coins can be spend instantly, because the 
@@ -51,7 +53,7 @@ matching a part of the transaction hash with client's own address, similar to Bi
 in it and changing variables like timestamp or amount are used, hash must be different on each minimum time unit. Iterating hashes
 until a match is found leads to successful mining. A miner is included with Bismuth (miner.py/miner.exe)
 
--Future Development
+###Future Development
 Listed by simplest to implement, top to bottom
 
 Message signing. The GUI is in place, but not working as of yet.
@@ -69,14 +71,14 @@ pick which one they would like to work with. This also adds an opportunity to cr
 Megablocks can be understood as decentralized checkpoints. Based on predefined rules, all nodes will sum up balances once a certain
 block height occurs. Most entries in the blockchain preceeding the checkpoint will become irrelevant and removable.
 
--Technical details
-  System: Proof of transaction
-  Hashing algorithm: SHA224
-  Signing algorithm: PKCS1_v1_5, base64
-  Block size: 600-700 bytes
-  Mining reward: 25 units/50 blocks
-  Confirmations before respending: 0 (user decides)
-  Default P2P port:
-    Client: Random
-    Node: 2829
-  Plaintext peerlist file
+###Technical details
+* System: Proof of transaction
+* Hashing algorithm: SHA224
+* Signing algorithm: PKCS1_v1_5, base64
+* Block size: 600-700 bytes
+* Mining reward: 25 units/50 blocks
+* Confirmations before respending: 0 (user decides)
+* Default P2P port:
+    * Client: Random
+    * Node: 2829
+* Plaintext peerlist file
