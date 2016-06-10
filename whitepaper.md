@@ -1,7 +1,6 @@
 Bismuth Whitepaper
 =======
-Expanded with technical specifications
------------
+*Expanded with technical specifications*
 
 ###Introduction:
 Welcome to Bismuth, a digital distributed self-regulating database system whose primary application is currency, 
@@ -54,24 +53,24 @@ in it and changing variables like timestamp or amount are used, hash must be dif
 until a match is found leads to successful mining. A miner is included with Bismuth (miner.py/miner.exe)
 
 ###Future Development
-Listed by simplest to implement, top to bottom
+*Listed by simplest to implement, top to bottom*
 
-Message signing. The GUI is in place, but not working as of yet.
+1. Message signing. The GUI is in place, but not working as of yet.
 
-Bismuth's implementation of decentralized data and applications will be handled though technology which goes under the name OpenField.
-For this purpose, an extra column will be created in the database with arbitrary user data. Then it will be decided whether an 
-external framework will be developed for handling this data or if it happens to be implemented to the core.
+2. Bismuth's implementation of decentralized data and applications will be handled though technology which goes under the name
+OpenField. For this purpose, an extra column will be created in the database with arbitrary user data. Then it will be decided whether
+an external framework will be developed for handling this data or if it happens to be implemented to the core.
 
-Compression mechanisms developed for Bismuth will make it even more efficient. Technology coined Extreme Blockchain Compression (EBC),
-which uses database references of repeated data, is capable of reducing the database size by more than 90%.
+3. Compression mechanisms developed for Bismuth will make it even more efficient. Technology coined Extreme Blockchain Compression 
+(EBC), which uses database references of repeated data, is capable of reducing the database size by more than 90%.
 
-Sidechains and megablocks will increase scalability thousandfolds. Sidechains will be held in separate databases, allowing users to 
-pick which one they would like to work with. This also adds an opportunity to create private blockchains. 
+4. Sidechains and megablocks will increase scalability thousandfolds. Sidechains will be held in separate databases, allowing users to pick which one they would like to work with. This also adds an opportunity to create private blockchains. 
 
-Megablocks can be understood as decentralized checkpoints. Based on predefined rules, all nodes will sum up balances once a certain
+5. Megablocks can be understood as decentralized checkpoints. Based on predefined rules, all nodes will sum up balances once a certain
 block height occurs. Most entries in the blockchain preceeding the checkpoint will become irrelevant and removable.
 
 ###Technical details
+
 * System: Proof of transaction
 * Hashing algorithm: SHA224
 * Signing algorithm: PKCS1_v1_5, base64
