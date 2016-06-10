@@ -1,6 +1,8 @@
 Bismuth Readme
 =======
-![GitHub Logo](/graphics/logo.gif)
+
+Whitepaper:
+[https://github.com/hclivess/Bismuth/blob/master/whitepaper.md](https://github.com/hclivess/Bismuth/blob/master/whitepaper.md)
 
 ###Dependencies:
 
