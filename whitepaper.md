@@ -69,5 +69,14 @@ pick which one they would like to work with. This also adds an opportunity to cr
 Megablocks can be understood as decentralized checkpoints. Based on predefined rules, all nodes will sum up balances once a certain
 block height occurs. Most entries in the blockchain preceeding the checkpoint will become irrelevant and removable.
 
-
-
+-Technical details
+  System: Proof of transaction
+  Hashing algorithm: SHA224
+  Signing algorithm: PKCS1_v1_5, base64
+  Block size: 600-700 bytes
+  Mining reward: 25 units/50 blocks
+  Confirmations before respending: 0 (user decides)
+  Default P2P port:
+    Client: Random
+    Node: 2829
+  Plaintext peerlist file
