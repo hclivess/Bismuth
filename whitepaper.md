@@ -1,6 +1,6 @@
 Bismuth Whitepaper
 =======
-expanded with technical specifications
+Expanded with technical specifications
 -----------
 
 ###Introduction:
