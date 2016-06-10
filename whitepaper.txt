@@ -1,6 +1,7 @@
 Bismuth Whitepaper
 expanded with technical specifications
 
+-Introduction:
 Welcome to Bismuth, a digital distributed self-regulating database system whose primary application is currency, 
 and its first application is mining. Bismuth is not based on code of BTC or any of it's derivates, it is only inspired
 by some ideas laid down by Andreas M. Antonopoulos, Satoshi Nakamoto (BitCoin), Sunny King (Peercoin), John Connor (vCash), NXT and
@@ -10,10 +11,11 @@ Bismuth does not draw any code from other repositories, instead it reformulates 
 readable, compatible across all platforms, integrated into business solutions with utmost ease and most importantly open for
 development to wide public through it's simplicity, while minimizing the security risk for custom code implementations.
 
+-Specifications
 Bismuth vastly differs from the mentioned systems in many ways and some concepts are very different, in pursuit of improved
 performance and removal of deliberate, non-technical limitations like the block size. The main difference is that Bismuth does not
 differ between a block and a transactions and regards them as synonymous. This means that coins can be spend instantly, because the 
-transaction time is equal to zero + technical limitations of the network.
+transaction time is equal to zero combined with physical limitations of the network infrastructure.
 
 The risk of network overload resulting from this feature is eliminated by flexible fees. With the growing network usage, the fees
 also rise. However when the network is not used extensively, fees are almost non-existent. The fees are currently burned, to stimulate
@@ -49,14 +51,23 @@ matching a part of the transaction hash with client's own address, similar to Bi
 in it and changing variables like timestamp or amount are used, hash must be different on each minimum time unit. Iterating hashes
 until a match is found leads to successful mining. A miner is included with Bismuth (miner.py/miner.exe)
 
+-Future Development
+Listed by simplest to implement, top to bottom
 
-workflow
+Message signing. The GUI is in place, but not working as of yet.
 
-dapps/openfield
-actual numeric specifications
-sidechains
-megablocks
-compressions
+Bismuth's implementation of decentralized data and applications will be handled though technology which goes under the name OpenField.
+For this purpose, an extra column will be created in the database with arbitrary user data. Then it will be decided whether an 
+external framework will be developed for handling this data or if it happens to be implemented to the core.
+
+Compression mechanisms developed for Bismuth will make it even more efficient. Technology coined Extreme Blockchain Compression (EBC),
+which uses database references of repeated data, is capable of reducing the database size by more than 90%.
+
+Sidechains and megablocks will increase scalability thousandfolds. Sidechains will be held in separate databases, allowing users to 
+pick which one they would like to work with. This also adds an opportunity to create private blockchains. 
+
+Megablocks can be understood as decentralized checkpoints. Based on predefined rules, all nodes will sum up balances once a certain
+block height occurs. Most entries in the blockchain preceeding the checkpoint will become irrelevant and removable.
 
 
 
