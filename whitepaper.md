@@ -64,7 +64,7 @@ OpenField. For this purpose, an extra column will be created in the database wit
 an external framework will be developed for handling this data or if it happens to be implemented to the core.
 
 3. Compression mechanisms developed for Bismuth will make it even more efficient. Technology coined Extreme Blockchain Compression 
-(EBC), which uses database references of repeated data, is capable of reducing the database size by more than 90%.
+(EBC), which uses database references of repeated data, is capable of reducing the database size by more than 60%.
 
 4. Sidechains and megablocks will increase scalability thousandfolds. Sidechains will be held in separate databases, allowing users to pick which one they would like to work with. This also adds an opportunity to create private blockchains. 
 
@@ -76,7 +76,8 @@ block height occurs. Most entries in the blockchain preceeding the checkpoint wi
 * System: Proof of transaction
 * Hashing algorithm: SHA224
 * Signing algorithm: PKCS1_v1_5, base64
-* Block size: 600-700 bytes
+* Block size: ~650p bytes
+* Compressed block size: ~250 bytes
 * Mining reward: 25 units/50 blocks
 * Confirmations before respending: 0 (user decides)
 * Default P2P port:
