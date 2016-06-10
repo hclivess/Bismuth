@@ -1,4 +1,5 @@
 Bismuth Whitepaper
+![GitHub Logo](/graphics/logo.gif)
 =======
 *Expanded with technical specifications*
 
