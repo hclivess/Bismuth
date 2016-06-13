@@ -76,7 +76,7 @@ block height occurs. Most entries in the blockchain preceeding the checkpoint wi
 * System: Proof of transaction
 * Hashing algorithm: SHA224
 * Signing algorithm: PKCS1_v1_5, base64
-* Block size: ~650p bytes
+* Block size: ~650 bytes
 * Compressed block size: ~250 bytes
 * Mining reward: 25 units/50 blocks
 * Confirmations before respending: 0 (user decides)
