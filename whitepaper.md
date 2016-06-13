@@ -34,7 +34,7 @@ used to backup local transactions in order to reinsert them later.
 
 There are currently three database files, ledger.db, mempool.db, and backup.db, they differ in processing priority in descending order
 to maintain efficiency of the network. System chosen for databases is the sqlite3, default for every Python installation. It is ready
-on-the-fly and easily accessible though third party tools or the blockchain explorer, which is included with Bismuth. Also, sqlite3
+on-the-fly and easily accessible through third party tools or the blockchain explorer, which is included with Bismuth. Also, sqlite3
 will make sidechain, dapp and megablock implementation very easy in the future.
 
 There is a central transaction processing core in every node, which handles transaction verification and synchronization and makes
@@ -59,7 +59,7 @@ until a match is found leads to successful mining. A miner is included with Bism
 
 1. Message signing. The GUI is in place, but not working as of yet.
 
-2. Bismuth's implementation of decentralized data and applications will be handled though technology which goes under the name
+2. Bismuth's implementation of decentralized data and applications will be handled through technology which goes under the name
 OpenField. For this purpose, an extra column will be created in the database with arbitrary user data. Then it will be decided whether
 an external framework will be developed for handling this data or if it happens to be implemented to the core.
 
