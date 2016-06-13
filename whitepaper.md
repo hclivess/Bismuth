@@ -3,6 +3,7 @@ Bismuth Whitepaper
 ![GitHub Logo](/graphics/logo.gif)
 
 *Expanded with technical specifications*
+No limits, easy integration, endless possibilities
 
 ###Introduction:
 Welcome to Bismuth, a digital distributed self-regulating database system whose primary application is currency, 
