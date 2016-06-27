@@ -166,7 +166,7 @@ def digest_mempool(): #this function has become the transaction engine core over
                 #verifying timestamp
                 time_now = str(time.time())
                 if float(db_timestamp) > (float(time_now)):
-                    app_log.info("Mempool: Timestamp is too far in the future, deleting tx")
+                    app_log.info("Mempool: Timestamp is in the future, deleting tx")
                     m.execute("DELETE FROM transactions WHERE signature ='" + db_signature + "';")
                     mempool.commit()
                 # verifying timestamp
