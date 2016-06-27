@@ -1,37 +1,35 @@
-development plan:
+Bismuth Readme
+=======
 
--implement consensus pool from the connected nodes using statistics.median(data)
--optimize node stability
--framework for decentralized apps and open communication fields through OpenField™
--framework for sidechains and hyperblocks
--improve gui memory handling by implementing updates instead of redraws
+Whitepaper:
+https://github.com/hclivess/Bismuth/blob/master/whitepaper.md
 
-WARNING: This project is in the beta stage!
+###Dependencies:
 
-Dependencies:
+* python 2.7
+* pycrypto
+* pillow
+* pyqrcode
+* pypng
 
--python 2.7
--pycrypto
--pillow
--pyqrcode
--pypng
+###Development plan:
+https://github.com/hclivess/Bismuth/issues
 
-Features:
+*WARNING: This project is in the beta stage!*
 
--instant transactions
--transaction size limit: 0.002048 MB
--real transaction size: 0.00075 MB (750 MB per 1 million txs)
+###License:
 
--cryptography by PKCS1_v1_5
--hashing by SHA224 and bas64
--socket functions
--mutual rollback
--asynchronous multithreading
--transaction scraping
--mempool
--longest chain rule
--dynamic connection pool
--automatic node management
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
 
-Licensed under GPL
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 

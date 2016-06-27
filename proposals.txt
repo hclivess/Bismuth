@@ -1,3 +1,4 @@
+fees:
 Select timestamp of the (current block -50) from the ledger
 Calculate how much time has passed since that timestamp, the longer, the lower the transaction
 Fee =1/(timestamp_current - timestamp_50)
@@ -33,3 +34,10 @@ dapp proposal:
 
 easiest way is though a separate column/db, with binaries encoded as base64
 each dapp will have a limited life span, paid by block
+
+--
+Proposal for dev rewards:
+-Fetch total amount of blocks
+-Fetch total amount of rewards (effectively exclude block chunks without reward)
+-Calculate rewards/total blocks
+-Dev address = (rewards/total blocks)-expenditures
