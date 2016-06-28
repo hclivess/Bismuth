@@ -250,7 +250,7 @@ def digest_mempool(): #this function has become the transaction engine core over
 
                     else:  # no reward in the past x blocks
                         diff = 3
-                        if db_address[0:diff] == txhash[0:diff]:
+                        if db_address[0:diff] == txhash[0:diff]: #simplified comparison, no backwards mining
                             if float(time_now) > float(db_timestamp):
                                 reward = 25
                                 app_log.info("Mempool: Heureka, reward mined: " + str(reward))
