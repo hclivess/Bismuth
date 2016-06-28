@@ -235,36 +235,33 @@ def digest_mempool(): #this function has become the transaction engine core over
 
                     c.execute("SELECT reward FROM transactions ORDER BY block_height DESC LIMIT 50;")  # check if there has been a reward in past 50 blocks
                     was_reward = c.fetchall()
-                    for x in was_reward[0]:
-                        if x != "0":  # iterate all of the last 50 blocks and see if there is a reward in there
-                            reward = 0  # there has been a reward already, don't reward anymore
-                            app_log.info("Mempool: Reward status: Mined for this segment already (" + str(x) + ") tokens")
-                            time.sleep(10)
+                    for x in was_reward:
+                        #print x[0] #debug
+                        if x[0] != "0":
+                            reward_possible = 0
 
-                        else:  # no reward in the past x blocks
-                            c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 50;")  # select previous x transactions to start mining
-                            db_txhash_list = c.fetchall()
-                            app_log.info("Mempool: Reward status: Not mined")
+                    reward = 0 #default
 
-                            reward = 0
-                            diff = 3
-                            if db_address[0:diff] == txhash[0:diff]: #current block
-                                if float(time_now) > float(db_timestamp):
-                                    reward = 25
-                                else:
-                                    app_log.info("Mempool: Future mining not allowed")
+                    if reward_possible == 0:
+                        app_log.info("Mempool: Reward status: Mined for this segment already (" + str(x) + ") tokens")
 
-                            for x in db_txhash_list: #previous x blocks
-                                if db_address[0:diff] == x[0][0:diff]:
-                                    if float(time_now) > float(db_timestamp):
-                                        reward = 25
-                                        app_log.info("Mempool: Heureka, reward mined: " + str(reward))
-                                    else:
-                                        app_log.info("Mempool: Future mining not allowed")
+                    else:  # no reward in the past x blocks
+                        c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 50;")  # select previous x transactions to start mining
+                        db_txhash_list = c.fetchall()
+                        app_log.info("Mempool: Reward status: Not mined")
 
-                            if reward == 0:
-                                app_log.info("Mempool: Mining not successful")
-                        # decide reward
+                        diff = 3
+
+                        if db_address[0:diff] == x[0][0:diff]:
+                            if float(time_now) > float(db_timestamp):
+                                reward = 25
+                                app_log.info("Mempool: Heureka, reward mined: " + str(reward))
+                            else:
+                                app_log.info("Mempool: Future mining not allowed")
+
+                        if reward == 0:
+                            app_log.info("Mempool: Mining not successful")
+                    # decide reward
 
                     c.execute("INSERT INTO transactions VALUES ('"+str(block_height_new)+"','"+str(db_timestamp)+"','"+str(db_address)+"','"+str(db_to_address)+"','"+str(float(db_amount))+"','"+str(db_signature)+"','" + str(db_public_key_readable) + "','" + str(txhash) + "','" + str(fee) + "','" + str(reward) + "')") # Insert a row of data
                     conn.commit()
