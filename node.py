@@ -1220,6 +1220,9 @@ def worker(HOST, PORT):
                 active_pool.remove(this_client)
 
             # remove from consensus
+            global consensus_ip_list #experimental, remove if consensus not removed after disconnection
+            global consensus_opinion_list #experimental, remove if consensus not removed after disconnection
+
             if this_client in consensus_ip_list:
                 app_log.info("Will remove " + str(this_client) + " from consensus pool " + str(consensus_ip_list))
                 consensus_index = consensus_ip_list.index(this_client)
