@@ -235,6 +235,9 @@ def digest_mempool(): #this function has become the transaction engine core over
 
                     c.execute("SELECT reward FROM transactions ORDER BY block_height DESC LIMIT 50;")  # check if there has been a reward in past 50 blocks
                     was_reward = c.fetchall()
+
+                    reward_possible = 1
+
                     for x in was_reward:
                         #print x[0] #debug
                         if x[0] != "0":
@@ -246,13 +249,8 @@ def digest_mempool(): #this function has become the transaction engine core over
                         app_log.info("Mempool: Reward status: Mined for this segment already (" + str(x) + ") tokens")
 
                     else:  # no reward in the past x blocks
-                        c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 50;")  # select previous x transactions to start mining
-                        db_txhash_list = c.fetchall()
-                        app_log.info("Mempool: Reward status: Not mined")
-
                         diff = 3
-
-                        if db_address[0:diff] == x[0][0:diff]:
+                        if db_address[0:diff] == txhash[0:diff]:
                             if float(time_now) > float(db_timestamp):
                                 reward = 25
                                 app_log.info("Mempool: Heureka, reward mined: " + str(reward))
