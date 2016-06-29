@@ -773,7 +773,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     #global mempool_busy #do not interrupt current ledger procedures
                     while mempool_busy == 1:
-                        app_log.info("Waiting for dcurrent operations to finish...")
+                        app_log.info("Waiting for current operations to finish...")
                         time.sleep (1)
 
                     app_log.info("Client: Node didn't find the block, deleting latest entry")
