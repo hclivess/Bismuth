@@ -261,7 +261,7 @@ def digest_mempool():  # this function has become the transaction engine core ov
                         reward = 0  # default
 
                         if reward_possible == 0:
-                            app_log.info("Mempool: Reward status: Mined for this segment already (" + str(x) + ") tokens")
+                            app_log.info("Mempool: Reward status: Mined for this segment already ")
 
                         else:  # no reward in the past x blocks
                             diff = 3
