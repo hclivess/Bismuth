@@ -291,7 +291,7 @@ def digest_mempool():  # this function has become the transaction engine core ov
 
             except:
                 app_log.info("Mempool empty")
-                global mempool_busy
+                #global mempool_busy
                 mempool_busy = 0
                 #raise #debug
                 return
@@ -771,7 +771,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                 if data == "blocknotfou":
 
-                    global mempool_busy #do not interrupt current ledger procedures
+                    #global mempool_busy #do not interrupt current ledger procedures
                     while mempool_busy == 1:
                         app_log.info("Waiting for dcurrent operations to finish...")
                         time.sleep (1)
@@ -1143,7 +1143,7 @@ def worker(HOST, PORT):
                     txhash_len = int(data)
                     data = s.recv(txhash_len)
 
-                    global mempool_busy #do not interrupt current ledger procedures
+                    #global mempool_busy #do not interrupt current ledger procedures
                     while mempool_busy == 1:
                         app_log.info("Waiting for current operations to finish...")
                         time.sleep (1)
