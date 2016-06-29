@@ -291,8 +291,9 @@ def digest_mempool():  # this function has become the transaction engine core ov
 
             except:
                 app_log.info("Mempool empty")
+                global mempool_busy
                 mempool_busy = 0
-                # raise #debug
+                #raise #debug
                 return
 
 
