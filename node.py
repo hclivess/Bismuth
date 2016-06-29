@@ -599,6 +599,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     # delete all local followups
                     c.execute('DELETE FROM transactions WHERE block_height > "' + str(received_block_height) + '"')
+                    conn.commit()  # this was missing, experimentally added
                     conn.close()
                     # delete all local followups
 
@@ -1108,7 +1109,7 @@ def worker(HOST, PORT):
                     backup.close()
                     # backup all followups to backup
 
-                    # delete followups
+                    # delete followups #exclusive mode add here
                     c.execute('DELETE FROM transactions WHERE block_height ="' + str(db_block_height) + '"')
                     conn.commit()
                     conn.close()
@@ -1169,6 +1170,7 @@ def worker(HOST, PORT):
 
                     # delete all local followups
                     c.execute('DELETE FROM transactions WHERE block_height > "' + str(received_block_height) + '"')
+                    conn.commit() #this was missing, experimentally added
                     conn.close()
                     # delete all local followups
 
