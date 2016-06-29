@@ -57,7 +57,7 @@ while True:
             reward_possible = 0  #there has been a reward already, don't reward anymore
 
     if reward_possible == 0:
-        app_log.info("Mempool: Reward status: Mined for this segment already.")
+        app_log.info("Mempool: Reward status: Mined for this segment already. One segment is 50 blocks long. You need to wait for those 50 blocks to pass before mining is available again. The miner will resume automatically.")
         time.sleep(10)
 
     else:  # no reward in the past x blocks
