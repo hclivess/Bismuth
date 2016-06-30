@@ -99,7 +99,7 @@ def manager():
 def restore_backup():
     global consensus_percentage
     if consensus_percentage < 67:
-        app_log.info("Waiting for good consensus before restoring local transactions, currently at "+str(consensus_percentage) + "%")
+        app_log.info("Skipping restoration until consensus is higher")
         return
     else:
         while True:
