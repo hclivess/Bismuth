@@ -291,7 +291,6 @@ def digest_mempool():  # this function has become the transaction engine core ov
 
             except:
                 app_log.info("Mempool empty")
-                #global mempool_busy
                 mempool_busy = 0
                 #raise #debug
                 return
@@ -555,7 +554,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     global mempool_busy #do not interrupt current ledger procedures
                     while mempool_busy == 1:
                         app_log.info("Waiting for current operations to finish...")
-                        time.sleep (1)
+                        time.sleep(1)
 
                     app_log.info("Client: " + data)
                     # verify
@@ -771,10 +770,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                 if data == "blocknotfou":
 
-                    #global mempool_busy #do not interrupt current ledger procedures
                     while mempool_busy == 1:
                         app_log.info("Waiting for current operations to finish...")
-                        time.sleep (1)
+                        time.sleep(1)
 
                     app_log.info("Client: Node didn't find the block, deleting latest entry")
                     conn = sqlite3.connect('ledger.db')
@@ -1131,7 +1129,7 @@ def worker(HOST, PORT):
                     global mempool_busy #do not interrupt current ledger procedures
                     while mempool_busy == 1:
                         app_log.info("Waiting for dcurrent operations to finish...")
-                        time.sleep (1)
+                        time.sleep(1)
 
                     app_log.info("Client: Node didn't find the block, deleting latest entry")
                     conn = sqlite3.connect('ledger.db')
@@ -1175,10 +1173,9 @@ def worker(HOST, PORT):
                     txhash_len = int(data)
                     data = s.recv(txhash_len)
 
-                    #global mempool_busy #do not interrupt current ledger procedures
                     while mempool_busy == 1:
                         app_log.info("Waiting for current operations to finish...")
-                        time.sleep (1)
+                        time.sleep(1)
 
                     app_log.info("Client: " + data)
                     # verify
