@@ -98,46 +98,47 @@ def manager():
 
 def restore_backup():
     global consensus_percentage
-    while consensus_percentage < 67:
+    if consensus_percentage < 67:
         app_log.info("Waiting for good consensus before restoring local transactions, currently at "+str(consensus_percentage) + "%")
-        time.sleep(1)
-    while True:
-        try:
-            app_log.info("Node: Digesting backup")
+        return
+    else:
+        while True:
+            try:
+                app_log.info("Node: Digesting backup")
 
-            backup = sqlite3.connect('backup.db')
-            b = backup.cursor()
+                backup = sqlite3.connect('backup.db')
+                b = backup.cursor()
 
-            b.execute("SELECT * FROM transactions ORDER BY timestamp ASC LIMIT 1;")
-            result = b.fetchall()
-            db_timestamp = result[0][0]
-            db_address = result[0][1]
-            db_to_address = result[0][2]
-            db_amount = result[0][3]
-            db_signature_enc = result[0][4]
-            db_public_key_readable = result[0][5]
+                b.execute("SELECT * FROM transactions ORDER BY timestamp ASC LIMIT 1;")
+                result = b.fetchall()
+                db_timestamp = result[0][0]
+                db_address = result[0][1]
+                db_to_address = result[0][2]
+                db_amount = result[0][3]
+                db_signature_enc = result[0][4]
+                db_public_key_readable = result[0][5]
 
-            # insert to mempool
-            mempool = sqlite3.connect('mempool.db')
-            m = mempool.cursor()
+                # insert to mempool
+                mempool = sqlite3.connect('mempool.db')
+                m = mempool.cursor()
 
-            m.execute("INSERT INTO transactions VALUES ('" + str(db_timestamp) + "','" + str(db_address) + "','" + str(
-                db_to_address) + "','" + str(db_amount) + "','" + str(db_signature_enc) + "','" + str(
-                db_public_key_readable) + "')")  # Insert a row of data
-            app_log.info("Node: Mempool updated with a transaction from backup")
-            mempool.commit()  # Save (commit) the changes
-            mempool.close()
+                m.execute("INSERT INTO transactions VALUES ('" + str(db_timestamp) + "','" + str(db_address) + "','" + str(
+                    db_to_address) + "','" + str(db_amount) + "','" + str(db_signature_enc) + "','" + str(
+                    db_public_key_readable) + "')")  # Insert a row of data
+                app_log.info("Node: Mempool updated with a transaction from backup")
+                mempool.commit()  # Save (commit) the changes
+                mempool.close()
 
-            app_log.info("Backup: deleting digested tx")
-            b.execute("DELETE FROM transactions WHERE signature ='" + db_signature_enc + "';")
-            backup.commit()
-            backup.close()
-            # insert to mempool
+                app_log.info("Backup: deleting digested tx")
+                b.execute("DELETE FROM transactions WHERE signature ='" + db_signature_enc + "';")
+                backup.commit()
+                backup.close()
+                # insert to mempool
 
-        except:
-            digest_mempool()
-            app_log.info("Backup empty, sync finished")
-            return
+            except:
+                digest_mempool()
+                app_log.info("Backup empty, sync finished")
+                return
 
 
 def digest_mempool():  # this function has become the transaction engine core over time, rudimentary naming
