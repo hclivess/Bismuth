@@ -890,6 +890,7 @@ def worker(HOST, PORT):
     while True:
         try:
             this_client = (HOST + ":" + str(PORT))
+            this_client_ip = HOST
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             # s.settimeout(25)
             s.connect((HOST, PORT))
@@ -1271,21 +1272,25 @@ def worker(HOST, PORT):
                     time.sleep(0.1)
 
         except Exception as e:
+            #remove from active pool
             if this_client in active_pool:
                 app_log.info("Will remove " + str(this_client) + " from active pool " + str(active_pool))
                 active_pool.remove(this_client)
+            # remove from active pool
 
             # remove from consensus
-            #doesnt work
 
-            if this_client in consensus_ip_list:
-                app_log.info("Will remove " + str(this_client) + " from consensus pool " + str(consensus_ip_list))
-                consensus_index = consensus_ip_list.index(this_client)
-                del consensus_ip_list[consensus_index]  # remove ip
+            if this_client_ip in consensus_ip_list:
+                app_log.info("Will remove " + str(this_client_ip) + " from consensus pool " + str(consensus_ip_list))
+                consensus_index = consensus_ip_list.index(this_client_ip)
+                print consensus_index #test
+                consensus_ip_list.remove(this_client_ip)
+                #del consensus_ip_list[consensus_index]  # remove ip
                 del consensus_opinion_list[consensus_index]  # remove ip's opinion
-                # remove from consensus
             else:
-                app_log.info("Client " + str(this_client) + " not present in the consensus pool")
+                app_log.info("Client " + str(this_client_ip) + " not present in the consensus pool")
+
+            # remove from consensus
 
             app_log.info("Connection to " + this_client + " terminated due to " + str(e))
             app_log.info("---thread " + str(threading.currentThread()) + " ended---")
