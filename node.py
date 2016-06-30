@@ -453,7 +453,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             try:
                 data = self.request.recv(11)
                 # cur_thread = threading.current_thread()
-
                 app_log.info("Node: Received: " + data + " from " + str(
                     self.request.getpeername()[0]))  # will add custom ports later
 
@@ -881,6 +880,17 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 app_log.info("Node: Lost connection")
                 app_log.info(e)
 
+                # remove from consensus
+                if consensus_ip in consensus_ip_list:
+                    app_log.info(
+                        "Will remove " + str(consensus_ip) + " from consensus pool " + str(consensus_ip_list))
+                    consensus_index = consensus_ip_list.index(consensus_ip)
+                    consensus_ip_list.remove(consensus_ip)
+                    del consensus_opinion_list[consensus_index]  # remove ip's opinion
+                else:
+                    app_log.info("Client " + str(consensus_ip) + " not present in the consensus pool")
+                # remove from consensus
+
                 # raise #for test purposes
                 break
 
@@ -1273,19 +1283,6 @@ def worker(HOST, PORT):
                 app_log.info("Will remove " + str(this_client) + " from active pool " + str(active_pool))
                 active_pool.remove(this_client)
             # remove from active pool
-
-            # remove from consensus
-
-            if this_client_ip in consensus_ip_list:
-                app_log.info("Will remove " + str(this_client_ip) + " from consensus pool " + str(consensus_ip_list))
-                consensus_index = consensus_ip_list.index(this_client_ip)
-                consensus_ip_list.remove(this_client_ip)
-                #del consensus_ip_list[consensus_index]  # remove ip
-                del consensus_opinion_list[consensus_index]  # remove ip's opinion
-            else:
-                app_log.info("Client " + str(this_client_ip) + " not present in the consensus pool")
-
-            # remove from consensus
 
             app_log.info("Connection to " + this_client + " terminated due to " + str(e))
             app_log.info("---thread " + str(threading.currentThread()) + " ended---")
