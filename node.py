@@ -138,10 +138,6 @@ def digest_mempool():  # this function has become the transaction engine core ov
     # digest mempool start
     global mempool_busy
 
-    while mempool_busy == 1:
-        app_log.info("Waiting for current operations to finish...")
-        time.sleep(1)
-
     if mempool_busy == 0:
         mempool_busy = 1
         while True:
@@ -556,11 +552,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     txhash_len = int(data)
                     data = self.request.recv(txhash_len)
 
-                    global mempool_busy #do not interrupt current ledger procedures
-                    while mempool_busy == 1:
-                        app_log.info("Waiting for current operations to finish...")
-                        time.sleep(1)
-
                     app_log.info("Client: " + data)
                     # verify
                     sync_list = ast.literal_eval(data)  # this is great, need to add it to client -> node sync
@@ -775,10 +766,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             time.sleep(0.1)
 
                 if data == "blocknotfou":
-
-                    while mempool_busy == 1:
-                        app_log.info("Waiting for current operations to finish...")
-                        time.sleep(1)
 
                     app_log.info("Client: Node didn't find the block, deleting latest entry")
                     conn = sqlite3.connect('ledger.db')
@@ -1132,11 +1119,6 @@ def worker(HOST, PORT):
 
                 if data == "blocknotfou":
 
-                    global mempool_busy #do not interrupt current ledger procedures
-                    while mempool_busy == 1:
-                        app_log.info("Waiting for dcurrent operations to finish...")
-                        time.sleep(1)
-
                     app_log.info("Client: Node didn't find the block, deleting latest entry")
                     conn = sqlite3.connect('ledger.db')
                     c = conn.cursor()
@@ -1169,9 +1151,9 @@ def worker(HOST, PORT):
                     conn.close()
                     # delete followups
 
-                    while mempool_busy == 1:
+                    while mempool_busy == 1: #this might be the only place where needed
                         app_log.info("Waiting for current operations to finish...")
-                        time.sleep(1) #
+                        time.sleep(0.1) #
 
                     s.sendall("sendsync___")
                     time.sleep(0.1)
@@ -1183,10 +1165,6 @@ def worker(HOST, PORT):
                     app_log.info("Transaction length to receive: " + data)
                     txhash_len = int(data)
                     data = s.recv(txhash_len)
-
-                    while mempool_busy == 1:
-                        app_log.info("Waiting for current operations to finish...")
-                        time.sleep(1)
 
                     app_log.info("Client: " + data)
                     # verify
