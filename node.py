@@ -53,6 +53,8 @@ global tried
 tried = []
 global mempool_busy
 mempool_busy = 0
+global consensus_percentage
+consensus_percentage = 100
 
 port = 2829
 
@@ -95,6 +97,10 @@ def manager():
 
 
 def restore_backup():
+    global consensus_percentage
+    while consensus_percentage < 67:
+        app_log.info("Waiting for good consensus before restoring local transactions, currently at "+str(consensus_percentage) + "%")
+        time.sleep(1)
     while True:
         try:
             app_log.info("Node: Digesting backup")
@@ -137,6 +143,7 @@ def restore_backup():
 def digest_mempool():  # this function has become the transaction engine core over time, rudimentary naming
     # digest mempool start
     global mempool_busy
+    mempool_busy = 1  # switch to prevent collision
     while True:
         try:
             app_log.info("Node: Digesting mempool")
@@ -669,6 +676,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     consensus = most_common(consensus_opinion_list)
 
+                    global consensus_percentage
                     consensus_percentage = (consensus_opinion_list.count(consensus) / (len(consensus_opinion_list))) * 100
                     app_log.info("Current active connections: " + str(len(active_pool)))
                     app_log.info("Current block consensus: " + str(consensus) + " = " + str(consensus_percentage) + "%")
@@ -1148,11 +1156,11 @@ def worker(HOST, PORT):
                     conn.close()
                     # delete followups
 
+                    global mempool_busy
                     while mempool_busy == 1: #this might be the only place where needed
                         app_log.info("Waiting for current operations to finish...")
-                        time.sleep(0.1) #
+                        time.sleep(1) #
 
-                    mempool_busy = 1 #instantly switch to prevent collision
                     s.sendall("sendsync___")
                     time.sleep(0.1)
 
@@ -1267,7 +1275,6 @@ def worker(HOST, PORT):
             if this_client_ip in consensus_ip_list:
                 app_log.info("Will remove " + str(this_client_ip) + " from consensus pool " + str(consensus_ip_list))
                 consensus_index = consensus_ip_list.index(this_client_ip)
-                print consensus_index #test
                 consensus_ip_list.remove(this_client_ip)
                 #del consensus_ip_list[consensus_index]  # remove ip
                 del consensus_opinion_list[consensus_index]  # remove ip's opinion
