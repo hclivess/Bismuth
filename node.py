@@ -137,6 +137,11 @@ def restore_backup():
 def digest_mempool():  # this function has become the transaction engine core over time, rudimentary naming
     # digest mempool start
     global mempool_busy
+
+    while mempool_busy == 1:
+        app_log.info("Waiting for current operations to finish...")
+        time.sleep(1)
+
     if mempool_busy == 0:
         mempool_busy = 1
         while True:
