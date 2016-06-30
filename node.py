@@ -846,7 +846,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     if verifier.verify(h, received_signature_dec) == True:
                         app_log.info("Node: The signature is valid")
                         # transaction processing
-
+                        while mempool_busy == 1:
+                            app_log.info("Waiting for current operations to finish...")
+                            time.sleep(0.1)
                         # insert to mempool
                         mempool = sqlite3.connect('mempool.db')
                         m = mempool.cursor()
