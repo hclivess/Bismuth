@@ -43,6 +43,8 @@ formatter = logging.Formatter('%(asctime)s %(funcName)s(%(lineno)d) %(message)s'
 ch.setFormatter(formatter)
 app_log.addHandler(ch)
 
+global this_client_ip
+this_client_ip = None
 global active_pool
 active_pool = []
 global consensus_ip_list
