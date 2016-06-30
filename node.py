@@ -1020,7 +1020,38 @@ def worker(HOST, PORT):
                     received_block_height = subdata
                     app_log.info("Client: Node is at block height: " + str(received_block_height))
 
-                    # todo add to consensus pool here?
+                    # consensus pool
+                    consensus_ip = s.getpeername()[0]
+                    consensus_opinion = subdata
+
+                    if consensus_ip not in consensus_ip_list:
+                        app_log.info("Adding " + str(consensus_ip) + " to consensus peer list")
+                        consensus_ip_list.append(consensus_ip)
+                        app_log.info("Assigning " + str(consensus_opinion) + " to peer's opinion list")
+                        consensus_opinion_list.append(str(int(consensus_opinion)))
+
+                    if consensus_ip in consensus_ip_list:
+                        consensus_index = consensus_ip_list.index(consensus_ip)  # get where in this list it is
+                        if consensus_opinion_list[consensus_index] == (consensus_opinion):
+                            app_log.info("Opinion of " + str(consensus_ip) + " hasn't changed")
+
+                        else:
+                            del consensus_ip_list[consensus_index]  # remove ip
+                            del consensus_opinion_list[consensus_index]  # remove ip's opinion
+                            app_log.info("Updating " + str(consensus_ip) + " in consensus")
+                            consensus_ip_list.append(consensus_ip)
+                            consensus_opinion_list.append(int(consensus_opinion))
+
+                    app_log.info("Consensus IP list:" + str(consensus_ip_list))
+                    app_log.info("Consensus opinion list:" + str(consensus_opinion_list))
+
+                    consensus = most_common(consensus_opinion_list)
+                    consensus_percentage = float(
+                        consensus_opinion_list.count(float(consensus)) / float(len(consensus_opinion_list))) * 100
+                    app_log.info("Current active connections: " + str(len(active_pool)))
+                    app_log.info("Current block consensus: " + str(consensus) + " = " + str(consensus_percentage) + "%")
+                    # consensus pool
+
                     # todo deviation check here?
                     # todo add to active pool here?
 
