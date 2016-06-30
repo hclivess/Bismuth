@@ -1168,6 +1168,11 @@ def worker(HOST, PORT):
                     conn.commit()
                     conn.close()
                     # delete followups
+
+                    while mempool_busy == 1:
+                        app_log.info("Waiting for current operations to finish...")
+                        time.sleep(1)
+
                     s.sendall("sendsync___")
                     time.sleep(0.1)
 
