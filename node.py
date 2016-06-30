@@ -102,6 +102,7 @@ def restore_backup():
         app_log.info("Skipping restoration until consensus is higher")
         return
     else:
+        app_log.info("Restoring local transactions from backup")
         while True:
             try:
                 app_log.info("Node: Digesting backup")
@@ -1258,7 +1259,6 @@ def worker(HOST, PORT):
                         # txhash validation end
 
                 if data == "nonewblocks":
-                    app_log.info("Restoring local transactions from backup")
                     restore_backup()  # restores backup and digests mempool
                     app_log.info("Client: We seem to be at the latest block. Paused before recheck.")
                     time.sleep(10)
