@@ -675,6 +675,12 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     app_log.info("Consensus opinion list:" + str(consensus_opinion_list))
 
                     consensus = most_common(consensus_opinion_list)
+
+                    print consensus
+                    print consensus_opinion_list.count(consensus)
+                    print len(consensus_opinion_list)
+                    print (consensus_opinion_list.count(consensus) / (len(consensus_opinion_list)))
+
                     consensus_percentage = (consensus_opinion_list.count(consensus) / (len(consensus_opinion_list))) * 100
                     app_log.info("Current active connections: " + str(len(active_pool)))
                     app_log.info("Current block consensus: " + str(consensus) + " = " + str(consensus_percentage) + "%")
