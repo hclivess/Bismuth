@@ -1043,6 +1043,7 @@ def worker(HOST, PORT):
                     app_log.info("Consensus opinion list:" + str(consensus_opinion_list))
 
                     consensus = most_common(consensus_opinion_list)
+                    global consensus_percentage
                     consensus_percentage = float(
                         consensus_opinion_list.count(float(consensus)) / float(len(consensus_opinion_list))) * 100
                     app_log.info("Current active connections: " + str(len(active_pool)))
