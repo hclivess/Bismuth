@@ -650,7 +650,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     # consensus pool
                     consensus_ip = self.request.getpeername()[0]
-                    consensus_opinion = str(int(subdata)) #str int to remove leading zeros
+                    consensus_opinion = int(subdata) #str int to remove leading zeros
 
                     if consensus_ip not in consensus_ip_list:
                         app_log.info("Adding " + str(consensus_ip) + " to consensus peer list")
@@ -675,11 +675,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     app_log.info("Consensus opinion list:" + str(consensus_opinion_list))
 
                     consensus = most_common(consensus_opinion_list)
-
-                    print consensus
-                    print consensus_opinion_list.count(consensus)
-                    print len(consensus_opinion_list)
-                    print (consensus_opinion_list.count(consensus) / (len(consensus_opinion_list)))
 
                     consensus_percentage = (consensus_opinion_list.count(consensus) / (len(consensus_opinion_list))) * 100
                     app_log.info("Current active connections: " + str(len(active_pool)))
@@ -1027,7 +1022,7 @@ def worker(HOST, PORT):
 
                     # consensus pool
                     consensus_ip = s.getpeername()[0]
-                    consensus_opinion = subdata
+                    consensus_opinion = int(subdata)
 
                     if consensus_ip not in consensus_ip_list:
                         app_log.info("Adding " + str(consensus_ip) + " to consensus peer list")
