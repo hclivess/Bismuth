@@ -650,7 +650,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     # consensus pool
                     consensus_ip = self.request.getpeername()[0]
-                    consensus_opinion = subdata
+                    consensus_opinion = str(int(subdata)) #str int to remove leading zeros
 
                     if consensus_ip not in consensus_ip_list:
                         app_log.info("Adding " + str(consensus_ip) + " to consensus peer list")
@@ -660,6 +660,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     if consensus_ip in consensus_ip_list:
                         consensus_index = consensus_ip_list.index(consensus_ip)  # get where in this list it is
+
                         if consensus_opinion_list[consensus_index] == (consensus_opinion):
                             app_log.info("Opinion of " + str(consensus_ip) + " hasn't changed")
 
