@@ -882,14 +882,14 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                 # remove from active pool
                 if this_client in active_pool:
-                    app_log.info("Will remove " + str(this_client) + " from active pool " + str(active_pool))
+                    app_log.info("Node: Will remove " + str(this_client) + " from active pool " + str(active_pool))
                     active_pool.remove(this_client)
                 # remove from active pool
 
                 # remove from consensus
                 if consensus_ip in consensus_ip_list:
                     app_log.info(
-                        "Will remove " + str(consensus_ip) + " from consensus pool " + str(consensus_ip_list))
+                        "Node: Will remove " + str(consensus_ip) + " from consensus pool " + str(consensus_ip_list))
                     consensus_index = consensus_ip_list.index(consensus_ip)
                     consensus_ip_list.remove(consensus_ip)
                     del consensus_opinion_list[consensus_index]  # remove ip's opinion
@@ -1286,14 +1286,14 @@ def worker(HOST, PORT):
         except Exception as e:
             #remove from active pool
             if this_client in active_pool:
-                app_log.info("Will remove " + str(this_client) + " from active pool " + str(active_pool))
+                app_log.info("Client: Will remove " + str(this_client) + " from active pool " + str(active_pool))
                 active_pool.remove(this_client)
             # remove from active pool
 
             # remove from consensus
 
             if this_client_ip in consensus_ip_list:
-                app_log.info("Will remove " + str(this_client_ip) + " from consensus pool " + str(consensus_ip_list))
+                app_log.info("Client: Will remove " + str(this_client_ip) + " from consensus pool " + str(consensus_ip_list))
                 consensus_index = consensus_ip_list.index(this_client_ip)
                 consensus_ip_list.remove(this_client_ip)
                 #del consensus_ip_list[consensus_index]  # remove ip
