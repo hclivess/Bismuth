@@ -625,6 +625,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         # transaction processing
 
                         # insert to mempool
+                        while mempool_busy == 1:
+                            app_log.info("Waiting for current operations to finish...")
+                            time.sleep(0.1)
                         mempool = sqlite3.connect('mempool.db')
                         m = mempool.cursor()
 
@@ -1257,6 +1260,9 @@ def worker(HOST, PORT):
                         # transaction processing
 
                         # insert to mempool
+                        while mempool_busy == 1:
+                            app_log.info("Waiting for current operations to finish...")
+                            time.sleep(0.1)
                         mempool = sqlite3.connect('mempool.db')
                         m = mempool.cursor()
                         m.execute("INSERT INTO transactions VALUES ('" + str(received_timestamp) + "','" + str(
