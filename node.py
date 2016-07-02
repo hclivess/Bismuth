@@ -120,6 +120,9 @@ def restore_backup():
                 db_public_key_readable = result[0][5]
 
                 # insert to mempool
+                while mempool_busy == 1:
+                    app_log.info("Waiting for current operations to finish...")
+                    time.sleep(0.1)
                 mempool = sqlite3.connect('mempool.db')
                 m = mempool.cursor()
 
