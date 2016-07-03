@@ -102,6 +102,8 @@ def manager():
 
 
 def restore_backup():
+    mempool_check()
+
     global consensus_percentage
     if consensus_percentage < 67:
         app_log.info("Skipping restoration until consensus is higher")
@@ -148,6 +150,7 @@ def restore_backup():
 
 def digest_mempool():  # this function has become the transaction engine core over time, rudimentary naming
     # digest mempool start
+    #mempool_check()
     global mempool_busy
     mempool_busy = 1  # switch to prevent collision
     while True:
