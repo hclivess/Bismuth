@@ -58,6 +58,11 @@ consensus_percentage = 100
 
 port = 2829
 
+def mempool_check():
+    global mempool_busy
+    while mempool_busy == 1:  # this might be the only place where needed
+        app_log.info("Waiting for current operations to finish...")
+        time.sleep(1)  #
 
 def manager():
     while True:
@@ -106,7 +111,6 @@ def restore_backup():
         while True:
             try:
                 app_log.info("Node: Digesting backup")
-
                 backup = sqlite3.connect('backup.db')
                 b = backup.cursor()
 
@@ -120,9 +124,6 @@ def restore_backup():
                 db_public_key_readable = result[0][5]
 
                 # insert to mempool
-                while mempool_busy == 1:
-                    app_log.info("Waiting for current operations to finish...")
-                    time.sleep(0.1)
                 mempool = sqlite3.connect('mempool.db')
                 m = mempool.cursor()
 
@@ -152,7 +153,6 @@ def digest_mempool():  # this function has become the transaction engine core ov
     while True:
         try:
             app_log.info("Node: Digesting mempool")
-
             mempool = sqlite3.connect('mempool.db')
             m = mempool.cursor()
             conn = sqlite3.connect('ledger.db')
@@ -506,6 +506,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     # send all our followup hashes
                     app_log.info("Node: Will seek the following block: " + str(data))
+                    mempool_check()
                     conn = sqlite3.connect('ledger.db')
                     c = conn.cursor()
 
@@ -579,6 +580,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     # txhash validation start
 
                     # open dbs for backup and followup deletion
+                    mempool_check()
                     conn = sqlite3.connect('ledger.db')
                     c = conn.cursor()
                     c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
@@ -625,9 +627,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         # transaction processing
 
                         # insert to mempool
-                        while mempool_busy == 1:
-                            app_log.info("Waiting for current operations to finish...")
-                            time.sleep(0.1)
+                        mempool_check()
                         mempool = sqlite3.connect('mempool.db')
                         m = mempool.cursor()
 
@@ -689,6 +689,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     app_log.info("Current block consensus: " + str(consensus) + " = " + str(consensus_percentage) + "%")
                     # consensus pool
 
+                    mempool_check()
                     conn = sqlite3.connect('ledger.db')
                     c = conn.cursor()
                     c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
@@ -720,6 +721,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         update_me = 0
 
                     if update_me == 1:
+                        mempool_check()
                         conn = sqlite3.connect('ledger.db')
                         c = conn.cursor()
                         c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
@@ -733,6 +735,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         data = self.request.recv(56)  # receive client's last txhash
 
                         # send all our followup hashes
+                        mempool_check()
                         app_log.info("Node: Will seek the following block: " + str(data))
                         conn = sqlite3.connect('ledger.db')
                         c = conn.cursor()
@@ -778,7 +781,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             time.sleep(0.1)
 
                 if data == "blocknotfou":
-
+                    mempool_check()
                     app_log.info("Client: Node didn't find the block, deleting latest entry")
                     conn = sqlite3.connect('ledger.db')
                     c = conn.cursor()
@@ -851,10 +854,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     if verifier.verify(h, received_signature_dec) == True:
                         app_log.info("Node: The signature is valid")
                         # transaction processing
-                        while mempool_busy == 1:
-                            app_log.info("Waiting for current operations to finish...")
-                            time.sleep(0.1)
                         # insert to mempool
+                        mempool_check()
                         mempool = sqlite3.connect('mempool.db')
                         m = mempool.cursor()
 
@@ -975,6 +976,7 @@ def worker(HOST, PORT):
                     data = s.recv(56)  # receive client's last txhash
 
                     # send all our followup hashes
+                    mempool_check()
                     app_log.info("Client: Will seek the following block: " + str(data))
                     conn = sqlite3.connect('ledger.db')
                     c = conn.cursor()
@@ -1025,7 +1027,7 @@ def worker(HOST, PORT):
                     # send block height, receive block height
                     s.sendall("blockheight")
                     time.sleep(0.1)
-
+                    mempool_check()
                     conn = sqlite3.connect('ledger.db')
                     c = conn.cursor()
                     c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
@@ -1092,6 +1094,7 @@ def worker(HOST, PORT):
                         update_me = 1
 
                     if update_me == 1:
+                        mempool_check()
                         conn = sqlite3.connect('ledger.db')
                         c = conn.cursor()
                         c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
@@ -1105,6 +1108,7 @@ def worker(HOST, PORT):
                         data = s.recv(56)  # receive client's last txhash
 
                         # send all our followup hashes
+                        mempool_check()
                         app_log.info("Client: Will seek the following block: " + str(data))
                         conn = sqlite3.connect('ledger.db')
                         c = conn.cursor()
@@ -1150,7 +1154,7 @@ def worker(HOST, PORT):
                             time.sleep(0.1)
 
                 if data == "blocknotfou":
-
+                    mempool_check()
                     app_log.info("Client: Node didn't find the block, deleting latest entry")
                     conn = sqlite3.connect('ledger.db')
                     c = conn.cursor()
@@ -1183,10 +1187,7 @@ def worker(HOST, PORT):
                     conn.close()
                     # delete followups
 
-                    global mempool_busy
-                    while mempool_busy == 1: #this might be the only place where needed
-                        app_log.info("Waiting for current operations to finish...")
-                        time.sleep(1) #
+                    mempool_check()
 
                     s.sendall("sendsync___")
                     time.sleep(0.1)
@@ -1215,7 +1216,7 @@ def worker(HOST, PORT):
                         received_amount)  # todo: why not have bare list instead of converting?
 
                     # txhash validation start
-
+                    mempool_check()
                     conn = sqlite3.connect('ledger.db')
                     c = conn.cursor()
                     c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
@@ -1260,9 +1261,7 @@ def worker(HOST, PORT):
                         # transaction processing
 
                         # insert to mempool
-                        while mempool_busy == 1:
-                            app_log.info("Waiting for current operations to finish...")
-                            time.sleep(0.1)
+                        mempool_check()
                         mempool = sqlite3.connect('mempool.db')
                         m = mempool.cursor()
                         m.execute("INSERT INTO transactions VALUES ('" + str(received_timestamp) + "','" + str(
