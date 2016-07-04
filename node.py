@@ -51,12 +51,13 @@ global consensus_opinion_list
 consensus_opinion_list = []
 global tried
 tried = []
+global mempool_busy
+mempool_busy = 0
 global consensus_percentage
 consensus_percentage = 100
-global busy
-busy = 0
 
 port = 2829
+
 
 def manager():
     while True:
@@ -105,6 +106,7 @@ def restore_backup():
         while True:
             try:
                 app_log.info("Node: Digesting backup")
+
                 backup = sqlite3.connect('backup.db')
                 b = backup.cursor()
 
@@ -142,16 +144,14 @@ def restore_backup():
 
 def digest_mempool():  # this function has become the transaction engine core over time, rudimentary naming
     # digest mempool start
-    global busy
-
-    while busy > 0:
-        app_log.info("Waiting for other thread sync to finish ("+str(busy)+")")
-        time.sleep(0.1)
-
-    busy = busy + 1  # switch to prevent collision
+    global mempool_busy
+    while mempool_busy == 1:
+        app_log.info("Waiting for mempool to become available")
+    mempool_busy = 1  # switch to prevent collision
     while True:
         try:
             app_log.info("Node: Digesting mempool")
+
             mempool = sqlite3.connect('mempool.db')
             m = mempool.cursor()
             conn = sqlite3.connect('ledger.db')
@@ -300,7 +300,7 @@ def digest_mempool():  # this function has become the transaction engine core ov
 
         except:
             app_log.info("Mempool empty")
-            busy = busy - 1
+            mempool_busy = 0
             #raise #debug
             return
 
@@ -454,9 +454,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         while True:
             try:
                 data = self.request.recv(11)
-                this_client = self.request.getpeername()[0]
                 # cur_thread = threading.current_thread()
-                app_log.info("Node: Received: " + data + " from " + this_client)  # will add custom ports later
+                app_log.info("Node: Received: " + data + " from " + str(
+                    self.request.getpeername()[0]))  # will add custom ports later
 
                 if data == 'helloserver':
                     with open("peers.txt", "r") as peer_list:
@@ -495,9 +495,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         # raise #test only
 
                     # save peer if connectible
-                    while busy > 0:
-                        app_log.info("Waiting for other thread sync to finish (" + str(busy) + ")")
-                        time.sleep(0.1)
+
                     app_log.info("Node: Sending sync request")
                     self.request.sendall("sync_______")
                     time.sleep(0.1)
@@ -550,9 +548,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         time.sleep(0.1)
 
                 if data == "sendsync___":
-                    while busy > 0:
-                        app_log.info("Waiting for other thread sync to finish (" + str(busy) + ")")
-                        time.sleep(0.1)
                     self.request.sendall("sync_______")
                     time.sleep(0.1)
 
@@ -642,9 +637,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                         digest_mempool()
                         # insert to mempool
-                        while busy > 0:
-                            app_log.info("Waiting for other thread sync to finish (" + str(busy) + ")")
-                            time.sleep(0.1)
+
                         app_log.info("Node: Sending sync request")
                         self.request.sendall("sync_______")
                         time.sleep(0.1)
@@ -781,6 +774,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             time.sleep(0.1)
 
                 if data == "blocknotfou":
+
                     app_log.info("Client: Node didn't find the block, deleting latest entry")
                     conn = sqlite3.connect('ledger.db')
                     c = conn.cursor()
@@ -812,9 +806,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     conn.commit()
                     conn.close()
                     # delete followups
-                    while busy > 0:
-                        app_log.info("Waiting for other thread sync to finish (" + str(busy) + ")")
-                        time.sleep(0.1)
                     app_log.info("Client: Deletion complete, sending sync request")
                     self.request.sendall("sync_______")
                     time.sleep(0.1)
@@ -856,6 +847,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     if verifier.verify(h, received_signature_dec) == True:
                         app_log.info("Node: The signature is valid")
                         # transaction processing
+                        while mempool_busy == 1:
+                            app_log.info("Waiting for current operations to finish...")
+                            time.sleep(0.1)
                         # insert to mempool
                         mempool = sqlite3.connect('mempool.db')
                         m = mempool.cursor()
@@ -871,10 +865,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         digest_mempool()
                         # insert to mempool
 
-                        while busy > 0:
-                            app_log.info("Waiting for other thread sync to finish (" + str(busy) + ")")
-                            time.sleep(0.1)
-                        app_log.info("Node: Database closed, sending sync request")
+                        app_log.info("Node: Database closed")
                         self.request.sendall("sync_______")
                         time.sleep(0.1)
 
@@ -891,16 +882,11 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 app_log.info("Node: Lost connection")
                 app_log.info(e)
 
-                # remove from active pool
-                if this_client in active_pool:
-                    app_log.info("Node: Will remove " + str(this_client) + " from active pool " + str(active_pool))
-                    active_pool.remove(this_client)
-                # remove from active pool
-
                 # remove from consensus
+                consensus_ip = self.request.getpeername()[0]
                 if consensus_ip in consensus_ip_list:
                     app_log.info(
-                        "Node: Will remove " + str(consensus_ip) + " from consensus pool " + str(consensus_ip_list))
+                        "Will remove " + str(consensus_ip) + " from consensus pool " + str(consensus_ip_list))
                     consensus_index = consensus_ip_list.index(consensus_ip)
                     consensus_ip_list.remove(consensus_ip)
                     del consensus_opinion_list[consensus_index]  # remove ip's opinion
@@ -1030,6 +1016,7 @@ def worker(HOST, PORT):
                     # send block height, receive block height
                     s.sendall("blockheight")
                     time.sleep(0.1)
+
                     conn = sqlite3.connect('ledger.db')
                     c = conn.cursor()
                     c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
@@ -1046,39 +1033,6 @@ def worker(HOST, PORT):
                     subdata = s.recv(11)  # receive node's block height
                     received_block_height = subdata
                     app_log.info("Client: Node is at block height: " + str(received_block_height))
-
-                    # consensus pool
-                    consensus_ip = s.getpeername()[0]
-                    consensus_opinion = int(subdata)
-
-                    if consensus_ip not in consensus_ip_list:
-                        app_log.info("Adding " + str(consensus_ip) + " to consensus peer list")
-                        consensus_ip_list.append(consensus_ip)
-                        app_log.info("Assigning " + str(consensus_opinion) + " to peer's opinion list")
-                        consensus_opinion_list.append(str(int(consensus_opinion)))
-
-                    if consensus_ip in consensus_ip_list:
-                        consensus_index = consensus_ip_list.index(consensus_ip)  # get where in this list it is
-                        if consensus_opinion_list[consensus_index] == (consensus_opinion):
-                            app_log.info("Opinion of " + str(consensus_ip) + " hasn't changed")
-
-                        else:
-                            del consensus_ip_list[consensus_index]  # remove ip
-                            del consensus_opinion_list[consensus_index]  # remove ip's opinion
-                            app_log.info("Updating " + str(consensus_ip) + " in consensus")
-                            consensus_ip_list.append(consensus_ip)
-                            consensus_opinion_list.append(int(consensus_opinion))
-
-                    app_log.info("Consensus IP list:" + str(consensus_ip_list))
-                    app_log.info("Consensus opinion list:" + str(consensus_opinion_list))
-
-                    consensus = most_common(consensus_opinion_list)
-                    global consensus_percentage
-                    consensus_percentage = float(
-                        consensus_opinion_list.count(float(consensus)) / float(len(consensus_opinion_list))) * 100
-                    app_log.info("Current active connections: " + str(len(active_pool)))
-                    app_log.info("Current block consensus: " + str(consensus) + " = " + str(consensus_percentage) + "%")
-                    # consensus pool
 
                     # todo deviation check here?
                     # todo add to active pool here?
@@ -1154,6 +1108,7 @@ def worker(HOST, PORT):
                             time.sleep(0.1)
 
                 if data == "blocknotfou":
+
                     app_log.info("Client: Node didn't find the block, deleting latest entry")
                     conn = sqlite3.connect('ledger.db')
                     c = conn.cursor()
@@ -1186,6 +1141,11 @@ def worker(HOST, PORT):
                     conn.close()
                     # delete followups
 
+                    global mempool_busy
+                    while mempool_busy == 1: #this might be the only place where needed
+                        app_log.info("Waiting for current operations to finish...")
+                        time.sleep(1) #
+
                     s.sendall("sendsync___")
                     time.sleep(0.1)
 
@@ -1213,6 +1173,7 @@ def worker(HOST, PORT):
                         received_amount)  # todo: why not have bare list instead of converting?
 
                     # txhash validation start
+
                     conn = sqlite3.connect('ledger.db')
                     c = conn.cursor()
                     c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
@@ -1289,23 +1250,9 @@ def worker(HOST, PORT):
         except Exception as e:
             #remove from active pool
             if this_client in active_pool:
-                app_log.info("Client: Will remove " + str(this_client) + " from active pool " + str(active_pool))
+                app_log.info("Will remove " + str(this_client) + " from active pool " + str(active_pool))
                 active_pool.remove(this_client)
             # remove from active pool
-
-            # remove from consensus
-
-            if this_client_ip in consensus_ip_list:
-                app_log.info("Client: Will remove " + str(this_client_ip) + " from consensus pool " + str(consensus_ip_list))
-                consensus_index = consensus_ip_list.index(this_client_ip)
-                consensus_ip_list.remove(this_client_ip)
-                #del consensus_ip_list[consensus_index]  # remove ip
-                del consensus_opinion_list[consensus_index]  # remove ip's opinion
-            else:
-                app_log.info("Client " + str(this_client_ip) + " not present in the consensus pool")
-
-            # remove from consensus
-
 
             app_log.info("Connection to " + this_client + " terminated due to " + str(e))
             app_log.info("---thread " + str(threading.currentThread()) + " ended---")
