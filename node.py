@@ -132,10 +132,8 @@ def restore_backup():
             # insert to mempool
 
         except:
-            digest_mempool()
             app_log.info("Backup empty, sync finished")
             return
-
 
 def digest_mempool():  # this function has become the transaction engine core over time, rudimentary naming
     # digest mempool start
@@ -300,7 +298,9 @@ def digest_mempool():  # this function has become the transaction engine core ov
                 app_log.info("Skipping restoration until consensus is higher")
             else:
                 restore_backup()
-            mempool_busy = 0
+            if mempool_busy == 1:
+                app_log.info("Mempool now available")
+                mempool_busy = 0
             #raise #debug
             return
 
