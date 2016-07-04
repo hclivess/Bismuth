@@ -147,6 +147,7 @@ def digest_mempool():  # this function has become the transaction engine core ov
     global mempool_busy
     while mempool_busy == 1:
         app_log.info("Waiting for mempool to become available")
+        time.sleep(0.1)
     mempool_busy = 1  # switch to prevent collision
     while True:
         try:
@@ -847,9 +848,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     if verifier.verify(h, received_signature_dec) == True:
                         app_log.info("Node: The signature is valid")
                         # transaction processing
-                        while mempool_busy == 1:
-                            app_log.info("Waiting for current operations to finish...")
-                            time.sleep(0.1)
                         # insert to mempool
                         mempool = sqlite3.connect('mempool.db')
                         m = mempool.cursor()
@@ -1140,12 +1138,6 @@ def worker(HOST, PORT):
                     conn.commit()
                     conn.close()
                     # delete followups
-
-                    global mempool_busy
-                    while mempool_busy == 1: #this might be the only place where needed
-                        app_log.info("Waiting for current operations to finish...")
-                        time.sleep(1) #
-
                     s.sendall("sendsync___")
                     time.sleep(0.1)
 
