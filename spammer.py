@@ -22,15 +22,7 @@ while True:
   #s.settimeout(1)
   s.connect(("127.0.0.1", int("2829")))
   print "Connected"
-  
-  
-  #enter transaction start
-  conn = sqlite3.connect('ledger.db')
-  c = conn.cursor()
-  c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
-  txhash = c.fetchone()[0]
-  conn.close()
-      
+
   to_address_list = ["c12b77c620e0079591609a3dffe61cad3d8b9e2dc1a5cc1534595ddd","cedd2d7ad5c38015cd020228ad2df7d972a7e9587accef76804437a8","e31fd787e1c547996fb3059c4478a4364c8079df6e49a5616c870394","07fb3a0e702f0eec167f1fd7ad094dcb8bdd398c91999d59e4dcb475","f4b18de3135491127e36f42ada93aa232734df92948ef66446423782","6626da8c67863bd65cbf96cfcd668aee82b1b5164578ff4d01520e1d","f33582a7a8374694e80b2708e22b23b6183e0a94e867d43007d44477","060cf08690b41d0ec0cc4506e565dc8fb3ef3ea3807dd19b8003813d","c5ada98e216c6b6525f82991d9b64daed394d9b40de69527662c1e08","c86d133aa40655d1994cfcb3afc48535d917cbf3e99d94eb8e10dad5","7be4f0d6facd2d6125b2a32abc1a261f40e9455c78b0ac3a7e991dd9","0842a5a3a3e2c685333480629644c74d503142d63471a9dec3323685","460bbb99bc66cae942e33c5a92064995c93cc6a0b4bfc17442516ed3","c4b0121f213469764ac653ac29f670448fefef8e5cddbe164c534922","4be74c848a16316e9c8dabd390996588af6ca027547ffecb4495aeee"]
   to_address = random.choice(to_address_list)
   amount =  random.uniform (0.01, 0.1)
