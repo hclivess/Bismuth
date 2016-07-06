@@ -69,14 +69,14 @@ def exclusive_on(where):
 
     app_log.info("Client: Database is now used by " + str(where))
     while mempool_busy == 1:
-        app_log.info("Cient: Waiting for database to become available")
+        app_log.info("Client: Waiting for database to become available")
         time.sleep(0.1)
     mempool_busy = 1
     # exclusive mode
 
 def exclusive_off(where):
     global mempool_busy
-    app_log.info("Cient: Database is no longer used by " + str(where))
+    app_log.info("Client: Database is no longer used by " + str(where))
     mempool_busy = 0 #remove exclusive mode
 
 def manager():
