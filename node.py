@@ -68,8 +68,9 @@ def exclusive_on(where):
         app_log.info("Client: Database is busy")
 
     app_log.info("Client: Database is now used by " + str(where))
-    while mempool_busy == 1:
+    if mempool_busy == 1:
         app_log.info("Client: Waiting for database to become available")
+    while mempool_busy == 1:
         time.sleep(0.1)
     mempool_busy = 1
     # exclusive mode
@@ -774,7 +775,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                         data = self.request.recv(56)  # receive client's last txhash
                         # send all our followup hashes
+
                         exclusive_on("blockheight")
+
                         app_log.info("Node: Will seek the following block: " + str(data))
 
                         conn = sqlite3.connect('ledger.db')
