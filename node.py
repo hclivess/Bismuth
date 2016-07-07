@@ -59,6 +59,7 @@ consensus_percentage = 100
 port = 2829
 
 def exclusive_on(where):
+    mempool_busy_timeout = 0
     # exclusive mode
     global mempool_busy
 
@@ -69,8 +70,9 @@ def exclusive_on(where):
 
     app_log.info("Client: Database is now used by " + str(where))
     if mempool_busy == 1:
-        app_log.info("Client: Waiting for database to become available")
-    while mempool_busy == 1:
+        app_log.info("Client: Waiting for database to become available, timeout in "+str(20 - mempool_busy_timeout)+" seconds")
+    while mempool_busy == 1 or mempool_busy_timeout < 20:
+        mempool_busy_timeout = mempool_busy_timeout + 1
         time.sleep(0.1)
     mempool_busy = 1
     # exclusive mode

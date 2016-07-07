@@ -58,4 +58,4 @@ while True:
   time.sleep(0.1)
 
   s.close()
-  time.sleep (30)
+  time.sleep (300)
