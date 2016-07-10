@@ -70,7 +70,7 @@ def exclusive_on(where):
 
     app_log.info("Client: Database is now used by " + str(where))
     while mempool_busy == 1 and mempool_busy_timeout < 200:
-        app_log.info("Client: Waiting for database to become available, timeout in " + str(200 / 10 - mempool_busy_timeout) + " seconds")
+        app_log.info("Client: Waiting for database to become available, timeout in " + str(200 - mempool_busy_timeout))
         mempool_busy_timeout = mempool_busy_timeout + 1
         time.sleep(0.1)
     mempool_busy = 1
