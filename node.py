@@ -159,11 +159,7 @@ def restore_backup():
 
 def digest_mempool():  # this function has become the transaction engine core over time, rudimentary naming
     # digest mempool start
-    global mempool_busy
-    while mempool_busy == 1:
-        app_log.info("Waiting for mempool to become available")
-        time.sleep(0.1)
-    mempool_busy = 1  # switch to prevent collision
+    exclusive_on("mempool")
     while True:
         try:
             app_log.info("Node: Digesting mempool")
@@ -320,9 +316,7 @@ def digest_mempool():  # this function has become the transaction engine core ov
                 app_log.info("Skipping restoration until consensus is higher")
             else:
                 restore_backup()
-            if mempool_busy == 1:
-                app_log.info("Mempool now available")
-                mempool_busy = 0
+            exclusive_off("mempool")
             #raise #debug
             return
 
