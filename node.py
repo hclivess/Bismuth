@@ -119,6 +119,7 @@ def manager():
 
 
 def restore_backup():
+    exclusive_on("restore_backup")
     app_log.info("Restoring local transactions from backup")
     while True:
         try:
@@ -155,6 +156,7 @@ def restore_backup():
 
         except:
             app_log.info("Backup empty, sync finished")
+            exclusive_off("restore_backup")
             return
 
 def digest_mempool():  # this function has become the transaction engine core over time, rudimentary naming
@@ -312,11 +314,11 @@ def digest_mempool():  # this function has become the transaction engine core ov
 
         except:
             app_log.info("Mempool empty")
+            exclusive_off("mempool")
             if consensus_percentage < 67:
                 app_log.info("Skipping restoration until consensus is higher")
             else:
                 restore_backup()
-            exclusive_off("mempool")
             #raise #debug
             return
 
