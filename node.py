@@ -655,8 +655,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         m = mempool.cursor()
 
                         m.execute("INSERT INTO transactions VALUES ('" + str(received_timestamp) + "','" + str(
-                            received_address) + "','" + str(received_to_address) + "','" + str(
-                            received_amount) + "','" + str(received_signature_enc) + "','" + str(
+                            received_address) + "','" + str(received_to_address) + "','" + str(float(received_amount)) + "','" + str(received_signature_enc) + "','" + str(
                             received_public_key_readable) + "')")  # Insert a row of data
                         app_log.info("Node: Mempool updated with a received transaction")
                         mempool.commit()  # Save (commit) the changes
@@ -1297,8 +1296,7 @@ def worker(HOST, PORT):
                         mempool = sqlite3.connect('mempool.db')
                         m = mempool.cursor()
                         m.execute("INSERT INTO transactions VALUES ('" + str(received_timestamp) + "','" + str(
-                            received_address) + "','" + str(received_to_address) + "','" + str(
-                        received_amount) + "','" + str(received_signature_enc) + "','" + str(
+                            received_address) + "','" + str(received_to_address) + "','" + str(float(received_amount)) + "','" + str(received_signature_enc) + "','" + str(
                             received_public_key_readable) + "')")  # Insert a row of data
                         app_log.info("Client: Mempool updated with a received transaction")
                         mempool.commit()  # Save (commit) the changes
