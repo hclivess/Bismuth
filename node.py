@@ -142,7 +142,7 @@ def restore_backup():
             m = mempool.cursor()
 
             m.execute("INSERT INTO transactions VALUES ('" + str(db_timestamp) + "','" + str(db_address) + "','" + str(
-                db_to_address) + "','" + str(db_amount) + "','" + str(db_signature_enc) + "','" + str(
+                db_to_address) + "','" + str(float(db_amount)) + "','" + str(db_signature_enc) + "','" + str(
                 db_public_key_readable) + "')")  # Insert a row of data
             app_log.info("Node: Mempool updated with a transaction from backup")
             mempool.commit()  # Save (commit) the changes
@@ -180,7 +180,7 @@ def digest_mempool():  # this function has become the transaction engine core ov
             db_amount = result[0][3]
             db_signature = result[0][4]
             db_public_key_readable = result[0][5]
-            db_transaction = str(db_timestamp) + ":" + str(db_address) + ":" + str(db_to_address) + ":" + str(db_amount)
+            db_transaction = str(db_timestamp) + ":" + str(db_address) + ":" + str(db_to_address) + ":" + str(float(db_amount))
 
             try:
                 c.execute("SELECT * FROM transactions WHERE signature ='" + db_signature + "';")
@@ -432,7 +432,7 @@ try:
         db_signature_enc = row[5]
         db_public_key = RSA.importKey(row[6])
         db_txhash = row[7]
-        db_transaction = str(db_timestamp) + ":" + str(db_address) + ":" + str(db_to_address) + ":" + str(db_amount)
+        db_transaction = str(db_timestamp) + ":" + str(db_address) + ":" + str(db_to_address) + ":" + str(float(db_amount))
 
         # app_log.info(db_transaction)
 
@@ -597,8 +597,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     received_public_key = RSA.importKey(sync_list[6])
                     # received_txhash = sync_list[7]
                     received_transaction = str(received_timestamp) + ":" + str(received_address) + ":" + str(
-                        received_to_address) + ":" + str(
-                        float(received_amount))  # todo: why not have bare list instead of converting?
+                        received_to_address) + ":" + str(float(received_amount))  # todo: why not have bare list instead of converting?
 
                     # txhash validation start
 
@@ -625,7 +624,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         db_public_key_readable = row[6]
 
                         b.execute("INSERT INTO transactions VALUES ('" + str(db_timestamp) + "','" + str(
-                            db_address) + "','" + str(db_to_address) + "','" + str(db_amount) + "','" + str(
+                            db_address) + "','" + str(db_to_address) + "','" + str(float(db_amount)) + "','" + str(
                             db_signature) + "','" + str(db_public_key_readable) + "')")  # Insert a row of data
 
                     backup.commit()
@@ -845,7 +844,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     db_public_key_readable = results[6]
 
                     b.execute("INSERT INTO transactions VALUES ('" + str(db_timestamp) + "','" + str(
-                        db_address) + "','" + str(db_to_address) + "','" + str(db_amount) + "','" + str(
+                        db_address) + "','" + str(db_to_address) + "','" + str(float(db_amount)) + "','" + str(
                         db_signature) + "','" + str(db_public_key_readable) + "')")  # Insert a row of data
 
                     backup.commit()
@@ -1207,7 +1206,7 @@ def worker(HOST, PORT):
                     db_public_key_readable = results[6]
 
                     b.execute("INSERT INTO transactions VALUES ('" + str(db_timestamp) + "','" + str(
-                        db_address) + "','" + str(db_to_address) + "','" + str(db_amount) + "','" + str(
+                        db_address) + "','" + str(db_to_address) + "','" + str(float(db_amount)) + "','" + str(
                         db_signature) + "','" + str(db_public_key_readable) + "')")  # Insert a row of data
 
                     backup.commit()
@@ -1245,8 +1244,7 @@ def worker(HOST, PORT):
                     received_public_key_readable = sync_list[6]
                     received_public_key = RSA.importKey(sync_list[6])
                     received_transaction = str(received_timestamp) + ":" + str(received_address) + ":" + str(
-                        received_to_address) + ":" + str(
-                        received_amount)  # todo: why not have bare list instead of converting?
+                        received_to_address) + ":" + str(float(received_amount))  # todo: why not have bare list instead of converting?
 
                     # txhash validation start
 
@@ -1271,7 +1269,7 @@ def worker(HOST, PORT):
                         db_public_key_readable = row[6]
 
                         b.execute("INSERT INTO transactions VALUES ('" + str(db_timestamp) + "','" + str(
-                            db_address) + "','" + str(db_to_address) + "','" + str(db_amount) + "','" + str(
+                            db_address) + "','" + str(db_to_address) + "','" + str(float(db_amount)) + "','" + str(
                             db_signature) + "','" + str(db_public_key_readable) + "')")  # Insert a row of data
 
                     backup.commit()
@@ -1300,7 +1298,7 @@ def worker(HOST, PORT):
                         m = mempool.cursor()
                         m.execute("INSERT INTO transactions VALUES ('" + str(received_timestamp) + "','" + str(
                             received_address) + "','" + str(received_to_address) + "','" + str(
-                            received_amount) + "','" + str(received_signature_enc) + "','" + str(
+                        received_amount) + "','" + str(received_signature_enc) + "','" + str(
                             received_public_key_readable) + "')")  # Insert a row of data
                         app_log.info("Client: Mempool updated with a received transaction")
                         mempool.commit()  # Save (commit) the changes
