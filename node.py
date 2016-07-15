@@ -734,14 +734,14 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     time.sleep(0.1)
                     # send own block height
 
-                    if received_block_height > db_block_height:
-                        app_log.info("Node: Client has higher block, checking consensus deviation")
-                        if int(received_block_height) - consensus <= 500000:
-                            app_log.info("Node: Deviation within normal")
-                            update_me = 1
-                        else:
-                            app_log.info("Suspiciously high deviation, disconnecting")
-                            return
+                    #if received_block_height > db_block_height:
+                    #    app_log.info("Node: Client has higher block, checking consensus deviation")
+                    #    if int(received_block_height) - consensus <= 500000:
+                    #        app_log.info("Node: Deviation within normal")
+                    #        update_me = 1
+                    #    else:
+                    #        app_log.info("Suspiciously high deviation, disconnecting")
+                    #        return
 
                     if received_block_height < db_block_height:
                         app_log.info("Node: We have a higher block, hash will be verified")
