@@ -113,6 +113,8 @@ def manager():
         app_log.info("Connection manager: Threads at " + str(threads_count) + "/" + str(threads_limit))
         app_log.info("Tried: " + str(tried))
         app_log.info("Current active pool: " + str(active_pool))
+        app_log.info("Current connections: " + str(len(active_pool)))
+
         # app_log.info(threading.enumerate() all threads)
         time.sleep(10)
     return
@@ -1128,7 +1130,6 @@ def worker(HOST, PORT):
 
                     global consensus_percentage
                     consensus_percentage = (float(consensus_opinion_list.count(consensus) / float(len(consensus_opinion_list)))) * 100
-                    app_log.info("Current active connections: " + str(len(active_pool)))
                     app_log.info("Current block consensus: " + str(consensus) + " = " + str(consensus_percentage) + "%")
                     # consensus pool 2 (active connection)
 
