@@ -684,40 +684,40 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     received_block_height = subdata
                     app_log.info("Node: Received block height: " + received_block_height)
 
-                    # consensus pool 1 (passive connection)
-                    #consensus_ip = self.request.getpeername()[0]
+                    # consensus pool 1 (connection from them)
+                    consensus_ip = self.request.getpeername()[0]
 
-                    #consensus_opinion = int(subdata) #str int to remove leading zeros
+                    consensus_opinion = int(subdata) #str int to remove leading zeros
 
-                    #if consensus_ip not in consensus_ip_list:
-                    #    app_log.info("Adding " + str(consensus_ip) + " to consensus peer list")
-                    #    consensus_ip_list.append(consensus_ip)
-                    #    app_log.info("Assigning " + str(consensus_opinion) + " to peer's opinion list")
-                    #    consensus_opinion_list.append(str(int(consensus_opinion)))
+                    if consensus_ip not in consensus_ip_list:
+                        app_log.info("Adding " + str(consensus_ip) + " to consensus peer list")
+                        consensus_ip_list.append(consensus_ip)
+                        app_log.info("Assigning " + str(consensus_opinion) + " to peer's opinion list")
+                        consensus_opinion_list.append(str(int(consensus_opinion)))
 
-                    #if consensus_ip in consensus_ip_list:
-                      #  consensus_index = consensus_ip_list.index(consensus_ip)  # get where in this list it is
+                    if consensus_ip in consensus_ip_list:
+                        consensus_index = consensus_ip_list.index(consensus_ip)  # get where in this list it is
 
-                     #   if consensus_opinion_list[consensus_index] == (consensus_opinion):
-                     #       app_log.info("Opinion of " + str(consensus_ip) + " hasn't changed")
+                        if consensus_opinion_list[consensus_index] == (consensus_opinion):
+                            app_log.info("Opinion of " + str(consensus_ip) + " hasn't changed")
 
-                     #   else:
-                     #       del consensus_ip_list[consensus_index]  # remove ip
-                     #       del consensus_opinion_list[consensus_index]  # remove ip's opinion
-                     #       app_log.info("Updating " + str(consensus_ip) + " in consensus")
-                     #       consensus_ip_list.append(consensus_ip)
-                     #       consensus_opinion_list.append(int(consensus_opinion))
+                        else:
+                            del consensus_ip_list[consensus_index]  # remove ip
+                            del consensus_opinion_list[consensus_index]  # remove ip's opinion
+                            app_log.info("Updating " + str(consensus_ip) + " in consensus")
+                            consensus_ip_list.append(consensus_ip)
+                            consensus_opinion_list.append(int(consensus_opinion))
 
-                    #app_log.info("Consensus IP list:" + str(consensus_ip_list))
-                    #app_log.info("Consensus opinion list:" + str(consensus_opinion_list))
+                    app_log.info("Consensus IP list:" + str(consensus_ip_list))
+                    app_log.info("Consensus opinion list:" + str(consensus_opinion_list))
 
-                    #consensus = most_common(consensus_opinion_list)
+                    consensus = most_common(consensus_opinion_list)
 
-                    #global consensus_percentage
-                    #consensus_percentage = (float(consensus_opinion_list.count(consensus) / float(len(consensus_opinion_list)))) * 100
-                    #app_log.info("Current active connections: " + str(len(active_pool)))
-                    #app_log.info("Current block consensus: " + str(consensus) + " = " + str(consensus_percentage) + "%")
-                    # consensus pool 1 (passive connection)
+                    global consensus_percentage
+                    consensus_percentage = (float(consensus_opinion_list.count(consensus) / float(len(consensus_opinion_list)))) * 100
+                    app_log.info("Current active connections: " + str(len(active_pool)))
+                    app_log.info("Current block consensus: " + str(consensus) + " = " + str(consensus_percentage) + "%")
+                    # consensus pool 1 (connection from them)
 
                     exclusive_on("blockheight")
 
@@ -938,17 +938,17 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 app_log.info("Node: Lost connection")
                 app_log.info(e)
 
-                # remove from consensus
-                #consensus_ip = self.request.getpeername()[0]
-                #if consensus_ip in consensus_ip_list:
-                #    app_log.info(
-                #        "Will remove " + str(consensus_ip) + " from consensus pool " + str(consensus_ip_list))
-                #    consensus_index = consensus_ip_list.index(consensus_ip)
-                #    consensus_ip_list.remove(consensus_ip)
-                #    del consensus_opinion_list[consensus_index]  # remove ip's opinion
-                #else:
-                #    app_log.info("Client " + str(consensus_ip) + " not present in the consensus pool")
-                # remove from consensus
+                # remove from consensus (connection from them)
+                consensus_ip = self.request.getpeername()[0]
+                if consensus_ip in consensus_ip_list:
+                    app_log.info(
+                        "Will remove " + str(consensus_ip) + " from consensus pool " + str(consensus_ip_list))
+                    consensus_index = consensus_ip_list.index(consensus_ip)
+                    consensus_ip_list.remove(consensus_ip)
+                    del consensus_opinion_list[consensus_index]  # remove ip's opinion
+                else:
+                    app_log.info("Client " + str(consensus_ip) + " not present in the consensus pool")
+                # remove from consensus (connection from them)
 
                 # raise #for test purposes
                 break
