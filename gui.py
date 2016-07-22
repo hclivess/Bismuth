@@ -1,6 +1,4 @@
 #icons created using http://www.winterdrache.de/freeware/png2ico/
-import os
-import os.name
 
 import PIL.Image
 import PIL.ImageTk
