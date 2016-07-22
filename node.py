@@ -712,7 +712,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         digest_mempool()
                         # insert to mempool
 
-
                         app_log.info("Node: Sending sync request")
                         self.request.sendall("sync_______")
                         time.sleep(0.1)
@@ -1329,6 +1328,9 @@ def worker(HOST, PORT):
                         # txhash validation end
 
                 if data == "nonewblocks":
+
+                    digest_mempool() #otherwise passive node will not be able to digest
+
                     app_log.info("Client: We seem to be at the latest block. Paused before recheck.")
                     time.sleep(10)
                     s.sendall("sendsync___")
