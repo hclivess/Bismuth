@@ -337,6 +337,7 @@ def digest_mempool():  # this function has become the transaction engine core ov
                         if db_address[0:diff] == txhash[0:diff]:  # simplified comparison, no backwards mining
                             if float(time_now) > float(db_timestamp):
                                 reward = 25
+                                fee = 0 #dont request a fee for mined block so new accounts can mine
                                 app_log.info("Mempool: Heureka, reward mined: " + str(reward))
                             else:
                                 app_log.info("Mempool: Future mining not allowed")
@@ -1351,7 +1352,7 @@ def worker(HOST, PORT):
 
             app_log.info("Connection to " + this_client + " terminated due to " + str(e))
             app_log.info("---thread " + str(threading.currentThread()) + " ended---")
-            raise  # test only
+            #raise  # test only
             return
 
     return

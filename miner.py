@@ -85,7 +85,7 @@ while True:
 
                 timestamp = str(time.time())
                 app_log.info("Timestamp: " + timestamp)
-                transaction = str(timestamp) + ":" + str(address) + ":" + str(address) + ":" + str(1.0)#send one token to self to collect reward
+                transaction = str(timestamp) + ":" + str(address) + ":" + str(address) + ":" + str(0.0)#send 0 token to self to collect reward
 
                 h = SHA.new(transaction)
                 signer = PKCS1_v1_5.new(key)
