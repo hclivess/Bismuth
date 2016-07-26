@@ -79,6 +79,8 @@ def exclusive_on(where):
 def consensus_add(consensus_ip, consensus_opinion):
     global consensus_ip_list
     global consensus_opinion_list
+    global consensus_percentage
+
     if consensus_ip not in consensus_ip_list:
         app_log.info("Adding " + str(consensus_ip) + " to consensus peer list")
         consensus_ip_list.append(consensus_ip)
@@ -103,10 +105,11 @@ def consensus_add(consensus_ip, consensus_opinion):
 
     consensus = most_common(consensus_opinion_list)
 
-    global consensus_percentage
     consensus_percentage = (float(consensus_opinion_list.count(consensus) / float(len(consensus_opinion_list)))) * 100
     app_log.info("Current active connections: " + str(len(active_pool)))
     app_log.info("Current block consensus: " + str(consensus) + " = " + str(consensus_percentage) + "%")
+
+    return
 
 def consensus_remove(consensus_ip):
     global consensus_ip_list
@@ -751,6 +754,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     time.sleep(0.1)
                     # send own block height
 
+                    if received_block_height > db_block_height:
+                        app_log.info("Node: Client has higher block")
+                        update_me = 1
+
                     if received_block_height < db_block_height:
                         app_log.info("Node: We have a higher block, hash will be verified")
                         update_me = 0
@@ -961,7 +968,7 @@ def worker(HOST, PORT):
             this_client = (HOST + ":" + str(PORT))
             this_client_ip = HOST
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            # s.settimeout(25)
+            s.settimeout(25)
             s.connect((HOST, PORT))
             app_log.info("Client: Connected to " + str(HOST) + " " + str(PORT))
             connected = 1
