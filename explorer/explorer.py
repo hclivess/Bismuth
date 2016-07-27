@@ -1,5 +1,5 @@
-import web
 import sqlite3
+import web
 
 urls = (
     '/', 'index'
@@ -7,48 +7,43 @@ urls = (
 
 class index:
     def GET(self):
-
         conn = sqlite3.connect('../ledger.db')
         c = conn.cursor()
+        c.execute("SELECT * FROM transactions ORDER BY block_height DESC;")
+
+        all = c.fetchall()
 
         view = []
 
-        c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
-        imax = c.fetchone()[0]
-        imax = 50 #latest 50 only
-        print "imax:"+str(imax)
-        i=0
-        while i < imax:
-            for row in c.execute('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1 OFFSET '+str(i)+';'):
-                block_height = row[0]
-                address = row[2]
-                to_address = row[3]
-                amount = row[4]
-                print address
-                print to_address
-                print amount
-                view.append("<tr>")
-                view.append("<td>"+str(block_height)+"</td>")
-                view.append("<td>"+address+"</td>")
-                view.append("<td>"+to_address+"</td>")
-                view.append("<td>"+amount+"</td>")
-                view.append("<tr>")
-                i = i+1
+        for x in all:
+            view.append("<tr>")
+            view.append("<td>" + str(x[0]) + "</td>")
+            view.append("<td>" + str(x[1]) + "</td>")
+            view.append("<td>" + str(x[2]) + "</td>")
+            view.append("<td>" + str(x[3]) + "</td>")
+            view.append("<td>" + str(x[4]) + "</td>")
+            #view.append("<td>" + str(x[5]) + "</td>")
+            #view.append("<td>" + str(x[6]) + "</td>")
+            view.append("<td>" + str(x[7]) + "</td>")
+            view.append("<td>" + str(x[8]) + "</td>")
+            view.append("<td>" + str(x[9]) + "</td>")
+            view.append("<tr>")
 
         c.close()
 
-        html="<!DOCTYPE html>"\
-              "<html>"\
-              "<head>"\
-              "<meta http-equiv='refresh' content='60' >"\
-              "<link rel='stylesheet' type='text/css' href='static/style.css'>"\
-              "</head>"\
-              "<META http-equiv='cache-control' content='no-cache'>"\
-              "<TITLE>Transaction Explorer</TITLE>"\
-              "<body><table style='width:100%'><tr><td>No.</td><td>From</td><td>To</td><td>Amount</td></tr>"+str(''.join(view))+\
-              "</table></body>"\
-              "</html>"\
-              
+        html = "<!DOCTYPE html>" \
+               "<html>" \
+               "<head>" \
+               "<meta http-equiv='refresh' content='60' >" \
+               "<link rel='stylesheet' type='text/css' href='static/style.css'>" \
+               "</head>" \
+               "<META http-equiv='cache-control' content='no-cache'>" \
+               "<TITLE>Transaction Explorer</TITLE>" \
+               "<body><table style='width:100%'><tr><td>Block</td><td>Amount</td><td>From</td><td>To</td><td>Fee</td><td>Transaction Hash</td><td>Fee</td><td>Reward</td></tr>" + str(
+            ''.join(view)) + \
+               "</table></body>" \
+               "</html>"
+
         return html
 
 if __name__ == "__main__":
