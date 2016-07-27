@@ -15,6 +15,7 @@ class index:
 
         c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
         imax = c.fetchone()[0]
+        imax = 50 #latest 50 only
         print "imax:"+str(imax)
         i=0
         while i < imax:
