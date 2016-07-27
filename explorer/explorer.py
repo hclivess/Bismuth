@@ -35,7 +35,7 @@ class index:
                 view.append("<tr>")
                 i = i+1
 
-        conn.close            
+        c.close()
 
         html="<!DOCTYPE html>"\
               "<html>"\
