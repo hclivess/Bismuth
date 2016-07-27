@@ -39,7 +39,7 @@ class index:
                "</head>" \
                "<META http-equiv='cache-control' content='no-cache'>" \
                "<TITLE>Transaction Explorer</TITLE>" \
-               "<body><table style='width:100%'><tr><td>Block</td><td>Amount</td><td>From</td><td>To</td><td>Fee</td><td>Transaction Hash</td><td>Fee</td><td>Reward</td></tr>" + str(
+               "<body><table style='width:100%'><tr><td>Block</td><td>Timestamp</td><td>From</td><td>To</td><td>Amount</td><td>Transaction Hash</td><td>Fee</td><td>Reward</td></tr>" + str(
             ''.join(view)) + \
                "</table></body>" \
                "</html>"
