@@ -1,7 +1,8 @@
 table, th, td {
     border: 1px solid black;
     border-collapse: collapse;
-}
-th, td {
-    padding: 15px;
+    padding: 5px;
+    -webkit-column-width: 100%; /* Chrome, Safari, Opera */
+    -moz-column-width: 100%; /* Firefox */
+    column-width: 100%;
 }
