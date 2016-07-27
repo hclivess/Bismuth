@@ -7,7 +7,7 @@ urls = (
 
 class index:
     def GET(self):
-        conn = sqlite3.connect('../ledger.db')
+        conn = sqlite3.connect('./ledger.db')
         c = conn.cursor()
         c.execute("SELECT * FROM transactions ORDER BY block_height DESC;")
 
