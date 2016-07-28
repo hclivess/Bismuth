@@ -21,6 +21,7 @@ from Crypto.Hash import SHA
 from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 
+version = "testnet1___"
 
 def most_common(lst):
     return max(set(lst), key=lst.count)
@@ -525,6 +526,16 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 # cur_thread = threading.current_thread()
                 app_log.info("Node: Received: " + data + " from " + str(
                     self.request.getpeername()[0]))  # will add custom ports later
+
+                if data == 'version____':
+                    data = self.request.recv(11)
+                    if version != data:
+                        app_log.info("Version mismatch: " + data +", should be "+version)
+                        raise
+                    else:
+                        app_log.info("Version matched: " + data)
+
+
 
                 if data == 'helloserver':
                     with open("peers.txt", "r") as peer_list:
