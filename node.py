@@ -530,10 +530,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 if data == 'version____':
                     data = self.request.recv(11)
                     if version != data:
-                        app_log.info("Version mismatch: " + data +", should be "+version)
+                        app_log.info("Protocol version mismatch: " + data +", should be "+version)
                         raise
                     else:
-                        app_log.info("Version matched: " + data)
+                        app_log.info("Protocol version matched: " + data)
 
 
 
