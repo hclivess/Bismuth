@@ -347,10 +347,10 @@ def digest_mempool():  # this function has become the transaction engine core ov
                     # decide reward
 
                     #check for reorganized mining
-                    if fees == 0 and rewards == 0:
-                    app_log.info("Mempool: Reorganized mining transaction, deleting tx")
-                    m.execute("DELETE FROM transactions WHERE signature ='" + db_signature + "';")
-                    mempool.commit()
+                    if fee == 0 and reward == 0:
+                        app_log.info("Mempool: Reorganized mining transaction, deleting tx")
+                        m.execute("DELETE FROM transactions WHERE signature ='" + db_signature + "';")
+                        mempool.commit()
                     #check for reorganized mining
 
                     c.execute("INSERT INTO transactions VALUES ('" + str(block_height_new) + "','" + str(
