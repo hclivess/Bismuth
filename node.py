@@ -354,6 +354,8 @@ def digest_mempool():  # this function has become the transaction engine core ov
                             reward) + "')")  # Insert a row of data
                         conn.commit()
                         conn.close()
+                    else:
+                        app_log.info("Mempool: Removing reorganized mining transaction")
 
                 m.execute(
                     "DELETE FROM transactions WHERE signature = '" + db_signature + "';")  # delete tx from mempool now that it is in the ledger or if it was a double spend
