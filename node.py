@@ -992,6 +992,12 @@ def worker(HOST, PORT):
                 # communication starter
                 if first_run == 1:
                     first_run = 0
+
+                    s.sendall('version____')
+                    time.sleep(0.1)
+                    s.sendall(version)
+                    time.sleep(0.1)
+
                     s.sendall('helloserver')
                     time.sleep(0.1)
 
