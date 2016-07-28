@@ -187,9 +187,6 @@ def restore_backup():
             db_public_key_readable = result[0][5]
 
             # insert to mempool
-            mempool = sqlite3.connect('mempool.db')
-            m = mempool.cursor()
-
             m.execute("INSERT INTO transactions VALUES ('" + str(db_timestamp) + "','" + str(db_address) + "','" + str(
                 db_to_address) + "','" + str(float(db_amount)) + "','" + str(db_signature_enc) + "','" + str(
                 db_public_key_readable) + "')")  # Insert a row of data
@@ -286,6 +283,11 @@ def digest_mempool():  # this function has become the transaction engine core ov
 
                 elif float(db_amount) < 0:
                     app_log.info("Mempool: Cannot use negative amounts, deleting tx")
+                    m.execute("DELETE FROM transactions WHERE signature ='" + db_signature + "';")
+                    mempool.commit()
+
+                elif fees == 0 and rewards == 0:
+                    app_log.info("Mempool: Reorganized mining transaction, deleting tx")
                     m.execute("DELETE FROM transactions WHERE signature ='" + db_signature + "';")
                     mempool.commit()
 
