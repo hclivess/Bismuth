@@ -303,7 +303,7 @@ def digest_mempool():  # this function has become the transaction engine core ov
                     try:
                         c.execute("SELECT timestamp FROM transactions WHERE block_height ='" + str(db_block_50) + "';")
                         db_timestamp_50 = c.fetchone()[0]
-                        fee = 100 / (float(db_timestamp_last) - float(db_timestamp_50))
+                        fee = abs(100 / (float(db_timestamp_last) - float(db_timestamp_50)))
                         app_log.info("Fee: " + str(fee))
 
                     except Exception as e:
