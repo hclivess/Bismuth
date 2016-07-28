@@ -535,7 +535,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         time.sleep(0.1)
                         raise
                     else:
-                        app_log.info("Protocol version matched: " + data)
+                        app_log.info("Node: Protocol version matched: " + data)
                         self.request.sendall("ok_________")
                         time.sleep(0.1)
 
@@ -1003,9 +1003,9 @@ def worker(HOST, PORT):
                     time.sleep(0.1)
                     data = s.recv(11)
                     if data == "ok_________":
-                        app_log.info("Node protocol version matches our client")
+                        app_log.info("Client: Node protocol version matches our client")
                     else:
-                        app_log.info("Node protocol version mismatch")
+                        app_log.info("Client: Node protocol version mismatch")
                         raise
 
                     s.sendall('helloserver')
