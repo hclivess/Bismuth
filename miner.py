@@ -43,6 +43,7 @@ c = conn.cursor()
 
 timestamp = 0 #init
 tries = 0
+inform = 1
 
 while True:
     # decide reward
@@ -57,10 +58,13 @@ while True:
             reward_possible = 0  #there has been a reward already, don't reward anymore
 
     if reward_possible == 0:
-        app_log.info("Mempool: Reward status: Mined for this segment already. One segment is 50 blocks long. You need to wait for those 50 blocks to pass before mining is available again. The miner will resume automatically.")
+        if inform == 1:
+            app_log.info("Mempool: Reward status: Mined for this segment already. One segment is 50 blocks long. You need to wait for those 50 blocks to pass before mining is available again. The miner will resume automatically.")
+            inform = 0
         time.sleep(10)
 
     else:  # no reward in the past x blocks
+        inform = 1
         c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 50;")  # select previous x transactions to start mining
         db_txhash_list = c.fetchall()
         app_log.info("Mempool: Reward status: Not mined")
