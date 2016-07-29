@@ -42,13 +42,13 @@ f.write('<div>\n')
 f.write("<h1>Timestamp progression</h1>")
 f.write('<canvas id="canvas" height="150" width="600"></canvas>\n')
 
-f.write("<h1>Spending per block height</h1>")
+f.write("<h1>Spending in time</h1>")
 f.write('<canvas id="canvas2" height="150" width="600"></canvas>\n')
 
-f.write("<h1>Fee per block height</h1>")
+f.write("<h1>Fee in time</h1>")
 f.write('<canvas id="canvas3" height="150" width="600"></canvas>\n')
 
-f.write("<h1>Reward per block height</h1>")
+f.write("<h1>Reward in time</h1>")
 f.write('<canvas id="canvas4" height="150" width="600"></canvas>\n')
 #define canvas
 f.write('</div>\n')
