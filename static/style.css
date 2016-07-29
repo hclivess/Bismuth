@@ -6,3 +6,7 @@ table, th, td {
     -moz-column-width: 100%; /* Firefox */
     column-width: 100%;
 }
+
+h1 {
+    font-family: Verdana;
+}
