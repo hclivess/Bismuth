@@ -298,6 +298,8 @@ def digest_mempool():  # this function has become the transaction engine core ov
                     block_height_new = db_block_height + 1
                     db_timestamp_last = result[0][1]  # for fee calc
 
+                    #todo verify that ID = block height
+
                     # calculate fee
                     db_block_50 = int(db_block_height) - 50
                     try:
