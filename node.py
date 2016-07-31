@@ -60,6 +60,7 @@ consensus_percentage = 100
 port = 2829
 
 def verify_blockheight():
+    exclusive_on("verify_blockheight")
     app_log.info("Verifying previous blockheight")
     correct_block_height = 0
     while correct_block_height == 0:
@@ -105,6 +106,7 @@ def verify_blockheight():
             app_log.info("Correct last block number, proceeding")
             correct_block_height = 1
             # verify rowid
+        exclusive_off("verify_blockheight")
 
 
 def exclusive_on(where):
