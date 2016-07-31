@@ -25,14 +25,14 @@ for x in all:
     axis8.append(x[8])  # append fee
     axis9.append(x[9])  # append reward
 
-output = "plotter.html"
+output = "static/plotter.html"
 f = open(output, 'w')
 
 f.write('<!doctype html>\n')
 f.write('<html>\n')
 f.write('<head>\n')
 f.write('<title>Line Chart</title>\n')
-f.write('<script src="static/Chart.js"></script>\n')
+f.write('<script src="Chart.js"></script>\n')
 f.write('<link rel="stylesheet" type="text/css" href="static/style.css">\n')
 f.write('</head>\n')
 f.write('<body>\n')

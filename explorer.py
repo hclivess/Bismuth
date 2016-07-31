@@ -1,5 +1,6 @@
 import sqlite3
 import web
+import os
 
 urls = (
     '/', 'index'
@@ -7,6 +8,8 @@ urls = (
 
 class index:
     def GET(self):
+        os.system("plotter_html.py")  # redraw chart
+
         conn = sqlite3.connect('./ledger.db')
         c = conn.cursor()
         c.execute("SELECT * FROM transactions ORDER BY block_height DESC;")
@@ -39,7 +42,7 @@ class index:
                "</head>" \
                "<META http-equiv='cache-control' content='no-cache'>" \
                "<TITLE>Transaction Explorer</TITLE>" \
-               "<body><table style='width:100%'><tr><td>Block</td><td>Timestamp</td><td>From</td><td>To</td><td>Amount</td><td>Transaction Hash</td><td>Fee</td><td>Reward</td></tr>" + str(
+               "<body><iframe src='static/plotter.html' width='100%' height='550'></iframe><table style='width:100%'><tr><td>Block</td><td>Timestamp</td><td>From</td><td>To</td><td>Amount</td><td>Transaction Hash</td><td>Fee</td><td>Reward</td></tr>" + str(
             ''.join(view)) + \
                "</table></body>" \
                "</html>"
