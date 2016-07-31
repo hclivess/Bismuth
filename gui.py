@@ -329,6 +329,7 @@ Label(f3, text="Your Address:", width=20).grid(row=0, pady=15)
 gui_address = Entry(f3,width=57)
 gui_address.grid(row=0,column=1)
 gui_address.insert(0,address)
+gui_address.configure(state="readonly")
 
 Label(f3, text="Recipient:", width=20).grid(row=1)
 Label(f3, text="Amount:", width=20).grid(row=2)
