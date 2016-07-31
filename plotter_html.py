@@ -1,7 +1,4 @@
-import os
-import glob
 import sqlite3
-
 
 conn = sqlite3.connect('./ledger.db')
 c = conn.cursor()
@@ -33,7 +30,7 @@ f.write('<html>\n')
 f.write('<head>\n')
 f.write('<title>Line Chart</title>\n')
 f.write('<script src="Chart.js"></script>\n')
-f.write('<link rel="stylesheet" type="text/css" href="static/style.css">\n')
+f.write('<link rel="stylesheet" type="text/css" href="style.css">\n')
 f.write('</head>\n')
 f.write('<body>\n')
 f.write('<div style="width:100%">\n')

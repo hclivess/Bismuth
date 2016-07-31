@@ -107,22 +107,22 @@ def verify_blockheight():
             # verify rowid
 
 
-#def exclusive_on(where):
-#    mempool_busy_timeout = 0
-#    # exclusive mode
-#    global mempool_busy
+def exclusive_on(where):
+    mempool_busy_timeout = 0
+    # exclusive mode
+    global mempool_busy
 
-#    if mempool_busy == 0:
-#        app_log.info("Client: Database is available")
-#    if mempool_busy == 1:
-#        app_log.info("Client: Database is busy")
+    if mempool_busy == 0:
+        app_log.info("Client: Database is available")
+    if mempool_busy == 1:
+        app_log.info("Client: Database is busy")
 
-#    app_log.info("Client: Database is now used by " + str(where))
-#    while mempool_busy == 1 and mempool_busy_timeout < 200:
-#        app_log.info("Client: Waiting for database to become available, timeout in " + str(200 - mempool_busy_timeout))
-#        mempool_busy_timeout = mempool_busy_timeout + 1
-#        time.sleep(0.1)
-#    mempool_busy = 1
+    app_log.info("Client: Database is now used by " + str(where))
+    while mempool_busy == 1 and mempool_busy_timeout < 200:
+        app_log.info("Client: Waiting for database to become available, timeout in " + str(200 - mempool_busy_timeout))
+        mempool_busy_timeout = mempool_busy_timeout + 1
+        time.sleep(0.1)
+    mempool_busy = 1
     # exclusive mode
 
 def consensus_add(consensus_ip, consensus_opinion):
@@ -172,10 +172,10 @@ def consensus_remove(consensus_ip):
     else:
         app_log.info("Client " + str(consensus_ip) + " not present in the consensus pool")
 
-#def exclusive_off(where):
-#    global mempool_busy
-#    app_log.info("Client: Database is no longer used by " + str(where))
-#    mempool_busy = 0 #remove exclusive mode
+def exclusive_off(where):
+    global mempool_busy
+    app_log.info("Client: Database is no longer used by " + str(where))
+    mempool_busy = 0 #remove exclusive mode
 
 def manager():
     while True:
@@ -217,7 +217,7 @@ def manager():
 
 
 def restore_backup():
-    #exclusive_on("restore_backup")
+    exclusive_on("restore_backup")
     app_log.info("Restoring local transactions from backup")
     while True:
         try:
@@ -251,12 +251,12 @@ def restore_backup():
 
         except:
             app_log.info("Backup empty, sync finished")
-            #exclusive_off("restore_backup")
+            exclusive_off("restore_backup")
             return
 
 def digest_mempool():  # this function has become the transaction engine core over time, rudimentary naming
     # digest mempool start
-    #exclusive_on("mempool")
+    exclusive_on("mempool")
     while True:
         try:
             app_log.info("Node: Digesting mempool")
@@ -413,7 +413,7 @@ def digest_mempool():  # this function has become the transaction engine core ov
 
         except:
             app_log.info("Mempool empty")
-            #exclusive_off("mempool")
+            exclusive_off("mempool")
             if consensus_percentage < 67:
                 app_log.info("Skipping restoration until consensus is higher")
             else:
@@ -638,7 +638,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     app_log.info("Node: Will seek the following block: " + str(data))
 
-                    #exclusive_on("mytxhash___")
+                    exclusive_on("mytxhash___")
 
                     conn = sqlite3.connect('ledger.db')
                     c = conn.cursor()
@@ -682,7 +682,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         self.request.sendall("blocknotfou")
                         time.sleep(0.1)
 
-                    #exclusive_off("mytxhash___")
+                    exclusive_off("mytxhash___")
 
 
                 if data == "sendsync___":
@@ -714,7 +714,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     # txhash validation start
 
-                    #exclusive_on("blockfound_")
+                    exclusive_on("blockfound_")
 
                     # open dbs for backup and followup deletion
                     conn = sqlite3.connect('ledger.db')
@@ -774,7 +774,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         mempool.commit()  # Save (commit) the changes
                         mempool.close()
 
-                        #exclusive_off("blockfound_")
+                        exclusive_off("blockfound_")
 
                         verify_blockheight()
                         digest_mempool()
@@ -785,7 +785,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         time.sleep(0.1)
 
                     else:
-                        #exclusive_off("blockfound_")
+                        exclusive_off("blockfound_")
 
                         app_log.info("Node: Signature invalid")
                         # todo consequences
@@ -801,7 +801,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     consensus_add(consensus_ip,consensus_opinion)
                     # consensus pool 1 (connection from them)
 
-                    #exclusive_on("blockheight")
+                    exclusive_on("blockheight")
 
                     conn = sqlite3.connect('ledger.db')
                     c = conn.cursor()
@@ -809,7 +809,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     db_block_height = c.fetchone()[0]
                     conn.close()
 
-                    #exclusive_off("blockheight")
+                    exclusive_off("blockheight")
 
                     # append zeroes to get static length
                     while len(str(db_block_height)) != 11:
@@ -830,7 +830,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         app_log.info("Node: We have the same block height, hash will be verified")
                         update_me = 0
 
-                    #exclusive_on("blockheight")
+                    exclusive_on("blockheight")
 
                     if update_me == 1:
                         conn = sqlite3.connect('ledger.db')
@@ -845,12 +845,12 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     if update_me == 0:  # update them if update_me is 0
 
-                        #exclusive_off("blockheight")
+                        exclusive_off("blockheight")
 
                         data = self.request.recv(56)  # receive client's last txhash
                         # send all our followup hashes
 
-                        #exclusive_on("blockheight")
+                        exclusive_on("blockheight")
 
                         app_log.info("Node: Will seek the following block: " + str(data))
 
@@ -897,12 +897,12 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             self.request.sendall("blocknotfou")
                             time.sleep(0.1)
 
-                    #exclusive_off ("blockheight")
+                    exclusive_off ("blockheight")
 
                 if data == "blocknotfou":
                     app_log.info("Client: Node didn't find the block, deleting latest entry")
 
-                    #exclusive_on("blocknotfou")
+                    exclusive_on("blocknotfou")
 
                     conn = sqlite3.connect('ledger.db')
                     c = conn.cursor()
@@ -938,7 +938,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     self.request.sendall("sync_______")
                     time.sleep(0.1)
 
-                    #exclusive_off("blocknotfou")
+                    exclusive_off("blocknotfou")
 
                 # latest local block
                 if data == "transaction":
@@ -974,7 +974,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     verifier = PKCS1_v1_5.new(received_public_key)
                     h = SHA.new(received_transaction)
 
-                    #exclusive_on("transaction")
+                    exclusive_on("transaction")
 
                     if verifier.verify(h, received_signature_dec) == True:
                         app_log.info("Node: The signature is valid")
@@ -991,7 +991,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         mempool.close()
                         app_log.info("Client: Mempool updated with a received transaction")
 
-                        #exclusive_off("transaction")
+                        exclusive_off("transaction")
 
                         verify_blockheight()
                         digest_mempool()
@@ -1003,7 +1003,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         time.sleep(0.1)
 
                     else:
-                        #exclusive_off("transaction")
+                        exclusive_off("transaction")
                         app_log.info("Node: Signature invalid")
                         # todo consequences
 
@@ -1109,7 +1109,7 @@ def worker(HOST, PORT):
                     # send all our followup hashes
                     app_log.info("Client: Will seek the following block: " + str(data))
 
-                    #exclusive_on("mytxhash___")
+                    exclusive_on("mytxhash___")
 
                     conn = sqlite3.connect('ledger.db')
                     c = conn.cursor()
@@ -1154,7 +1154,7 @@ def worker(HOST, PORT):
                         s.sendall("blocknotfou")
                         time.sleep(0.1)
 
-                    #exclusive_off("mytxhash___")
+                    exclusive_off("mytxhash___")
 
                 if data == "sync_______":
                     # sync start
@@ -1163,7 +1163,7 @@ def worker(HOST, PORT):
                     s.sendall("blockheight")
                     time.sleep(0.1)
 
-                    #exclusive_on("sync_______")
+                    exclusive_on("sync_______")
 
                     conn = sqlite3.connect('ledger.db')
                     c = conn.cursor()
@@ -1171,7 +1171,7 @@ def worker(HOST, PORT):
                     db_block_height = c.fetchone()[0]
                     conn.close()
 
-                    #exclusive_off("sync_______")
+                    exclusive_off("sync_______")
 
                     app_log.info("Client: Sending block height to compare: " + str(db_block_height))
                     # append zeroes to get static length
@@ -1207,7 +1207,7 @@ def worker(HOST, PORT):
 
                     if update_me == 1:
 
-                        #exclusive_on("sync_______")
+                        exclusive_on("sync_______")
 
                         conn = sqlite3.connect('ledger.db')
                         c = conn.cursor()
@@ -1215,7 +1215,7 @@ def worker(HOST, PORT):
                         db_txhash = c.fetchone()[0]  # get latest txhash
                         conn.close()
 
-                        #exclusive_off("sync_______")
+                        exclusive_off("sync_______")
 
                         app_log.info("Client: txhash to send: " + str(db_txhash))
                         s.sendall(db_txhash)  # send latest txhash
@@ -1227,7 +1227,7 @@ def worker(HOST, PORT):
                         # send all our followup hashes
                         app_log.info("Client: Will seek the following block: " + str(data))
 
-                        #exclusive_on("sync_______")
+                        exclusive_on("sync_______")
 
                         conn = sqlite3.connect('ledger.db')
                         c = conn.cursor()
@@ -1272,13 +1272,13 @@ def worker(HOST, PORT):
                             s.sendall("blocknotfou")
                             time.sleep(0.1)
 
-                        #exclusive_off("sync_______")
+                        exclusive_off("sync_______")
 
                 if data == "blocknotfou":
 
                     app_log.info("Client: Node didn't find the block, deleting latest entry")
 
-                    #exclusive_on("blocknotfou")
+                    exclusive_on("blocknotfou")
 
                     conn = sqlite3.connect('ledger.db')
                     c = conn.cursor()
@@ -1310,7 +1310,7 @@ def worker(HOST, PORT):
                     conn.commit()
                     conn.close()
 
-                    #exclusive_off("blocknotfou")
+                    exclusive_off("blocknotfou")
 
                     # delete followups
                     s.sendall("sendsync___")
@@ -1340,7 +1340,7 @@ def worker(HOST, PORT):
 
                     # txhash validation start
 
-                    #exclusive_on("blockfound_")
+                    exclusive_on("blockfound_")
 
                     conn = sqlite3.connect('ledger.db')
                     c = conn.cursor()
@@ -1395,7 +1395,7 @@ def worker(HOST, PORT):
                         mempool.commit()  # Save (commit) the changes
                         mempool.close()
 
-                        #exclusive_off("blockfound_")
+                        exclusive_off("blockfound_")
 
                         verify_blockheight()
                         digest_mempool()
@@ -1405,7 +1405,7 @@ def worker(HOST, PORT):
                         time.sleep(0.1)
 
                     else:
-                        #exclusive_off("blockfound_")
+                        exclusive_off("blockfound_")
                         app_log.info("Client: Received invalid signature")
                         # rollback end
 
