@@ -397,7 +397,7 @@ def digest_mempool():  # this function has become the transaction engine core ov
                             app_log.info("Mempool: Mining not successful")
                     # decide reward
 
-                    if fee + reward != 0: #check for reorganized mining
+                    if (fee + reward != 0) and (db_amount + reward != 0): #check for reorganized mining
                         c.execute("INSERT INTO transactions VALUES ('" + str(block_height_new) + "','" + str(
                             db_timestamp) + "','" + str(db_address) + "','" + str(db_to_address) + "','" + str(
                             float(db_amount)) + "','" + str(db_signature) + "','" + str(
