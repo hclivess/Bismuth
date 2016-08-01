@@ -397,16 +397,22 @@ def digest_mempool():  # this function has become the transaction engine core ov
                             app_log.info("Mempool: Mining not successful")
                     # decide reward
 
-                    if (fee + reward != 0): #check for reorganized mining
+                    if (float(fee) + float(reward) == 0): #check for reorganized mining
+                        app_log.info("Mempool: Removing reorganized mining transaction")
+                    if (db_address[0:diff] == txhash[0:diff]) and reward == 0:
+                        app_log.info("Mempool: Mining transaction submitted too late")
+                    if (float(balance))-(float(fee)+float(db_amount)) < 0:
+                        app_log.info("Mempool: Cannot afford to pay fees")
+
+                    else:
                         c.execute("INSERT INTO transactions VALUES ('" + str(block_height_new) + "','" + str(
                             db_timestamp) + "','" + str(db_address) + "','" + str(db_to_address) + "','" + str(
                             float(db_amount)) + "','" + str(db_signature) + "','" + str(
                             db_public_key_readable) + "','" + str(txhash) + "','" + str(fee) + "','" + str(
                             reward) + "')")  # Insert a row of data
-                        conn.commit()
-                        conn.close()
-                    else:
-                        app_log.info("Mempool: Removing reorganized mining transaction")
+                    conn.commit()
+                    conn.close()
+
 
                 m.execute(
                     "DELETE FROM transactions WHERE signature = '" + db_signature + "';")  # delete tx from mempool now that it is in the ledger or if it was a double spend
