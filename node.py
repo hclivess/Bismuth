@@ -410,7 +410,7 @@ def digest_mempool():  # this function has become the transaction engine core ov
                             float(db_amount)) + "','" + str(db_signature) + "','" + str(
                             db_public_key_readable) + "','" + str(txhash) + "','" + str(fee) + "','" + str(
                             reward) + "')")  # Insert a row of data
-                    conn.commit()
+                        conn.commit()
                     conn.close()
 
 
