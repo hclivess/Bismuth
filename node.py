@@ -106,7 +106,7 @@ def verify_blockheight():
             app_log.info("Correct last block number, proceeding")
             correct_block_height = 1
             # verify rowid
-        exclusive_off("verify_blockheight")
+    exclusive_off("verify_blockheight")
 
 
 def exclusive_on(where):
@@ -397,9 +397,10 @@ def digest_mempool():  # this function has become the transaction engine core ov
                             app_log.info("Mempool: Mining not successful")
                     # decide reward
 
+                    diff = 3
                     if (float(fee) + float(reward) == 0): #check for reorganized mining
                         app_log.info("Mempool: Removing reorganized mining transaction")
-                    elif (db_address[0:diff] == txhash[0:diff]) and reward == 0:
+                    elif (db_address[0:diff] == txhash[0:diff]) and float(reward) == 0:
                         app_log.info("Mempool: Mining transaction submitted too late")
                     elif (float(balance))-(float(fee)+float(db_amount)) < 0:
                         app_log.info("Mempool: Cannot afford to pay fees")
