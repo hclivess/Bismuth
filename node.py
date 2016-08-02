@@ -956,7 +956,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     db_public_key_readable = results[6]
                     db_confirmations = results[10]
 
-                    if db_confirmations < 100:
+                    if db_confirmations < 50:
                         b.execute("INSERT INTO transactions VALUES ('" + str(db_timestamp) + "','" + str(
                             db_address) + "','" + str(db_to_address) + "','" + str(float(db_amount)) + "','" + str(
                             db_signature) + "','" + str(db_public_key_readable) + "')")  # Insert a row of data
@@ -1351,7 +1351,7 @@ def worker(HOST, PORT):
                     db_public_key_readable = results[6]
                     db_confirmations = results[10]
 
-                    if db_confirmations < 100:
+                    if db_confirmations < 50:
                         b.execute("INSERT INTO transactions VALUES ('" + str(db_timestamp) + "','" + str(
                             db_address) + "','" + str(db_to_address) + "','" + str(float(db_amount)) + "','" + str(
                             db_signature) + "','" + str(db_public_key_readable) + "')")  # Insert a row of data
