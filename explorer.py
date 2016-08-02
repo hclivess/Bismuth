@@ -20,6 +20,7 @@ class index:
         axis4 = []
         axis8 = []
         axis9 = []
+        axis10 = []
 
         i = 1
         for x in all:
@@ -29,6 +30,7 @@ class index:
             axis4.append(x[4])  # append amount
             axis8.append(x[8])  # append fee
             axis9.append(x[9])  # append reward
+            axis10.append(x[10])  # append confirmations
 
         output = "static/plotter.html"
         f = open(output, 'w')
@@ -55,6 +57,9 @@ class index:
 
         f.write("<h1>Reward in time</h1>")
         f.write('<canvas id="canvas4" height="150" width="600"></canvas>\n')
+
+        f.write("<h1>Confirmations per block</h1>")
+        f.write('<canvas id="canvas5" height="150" width="600"></canvas>\n')
         # define canvas
         f.write('</div>\n')
         f.write('</div>\n')
@@ -81,6 +86,11 @@ class index:
 
         f.write('var ctx4 = document.getElementById("canvas4").getContext("2d");\n')
         f.write('window.myLine = new Chart(ctx4).Line(lineChartData4, {\n')
+        f.write('responsive: true\n')
+        f.write('});\n')
+
+        f.write('var ctx5 = document.getElementById("canvas5").getContext("2d");\n')
+        f.write('window.myLine = new Chart(ctx5).Line(lineChartData5, {\n')
         f.write('responsive: true\n')
         f.write('});\n')
 
@@ -152,6 +162,23 @@ class index:
         f.write('pointHighlightFill : "#fff",\n')
         f.write('pointHighlightStroke : "rgba(220,220,220,1)",\n')
         f.write('data : ' + str(map(str, axis9)) + '\n')
+        f.write('}\n')
+        f.write(']\n')
+        f.write('}\n')
+
+        # segment
+        f.write('var lineChartData5 = {\n')
+        f.write('labels : ' + str(map(str, axis0)) + ',\n')
+        f.write('datasets : [\n')
+        f.write('{\n')
+        f.write('label: "My First dataset 5",\n')
+        f.write('fillColor : "rgba(220,220,220,0.2)",\n')
+        f.write('strokeColor : "rgba(220,220,220,1)",\n')
+        f.write('pointColor : "rgba(220,220,220,1)",\n')
+        f.write('pointStrokeColor : "#fff",\n')
+        f.write('pointHighlightFill : "#fff",\n')
+        f.write('pointHighlightStroke : "rgba(220,220,220,1)",\n')
+        f.write('data : ' + str(map(str, axis10)) + '\n')
         f.write('}\n')
         f.write(']\n')
         f.write('}\n')
