@@ -1481,6 +1481,24 @@ def worker(HOST, PORT):
                     digest_mempool() #otherwise passive node will not be able to digest
 
                     app_log.info("Client: We seem to be at the latest block. Paused before recheck.")
+
+                    #selfconfirmation
+                    if s.getpeername()[0] != "127.0.0.1":
+                        exclusive_on("confirmation")
+
+                        conn = sqlite3.connect('ledger.db')
+                        c = conn.cursor()
+                        c.execute('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1')
+                        result = c.fetchall()
+                        db_block_height = result[0][0]
+                        confs_current = result[0][10]
+                        c.execute("UPDATE transactions SET confirmations = '" + str(confs_current + 1) + "' WHERE block_height = '" + str(db_block_height) + "'")
+                        conn.commit()
+                        conn.close()
+                        app_log.info("Client: Updated confirmations for the latest block")
+                        exclusive_off("confirmation")
+                    #selfconfirmation
+
                     time.sleep(10)
                     s.sendall("sendsync___")
                     time.sleep(0.1)
