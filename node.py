@@ -86,7 +86,7 @@ def verify_blockheight():
             "SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1;")  # extract data from ledger to construct new txhash
         result = c.fetchall()
         db_block_height = result[0][0]
-        db_timestamp_last = result[0][1]  # for fee calc
+        db_timestamp = result[0][1]  # for fee calc
         db_address = result[0][2]
         db_to_address = result[0][3]
         db_amount = result[0][4]
@@ -104,7 +104,7 @@ def verify_blockheight():
             mempool = sqlite3.connect('mempool.db')
             m = mempool.cursor()
 
-            m.execute("INSERT INTO transactions VALUES ('" + str(db_timestamp_last) + "','" + str(
+            m.execute("INSERT INTO transactions VALUES ('" + str(db_timestamp) + "','" + str(
                 db_address) + "','" + str(db_to_address) + "','" + str(float(db_amount)) + "','" + str(
                 db_signature) + "','" + str(
                 db_public_key_readable) + "')")  # put tx with wrong block height to backup
@@ -361,14 +361,14 @@ def digest_mempool():  # this function has become the transaction engine core ov
                     db_txhash = result[0][7]
                     db_block_height = result[0][0]
                     block_height_new = db_block_height + 1
-                    db_timestamp_last = result[0][1]  # for fee calc
+                    #db_timestamp_last = result[0][1]  # for fee calc
 
                     # calculate fee
                     db_block_50 = int(db_block_height) - 50
                     try:
                         c.execute("SELECT timestamp FROM transactions WHERE block_height ='" + str(db_block_50) + "';")
                         db_timestamp_50 = c.fetchone()[0]
-                        fee = abs(500 / (float(db_timestamp_last) - float(db_timestamp_50)))
+                        fee = abs(1000 / (float(db_timestamp) - float(db_timestamp_50)))
                         app_log.info("Fee: " + str(fee))
 
                     except Exception as e:

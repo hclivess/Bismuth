@@ -208,9 +208,10 @@ def refresh():
 
 
     try:
+        time_now = str(time.time())
         c.execute("SELECT timestamp FROM transactions WHERE block_height ='" + str(db_block_50) + "';")
         db_timestamp_50 = c.fetchone()[0]
-        fee = 100 / (float(db_timestamp_last) - float(db_timestamp_50))
+        fee = 1000 / (float(time_now) - float(db_timestamp_50))
         app_log.info("Fee: " + str(fee))
 
     except Exception as e:
