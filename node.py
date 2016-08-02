@@ -58,6 +58,19 @@ global consensus_percentage
 consensus_percentage = 100
 
 port = 2829
+def update_confirmations(data):
+    try:
+        conn = sqlite3.connect('ledger.db')
+        c = conn.cursor()
+        c.execute("SELECT confirmations FROM transactions WHERE txhash = '" + data + "'")
+        confs_current = c.fetchone()[0]
+        c.execute("UPDATE transactions SET confirmations = '" + str(confs_current + 1) + "' WHERE txhash = '" + data + "'")
+        conn.commit()
+        app_log.info("Node: Updated number of confirmations for " + data)
+        conn.close()
+    except:
+        pass  # dont have that txhash in the database yet
+
 
 def verify_blockheight():
     exclusive_on("verify_blockheight")
@@ -649,6 +662,11 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     exclusive_on("mytxhash___")
 
+                    # update confirmations
+                    if self.request.getpeername()[0] != "127.0.0.1":
+                        update_confirmations(data)
+                    # update confirmations
+
                     conn = sqlite3.connect('ledger.db')
                     c = conn.cursor()
 
@@ -863,20 +881,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                         # update confirmations
                         if self.request.getpeername()[0] != "127.0.0.1":
-                            conn = sqlite3.connect('ledger.db')
-                            c = conn.cursor()
-
-                            try:
-                                c.execute("SELECT confirmations FROM transactions WHERE txhash = '" + data + "'")
-                                confs_current = c.fetchone()[0]
-                                c.execute("UPDATE transactions SET confirmations = '" + str(confs_current + 1) + "' WHERE txhash = '" + data + "'")
-                                conn.commit()
-                                app_log.info("Node: Updated number of confirmations for "+data)
-
-                            except Exception as e:
-                                print e
-                                raise
-                            conn.close()
+                            update_confirmations(data)
                         # update confirmations
 
                         app_log.info("Node: Will seek the following block: " + str(data))
@@ -1138,6 +1143,11 @@ def worker(HOST, PORT):
 
                     exclusive_on("mytxhash___")
 
+                    # update confirmations
+                    if s.getpeername()[0] != "127.0.0.1":
+                        update_confirmations(data)
+                    # update confirmations
+
                     conn = sqlite3.connect('ledger.db')
                     c = conn.cursor()
 
@@ -1256,6 +1266,11 @@ def worker(HOST, PORT):
 
                         exclusive_on("sync_______")
 
+                        # update confirmations
+                        if s.getpeername()[0] != "127.0.0.1":
+                            update_confirmations(data)
+                        # update confirmations
+
                         conn = sqlite3.connect('ledger.db')
                         c = conn.cursor()
 
@@ -1332,7 +1347,7 @@ def worker(HOST, PORT):
                     backup.close()
                     # backup all followups to backup
 
-                    # delete followups #exclusive mode add here
+                    # delete followups
                     c.execute('DELETE FROM transactions WHERE block_height ="' + str(db_block_height) + '"')
                     conn.commit()
                     conn.close()
