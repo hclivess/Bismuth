@@ -58,6 +58,7 @@ global consensus_percentage
 consensus_percentage = 100
 
 port = 2829
+
 def update_confirmations(data):
     try:
         conn = sqlite3.connect('ledger.db')
@@ -69,6 +70,7 @@ def update_confirmations(data):
         app_log.info("Updated number of confirmations for " + data)
         conn.close()
     except:
+        #app_log.info("Did not update number of confirmations for " + data)
         pass  # dont have that txhash in the database yet
 
 
