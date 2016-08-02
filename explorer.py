@@ -211,6 +211,7 @@ class index:
             view.append("<td>" + str(x[7]) + "</td>")
             view.append("<td>" + str(x[8]) + "</td>")
             view.append("<td>" + str(x[9]) + "</td>")
+            view.append("<td>" + str(x[10]) + "</td>")
             view.append("<tr>")
 
         c.close()
@@ -223,7 +224,7 @@ class index:
                "</head>" \
                "<META http-equiv='cache-control' content='no-cache'>" \
                "<TITLE>Transaction Explorer</TITLE>" \
-               "<body><center><h1>Bismuth Transaction Explorer</h1></center><iframe src='static/plotter.html' width='100%' height='550'></iframe><table style='width:100%'><tr><td>Block</td><td>Timestamp</td><td>From</td><td>To</td><td>Amount</td><td>Transaction Hash</td><td>Fee</td><td>Reward</td></tr>" + str(
+               "<body><center><h1>Bismuth Transaction Explorer</h1></center><iframe src='static/plotter.html' width='100%' height='550'></iframe><table style='width:100%'><tr><td>Block</td><td>Timestamp</td><td>From</td><td>To</td><td>Amount</td><td>Transaction Hash</td><td>Fee</td><td>Reward</td><td>Confirmations</td></tr>" + str(
             ''.join(view)) + \
                "</table></body>" \
                "</html>"
