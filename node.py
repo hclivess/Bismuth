@@ -410,7 +410,7 @@ def digest_mempool():  # this function has become the transaction engine core ov
                             db_timestamp) + "','" + str(db_address) + "','" + str(db_to_address) + "','" + str(
                             float(db_amount)) + "','" + str(db_signature) + "','" + str(
                             db_public_key_readable) + "','" + str(txhash) + "','" + str(fee) + "','" + str(
-                            reward) + "')")  # Insert a row of data
+                            reward) + "','" + str(0) + "')")  # Insert a row of data
                         conn.commit()
                     conn.close()
 
@@ -860,6 +860,24 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         # send all our followup hashes
 
                         exclusive_on("blockheight")
+
+                        # update confirmations
+                        if self.request.getpeername()[0] != "127.0.0.1":
+                            conn = sqlite3.connect('ledger.db')
+                            c = conn.cursor()
+
+                            try:
+                                c.execute("SELECT confirmations FROM transactions WHERE txhash = '" + data + "'")
+                                confs_current = c.fetchone()[0]
+                                c.execute("UPDATE transactions SET confirmations = '" + str(confs_current + 1) + "' WHERE txhash = '" + data + "'")
+                                conn.commit()
+                                app_log.info("Node: Updated number of confirmations for "+data)
+
+                            except Exception as e:
+                                print e
+                                raise
+                            conn.close()
+                        # update confirmations
 
                         app_log.info("Node: Will seek the following block: " + str(data))
 
