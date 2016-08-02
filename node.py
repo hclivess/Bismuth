@@ -66,7 +66,7 @@ def update_confirmations(data):
         confs_current = c.fetchone()[0]
         c.execute("UPDATE transactions SET confirmations = '" + str(confs_current + 1) + "' WHERE txhash = '" + data + "'")
         conn.commit()
-        app_log.info("Node: Updated number of confirmations for " + data)
+        app_log.info("Updated number of confirmations for " + data)
         conn.close()
     except:
         pass  # dont have that txhash in the database yet
@@ -952,23 +952,32 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     db_amount = results[4]
                     db_signature = results[5]
                     db_public_key_readable = results[6]
+                    db_confirmations = results[10]
 
-                    b.execute("INSERT INTO transactions VALUES ('" + str(db_timestamp) + "','" + str(
-                        db_address) + "','" + str(db_to_address) + "','" + str(float(db_amount)) + "','" + str(
-                        db_signature) + "','" + str(db_public_key_readable) + "')")  # Insert a row of data
+                    if db_confirmations < 200:
+                        b.execute("INSERT INTO transactions VALUES ('" + str(db_timestamp) + "','" + str(
+                            db_address) + "','" + str(db_to_address) + "','" + str(float(db_amount)) + "','" + str(
+                            db_signature) + "','" + str(db_public_key_readable) + "')")  # Insert a row of data
 
-                    backup.commit()
-                    backup.close()
-                    # backup all followups to backup
+                        backup.commit()
+                        backup.close()
+                        # backup all followups to backup
 
-                    # delete followups
-                    c.execute('DELETE FROM transactions WHERE block_height ="' + str(db_block_height) + '"')
-                    conn.commit()
-                    conn.close()
-                    # delete followups
-                    app_log.info("Client: Deletion complete, sending sync request")
-                    self.request.sendall("sync_______")
-                    time.sleep(0.1)
+                        # delete followups
+                        c.execute('DELETE FROM transactions WHERE block_height ="' + str(db_block_height) + '"')
+                        conn.commit()
+                        conn.close()
+                        # delete followups
+
+                        app_log.info("Client: Deletion complete, sending sync request")
+                        self.request.sendall("sync_______")
+                        time.sleep(0.1)
+                    else:
+                        app_log.info("Client: Too many confirmations for rollback")
+                        self.request.sendall("sync_______")
+                        time.sleep(0.1)
+                        backup.close()
+                        conn.close()
 
                     exclusive_off("blocknotfou")
 
@@ -1338,25 +1347,35 @@ def worker(HOST, PORT):
                     db_amount = results[4]
                     db_signature = results[5]
                     db_public_key_readable = results[6]
+                    db_confirmations = results[10]
 
-                    b.execute("INSERT INTO transactions VALUES ('" + str(db_timestamp) + "','" + str(
-                        db_address) + "','" + str(db_to_address) + "','" + str(float(db_amount)) + "','" + str(
-                        db_signature) + "','" + str(db_public_key_readable) + "')")  # Insert a row of data
+                    if db_confirmations < 200:
+                        b.execute("INSERT INTO transactions VALUES ('" + str(db_timestamp) + "','" + str(
+                            db_address) + "','" + str(db_to_address) + "','" + str(float(db_amount)) + "','" + str(
+                            db_signature) + "','" + str(db_public_key_readable) + "')")  # Insert a row of data
 
-                    backup.commit()
-                    backup.close()
-                    # backup all followups to backup
+                        backup.commit()
+                        backup.close()
+                        # backup all followups to backup
 
-                    # delete followups
-                    c.execute('DELETE FROM transactions WHERE block_height ="' + str(db_block_height) + '"')
-                    conn.commit()
-                    conn.close()
+                        # delete followups
+                        c.execute('DELETE FROM transactions WHERE block_height ="' + str(db_block_height) + '"')
+                        conn.commit()
+                        conn.close()
+
+                        # delete followups
+                        app_log.info("Client: Deletion complete, sending sendsync request")
+                        s.sendall("sendsync___")
+                        time.sleep(0.1)
+
+                    else:
+                        app_log.info("Client: Too many confirmations for rollback")
+                        s.sendall("sendsync___")
+                        time.sleep(0.1)
+                        backup.close()
+                        conn.close()
 
                     exclusive_off("blocknotfou")
-
-                    # delete followups
-                    s.sendall("sendsync___")
-                    time.sleep(0.1)
 
                 if data == "blockfound_":
                     app_log.info("Client: Node has the block")  # node should start sending txs in this step
