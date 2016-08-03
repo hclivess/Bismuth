@@ -149,7 +149,32 @@ f5 = Frame(root, height=100, width = 100)
 f5.grid(row = 1, column = 1, sticky = W+E+S)
 #frames
 
+
 def sign():
+    def verify_this():
+        try:
+            received_public_key = RSA.importKey(public_key_gui.get("1.0",END))
+            verifier = PKCS1_v1_5.new(received_public_key)
+            h = SHA.new(input_text.get("1.0",END))
+            received_signature_dec = base64.b64decode(output_signature.get("1.0",END))
+
+            if verifier.verify(h, received_signature_dec) == True:
+                top2 = Toplevel()
+                top2.title("Validation results")
+                msg = Message(top2, text="Signature Valid", width = 50)
+                msg.pack()
+                button = Button(top2, text="Dismiss", command=top2.destroy)
+                button.pack()
+            else:
+                raise
+        except:
+            top2 = Toplevel()
+            top2.title("Validation results")
+            msg = Message(top2, text="Signature Invalid", width = 50)
+            msg.pack()
+            button = Button(top2, text="Dismiss", command=top2.destroy)
+            button.pack()
+
     def sign_this():
         h = SHA.new(input_text.get("1.0",END))
         signer = PKCS1_v1_5.new(key)
@@ -180,10 +205,13 @@ def sign():
     # msg.pack()
 
     sign_message = Button(top, text="Sign Message", command=sign_this)
-    sign_message.grid(row=3, column=0, sticky=W+E, padx=15, pady=(15, 0))
+    sign_message.grid(row=3, column=0, sticky=W+E, padx=15, pady=(5, 0))
+
+    sign_message = Button(top, text="Verify Message", command=verify_this)
+    sign_message.grid(row=4, column=0, sticky=W+E, padx=15, pady=(15, 0))
 
     dismiss = Button(top, text="Dismiss", command=top.destroy)
-    dismiss.grid(row=4, column=0, sticky=W+E, padx=15, pady=(15, 0))
+    dismiss.grid(row=5, column=0, sticky=W+E, padx=15, pady=(15, 5))
     # popup
 
 
