@@ -151,7 +151,13 @@ f5.grid(row = 1, column = 1, sticky = W+E+S)
 
 def sign():
     def sign_this():
-        print "hello"
+        h = SHA.new(input_text.get("1.0",END))
+        signer = PKCS1_v1_5.new(key)
+        signature = signer.sign(h)
+        signature_enc = base64.b64encode(signature)
+
+        output_signature.delete('1.0', END) #remove previous
+        output_signature.insert(INSERT, signature_enc)
 
     # popup
     top = Toplevel()
