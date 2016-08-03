@@ -162,22 +162,28 @@ def sign():
     # popup
     top = Toplevel()
     top.title("Sign message")
+    #top.geometry("%dx%d%+d%+d" % (800, 600, 0, 0))
+    #top.grid_propagate(False)
 
-    input_text = Text(top)
+    input_text = Text(top, height=10)
     #label.image = photo  # keep a reference!
-    input_text.pack()
+    input_text.grid(row=0, column=0, sticky=N+E, padx=15, pady=(15, 0))
 
-    output_signature = Text(top)
-    output_signature.pack()
+    public_key_gui = Text(top, height=10)
+    public_key_gui.insert(INSERT, public_key_readable)
+    public_key_gui.grid(row=1, column=0, sticky=N+E, padx=15, pady=(15, 0))
+
+    output_signature = Text(top, height=10)
+    output_signature.grid(row=2, column=0, sticky=N+E, padx=15, pady=(15, 0))
 
     # msg = Message(top, text="hi")
     # msg.pack()
 
     sign_message = Button(top, text="Sign Message", command=sign_this)
-    sign_message.pack()
+    sign_message.grid(row=3, column=0, sticky=W+E, padx=15, pady=(15, 0))
 
     dismiss = Button(top, text="Dismiss", command=top.destroy)
-    dismiss.pack()
+    dismiss.grid(row=4, column=0, sticky=W+E, padx=15, pady=(15, 0))
     # popup
 
 
