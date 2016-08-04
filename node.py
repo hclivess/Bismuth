@@ -1352,8 +1352,8 @@ def worker(HOST, PORT):
                     db_confirmations = results[10]
 
 
-                    if (db_confirmations > 30) and (time.time() < (db_timestamp + 120)): # unstuck after x seconds
-                        app_log.info("Client: Too many confirmations for rollback")
+                    if (db_confirmations > 30) and (time.time() < (db_timestamp + 300)): # unstuck after x seconds
+                        app_log.info("Client: Too many confirmations for rollback and the block is too fresh")
                         s.sendall("sendsync___")
                         time.sleep(0.1)
                         backup.close()
