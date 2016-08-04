@@ -1080,6 +1080,7 @@ def worker(HOST, PORT):
             s.connect((HOST, PORT))
             app_log.info("Client: Connected to " + str(HOST) + " " + str(PORT))
             connected = 1
+            rollback_from_set = 0
             if this_client not in active_pool:
                 active_pool.append(this_client)
                 app_log.info("Current active pool: " + str(active_pool))
@@ -1351,10 +1352,18 @@ def worker(HOST, PORT):
                     db_public_key_readable = results[6]
                     db_confirmations = results[10]
 
+                    if rollback_from_set == 0:
+                        rollback_from = db_block_height
+                        rollback_from_set = 1
+
                     if db_block_height < 10:
                         app_log.info("Client: Will not roll back this block")
 
-                    elif (db_confirmations > 30) and (time.time() < (db_timestamp + 300)): # unstuck after x seconds
+                    elif db_block_height < rollback_from - 50:
+                        app_log.info("Client: Too many blocks rolled back from this client")
+                        raise
+
+                    elif (db_confirmations > 30) and (time.time() < (db_timestamp + 120)): # unstuck after x seconds
                         app_log.info("Client: Too many confirmations for rollback and the block is too fresh")
                         s.sendall("sendsync___")
                         time.sleep(0.1)
