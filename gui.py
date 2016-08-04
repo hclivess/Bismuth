@@ -190,28 +190,31 @@ def sign():
     #top.geometry("%dx%d%+d%+d" % (800, 600, 0, 0))
     #top.grid_propagate(False)
 
+    Label(top, text="Message:", width=20).grid(row=0, pady=0)
     input_text = Text(top, height=10)
     #label.image = photo  # keep a reference!
-    input_text.grid(row=0, column=0, sticky=N+E, padx=15, pady=(15, 0))
+    input_text.grid(row=1, column=0, sticky=N+E, padx=15, pady=(0, 0))
 
+    Label(top, text="Public Key:", width=20).grid(row=2, pady=0)
     public_key_gui = Text(top, height=10)
     public_key_gui.insert(INSERT, public_key_readable)
-    public_key_gui.grid(row=1, column=0, sticky=N+E, padx=15, pady=(15, 0))
+    public_key_gui.grid(row=3, column=0, sticky=N+E, padx=15, pady=(0, 0))
 
+    Label(top, text="Signature:", width=20).grid(row=4, pady=0)
     output_signature = Text(top, height=10)
-    output_signature.grid(row=2, column=0, sticky=N+E, padx=15, pady=(15, 0))
+    output_signature.grid(row=5, column=0, sticky=N+E, padx=15, pady=(0, 0))
 
     # msg = Message(top, text="hi")
     # msg.pack()
 
     sign_message = Button(top, text="Sign Message", command=sign_this)
-    sign_message.grid(row=3, column=0, sticky=W+E, padx=15, pady=(5, 0))
+    sign_message.grid(row=6, column=0, sticky=W+E, padx=15, pady=(5, 0))
 
     sign_message = Button(top, text="Verify Message", command=verify_this)
-    sign_message.grid(row=4, column=0, sticky=W+E, padx=15, pady=(15, 0))
+    sign_message.grid(row=7, column=0, sticky=W+E, padx=15, pady=(15, 0))
 
     dismiss = Button(top, text="Dismiss", command=top.destroy)
-    dismiss.grid(row=5, column=0, sticky=W+E, padx=15, pady=(15, 5))
+    dismiss.grid(row=8, column=0, sticky=W+E, padx=15, pady=(15, 5))
     # popup
 
 
