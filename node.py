@@ -1351,7 +1351,15 @@ def worker(HOST, PORT):
                     db_public_key_readable = results[6]
                     db_confirmations = results[10]
 
-                    if db_confirmations < 50:
+
+                    if (db_confirmations > 30) and (time.time() < db_timestamp + 120): # unstuck after x seconds
+                        app_log.info("Client: Too many confirmations for rollback")
+                        s.sendall("sendsync___")
+                        time.sleep(0.1)
+                        backup.close()
+                        conn.close()
+
+                    else:
                         b.execute("INSERT INTO transactions VALUES ('" + str(db_timestamp) + "','" + str(
                             db_address) + "','" + str(db_to_address) + "','" + str(float(db_amount)) + "','" + str(
                             db_signature) + "','" + str(db_public_key_readable) + "')")  # Insert a row of data
@@ -1369,13 +1377,6 @@ def worker(HOST, PORT):
                         app_log.info("Client: Deletion complete, sending sendsync request")
                         s.sendall("sendsync___")
                         time.sleep(0.1)
-
-                    else:
-                        app_log.info("Client: Too many confirmations for rollback")
-                        s.sendall("sendsync___")
-                        time.sleep(0.1)
-                        backup.close()
-                        conn.close()
 
                     exclusive_off("blocknotfou")
 
