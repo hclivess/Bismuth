@@ -1351,8 +1351,10 @@ def worker(HOST, PORT):
                     db_public_key_readable = results[6]
                     db_confirmations = results[10]
 
+                    if db_block_height < 10:
+                        app_log.info("Client: Will not roll back this block")
 
-                    if (db_confirmations > 30) and (time.time() < (db_timestamp + 300)) and db_block_height < 10: # unstuck after x seconds
+                    elif (db_confirmations > 30) and (time.time() < (db_timestamp + 300)): # unstuck after x seconds
                         app_log.info("Client: Too many confirmations for rollback and the block is too fresh")
                         s.sendall("sendsync___")
                         time.sleep(0.1)
