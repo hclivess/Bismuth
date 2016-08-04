@@ -56,6 +56,8 @@ global mempool_busy
 mempool_busy = 0
 global consensus_percentage
 consensus_percentage = 100
+global banlist
+banlist = []
 
 port = 2829
 
@@ -195,6 +197,7 @@ def exclusive_off(where):
     mempool_busy = 0 #remove exclusive mode
 
 def manager():
+    global banlist
     while True:
         with open("peers.txt", "r") as peer_list:
             peers = peer_list.read()
@@ -212,7 +215,7 @@ def manager():
 
                 app_log.info(HOST + ":" + str(PORT))
                 if threads_count <= threads_limit and str(HOST + ":" + str(PORT)) not in tried and str(
-                                        HOST + ":" + str(PORT)) not in active_pool:
+                                        HOST + ":" + str(PORT)) not in active_pool and str(HOST) not in banlist:
                     tried.append(HOST + ":" + str(PORT))
                     t = threading.Thread(target=worker, args=(HOST, PORT))  # threaded connectivity to nodes here
                     app_log.info("---Starting a client thread " + str(threading.currentThread()) + "---")
@@ -1360,7 +1363,9 @@ def worker(HOST, PORT):
                         app_log.info("Client: Will not roll back this block")
 
                     elif db_block_height < rollback_from - 50:
+                        global banlist
                         app_log.info("Client: Too many blocks rolled back from this client")
+                        banlist.append(s.getpeername()[0])
                         raise
 
                     elif (db_confirmations > 30) and (time.time() < (db_timestamp + 120)): # unstuck after x seconds
