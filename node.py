@@ -58,6 +58,8 @@ global consensus_percentage
 consensus_percentage = 100
 global banlist
 banlist = []
+global stopsync
+stopsync = 0
 
 port = 2829
 
@@ -103,6 +105,8 @@ def verify_blockheight():
 
         if rowid != db_block_height:
             app_log.info("Wrong last block number, fixing")
+            global stopsync
+            stopsync = 1
             mempool = sqlite3.connect('mempool.db')
             m = mempool.cursor()
 
@@ -122,6 +126,7 @@ def verify_blockheight():
         else:
             app_log.info("Correct last block number, proceeding")
             correct_block_height = 1
+            stopsync = 0
             # verify rowid
     exclusive_off("verify_blockheight")
 
@@ -655,6 +660,11 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     # save peer if connectible
 
                     app_log.info("Node: Sending sync request")
+
+                    global stopsync
+                    while stopsync == 1:
+                        time.sleep(1)
+
                     self.request.sendall("sync_______")
                     time.sleep(0.1)
 
@@ -718,6 +728,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
 
                 if data == "sendsync___":
+                    while stopsync == 1:
+                        time.sleep(1)
                     self.request.sendall("sync_______")
                     time.sleep(0.1)
 
@@ -813,6 +825,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         # insert to mempool
 
                         app_log.info("Node: Sending sync request")
+                        while stopsync == 1:
+                            time.sleep(1)
                         self.request.sendall("sync_______")
                         time.sleep(0.1)
 
@@ -975,10 +989,14 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         # delete followups
 
                         app_log.info("Client: Deletion complete, sending sync request")
+                        while stopsync == 1:
+                            time.sleep(1)
                         self.request.sendall("sync_______")
                         time.sleep(0.1)
                     else:
                         app_log.info("Client: Too many confirmations for rollback")
+                        while stopsync == 1:
+                            time.sleep(1)
                         self.request.sendall("sync_______")
                         time.sleep(0.1)
                         backup.close()
@@ -1045,6 +1063,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         # insert to mempool
 
                         app_log.info("Node: Database closed")
+                        while stopsync == 1:
+                            time.sleep(1)
                         self.request.sendall("sync_______")
                         time.sleep(0.1)
 
@@ -1212,6 +1232,9 @@ def worker(HOST, PORT):
                     # sync start
 
                     # send block height, receive block height
+                    global stopsync
+                    while stopsync == 1:
+                        time.sleep(1)
                     s.sendall("blockheight")
                     time.sleep(0.1)
 
@@ -1370,6 +1393,8 @@ def worker(HOST, PORT):
 
                     elif (db_confirmations > 30) and (time.time() < (db_timestamp + 120)): # unstuck after x seconds
                         app_log.info("Client: Too many confirmations for rollback and the block is too fresh")
+                        while stopsync == 1:
+                            time.sleep(1)
                         s.sendall("sendsync___")
                         time.sleep(0.1)
                         backup.close()
@@ -1391,6 +1416,9 @@ def worker(HOST, PORT):
 
                         # delete followups
                         app_log.info("Client: Deletion complete, sending sendsync request")
+
+                        while stopsync == 1:
+                            time.sleep(1)
                         s.sendall("sendsync___")
                         time.sleep(0.1)
 
@@ -1481,6 +1509,8 @@ def worker(HOST, PORT):
                         digest_mempool()
                         # insert to mempool
 
+                        while stopsync == 1:
+                            time.sleep(1)
                         s.sendall("sendsync___")
                         time.sleep(0.1)
 
@@ -1517,6 +1547,8 @@ def worker(HOST, PORT):
                     #selfconfirmation
 
                     time.sleep(10)
+                    while stopsync == 1:
+                        time.sleep(1)
                     s.sendall("sendsync___")
                     time.sleep(0.1)
 
