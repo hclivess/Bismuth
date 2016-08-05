@@ -231,7 +231,9 @@ def digest_mempool():  # this function has become the transaction engine core ov
     # digest mempool start
     #exclusive_on("mempool")
     global digesting
+
     if digesting == 0:
+        app_log.info("Digesting switched on")
         digesting = 1
 
         # verify rowid
@@ -444,13 +446,13 @@ def digest_mempool():  # this function has become the transaction engine core ov
             except:
                 app_log.info("Mempool empty")
                 #exclusive_off("mempool")
-                if consensus_percentage < 67 and max(consensus_opinion_list) == block_height_new:
+                if consensus_percentage < 67 and max(consensus_opinion_list) != block_height_new:
                     app_log.info("Skipping restoration until consensus is higher")
                 else:
                     restore_backup()
                 #raise #debug
-                digesting = 0
-                return
+    digesting = 0
+    return
 
 
 def db_maintenance():
