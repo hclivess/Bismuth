@@ -64,6 +64,7 @@ digesting = 0
 port = 2829
 
 def update_confirmations(data):
+    exclusive_on("update_confirmations")
     try:
         conn = sqlite3.connect('ledger.db')
         c = conn.cursor()
@@ -76,57 +77,7 @@ def update_confirmations(data):
     except:
         #app_log.info("Did not update number of confirmations for " + data)
         pass  # dont have that txhash in the database yet
-
-
-def verify_blockheight():
-    exclusive_on("verify_blockheight")
-    app_log.info("Verifying previous blockheight")
-    correct_block_height = 0
-    while correct_block_height == 0:
-        # verify rowid
-        conn = sqlite3.connect('ledger.db')
-        c = conn.cursor()
-        c.execute(
-            "SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1;")  # extract data from ledger to construct new txhash
-        result = c.fetchall()
-        db_block_height = result[0][0]
-        db_timestamp = result[0][1]  # for fee calc
-        db_address = result[0][2]
-        db_to_address = result[0][3]
-        db_amount = result[0][4]
-        db_signature = result[0][5]
-        db_public_key_readable = result[0][6]
-        # db_txhash = result[0][7]
-
-        c.execute("SELECT rowid FROM transactions ORDER BY block_height DESC LIMIT 1;")
-        rowid = c.fetchone()[0]
-        #print rowid  # debug
-        #print db_block_height #debug
-
-        if rowid != db_block_height:
-            app_log.info("Wrong last block number, fixing")
-            mempool = sqlite3.connect('mempool.db')
-            m = mempool.cursor()
-
-            m.execute("INSERT INTO transactions VALUES ('" + str(db_timestamp) + "','" + str(
-                db_address) + "','" + str(db_to_address) + "','" + str(float(db_amount)) + "','" + str(
-                db_signature) + "','" + str(
-                db_public_key_readable) + "')")  # put tx with wrong block height to backup
-            mempool.commit()
-            mempool.close()
-
-            # delete all local followups
-            c.execute('DELETE FROM transactions WHERE block_height = "' + str(db_block_height) + '"')
-            conn.commit()
-            conn.close()
-            # delete all local followups
-
-        else:
-            app_log.info("Correct last block number, proceeding")
-            correct_block_height = 1
-            # verify rowid
-    exclusive_off("verify_blockheight")
-
+    exclusive_off("update_confirmations")
 
 def exclusive_on(where):
     mempool_busy_timeout = 0
@@ -282,6 +233,53 @@ def digest_mempool():  # this function has become the transaction engine core ov
     global digesting
     if digesting == 0:
         digesting = 1
+
+        # verify rowid
+        app_log.info("Verifying previous blockheight")
+        correct_block_height = 0
+        while correct_block_height == 0:
+            conn = sqlite3.connect('ledger.db')
+            c = conn.cursor()
+            c.execute(
+                "SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1;")  # extract data from ledger to construct new txhash
+            result = c.fetchall()
+            db_block_height = result[0][0]
+            db_timestamp = result[0][1]  # for fee calc
+            db_address = result[0][2]
+            db_to_address = result[0][3]
+            db_amount = result[0][4]
+            db_signature = result[0][5]
+            db_public_key_readable = result[0][6]
+            # db_txhash = result[0][7]
+
+            c.execute("SELECT rowid FROM transactions ORDER BY block_height DESC LIMIT 1;")
+            rowid = c.fetchone()[0]
+            # print rowid  # debug
+            # print db_block_height #debug
+
+            if rowid != db_block_height:
+                app_log.info("Wrong last block number, fixing")
+                mempool = sqlite3.connect('mempool.db')
+                m = mempool.cursor()
+
+                m.execute("INSERT INTO transactions VALUES ('" + str(db_timestamp) + "','" + str(
+                    db_address) + "','" + str(db_to_address) + "','" + str(float(db_amount)) + "','" + str(
+                    db_signature) + "','" + str(
+                    db_public_key_readable) + "')")  # put tx with wrong block height to backup
+                mempool.commit()
+                mempool.close()
+
+                # delete all local followups
+                c.execute('DELETE FROM transactions WHERE block_height = "' + str(db_block_height) + '"')
+                conn.commit()
+                conn.close()
+                # delete all local followups
+
+            else:
+                app_log.info("Correct last block number, proceeding")
+                correct_block_height = 1
+                # verify rowid
+
         while True:
             try:
                 app_log.info("Node: Digesting mempool")
@@ -814,7 +812,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                         exclusive_off("blockfound_")
 
-                        verify_blockheight()
                         digest_mempool()
                         # insert to mempool
 
@@ -1045,7 +1042,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                         exclusive_off("transaction")
 
-                        verify_blockheight()
                         digest_mempool()
 
                         # insert to mempool
@@ -1483,7 +1479,6 @@ def worker(HOST, PORT):
 
                         exclusive_off("blockfound_")
 
-                        verify_blockheight()
                         digest_mempool()
                         # insert to mempool
 
@@ -1500,7 +1495,6 @@ def worker(HOST, PORT):
                         # txhash validation end
 
                 if data == "nonewblocks":
-                    verify_blockheight()
                     digest_mempool() #otherwise passive node will not be able to digest
 
                     app_log.info("Client: We seem to be at the latest block. Paused before recheck.")
