@@ -928,7 +928,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         # backup all followups to backup
 
                         # delete followups
-                        c.execute('DELETE FROM transactions WHERE block_height ="' + str(db_block_height) + '"')
+                        c.execute('DELETE FROM transactions WHERE block_height >="' + str(db_block_height) + '"')
                         conn.commit()
                         conn.close()
                         # delete followups
@@ -1344,7 +1344,7 @@ def worker(HOST, PORT):
                         # backup all followups to backup
 
                         # delete followups
-                        c.execute('DELETE FROM transactions WHERE block_height ="' + str(db_block_height) + '"')
+                        c.execute('DELETE FROM transactions WHERE block_height >="' + str(db_block_height) + '"')
                         conn.commit()
                         conn.close()
 
