@@ -231,13 +231,10 @@ def digest_mempool():  # this function has become the transaction engine core ov
     # digest mempool start
     #exclusive_on("mempool")
     global digesting
-
+    app_log.info("Digesting already in progress")
     if digesting == 0:
         digesting = 1
         app_log.info("Digesting switched on")
-
-        # verify rowid
-        app_log.info("Verifying previous blockheight")
 
         while True:
             try:
@@ -683,6 +680,106 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 if data == "sendsync___":
                     self.request.sendall("sync_______")
                     time.sleep(0.1)
+
+                if data == "blockfound_":
+                    app_log.info("Client: Node has the block")  # node should start sending txs in this step
+
+                    data = self.request.recv(10)
+                    app_log.info("Transaction length to receive: " + data)
+                    txhash_len = int(data)
+                    data = self.request.recv(txhash_len)
+
+                    app_log.info("Client: " + data)
+                    # verify
+                    sync_list = ast.literal_eval(data)  # this is great, need to add it to client -> node sync
+                    received_block_height = sync_list[0]
+                    received_timestamp = sync_list[1]
+                    received_address = sync_list[2]
+                    received_to_address = sync_list[3]
+                    received_amount = sync_list[4]
+                    received_signature_enc = sync_list[5]
+                    received_public_key_readable = sync_list[6]
+                    received_public_key = RSA.importKey(sync_list[6])
+                    # received_txhash = sync_list[7]
+                    received_transaction = str(received_timestamp) + ":" + str(received_address) + ":" + str(
+                        received_to_address) + ":" + str(float(received_amount))  # todo: why not have bare list instead of converting?
+
+                    # txhash validation start
+
+                    #exclusive_on("blockfound_")
+
+                    # open dbs for backup and followup deletion
+                    conn = sqlite3.connect('ledger.db')
+                    c = conn.cursor()
+                    c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
+                    txhash_db = c.fetchone()[0]
+
+                    # backup all followups
+                    backup = sqlite3.connect('backup.db')
+                    b = backup.cursor()
+
+                    for row in c.execute('SELECT * FROM transactions WHERE block_height > "' + str(
+                            received_block_height) + '"'):
+                        db_block_height = row[0]
+                        db_timestamp = row[1]
+                        db_address = row[2]
+                        db_to_address = row[3]
+                        db_amount = row[4]
+                        db_signature = row[5]
+                        db_public_key_readable = row[6]
+
+                        b.execute("INSERT INTO transactions VALUES ('" + str(db_timestamp) + "','" + str(
+                            db_address) + "','" + str(db_to_address) + "','" + str(float(db_amount)) + "','" + str(
+                            db_signature) + "','" + str(db_public_key_readable) + "')")  # Insert a row of data
+
+                    backup.commit()
+                    backup.close()
+                    # backup all followups
+
+
+                    # delete all local followups
+                    c.execute('DELETE FROM transactions WHERE block_height > "' + str(received_block_height) + '"')
+                    conn.commit()  # this was missing, experimentally added
+                    conn.close()
+                    # delete all local followups
+
+                    app_log.info("Node: Last db txhash: " + str(txhash_db))
+                    # app_log.info("Node: Received txhash: "+str(received_txhash))
+                    app_log.info("Node: Received transaction: " + str(received_transaction))
+
+                    received_signature_dec = base64.b64decode(received_signature_enc)
+                    verifier = PKCS1_v1_5.new(received_public_key)
+                    h = SHA.new(received_transaction)
+
+                    if verifier.verify(h, received_signature_dec) == True:
+                        app_log.info("Node: The signature is valid")
+                        # transaction processing
+
+                        # insert to mempool
+                        mempool = sqlite3.connect('mempool.db')
+                        m = mempool.cursor()
+
+                        m.execute("INSERT INTO transactions VALUES ('" + str(received_timestamp) + "','" + str(
+                            received_address) + "','" + str(received_to_address) + "','" + str(float(received_amount)) + "','" + str(received_signature_enc) + "','" + str(
+                            received_public_key_readable) + "')")  # Insert a row of data
+                        app_log.info("Node: Mempool updated with a received transaction")
+                        mempool.commit()  # Save (commit) the changes
+                        mempool.close()
+
+                        #exclusive_off("blockfound_")
+
+                        digest_mempool()
+                        # insert to mempool
+
+                        app_log.info("Node: Sending sync request")
+                        self.request.sendall("sync_______")
+                        time.sleep(0.1)
+
+                    else:
+                        #exclusive_off("blockfound_")
+
+                        app_log.info("Node: Signature invalid")
+                        # todo consequences
 
                 if data == "blockheight":
                     subdata = self.request.recv(11)  # receive client's last block height
