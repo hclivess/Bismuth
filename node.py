@@ -79,6 +79,65 @@ def update_confirmations(data):
         pass  # dont have that txhash in the database yet
     #exclusive_off("update_confirmations")
 
+def blocknotfound(rollback_from_set):
+    app_log.info("Client: Node didn't find the block, deleting latest entry")
+
+    # exclusive_on("blocknotfou")
+
+    conn = sqlite3.connect('ledger.db')
+    c = conn.cursor()
+
+    # backup all followups to backup
+    backup = sqlite3.connect('backup.db')
+    b = backup.cursor()
+
+    c.execute('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1')
+    results = c.fetchone()
+    db_block_height = results[0]
+    db_timestamp = results[1]
+    db_address = results[2]
+    db_to_address = results[3]
+    db_amount = results[4]
+    db_signature = results[5]
+    db_public_key_readable = results[6]
+    db_confirmations = results[10]
+
+    if rollback_from_set == 0:
+        rollback_from = db_block_height
+        rollback_from_set = 1
+
+    if db_block_height < 10:
+        app_log.info("Client: Will not roll back this block")
+
+    elif db_block_height < rollback_from - 50:
+        global banlist
+        app_log.info("Client: Too many blocks rolled back from this client")
+        banlist.append(s.getpeername()[0])
+        raise
+
+    elif (db_confirmations > 30) and (time.time() < (float(db_timestamp) + 120)):  # unstuck after x seconds
+        app_log.info("Client: Too many confirmations for rollback and the block is too fresh")
+        s.sendall("sendsync___")
+        time.sleep(0.1)
+        backup.close()
+        conn.close()
+
+    else:
+        b.execute("INSERT INTO transactions VALUES ('" + str(db_timestamp) + "','" + str(
+            db_address) + "','" + str(db_to_address) + "','" + str(float(db_amount)) + "','" + str(
+            db_signature) + "','" + str(db_public_key_readable) + "')")  # Insert a row of data
+
+        backup.commit()
+        backup.close()
+        # backup all followups to backup
+
+        # delete followups
+        c.execute('DELETE FROM transactions WHERE block_height >="' + str(db_block_height) + '"')
+        conn.commit()
+        conn.close()
+
+        # delete followups
+
 def blockfound(data):
     # verify
     sync_list = ast.literal_eval(data)  # this is great, need to add it to client -> node sync
@@ -906,56 +965,12 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                 if data == "blocknotfou":
                     #exclusive_on("blocknotfou")
-                    if digesting == 0:
-                        digesting = 1
-                        app_log.info("Client: Node didn't find the block, deleting latest entry")
-                        conn = sqlite3.connect('ledger.db')
-                        c = conn.cursor()
-                        c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
+                    blocknotfound(rollback_from_set)
 
-                        # backup all followups to backup
-                        backup = sqlite3.connect('backup.db')
-                        b = backup.cursor()
+                    app_log.info("Client: Deletion complete, sending sync request")
+                    self.request.sendall("sync_______")
+                    time.sleep(0.1)
 
-                        c.execute('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1')
-                        results = c.fetchone()
-                        db_timestamp = results[1]
-                        db_address = results[2]
-                        db_to_address = results[3]
-                        db_amount = results[4]
-                        db_signature = results[5]
-                        db_public_key_readable = results[6]
-                        db_confirmations = results[10]
-
-                        if db_confirmations < 50:
-                            b.execute("INSERT INTO transactions VALUES ('" + str(db_timestamp) + "','" + str(
-                                db_address) + "','" + str(db_to_address) + "','" + str(float(db_amount)) + "','" + str(
-                                db_signature) + "','" + str(db_public_key_readable) + "')")  # Insert a row of data
-
-                            backup.commit()
-                            backup.close()
-                            # backup all followups to backup
-
-                            # delete followups
-                            c.execute('DELETE FROM transactions WHERE block_height >="' + str(db_block_height) + '"')
-                            conn.commit()
-                            conn.close()
-                            # delete followups
-
-                            app_log.info("Client: Deletion complete, sending sync request")
-                            self.request.sendall("sync_______")
-                            time.sleep(0.1)
-                        else:
-                            backup.close()
-                            conn.close()
-
-                            app_log.info("Client: Too many confirmations for rollback")
-                        digesting = 0
-                        self.request.sendall("sync_______")
-                        time.sleep(0.1)
-                        #exclusive_off("blocknotfou")
-
-                # latest local block
                 if data == "transaction":
 
                     data = self.request.recv(10)
@@ -1301,68 +1316,8 @@ def worker(HOST, PORT):
 
                 if data == "blocknotfou":
 
-                    app_log.info("Client: Node didn't find the block, deleting latest entry")
+                        blocknotfound(rollback_from_set)
 
-                    #exclusive_on("blocknotfou")
-
-                    conn = sqlite3.connect('ledger.db')
-                    c = conn.cursor()
-
-                    # backup all followups to backup
-                    backup = sqlite3.connect('backup.db')
-                    b = backup.cursor()
-
-                    c.execute('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1')
-                    results = c.fetchone()
-                    db_block_height = results[0]
-                    db_timestamp = results[1]
-                    db_address = results[2]
-                    db_to_address = results[3]
-                    db_amount = results[4]
-                    db_signature = results[5]
-                    db_public_key_readable = results[6]
-                    db_confirmations = results[10]
-
-                    if rollback_from_set == 0:
-                        rollback_from = db_block_height
-                        rollback_from_set = 1
-
-                    if db_block_height < 10:
-                        app_log.info("Client: Will not roll back this block")
-
-                    elif db_block_height < rollback_from - 50:
-                        global banlist
-                        app_log.info("Client: Too many blocks rolled back from this client")
-                        banlist.append(s.getpeername()[0])
-                        raise
-
-                    elif (db_confirmations > 30) and (time.time() < (float(db_timestamp) + 120)): # unstuck after x seconds
-                        app_log.info("Client: Too many confirmations for rollback and the block is too fresh")
-                        s.sendall("sendsync___")
-                        time.sleep(0.1)
-                        backup.close()
-                        conn.close()
-
-                    else:
-                        global digesting
-                        if digesting == 0:
-                            digesting = 1
-                            b.execute("INSERT INTO transactions VALUES ('" + str(db_timestamp) + "','" + str(
-                                db_address) + "','" + str(db_to_address) + "','" + str(float(db_amount)) + "','" + str(
-                                db_signature) + "','" + str(db_public_key_readable) + "')")  # Insert a row of data
-
-                            backup.commit()
-                            backup.close()
-                            # backup all followups to backup
-
-                            # delete followups
-                            c.execute('DELETE FROM transactions WHERE block_height >="' + str(db_block_height) + '"')
-                            conn.commit()
-                            conn.close()
-
-                            # delete followups
-                            app_log.info("Client: Deletion complete, sending sendsync request")
-                        digesting = 0
                         s.sendall("sendsync___")
                         time.sleep(0.1)
 
@@ -1441,6 +1396,7 @@ class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
 
 if __name__ == "__main__":
     try:
+        rollback_from_set = 0
         # Port 0 means to select an arbitrary unused port
         HOST, PORT = "0.0.0.0", port
 
