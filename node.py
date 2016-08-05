@@ -444,7 +444,7 @@ def digest_mempool():  # this function has become the transaction engine core ov
             except:
                 app_log.info("Mempool empty")
                 #exclusive_off("mempool")
-                if consensus_percentage < 67:
+                if consensus_percentage < 67 and max(consensus_opinion_list) == block_height_new:
                     app_log.info("Skipping restoration until consensus is higher")
                 else:
                     restore_backup()
