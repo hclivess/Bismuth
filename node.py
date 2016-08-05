@@ -443,13 +443,13 @@ def digest_mempool():  # this function has become the transaction engine core ov
 
             except:
                 app_log.info("Mempool empty")
-                digesting = 0
                 exclusive_off("mempool")
                 if consensus_percentage < 67:
                     app_log.info("Skipping restoration until consensus is higher")
                 else:
                     restore_backup()
                 #raise #debug
+                digesting = 0
                 return
 
 
@@ -981,11 +981,12 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         self.request.sendall("sync_______")
                         time.sleep(0.1)
                     else:
+                        backup.close()
+                        conn.close()
+
                         app_log.info("Client: Too many confirmations for rollback")
                         self.request.sendall("sync_______")
                         time.sleep(0.1)
-                        backup.close()
-                        conn.close()
 
                     exclusive_off("blocknotfou")
 
