@@ -118,6 +118,8 @@ def blocknotfound():
                 conn.close()
 
             else:
+                time.sleep(float(db_confirmations)/10) #1 confirmation delays rollback by 0.1 seconds
+
                 b.execute("INSERT INTO transactions VALUES ('" + str(db_timestamp) + "','" + str(
                     db_address) + "','" + str(db_to_address) + "','" + str(float(db_amount)) + "','" + str(
                     db_signature) + "','" + str(db_public_key_readable) + "')")  # Insert a row of data
