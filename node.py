@@ -58,7 +58,8 @@ global consensus_percentage
 consensus_percentage = 100
 global banlist
 banlist = []
-
+global busy
+busy = 0
 
 port = 2829
 
@@ -79,143 +80,161 @@ def update_confirmations(data):
     #exclusive_off("update_confirmations")
 
 def blocknotfound():
-    app_log.info("Client: Node didn't find the block, deleting latest entry")
-
-    # exclusive_on("blocknotfou")
-
-    conn = sqlite3.connect('ledger.db')
-    c = conn.cursor()
-
-    # backup all followups to backup
-    backup = sqlite3.connect('backup.db')
-    b = backup.cursor()
-
-    c.execute('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1')
-    results = c.fetchone()
-    db_block_height = results[0]
-    db_timestamp = results[1]
-    db_address = results[2]
-    db_to_address = results[3]
-    db_amount = results[4]
-    db_signature = results[5]
-    db_public_key_readable = results[6]
-    db_confirmations = results[10]
-
-    if db_block_height < 10:
-        app_log.info("Client: Will not roll back this block")
-
-    elif (db_confirmations > 30) and (time.time() < (float(db_timestamp) + 120)):  # unstuck after x seconds
-        app_log.info("Client: Too many confirmations for rollback and the block is too fresh")
-        backup.close()
-        conn.close()
-
+    global busy
+    if busy == 1:
+        app_log.info("Skipping")
     else:
-        b.execute("INSERT INTO transactions VALUES ('" + str(db_timestamp) + "','" + str(
-            db_address) + "','" + str(db_to_address) + "','" + str(float(db_amount)) + "','" + str(
-            db_signature) + "','" + str(db_public_key_readable) + "')")  # Insert a row of data
+        try:
+            busy = 1
 
-        backup.commit()
-        backup.close()
-        # backup all followups to backup
+            app_log.info("Client: Node didn't find the block, deleting latest entry")
 
-        # delete followups
-        c.execute('DELETE FROM transactions WHERE block_height >="' + str(db_block_height) + '"')
-        conn.commit()
-        conn.close()
+            # exclusive_on("blocknotfou")
 
+            conn = sqlite3.connect('ledger.db')
+            c = conn.cursor()
 
-        # delete followups
+            # backup all followups to backup
+            backup = sqlite3.connect('backup.db')
+            b = backup.cursor()
+
+            c.execute('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1')
+            results = c.fetchone()
+            db_block_height = results[0]
+            db_timestamp = results[1]
+            db_address = results[2]
+            db_to_address = results[3]
+            db_amount = results[4]
+            db_signature = results[5]
+            db_public_key_readable = results[6]
+            db_confirmations = results[10]
+
+            if db_block_height < 10:
+                app_log.info("Client: Will not roll back this block")
+
+            elif (db_confirmations > 30) and (time.time() < (float(db_timestamp) + 120)):  # unstuck after x seconds
+                app_log.info("Client: Too many confirmations for rollback and the block is too fresh")
+                backup.close()
+                conn.close()
+
+            else:
+                b.execute("INSERT INTO transactions VALUES ('" + str(db_timestamp) + "','" + str(
+                    db_address) + "','" + str(db_to_address) + "','" + str(float(db_amount)) + "','" + str(
+                    db_signature) + "','" + str(db_public_key_readable) + "')")  # Insert a row of data
+
+                backup.commit()
+                backup.close()
+                # backup all followups to backup
+
+                # delete followups
+                c.execute('DELETE FROM transactions WHERE block_height >="' + str(db_block_height) + '"')
+                conn.commit()
+                conn.close()
+        except:
+            pass
+        busy = 0
+
+            # delete followups
 
 def blockfound(data):
     # verify
-    sync_list = ast.literal_eval(data)  # this is great, need to add it to client -> node sync
-    received_block_height = sync_list[0]
-    received_timestamp = sync_list[1]
-    received_address = sync_list[2]
-    received_to_address = sync_list[3]
-    received_amount = sync_list[4]
-    received_signature_enc = sync_list[5]
-    received_public_key_readable = sync_list[6]
-    received_public_key = RSA.importKey(sync_list[6])
-    # received_txhash = sync_list[7]
-    received_transaction = str(received_timestamp) + ":" + str(received_address) + ":" + str(
-        received_to_address) + ":" + str(float(received_amount))  # todo: why not have bare list instead of converting?
-
-    # txhash validation start
-
-    # exclusive_on("blockfound_")
-
-    # open dbs for backup and followup deletion
-    conn = sqlite3.connect('ledger.db')
-    c = conn.cursor()
-    c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
-    txhash_db = c.fetchone()[0]
-
-    # backup all followups
-    backup = sqlite3.connect('backup.db')
-    b = backup.cursor()
-
-    try:
-        for row in c.execute('SELECT * FROM transactions WHERE block_height > "' + str(
-                received_block_height) + '"'):
-            db_timestamp = row[1]
-            db_address = row[2]
-            db_to_address = row[3]
-            db_amount = row[4]
-            db_signature = row[5]
-            db_public_key_readable = row[6]
-
-            b.execute("INSERT INTO transactions VALUES ('" + str(db_timestamp) + "','" + str(
-                db_address) + "','" + str(db_to_address) + "','" + str(float(db_amount)) + "','" + str(
-                db_signature) + "','" + str(db_public_key_readable) + "')")  # Insert a row of data
-            backup.commit()
-            backup.close()
-            # backup all followups
-
-            # delete all local followups
-            c.execute('DELETE FROM transactions WHERE block_height > "' + str(received_block_height) + '"')
-            conn.commit()  # this was missing, experimentally added
-            conn.close()
-            # delete all local followups
-    except:
-        pass
-
-    app_log.info("Node: Last db txhash: " + str(txhash_db))
-    # app_log.info("Node: Received txhash: "+str(received_txhash))
-    app_log.info("Node: Received transaction: " + str(received_transaction))
-
-    received_signature_dec = base64.b64decode(received_signature_enc)
-    verifier = PKCS1_v1_5.new(received_public_key)
-    h = SHA.new(received_transaction)
-
-    if verifier.verify(h, received_signature_dec) == True:
-        app_log.info("Node: The signature is valid")
-        # transaction processing
-
-        # insert to mempool
-        mempool = sqlite3.connect('mempool.db')
-        m = mempool.cursor()
-
-        m.execute("INSERT INTO transactions VALUES ('" + str(received_timestamp) + "','" + str(
-            received_address) + "','" + str(received_to_address) + "','" + str(
-            float(received_amount)) + "','" + str(received_signature_enc) + "','" + str(
-            received_public_key_readable) + "')")  # Insert a row of data
-        app_log.info("Node: Mempool updated with a received transaction")
-        mempool.commit()  # Save (commit) the changes
-        mempool.close()
-
-        # exclusive_off("blockfound_")
-
-        digest_mempool()
-        # insert to mempool
-
-        app_log.info("Node: Sending sync request")
-
+    global busy
+    if busy == 1:
+        app_log.info("Skipping")
     else:
-        # exclusive_off("blockfound_")
+        try:
+            busy = 1
+            sync_list = ast.literal_eval(data)  # this is great, need to add it to client -> node sync
+            received_block_height = sync_list[0]
+            received_timestamp = sync_list[1]
+            received_address = sync_list[2]
+            received_to_address = sync_list[3]
+            received_amount = sync_list[4]
+            received_signature_enc = sync_list[5]
+            received_public_key_readable = sync_list[6]
+            received_public_key = RSA.importKey(sync_list[6])
+            # received_txhash = sync_list[7]
+            received_transaction = str(received_timestamp) + ":" + str(received_address) + ":" + str(
+                received_to_address) + ":" + str(float(received_amount))  # todo: why not have bare list instead of converting?
 
-        app_log.info("Node: Signature invalid")
-        # todo consequences
+            # txhash validation start
+
+            # exclusive_on("blockfound_")
+
+            # open dbs for backup and followup deletion
+            conn = sqlite3.connect('ledger.db')
+            c = conn.cursor()
+            c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
+            txhash_db = c.fetchone()[0]
+
+            # backup all followups
+            backup = sqlite3.connect('backup.db')
+            b = backup.cursor()
+
+            try:
+                for row in c.execute('SELECT * FROM transactions WHERE block_height > "' + str(
+                        received_block_height) + '"'):
+                    db_timestamp = row[1]
+                    db_address = row[2]
+                    db_to_address = row[3]
+                    db_amount = row[4]
+                    db_signature = row[5]
+                    db_public_key_readable = row[6]
+
+                    b.execute("INSERT INTO transactions VALUES ('" + str(db_timestamp) + "','" + str(
+                        db_address) + "','" + str(db_to_address) + "','" + str(float(db_amount)) + "','" + str(
+                        db_signature) + "','" + str(db_public_key_readable) + "')")  # Insert a row of data
+                    backup.commit()
+                    backup.close()
+                    # backup all followups
+
+                    # delete all local followups
+                    c.execute('DELETE FROM transactions WHERE block_height > "' + str(received_block_height) + '"')
+                    conn.commit()  # this was missing, experimentally added
+                    conn.close()
+                    # delete all local followups
+            except:
+                pass
+
+            app_log.info("Node: Last db txhash: " + str(txhash_db))
+            # app_log.info("Node: Received txhash: "+str(received_txhash))
+            app_log.info("Node: Received transaction: " + str(received_transaction))
+
+            received_signature_dec = base64.b64decode(received_signature_enc)
+            verifier = PKCS1_v1_5.new(received_public_key)
+            h = SHA.new(received_transaction)
+
+            if verifier.verify(h, received_signature_dec) == True:
+                app_log.info("Node: The signature is valid")
+                # transaction processing
+
+                # insert to mempool
+                mempool = sqlite3.connect('mempool.db')
+                m = mempool.cursor()
+
+                m.execute("INSERT INTO transactions VALUES ('" + str(received_timestamp) + "','" + str(
+                    received_address) + "','" + str(received_to_address) + "','" + str(
+                    float(received_amount)) + "','" + str(received_signature_enc) + "','" + str(
+                    received_public_key_readable) + "')")  # Insert a row of data
+                app_log.info("Node: Mempool updated with a received transaction")
+                mempool.commit()  # Save (commit) the changes
+                mempool.close()
+
+                # exclusive_off("blockfound_")
+
+                digest_mempool()
+                # insert to mempool
+
+                app_log.info("Node: Sending sync request")
+
+            else:
+                # exclusive_off("blockfound_")
+
+                app_log.info("Node: Signature invalid")
+                # todo consequences
+        except:
+            pass
+        busy = 0
 
 def exclusive_on(where):
     mempool_busy_timeout = 0
@@ -366,177 +385,181 @@ def restore_backup():
             return
 
 def digest_mempool():  # this function has become the transaction engine core over time, rudimentary naming
-
-    while True:
-        try:
-            app_log.info("Node: Digesting mempool")
-
-            mempool = sqlite3.connect('mempool.db')
-            m = mempool.cursor()
-            conn = sqlite3.connect('ledger.db')
-            c = conn.cursor()
-
-            # select
-            m.execute("SELECT * FROM transactions ORDER BY timestamp ASC LIMIT 1;")  # select tx from mempool to insert
-            result = m.fetchall()
-            db_timestamp = result[0][0]
-            db_address = result[0][1]
-            db_to_address = result[0][2]
-            db_amount = result[0][3]
-            db_signature = result[0][4]
-            db_public_key_readable = result[0][5]
-            db_transaction = str(db_timestamp) + ":" + str(db_address) + ":" + str(db_to_address) + ":" + str(float(db_amount))
-
+    global busy
+    if busy == 1:
+        app_log.info("Skipping")
+    else:
+        busy = 1
+        while True:
             try:
-                c.execute("SELECT * FROM transactions WHERE signature ='" + db_signature + "';")
-                fetch_test = c.fetchone()[0]
+                app_log.info("Node: Digesting mempool")
 
-                # if previous passes
-                app_log.info("Mempool: tx already in the ledger, deleting")
+                mempool = sqlite3.connect('mempool.db')
+                m = mempool.cursor()
+                conn = sqlite3.connect('ledger.db')
+                c = conn.cursor()
 
-                m.execute("DELETE FROM transactions WHERE signature ='" + db_signature + "';")
-                mempool.commit()
+                # select
+                m.execute("SELECT * FROM transactions ORDER BY timestamp ASC LIMIT 1;")  # select tx from mempool to insert
+                result = m.fetchall()
+                db_timestamp = result[0][0]
+                db_address = result[0][1]
+                db_to_address = result[0][2]
+                db_amount = result[0][3]
+                db_signature = result[0][4]
+                db_public_key_readable = result[0][5]
+                db_transaction = str(db_timestamp) + ":" + str(db_address) + ":" + str(db_to_address) + ":" + str(float(db_amount))
 
-            except:
-                app_log.info("Mempool: tx sig not found in the local ledger, proceeding to check before insert")
-                # if not in ledger
-                # calculate block height from the ledger
+                try:
+                    c.execute("SELECT * FROM transactions WHERE signature ='" + db_signature + "';")
+                    fetch_test = c.fetchone()[0]
 
-                # verifying timestamp
-                time_now = str(time.time())
-                if float(db_timestamp) > (float(time_now)):
-                    app_log.info("Mempool: Timestamp is in the future, deleting tx")
-                    m.execute("DELETE FROM transactions WHERE signature ='" + db_signature + "';")
-                    mempool.commit()
-                # verifying timestamp
+                    # if previous passes
+                    app_log.info("Mempool: tx already in the ledger, deleting")
 
-                # verify balance
-                app_log.info("Mempool: Verifying balance")
-                app_log.info("Mempool: Received address: " + str(db_address))
-                c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '" + db_address + "'")
-                credit = c.fetchone()[0]
-                c.execute("SELECT sum(amount) FROM transactions WHERE address = '" + db_address + "'")
-                debit = c.fetchone()[0]
-                c.execute("SELECT sum(fee) FROM transactions WHERE address = '" + db_address + "'")
-                fees = c.fetchone()[0]
-                c.execute("SELECT sum(reward) FROM transactions WHERE address = '" + db_address + "'")
-                rewards = c.fetchone()[0]
-                if debit == None:
-                    debit = 0
-                if fees == None:
-                    fees = 0
-                if rewards == None:
-                    rewards = 0
-                if credit == None:
-                    credit = 0
-                app_log.info("Mempool: Total credit: " + str(credit))
-                app_log.info("Mempool: Total debit: " + str(debit))
-                balance = float(credit) - float(debit) - float(fees) + float(rewards)
-                app_log.info("Mempool: Transction address balance: " + str(balance))
-
-                if float(balance) - float(db_amount) < 0:
-                    app_log.info(
-                        "Mempool: Their balance is too low for this transaction, possible double spend attack, deleting tx")
                     m.execute("DELETE FROM transactions WHERE signature ='" + db_signature + "';")
                     mempool.commit()
 
-                elif float(db_amount) < 0:
-                    app_log.info("Mempool: Cannot use negative amounts, deleting tx")
-                    m.execute("DELETE FROM transactions WHERE signature ='" + db_signature + "';")
-                    mempool.commit()
+                except:
+                    app_log.info("Mempool: tx sig not found in the local ledger, proceeding to check before insert")
+                    # if not in ledger
+                    # calculate block height from the ledger
 
-                # verify balance
+                    # verifying timestamp
+                    time_now = str(time.time())
+                    if float(db_timestamp) > (float(time_now)):
+                        app_log.info("Mempool: Timestamp is in the future, deleting tx")
+                        m.execute("DELETE FROM transactions WHERE signature ='" + db_signature + "';")
+                        mempool.commit()
+                    # verifying timestamp
 
-                else:
-                    c.execute(
-                        "SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1;")  # extract data from ledger to construct new txhash
-                    result = c.fetchall()
-                    db_txhash = result[0][7]
-                    db_block_height = result[0][0]
-                    block_height_new = db_block_height + 1
-                    #db_timestamp_last = result[0][1]  # for fee calc
+                    # verify balance
+                    app_log.info("Mempool: Verifying balance")
+                    app_log.info("Mempool: Received address: " + str(db_address))
+                    c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '" + db_address + "'")
+                    credit = c.fetchone()[0]
+                    c.execute("SELECT sum(amount) FROM transactions WHERE address = '" + db_address + "'")
+                    debit = c.fetchone()[0]
+                    c.execute("SELECT sum(fee) FROM transactions WHERE address = '" + db_address + "'")
+                    fees = c.fetchone()[0]
+                    c.execute("SELECT sum(reward) FROM transactions WHERE address = '" + db_address + "'")
+                    rewards = c.fetchone()[0]
+                    if debit == None:
+                        debit = 0
+                    if fees == None:
+                        fees = 0
+                    if rewards == None:
+                        rewards = 0
+                    if credit == None:
+                        credit = 0
+                    app_log.info("Mempool: Total credit: " + str(credit))
+                    app_log.info("Mempool: Total debit: " + str(debit))
+                    balance = float(credit) - float(debit) - float(fees) + float(rewards)
+                    app_log.info("Mempool: Transction address balance: " + str(balance))
 
-                    # calculate fee
-                    db_block_50 = int(db_block_height) - 50
-                    try:
-                        c.execute("SELECT timestamp FROM transactions WHERE block_height ='" + str(db_block_50) + "';")
-                        db_timestamp_50 = c.fetchone()[0]
-                        fee = abs(1000 / (float(db_timestamp) - float(db_timestamp_50)))
-                        app_log.info("Fee: " + str(fee))
+                    if float(balance) - float(db_amount) < 0:
+                        app_log.info(
+                            "Mempool: Their balance is too low for this transaction, possible double spend attack, deleting tx")
+                        m.execute("DELETE FROM transactions WHERE signature ='" + db_signature + "';")
+                        mempool.commit()
 
-                    except Exception as e:
-                        fee = 1  # presumably there are less than 50 txs
-                        app_log.info("Fee error: " + str(e))
-                        # raise #debug
-                        # todo: should fees be verified or calculated every time?
-                    # calculate fee
+                    elif float(db_amount) < 0:
+                        app_log.info("Mempool: Cannot use negative amounts, deleting tx")
+                        m.execute("DELETE FROM transactions WHERE signature ='" + db_signature + "';")
+                        mempool.commit()
 
-                    # decide reward
-                    txhash = hashlib.sha224(str(db_transaction) + str(db_signature) + str(
-                        db_txhash)).hexdigest()  # calculate txhash from the ledger
-
-                    c.execute(
-                        "SELECT reward FROM transactions ORDER BY block_height DESC LIMIT 50;")  # check if there has been a reward in past 50 blocks
-                    was_reward = c.fetchall()
-
-                    reward_possible = 1
-
-                    for x in was_reward:
-                        # print x[0] #debug
-                        if x[0] != "0":
-                            reward_possible = 0
-
-                    reward = 0  # default
-
-                    if reward_possible == 0:
-                        app_log.info("Mempool: Reward status: Mined for this segment already ")
-
-                    else:  # no reward in the past x blocks
-                        diff = 3
-                        if db_address[0:diff] == txhash[0:diff]:  # simplified comparison, no backwards mining
-                            if float(time_now) > float(db_timestamp):
-                                reward = 25
-                                fee = 0 #dont request a fee for mined block so new accounts can mine
-                                app_log.info("Mempool: Heureka, reward mined: " + str(reward))
-                            else:
-                                app_log.info("Mempool: Future mining not allowed")
-
-                        if reward == 0:
-                            app_log.info("Mempool: Mining not successful")
-                    # decide reward
-
-                    diff = 3
-                    if (float(fee) + float(reward) == 0): #check for reorganized mining
-                        app_log.info("Mempool: Removing reorganized mining transaction")
-                    elif (db_address[0:diff] == txhash[0:diff]) and float(reward) == 0:
-                        app_log.info("Mempool: Mining transaction submitted too late")
-                    elif (float(balance))-(float(fee)+float(db_amount)) < 0:
-                        app_log.info("Mempool: Cannot afford to pay fees")
+                    # verify balance
 
                     else:
-                        c.execute("INSERT INTO transactions VALUES ('" + str(block_height_new) + "','" + str(
-                            db_timestamp) + "','" + str(db_address) + "','" + str(db_to_address) + "','" + str(
-                            float(db_amount)) + "','" + str(db_signature) + "','" + str(
-                            db_public_key_readable) + "','" + str(txhash) + "','" + str(fee) + "','" + str(
-                            reward) + "','" + str(0) + "')")  # Insert a row of data
-                        conn.commit()
-                    conn.close()
+                        c.execute(
+                            "SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1;")  # extract data from ledger to construct new txhash
+                        result = c.fetchall()
+                        db_txhash = result[0][7]
+                        db_block_height = result[0][0]
+                        block_height_new = db_block_height + 1
+                        #db_timestamp_last = result[0][1]  # for fee calc
 
-                m.execute(
-                    "DELETE FROM transactions WHERE signature = '" + db_signature + "';")  # delete tx from mempool now that it is in the ledger or if it was a double spend
-                mempool.commit()
-                mempool.close()
+                        # calculate fee
+                        db_block_50 = int(db_block_height) - 50
+                        try:
+                            c.execute("SELECT timestamp FROM transactions WHERE block_height ='" + str(db_block_50) + "';")
+                            db_timestamp_50 = c.fetchone()[0]
+                            fee = abs(1000 / (float(db_timestamp) - float(db_timestamp_50)))
+                            app_log.info("Fee: " + str(fee))
 
-        except:
-            app_log.info("Mempool empty")
-            #exclusive_off("mempool")
-            if consensus_percentage < 100:
-                app_log.info("Skipping restoration until consensus is higher")
-            else:
-                restore_backup()
-            #raise #debug
-        busy = 0
-        return
+                        except Exception as e:
+                            fee = 1  # presumably there are less than 50 txs
+                            app_log.info("Fee error: " + str(e))
+                            # raise #debug
+                            # todo: should fees be verified or calculated every time?
+                        # calculate fee
+
+                        # decide reward
+                        txhash = hashlib.sha224(str(db_transaction) + str(db_signature) + str(
+                            db_txhash)).hexdigest()  # calculate txhash from the ledger
+
+                        c.execute(
+                            "SELECT reward FROM transactions ORDER BY block_height DESC LIMIT 50;")  # check if there has been a reward in past 50 blocks
+                        was_reward = c.fetchall()
+
+                        reward_possible = 1
+
+                        for x in was_reward:
+                            # print x[0] #debug
+                            if x[0] != "0":
+                                reward_possible = 0
+
+                        reward = 0  # default
+
+                        if reward_possible == 0:
+                            app_log.info("Mempool: Reward status: Mined for this segment already ")
+
+                        else:  # no reward in the past x blocks
+                            diff = 3
+                            if db_address[0:diff] == txhash[0:diff]:  # simplified comparison, no backwards mining
+                                if float(time_now) > float(db_timestamp):
+                                    reward = 25
+                                    fee = 0 #dont request a fee for mined block so new accounts can mine
+                                    app_log.info("Mempool: Heureka, reward mined: " + str(reward))
+                                else:
+                                    app_log.info("Mempool: Future mining not allowed")
+
+                            if reward == 0:
+                                app_log.info("Mempool: Mining not successful")
+                        # decide reward
+
+                        diff = 3
+                        if (float(fee) + float(reward) == 0): #check for reorganized mining
+                            app_log.info("Mempool: Removing reorganized mining transaction")
+                        elif (db_address[0:diff] == txhash[0:diff]) and float(reward) == 0:
+                            app_log.info("Mempool: Mining transaction submitted too late")
+                        elif (float(balance))-(float(fee)+float(db_amount)) < 0:
+                            app_log.info("Mempool: Cannot afford to pay fees")
+
+                        else:
+                            c.execute("INSERT INTO transactions VALUES ('" + str(block_height_new) + "','" + str(
+                                db_timestamp) + "','" + str(db_address) + "','" + str(db_to_address) + "','" + str(
+                                float(db_amount)) + "','" + str(db_signature) + "','" + str(
+                                db_public_key_readable) + "','" + str(txhash) + "','" + str(fee) + "','" + str(
+                                reward) + "','" + str(0) + "')")  # Insert a row of data
+                            conn.commit()
+                        conn.close()
+
+                    m.execute(
+                        "DELETE FROM transactions WHERE signature = '" + db_signature + "';")  # delete tx from mempool now that it is in the ledger or if it was a double spend
+                    mempool.commit()
+                    mempool.close()
+
+            except:
+                app_log.info("Mempool empty")
+                #exclusive_off("mempool")
+                if consensus_percentage < 100:
+                    app_log.info("Skipping restoration until consensus is higher")
+                else:
+                    restore_backup()
+                #raise #debug
+            busy = 0
+            return
 
 
 def db_maintenance():
