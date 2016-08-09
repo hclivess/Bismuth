@@ -769,6 +769,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     # save peer if connectible
 
+                    while busy == 1:
+                        time.sleep(1)
                     app_log.info("Node: Sending sync request")
                     self.request.sendall("sync_______")
                     time.sleep(0.1)
@@ -833,6 +835,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
 
                 if data == "sendsync___":
+                    while busy == 1:
+                        time.sleep(1)
                     self.request.sendall("sync_______")
                     time.sleep(0.1)
 
@@ -849,6 +853,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     blockfound(data)
                     digest_mempool()
 
+                    while busy == 1:
+                        time.sleep(1)
                     self.request.sendall("sync_______")
                     time.sleep(0.1)
 
@@ -970,6 +976,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     #exclusive_on("blocknotfou")
                     blocknotfound()
 
+                    while busy == 1:
+                        time.sleep(1)
                     app_log.info("Client: Deletion complete, sending sync request")
                     self.request.sendall("sync_______")
                     time.sleep(0.1)
@@ -1031,6 +1039,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         # insert to mempool
 
                         app_log.info("Node: Database closed")
+                        while busy == 1:
+                            time.sleep(1)
                         self.request.sendall("sync_______")
                         time.sleep(0.1)
 
