@@ -79,7 +79,7 @@ def update_confirmations(data):
         pass  # dont have that txhash in the database yet
     #exclusive_off("update_confirmations")
 
-def blocknotfound():
+def blocknotfound(db_txhash_delete):
     global busy
     if busy == 1:
         app_log.info("Skipping")
@@ -111,9 +111,16 @@ def blocknotfound():
 
             if db_block_height < 10:
                 app_log.info("Client: Will not roll back this block")
+                backup.close()
+                conn.close()
 
             elif (db_confirmations > 30) and (time.time() < (float(db_timestamp) + 120)):  # unstuck after x seconds
                 app_log.info("Client: Too many confirmations for rollback and the block is too fresh")
+                backup.close()
+                conn.close()
+
+            elif (db_txhash != db_txhash_delete):
+                app_log.info("Client: We moved away from the block to rollback, skipping")
                 backup.close()
                 conn.close()
 
@@ -974,7 +981,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                 if data == "blocknotfou":
                     #exclusive_on("blocknotfou")
-                    blocknotfound()
+                    blocknotfound(db_txhash)
 
                     while busy == 1:
                         time.sleep(1)
@@ -1328,7 +1335,7 @@ def worker(HOST, PORT):
 
                 if data == "blocknotfou":
 
-                        blocknotfound()
+                        blocknotfound(db_txhash)
 
                         while busy == 1:
                             time.sleep(1)
