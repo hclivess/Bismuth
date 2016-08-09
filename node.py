@@ -227,7 +227,7 @@ def blockfound(data):
                 digest_mempool()
                 # insert to mempool
 
-                app_log.info("Node: Sending sync request")
+                #app_log.info("Node: Sending sync request")
 
             else:
                 # exclusive_off("blockfound_")
@@ -1320,6 +1320,8 @@ def worker(HOST, PORT):
 
                         blocknotfound()
 
+                        while busy == 1:
+                            time.sleep(1)
                         s.sendall("sendsync___")
                         time.sleep(0.1)
 
@@ -1338,6 +1340,8 @@ def worker(HOST, PORT):
                     blockfound(data)
                     digest_mempool()
 
+                    while busy == 1:
+                        time.sleep(1)
                     s.sendall("sendsync___")
                     time.sleep(0.1)
 
@@ -1368,6 +1372,8 @@ def worker(HOST, PORT):
                     #selfconfirmation
 
                     time.sleep(10)
+                    while busy == 1:
+                        time.sleep(1)
                     s.sendall("sendsync___")
                     time.sleep(0.1)
 
