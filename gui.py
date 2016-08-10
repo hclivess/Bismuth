@@ -278,7 +278,10 @@ def refresh():
 send_b = Button(f5, text="Send Bismuth", command=send, height=1, width=15)
 send_b.grid(row=7, column=0, sticky=W+E+S, pady=(100, 4), padx=15)
 
-start_b = Button(f5, text="Generate QR Code", command=qr, height=1, width=15)
+if "posix" not in os.name:
+    start_b = Button(f5, text="Generate QR Code", command=qr, height=1, width=15)
+else:
+    start_b = Button(f5, text="Generate QR Code", command=qr, height=1, width=15, state=DISABLED)
 start_b.grid(row=8, column=0, sticky=W+E+S, pady=4,padx=15,columnspan=4)
 
 balance_b = Button(f5, text="Manual Refresh", command=refresh, height=1, width=15)
