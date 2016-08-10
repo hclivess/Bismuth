@@ -105,6 +105,7 @@ def blocknotfound(txhash_delete):
             db_amount = results[4]
             db_signature = results[5]
             db_public_key_readable = results[6]
+            db_txhash = results[7]
             db_confirmations = results[10]
 
             if db_block_height < 10:
@@ -132,6 +133,7 @@ def blocknotfound(txhash_delete):
                 conn.commit()
                 app_log.info("Decreased number of confirmations for " + txhash_delete)
                 conn.close()
+
 
             else:
                 app_log.info("Client: Node didn't find the block, deleting latest entry")
