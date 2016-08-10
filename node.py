@@ -72,7 +72,7 @@ def update_confirmations(data):
         confs_current = c.fetchone()[0]
         c.execute("UPDATE transactions SET confirmations = '" + str(confs_current + 1) + "' WHERE txhash = '" + data + "'")
         conn.commit()
-        app_log.info("Updated number of confirmations for " + data)
+        app_log.info("Decreased number of confirmations for " + data)
         conn.close()
     except:
         #app_log.info("Did not update number of confirmations for " + data)
@@ -118,10 +118,17 @@ def blocknotfound(txhash_delete):
                 conn.close()
 
             elif (db_txhash != txhash_delete):
-                print db_txhash
-                print db_txhash_delete
                 app_log.info("Client: We moved away from the block to rollback, skipping")
                 backup.close()
+                conn.close()
+
+            elif (db_confirmations > 0):
+                app_log.info("Client: Decreasing number of confirmations before rollback")
+                c.execute("SELECT confirmations FROM transactions WHERE txhash = '" + txhash_delete + "'")
+                confs_current = c.fetchone()[0]
+                c.execute("UPDATE transactions SET confirmations = '" + str(confs_current - 1) + "' WHERE txhash = '" + txhash_delete + "'")
+                conn.commit()
+                app_log.info("Decreased number of confirmations for " + txhash_delete)
                 conn.close()
 
             else:
