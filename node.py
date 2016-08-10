@@ -697,8 +697,8 @@ try:
                 app_log.info("Core: Your genesis signature is invalid, someone meddled with the database")
                 sys.exit(1)
 
-    if invalid > 0:
-        app_log.info("Core: " + str(invalid) + " of the transactions in the local ledger are invalid: " + str(row))
+    #if invalid > 0:
+    #    app_log.info("Core: " + str(invalid) + " of the transactions in the local ledger are invalid: " + str(row))
 
     if invalid == 0:
         app_log.info("Core: All transacitons in the local ledger are valid")
