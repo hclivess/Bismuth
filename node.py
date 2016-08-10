@@ -118,6 +118,8 @@ def blocknotfound(txhash_delete):
                 conn.close()
 
             elif (db_txhash != txhash_delete):
+                print db_txhash
+                print txhash_delete
                 app_log.info("Client: We moved away from the block to rollback, skipping")
                 backup.close()
                 conn.close()
@@ -990,8 +992,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             #exclusive_off ("blockheight")
 
                 if data == "blocknotfou":
-                    txhash_delete = self.request.recv(11)
-                    #exclusive_on("blocknotfou")
+                    txhash_delete = self.request.recv(56)
                     blocknotfound(txhash_delete)
 
                     while busy == 1:
@@ -1345,13 +1346,13 @@ def worker(HOST, PORT):
                         #exclusive_off("sync_______")
 
                 if data == "blocknotfou":
+                    txhash_delete = s.recv(56)
+                    blocknotfound(txhash_delete)
 
-                        blocknotfound(db_txhash)
-
-                        while busy == 1:
-                            time.sleep(1)
-                        s.sendall("sendsync___")
-                        time.sleep(0.1)
+                    while busy == 1:
+                        time.sleep(1)
+                    s.sendall("sendsync___")
+                    time.sleep(0.1)
 
                     #exclusive_off("blocknotfou")
 
