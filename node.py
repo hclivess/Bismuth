@@ -386,6 +386,8 @@ def restore_backup():
             db_public_key_readable = result[0][5]
 
             # insert to mempool
+            mempool = sqlite3.connect('mempool.db')
+            m = mempool.cursor()
             m.execute("INSERT INTO transactions VALUES ('" + str(db_timestamp) + "','" + str(db_address) + "','" + str(
                 db_to_address) + "','" + str(float(db_amount)) + "','" + str(db_signature_enc) + "','" + str(
                 db_public_key_readable) + "')")  # Insert a row of data
