@@ -21,7 +21,7 @@ from Crypto.Hash import SHA
 from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 
-version = "testnet1___"
+version = "testnet2___"
 
 def most_common(lst):
     return max(set(lst), key=lst.count)
@@ -79,15 +79,13 @@ def update_confirmations(data):
         pass  # dont have that txhash in the database yet
     #exclusive_off("update_confirmations")
 
-def blocknotfound(db_txhash_delete):
+def blocknotfound(txhash_delete):
     global busy
     if busy == 1:
         app_log.info("Skipping")
     else:
         try:
             busy = 1
-
-            app_log.info("Client: Node didn't find the block, deleting latest entry")
 
             # exclusive_on("blocknotfou")
 
@@ -119,7 +117,7 @@ def blocknotfound(db_txhash_delete):
                 backup.close()
                 conn.close()
 
-            elif (db_txhash != db_txhash_delete):
+            elif (db_txhash != txhash_delete):
                 print db_txhash
                 print db_txhash_delete
                 app_log.info("Client: We moved away from the block to rollback, skipping")
@@ -127,6 +125,8 @@ def blocknotfound(db_txhash_delete):
                 conn.close()
 
             else:
+                app_log.info("Client: Node didn't find the block, deleting latest entry")
+
                 b.execute("INSERT INTO transactions VALUES ('" + str(db_timestamp) + "','" + str(
                     db_address) + "','" + str(db_to_address) + "','" + str(float(db_amount)) + "','" + str(
                     db_signature) + "','" + str(db_public_key_readable) + "')")  # Insert a row of data
@@ -837,7 +837,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         app_log.info("Client: Block not found")
                         self.request.sendall("blocknotfou")
                         time.sleep(0.1)
-
+                        self.request.sendall(data)
+                        time.sleep(0.1)
                     #exclusive_off("mytxhash___")
 
 
@@ -976,12 +977,15 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             app_log.info("Node: Block not found")
                             self.request.sendall("blocknotfou")
                             time.sleep(0.1)
+                            self.request.sendall(data)
+                            time.sleep(0.1)
 
-                    #exclusive_off ("blockheight")
+                            #exclusive_off ("blockheight")
 
                 if data == "blocknotfou":
+                    txhash_delete = self.request.recv(11)
                     #exclusive_on("blocknotfou")
-                    blocknotfound(db_txhash)
+                    blocknotfound(txhash_delete)
 
                     while busy == 1:
                         time.sleep(1)
@@ -1361,8 +1365,6 @@ def worker(HOST, PORT):
                         time.sleep(1)
                     s.sendall("sendsync___")
                     time.sleep(0.1)
-
-
 
                         # txhash validation end
 
