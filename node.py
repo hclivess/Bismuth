@@ -120,13 +120,13 @@ def blocknotfound(db_txhash_delete):
                 conn.close()
 
             elif (db_txhash != db_txhash_delete):
+                print db_txhash
+                print db_txhash_delete
                 app_log.info("Client: We moved away from the block to rollback, skipping")
                 backup.close()
                 conn.close()
 
             else:
-                time.sleep(float(db_confirmations)/10) #1 confirmation delays rollback by 0.1 seconds
-
                 b.execute("INSERT INTO transactions VALUES ('" + str(db_timestamp) + "','" + str(
                     db_address) + "','" + str(db_to_address) + "','" + str(float(db_amount)) + "','" + str(
                     db_signature) + "','" + str(db_public_key_readable) + "')")  # Insert a row of data
