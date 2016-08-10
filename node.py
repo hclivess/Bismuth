@@ -119,8 +119,8 @@ def blocknotfound(txhash_delete):
                 conn.close()
 
             elif (db_txhash != txhash_delete):
-                print db_txhash
-                print txhash_delete
+                #print db_txhash
+                #print txhash_delete
                 app_log.info("Client: We moved away from the block to rollback, skipping")
                 backup.close()
                 conn.close()
