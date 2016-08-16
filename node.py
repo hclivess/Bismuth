@@ -63,6 +63,53 @@ busy = 0
 
 port = 2829
 
+
+def verify():
+    try:
+        invalid = 0
+        for row in c.execute('SELECT * FROM transactions ORDER BY block_height'):
+            db_block_height = row[0]
+            db_timestamp = row[1]
+            db_address = row[2]
+            db_to_address = row[3]
+            db_amount = row[4]
+            db_signature_enc = row[5]
+            db_public_key = RSA.importKey(row[6])
+            db_txhash = row[7]
+            db_transaction = str(db_timestamp) + ":" + str(db_address) + ":" + str(db_to_address) + ":" + str(
+                float(db_amount))
+
+            # app_log.info(db_transaction)
+
+            db_signature_dec = base64.b64decode(db_signature_enc)
+            verifier = PKCS1_v1_5.new(db_public_key)
+            h = SHA.new(db_transaction)
+            if verifier.verify(h, db_signature_dec) == True:
+                pass
+            else:
+                app_log.info("The following transaction is invalid:")
+                app_log.info(row)
+                invalid = invalid + 1
+                if db_block_height == str(1):
+                    app_log.info("Core: Your genesis signature is invalid, someone meddled with the database")
+                    sys.exit(1)
+
+        # if invalid > 0:
+        #    app_log.info("Core: " + str(invalid) + " of the transactions in the local ledger are invalid: " + str(row))
+
+        if invalid == 0:
+            app_log.info("Core: All transacitons in the local ledger are valid")
+
+    except sqlite3.Error, e:
+        app_log.info("Core: Error %s:" % e.args[0])
+        sys.exit(1)
+    finally:
+        if conn:
+            conn.close()
+
+
+            # verify blockchain
+
 def update_confirmations(data):
     #exclusive_on("update_confirmations")
     try:
@@ -682,49 +729,7 @@ if str(
     sys.exit(1)
 # verify genesis
 
-try:
-    invalid = 0
-    for row in c.execute('SELECT * FROM transactions ORDER BY block_height'):
-        db_block_height = row[0]
-        db_timestamp = row[1]
-        db_address = row[2]
-        db_to_address = row[3]
-        db_amount = row[4]
-        db_signature_enc = row[5]
-        db_public_key = RSA.importKey(row[6])
-        db_txhash = row[7]
-        db_transaction = str(db_timestamp) + ":" + str(db_address) + ":" + str(db_to_address) + ":" + str(float(db_amount))
-
-        # app_log.info(db_transaction)
-
-        db_signature_dec = base64.b64decode(db_signature_enc)
-        verifier = PKCS1_v1_5.new(db_public_key)
-        h = SHA.new(db_transaction)
-        if verifier.verify(h, db_signature_dec) == True:
-            pass
-        else:
-            app_log.info("The following transaction is invalid:")
-            app_log.info(row)
-            invalid = invalid + 1
-            if db_block_height == str(1):
-                app_log.info("Core: Your genesis signature is invalid, someone meddled with the database")
-                sys.exit(1)
-
-    #if invalid > 0:
-    #    app_log.info("Core: " + str(invalid) + " of the transactions in the local ledger are invalid: " + str(row))
-
-    if invalid == 0:
-        app_log.info("Core: All transacitons in the local ledger are valid")
-
-except sqlite3.Error, e:
-    app_log.info("Core: Error %s:" % e.args[0])
-    sys.exit(1)
-finally:
-    if conn:
-        conn.close()
-
-
-# verify blockchain
+#verify()
 
 ### LOCAL CHECKS FINISHED ###
 
