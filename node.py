@@ -110,19 +110,18 @@ def verify():
 
             # verify blockchain
 
-def update_confirmations(data, number):
+def update_confirmations(data):
     #exclusive_on("update_confirmations")
     try:
         conn = sqlite3.connect('ledger.db')
         c = conn.cursor()
         c.execute("SELECT confirmations FROM transactions WHERE txhash = '" + data + "'")
         confs_current = c.fetchone()[0]
-        c.execute("UPDATE transactions SET confirmations = '" + str(confs_current + int(number)) + "' WHERE txhash = '" + data + "'")
+        c.execute("UPDATE transactions SET confirmations = '" + str(confs_current + 1) + "' WHERE txhash = '" + data + "'")
         conn.commit()
-        app_log.info("Increased number of confirmations for " + data + " with " + str(number))
+        app_log.info("Decreased number of confirmations for " + data)
         conn.close()
-    except Exception as e:
-        app_log.info(str(e))
+    except:
         #app_log.info("Did not update number of confirmations for " + data)
         pass  # dont have that txhash in the database yet
     #exclusive_off("update_confirmations")
@@ -212,7 +211,7 @@ def blockfound(data):
     else:
         try:
             busy = 1
-            sync_list = ast.literal_eval(data)
+            sync_list = ast.literal_eval(data)  # this is great, need to add it to client -> node sync
             received_block_height = sync_list[0]
             received_timestamp = sync_list[1]
             received_address = sync_list[2]
@@ -232,9 +231,8 @@ def blockfound(data):
             # open dbs for backup and followup deletion
             conn = sqlite3.connect('ledger.db')
             c = conn.cursor()
-            c.execute("SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1;")
-            result = c.fetchall()
-            txhash_db = result[0][7]
+            c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
+            txhash_db = c.fetchone()[0]
 
             # backup all followups
             backup = sqlite3.connect('backup.db')
@@ -289,24 +287,9 @@ def blockfound(data):
                 mempool.commit()  # Save (commit) the changes
                 mempool.close()
 
-                # confs rule
-                conn = sqlite3.connect('ledger.db')
-                c = conn.cursor()
-                c.execute("SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1;")
-                result = c.fetchall()
-                txhash_db = result[0][7]
-                db_confirmations = result[0][10]
-                conn.close()
-
-                if db_confirmations < 5:
-                    update_confirmations(txhash_db, 1)
-                    app_log.info("The number of confirmations for previous block is too low, updated")
-                else:
-                    digest_mempool()
-                # confs rule
-
                 # exclusive_off("blockfound_")
 
+                digest_mempool()
                 # insert to mempool
 
                 #app_log.info("Node: Sending sync request")
@@ -474,7 +457,6 @@ def digest_mempool():  # this function has become the transaction engine core ov
     global busy
     if busy == 1:
         app_log.info("Skipping")
-
     else:
         busy = 1
         while True:
@@ -500,23 +482,12 @@ def digest_mempool():  # this function has become the transaction engine core ov
                 try:
                     c.execute("SELECT * FROM transactions WHERE signature ='" + db_signature + "';")
                     fetch_test = c.fetchone()[0]
-                    #print fetch_test
-                    #result = c.fetchall()
 
                     # if previous passes
-
-                    # update confirmations from mempool to ledger
-                    #m.execute("SELECT count(*) FROM transactions WHERE signature ='" + db_signature + "';")
-                    #confs_to_add = m.fetchone()[0]
-                    #print confs_to_add
-
                     app_log.info("Mempool: tx already in the ledger, deleting")
+
                     m.execute("DELETE FROM transactions WHERE signature ='" + db_signature + "';")
                     mempool.commit()
-
-                    #db_txhash = result[0][7]
-                    #update_confirmations(db_txhash, confs_to_add)
-                    # update confirmations from mempool to ledger
 
                 except:
                     app_log.info("Mempool: tx sig not found in the local ledger, proceeding to check before insert")
@@ -588,7 +559,7 @@ def digest_mempool():  # this function has become the transaction engine core ov
                         except Exception as e:
                             fee = 1  # presumably there are less than 50 txs
                             app_log.info("Fee error: " + str(e))
-                            #raise #debug
+                            # raise #debug
                             # todo: should fees be verified or calculated every time?
                         # calculate fee
 
@@ -840,7 +811,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     # update confirmations
                     if self.request.getpeername()[0] != "127.0.0.1":
-                        update_confirmations(data, 1)
+                        update_confirmations(data)
                     # update confirmations
 
                     conn = sqlite3.connect('ledger.db')
@@ -906,7 +877,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     app_log.info("Client: " + data)
 
                     blockfound(data)
-                    #digest_mempool()
+                    digest_mempool()
 
                     while busy == 1:
                         time.sleep(1)
@@ -977,7 +948,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                         # update confirmations
                         if self.request.getpeername()[0] != "127.0.0.1":
-                            update_confirmations(data, 1)
+                            update_confirmations(data)
                         # update confirmations
 
                         app_log.info("Node: Will seek the following block: " + str(data))
@@ -1089,24 +1060,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         mempool.close()
                         app_log.info("Client: Mempool updated with a received transaction")
 
-                        # confs rule
-                        conn = sqlite3.connect('ledger.db')
-                        c = conn.cursor()
-                        c.execute("SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1;")
-                        result = c.fetchall()
-                        txhash_db = result[0][7]
-                        db_confirmations = result[0][10]
-                        conn.close()
-
-                        if db_confirmations < 5:
-                            update_confirmations(txhash_db, 1)
-                            app_log.info("The number of confirmations for previous block is too low, updated")
-                        else:
-                            digest_mempool()
-
-                        # confs rule
-
                         #exclusive_off("transaction")
+
+                        digest_mempool()
 
                         # insert to mempool
 
@@ -1227,7 +1183,7 @@ def worker(HOST, PORT):
 
                     # update confirmations
                     if s.getpeername()[0] != "127.0.0.1":
-                        update_confirmations(data, 1)
+                        update_confirmations(data)
                     # update confirmations
 
                     conn = sqlite3.connect('ledger.db')
@@ -1350,7 +1306,7 @@ def worker(HOST, PORT):
 
                         # update confirmations
                         if s.getpeername()[0] != "127.0.0.1":
-                            update_confirmations(data, 1)
+                            update_confirmations(data)
                         # update confirmations
 
                         conn = sqlite3.connect('ledger.db')
@@ -1420,7 +1376,7 @@ def worker(HOST, PORT):
                     app_log.info("Client: " + data)
 
                     blockfound(data)
-                    #digest_mempool()
+                    digest_mempool()
 
                     while busy == 1:
                         time.sleep(1)
