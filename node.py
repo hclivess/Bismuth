@@ -110,18 +110,19 @@ def verify():
 
             # verify blockchain
 
-def update_confirmations(data):
+def update_confirmations(data, number):
     #exclusive_on("update_confirmations")
     try:
         conn = sqlite3.connect('ledger.db')
         c = conn.cursor()
         c.execute("SELECT confirmations FROM transactions WHERE txhash = '" + data + "'")
         confs_current = c.fetchone()[0]
-        c.execute("UPDATE transactions SET confirmations = '" + str(confs_current + 1) + "' WHERE txhash = '" + data + "'")
+        c.execute("UPDATE transactions SET confirmations = '" + str(confs_current + number) + "' WHERE txhash = '" + data + "'")
         conn.commit()
-        app_log.info("Decreased number of confirmations for " + data)
+        app_log.info("Increased number of confirmations for " + data + " with " + str(number))
         conn.close()
-    except:
+    except Exception as e:
+        app_log.info(str(e))
         #app_log.info("Did not update number of confirmations for " + data)
         pass  # dont have that txhash in the database yet
     #exclusive_off("update_confirmations")
@@ -298,7 +299,7 @@ def blockfound(data):
                 conn.close()
 
                 if db_confirmations < 5:
-                    update_confirmations(txhash_db)
+                    update_confirmations(txhash_db, 1)
                     app_log.info("The number of confirmations for previous block is too low, updated")
                 else:
                     digest_mempool()
@@ -499,12 +500,23 @@ def digest_mempool():  # this function has become the transaction engine core ov
                 try:
                     c.execute("SELECT * FROM transactions WHERE signature ='" + db_signature + "';")
                     fetch_test = c.fetchone()[0]
+                    print fetch_test
+                    result = c.fetchall()
 
                     # if previous passes
-                    app_log.info("Mempool: tx already in the ledger, deleting")
 
+                    # update confirmations from mempool to ledger
+                    m.execute("SELECT count(*) FROM transactions WHERE signature ='" + db_signature + "';")
+                    confs_to_add = m.fetchone()[0]
+                    print confs_to_add
+
+                    app_log.info("Mempool: tx already in the ledger, deleting")
                     m.execute("DELETE FROM transactions WHERE signature ='" + db_signature + "';")
                     mempool.commit()
+
+                    db_txhash = result[0][7]
+                    update_confirmations(db_txhash, confs_to_add)
+                    # update confirmations from mempool to ledger
 
                 except:
                     app_log.info("Mempool: tx sig not found in the local ledger, proceeding to check before insert")
@@ -576,7 +588,7 @@ def digest_mempool():  # this function has become the transaction engine core ov
                         except Exception as e:
                             fee = 1  # presumably there are less than 50 txs
                             app_log.info("Fee error: " + str(e))
-                            # raise #debug
+                            #raise #debug
                             # todo: should fees be verified or calculated every time?
                         # calculate fee
 
@@ -828,7 +840,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     # update confirmations
                     if self.request.getpeername()[0] != "127.0.0.1":
-                        update_confirmations(data)
+                        update_confirmations(data, 1)
                     # update confirmations
 
                     conn = sqlite3.connect('ledger.db')
@@ -965,7 +977,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                         # update confirmations
                         if self.request.getpeername()[0] != "127.0.0.1":
-                            update_confirmations(data)
+                            update_confirmations(data, 1)
                         # update confirmations
 
                         app_log.info("Node: Will seek the following block: " + str(data))
@@ -1087,7 +1099,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         conn.close()
 
                         if db_confirmations < 5:
-                            update_confirmations(txhash_db)
+                            update_confirmations(txhash_db, 1)
                             app_log.info("The number of confirmations for previous block is too low, updated")
                         else:
                             digest_mempool()
@@ -1215,7 +1227,7 @@ def worker(HOST, PORT):
 
                     # update confirmations
                     if s.getpeername()[0] != "127.0.0.1":
-                        update_confirmations(data)
+                        update_confirmations(data, 1)
                     # update confirmations
 
                     conn = sqlite3.connect('ledger.db')
@@ -1338,7 +1350,7 @@ def worker(HOST, PORT):
 
                         # update confirmations
                         if s.getpeername()[0] != "127.0.0.1":
-                            update_confirmations(data)
+                            update_confirmations(data, 1)
                         # update confirmations
 
                         conn = sqlite3.connect('ledger.db')
