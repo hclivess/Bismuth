@@ -1,0 +1,7 @@
+pycrypto
+pillow
+pyqrcode
+pypng
+pyintaller
+web.py
+matplotlib
