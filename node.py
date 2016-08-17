@@ -235,81 +235,86 @@ def blockfound(data):
             result = c.fetchall()
             txhash_db = result[0][7]
 
-            #confs rule #not programatically optimal (nodes send whole txs), but simplest
-            db_confirmations = result[0][10]
+            # backup all followups
+            backup = sqlite3.connect('backup.db')
+            b = backup.cursor()
 
-            if db_confirmations < 5:
-                update_confirmations(txhash_db)
-                app_log.info("The number of confirmations for previous block is too low, updated")
-            #confs rule
+            try:
+                for row in c.execute('SELECT * FROM transactions WHERE block_height > "' + str(
+                        received_block_height) + '"'):
+                    db_timestamp = row[1]
+                    db_address = row[2]
+                    db_to_address = row[3]
+                    db_amount = row[4]
+                    db_signature = row[5]
+                    db_public_key_readable = row[6]
+
+                    b.execute("INSERT INTO transactions VALUES ('" + str(db_timestamp) + "','" + str(
+                        db_address) + "','" + str(db_to_address) + "','" + str(float(db_amount)) + "','" + str(
+                        db_signature) + "','" + str(db_public_key_readable) + "')")  # Insert a row of data
+                    backup.commit()
+                    backup.close()
+                    # backup all followups
+
+                    # delete all local followups
+                    c.execute('DELETE FROM transactions WHERE block_height > "' + str(received_block_height) + '"')
+                    conn.commit()  # this was missing, experimentally added
+                    conn.close()
+                    # delete all local followups
+            except:
+                pass
+
+            app_log.info("Node: Last db txhash: " + str(txhash_db))
+            # app_log.info("Node: Received txhash: "+str(received_txhash))
+            app_log.info("Node: Received transaction: " + str(received_transaction))
+
+            received_signature_dec = base64.b64decode(received_signature_enc)
+            verifier = PKCS1_v1_5.new(received_public_key)
+            h = SHA.new(received_transaction)
+
+            if verifier.verify(h, received_signature_dec) == True:
+                app_log.info("Node: The signature is valid")
+                # transaction processing
+
+                # insert to mempool
+                mempool = sqlite3.connect('mempool.db')
+                m = mempool.cursor()
+
+                m.execute("INSERT INTO transactions VALUES ('" + str(received_timestamp) + "','" + str(
+                    received_address) + "','" + str(received_to_address) + "','" + str(
+                    float(received_amount)) + "','" + str(received_signature_enc) + "','" + str(
+                    received_public_key_readable) + "')")  # Insert a row of data
+                app_log.info("Node: Mempool updated with a received transaction")
+                mempool.commit()  # Save (commit) the changes
+                mempool.close()
+
+                # confs rule
+                conn = sqlite3.connect('ledger.db')
+                c = conn.cursor()
+                c.execute("SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1;")
+                result = c.fetchall()
+                txhash_db = result[0][7]
+                db_confirmations = result[0][10]
+                conn.close()
+
+                if db_confirmations < 5:
+                    update_confirmations(txhash_db)
+                    app_log.info("The number of confirmations for previous block is too low, updated")
+                else:
+                    digest_mempool()
+                # confs rule
+
+                # exclusive_off("blockfound_")
+
+                # insert to mempool
+
+                #app_log.info("Node: Sending sync request")
 
             else:
+                # exclusive_off("blockfound_")
 
-                # backup all followups
-                backup = sqlite3.connect('backup.db')
-                b = backup.cursor()
-
-                try:
-                    for row in c.execute('SELECT * FROM transactions WHERE block_height > "' + str(
-                            received_block_height) + '"'):
-                        db_timestamp = row[1]
-                        db_address = row[2]
-                        db_to_address = row[3]
-                        db_amount = row[4]
-                        db_signature = row[5]
-                        db_public_key_readable = row[6]
-
-                        b.execute("INSERT INTO transactions VALUES ('" + str(db_timestamp) + "','" + str(
-                            db_address) + "','" + str(db_to_address) + "','" + str(float(db_amount)) + "','" + str(
-                            db_signature) + "','" + str(db_public_key_readable) + "')")  # Insert a row of data
-                        backup.commit()
-                        backup.close()
-                        # backup all followups
-
-                        # delete all local followups
-                        c.execute('DELETE FROM transactions WHERE block_height > "' + str(received_block_height) + '"')
-                        conn.commit()  # this was missing, experimentally added
-                        conn.close()
-                        # delete all local followups
-                except:
-                    pass
-
-                app_log.info("Node: Last db txhash: " + str(txhash_db))
-                # app_log.info("Node: Received txhash: "+str(received_txhash))
-                app_log.info("Node: Received transaction: " + str(received_transaction))
-
-                received_signature_dec = base64.b64decode(received_signature_enc)
-                verifier = PKCS1_v1_5.new(received_public_key)
-                h = SHA.new(received_transaction)
-
-                if verifier.verify(h, received_signature_dec) == True:
-                    app_log.info("Node: The signature is valid")
-                    # transaction processing
-
-                    # insert to mempool
-                    mempool = sqlite3.connect('mempool.db')
-                    m = mempool.cursor()
-
-                    m.execute("INSERT INTO transactions VALUES ('" + str(received_timestamp) + "','" + str(
-                        received_address) + "','" + str(received_to_address) + "','" + str(
-                        float(received_amount)) + "','" + str(received_signature_enc) + "','" + str(
-                        received_public_key_readable) + "')")  # Insert a row of data
-                    app_log.info("Node: Mempool updated with a received transaction")
-                    mempool.commit()  # Save (commit) the changes
-                    mempool.close()
-
-                    # exclusive_off("blockfound_")
-
-                    digest_mempool()
-                    # insert to mempool
-
-                    #app_log.info("Node: Sending sync request")
-
-                else:
-                    # exclusive_off("blockfound_")
-
-                    app_log.info("Node: Signature invalid")
-                    # todo consequences
+                app_log.info("Node: Signature invalid")
+                # todo consequences
         except:
             pass
         busy = 0
@@ -1072,9 +1077,24 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         mempool.close()
                         app_log.info("Client: Mempool updated with a received transaction")
 
-                        #exclusive_off("transaction")
+                        # confs rule
+                        conn = sqlite3.connect('ledger.db')
+                        c = conn.cursor()
+                        c.execute("SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1;")
+                        result = c.fetchall()
+                        txhash_db = result[0][7]
+                        db_confirmations = result[0][10]
+                        conn.close()
 
-                        digest_mempool()
+                        if db_confirmations < 5:
+                            update_confirmations(txhash_db)
+                            app_log.info("The number of confirmations for previous block is too low, updated")
+                        else:
+                            digest_mempool()
+
+                        # confs rule
+
+                        #exclusive_off("transaction")
 
                         # insert to mempool
 

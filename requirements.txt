@@ -2,6 +2,6 @@ pycrypto
 pillow
 pyqrcode
 pypng
-pyintaller
+pyinstaller
 web.py
 matplotlib
