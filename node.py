@@ -117,7 +117,7 @@ def update_confirmations(data, number):
         c = conn.cursor()
         c.execute("SELECT confirmations FROM transactions WHERE txhash = '" + data + "'")
         confs_current = c.fetchone()[0]
-        c.execute("UPDATE transactions SET confirmations = '" + str(confs_current + number) + "' WHERE txhash = '" + data + "'")
+        c.execute("UPDATE transactions SET confirmations = '" + str(confs_current + int(number)) + "' WHERE txhash = '" + data + "'")
         conn.commit()
         app_log.info("Increased number of confirmations for " + data + " with " + str(number))
         conn.close()
@@ -500,22 +500,22 @@ def digest_mempool():  # this function has become the transaction engine core ov
                 try:
                     c.execute("SELECT * FROM transactions WHERE signature ='" + db_signature + "';")
                     fetch_test = c.fetchone()[0]
-                    print fetch_test
+                    #print fetch_test
                     result = c.fetchall()
 
                     # if previous passes
 
                     # update confirmations from mempool to ledger
-                    m.execute("SELECT count(*) FROM transactions WHERE signature ='" + db_signature + "';")
-                    confs_to_add = m.fetchone()[0]
-                    print confs_to_add
+                    #m.execute("SELECT count(*) FROM transactions WHERE signature ='" + db_signature + "';")
+                    #confs_to_add = m.fetchone()[0]
+                    #print confs_to_add
 
-                    app_log.info("Mempool: tx already in the ledger, deleting")
-                    m.execute("DELETE FROM transactions WHERE signature ='" + db_signature + "';")
-                    mempool.commit()
+                    #app_log.info("Mempool: tx already in the ledger, deleting")
+                    #m.execute("DELETE FROM transactions WHERE signature ='" + db_signature + "';")
+                    #mempool.commit()
 
-                    db_txhash = result[0][7]
-                    update_confirmations(db_txhash, confs_to_add)
+                    #db_txhash = result[0][7]
+                    #update_confirmations(db_txhash, confs_to_add)
                     # update confirmations from mempool to ledger
 
                 except:
