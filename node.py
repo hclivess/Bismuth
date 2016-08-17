@@ -501,7 +501,7 @@ def digest_mempool():  # this function has become the transaction engine core ov
                     c.execute("SELECT * FROM transactions WHERE signature ='" + db_signature + "';")
                     fetch_test = c.fetchone()[0]
                     #print fetch_test
-                    result = c.fetchall()
+                    #result = c.fetchall()
 
                     # if previous passes
 
@@ -510,9 +510,9 @@ def digest_mempool():  # this function has become the transaction engine core ov
                     #confs_to_add = m.fetchone()[0]
                     #print confs_to_add
 
-                    #app_log.info("Mempool: tx already in the ledger, deleting")
-                    #m.execute("DELETE FROM transactions WHERE signature ='" + db_signature + "';")
-                    #mempool.commit()
+                    app_log.info("Mempool: tx already in the ledger, deleting")
+                    m.execute("DELETE FROM transactions WHERE signature ='" + db_signature + "';")
+                    mempool.commit()
 
                     #db_txhash = result[0][7]
                     #update_confirmations(db_txhash, confs_to_add)
