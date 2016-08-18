@@ -819,7 +819,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         time.sleep(0.1)
                         self.request.sendall(data)
                         time.sleep(0.1)
-                        # remove confirmation?
+                        blocknotfound(txhash_send) #newly apply on self
 
                 if data == "sendsync___":
                     while busy == 1:
@@ -948,7 +948,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             time.sleep(0.1)
                             self.request.sendall(data)
                             time.sleep(0.1)
-                            # remove confirmation?
+                            blocknotfound(txhash_send) #newly apply on self
 
                 if data == "blocknotfou":
                     txhash_delete = self.request.recv(56)
@@ -1171,7 +1171,7 @@ def worker(HOST, PORT):
                         app_log.info("Client: Block not found")
                         s.sendall("blocknotfou")
                         time.sleep(0.1)
-                        # remove confirmation?
+                        blocknotfound(txhash_send) #newly apply on self
 
                 if data == "sync_______":
                     # sync start
@@ -1283,7 +1283,7 @@ def worker(HOST, PORT):
                             app_log.info("Node: Block not found")
                             s.sendall("blocknotfou")
                             time.sleep(0.1)
-                            # remove confirmation?
+                            blocknotfound(txhash_send) #newly apply on self
 
                 if data == "blocknotfou":
                     txhash_delete = s.recv(56)
