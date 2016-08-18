@@ -64,6 +64,32 @@ busy = 0
 port = 2829
 
 
+def purge_old_peers():
+    with open("peers.txt", "r") as peer_list:
+        peers = peer_list.read()
+        peer_tuples = re.findall("'([\d\.]+)', '([\d]+)'", peers)
+        # app_log.info(peer_tuples)
+
+        for tuple in peer_tuples:
+            HOST = tuple[0]
+            # app_log.info(HOST)
+            PORT = int(tuple[1])
+            # app_log.info(PORT)
+
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.connect((HOST, PORT))
+                s.close()
+            except:
+                # remove from peerlist if not connectible
+                peer_tuples.remove((HOST, str(PORT)))
+                app_log.info("Removed formerly active peer " + str(HOST) + " " + str(PORT))
+
+            output = open("peers.txt", 'w')
+            for x in peer_tuples:
+                output.write(str(x) + "\n")
+            output.close()
+
 def verify():
     try:
         invalid = 0
@@ -754,6 +780,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             app_log.info("Core: Distant peer already in peer list")
                     except:
                         app_log.info("Node: Distant peer not connectible")
+
                         # raise #test only
 
                     # save peer if connectible
@@ -1116,7 +1143,7 @@ def worker(HOST, PORT):
                                 app_log.info("Not connectible.")
 
                         else:
-                            app_log.info("Client: " + str(x) + " is not a new peer, skipping.")
+                            app_log.info("Client: " + str(x) + " is not a new peer.")
 
                 if data == "mytxhash___":
                     data = s.recv(56)  # receive client's last txhash
@@ -1372,6 +1399,8 @@ if __name__ == "__main__":
 
         server = ThreadedTCPServer((HOST, PORT), ThreadedTCPRequestHandler)
         ip, port = server.server_address
+
+        purge_old_peers()
 
         # Start a thread with the server -- that thread will then start one
         # more thread for each request
