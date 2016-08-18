@@ -74,7 +74,7 @@ def check_confirmations():
     while confs_prevblock < 5:
         c.execute("SELECT confirmations FROM transactions ORDER BY block_height DESC LIMIT 1")
         confs_prevblock = c.fetchone()[0]
-        time.sleep(1)
+        time.sleep(0.5)
     conn.close()
     app_log.info("Number of confirmations on the previous block sufficient, proceeding")
 
