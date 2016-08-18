@@ -76,7 +76,7 @@ def check_confirmations():
         confs_prevblock = c.fetchone()[0]
         time.sleep(0.5)
     conn.close()
-    app_log.info("Number of confirmations on the previous block sufficient, proceeding")
+    app_log.info("Number of confirmations ("+ str(confs_prevblock) +") on the previous block sufficient, proceeding")
 
     # wait if we are too far ahead
 
@@ -1025,9 +1025,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     txhash_len = int(data)
                     data = self.request.recv(txhash_len)
                     check_confirmations()
-                    time.sleep(0.5)
-                    check_confirmations() #twice for multiple thread handling
-
 
                     data_split = data.split(";")
                     received_transaction = data_split[0]
