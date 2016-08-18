@@ -63,6 +63,22 @@ busy = 0
 
 port = 2829
 
+def check_confirmations():
+    # wait if we are too far ahead
+    app_log.info("Checking number of confirmations on the previous block")
+    conn = sqlite3.connect('ledger.db')
+    c = conn.cursor()
+
+    confs_prevblock = 0 #initial value
+
+    while confs_prevblock < 5:
+        c.execute("SELECT confirmations FROM transactions ORDER BY block_height DESC LIMIT 1")
+        confs_prevblock = c.fetchone()[0]
+        time.sleep(1)
+    conn.close()
+    app_log.info("Number of confirmations on the previous block sufficient, proceeding")
+
+    # wait if we are too far ahead
 
 def purge_old_peers():
     with open("peers.txt", "r") as peer_list:
@@ -144,7 +160,7 @@ def update_confirmations(data):
         confs_current = c.fetchone()[0]
         c.execute("UPDATE transactions SET confirmations = '" + str(confs_current + 1) + "' WHERE txhash = '" + data + "'")
         conn.commit()
-        app_log.info("Decreased number of confirmations for " + data)
+        app_log.info("Increased number of confirmations for " + data)
         conn.close()
     except:
         #app_log.info("Did not update number of confirmations for " + data)
@@ -993,6 +1009,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     app_log.info("Transaction length to receive: " + data)
                     txhash_len = int(data)
                     data = self.request.recv(txhash_len)
+                    check_confirmations()
 
                     data_split = data.split(";")
                     received_transaction = data_split[0]
@@ -1130,7 +1147,7 @@ def worker(HOST, PORT):
 
                     for x in server_peer_tuples:
                         if x not in peer_tuples:
-                            app_log.info("Client: " + str(x) + " is a new peer, saving if connectible.")
+                            app_log.info("Client: " + str(x) + " is a new peer, saving if connectible")
                             try:
                                 s_purge = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                                 s_purge.connect((HOST[x], PORT[x]))  # save a new peer file with only active nodes
@@ -1140,10 +1157,10 @@ def worker(HOST, PORT):
                                 peer_list_file.write(str(x) + "\n")
                                 peer_list_file.close()
                             except:
-                                app_log.info("Not connectible.")
+                                app_log.info("Not connectible")
 
                         else:
-                            app_log.info("Client: " + str(x) + " is not a new peer.")
+                            app_log.info("Client: " + str(x) + " is not a new peer")
 
                 if data == "mytxhash___":
                     data = s.recv(56)  # receive client's last txhash
@@ -1344,7 +1361,7 @@ def worker(HOST, PORT):
                 if data == "nonewblocks":
                     digest_mempool() #otherwise passive node will not be able to digest
 
-                    app_log.info("Client: We seem to be at the latest block. Paused before recheck.")
+                    app_log.info("Client: We seem to be at the latest block. Paused before recheck")
 
                     #selfconfirmation
                     if s.getpeername()[0] != "127.0.0.1":
