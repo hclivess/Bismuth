@@ -862,7 +862,15 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         time.sleep(0.1)
                         self.request.sendall(data)
                         time.sleep(0.1)
-                        blocknotfound(txhash_send) #newly apply on self
+
+                        # newly apply on self
+                        conn = sqlite3.connect('ledger.db')
+                        c = conn.cursor()
+                        c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
+                        db_txhash = c.fetchone()[0]  # get latest txhash
+                        conn.close()
+                        blocknotfound(db_txhash)
+                        # newly apply on self
 
                 if data == "sendsync___":
                     while busy == 1:
@@ -991,7 +999,14 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             time.sleep(0.1)
                             self.request.sendall(data)
                             time.sleep(0.1)
-                            blocknotfound(txhash_send) #newly apply on self
+                            # newly apply on self
+                            conn = sqlite3.connect('ledger.db')
+                            c = conn.cursor()
+                            c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
+                            db_txhash = c.fetchone()[0]  # get latest txhash
+                            conn.close()
+                            blocknotfound(db_txhash)
+                            # newly apply on self
 
                 if data == "blocknotfou":
                     txhash_delete = self.request.recv(56)
@@ -1218,7 +1233,14 @@ def worker(HOST, PORT):
                         app_log.info("Client: Block not found")
                         s.sendall("blocknotfou")
                         time.sleep(0.1)
-                        blocknotfound(txhash_send) #newly apply on self
+                        # newly apply on self
+                        conn = sqlite3.connect('ledger.db')
+                        c = conn.cursor()
+                        c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
+                        db_txhash = c.fetchone()[0]  # get latest txhash
+                        conn.close()
+                        blocknotfound(db_txhash)
+                        # newly apply on self
 
                 if data == "sync_______":
                     # sync start
@@ -1330,7 +1352,14 @@ def worker(HOST, PORT):
                             app_log.info("Node: Block not found")
                             s.sendall("blocknotfou")
                             time.sleep(0.1)
-                            blocknotfound(txhash_send) #newly apply on self
+                            # newly apply on self
+                            conn = sqlite3.connect('ledger.db')
+                            c = conn.cursor()
+                            c.execute('SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1')
+                            db_txhash = c.fetchone()[0]  # get latest txhash
+                            conn.close()
+                            blocknotfound(db_txhash)
+                            # newly apply on self
 
                 if data == "blocknotfou":
                     txhash_delete = s.recv(56)
