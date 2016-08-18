@@ -17,7 +17,6 @@ SetupIconFile=graphics\icon.ico
 WizardImageFile=graphics\left.bmp
 WizardSmallImageFile=graphics\mini.bmp
 
-
 [Files]
 Source: "Dist\*" ; DestDir: "{app}"; Flags: recursesubdirs;
 
@@ -32,7 +31,6 @@ Name: "{commondesktop}\Start Node"; Filename: "{app}\node.exe"
 Name: "{commondesktop}\Overview"; Filename: "{app}\gui.exe"
 Name: "{commondesktop}\Explorer"; Filename: "{app}\explorer.exe 5492"
 Name: "{commondesktop}\Mining"; Filename: "{app}\miner.exe"
-
 
 [Run]
 Filename: "{app}\node.exe"; Description: "Start"; Flags: postinstall shellexec skipifsilent
