@@ -1010,6 +1010,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     txhash_len = int(data)
                     data = self.request.recv(txhash_len)
                     check_confirmations()
+                    time.sleep(0.5)
                     check_confirmations() #twice for multiple thread handling
 
 
