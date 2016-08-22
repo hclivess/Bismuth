@@ -23,13 +23,13 @@ Source: "Dist\*" ; DestDir: "{app}"; Flags: recursesubdirs;
 [Icons]
 Name: "{group}\Start"; Filename: "{app}\node.exe"
 Name: "{group}\Overview"; Filename: "{app}\gui.exe"
-Name: "{group}\Explorer"; Filename: "{app}\explorer.exe 5492"
+Name: "{group}\Explorer"; Filename: "{app}\explorer.exe"  5492
 Name: "{group}\Mining"; Filename: "{app}\miner.exe"
 Name: "{group}\Uninstall Bismuth"; Filename: "{uninstallexe}"
 
 Name: "{commondesktop}\Start Node"; Filename: "{app}\node.exe"
 Name: "{commondesktop}\Overview"; Filename: "{app}\gui.exe"
-Name: "{commondesktop}\Explorer"; Filename: "{app}\explorer.exe 5492"
+Name: "{commondesktop}\Explorer"; Filename: "{app}\explorer.exe"  5492
 Name: "{commondesktop}\Mining"; Filename: "{app}\miner.exe"
 
 [Run]
