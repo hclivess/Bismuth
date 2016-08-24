@@ -360,17 +360,16 @@ def consensus_add(consensus_ip, consensus_blockheight, consensus_hash):
             app_log.info("Opinion of " + str(consensus_ip) + " hasn't changed")
 
         else:
-            print consensus_index
-            print consensus_hash_list
-
             del consensus_ip_list[consensus_index]  # remove ip
             del consensus_blockheight_list[consensus_index]  # remove ip's opinion
-            del consensus_hash_list[consensus_index] # remove hash
+            if consensus_blockheight != "none":
+                del consensus_hash_list[consensus_index] # remove hash
 
             app_log.info("Updating " + str(consensus_ip) + " in consensus")
             consensus_ip_list.append(consensus_ip)
             consensus_blockheight_list.append(int(consensus_blockheight))
-            consensus_hash_list.append(str(consensus_hash))
+            if consensus_blockheight != "none":
+                consensus_hash_list.append(str(consensus_hash))
 
     app_log.info("Consensus IP list:" + str(consensus_ip_list))
     app_log.info("Consensus opinion list:" + str(consensus_blockheight_list))
@@ -393,6 +392,7 @@ def consensus_remove(consensus_ip):
         consensus_index = consensus_ip_list.index(consensus_ip)
         consensus_ip_list.remove(consensus_ip)
         del consensus_blockheight_list[consensus_index]  # remove ip's opinion
+        del consensus_hash_list[consensus_index]  # remove hash
     else:
         app_log.info("Client " + str(consensus_ip) + " not present in the consensus pool")
 
@@ -1056,7 +1056,7 @@ def worker(HOST, PORT):
             this_client = (HOST + ":" + str(PORT))
             this_client_ip = HOST
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(25)
+            #s.settimeout(25)
             s.connect((HOST, PORT))
             app_log.info("Client: Connected to " + str(HOST) + " " + str(PORT))
             connected = 1
