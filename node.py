@@ -48,8 +48,10 @@ global active_pool
 active_pool = []
 global consensus_ip_list
 consensus_ip_list = []
-global consensus_opinion_list
-consensus_opinion_list = []
+global consensus_blockheight_list
+consensus_blockheight_list = []
+global consensus_hash_list
+consensus_hash_list = []
 global tried
 tried = []
 global mempool_busy
@@ -335,36 +337,46 @@ def blockfound(data):
             pass
         busy = 0
 
-def consensus_add(consensus_ip, consensus_opinion):
+
+
+def consensus_add(consensus_ip, consensus_blockheight, consensus_hash):
     global consensus_ip_list
-    global consensus_opinion_list
+    global consensus_blockheight_list
+    global consensus_hash_list
     global consensus_percentage
 
     if consensus_ip not in consensus_ip_list:
         app_log.info("Adding " + str(consensus_ip) + " to consensus peer list")
         consensus_ip_list.append(consensus_ip)
-        app_log.info("Assigning " + str(consensus_opinion) + " to peer's opinion list")
-        consensus_opinion_list.append(str(int(consensus_opinion)))
+        app_log.info("Assigning " + str(consensus_blockheight) + " to peer block height list")
+        consensus_blockheight_list.append(str(int(consensus_blockheight)))
+        app_log.info("Assigning " + str(consensus_hash) + " to peer hash list")
+        consensus_hash_list.append(str(consensus_hash))
 
     if consensus_ip in consensus_ip_list:
         consensus_index = consensus_ip_list.index(consensus_ip)  # get where in this list it is
 
-        if consensus_opinion_list[consensus_index] == (consensus_opinion):
+        if consensus_blockheight_list[consensus_index] == (consensus_blockheight):
             app_log.info("Opinion of " + str(consensus_ip) + " hasn't changed")
 
         else:
             del consensus_ip_list[consensus_index]  # remove ip
-            del consensus_opinion_list[consensus_index]  # remove ip's opinion
+            del consensus_blockheight_list[consensus_index]  # remove ip's opinion
+            del consensus_hash_list[consensus_index] # remove hash
+            print (consensus_hash_list)
+
             app_log.info("Updating " + str(consensus_ip) + " in consensus")
             consensus_ip_list.append(consensus_ip)
-            consensus_opinion_list.append(int(consensus_opinion))
+            consensus_blockheight_list.append(int(consensus_blockheight))
+            consensus_hash_list.append(str(consensus_hash))
 
     app_log.info("Consensus IP list:" + str(consensus_ip_list))
-    app_log.info("Consensus opinion list:" + str(consensus_opinion_list))
+    app_log.info("Consensus opinion list:" + str(consensus_blockheight_list))
+    app_log.info("Consensus hash list:" + str(consensus_hash_list))
 
-    consensus = most_common(consensus_opinion_list)
+    consensus = most_common(consensus_blockheight_list)
 
-    consensus_percentage = (float(consensus_opinion_list.count(consensus) / float(len(consensus_opinion_list)))) * 100
+    consensus_percentage = (float(consensus_blockheight_list.count(consensus) / float(len(consensus_blockheight_list)))) * 100
     app_log.info("Current active connections: " + str(len(active_pool)))
     app_log.info("Current block consensus: " + str(consensus) + " = " + str(consensus_percentage) + "%")
 
@@ -372,13 +384,13 @@ def consensus_add(consensus_ip, consensus_opinion):
 
 def consensus_remove(consensus_ip):
     global consensus_ip_list
-    global consensus_opinion_list
+    global consensus_blockheight_list
     if consensus_ip in consensus_ip_list:
         app_log.info(
             "Will remove " + str(consensus_ip) + " from consensus pool " + str(consensus_ip_list))
         consensus_index = consensus_ip_list.index(consensus_ip)
         consensus_ip_list.remove(consensus_ip)
-        del consensus_opinion_list[consensus_index]  # remove ip's opinion
+        del consensus_blockheight_list[consensus_index]  # remove ip's opinion
     else:
         app_log.info("Client " + str(consensus_ip) + " not present in the consensus pool")
 
@@ -838,8 +850,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     # consensus pool 1 (connection from them)
                     consensus_ip = self.request.getpeername()[0]
-                    consensus_opinion = int(subdata)  # str int to remove leading zeros
-                    consensus_add(consensus_ip,consensus_opinion)
+                    consensus_blockheight = int(subdata)  # str int to remove leading zeros
+                    consensus_add(consensus_ip,consensus_blockheight)
                     # consensus pool 1 (connection from them)
 
                     conn = sqlite3.connect('ledger.db')
@@ -1136,13 +1148,6 @@ def worker(HOST, PORT):
                     received_block_height = subdata
                     app_log.info("Client: Node is at block height: " + str(received_block_height))
 
-                    # consensus pool 2 (active connection)
-                    consensus_ip = s.getpeername()[0]
-                    consensus_opinion = int(subdata)  # str int to remove leading zeros
-                    consensus_add(consensus_ip,consensus_opinion)
-                    # consensus pool 2 (active connection)
-
-                    # todo deviation check here?
                     # todo add to active pool here?
 
                     if received_block_height < db_block_height:
@@ -1169,11 +1174,23 @@ def worker(HOST, PORT):
                         s.sendall(db_txhash)  # send latest txhash
                         time.sleep(0.1)
 
+                        # consensus pool 2 (active connection)
+                        consensus_ip = s.getpeername()[0]
+                        consensus_blockheight = int(subdata)  # str int to remove leading zeros
+                        consensus_add(consensus_ip, consensus_blockheight, None)
+                        # consensus pool 2 (active connection)
+
                     if update_me == 0:  # update them if update_me is 0
                         data = s.recv(56)  # receive client's last txhash
 
                         # send all our followup hashes
                         app_log.info("Client: Will seek the following block: " + str(data))
+
+                        # consensus pool 2 (active connection)
+                        consensus_ip = s.getpeername()[0]
+                        consensus_blockheight = int(subdata)  # str int to remove leading zeros
+                        consensus_add(consensus_ip, consensus_blockheight, data)
+                        # consensus pool 2 (active connection)
 
                         # update confirmations
                         if s.getpeername()[0] != "127.0.0.1":
