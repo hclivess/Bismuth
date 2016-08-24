@@ -360,10 +360,12 @@ def consensus_add(consensus_ip, consensus_blockheight, consensus_hash):
             app_log.info("Opinion of " + str(consensus_ip) + " hasn't changed")
 
         else:
+            print consensus_index
+            print consensus_hash_list
+
             del consensus_ip_list[consensus_index]  # remove ip
             del consensus_blockheight_list[consensus_index]  # remove ip's opinion
             del consensus_hash_list[consensus_index] # remove hash
-            print (consensus_hash_list)
 
             app_log.info("Updating " + str(consensus_ip) + " in consensus")
             consensus_ip_list.append(consensus_ip)
@@ -851,7 +853,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     # consensus pool 1 (connection from them)
                     consensus_ip = self.request.getpeername()[0]
                     consensus_blockheight = int(subdata)  # str int to remove leading zeros
-                    consensus_add(consensus_ip,consensus_blockheight)
+                    consensus_add(consensus_ip,consensus_blockheight,"none")
                     # consensus pool 1 (connection from them)
 
                     conn = sqlite3.connect('ledger.db')
@@ -1177,7 +1179,7 @@ def worker(HOST, PORT):
                         # consensus pool 2 (active connection)
                         consensus_ip = s.getpeername()[0]
                         consensus_blockheight = int(subdata)  # str int to remove leading zeros
-                        consensus_add(consensus_ip, consensus_blockheight, None)
+                        consensus_add(consensus_ip, consensus_blockheight, "none")
                         # consensus pool 2 (active connection)
 
                     if update_me == 0:  # update them if update_me is 0
