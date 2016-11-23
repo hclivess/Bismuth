@@ -1,7 +1,0 @@
-pycrypto
-pillow
-pyqrcode
-pypng
-pyinstaller
-web.py
-matplotlib
