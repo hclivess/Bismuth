@@ -54,28 +54,21 @@ private_key_readable = str(key.exportKey())
 public_key_readable = str(key.publickey().exportKey())
 address = hashlib.sha224(public_key_readable).hexdigest()
 
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-#s.settimeout(1)
-try:
-    s.connect(("127.0.0.1", int("2829"))) #connect to local node
-except:
-    app_log.info("Cannot connect to local node, please start it first")
-    sys.exit(1)
-app_log.info("Connected")
-
 def send():
     app_log.info("Received tx command")
-    to_address_input = to_address.get()
-    app_log.info(to_address_input)
+    recipient_input = recipient.get()
+    app_log.info("Recipient: "+recipient_input)
     amount_input = amount.get()
-    app_log.info(amount_input)
+    app_log.info("Amount: "+amount_input)
+    openfield_input = base64.b64encode(openfield.get())
+    app_log.info("OpenField Data: "+openfield_input)
 
     timestamp = str(time.time())
 
-    transaction = str(timestamp) +":"+ str(address) +":"+ str(to_address_input) +":"+ str(float(amount_input))
+    transaction = (timestamp,address,recipient_input,str(float(amount_input)),openfield_input)
     print transaction
 
-    h = SHA.new(transaction)
+    h = SHA.new(str(transaction))
     signer = PKCS1_v1_5.new(key)
     signature = signer.sign(h)
     signature_enc = base64.b64encode(signature)
@@ -87,22 +80,15 @@ def send():
             app_log.info("Client: Signature OK, but cannot use negative amounts")
 
         else:
-            app_log.info("Client: The signature is valid, proceeding to send transaction, signature, new txhash and the public key")
-            s.sendall("transaction")
-            time.sleep(0.1)
-            transaction_send = (transaction+";"+str(signature_enc)+";"+public_key_readable)
+            app_log.info("Client: The signature is valid, proceeding to save transaction, signature, new txhash and the public key")
 
-            #announce length
-            txhash_len = len(str(transaction_send))
-            while len(str(txhash_len)) != 10:
-                txhash_len = "0" + str(txhash_len)
-            app_log.info("Announcing " + str(txhash_len) + " length of transaction")
-            s.sendall(str(txhash_len))
-            time.sleep(0.1)
-            # announce length
-
-            s.sendall(transaction_send)
-            time.sleep(0.1)
+            mempool = sqlite3.connect('mempool.db')
+            mempool.text_factory = str
+            m = mempool.cursor()
+            m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?)",(timestamp, address, recipient_input, str(float(amount_input)),signature_enc, public_key_readable, openfield_input))
+            mempool.commit()  # Save (commit) the changes
+            mempool.close()
+            app_log.info("Client: Mempool updated with a received transaction")
             refresh()
     else:
         app_log.info("Client: Invalid signature")
@@ -220,8 +206,9 @@ def sign():
 
 def refresh():
     conn = sqlite3.connect('ledger.db')
+    conn.text_factory = str
     c = conn.cursor()
-    c.execute("SELECT sum(amount) FROM transactions WHERE to_address = '" + address + "'")
+    c.execute("SELECT sum(amount) FROM transactions WHERE recipient = '" + address + "'")
     credit = c.fetchone()[0]
     c.execute("SELECT sum(amount) FROM transactions WHERE address = '" + address + "'")
     debit = c.fetchone()[0]
@@ -332,14 +319,15 @@ def table():
     datasheet = ["time", "from", "to", "amount"]
 
     conn = sqlite3.connect('ledger.db')
+    conn.text_factory = str
     c = conn.cursor()
-    for row in c.execute("SELECT * FROM transactions WHERE address = '" + str(address) + "' OR to_address = '" + str(address) + "' ORDER BY block_height DESC LIMIT 19;"):
+    for row in c.execute("SELECT * FROM transactions WHERE address = '" + str(address) + "' OR recipient = '" + str(address) + "' ORDER BY block_height DESC LIMIT 19;"):
         db_timestamp = row[1]
         datasheet.append(datetime.fromtimestamp(float(db_timestamp)).strftime('%Y-%m-%d %H:%M:%S'))
         db_address = row[2]
         datasheet.append(db_address)
-        db_to_address = row[3]
-        datasheet.append(db_to_address)
+        db_recipient = row[3]
+        datasheet.append(db_recipient)
         db_amount = row[4]
         datasheet.append(db_amount)
     conn.close()
@@ -380,15 +368,18 @@ gui_address.configure(state="readonly")
 
 Label(f3, text="Recipient:", width=20).grid(row=1)
 Label(f3, text="Amount:", width=20).grid(row=2)
+Label(f3, text="OpenField Data:", width=20).grid(row=3)
 
-to_address = Entry(f3, width=57)
-to_address.grid(row=1, column=1, pady=15)
+recipient = Entry(f3, width=57)
+recipient.grid(row=1, column=1, pady=5)
 
 amount = Entry(f3, width=57)
-amount.grid(row=2, column=1, pady=15)
-amount.grid(row=2, column=1, pady=15)
+amount.grid(row=2, column=1, pady=5)
 
-balance_enumerator = Entry(f3, width=10)
+openfield = Entry(f3, width=57)
+openfield.grid(row=3, column=1, pady=5)
+
+balance_enumerator = Entry(f3, width=5)
 #address and amount
 
 Label(f4, text="Your latest transactions:", width=20).grid(row=0)

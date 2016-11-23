@@ -1,6 +1,5 @@
 import hashlib
 import sqlite3
-import socket
 import time
 import base64
 from Crypto.PublicKey import RSA
@@ -14,51 +13,41 @@ private_key_readable = str(key.exportKey())
 public_key_readable = str(key.publickey().exportKey())
 address = hashlib.sha224(public_key_readable).hexdigest()
 
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-#s.settimeout(1)
-s.connect(("127.0.0.1", int("2829")))
-print "Connected"
-
 #enter transaction start
 conn = sqlite3.connect('ledger.db')
 c = conn.cursor()
-c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
-txhash = c.fetchone()[0]
+c.execute("SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1;")
+block_hash = c.fetchone()[0]
 conn.close()
     
 to_address = str(raw_input ("Send to address: "))
 amount = str(raw_input ("How much to send: "))
+openfield = str(raw_input ("Openfield data: "))
 timestamp = str(time.time())
 
-transaction = str(timestamp) +":"+ str(address) +":"+ str(to_address) +":"+ str(amount)
+transaction = (timestamp,address,to_address,str(float(amount)),openfield)
 
-#signature = key.sign(transaction, '')
-#print "Client: Signature: "+str(signature)
-h = SHA.new(transaction)
+h = SHA.new(str(transaction))
 signer = PKCS1_v1_5.new(key)
 signature = signer.sign(h)
 signature_enc = base64.b64encode(signature)
 print "Client: Encoded Signature: "+str(signature_enc)
 
 verifier = PKCS1_v1_5.new(key)
-if verifier.verify(h, signature) == True:
+if verifier.verify(h, signature):
     if int(amount) < 0:
         print "Client: Signature OK, but cannot use negative amounts"
 
     else:
-        conn = sqlite3.connect('ledger.db')
-        c = conn.cursor()
-        c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 1;")
-        txhash = str(c.fetchone()[0])
-        txhash_new = hashlib.sha224(str(transaction) + str(signature_enc) + str(txhash)).hexdigest() #define new tx hash based on previous #fix asap
-        print "Client: New txhash to go with your transaction: "+txhash_new
-        conn.close()
-           
-        print "Client: The signature and control txhash is valid, proceeding to send transaction, signature, new txhash and the public key"
-        s.sendall("transaction")
-        time.sleep(0.1)
-        s.sendall(transaction+";"+str(signature_enc)+";"+public_key_readable+";"+str(txhash_new)) #todo send list
-        time.sleep(0.1)
+        print "Client: The signature and control block_hash is valid, proceeding to send transaction, signature, new block_hash and the public key"
+
+        mempool = sqlite3.connect('mempool.db')
+        mempool.text_factory = str
+        m = mempool.cursor()
+        m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?)", (timestamp,address,to_address,str(float(amount)),signature_enc,public_key_readable,openfield))
+        mempool.commit()  # Save (commit) the changes
+        mempool.close()
+        print "Client: Mempool updated with a received transaction"
     
 else:
     print "Client: Invalid signature"

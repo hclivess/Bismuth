@@ -58,14 +58,14 @@ print "Your public key:\n "+ str(public_key_readable)
 
 timestamp = str(time.time())
 print "Timestamp: "+timestamp
-transaction = timestamp+":genesis:"+address+":100000000"
-h = SHA.new(transaction)
+transaction = (timestamp,"genesis",address,str(float(100000000)),"genesis")
+h = SHA.new(str(transaction))
 signer = PKCS1_v1_5.new(key)
 signature = signer.sign(h)
 signature_enc = base64.b64encode(signature)
 print "Encoded Signature: "+str(signature_enc)
-txhash = hashlib.sha224(str(transaction) + str(signature_enc) + str(public_key_readable)).hexdigest()
-print "Transaction Hash:" + txhash
+block_hash = hashlib.sha224(str((timestamp,transaction))).hexdigest() #first hash is simplified
+print "Transaction Hash:" + block_hash
 
 if os.path.isfile("ledger.db") is True:
     print "You are beyond genesis"
@@ -75,17 +75,17 @@ else:
     try:
         conn = sqlite3.connect('ledger.db')
         c = conn.cursor()
-        c.execute("CREATE TABLE transactions (block_height INTEGER, timestamp, address, to_address, amount, signature, public_key, txhash, fee, reward, confirmations)")
-        c.execute("INSERT INTO transactions VALUES ('1','"+timestamp+"','genesis','"+address+"','100000000','"+str(signature_enc)+"','"+public_key_readable+"','"+txhash+"','0','0','0')") # Insert a row of data
+        c.execute("CREATE TABLE transactions (block_height INTEGER, timestamp, address, recipient, amount, signature, public_key, block_hash, fee, reward, confirmations, openfield)")
+        c.execute("INSERT INTO transactions VALUES ('1','"+timestamp+"','genesis','"+address+"','100000000','"+str(signature_enc)+"','"+public_key_readable+"','"+block_hash+"','0','0','0', 'genesis')") # Insert a row of data
         conn.commit() # Save (commit) the changes
 
         mempool = sqlite3.connect('mempool.db')
         m = mempool.cursor()
-        m.execute("CREATE TABLE transactions (timestamp, address, to_address, amount, signature, public_key)")
+        m.execute("CREATE TABLE transactions (timestamp, address, recipient, amount, signature, public_key, openfield)")
         mempool.commit()
         mempool.close()
         
-        print "Genesis created, don't forget to hardcode your genesis address"
+        print "Genesis created, don't forget to change genesis address in the config file"
     except sqlite3.Error, e:                      
         print "Error %s:" % e.args[0]
         sys.exit(1)                        

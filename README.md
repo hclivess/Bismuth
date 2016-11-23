@@ -1,8 +1,6 @@
 Bismuth Readme
 =======
 
-Bismuth and Clarity are currently switching to a traditional Proof of Work algorithm, the development can be followed here: https://github.com/hclivess/BismuthPOW
-
 Whitepaper:
 https://github.com/hclivess/Bismuth/blob/master/whitepaper.md
 

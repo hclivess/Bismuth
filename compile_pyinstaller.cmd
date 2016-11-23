@@ -8,6 +8,7 @@ pyinstaller.exe --uac-admin --onefile --log-level=INFO plotter_html.py --icon=gr
 
 robocopy static dist\static
 copy peers.txt dist\peers.txt
+copy config.txt dist\config.txt
 copy ledger.db dist\ledger.db
 copy explorer_custom_port.cmd dist\explorer_custom_port.cmd
 "C:\Program Files (x86)\Inno Setup 5\iscc" /q "setup.iss"

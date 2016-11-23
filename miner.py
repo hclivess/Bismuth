@@ -1,6 +1,3 @@
-#error: for some reason produces different hashes than node, will be investigated
-#single address miner with timer limited to 2 decimal places, no customization of timestamp, no multithreading, no multiple-address mining
-#a part txhash must equal a part of address
 import base64
 import socket
 import sys
@@ -13,6 +10,16 @@ from logging.handlers import RotatingFileHandler
 from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
+
+# load config
+lines = [line.rstrip('\n') for line in open('config.txt')]
+for line in lines:
+    if "port=" in line:
+        port = line.strip('port=')
+    if "mining_ip=" in line:
+        mining_ip_conf = line.strip("mining_ip=")
+
+# load config
 
 #import keys
 key = RSA.importKey(open('privkey.der').read())
@@ -38,107 +45,123 @@ ch.setFormatter(formatter)
 app_log.addHandler(ch)
 #logging
 
-conn=sqlite3.connect("ledger.db")
-c = conn.cursor()
-
-timestamp = 0 #init
+block_timestamp = 0 #init
 tries = 0
 inform = 1
 
+app_log.info("Mining will start once there are transactions in the mempool")
 while True:
-    # decide reward
+    mempool = sqlite3.connect("mempool.db")
+    mempool.text_factory = str
+    m = mempool.cursor()
+    m.execute("SELECT * FROM transactions ORDER BY timestamp;")
+    result = m.fetchall()
+    mempool.close()
 
-    c.execute("SELECT reward FROM transactions ORDER BY block_height DESC LIMIT 50;")  # check if there has been a reward in past 50 blocks
-    was_reward = c.fetchall()
+    while True:
 
-    reward_possible = 1
+        if str(block_timestamp) != str(time.time()) and result: #in case the time has changed
+            block_timestamp = str(time.time())
+            app_log.info("Mining in progress, " + str(tries) + " cycles have passed")
+            tries = tries +1
+            # calculate new hash
 
-    for x in was_reward:
-        if x[0] != "0": #iterate all of the last 50 blocks and see if there is a reward in there
-            reward_possible = 0  #there has been a reward already, don't reward anymore
+            conn = sqlite3.connect("ledger.db") #open to select the last tx to create a new hash from
+            conn.text_factory = str
+            c = conn.cursor()
+            c.execute("SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1;")
+            result = c.fetchall()
+            conn.close()
 
-    if reward_possible == 0:
-        if inform == 1:
-            app_log.info("Mempool: Reward status: Mined for this segment already. One segment is 50 blocks long. You need to wait for those 50 blocks to pass before mining is available again. The miner will resume automatically.")
-            inform = 0
-        time.sleep(10)
+            db_block_hash = result[0][0]
 
-    else:  # no reward in the past x blocks
-        inform = 1
-        c.execute("SELECT txhash FROM transactions ORDER BY block_height DESC LIMIT 50;")  # select previous x transactions to start mining
-        db_txhash_list = c.fetchall()
-        app_log.info("Mempool: Reward status: Not mined")
+            #serialize txs
+            mempool = sqlite3.connect("mempool.db")
+            mempool.text_factory = str
+            m = mempool.cursor()
+            m.execute("SELECT * FROM transactions ORDER BY timestamp;")
+            result = m.fetchall() #select all txs from mempool
+            mempool.close()
 
-        reward = 0
+            if result:
+                transactions = []
+                del transactions[:] # empty
+                removal_signature = []
+                del removal_signature[:] # empty
 
-        #start mining
+                for dbdata in result:
+                    transaction = (dbdata[0],dbdata[1],dbdata[2],str(float(dbdata[3])),dbdata[4],dbdata[5],dbdata[6]) #create tuple
+                    #print transaction
+                    transactions.append(transaction) #append tuple to list for each run
+                    removal_signature.append(str(dbdata[4])) #for removal after successful mining
 
-        while True:
-            if str(timestamp) != str(time.time()): #in case the time has changed
-                tries = tries +1
-                # calculate new hash (submit only if mining is successful)
-                c.execute("SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1;")
-                result = c.fetchall()
-                db_timestamp = result[0][1]
-                db_address = result[0][2]
-                db_to_address = result[0][3]
-                db_amount = result[0][4]
-                db_signature = result[0][5]
-                db_txhash = result[0][7]
-                db_transaction = str(db_timestamp) + ":" + str(db_address) + ":" + str(db_to_address) + ":" + str(db_amount)
+                # claim reward
+                transaction_reward = tuple
+                transaction_reward = (block_timestamp,address,address,str(float(0)),"reward") #only this part is signed!
+                #print transaction_reward
 
-                timestamp = str(time.time())
-                app_log.info("Timestamp: " + timestamp)
-                transaction = str(timestamp) + ":" + str(address) + ":" + str(address) + ":" + str(0.0)#send 0 token to self to collect reward
-
-                h = SHA.new(transaction)
+                h = SHA.new(str(transaction_reward))
                 signer = PKCS1_v1_5.new(key)
                 signature = signer.sign(h)
                 signature_enc = base64.b64encode(signature)
 
+                transactions.append((block_timestamp,address,address,str(float(0)),signature_enc,public_key_readable,"reward"))
+                # claim reward
 
-                txhash = hashlib.sha224(str(transaction) + str(signature_enc) + str(db_txhash)).hexdigest()  # calculate txhash from the ledger
-                # calculate new hash
-                app_log.info("Txhash: "+txhash)
-                app_log.info("Attempt: " + str(tries))
+                print "sync this"
+                #print block_timestamp
+                #print transactions  # sync this
+                #print db_block_hash
+                print (str((block_timestamp,transactions,db_block_hash)))
+                block_hash = hashlib.sha224(str((block_timestamp,transactions,db_block_hash))).hexdigest()  # we now need to use block timestamp as a variable for hash generation !!!
+
                 #start mining
 
+                # serialize txs
+
                 diff = 3
-                if address[0:diff] == txhash[0:diff]:
-                    app_log.info("Miner: Found a good txhash in "+str(tries)+" attempts")
+                if address[0:diff] == block_hash[0:diff]:
+                    app_log.info("Miner: Found a good block_hash in "+str(tries)+" cycles")
                     tries = 0
 
                     #submit mined block to node
-                    app_log.info("Miner: Encoded Signature: " + str(signature_enc))
 
-                    verifier = PKCS1_v1_5.new(key)
-                    if verifier.verify(h, signature) == True:
-                        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                        s.connect(("127.0.0.1", int("2829")))  # connect to local node
-                        app_log.info("Connected")
+                    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    s.connect((mining_ip_conf, int(port)))  # connect to local node
+                    app_log.info("Connected")
 
-                        app_log.info("Miner: Proceeding to submit mined block")
-                        s.sendall("transaction")
-                        time.sleep(0.1)
-                        transaction_send = (transaction + ";" + str(signature_enc) + ";" + public_key_readable)
+                    app_log.info("Miner: Proceeding to submit mined block")
+                    s.sendall("block______")
+                    time.sleep(0.1)
+                    #print block_send
 
-                        # announce length
-                        txhash_len = len(str(transaction_send))
-                        while len(str(txhash_len)) != 10:
-                            txhash_len = "0" + str(txhash_len)
-                        app_log.info("Miner: Announcing " + str(txhash_len) + " length of transaction")
-                        s.sendall(str(txhash_len))
-                        time.sleep(0.1)
-                        # announce length
+                    # announce length
+                    block_len = len(str(transactions))
+                    while len(str(block_len)) != 10:
+                        block_len = "0" + str(block_len)
+                    app_log.info("Miner: Announcing " + str(block_len) + " length of block")
+                    s.sendall(str(block_len))
+                    time.sleep(0.1)
+                    # announce length
 
-                        s.sendall(transaction_send)
-                        time.sleep(0.1)
-                        s.close()
-                    #submit mined block to node
+                    s.sendall(str(transactions))
+                    time.sleep(0.1)
+                    s.close()
 
-                else:
-                    app_log.info("Miner: Txhash not matching reward conditions")
-                    break
-            # decide reward
+                    #remove sent from mempool
+                    mempool = sqlite3.connect("mempool.db")
+                    mempool.text_factory = str
+                    m = mempool.cursor()
+                    for x in removal_signature:
+                        m.execute("DELETE FROM transactions WHERE signature ='" + x + "';")
+                        app_log.info("Removed a transaction with the following signature from mempool: "+str(x))
+                    mempool.commit()
+                    mempool.close()
+                    #remove sent from mempool
 
-conn.close()
+                #submit mined block to node
+            else:
+                app_log.info("Mempool empty")
+        else:
+            time.sleep(0.1)
+            break

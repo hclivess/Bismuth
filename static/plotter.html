@@ -1,0 +1,117 @@
+<!doctype html>
+<html>
+<head>
+<title>Line Chart</title>
+<script src="Chart.js"></script>
+<link rel="stylesheet" type="text/css" href="style.css">
+</head>
+<body>
+<div style="width:100%">
+<div>
+<h1>Timestamp progression</h1><canvas id="canvas" height="150" width="600"></canvas>
+<h1>Spending in time</h1><canvas id="canvas2" height="150" width="600"></canvas>
+<h1>Fee in time</h1><canvas id="canvas3" height="150" width="600"></canvas>
+<h1>Reward in time</h1><canvas id="canvas4" height="150" width="600"></canvas>
+<h1>Confirmations per block</h1><canvas id="canvas5" height="150" width="600"></canvas>
+</div>
+</div>
+<script>
+var randomScalingFactor = function(){ return Math.round(Math.random()*100)};
+window.onload = function(){
+var ctx = document.getElementById("canvas").getContext("2d");
+window.myLine = new Chart(ctx).Line(lineChartData, {
+responsive: true
+});
+var ctx2 = document.getElementById("canvas2").getContext("2d");
+window.myLine = new Chart(ctx2).Line(lineChartData2, {
+responsive: true
+});
+var ctx3 = document.getElementById("canvas3").getContext("2d");
+window.myLine = new Chart(ctx3).Line(lineChartData3, {
+responsive: true
+});
+var ctx4 = document.getElementById("canvas4").getContext("2d");
+window.myLine = new Chart(ctx4).Line(lineChartData4, {
+responsive: true
+});
+var ctx5 = document.getElementById("canvas5").getContext("2d");
+window.myLine = new Chart(ctx5).Line(lineChartData5, {
+responsive: true
+});
+}
+var lineChartData = {
+labels : ['1', '2', '2', '3', '3', '4', '4', '5', '5', '5', '5', '6', '6', '7', '7', '8', '8', '9', '9', '10', '10', '10', '10', '10', '10'],
+datasets : [
+{
+label: "My First dataset 1",
+fillColor : "rgba(220,220,220,0.2)",
+strokeColor : "rgba(220,220,220,1)",
+pointColor : "rgba(220,220,220,1)",
+pointStrokeColor : "#fff",
+pointHighlightFill : "#fff",
+pointHighlightStroke : "rgba(220,220,220,1)",
+data : ['1478253840.11', '1478277213.99', '1478277213.85', '1478277217.81', '1478277217.74', '1478277220.43', '1478277219.89', '1478277222.16', '1478277222.05', '1478277221.88', '1478277221.72', '1478277222.66', '1478277222.18', '1478508007.57', '1478508007.41', '1478512726.08', '1478512725.68', '1478518502.12', '1478518501.98', '1479116028.8', '1479115985.18', '1479115984.97', '1479115984.78', '1479115984.61', '1479115984.28']
+}
+]
+}
+var lineChartData2 = {
+labels : ['1478253840.11', '1478277213.99', '1478277213.85', '1478277217.81', '1478277217.74', '1478277220.43', '1478277219.89', '1478277222.16', '1478277222.05', '1478277221.88', '1478277221.72', '1478277222.66', '1478277222.18', '1478508007.57', '1478508007.41', '1478512726.08', '1478512725.68', '1478518502.12', '1478518501.98', '1479116028.8', '1479115985.18', '1479115984.97', '1479115984.78', '1479115984.61', '1479115984.28'],
+datasets : [
+{
+label: "My First dataset 2",
+fillColor : "rgba(220,220,220,0.2)",
+strokeColor : "rgba(220,220,220,1)",
+pointColor : "rgba(220,220,220,1)",
+pointStrokeColor : "#fff",
+pointHighlightFill : "#fff",
+pointHighlightStroke : "rgba(220,220,220,1)",
+data : ['100000000', '0.0', '5.0', '0.0', '5.0', '0.0', '5.0', '0.0', '5.0', '5.0', '5.0', '0.0', '5.0', '0.0', '5.0', '0.0', '9.0', '0.0', '1.0', '0.0', '2.0', '2.0', '2.0', '2.0', '2.0']
+}
+]
+}
+var lineChartData3 = {
+labels : ['1478253840.11', '1478277213.99', '1478277213.85', '1478277217.81', '1478277217.74', '1478277220.43', '1478277219.89', '1478277222.16', '1478277222.05', '1478277221.88', '1478277221.72', '1478277222.66', '1478277222.18', '1478508007.57', '1478508007.41', '1478512726.08', '1478512725.68', '1478518502.12', '1478518501.98', '1479116028.8', '1479115985.18', '1479115984.97', '1479115984.78', '1479115984.61', '1479115984.28'],
+datasets : [
+{
+label: "My First dataset 3",
+fillColor : "rgba(220,220,220,0.2)",
+strokeColor : "rgba(220,220,220,1)",
+pointColor : "rgba(220,220,220,1)",
+pointStrokeColor : "#fff",
+pointHighlightFill : "#fff",
+pointHighlightStroke : "rgba(220,220,220,1)",
+data : ['0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '1', '0', '1', '1', '1', '1', '1']
+}
+]
+}
+var lineChartData4 = {
+labels : ['1478253840.11', '1478277213.99', '1478277213.85', '1478277217.81', '1478277217.74', '1478277220.43', '1478277219.89', '1478277222.16', '1478277222.05', '1478277221.88', '1478277221.72', '1478277222.66', '1478277222.18', '1478508007.57', '1478508007.41', '1478512726.08', '1478512725.68', '1478518502.12', '1478518501.98', '1479116028.8', '1479115985.18', '1479115984.97', '1479115984.78', '1479115984.61', '1479115984.28'],
+datasets : [
+{
+label: "My First dataset 4",
+fillColor : "rgba(220,220,220,0.2)",
+strokeColor : "rgba(220,220,220,1)",
+pointColor : "rgba(220,220,220,1)",
+pointStrokeColor : "#fff",
+pointHighlightFill : "#fff",
+pointHighlightStroke : "rgba(220,220,220,1)",
+data : ['0', '25', '0', '25', '0', '25', '0', '25', '0', '0', '0', '25', '0', '25', '0', '25', '0', '25', '0', '25', '0', '0', '0', '0', '0']
+}
+]
+}
+var lineChartData5 = {
+labels : ['1', '2', '2', '3', '3', '4', '4', '5', '5', '5', '5', '6', '6', '7', '7', '8', '8', '9', '9', '10', '10', '10', '10', '10', '10'],
+datasets : [
+{
+label: "My First dataset 5",
+fillColor : "rgba(220,220,220,0.2)",
+strokeColor : "rgba(220,220,220,1)",
+pointColor : "rgba(220,220,220,1)",
+pointStrokeColor : "#fff",
+pointHighlightFill : "#fff",
+pointHighlightStroke : "rgba(220,220,220,1)",
+data : ['0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0']
+}
+]
+}
+</script></body></html>
