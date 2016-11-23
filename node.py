@@ -466,7 +466,7 @@ def digest_block(data):  # this function has become the transaction engine core 
                             app_log.info("Mempool: Difficulty requirement satisfied")
 
                             if (float(balance))-(float(fee)+float(db_amount)) < 0:
-                                app_log.info("Mempool: Cannot afford to pay fees")
+                                app_log.info("Mempool: Cannot afford to pay fees") #NEED TO MOVE THIS WHOLE TO MEMPOOL VALIDATION INSTEAD
 
                             else:
                                 c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (block_height_new,db_timestamp,db_address,db_recipient,str(float(db_amount)),db_signature,db_public_key_readable,block_hash,fee,reward,str(0),db_openfield))
