@@ -210,7 +210,7 @@ def blocknotfound(block_hash_delete):
             db_block_hash = results[7]
             db_confirmations = results[10]
 
-            if db_block_height < 10:
+            if db_block_height < 2:
                 app_log.info("Client: Will not roll back this block")
                 conn.close()
 
