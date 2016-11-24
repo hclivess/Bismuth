@@ -438,22 +438,28 @@ def digest_block(data):  # this function has become the transaction engine core 
                     # include the new block
 
                     c.execute("SELECT sum(amount) FROM transactions WHERE recipient = '" + received_address + "'")
-                    credit = float(c.fetchone()[0]) + float(block_credit)
+                    credit_ledger = c.fetchone()[0]
+                    if credit_ledger == None:
+                        credit_ledger = 0
+                    credit = float(credit_ledger) + float(block_credit)
+
                     c.execute("SELECT sum(amount) FROM transactions WHERE address = '" + received_address + "'")
-                    debit = float(c.fetchone()[0]) + float(block_debit)
+                    debit_ledger = c.fetchone()[0]
+                    if debit_ledger == None:
+                        debit_ledger = 0
+                    debit = float(debit_ledger) + float(block_debit)
+
                     c.execute("SELECT sum(fee) FROM transactions WHERE address = '" + received_address + "'")
                     fees = c.fetchone()[0]
                     c.execute("SELECT sum(reward) FROM transactions WHERE address = '" + db_address + "'")
                     rewards = c.fetchone()[0]
 
-                    if debit == None:
-                        debit = 0
+
                     if fees == None:
                         fees = 0
                     if rewards == None:
                         rewards = 0
-                    if credit == None:
-                        credit = 0
+
                     app_log.info("Mempool: Total credit: " + str(credit))
                     app_log.info("Mempool: Total debit: " + str(debit))
                     balance = float(credit) - float(debit) - float(fees) + float(rewards)
