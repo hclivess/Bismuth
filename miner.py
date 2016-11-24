@@ -119,7 +119,7 @@ while True:
 
                 # serialize txs
 
-                diff = 1
+                diff = 3
                 if address[0:diff] == block_hash[0:diff]:
                     app_log.info("Miner: Found a good block_hash in "+str(tries)+" cycles")
                     tries = 0

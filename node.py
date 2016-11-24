@@ -483,7 +483,7 @@ def digest_block(data):  # this function has become the transaction engine core 
 
                     # decide reward
 
-                    diff = 1
+                    diff = 3
 
                     time_now = str(time.time())
                     if float(time_now) < float(db_timestamp):
