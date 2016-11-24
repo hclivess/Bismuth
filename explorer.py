@@ -204,7 +204,7 @@ class index:
             view.append("<td>" + str(x[0]) + "</td>")
             view.append("<td>" + str(x[1]) + "</td>")
             view.append("<td>" + str(x[2]) + "</td>")
-            view.append("<td>" + str(x[3]) + "</td>")
+            view.append("<td>" + str(x[3].encode('utf-8')) + "</td>")
             view.append("<td>" + str(x[4]) + "</td>")
             #view.append("<td>" + str(x[5]) + "</td>")
             #view.append("<td>" + str(x[6]) + "</td>")
