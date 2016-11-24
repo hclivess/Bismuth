@@ -108,11 +108,11 @@ while True:
                 transactions.append((block_timestamp,address,address,str(float(0)),signature_enc,public_key_readable,"reward"))
                 # claim reward
 
-                print "sync this"
+                #print "sync this"
                 #print block_timestamp
                 #print transactions  # sync this
                 #print db_block_hash
-                print (str((block_timestamp,transactions,db_block_hash)))
+                #print (str((block_timestamp,transactions,db_block_hash)))
                 block_hash = hashlib.sha224(str((block_timestamp,transactions,db_block_hash))).hexdigest()  # we now need to use block timestamp as a variable for hash generation !!!
 
                 #start mining

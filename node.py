@@ -400,11 +400,11 @@ def digest_block(data):  # this function has become the transaction engine core 
                     db_public_key_readable = transaction[5]
                     db_openfield = transaction[6]
 
-                    print "sync this"
+                    #print "sync this"
                     #print block_timestamp
                     #print transaction_list
                     #print db_block_hash
-                    print (str((block_timestamp,transaction_list,db_block_hash)))
+                    #print (str((block_timestamp,transaction_list,db_block_hash)))
                     block_hash = hashlib.sha224(str((block_timestamp,transaction_list,db_block_hash))).hexdigest()  # calculate block_hash from the ledger #PROBLEM HEREEEEE
 
                     app_log.info("Mempool: tx sig not found in the local ledger, proceeding to check before insert")
@@ -522,7 +522,7 @@ def digest_block(data):  # this function has become the transaction engine core 
                 if block_valid == 1:
                     app_log.info("Block valid")
                     for transaction in block_transactions:
-                        print transaction
+                        #print transaction
                         c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (transaction[0],transaction[1],transaction[2],transaction[3],transaction[4],transaction[5],transaction[6],transaction[7],transaction[8],transaction[9],transaction[10],transaction[11]))
                         conn.commit()
                     conn.close()
@@ -537,7 +537,6 @@ def digest_block(data):  # this function has become the transaction engine core 
             except Exception, e:
                 app_log.info("Digesting complete")
                 if debug_conf == 1:
-                    print e
                     raise#debug
             busy = 0
             return
