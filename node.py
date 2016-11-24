@@ -497,8 +497,8 @@ def digest_block(data):  # this function has become the transaction engine core 
                 #whole block validation
                 if block_valid == 1:
                     app_log.info("Block valid")
-                    for transaction in transaction_list:
-                        c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (block_transactions[transaction][0],block_transactions[transaction][1],block_transactions[transaction][2],block_transactions[transaction][3],block_transactions[transaction][4],block_transactions[transaction][5],block_transactions[transaction][6],block_transactions[transaction][7],block_transactions[transaction][8],block_transactions[transaction][9],block_transactions[transaction][10],block_transactions[transaction][11]))
+                    for transaction in block_transactions:
+                        c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (transaction[0],transaction[1],transaction[2],transaction[3],transaction[4],transaction[5],transaction[6],transaction[7],transaction[8],transaction[9],transaction[10],transaction[11]))
                         conn.commit()
                         conn.close()
 
