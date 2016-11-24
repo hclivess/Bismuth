@@ -416,16 +416,36 @@ def digest_block(data):  # this function has become the transaction engine core 
                     conn.text_factory = str
                     c = conn.cursor()
 
+                    mempool = sqlite3.connect('mempool.db')
+                    mempool.text_factory = str
+                    m = mempool.cursor()
+
                     app_log.info("Mempool: Verifying balance")
                     app_log.info("Mempool: Received address: " + str(received_address))
+
+                    # include the new block
+                    block_credit = 0
+                    block_debit = 0
+                    for transaction in transaction_list:
+                        if transaction[2] == received_address:
+                            block_credit = float(block_credit) + float(transaction[3])
+                        if transaction[1] == received_address:
+                            block_debit = float(block_debit) + float(transaction[3])
+
+
+                    app_log.info("Mempool: Incoming block credit: "+str(block_credit))
+                    app_log.info("Mempool: Incoming block debit: "+str(block_debit))
+                    # include the new block
+
                     c.execute("SELECT sum(amount) FROM transactions WHERE recipient = '" + received_address + "'")
-                    credit = c.fetchone()[0]
+                    credit = float(c.fetchone()[0]) + float(block_credit)
                     c.execute("SELECT sum(amount) FROM transactions WHERE address = '" + received_address + "'")
-                    debit = c.fetchone()[0]
+                    debit = float(c.fetchone()[0]) + float(block_debit)
                     c.execute("SELECT sum(fee) FROM transactions WHERE address = '" + received_address + "'")
                     fees = c.fetchone()[0]
                     c.execute("SELECT sum(reward) FROM transactions WHERE address = '" + db_address + "'")
                     rewards = c.fetchone()[0]
+
                     if debit == None:
                         debit = 0
                     if fees == None:
@@ -482,9 +502,6 @@ def digest_block(data):  # this function has become the transaction engine core 
                         else:
                             app_log.info("Mempool: Difficulty requirement not satisfied: "+miner_address+" "+block_hash)
 
-                    mempool = sqlite3.connect('mempool.db')
-                    mempool.text_factory = str
-                    m = mempool.cursor()
                     try:
                         m.execute(
                             "DELETE FROM transactions WHERE signature = '" + db_signature + "';")  # delete tx from mempool now that it is in the ledger todo: reflect block validation
