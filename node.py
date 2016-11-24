@@ -507,6 +507,7 @@ def digest_block(data):  # this function has become the transaction engine core 
                                 block_transactions.append((block_height_new,db_timestamp,db_address,db_recipient,str(float(db_amount)),db_signature,db_public_key_readable,block_hash,fee,reward,str(0),db_openfield))
                         else:
                             app_log.info("Mempool: Difficulty requirement not satisfied: "+miner_address+" "+block_hash)
+                            block_valid = 0
 
                     try:
                         m.execute(
@@ -521,9 +522,10 @@ def digest_block(data):  # this function has become the transaction engine core 
                 if block_valid == 1:
                     app_log.info("Block valid")
                     for transaction in block_transactions:
+                        print transaction
                         c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (transaction[0],transaction[1],transaction[2],transaction[3],transaction[4],transaction[5],transaction[6],transaction[7],transaction[8],transaction[9],transaction[10],transaction[11]))
                         conn.commit()
-                        conn.close()
+                    conn.close()
 
 
                 else:
