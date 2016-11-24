@@ -491,15 +491,11 @@ def digest_block(data):  # this function has become the transaction engine core 
 
                     else:
                         if transaction == transaction_list[-1]:
-                            print transaction_list
-
                             reward = 25
-                            print reward
                             fee = 0
                         else:
                             reward = 0
-                            print transaction
-                            print reward
+
                           # dont request a fee for mined block so new accounts can mine
 
                         if miner_address[0:diff] == block_hash[0:diff]:  # simplified comparison, no backwards mining
