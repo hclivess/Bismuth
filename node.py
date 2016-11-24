@@ -491,7 +491,7 @@ def digest_block(data):  # this function has become the transaction engine core 
                         if miner_address[0:diff] == block_hash[0:diff]:  # simplified comparison, no backwards mining
                             app_log.info("Mempool: Difficulty requirement satisfied")
 
-                            if (float(balance))-(float(fee)+float(db_amount)) < 0:
+                            if (float(balance))-(float(fee)) < 0: #removed +float(db_amount) because it is a part of the incoming block
                                 app_log.info("Mempool: Cannot afford to pay fees")
                                 block_valid = 0
 
