@@ -390,8 +390,6 @@ def digest_block(data):  # this function has become the transaction engine core 
                 block_height_new = db_block_height + 1
 
                 for transaction in transaction_list:
-                    transaction_valid = 1
-
                     db_timestamp = transaction[0]
                     db_address = transaction[1]
                     db_recipient = transaction[2]
@@ -399,6 +397,10 @@ def digest_block(data):  # this function has become the transaction engine core 
                     db_signature = transaction[4]
                     db_public_key_readable = transaction[5]
                     db_openfield = transaction[6]
+
+
+
+
 
                     #print "sync this"
                     #print block_timestamp
@@ -426,11 +428,12 @@ def digest_block(data):  # this function has become the transaction engine core 
                     # include the new block
                     block_credit = 0
                     block_debit = 0
-                    for transaction in transaction_list:
-                        if transaction[2] == received_address:
-                            block_credit = float(block_credit) + float(transaction[3])
-                        if transaction[1] == received_address:
-                            block_debit = float(block_debit) + float(transaction[3])
+
+                    for x in transaction_list: #quite nasty, care not to overlap variables
+                        if x[2] == received_address:
+                            block_credit = float(block_credit) + float(x[3])
+                        if x[1] == received_address:
+                            block_debit = float(block_debit) + float(x[3])
 
 
                     app_log.info("Mempool: Incoming block credit: "+str(block_credit))
@@ -488,10 +491,15 @@ def digest_block(data):  # this function has become the transaction engine core 
 
                     else:
                         if transaction == transaction_list[-1]:
+                            print transaction_list
+
                             reward = 25
+                            print reward
                             fee = 0
                         else:
                             reward = 0
+                            print transaction
+                            print reward
                           # dont request a fee for mined block so new accounts can mine
 
                         if miner_address[0:diff] == block_hash[0:diff]:  # simplified comparison, no backwards mining
