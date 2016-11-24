@@ -38,6 +38,8 @@ for line in lines:
         debug_conf = line.strip('debug=')
     if "purge=" in line:
         purge_conf = line.strip('purge=')
+    if "timeout=" in line:
+        timeout_conf = line.strip('timeout=')
 
 # load config
 
@@ -341,7 +343,9 @@ def digest_block(data):  # this function has become the transaction engine core 
         busy = 1
         while True:
             try:
-                signature_valid = 0
+                block_valid = 1
+                block_transactions = []
+
                 conn = sqlite3.connect('ledger.db')
                 conn.text_factory = str
                 c = conn.cursor()
@@ -386,6 +390,8 @@ def digest_block(data):  # this function has become the transaction engine core 
                 block_height_new = db_block_height + 1
 
                 for transaction in transaction_list:
+                    transaction_valid = 1
+
                     db_timestamp = transaction[0]
                     db_address = transaction[1]
                     db_recipient = transaction[2]
@@ -448,7 +454,7 @@ def digest_block(data):  # this function has become the transaction engine core 
 
                     # decide reward
 
-                    diff = 3
+                    diff = 1
 
                     time_now = str(time.time())
                     if float(time_now) < float(db_timestamp):
@@ -466,13 +472,13 @@ def digest_block(data):  # this function has become the transaction engine core 
                             app_log.info("Mempool: Difficulty requirement satisfied")
 
                             if (float(balance))-(float(fee)+float(db_amount)) < 0:
-                                app_log.info("Mempool: Cannot afford to pay fees") #NEED TO MOVE THIS WHOLE TO MEMPOOL VALIDATION INSTEAD
+                                app_log.info("Mempool: Cannot afford to pay fees")
+                                block_valid = 0
 
                             else:
-                                c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (block_height_new,db_timestamp,db_address,db_recipient,str(float(db_amount)),db_signature,db_public_key_readable,block_hash,fee,reward,str(0),db_openfield))
-                                conn.commit()
-                            conn.close()
-
+                                #append, but do not insert to ledger before whole block is validated
+                                app_log.info("Mempool: Appending transaction back to block")
+                                block_transactions.append((block_height_new,db_timestamp,db_address,db_recipient,str(float(db_amount)),db_signature,db_public_key_readable,block_hash,fee,reward,str(0),db_openfield))
                         else:
                             app_log.info("Mempool: Difficulty requirement not satisfied: "+miner_address+" "+block_hash)
 
@@ -481,16 +487,32 @@ def digest_block(data):  # this function has become the transaction engine core 
                     m = mempool.cursor()
                     try:
                         m.execute(
-                            "DELETE FROM transactions WHERE signature = '" + db_signature + "';")  # delete tx from mempool now that it is in the ledger or if it was a double spend
+                            "DELETE FROM transactions WHERE signature = '" + db_signature + "';")  # delete tx from mempool now that it is in the ledger todo: reflect block validation
                         mempool.commit()
                     except:
                         #tx was not in the local mempool
                         pass
                     mempool.close()
 
-            except:
+                #whole block validation
+                if block_valid == 1:
+                    app_log.info("Block valid")
+                    for transaction in transaction_list:
+                        c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (block_transactions[transaction][0],block_transactions[transaction][1],block_transactions[transaction][2],block_transactions[transaction][3],block_transactions[transaction][4],block_transactions[transaction][5],block_transactions[transaction][6],block_transactions[transaction][7],block_transactions[transaction][8],block_transactions[transaction][9],block_transactions[transaction][10],block_transactions[transaction][11]))
+                        conn.commit()
+                        conn.close()
+
+
+                else:
+                    app_log.info("A part of the block is invalid, rejected")
+
+                # whole block validation
+
+
+            except Exception, e:
                 app_log.info("Digesting complete")
                 if debug_conf == 1:
+                    print e
                     raise#debug
             busy = 0
             return
@@ -885,7 +907,7 @@ def worker(HOST, PORT):
             this_client = (HOST + ":" + str(PORT))
             this_client_ip = HOST
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            #s.settimeout(25)
+            s.settimeout(int(timeout_conf))
             s.connect((HOST, PORT))
             app_log.info("Client: Connected to " + str(HOST) + " " + str(PORT))
             connected = 1

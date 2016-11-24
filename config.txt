@@ -7,3 +7,4 @@ mining_ip=127.0.0.1
 rebuild_db=1
 debug=1
 purge=0
+timeout=1
