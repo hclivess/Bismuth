@@ -462,7 +462,7 @@ def digest_block(data):  # this function has become the transaction engine core 
                     app_log.info("Digest: Total credit: " + str(credit))
                     app_log.info("Digest: Total debit: " + str(debit))
                     balance = float(credit) - float(debit) - float(fees) + float(rewards)
-                    app_log.info("Digest: Transction address balance: " + str(balance))
+                    app_log.info("Digest: Projected transction address balance: " + str(balance))
 
                     db_block_50 = int(db_block_height) - 50
                     try:
