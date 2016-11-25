@@ -184,7 +184,7 @@ def sign():
 
     Label(top, text="Public Key:", width=20).grid(row=2, pady=0)
     public_key_gui = Text(top, height=10)
-    public_key_gui.insert(INSERT, public_key_hashed)
+    public_key_gui.insert(INSERT, public_key_readable)
     public_key_gui.grid(row=3, column=0, sticky=N+E, padx=15, pady=(0, 0))
 
     Label(top, text="Signature:", width=20).grid(row=4, pady=0)
