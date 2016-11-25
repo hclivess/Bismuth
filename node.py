@@ -398,10 +398,6 @@ def digest_block(data):  # this function has become the transaction engine core 
                     db_public_key_readable = transaction[5]
                     db_openfield = transaction[6]
 
-
-
-
-
                     #print "sync this"
                     #print block_timestamp
                     #print transaction_list
@@ -423,36 +419,36 @@ def digest_block(data):  # this function has become the transaction engine core 
                     m = mempool.cursor()
 
                     app_log.info("Mempool: Verifying balance")
-                    app_log.info("Mempool: Received address: " + str(received_address))
+                    app_log.info("Mempool: Received address: " + str(db_address))
 
                     # include the new block
                     block_credit = 0
-                    block_debit = 0
+                    credit_block = 0
 
                     for x in transaction_list: #quite nasty, care not to overlap variables
-                        if x[2] == received_address:
+                        if x[2] == db_address:
                             block_credit = float(block_credit) + float(x[3])
-                        if x[1] == received_address:
-                            block_debit = float(block_debit) + float(x[3])
+                        if x[1] == db_address:
+                            credit_block = float(credit_block) + float(x[3])
 
 
                     app_log.info("Mempool: Incoming block credit: "+str(block_credit))
-                    app_log.info("Mempool: Incoming block debit: "+str(block_debit))
+                    app_log.info("Mempool: Incoming block debit: "+str(credit_block))
                     # include the new block
 
-                    c.execute("SELECT sum(amount) FROM transactions WHERE recipient = '" + received_address + "'")
+                    c.execute("SELECT sum(amount) FROM transactions WHERE recipient = '" + db_address + "'")
                     credit_ledger = c.fetchone()[0]
                     if credit_ledger == None:
                         credit_ledger = 0
                     credit = float(credit_ledger) + float(block_credit)
 
-                    c.execute("SELECT sum(amount) FROM transactions WHERE address = '" + received_address + "'")
+                    c.execute("SELECT sum(amount) FROM transactions WHERE address = '" + db_address + "'")
                     debit_ledger = c.fetchone()[0]
                     if debit_ledger == None:
                         debit_ledger = 0
-                    debit = float(debit_ledger) + float(block_debit)
+                    debit = float(debit_ledger) + float(credit_block)
 
-                    c.execute("SELECT sum(fee) FROM transactions WHERE address = '" + received_address + "'")
+                    c.execute("SELECT sum(fee) FROM transactions WHERE address = '" + db_address + "'")
                     fees = c.fetchone()[0]
                     c.execute("SELECT sum(reward) FROM transactions WHERE address = '" + db_address + "'")
                     rewards = c.fetchone()[0]
