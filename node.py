@@ -560,6 +560,7 @@ def digest_block(data):  # this function has become the transaction engine core 
                     time_now = str(time.time())
                     if float(time_now) < float(db_timestamp):
                         app_log.info("Digest: Future mining not allowed")
+                        block_valid = 0
 
                     else:
                         if transaction == transaction_list[-1]:
