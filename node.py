@@ -110,10 +110,86 @@ def merge_mempool(data):
             app_log.info("That transaction is already in our mempool")
 
         except:
-            m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?)", (mempool_timestamp,mempool_address,mempool_recipient,str(float(mempool_amount)),mempool_signature_enc,mempool_public_key_readable,mempool_openfield))
-            app_log.info("Node: Mempool updated with a received transaction")
-            mempool.commit()  # Save (commit) the changes
-            mempool.close()
+            # verify signatures and balances
+            # verify balance
+            conn = sqlite3.connect('ledger.db')
+            conn.text_factory = str
+            c = conn.cursor()
+
+            app_log.info("Mempool: Verifying balance")
+            app_log.info("Mempool: Received address: " + str(mempool_address))
+
+            # include the new block
+            block_credit = 0
+            credit_block = 0
+
+            for x in transaction_list:  # quite nasty, care not to overlap variables
+                if x[2] == mempool_address:
+                    block_credit = float(block_credit) + float(x[3])
+                if x[1] == mempool_address:
+                    credit_block = float(credit_block) + float(x[3])
+
+            app_log.info("Mempool: Incoming block credit: " + str(block_credit))
+            app_log.info("Mempool: Incoming block debit: " + str(credit_block))
+            # include the new block
+
+            c.execute("SELECT sum(amount) FROM transactions WHERE recipient = '" + mempool_address + "'")
+            credit_ledger = c.fetchone()[0]
+            if credit_ledger == None:
+                credit_ledger = 0
+            credit = float(credit_ledger) + float(block_credit)
+
+            c.execute("SELECT sum(amount) FROM transactions WHERE address = '" + mempool_address + "'")
+            debit_ledger = c.fetchone()[0]
+            if debit_ledger == None:
+                debit_ledger = 0
+            debit = float(debit_ledger) + float(credit_block)
+
+            c.execute("SELECT sum(fee) FROM transactions WHERE address = '" + mempool_address + "'")
+            fees = c.fetchone()[0]
+            c.execute("SELECT sum(reward) FROM transactions WHERE address = '" + mempool_address + "'")
+            rewards = c.fetchone()[0]
+
+            if fees == None:
+                fees = 0
+            if rewards == None:
+                rewards = 0
+
+            app_log.info("Mempool: Total credit: " + str(credit))
+            app_log.info("Mempool: Total debit: " + str(debit))
+            balance = float(credit) - float(debit) - float(fees) + float(rewards)
+            app_log.info("Mempool: Projected transction address balance: " + str(balance))
+
+            c.execute('SELECT max(block_height) FROM transactions')
+            db_block_height = c.fetchone()[0]
+
+            db_block_50 = int(db_block_height) - 50 #warning: this is not precise, real fee will be known only once mined
+            try:
+                c.execute("SELECT timestamp FROM transactions WHERE block_height ='" + str(db_block_50) + "';")
+                ledger_timestamp_50 = c.fetchone()[0]
+                conn.close()
+
+                fee = abs(1000 / (float(mempool_timestamp) - float(ledger_timestamp_50)))
+                app_log.info("Fee: " + str(fee))
+
+            except Exception as e:
+                fee = 1  # presumably there are less than 50 txs
+                app_log.info("Mempool: Fee error: " + str(e))
+                # raise #debug
+            # calculate fee
+
+            time_now = str(time.time())
+            if float(time_now) < float(mempool_timestamp):
+                app_log.info("Mempool: Future mining not allowed")
+
+            elif (float(balance)) - (float(fee)) < 0:  # removed +float(db_amount) because it is a part of the incoming block
+                    app_log.info("Mempool: Cannot afford to pay fees")
+            # verify signatures and balances
+            else:
+                m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?)", (mempool_timestamp,mempool_address,mempool_recipient,str(float(mempool_amount)),mempool_signature_enc,mempool_public_key_readable,mempool_openfield))
+                app_log.info("Node: Mempool updated with a received transaction")
+                mempool.commit()  # Save (commit) the changes
+                mempool.close()
 
 
             # merge mempool
