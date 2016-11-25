@@ -405,7 +405,7 @@ def digest_block(data):  # this function has become the transaction engine core 
                     #print (str((block_timestamp,transaction_list,db_block_hash)))
                     block_hash = hashlib.sha224(str((block_timestamp,transaction_list,db_block_hash))).hexdigest()  # calculate block_hash from the ledger #PROBLEM HEREEEEE
 
-                    app_log.info("Mempool: tx sig not found in the local ledger, proceeding to check before insert")
+                    app_log.info("Digest: tx sig not found in the local ledger, proceeding to check before insert")
                     # if not in ledger
                     # calculate block height from the ledger
 
@@ -418,8 +418,8 @@ def digest_block(data):  # this function has become the transaction engine core 
                     mempool.text_factory = str
                     m = mempool.cursor()
 
-                    app_log.info("Mempool: Verifying balance")
-                    app_log.info("Mempool: Received address: " + str(db_address))
+                    app_log.info("Digest: Verifying balance")
+                    app_log.info("Digest: Received address: " + str(db_address))
 
                     # include the new block
                     block_credit = 0
@@ -432,8 +432,8 @@ def digest_block(data):  # this function has become the transaction engine core 
                             credit_block = float(credit_block) + float(x[3])
 
 
-                    app_log.info("Mempool: Incoming block credit: "+str(block_credit))
-                    app_log.info("Mempool: Incoming block debit: "+str(credit_block))
+                    app_log.info("Digest: Incoming block credit: "+str(block_credit))
+                    app_log.info("Digest: Incoming block debit: "+str(credit_block))
                     # include the new block
 
                     c.execute("SELECT sum(amount) FROM transactions WHERE recipient = '" + db_address + "'")
@@ -459,10 +459,10 @@ def digest_block(data):  # this function has become the transaction engine core 
                     if rewards == None:
                         rewards = 0
 
-                    app_log.info("Mempool: Total credit: " + str(credit))
-                    app_log.info("Mempool: Total debit: " + str(debit))
+                    app_log.info("Digest: Total credit: " + str(credit))
+                    app_log.info("Digest: Total debit: " + str(debit))
                     balance = float(credit) - float(debit) - float(fees) + float(rewards)
-                    app_log.info("Mempool: Transction address balance: " + str(balance))
+                    app_log.info("Digest: Transction address balance: " + str(balance))
 
                     db_block_50 = int(db_block_height) - 50
                     try:
@@ -483,7 +483,7 @@ def digest_block(data):  # this function has become the transaction engine core 
 
                     time_now = str(time.time())
                     if float(time_now) < float(db_timestamp):
-                        app_log.info("Mempool: Future mining not allowed")
+                        app_log.info("Digest: Future mining not allowed")
 
                     else:
                         if transaction == transaction_list[-1]:
@@ -495,21 +495,22 @@ def digest_block(data):  # this function has become the transaction engine core 
                           # dont request a fee for mined block so new accounts can mine
 
                         if miner_address[0:diff] == block_hash[0:diff]:  # simplified comparison, no backwards mining
-                            app_log.info("Mempool: Difficulty requirement satisfied")
+                            app_log.info("Digest: Difficulty requirement satisfied")
 
                             if (float(balance))-(float(fee)) < 0: #removed +float(db_amount) because it is a part of the incoming block
-                                app_log.info("Mempool: Cannot afford to pay fees")
+                                app_log.info("Digest: Cannot afford to pay fees")
                                 block_valid = 0
 
                             else:
                                 #append, but do not insert to ledger before whole block is validated
-                                app_log.info("Mempool: Appending transaction back to block")
+                                app_log.info("Digest: Appending transaction back to block")
                                 block_transactions.append((block_height_new,db_timestamp,db_address,db_recipient,str(float(db_amount)),db_signature,db_public_key_readable,block_hash,fee,reward,str(0),db_openfield))
                         else:
-                            app_log.info("Mempool: Difficulty requirement not satisfied: "+miner_address+" "+block_hash)
+                            app_log.info("Digest: Difficulty requirement not satisfied: "+miner_address+" "+block_hash)
                             block_valid = 0
 
                     try:
+                        app_log.info("Digest: Removing processed transaction from the mempool")
                         m.execute(
                             "DELETE FROM transactions WHERE signature = '" + db_signature + "';")  # delete tx from mempool now that it is in the ledger todo: reflect block validation
                         mempool.commit()
