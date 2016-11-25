@@ -52,6 +52,7 @@ key = RSA.importKey(open('privkey.der').read())
 public_key = key.publickey()
 private_key_readable = str(key.exportKey())
 public_key_readable = str(key.publickey().exportKey())
+public_key_hashed = base64.b64encode(public_key_readable)
 address = hashlib.sha224(public_key_readable).hexdigest()
 
 def send():
@@ -85,7 +86,7 @@ def send():
             mempool = sqlite3.connect('mempool.db')
             mempool.text_factory = str
             m = mempool.cursor()
-            m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?)",(timestamp, address, recipient_input, str(float(amount_input)),signature_enc, public_key_readable, openfield_input))
+            m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?)",(timestamp, address, recipient_input, str(float(amount_input)),signature_enc, public_key_hashed, openfield_input))
             mempool.commit()  # Save (commit) the changes
             mempool.close()
             app_log.info("Client: Mempool updated with a received transaction")
@@ -183,7 +184,7 @@ def sign():
 
     Label(top, text="Public Key:", width=20).grid(row=2, pady=0)
     public_key_gui = Text(top, height=10)
-    public_key_gui.insert(INSERT, public_key_readable)
+    public_key_gui.insert(INSERT, public_key_hashed)
     public_key_gui.grid(row=3, column=0, sticky=N+E, padx=15, pady=(0, 0))
 
     Label(top, text="Signature:", width=20).grid(row=4, pady=0)

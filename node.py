@@ -96,7 +96,7 @@ def merge_mempool(data):
         mempool_recipient = transaction[2]
         mempool_amount = transaction[3]
         mempool_signature_enc = transaction[4]
-        mempool_public_key_readable = transaction[5]
+        mempool_public_key_hashed = transaction[5]
         mempool_openfield = transaction[6]
 
         mempool = sqlite3.connect('mempool.db')
@@ -186,7 +186,7 @@ def merge_mempool(data):
                     app_log.info("Mempool: Cannot afford to pay fees")
             # verify signatures and balances
             else:
-                m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?)", (mempool_timestamp,mempool_address,mempool_recipient,str(float(mempool_amount)),mempool_signature_enc,mempool_public_key_readable,mempool_openfield))
+                m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?)", (mempool_timestamp,mempool_address,mempool_recipient,str(float(mempool_amount)),mempool_signature_enc,mempool_public_key_hashed,mempool_openfield))
                 app_log.info("Node: Mempool updated with a received transaction")
                 mempool.commit()  # Save (commit) the changes
                 mempool.close()
@@ -234,8 +234,8 @@ def verify():
             db_recipient = row[3]
             db_amount = row[4]
             db_signature_enc = row[5]
-            db_public_key_readable = row[6]
-            db_public_key = RSA.importKey(db_public_key_readable)
+            db_public_key_hashed = row[6]
+            db_public_key = RSA.importKey(base64.b64decode(db_public_key_hashed))
             db_openfield = row[11]
 
             db_transaction = (db_timestamp,db_address,db_recipient,str(float(db_amount)),db_openfield)
@@ -284,7 +284,7 @@ def blocknotfound(block_hash_delete):
             #db_recipient = results[3]
             #db_amount = results[4]
             #db_signature = results[5]
-            #db_public_key_readable = results[6]
+            #db_public_key_hashed = results[6]
             db_block_hash = results[7]
             db_confirmations = results[10]
 
@@ -439,10 +439,10 @@ def digest_block(data):  # this function has become the transaction engine core 
                     received_recipient = transaction[2]
                     received_amount = str(float(transaction[3]))
                     received_signature_enc = transaction[4]
-                    received_public_key_readable = transaction[5]
+                    received_public_key_hashed = transaction[5]
                     received_openfield = transaction[6]
 
-                    received_public_key = RSA.importKey(received_public_key_readable) #convert readable key to instance
+                    received_public_key = RSA.importKey(base64.b64decode(received_public_key_hashed)) #convert readable key to instance
                     received_signature_dec = base64.b64decode(received_signature_enc)
                     verifier = PKCS1_v1_5.new(received_public_key)
 
@@ -471,7 +471,7 @@ def digest_block(data):  # this function has become the transaction engine core 
                     db_recipient = transaction[2]
                     db_amount = transaction[3]
                     db_signature = transaction[4]
-                    db_public_key_readable = transaction[5]
+                    db_public_key_hashed = transaction[5]
                     db_openfield = transaction[6]
 
                     #print "sync this"
@@ -580,7 +580,7 @@ def digest_block(data):  # this function has become the transaction engine core 
                             else:
                                 #append, but do not insert to ledger before whole block is validated
                                 app_log.info("Digest: Appending transaction back to block")
-                                block_transactions.append((block_height_new,db_timestamp,db_address,db_recipient,str(float(db_amount)),db_signature,db_public_key_readable,block_hash,fee,reward,str(0),db_openfield))
+                                block_transactions.append((block_height_new,db_timestamp,db_address,db_recipient,str(float(db_amount)),db_signature,db_public_key_hashed,block_hash,fee,reward,str(0),db_openfield))
                         else:
                             app_log.info("Digest: Difficulty requirement not satisfied: "+miner_address+" "+block_hash)
                             block_valid = 0
@@ -640,20 +640,20 @@ else:
     public_key = key.publickey()
 
     private_key_readable = str(key.exportKey())
-    public_key_readable = str(key.publickey().exportKey())
-    address = hashlib.sha224(public_key_readable).hexdigest()  # hashed public key
+    public_key_hashed = str(key.publickey().exportKey())
+    address = hashlib.sha224(public_key_hashed).hexdigest()  # hashed public key
     # generate key pair and an address
 
     app_log.info("Client: Your address: " + str(address))
     app_log.info("Client: Your private key: " + str(private_key_readable))
-    app_log.info("Client: Your public key: " + str(public_key_readable))
+    app_log.info("Client: Your public key: " + str(public_key_hashed))
 
     pem_file = open("privkey.der", 'a')
     pem_file.write(str(private_key_readable))
     pem_file.close()
 
     pem_file = open("pubkey.der", 'a')
-    pem_file.write(str(public_key_readable))
+    pem_file.write(str(public_key_hashed))
     pem_file.close()
 
     address_file = open("address.txt", 'a')
@@ -663,8 +663,8 @@ else:
 # import keys
 key = RSA.importKey(open('privkey.der').read())
 private_key_readable = str(key.exportKey())
-public_key_readable = str(key.publickey().exportKey())
-address = hashlib.sha224(public_key_readable).hexdigest()
+public_key_hashed = str(key.publickey().exportKey())
+address = hashlib.sha224(public_key_hashed).hexdigest()
 
 app_log.info("Client: Local address: " + str(address))
 

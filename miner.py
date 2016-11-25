@@ -25,6 +25,7 @@ for line in lines:
 key = RSA.importKey(open('privkey.der').read())
 private_key_readable = str(key.exportKey())
 public_key_readable = str(key.publickey().exportKey())
+public_key_hashed = base64.b64encode(public_key_readable)
 address = hashlib.sha224(public_key_readable).hexdigest()
 #import keys
 
@@ -105,7 +106,7 @@ while True:
                 signature = signer.sign(h)
                 signature_enc = base64.b64encode(signature)
 
-                transactions.append((block_timestamp,address,address,str(float(0)),signature_enc,public_key_readable,"reward"))
+                transactions.append((block_timestamp,address,address,str(float(0)),signature_enc,public_key_hashed,"reward"))
                 # claim reward
 
                 #print "sync this"
