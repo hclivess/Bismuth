@@ -48,6 +48,12 @@ version = version_conf
 def most_common(lst):
     return max(set(lst), key=lst.count)
 
+def split2len(s, n):
+    def _f(s, n):
+        while s:
+            yield s[:n]
+            s = s[n:]
+    return list(_f(s, n))
 
 gc.enable()
 
@@ -738,14 +744,23 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     else:
                         try:
                             busy = 1
-                            #receive theirs
+                            # receive theirs
+                            segments = ""
                             data = self.request.recv(10)
-                            app_log.info("Node: Mempool length to receive: " + data)
-                            mempool_len = int(data)
-                            data = self.request.recv(mempool_len)
-                            app_log.info("Node: " + data)
-                            merge_mempool(data)
-                            #receive theirs
+                            app_log.info("Node: Number of incoming segments: " + data)  # how many segments to receive
+                            mempool_count = int(data)
+                            while int(mempool_count) > 0:  # while there are segments to receive
+                                mempool_count = int(mempool_count) - 1
+
+                                segment_length = self.request.recv(10)  # identify segment length
+                                app_log.info("Node: Segment length: " + segment_length)
+                                segment = self.request.recv(int(segment_length))
+                                app_log.info("Node: Received segment: " + segment)
+                                segments = segments + str(segment)
+
+                            app_log.info("Node: Combined segments: " + segments)
+                            merge_mempool(segments)
+                            # receive theirs
 
                             mempool = sqlite3.connect('mempool.db')
                             mempool.text_factory = str
@@ -1278,16 +1293,34 @@ def worker(HOST, PORT):
                     app_log.info(
                         "Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
 
-                    mempool_len = len(str(mempool_txs))
-                    while len(str(mempool_len)) != 10:
-                        mempool_len = "0" + str(mempool_len)
-                    app_log.info("Announcing " + str(mempool_len) + " length of mempool")
-                    s.sendall(str(mempool_len))
+                    # send own
+                    mempool_split = split2len(str(mempool_txs), 500) #mempool txs must be converted to string
+                    mempool_count = len(mempool_split)  # how many segments of 500 will be sent
+                    while len(str(mempool_count)) != 10:
+                        mempool_count = "0" + str(mempool_count)  # number must be 10 long
+                    s.sendall(str(mempool_count))  # send how many segments will be transferred
                     time.sleep(0.1)
+                    #print (str(mempool_count))
 
-                    s.sendall(str(mempool_txs))
-                    time.sleep(0.1)
-                    #send own
+                    mempool_index = -1
+                    while int(mempool_count) > 0:
+                        mempool_count = int(mempool_count) - 1
+                        mempool_index = mempool_index + 1
+
+                        segment_length = len(mempool_split[mempool_index])
+                        while len(str(segment_length)) != 10:
+                            segment_length = "0" + str(segment_length)
+                        s.sendall(segment_length)  # send how much they should receive, usually 500, except the last segment
+                        app_log.info("Client: Segment length: "+str(segment_length))
+                        time.sleep(0.1)
+                        app_log.info("Client: Segment to dispatch: " +str(mempool_split[mempool_index]))  # send segment !!!!!!!!!
+                        s.sendall(mempool_split[mempool_index])  # send segment
+                        time.sleep(0.1)
+                    # send own
+
+
+
+
 
 
                     time.sleep(0.1)
