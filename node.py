@@ -743,6 +743,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     global busy
                     while busy == 1:
                         app_log.info("Waiting for pool to become available")
+                        time.sleep(1)
                     else:
                         try:
                             busy = 1
