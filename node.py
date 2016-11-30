@@ -784,17 +784,38 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             mempool.close()
                             #remove transactions which are already in the ledger
 
+
+
+
+                            #send own
                             app_log.info("Extracted from the mempool: "+str(mempool_txs)) #improve: sync based on signatures only
 
-                            mempool_len = len(str(mempool_txs))
-                            while len(str(mempool_len)) != 10:
-                                mempool_len = "0" + str(mempool_len)
-                            app_log.info("Announcing " + str(mempool_len) + " length of mempool")
-                            self.request.sendall(str(mempool_len))
+                            mempool_split = split2len(str(mempool_txs), 1000)  # mempool txs must be converted to string
+                            mempool_count = len(mempool_split)  # how many segments of 500 will be sent
+                            while len(str(mempool_count)) != 10:
+                                mempool_count = "0" + str(mempool_count)  # number must be 10 long
+                            s.sendall(str(mempool_count))  # send how many segments will be transferred
                             time.sleep(0.1)
+                            # print (str(mempool_count))
 
-                            self.request.sendall(str(mempool_txs))
-                            time.sleep(0.1)
+                            mempool_index = -1
+                            while int(mempool_count) > 0:
+                                mempool_count = int(mempool_count) - 1
+                                mempool_index = mempool_index + 1
+
+                                segment_length = len(mempool_split[mempool_index])
+                                while len(str(segment_length)) != 10:
+                                    segment_length = "0" + str(segment_length)
+                                s.sendall(
+                                    segment_length)  # send how much they should receive, usually 500, except the last segment
+                                app_log.info("Client: Segment length: " + str(segment_length))
+                                time.sleep(0.1)
+                                app_log.info("Client: Segment to dispatch: " + str(
+                                    mempool_split[mempool_index]))  # send segment !!!!!!!!!
+                                s.sendall(mempool_split[mempool_index])  # send segment
+                                time.sleep(0.1)
+                            #send own
+
                         except:
                             pass
                         busy = 0
@@ -1264,7 +1285,7 @@ def worker(HOST, PORT):
                     # sand and receive mempool
                     s.sendall("mempool____")
 
-                    #send own
+
                     mempool = sqlite3.connect('mempool.db')
                     mempool.text_factory = str
                     m = mempool.cursor()
@@ -1294,7 +1315,7 @@ def worker(HOST, PORT):
                         "Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
 
                     # send own
-                    mempool_split = split2len(str(mempool_txs), 500) #mempool txs must be converted to string
+                    mempool_split = split2len(str(mempool_txs), 1000) #mempool txs must be converted to string
                     mempool_count = len(mempool_split)  # how many segments of 500 will be sent
                     while len(str(mempool_count)) != 10:
                         mempool_count = "0" + str(mempool_count)  # number must be 10 long
@@ -1323,13 +1344,31 @@ def worker(HOST, PORT):
 
 
 
-                    time.sleep(0.1)
+
+                    # receive theirs
+                    segments = ""
                     data = s.recv(10)
-                    app_log.info("Client: Mempool length to receive: " + data)
-                    mempool_len = int(data)
-                    data = s.recv(mempool_len)
-                    app_log.info("Client: " + data)
-                    merge_mempool(data)
+                    app_log.info("Node: Number of incoming segments: " + data)  # how many segments to receive
+                    mempool_count = int(data)
+                    while int(mempool_count) > 0:  # while there are segments to receive
+                        mempool_count = int(mempool_count) - 1
+
+                        segment_length = s.recv(10)  # identify segment length
+                        app_log.info("Node: Segment length: " + segment_length)
+                        segment = s.recv(int(segment_length))
+                        app_log.info("Node: Received segment: " + segment)
+                        segments = segments + str(segment)
+
+                    app_log.info("Node: Combined segments: " + segments)
+                    merge_mempool(segments)
+                    # receive theirs
+
+
+
+
+
+
+
                     # receive mempool
 
                     app_log.info("Client: We seem to be at the latest block. Paused before recheck")
