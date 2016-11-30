@@ -794,7 +794,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             mempool_count = len(mempool_split)  # how many segments of 500 will be sent
                             while len(str(mempool_count)) != 10:
                                 mempool_count = "0" + str(mempool_count)  # number must be 10 long
-                            s.sendall(str(mempool_count))  # send how many segments will be transferred
+                            self.request.sendall(str(mempool_count))  # send how many segments will be transferred
                             time.sleep(0.1)
                             # print (str(mempool_count))
 
@@ -806,13 +806,13 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                 segment_length = len(mempool_split[mempool_index])
                                 while len(str(segment_length)) != 10:
                                     segment_length = "0" + str(segment_length)
-                                s.sendall(
+                                self.request.sendall(
                                     segment_length)  # send how much they should receive, usually 500, except the last segment
                                 app_log.info("Client: Segment length: " + str(segment_length))
                                 time.sleep(0.1)
                                 app_log.info("Client: Segment to dispatch: " + str(
                                     mempool_split[mempool_index]))  # send segment !!!!!!!!!
-                                s.sendall(mempool_split[mempool_index])  # send segment
+                                self.request.sendall(mempool_split[mempool_index])  # send segment
                                 time.sleep(0.1)
                             #send own
 
