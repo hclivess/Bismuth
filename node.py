@@ -272,8 +272,9 @@ def verify():
 
 def blocknotfound(block_hash_delete):
     global busy
-    if busy == 1:
-        app_log.info("Skipping")
+    while busy == 1:
+        app_log.info("Waiting for pool to become available")
+        time.sleep(1)
     else:
         try:
             busy = 1
@@ -740,8 +741,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                 if data == 'mempool____':
                     global busy
-                    if busy == 1:
-                        app_log.info("Skipping")
+                    while busy == 1:
+                        app_log.info("Waiting for pool to become available")
                     else:
                         try:
                             busy = 1
