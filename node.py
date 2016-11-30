@@ -732,48 +732,57 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         time.sleep(0.1)
 
                 if data == 'mempool____':
-                    #receive theirs
-                    data = self.request.recv(10)
-                    app_log.info("Node: Mempool length to receive: " + data)
-                    mempool_len = int(data)
-                    data = self.request.recv(mempool_len)
-                    app_log.info("Node: " + data)
-                    merge_mempool(data)
-                    #receive theirs
-
-                    mempool = sqlite3.connect('mempool.db')
-                    mempool.text_factory = str
-                    m = mempool.cursor()
-                    m.execute('SELECT * FROM transactions')
-                    mempool_txs = m.fetchall()
-
-                    #remove transactions which are already in the ledger
-                    conn = sqlite3.connect('ledger.db')
-                    conn.text_factory = str
-                    c = conn.cursor()
-                    for transaction in mempool_txs:
+                    global busy
+                    if busy == 1:
+                        app_log.info("Skipping")
+                    else:
                         try:
-                            c.execute("SELECT signature FROM transactions WHERE signature = '" + transaction[4] + "';")  # try and select the mempool tx in ledger
-                            ledger_sig = c.fetchall()[0][0]
-                            m.execute("DELETE FROM transactions WHERE signature = '" + ledger_sig + "';") #and delete it
-                            app_log.info("A transaction has been deleted from mempool because it already is in the ledger")
+                            busy = 1
+                            #receive theirs
+                            data = self.request.recv(10)
+                            app_log.info("Node: Mempool length to receive: " + data)
+                            mempool_len = int(data)
+                            data = self.request.recv(mempool_len)
+                            app_log.info("Node: " + data)
+                            merge_mempool(data)
+                            #receive theirs
+
+                            mempool = sqlite3.connect('mempool.db')
+                            mempool.text_factory = str
+                            m = mempool.cursor()
+                            m.execute('SELECT * FROM transactions')
+                            mempool_txs = m.fetchall()
+
+                            #remove transactions which are already in the ledger
+                            conn = sqlite3.connect('ledger.db')
+                            conn.text_factory = str
+                            c = conn.cursor()
+                            for transaction in mempool_txs:
+                                try:
+                                    c.execute("SELECT signature FROM transactions WHERE signature = '" + transaction[4] + "';")  # try and select the mempool tx in ledger
+                                    ledger_sig = c.fetchall()[0][0]
+                                    m.execute("DELETE FROM transactions WHERE signature = '" + ledger_sig + "';") #and delete it
+                                    app_log.info("A transaction has been deleted from mempool because it already is in the ledger")
+                                except:
+                                    pass
+                            conn.close()
+                            mempool.close()
+                            #remove transactions which are already in the ledger
+
+                            app_log.info("Extracted from the mempool: "+str(mempool_txs)) #improve: sync based on signatures only
+
+                            mempool_len = len(str(mempool_txs))
+                            while len(str(mempool_len)) != 10:
+                                mempool_len = "0" + str(mempool_len)
+                            app_log.info("Announcing " + str(mempool_len) + " length of mempool")
+                            self.request.sendall(str(mempool_len))
+                            time.sleep(0.1)
+
+                            self.request.sendall(str(mempool_txs))
+                            time.sleep(0.1)
                         except:
                             pass
-                    conn.close()
-                    mempool.close()
-                    #remove transactions which are already in the ledger
-
-                    app_log.info("Extracted from the mempool: "+str(mempool_txs)) #improve: sync based on signatures only
-
-                    mempool_len = len(str(mempool_txs))
-                    while len(str(mempool_len)) != 10:
-                        mempool_len = "0" + str(mempool_len)
-                    app_log.info("Announcing " + str(mempool_len) + " length of mempool")
-                    self.request.sendall(str(mempool_len))
-                    time.sleep(0.1)
-
-                    self.request.sendall(str(mempool_txs))
-                    time.sleep(0.1)
+                        busy = 0
 
                 if data == 'helloserver':
                     with open("peers.txt", "r") as peer_list:
