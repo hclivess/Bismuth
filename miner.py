@@ -50,6 +50,13 @@ block_timestamp = 0 #init
 tries = 0
 inform = 1
 
+def split2len(s, n):
+    def _f(s, n):
+        while s:
+            yield s[:n]
+            s = s[n:]
+    return list(_f(s, n))
+
 app_log.info("Mining will start once there are transactions in the mempool")
 while True:
     mempool = sqlite3.connect("mempool.db")
@@ -136,16 +143,48 @@ while True:
                     time.sleep(0.1)
                     #print block_send
 
-                    # announce length
-                    block_len = len(str(transactions))
-                    while len(str(block_len)) != 10:
-                        block_len = "0" + str(block_len)
-                    app_log.info("Miner: Announcing " + str(block_len) + " length of block")
-                    s.sendall(str(block_len))
-                    time.sleep(0.1)
-                    # announce length
 
-                    s.sendall(str(transactions))
+                    # send own
+                    miner_split = split2len(str(transactions), 1024)  # ledger txs must be converted to string
+                    miner_count = len(miner_split)  # how many segments of 500 will be sent
+                    while len(str(miner_count)) != 10:
+                        miner_count = "0" + str(miner_count)  # number must be 10 long
+                    s.sendall(str(miner_count))  # send how many segments will be transferred
+                    time.sleep(0.1)
+                    # print (str(miner_count))
+
+                    miner_index = -1
+                    while int(miner_count) > 0:
+                        miner_count = int(miner_count) - 1
+                        miner_index = miner_index + 1
+
+                        segment_length = len(miner_split[miner_index])
+                        while len(str(segment_length)) != 10:
+                            segment_length = "0" + str(segment_length)
+                        s.sendall(
+                            segment_length)  # send how much they should receive, usually 500, except the last segment
+                        app_log.info("Client: Segment length: " + str(segment_length))
+                        time.sleep(0.1)
+                        app_log.info(
+                            "Client: Segment to dispatch: " + str(miner_split[miner_index]))  # send segment !!!!!!!!!
+                        s.sendall(miner_split[miner_index])  # send segment
+                        time.sleep(0.1)
+                    # send own
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     time.sleep(0.1)
                     s.close()
 

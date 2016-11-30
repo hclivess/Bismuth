@@ -419,8 +419,9 @@ def manager():
 
 def digest_block(data):  # this function has become the transaction engine core over time, rudimentary naming
     global busy
-    if busy == 1:
-        app_log.info("Skipping")
+    while busy == 1:
+        app_log.info("Waiting for pool to become available")
+        time.sleep(1)
     else:
         busy = 1
         while True:
@@ -874,15 +875,24 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 if data == "blockfound_":
                     app_log.info("Node: Client has the block")  # node should start sending txs in this step
 
+                    # receive theirs
+                    segments = ""
                     data = self.request.recv(10)
-                    app_log.info("Transaction length to receive: " + data)
-                    block_hash_len = int(data)
-                    data = self.request.recv(block_hash_len)
+                    app_log.info("Node: Number of incoming segments: " + data)  # how many segments to receive
+                    ledger_count = int(data)
+                    while int(ledger_count) > 0:  # while there are segments to receive
+                        ledger_count = int(ledger_count) - 1
 
-                    #app_log.info("Client: " + data)
+                        segment_length = self.request.recv(10)  # identify segment length
+                        app_log.info("Node: Segment length: " + segment_length)
+                        segment = self.request.recv(int(segment_length))
+                        app_log.info("Node: Received segment: " + segment)
+                        segments = segments + str(segment)
 
-                    digest_block(data)
-                    #digest_block() #temporary
+                    app_log.info("Node: Combined segments: " + segments)
+                    digest_block(segments)
+                    # receive theirs
+
 
                     while busy == 1:
                         time.sleep(1)
@@ -982,18 +992,33 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
 
 
-
-
-
-                                block_hash_len = len(str(block_hash_send))
-                                while len(str(block_hash_len)) != 10:
-                                    block_hash_len = "0" + str(block_hash_len)
-                                app_log.info("Announcing " + str(block_hash_len) + " length of block")
-                                self.request.sendall(str(block_hash_len))
+                                # send own
+                                ledger_split = split2len(str(block_hash_send),
+                                                         1024)  # ledger txs must be converted to string
+                                ledger_count = len(ledger_split)  # how many segments of 500 will be sent
+                                while len(str(ledger_count)) != 10:
+                                    ledger_count = "0" + str(ledger_count)  # number must be 10 long
+                                self.request.sendall(str(ledger_count))  # send how many segments will be transferred
                                 time.sleep(0.1)
+                                # print (str(ledger_count))
 
-                                self.request.sendall(str(block_hash_send))
-                                time.sleep(0.1)
+                                ledger_index = -1
+                                while int(ledger_count) > 0:
+                                    ledger_count = int(ledger_count) - 1
+                                    ledger_index = ledger_index + 1
+
+                                    segment_length = len(ledger_split[ledger_index])
+                                    while len(str(segment_length)) != 10:
+                                        segment_length = "0" + str(segment_length)
+                                    self.request.sendall(
+                                        segment_length)  # send how much they should receive, usually 500, except the last segment
+                                    app_log.info("Client: Segment length: " + str(segment_length))
+                                    time.sleep(0.1)
+                                    app_log.info("Client: Segment to dispatch: " + str(
+                                        ledger_split[ledger_index]))  # send segment !!!!!!!!!
+                                    self.request.sendall(ledger_split[ledger_index])  # send segment
+                                    time.sleep(0.1)
+                                    # send own
 
 
 
@@ -1039,13 +1064,24 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     self.request.sendall("sync_______")
                     time.sleep(0.1)
 
-                if data == "block______":
+                if data == "block______": #from miner
+                    # receive theirs
+                    segments = ""
                     data = self.request.recv(10)
-                    app_log.info("Block length to receive: " + data)
-                    block_len = int(data)
-                    data = self.request.recv(block_len)
+                    app_log.info("Node: Number of incoming mined segments: " + data)  # how many segments to receive
+                    ledger_count = int(data)
+                    while int(ledger_count) > 0:  # while there are segments to receive
+                        ledger_count = int(ledger_count) - 1
 
-                    digest_block(data)
+                        segment_length = self.request.recv(10)  # identify segment length
+                        app_log.info("Node: Mined segment length: " + segment_length)
+                        segment = self.request.recv(int(segment_length))
+                        app_log.info("Node: Received mined segment: " + segment)
+                        segments = segments + str(segment)
+
+                    app_log.info("Node: Combined mined segments: " + segments)
+                    digest_block(segments)
+                    # receive theirs
 
                 if data == "":
                     app_log.info("Node: Communication error")
@@ -1245,15 +1281,56 @@ def worker(HOST, PORT):
                                 s.sendall("blockfound_")
                                 time.sleep(0.1)
 
-                                block_hash_len = len(str(block_hash_send))
-                                while len(str(block_hash_len)) != 10:
-                                    block_hash_len = "0" + str(block_hash_len)
-                                app_log.info("Announcing " + str(block_hash_len) + " length of block")
-                                s.sendall(str(block_hash_len))
-                                time.sleep(0.1)
 
-                                s.sendall(str(block_hash_send))
+
+
+
+
+
+
+
+
+
+                                # send own
+                                ledger_split = split2len(str(block_hash_send),
+                                                         1024)  # ledger txs must be converted to string
+                                ledger_count = len(ledger_split)  # how many segments of 500 will be sent
+                                while len(str(ledger_count)) != 10:
+                                    ledger_count = "0" + str(ledger_count)  # number must be 10 long
+                                s.sendall(str(ledger_count))  # send how many segments will be transferred
                                 time.sleep(0.1)
+                                # print (str(ledger_count))
+
+                                ledger_index = -1
+                                while int(ledger_count) > 0:
+                                    ledger_count = int(ledger_count) - 1
+                                    ledger_index = ledger_index + 1
+
+                                    segment_length = len(ledger_split[ledger_index])
+                                    while len(str(segment_length)) != 10:
+                                        segment_length = "0" + str(segment_length)
+                                    s.sendall(
+                                        segment_length)  # send how much they should receive, usually 500, except the last segment
+                                    app_log.info("Client: Segment length: " + str(segment_length))
+                                    time.sleep(0.1)
+                                    app_log.info("Client: Segment to dispatch: " + str(
+                                        ledger_split[ledger_index]))  # send segment !!!!!!!!!
+                                    s.sendall(ledger_split[ledger_index])  # send segment
+                                    time.sleep(0.1)
+                                    # send own
+
+
+
+
+
+
+
+
+
+
+
+
+
 
                         except:
                             app_log.info("Node: Block not found")
@@ -1282,11 +1359,34 @@ def worker(HOST, PORT):
 
                     app_log.info("Client: Node has the block")  # node should start sending txs in this step
 
+
+
+
+
+                    # receive theirs
+                    segments = ""
                     data = s.recv(10)
-                    app_log.info("Transaction length to receive: " + data)
-                    block_hash_len = int(data)
-                    data = s.recv(block_hash_len)
-                    app_log.info("Client: " + data)
+                    app_log.info("Node: Number of incoming segments: " + data)  # how many segments to receive
+                    ledger_count = int(data)
+                    while int(ledger_count) > 0:  # while there are segments to receive
+                        ledger_count = int(ledger_count) - 1
+
+                        segment_length = s.recv(10)  # identify segment length
+                        app_log.info("Node: Segment length: " + segment_length)
+                        segment = s.recv(int(segment_length))
+                        app_log.info("Node: Received segment: " + segment)
+                        segments = segments + str(segment)
+
+                    app_log.info("Node: Combined segments: " + segments)
+                    digest_block(segments)
+                    # receive theirs
+
+
+
+
+
+
+
 
                     digest_block(data)
                     #digest_block() #temporary
