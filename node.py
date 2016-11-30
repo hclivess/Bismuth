@@ -788,9 +788,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
 
                             #send own
-                            app_log.info("Extracted from the mempool: "+str(mempool_txs)) #improve: sync based on signatures only
+                            app_log.info("Node: Extracted from the mempool: "+str(mempool_txs)) #improve: sync based on signatures only
 
-                            mempool_split = split2len(str(mempool_txs), 1000)  # mempool txs must be converted to string
+                            mempool_split = split2len(str(mempool_txs), 1024)  # mempool txs must be converted to string
                             mempool_count = len(mempool_split)  # how many segments of 500 will be sent
                             while len(str(mempool_count)) != 10:
                                 mempool_count = "0" + str(mempool_count)  # number must be 10 long
@@ -808,9 +808,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                     segment_length = "0" + str(segment_length)
                                 self.request.sendall(
                                     segment_length)  # send how much they should receive, usually 500, except the last segment
-                                app_log.info("Client: Segment length: " + str(segment_length))
+                                app_log.info("Node: Segment length: " + str(segment_length))
                                 time.sleep(0.1)
-                                app_log.info("Client: Segment to dispatch: " + str(
+                                app_log.info("Node: Segment to dispatch: " + str(
                                     mempool_split[mempool_index]))  # send segment !!!!!!!!!
                                 self.request.sendall(mempool_split[mempool_index])  # send segment
                                 time.sleep(0.1)
@@ -978,6 +978,13 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                 self.request.sendall("blockfound_")
                                 time.sleep(0.1)
 
+
+
+
+
+
+
+
                                 block_hash_len = len(str(block_hash_send))
                                 while len(str(block_hash_len)) != 10:
                                     block_hash_len = "0" + str(block_hash_len)
@@ -987,6 +994,18 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                                 self.request.sendall(str(block_hash_send))
                                 time.sleep(0.1)
+
+
+
+
+
+
+
+
+
+
+
+
 
                         except:
                             app_log.info("Node: Block not found")
@@ -1312,10 +1331,10 @@ def worker(HOST, PORT):
                     # remove transactions which are already in the ledger
 
                     app_log.info(
-                        "Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
+                        "Client: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
 
                     # send own
-                    mempool_split = split2len(str(mempool_txs), 1000) #mempool txs must be converted to string
+                    mempool_split = split2len(str(mempool_txs), 1024) #mempool txs must be converted to string
                     mempool_count = len(mempool_split)  # how many segments of 500 will be sent
                     while len(str(mempool_count)) != 10:
                         mempool_count = "0" + str(mempool_count)  # number must be 10 long
@@ -1348,18 +1367,18 @@ def worker(HOST, PORT):
                     # receive theirs
                     segments = ""
                     data = s.recv(10)
-                    app_log.info("Node: Number of incoming segments: " + data)  # how many segments to receive
+                    app_log.info("Client: Number of incoming segments: " + data)  # how many segments to receive
                     mempool_count = int(data)
                     while int(mempool_count) > 0:  # while there are segments to receive
                         mempool_count = int(mempool_count) - 1
 
                         segment_length = s.recv(10)  # identify segment length
-                        app_log.info("Node: Segment length: " + segment_length)
+                        app_log.info("Client: Segment length: " + segment_length)
                         segment = s.recv(int(segment_length))
-                        app_log.info("Node: Received segment: " + segment)
+                        app_log.info("Client: Received segment: " + segment)
                         segments = segments + str(segment)
 
-                    app_log.info("Node: Combined segments: " + segments)
+                    app_log.info("Client: Combined segments: " + segments)
                     merge_mempool(segments)
                     # receive theirs
 
