@@ -21,7 +21,6 @@ from Crypto.Hash import SHA
 from Tkinter import *
 
 root = Tk()
-
 root.wm_title("Bismuth")
 
 if "posix" not in os.name:
@@ -90,7 +89,7 @@ def send():
             mempool.commit()  # Save (commit) the changes
             mempool.close()
             app_log.info("Client: Mempool updated with a received transaction")
-            refresh()
+            #refresh() experimentally disabled
     else:
         app_log.info("Client: Invalid signature")
     #enter transaction end
@@ -205,7 +204,64 @@ def sign():
     # popup
 
 
+def refresh_manual():
+    print "manual refresh triggered"
+    conn = sqlite3.connect('ledger.db')
+    conn.text_factory = str
+    c = conn.cursor()
+    c.execute("SELECT sum(amount) FROM transactions WHERE recipient = '" + address + "'")
+    credit = c.fetchone()[0]
+    c.execute("SELECT sum(amount) FROM transactions WHERE address = '" + address + "'")
+    debit = c.fetchone()[0]
+    c.execute("SELECT sum(fee) FROM transactions WHERE address = '" + address + "'")
+    fees = c.fetchone()[0]
+    c.execute("SELECT sum(reward) FROM transactions WHERE address = '" + address + "'")
+    rewards = c.fetchone()[0]
+    c.execute("SELECT MAX(block_height) FROM transactions")
+    bl_height = c.fetchone()[0]
+    if debit == None:
+        debit = 0
+    if fees == None:
+        fees = 0
+    if rewards == None:
+        rewards = 0
+    if credit == None:
+        credit = 0
+    balance = credit - debit - fees + rewards
+    app_log.info("Node: Transction address balance: " + str(balance))
+
+    # calculate fee - identical to that in node
+    c.execute("SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1;")
+    result = c.fetchall()
+    db_timestamp_last = result[0][1]
+    db_block_height = result[0][0]
+    db_block_50 = int(db_block_height) - 50
+
+    try:
+        time_now = str(time.time())
+        c.execute("SELECT timestamp FROM transactions WHERE block_height ='" + str(db_block_50) + "';")
+        db_timestamp_50 = c.fetchone()[0]
+        fee = 1000 / (float(time_now) - float(db_timestamp_50))
+        app_log.info("Fee: " + str(fee))
+
+    except Exception as e:
+        fee = 1  # presumably there are less than 50 txs
+        app_log.info("Fee error: " + str(e))
+    # calculate fee
+
+    fees_current_var.set("Current Fee: " + str('%f' % (fee)))
+    balance_var.set("Balance: " + str(round(balance, 2)))
+    debit_var.set("Spent Total: " + str(round(debit, 2)))
+    credit_var.set("Received Total: " + str(round(credit, 2)))
+    fees_var.set("Fees Paid: " + str(round(fees, 5)))
+    rewards_var.set("Rewards: " + str(round(rewards, 2)))
+    bl_height_var.set("Block Height: " + str(round(bl_height, 2)))
+
+    conn.close()
+    table()
+
 def refresh():
+    print "refresh triggered"
     conn = sqlite3.connect('ledger.db')
     conn.text_factory = str
     c = conn.cursor()
@@ -261,6 +317,8 @@ def refresh():
     conn.close()
     table()
 
+    root.after(1000, refresh)
+
 #buttons
 
 send_b = Button(f5, text="Send Bismuth", command=send, height=1, width=15)
@@ -272,7 +330,7 @@ else:
     start_b = Button(f5, text="Generate QR Code", command=qr, height=1, width=15, state=DISABLED)
 start_b.grid(row=8, column=0, sticky=W+E+S, pady=4,padx=15,columnspan=4)
 
-balance_b = Button(f5, text="Manual Refresh", command=refresh, height=1, width=15)
+balance_b = Button(f5, text="Manual Refresh", command=refresh_manual, height=1, width=15)
 balance_b.grid(row=9, column=0, sticky=W+E+S, pady=4,padx=15)
 
 sign_b = Button(f5, text="Sign Message", command=sign, height=1, width=15)
@@ -315,8 +373,10 @@ block_height = Label(f5, textvariable=bl_height_var)
 block_height.grid(row=6, column=0, sticky=N+E, padx=15)
 
 def table():
+
     # transaction table
     # data
+
     datasheet = ["time", "from", "to", "amount"]
 
     conn = sqlite3.connect('ledger.db')
@@ -348,13 +408,17 @@ def table():
 
     if len(datasheet) > 4:
         k = 0
+
+        for child in f4.winfo_children(): #prevent hangup
+            child.destroy()
+
         for i in range(table_limit):
             for j in range(4):
+
                 e = Entry(f4, justify=RIGHT)
                 e.configure(background='floralwhite')
                 e.grid(row=i + 1, column=j, sticky=EW)
                 e.insert(END, datasheet[k])
-
                 k = k + 1
 
     # transaction table
@@ -396,6 +460,6 @@ image.grid(pady=5, padx=5)
 
 refresh()
 
-root.after(2000, refresh)
 root.mainloop()
+
 os.remove(tempFile)
