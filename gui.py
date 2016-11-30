@@ -204,8 +204,11 @@ def sign():
     # popup
 
 
+def refresh_auto():
+    root.after(1000, refresh)
+    root.after(1000, refresh_auto)
 
-def refresh(mode):
+def refresh():
     print "refresh triggered"
     conn = sqlite3.connect('ledger.db')
     conn.text_factory = str
@@ -263,8 +266,8 @@ def refresh(mode):
     table()
 
 
-    if (mode == "auto"):
-        root.after(1000, refresh("auto"))
+
+    #root.after(1000, refresh)
 
 #buttons
 
@@ -277,7 +280,7 @@ else:
     start_b = Button(f5, text="Generate QR Code", command=qr, height=1, width=15, state=DISABLED)
 start_b.grid(row=8, column=0, sticky=W+E+S, pady=4,padx=15,columnspan=4)
 
-balance_b = Button(f5, text="Manual Refresh", command=lambda: refresh("manual"), height=1, width=15)
+balance_b = Button(f5, text="Manual Refresh", command=refresh, height=1, width=15)
 balance_b.grid(row=9, column=0, sticky=W+E+S, pady=4,padx=15)
 
 sign_b = Button(f5, text="Sign Message", command=sign, height=1, width=15)
@@ -404,7 +407,7 @@ logo=PhotoImage(data=logo_hash_decoded)
 image = Label(f2, image=logo)
 image.grid(pady=5, padx=5)
 #logo
-refresh("auto")
+refresh_auto()
 root.mainloop()
 
 os.remove(tempFile)
