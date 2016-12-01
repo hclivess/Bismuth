@@ -768,7 +768,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         self.request.sendall("ok_________")
                         time.sleep(0.1)
 
-                elif data == 'mempool____':
+                if data == 'mempool____':
                         try:
                             # receive theirs
                             segments = ""
@@ -841,7 +841,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         except:
                             pass
 
-                elif data == 'helloserver':
+                if data == 'helloserver':
                     with open("peers.txt", "r") as peer_list:
                         peers = peer_list.read()
                         app_log.info("Node: " + peers)
@@ -886,13 +886,13 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     self.request.sendall("sync_______")
                     time.sleep(0.1)
 
-                elif data == "sendsync___":
+                if data == "sendsync___":
                     while busy == 1:
                         time.sleep(1)
                     self.request.sendall("sync_______")
                     time.sleep(0.1)
 
-                elif data == "blockfound_":
+                if data == "blockfound_":
                     app_log.info("Node: Client has the block")  # node should start sending txs in this step
 
                     # receive theirs
@@ -918,7 +918,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     self.request.sendall("sync_______")
                     time.sleep(0.1)
 
-                elif data == "blockheight":
+                if data == "blockheight":
                     subdata = self.request.recv(11)  # receive client's last block height
                     received_block_height = subdata
                     app_log.info("Node: Received block height: " + received_block_height)
@@ -1021,7 +1021,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                 time.sleep(0.1)
                                 # print (str(ledger_count))
 
-                                ledger_index = -1
+                                ledger_index = 0
                                 while int(ledger_count) > 0:
                                     segment_length = len(ledger_split[ledger_index])
                                     while len(str(segment_length)) != 10:
@@ -1067,13 +1067,13 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             blocknotfound(db_block_hash)
                             # newly apply on self
 
-                elif data == "nonewblocks":
+                if data == "nonewblocks":
                     #digest_block() #temporary #otherwise passive node will not be able to digest
 
                     self.request.sendall("sync_______")
                     time.sleep(0.1)
 
-                elif data == "blocknotfou":
+                if data == "blocknotfou":
                     block_hash_delete = self.request.recv(56)
                     blocknotfound(block_hash_delete)
 
@@ -1083,7 +1083,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     self.request.sendall("sync_______")
                     time.sleep(0.1)
 
-                elif data == "block______": #from miner
+                if data == "block______": #from miner
                     # receive theirs
                     segments = ""
                     data = self.request.recv(10)
@@ -1101,10 +1101,11 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     digest_block(segments)
                     # receive theirs
 
-                else:
+                if data == "":
                     app_log.info("Node: Communication error")
                     raise
                 time.sleep(0.1)
+
                 # app_log.info("Server resting") #prevent cpu overload
             except Exception, e:
                 app_log.info("Node: Lost connection")
@@ -1319,7 +1320,7 @@ def worker(HOST, PORT):
                                 time.sleep(0.1)
                                 # print (str(ledger_count))
 
-                                ledger_index = -1
+                                ledger_index = 0
                                 while int(ledger_count) > 0:
                                     segment_length = len(ledger_split[ledger_index])
                                     while len(str(segment_length)) != 10:
