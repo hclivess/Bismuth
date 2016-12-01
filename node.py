@@ -817,7 +817,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             #send own
                             app_log.info("Node: Extracted from the mempool: "+str(mempool_txs)) #improve: sync based on signatures only
 
-                            mempool_split = split2len(str(mempool_txs), 32000)  # mempool txs must be converted to string
+                            mempool_split = split2len(str(mempool_txs), 8000)  # mempool txs must be converted to string
                             mempool_count = len(mempool_split)  # how many segments of 500 will be sent
                             while len(str(mempool_count)) != 10:
                                 mempool_count = "0" + str(mempool_count)  # number must be 10 long
@@ -1017,7 +1017,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                                 # send own
                                 ledger_split = split2len(str(block_hash_send),
-                                                         32000)  # ledger txs must be converted to string
+                                                         8000)  # ledger txs must be converted to string
                                 ledger_count = len(ledger_split)  # how many segments of 500 will be sent
                                 while len(str(ledger_count)) != 10:
                                     ledger_count = "0" + str(ledger_count)  # number must be 10 long
@@ -1316,7 +1316,7 @@ def worker(HOST, PORT):
 
                                 # send own
                                 ledger_split = split2len(str(block_hash_send),
-                                                         32000)  # ledger txs must be converted to string
+                                                         8000)  # ledger txs must be converted to string
                                 ledger_count = len(ledger_split)  # how many segments of 500 will be sent
                                 while len(str(ledger_count)) != 10:
                                     ledger_count = "0" + str(ledger_count)  # number must be 10 long
@@ -1414,12 +1414,13 @@ def worker(HOST, PORT):
                     conn.text_factory = str
                     c = conn.cursor()
                     for transaction in mempool_txs:
+                        print transaction
                         try:
                             c.execute("SELECT * FROM transactions WHERE signature = '" + transaction[
-                                5] + "';")  # try and select the mempool tx in ledger
+                                4] + "';")  # try and select the mempool tx in ledger
                             ledger_sig = c.fetchone()
                             m.execute(
-                                "DELETE FROM transactions WHERE signature = '" + transaction[5] + "';")  # and delete it
+                                "DELETE FROM transactions WHERE signature = '" + transaction[4] + "';")  # and delete it
                             mempool.commit()
                             app_log.info(
                                 "A transaction has been deleted from mempool because it already is in the ledger")
@@ -1433,7 +1434,7 @@ def worker(HOST, PORT):
                         "Client: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
 
                     # send own
-                    mempool_split = split2len(str(mempool_txs), 32000) #mempool txs must be converted to string
+                    mempool_split = split2len(str(mempool_txs), 8000) #mempool txs must be converted to string
                     mempool_count = len(mempool_split)  # how many segments of 500 will be sent
                     while len(str(mempool_count)) != 10:
                         mempool_count = "0" + str(mempool_count)  # number must be 10 long
