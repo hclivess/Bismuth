@@ -740,13 +740,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         time.sleep(0.1)
 
                 if data == 'mempool____':
-                    global busy
-                    while busy == 1:
-                        app_log.info("Waiting for pool to become available")
-                        time.sleep(1)
-                    else:
                         try:
-                            busy = 1
                             # receive theirs
                             segments = ""
                             data = self.request.recv(10)
@@ -787,9 +781,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             mempool.close()
                             #remove transactions which are already in the ledger
 
-
-
-
                             #send own
                             app_log.info("Node: Extracted from the mempool: "+str(mempool_txs)) #improve: sync based on signatures only
 
@@ -821,7 +812,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                         except:
                             pass
-                        busy = 0
 
                 if data == 'helloserver':
                     with open("peers.txt", "r") as peer_list:
