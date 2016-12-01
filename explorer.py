@@ -193,7 +193,7 @@ class index:
 
         conn = sqlite3.connect('./ledger.db')
         c = conn.cursor()
-        c.execute("SELECT * FROM transactions ORDER BY block_height DESC;")
+        c.execute("SELECT * FROM transactions ORDER BY block_height DESC, timestamp DESC;")
 
         all = c.fetchall()
 
