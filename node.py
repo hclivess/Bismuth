@@ -440,8 +440,20 @@ def digest_block(data):  # this function has become the transaction engine core 
 
                 # reject block with duplicate transactions
                 signature_list = []
-                for x in transaction_list:  # sig must be the 6th row 5
-                    signature_list.append(x[4])
+                for r in transaction_list:  # sig must be the 6th row 5
+                    signature_list.append(r[4])
+
+                    # reject block with transactions which are already in the ledger
+                    c.execute("SELECT block_height FROM transactions WHERE signature = '" + r[4] + "'")
+                    try:
+                        result = c.fetchall()[0]
+                        app_log.info("That transaction is already in our ledger")
+                        block_valid = 0
+                        raise
+                    except:
+                        pass
+                    # reject block with transactions which are already in the ledger
+
                 if len(signature_list) != len(set(signature_list)):
                     app_log.info("There are duplicate transactions in this block, rejected")
                     block_valid = 0 #dont really need this one
@@ -993,7 +1005,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                                 # send own
                                 ledger_split = split2len(str(block_hash_send),
-                                                         1024)  # ledger txs must be converted to string
+                                                         2048)  # ledger txs must be converted to string
                                 ledger_count = len(ledger_split)  # how many segments of 500 will be sent
                                 while len(str(ledger_count)) != 10:
                                     ledger_count = "0" + str(ledger_count)  # number must be 10 long
@@ -1292,7 +1304,7 @@ def worker(HOST, PORT):
 
                                 # send own
                                 ledger_split = split2len(str(block_hash_send),
-                                                         1024)  # ledger txs must be converted to string
+                                                         2048)  # ledger txs must be converted to string
                                 ledger_count = len(ledger_split)  # how many segments of 500 will be sent
                                 while len(str(ledger_count)) != 10:
                                     ledger_count = "0" + str(ledger_count)  # number must be 10 long
@@ -1433,7 +1445,7 @@ def worker(HOST, PORT):
                         "Client: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
 
                     # send own
-                    mempool_split = split2len(str(mempool_txs), 1024) #mempool txs must be converted to string
+                    mempool_split = split2len(str(mempool_txs), 2048) #mempool txs must be converted to string
                     mempool_count = len(mempool_split)  # how many segments of 500 will be sent
                     while len(str(mempool_count)) != 10:
                         mempool_count = "0" + str(mempool_count)  # number must be 10 long
