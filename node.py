@@ -437,8 +437,16 @@ def digest_block(data):  # this function has become the transaction engine core 
                 app_log.info("Node: Digesting incoming block: " + data)
 
                 transaction_list = ast.literal_eval(data)
-                #print "!!! is this valid?"
-                #print transaction_list
+
+                # reject block with duplicate transactions
+                signature_list = []
+                for x in transaction_list:  # sig must be the 6th row 5
+                    signature_list.append(x[5])
+                if len(signature_list) != len(set(signature_list)):
+                    app_log.info("There are duplicate transactions in this block, rejected")
+                    block_valid = 0 #dont really need this one
+                    raise
+                # reject block with duplicate transactions
 
                 for transaction in transaction_list:
                     # verify signatures
@@ -449,15 +457,6 @@ def digest_block(data):  # this function has become the transaction engine core 
                     received_signature_enc = transaction[4]
                     received_public_key_hashed = transaction[5]
                     received_openfield = transaction[6]
-
-                    c.execute("SELECT block_height FROM transactions where signature = '" + received_signature_enc + "'")
-                    try:
-                        already_mined = c.fetchone()[0]
-                        app_log.info("Node: Transaction already in the ledger on block "+str(already_mined)+", block rejected")
-                        block_valid = 0
-
-                    except:
-                        pass
 
                     received_public_key = RSA.importKey(base64.b64decode(received_public_key_hashed)) #convert readable key to instance
                     received_signature_dec = base64.b64decode(received_signature_enc)
@@ -502,9 +501,9 @@ def digest_block(data):  # this function has become the transaction engine core 
                     # calculate block height from the ledger
 
                     # verify balance
-                    conn = sqlite3.connect('ledger.db') #defined higher, remove!
-                    conn.text_factory = str
-                    c = conn.cursor()
+                    #conn = sqlite3.connect('ledger.db') #defined higher, remove!
+                    #conn.text_factory = str
+                    #c = conn.cursor()
 
                     mempool = sqlite3.connect('mempool.db')
                     mempool.text_factory = str
