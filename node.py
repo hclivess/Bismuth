@@ -96,7 +96,7 @@ busy = 0
 def merge_mempool(data):
     # merge mempool
     transaction_list = ast.literal_eval(data)
-    for transaction in transaction_list:
+    for transaction in set(transaction_list): #set means unique
         mempool_timestamp = transaction[0]
         mempool_address = transaction[1]
         mempool_recipient = transaction[2]
