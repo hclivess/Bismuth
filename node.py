@@ -441,7 +441,7 @@ def digest_block(data):  # this function has become the transaction engine core 
                 # reject block with duplicate transactions
                 signature_list = []
                 for x in transaction_list:  # sig must be the 6th row 5
-                    signature_list.append(x[5])
+                    signature_list.append(x[4])
                 if len(signature_list) != len(set(signature_list)):
                     app_log.info("There are duplicate transactions in this block, rejected")
                     block_valid = 0 #dont really need this one
