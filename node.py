@@ -768,7 +768,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         self.request.sendall("ok_________")
                         time.sleep(0.1)
 
-                if data == 'mempool____':
+                elif data == 'mempool____':
                         try:
                             # receive theirs
                             segments = ""
@@ -779,7 +779,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                 mempool_count = int(mempool_count) - 1
 
                                 segment_length = self.request.recv(10)  # identify segment length
-                                app_log.info("Node: Segment length: " + segment_length)
+                                app_log.info("Node: Segment length: " + str(segment_length))
                                 segment = self.request.recv(int(segment_length))
                                 app_log.info("Node: Received segment: " + segment)
                                 segments = segments + str(segment)
@@ -842,7 +842,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         except:
                             pass
 
-                if data == 'helloserver':
+                elif data == 'helloserver':
                     with open("peers.txt", "r") as peer_list:
                         peers = peer_list.read()
                         app_log.info("Node: " + peers)
@@ -887,13 +887,13 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     self.request.sendall("sync_______")
                     time.sleep(0.1)
 
-                if data == "sendsync___":
+                elif data == "sendsync___":
                     while busy == 1:
                         time.sleep(1)
                     self.request.sendall("sync_______")
                     time.sleep(0.1)
 
-                if data == "blockfound_":
+                elif data == "blockfound_":
                     app_log.info("Node: Client has the block")  # node should start sending txs in this step
 
                     # receive theirs
@@ -902,13 +902,12 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     app_log.info("Node: Number of incoming segments: " + data)  # how many segments to receive
                     ledger_count = int(data)
                     while int(ledger_count) > 0:  # while there are segments to receive
-                        ledger_count = int(ledger_count) - 1
-
                         segment_length = self.request.recv(10)  # identify segment length
-                        app_log.info("Node: Segment length: " + segment_length)
+                        app_log.info("Node: Segment length: " + str(segment_length))
                         segment = self.request.recv(int(segment_length))
                         app_log.info("Node: Received segment: " + segment)
                         segments = segments + str(segment)
+                        ledger_count = int(ledger_count) - 1
 
                     app_log.info("Node: Combined segments: " + segments)
                     digest_block(segments)
@@ -920,7 +919,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     self.request.sendall("sync_______")
                     time.sleep(0.1)
 
-                if data == "blockheight":
+                elif data == "blockheight":
                     subdata = self.request.recv(11)  # receive client's last block height
                     received_block_height = subdata
                     app_log.info("Node: Received block height: " + received_block_height)
@@ -1015,7 +1014,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                                 # send own
                                 ledger_split = split2len(str(block_hash_send),
-                                                         2048)  # ledger txs must be converted to string
+                                                         4096)  # ledger txs must be converted to string
                                 ledger_count = len(ledger_split)  # how many segments of 500 will be sent
                                 while len(str(ledger_count)) != 10:
                                     ledger_count = "0" + str(ledger_count)  # number must be 10 long
@@ -1025,9 +1024,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                                 ledger_index = -1
                                 while int(ledger_count) > 0:
-                                    ledger_count = int(ledger_count) - 1
-                                    ledger_index = ledger_index + 1
-
                                     segment_length = len(ledger_split[ledger_index])
                                     while len(str(segment_length)) != 10:
                                         segment_length = "0" + str(segment_length)
@@ -1039,6 +1035,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                         ledger_split[ledger_index]))  # send segment !!!!!!!!!
                                     self.request.sendall(ledger_split[ledger_index])  # send segment
                                     time.sleep(0.1)
+
+                                    ledger_count = int(ledger_count) - 1
+                                    ledger_index = ledger_index + 1
                                     # send own
 
 
@@ -1069,13 +1068,13 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             blocknotfound(db_block_hash)
                             # newly apply on self
 
-                if data == "nonewblocks":
+                elif data == "nonewblocks":
                     #digest_block() #temporary #otherwise passive node will not be able to digest
 
                     self.request.sendall("sync_______")
                     time.sleep(0.1)
 
-                if data == "blocknotfou":
+                elif data == "blocknotfou":
                     block_hash_delete = self.request.recv(56)
                     blocknotfound(block_hash_delete)
 
@@ -1085,26 +1084,25 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     self.request.sendall("sync_______")
                     time.sleep(0.1)
 
-                if data == "block______": #from miner
+                elif data == "block______": #from miner
                     # receive theirs
                     segments = ""
                     data = self.request.recv(10)
                     app_log.info("Node: Number of incoming mined segments: " + data)  # how many segments to receive
                     ledger_count = int(data)
                     while int(ledger_count) > 0:  # while there are segments to receive
-                        ledger_count = int(ledger_count) - 1
-
                         segment_length = self.request.recv(10)  # identify segment length
-                        app_log.info("Node: Mined segment length: " + segment_length)
+                        app_log.info("Node: Mined segment length: " + str(segment_length))
                         segment = self.request.recv(int(segment_length))
                         app_log.info("Node: Received mined segment: " + segment)
                         segments = segments + str(segment)
+                        ledger_count = int(ledger_count) - 1
 
                     app_log.info("Node: Combined mined segments: " + segments)
                     digest_block(segments)
                     # receive theirs
 
-                if data == "":
+                else:
                     app_log.info("Node: Communication error")
                     raise
                 time.sleep(0.1)
@@ -1314,7 +1312,7 @@ def worker(HOST, PORT):
 
                                 # send own
                                 ledger_split = split2len(str(block_hash_send),
-                                                         2048)  # ledger txs must be converted to string
+                                                         4096)  # ledger txs must be converted to string
                                 ledger_count = len(ledger_split)  # how many segments of 500 will be sent
                                 while len(str(ledger_count)) != 10:
                                     ledger_count = "0" + str(ledger_count)  # number must be 10 long
@@ -1324,9 +1322,6 @@ def worker(HOST, PORT):
 
                                 ledger_index = -1
                                 while int(ledger_count) > 0:
-                                    ledger_count = int(ledger_count) - 1
-                                    ledger_index = ledger_index + 1
-
                                     segment_length = len(ledger_split[ledger_index])
                                     while len(str(segment_length)) != 10:
                                         segment_length = "0" + str(segment_length)
@@ -1338,19 +1333,9 @@ def worker(HOST, PORT):
                                         ledger_split[ledger_index]))  # send segment !!!!!!!!!
                                     s.sendall(ledger_split[ledger_index])  # send segment
                                     time.sleep(0.1)
+                                    ledger_count = int(ledger_count) - 1
+                                    ledger_index = ledger_index + 1
                                     # send own
-
-
-
-
-
-
-
-
-
-
-
-
 
 
                         except:
@@ -1390,24 +1375,16 @@ def worker(HOST, PORT):
                     app_log.info("Node: Number of incoming segments: " + data)  # how many segments to receive
                     ledger_count = int(data)
                     while int(ledger_count) > 0:  # while there are segments to receive
-                        ledger_count = int(ledger_count) - 1
-
                         segment_length = s.recv(10)  # identify segment length
-                        app_log.info("Node: Segment length: " + segment_length)
+                        app_log.info("Node: Segment length: " + str(segment_length))
                         segment = s.recv(int(segment_length))
                         app_log.info("Node: Received segment: " + segment)
                         segments = segments + str(segment)
+                        ledger_count = int(ledger_count) - 1
 
                     app_log.info("Node: Combined segments: " + segments)
                     digest_block(segments)
                     # receive theirs
-
-
-
-
-
-
-
 
                     digest_block(data)
                     #digest_block() #temporary
@@ -1455,7 +1432,7 @@ def worker(HOST, PORT):
                         "Client: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
 
                     # send own
-                    mempool_split = split2len(str(mempool_txs), 2048) #mempool txs must be converted to string
+                    mempool_split = split2len(str(mempool_txs), 4096) #mempool txs must be converted to string
                     mempool_count = len(mempool_split)  # how many segments of 500 will be sent
                     while len(str(mempool_count)) != 10:
                         mempool_count = "0" + str(mempool_count)  # number must be 10 long
