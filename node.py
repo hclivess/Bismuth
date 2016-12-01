@@ -800,9 +800,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             c = conn.cursor()
                             for transaction in mempool_txs:
                                 try:
-                                    c.execute("SELECT signature FROM transactions WHERE signature = '" + transaction[4] + "';")  # try and select the mempool tx in ledger
-                                    ledger_sig = c.fetchall()[0][0]
-                                    m.execute("DELETE FROM transactions WHERE signature = '" + ledger_sig + "';") #and delete it
+                                    c.execute("SELECT * FROM transactions WHERE signature = '" + transaction[5] + "';")  # try and select the mempool tx in ledger
+                                    ledger_sig = c.fetchone()
+                                    m.execute("DELETE FROM transactions WHERE signature = '" + transaction[5] + "';") #and delete it
+                                    mempool.commit()
                                     app_log.info("A transaction has been deleted from mempool because it already is in the ledger")
                                 except:
                                     pass
@@ -1411,11 +1412,12 @@ def worker(HOST, PORT):
                     c = conn.cursor()
                     for transaction in mempool_txs:
                         try:
-                            c.execute("SELECT signature FROM transactions WHERE signature = '" + transaction[
-                                4] + "';")  # try and select the mempool tx in ledger
-                            ledger_sig = c.fetchall()[0][0]
+                            c.execute("SELECT * FROM transactions WHERE signature = '" + transaction[
+                                5] + "';")  # try and select the mempool tx in ledger
+                            ledger_sig = c.fetchone()
                             m.execute(
-                                "DELETE FROM transactions WHERE signature = '" + ledger_sig + "';")  # and delete it
+                                "DELETE FROM transactions WHERE signature = '" + transaction[5] + "';")  # and delete it
+                            mempool.commit()
                             app_log.info(
                                 "A transaction has been deleted from mempool because it already is in the ledger")
                         except:
