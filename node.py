@@ -761,12 +761,12 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     if version != data:
                         app_log.info("Protocol version mismatch: " + data +", should be "+version)
                         self.request.sendall("notok______")
-                        time.sleep(0.1)
+                        time.sleep(0.2)
                         raise
                     else:
                         app_log.info("Node: Protocol version matched: " + data)
                         self.request.sendall("ok_________")
-                        time.sleep(0.1)
+                        time.sleep(0.2)
 
                 elif data == 'mempool____':
                         try:
@@ -818,7 +818,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             while len(str(mempool_count)) != 10:
                                 mempool_count = "0" + str(mempool_count)  # number must be 10 long
                             self.request.sendall(str(mempool_count))  # send how many segments will be transferred
-                            time.sleep(0.1)
+                            time.sleep(0.2)
                             # print (str(mempool_count))
 
                             mempool_index = -1
@@ -832,11 +832,11 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                 self.request.sendall(
                                     segment_length)  # send how much they should receive, usually 500, except the last segment
                                 app_log.info("Node: Segment length: " + str(segment_length))
-                                time.sleep(0.1)
+                                time.sleep(0.2)
                                 app_log.info("Node: Segment to dispatch: " + str(
                                     mempool_split[mempool_index]))  # send segment !!!!!!!!!
                                 self.request.sendall(mempool_split[mempool_index])  # send segment
-                                time.sleep(0.1)
+                                time.sleep(0.2)
                             #send own
 
                         except:
@@ -847,9 +847,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         peers = peer_list.read()
                         app_log.info("Node: " + peers)
                         self.request.sendall("peers______")
-                        time.sleep(0.1)
+                        time.sleep(0.2)
                         self.request.sendall(peers)
-                        time.sleep(0.1)
+                        time.sleep(0.2)
                     peer_list.close()
 
                     # save peer if connectible
@@ -885,13 +885,13 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         time.sleep(1)
                     app_log.info("Node: Sending sync request")
                     self.request.sendall("sync_______")
-                    time.sleep(0.1)
+                    time.sleep(0.2)
 
                 elif data == "sendsync___":
                     while busy == 1:
                         time.sleep(1)
                     self.request.sendall("sync_______")
-                    time.sleep(0.1)
+                    time.sleep(0.2)
 
                 elif data == "blockfound_":
                     app_log.info("Node: Client has the block")  # node should start sending txs in this step
@@ -917,7 +917,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     while busy == 1:
                         time.sleep(1)
                     self.request.sendall("sync_______")
-                    time.sleep(0.1)
+                    time.sleep(0.2)
 
                 elif data == "blockheight":
                     subdata = self.request.recv(11)  # receive client's last block height
@@ -941,7 +941,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     while len(str(db_block_height)) != 11:
                         db_block_height = "0" + str(db_block_height)
                     self.request.sendall(db_block_height)
-                    time.sleep(0.1)
+                    time.sleep(0.2)
                     # send own block height
 
                     if received_block_height > db_block_height:
@@ -967,7 +967,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                         app_log.info("Node: block_hash to send: " + str(db_block_hash))
                         self.request.sendall(db_block_hash)  # send latest block_hash
-                        time.sleep(0.1)
+                        time.sleep(0.2)
 
                         #receive their latest hash
                         #confirm you know that hash or continue receiving
@@ -995,7 +995,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             if db_block_hash == data:
                                 app_log.info("Node: Client has the latest block")
                                 self.request.sendall("nonewblocks")
-                                time.sleep(0.1)
+                                time.sleep(0.2)
 
                             else:
                                 c.execute("SELECT timestamp,address,recipient,amount,signature,public_key,openfield FROM transactions WHERE block_height='" + str(
@@ -1006,7 +1006,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                                 conn.close()
                                 self.request.sendall("blockfound_")
-                                time.sleep(0.1)
+                                time.sleep(0.2)
 
 
 
@@ -1019,7 +1019,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                 while len(str(ledger_count)) != 10:
                                     ledger_count = "0" + str(ledger_count)  # number must be 10 long
                                 self.request.sendall(str(ledger_count))  # send how many segments will be transferred
-                                time.sleep(0.1)
+                                time.sleep(0.2)
                                 # print (str(ledger_count))
 
                                 ledger_index = -1
@@ -1030,11 +1030,11 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                     self.request.sendall(
                                         segment_length)  # send how much they should receive, usually 500, except the last segment
                                     app_log.info("Client: Segment length: " + str(segment_length))
-                                    time.sleep(0.1)
+                                    time.sleep(0.2)
                                     app_log.info("Client: Segment to dispatch: " + str(
                                         ledger_split[ledger_index]))  # send segment !!!!!!!!!
                                     self.request.sendall(ledger_split[ledger_index])  # send segment
-                                    time.sleep(0.1)
+                                    time.sleep(0.2)
 
                                     ledger_count = int(ledger_count) - 1
                                     ledger_index = ledger_index + 1
@@ -1055,9 +1055,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         except:
                             app_log.info("Node: Block not found")
                             self.request.sendall("blocknotfou")
-                            time.sleep(0.1)
+                            time.sleep(0.2)
                             self.request.sendall(data)
-                            time.sleep(0.1)
+                            time.sleep(0.2)
                             # newly apply on self
                             conn = sqlite3.connect('ledger.db')
                             conn.text_factory = str
@@ -1072,7 +1072,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     #digest_block() #temporary #otherwise passive node will not be able to digest
 
                     self.request.sendall("sync_______")
-                    time.sleep(0.1)
+                    time.sleep(0.2)
 
                 elif data == "blocknotfou":
                     block_hash_delete = self.request.recv(56)
@@ -1082,7 +1082,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         time.sleep(1)
                     app_log.info("Client: Deletion complete, sending sync request")
                     self.request.sendall("sync_______")
-                    time.sleep(0.1)
+                    time.sleep(0.2)
 
                 elif data == "block______": #from miner
                     # receive theirs
@@ -1105,7 +1105,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 else:
                     app_log.info("Node: Communication error")
                     raise
-                time.sleep(0.1)
+                time.sleep(0.2)
                 # app_log.info("Server resting") #prevent cpu overload
             except Exception, e:
                 app_log.info("Node: Lost connection")
@@ -1143,9 +1143,9 @@ def worker(HOST, PORT):
                     first_run = 0
 
                     s.sendall('version____')
-                    time.sleep(0.1)
+                    time.sleep(0.2)
                     s.sendall(version)
-                    time.sleep(0.1)
+                    time.sleep(0.2)
                     data = s.recv(11)
                     if data == "ok_________":
                         app_log.info("Client: Node protocol version matches our client")
@@ -1154,7 +1154,7 @@ def worker(HOST, PORT):
                         raise
 
                     s.sendall('helloserver')
-                    time.sleep(0.1)
+                    time.sleep(0.2)
 
                 # communication starter
                 data = s.recv(11)  # receive data, one and the only root point
@@ -1203,7 +1203,7 @@ def worker(HOST, PORT):
 
                     # send block height, receive block height
                     s.sendall("blockheight")
-                    time.sleep(0.1)
+                    time.sleep(0.2)
 
                     conn = sqlite3.connect('ledger.db')
                     conn.text_factory = str
@@ -1217,7 +1217,7 @@ def worker(HOST, PORT):
                     while len(str(db_block_height)) != 11:
                         db_block_height = "0" + str(db_block_height)
                     s.sendall(str(db_block_height))
-                    time.sleep(0.1)
+                    time.sleep(0.2)
 
                     subdata = s.recv(11)  # receive node's block height
                     received_block_height = subdata
@@ -1248,7 +1248,7 @@ def worker(HOST, PORT):
 
                         app_log.info("Client: block_hash to send: " + str(db_block_hash))
                         s.sendall(db_block_hash)  # send latest block_hash
-                        time.sleep(0.1)
+                        time.sleep(0.2)
 
                         # consensus pool 2 (active connection)
                         consensus_ip = s.getpeername()[0]
@@ -1287,7 +1287,7 @@ def worker(HOST, PORT):
                             if db_block_hash == data:
                                 app_log.info("Client: Node has the latest block")
                                 s.sendall("nonewblocks")
-                                time.sleep(0.1)
+                                time.sleep(0.2)
 
                             else:
                                 c.execute("SELECT timestamp,address,recipient,amount,signature,public_key,openfield FROM transactions WHERE block_height='" + str(
@@ -1298,7 +1298,7 @@ def worker(HOST, PORT):
 
                                 conn.close()
                                 s.sendall("blockfound_")
-                                time.sleep(0.1)
+                                time.sleep(0.2)
 
 
 
@@ -1317,7 +1317,7 @@ def worker(HOST, PORT):
                                 while len(str(ledger_count)) != 10:
                                     ledger_count = "0" + str(ledger_count)  # number must be 10 long
                                 s.sendall(str(ledger_count))  # send how many segments will be transferred
-                                time.sleep(0.1)
+                                time.sleep(0.2)
                                 # print (str(ledger_count))
 
                                 ledger_index = -1
@@ -1328,11 +1328,11 @@ def worker(HOST, PORT):
                                     s.sendall(
                                         segment_length)  # send how much they should receive, usually 500, except the last segment
                                     app_log.info("Client: Segment length: " + str(segment_length))
-                                    time.sleep(0.1)
+                                    time.sleep(0.2)
                                     app_log.info("Client: Segment to dispatch: " + str(
                                         ledger_split[ledger_index]))  # send segment !!!!!!!!!
                                     s.sendall(ledger_split[ledger_index])  # send segment
-                                    time.sleep(0.1)
+                                    time.sleep(0.2)
                                     ledger_count = int(ledger_count) - 1
                                     ledger_index = ledger_index + 1
                                     # send own
@@ -1341,7 +1341,7 @@ def worker(HOST, PORT):
                         except:
                             app_log.info("Node: Block not found")
                             s.sendall("blocknotfou")
-                            time.sleep(0.1)
+                            time.sleep(0.2)
                             # newly apply on self
                             conn = sqlite3.connect('ledger.db')
                             conn.text_factory = str
@@ -1359,7 +1359,7 @@ def worker(HOST, PORT):
                     while busy == 1:
                         time.sleep(1)
                     s.sendall("sendsync___")
-                    time.sleep(0.1)
+                    time.sleep(0.2)
 
                 if data == "blockfound_":
 
@@ -1392,7 +1392,7 @@ def worker(HOST, PORT):
                     while busy == 1:
                         time.sleep(1)
                     s.sendall("sendsync___")
-                    time.sleep(0.1)
+                    time.sleep(0.2)
 
                         # block_hash validation end
 
@@ -1401,7 +1401,7 @@ def worker(HOST, PORT):
 
                     # sand and receive mempool
                     s.sendall("mempool____")
-                    time.sleep(0.1)
+                    time.sleep(0.2)
 
                     mempool = sqlite3.connect('mempool.db')
                     mempool.text_factory = str
@@ -1437,7 +1437,7 @@ def worker(HOST, PORT):
                     while len(str(mempool_count)) != 10:
                         mempool_count = "0" + str(mempool_count)  # number must be 10 long
                     s.sendall(str(mempool_count))  # send how many segments will be transferred
-                    time.sleep(0.1)
+                    time.sleep(0.2)
                     #print (str(mempool_count))
 
                     mempool_index = -1
@@ -1450,10 +1450,10 @@ def worker(HOST, PORT):
                             segment_length = "0" + str(segment_length)
                         s.sendall(segment_length)  # send how much they should receive, usually 500, except the last segment
                         app_log.info("Client: Segment length: "+str(segment_length))
-                        time.sleep(0.1)
+                        time.sleep(0.2)
                         app_log.info("Client: Segment to dispatch: " +str(mempool_split[mempool_index]))  # send segment !!!!!!!!!
                         s.sendall(mempool_split[mempool_index])  # send segment
-                        time.sleep(0.1)
+                        time.sleep(0.2)
                     # send own
 
 
@@ -1494,7 +1494,7 @@ def worker(HOST, PORT):
                     while busy == 1:
                         time.sleep(1)
                     s.sendall("sendsync___")
-                    time.sleep(0.1)
+                    time.sleep(0.2)
 
         except Exception as e:
             #remove from active pool
