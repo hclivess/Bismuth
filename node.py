@@ -109,13 +109,23 @@ def merge_mempool(data):
         mempool.text_factory = str
         m = mempool.cursor()
 
-        m.execute("SELECT * FROM transactions WHERE signature = '"+mempool_signature_enc+"'")
+        conn = sqlite3.connect('ledger.db')
+        conn.text_factory = str
+        c = conn.cursor()
 
-        try:
-            result = m.fetchall()[0]
+        m.execute("SELECT timestamp FROM transactions WHERE signature = '"+mempool_signature_enc+"'") #condition 1
+        c.execute("SELECT block_height FROM transactions WHERE signature = '" + mempool_signature_enc + "'") #condition 2
+
+        if m.fetchall()[0]:
             app_log.info("That transaction is already in our mempool")
 
-        except:
+        elif c.fetchall()[0]:
+            # reject transactions which are already in the ledger
+            app_log.info("That transaction is already in our ledger")
+
+            # reject transactions which are already in the ledger
+
+        else:
             # verify signatures and balances
             # verify balance
             conn = sqlite3.connect('ledger.db')
