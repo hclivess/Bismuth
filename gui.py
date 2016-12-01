@@ -209,7 +209,7 @@ def refresh_auto():
     root.after(1000, refresh_auto)
 
 def refresh():
-    print "refresh triggered"
+    #print "refresh triggered"
     conn = sqlite3.connect('ledger.db')
     conn.text_factory = str
     c = conn.cursor()
