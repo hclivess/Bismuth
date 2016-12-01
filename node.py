@@ -450,12 +450,20 @@ def digest_block(data):  # this function has become the transaction engine core 
                     received_public_key_hashed = transaction[5]
                     received_openfield = transaction[6]
 
+                    c.execute("SELECT block_height FROM transactions where signature = '" + received_signature_enc + "'")
+                    try:
+                        already_mined = c.fetchone()[0]
+                        app_log.info("Node: Transaction already in the ledger on block "+str(already_mined)+", block rejected")
+                        block_valid = 0
+
+                    except:
+                        pass
+
                     received_public_key = RSA.importKey(base64.b64decode(received_public_key_hashed)) #convert readable key to instance
                     received_signature_dec = base64.b64decode(received_signature_enc)
                     verifier = PKCS1_v1_5.new(received_public_key)
 
                     h = SHA.new(str((received_timestamp, received_address, received_recipient, received_amount,received_openfield)))
-
                     if verifier.verify(h, received_signature_dec):
                         app_log.info("Node: The signature is valid")
 
@@ -494,7 +502,7 @@ def digest_block(data):  # this function has become the transaction engine core 
                     # calculate block height from the ledger
 
                     # verify balance
-                    conn = sqlite3.connect('ledger.db')
+                    conn = sqlite3.connect('ledger.db') #defined higher, remove!
                     conn.text_factory = str
                     c = conn.cursor()
 
@@ -597,7 +605,7 @@ def digest_block(data):  # this function has become the transaction engine core 
                     try:
                         app_log.info("Digest: Removing processed transaction from the mempool")
                         m.execute(
-                            "DELETE FROM transactions WHERE signature = '" + db_signature + "';")  # delete tx from mempool now that it is in the ledger todo: reflect block validation
+                            "DELETE FROM transactions WHERE signature = '" + db_signature + "';")  # delete tx from mempool now that it is in the ledger
                         mempool.commit()
                     except:
                         #tx was not in the local mempool
