@@ -1402,7 +1402,7 @@ def worker(HOST, PORT):
 
                     # sand and receive mempool
                     s.sendall("mempool____")
-
+                    time.sleep(0.1)
 
                     mempool = sqlite3.connect('mempool.db')
                     mempool.text_factory = str
