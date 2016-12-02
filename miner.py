@@ -199,7 +199,7 @@ if __name__ == '__main__':
     instances = range(int(mining_threads_conf))
     print instances
     for q in instances:
-        p = Process(target=miner, args=str(q))
+        p = Process(target=miner, args=str(q+1))
         p.start()
         print "thread "+str(p)+ " started"
 
