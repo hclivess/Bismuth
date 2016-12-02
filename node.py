@@ -114,8 +114,8 @@ def merge_mempool(data):
         c = conn.cursor()
 
         try:
-            m.execute("SELECT timestamp FROM transactions WHERE signature = '"+mempool_signature_enc+"'") #condition 1
-            c.execute("SELECT block_height FROM transactions WHERE signature = '" + mempool_signature_enc + "'") #condition 2
+            m.execute("SELECT * FROM transactions WHERE signature = '"+mempool_signature_enc+"'") #condition 1
+            c.execute("SELECT * FROM transactions WHERE signature = '" + mempool_signature_enc + "'") #condition 2
 
             dummy1 = m.fetchall()[0]
             if dummy1 != None:
@@ -1414,13 +1414,12 @@ def worker(HOST, PORT):
                     conn.text_factory = str
                     c = conn.cursor()
                     for transaction in mempool_txs:
-                        print transaction
                         try:
                             c.execute("SELECT * FROM transactions WHERE signature = '" + transaction[
-                                4] + "';")  # try and select the mempool tx in ledger
+                                5] + "';")  # try and select the mempool tx in ledger
                             ledger_sig = c.fetchone()
                             m.execute(
-                                "DELETE FROM transactions WHERE signature = '" + transaction[4] + "';")  # and delete it
+                                "DELETE FROM transactions WHERE signature = '" + transaction[5] + "';")  # and delete it
                             mempool.commit()
                             app_log.info(
                                 "A transaction has been deleted from mempool because it already is in the ledger")
