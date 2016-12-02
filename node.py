@@ -38,8 +38,8 @@ for line in lines:
         debug_conf = line.strip('debug=')
     if "purge=" in line:
         purge_conf = line.strip('purge=')
-    if "timeout=" in line:
-        timeout_conf = line.strip('timeout=')
+    #if "timeout=" in line:
+    #    timeout_conf = line.strip('timeout=')
 
 # load config
 
@@ -1160,7 +1160,7 @@ def worker(HOST, PORT):
             this_client = (HOST + ":" + str(PORT))
             this_client_ip = HOST
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(int(timeout_conf))
+            #s.settimeout(int(timeout_conf))
             s.connect((HOST, PORT))
             app_log.info("Client: Connected to " + str(HOST) + " " + str(PORT))
             connected = 1
