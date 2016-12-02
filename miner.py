@@ -2,6 +2,7 @@ import base64
 import socket
 import sys
 import sqlite3
+import os
 import hashlib
 import time
 import logging
@@ -12,6 +13,9 @@ from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
 
 from multiprocessing import Process
+
+global busy
+busy = 0
 
 # load config
 lines = [line.rstrip('\n') for line in open('config.txt')]
@@ -24,8 +28,6 @@ for line in lines:
         segment_limit_conf = line.strip('segment_limit=')
     if "mining_threads=" in line:
         mining_threads_conf = line.strip('mining_threads=')
-
-
 # load config
 
 #import keys
@@ -53,8 +55,33 @@ ch.setFormatter(formatter)
 app_log.addHandler(ch)
 #logging
 
+#verify connection
+connected = 0
+while connected == 0:
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.connect((mining_ip_conf, int(port)))  # connect to local node
+        app_log.info("Connected")
+        connected = 1
+        s.close()
+    except:
+        app_log.info("Miner: Please start your node for the block to be submitted or adjust mining ip in settings.")
+        time.sleep(1)
+#verify connection
 
-
+if not os.path.exists('mempool.db'):
+    # create empty mempool
+    mempool = sqlite3.connect('mempool.db')
+    mempool.text_factory = str
+    m = mempool.cursor()
+    m.execute(
+        "CREATE TABLE IF NOT EXISTS transactions (timestamp, address, recipient, amount, signature, public_key, openfield)")
+    mempool.commit()
+    mempool.close()
+    app_log.info("Core: Created mempool file")
+    # create empty mempool
+else:
+    app_log.info("Mempool exists")
 
 def split2len(s, n):
     def _f(s, n):
@@ -179,6 +206,11 @@ def miner(args):
                         app_log.info("Miner: Please start your node for the block to be submitted or adjust mining ip in settings.")
                         time.sleep(1)
 
+
+                global busy
+                while busy == 1:
+                    time.sleep(0.1)
+
                 #remove sent from mempool
                 mempool = sqlite3.connect("mempool.db")
                 mempool.text_factory = str
@@ -189,11 +221,12 @@ def miner(args):
                 mempool.commit()
                 mempool.close()
                 #remove sent from mempool
+                busy = 0
 
             #submit mined block to node
         else:
             time.sleep(0.1)
-            break
+            #break
 
 if __name__ == '__main__':
     instances = range(int(mining_threads_conf))
