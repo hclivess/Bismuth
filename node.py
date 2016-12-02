@@ -40,6 +40,8 @@ for line in lines:
         purge_conf = line.strip('purge=')
     if "segment_limit=" in line:
         segment_limit_conf = line.strip('segment_limit=')
+    if "pause=" in line:
+        pause_conf = line.strip('pause=')
 
 # load config
 
@@ -1488,7 +1490,7 @@ def worker(HOST, PORT):
 
                     app_log.info("Client: We seem to be at the latest block. Paused before recheck")
 
-                    time.sleep(10)
+                    time.sleep(int(pause_conf))
                     while busy == 1:
                         time.sleep(1)
                     s.sendall("sendsync___")
