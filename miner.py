@@ -11,9 +11,7 @@ from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
 
-#from threading import Thread
-import threading
-threads_to_start = 2
+from multiprocessing import Process
 
 # load config
 lines = [line.rstrip('\n') for line in open('config.txt')]
@@ -65,14 +63,14 @@ def split2len(s, n):
             s = s[n:]
     return list(_f(s, n))
 
-def doWork():
+def miner(args):
     block_timestamp = 0  # init
     tries = 0
 
     while True:
         if str(block_timestamp) != str(time.time()): #in case the time has changed
             block_timestamp = str(time.time())
-            app_log.info("Mining in progress, " + str(tries) + " cycles have passed in thread "+ str(threading.current_thread()))
+            app_log.info("Mining in progress, " + str(tries) + " cycles have passed in thread "+ str(args))
             tries = tries +1
             # calculate new hash
 
@@ -197,7 +195,11 @@ def doWork():
             time.sleep(0.1)
             break
 
-for q in range(int(mining_threads_conf)):
-    t = threading.Thread(target=doWork)
-    print "thread "+str(t)+ " started"
-    t.start()
+if __name__ == '__main__':
+    instances = range(int(mining_threads_conf))
+    print instances
+    for q in instances:
+        p = Process(target=miner, args=str(q))
+        p.start()
+        print "thread "+str(p)+ " started"
+
