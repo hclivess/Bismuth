@@ -96,7 +96,7 @@ busy = 0
 def merge_mempool(data):
     # merge mempool
     transaction_list = ast.literal_eval(data)
-    for transaction in set(transaction_list): #set means unique
+    for transaction in transaction_list: #set means unique
         mempool_timestamp = transaction[0]
         mempool_address = transaction[1]
         mempool_recipient = transaction[2]
@@ -113,22 +113,28 @@ def merge_mempool(data):
         conn.text_factory = str
         c = conn.cursor()
 
+        acceptable = 1
         try:
             m.execute("SELECT * FROM transactions WHERE signature = '"+mempool_signature_enc+"'") #condition 1
-            c.execute("SELECT * FROM transactions WHERE signature = '" + mempool_signature_enc + "'") #condition 2
-
             dummy1 = m.fetchall()[0]
             if dummy1 != None:
                 app_log.info("That transaction is already in our mempool")
+                acceptable = 0
+        except:
+            pass
 
+        try:
             # reject transactions which are already in the ledger
+            c.execute("SELECT * FROM transactions WHERE signature = '" + mempool_signature_enc + "'")  # condition 2
             dummy2 = c.fetchall()[0]
             if dummy2 != None:
                 app_log.info("That transaction is already in our ledger")
-
             # reject transactions which are already in the ledger
-
+                acceptable = 0
         except:
+            pass
+
+        if acceptable == 1:
             # verify signatures and balances
             # verify balance
             conn = sqlite3.connect('ledger.db')
@@ -797,23 +803,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             m.execute('SELECT * FROM transactions')
                             mempool_txs = m.fetchall()
 
-                            #remove transactions which are already in the ledger
-                            conn = sqlite3.connect('ledger.db')
-                            conn.text_factory = str
-                            c = conn.cursor()
-                            for transaction in mempool_txs:
-                                try:
-                                    c.execute("SELECT * FROM transactions WHERE signature = '" + transaction[5] + "';")  # try and select the mempool tx in ledger
-                                    ledger_sig = c.fetchone()
-                                    m.execute("DELETE FROM transactions WHERE signature = '" + transaction[5] + "';") #and delete it
-                                    mempool.commit()
-                                    app_log.info("A transaction has been deleted from mempool because it already is in the ledger")
-                                except:
-                                    pass
-                            conn.close()
-                            mempool.close()
-                            #remove transactions which are already in the ledger
-
                             #send own
                             app_log.info("Node: Extracted from the mempool: "+str(mempool_txs)) #improve: sync based on signatures only
 
@@ -1408,26 +1397,6 @@ def worker(HOST, PORT):
                     m = mempool.cursor()
                     m.execute('SELECT * FROM transactions')
                     mempool_txs = m.fetchall()
-
-                    # remove transactions which are already in the ledger
-                    conn = sqlite3.connect('ledger.db')
-                    conn.text_factory = str
-                    c = conn.cursor()
-                    for transaction in mempool_txs:
-                        try:
-                            c.execute("SELECT * FROM transactions WHERE signature = '" + transaction[
-                                5] + "';")  # try and select the mempool tx in ledger
-                            ledger_sig = c.fetchone()
-                            m.execute(
-                                "DELETE FROM transactions WHERE signature = '" + transaction[5] + "';")  # and delete it
-                            mempool.commit()
-                            app_log.info(
-                                "A transaction has been deleted from mempool because it already is in the ledger")
-                        except:
-                            pass
-                    conn.close()
-                    mempool.close()
-                    # remove transactions which are already in the ledger
 
                     app_log.info(
                         "Client: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
