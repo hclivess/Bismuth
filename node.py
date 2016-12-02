@@ -332,10 +332,6 @@ def blocknotfound(block_hash_delete):
                 app_log.info("Client: Will not roll back this block")
                 conn.close()
 
-            elif (db_confirmations > 30) and (time.time() < (float(db_timestamp) + 120)):  # unstuck after x seconds
-                app_log.info("Client: Too many confirmations for rollback and the block is too fresh")
-                conn.close()
-
             elif (db_block_hash != block_hash_delete):
                 # print db_block_hash
                 # print block_hash_delete
