@@ -1346,14 +1346,15 @@ def worker(HOST, PORT):
                                     segment_length = len(ledger_split[ledger_index])
                                     while len(str(segment_length)) != 10:
                                         segment_length = "0" + str(segment_length)
-                                    s.sendall(
-                                        segment_length)  # send how much they should receive, usually 500, except the last segment
+
+                                    s.sendall(segment_length)  # send how much they should receive, usually 500, except the last segment
                                     app_log.info("Client: Segment length: " + str(segment_length))
                                     time.sleep(0.1)
-                                    app_log.info("Client: Segment to dispatch: " + str(
-                                        ledger_split[ledger_index]))  # send segment !!!!!!!!!
+
+                                    app_log.info("Client: Segment to dispatch: " + str(ledger_split[ledger_index]))  # send segment !!!!!!!!!
                                     s.sendall(ledger_split[ledger_index])  # send segment
                                     time.sleep(0.1)
+
                                     ledger_count = int(ledger_count) - 1
                                     ledger_index = ledger_index + 1
                                     # send own
