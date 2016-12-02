@@ -45,15 +45,19 @@ for line in lines:
 
 version = version_conf
 
+
 def most_common(lst):
     return max(set(lst), key=lst.count)
+
 
 def split2len(s, n):
     def _f(s, n):
         while s:
             yield s[:n]
             s = s[n:]
+
     return list(_f(s, n))
+
 
 gc.enable()
 
@@ -91,12 +95,13 @@ banlist = []
 global busy
 busy = 0
 
-#port = 2829 now defined by config
+
+# port = 2829 now defined by config
 
 def merge_mempool(data):
     # merge mempool
     transaction_list = ast.literal_eval(data)
-    for transaction in transaction_list: #set means unique
+    for transaction in transaction_list:  # set means unique
         mempool_timestamp = transaction[0]
         mempool_address = transaction[1]
         mempool_recipient = transaction[2]
@@ -115,7 +120,7 @@ def merge_mempool(data):
 
         acceptable = 1
         try:
-            m.execute("SELECT * FROM transactions WHERE signature = '"+mempool_signature_enc+"'") #condition 1
+            m.execute("SELECT * FROM transactions WHERE signature = '" + mempool_signature_enc + "'")  # condition 1
             dummy1 = m.fetchall()[0]
             if dummy1 != None:
                 app_log.info("That transaction is already in our mempool")
@@ -129,7 +134,7 @@ def merge_mempool(data):
             dummy2 = c.fetchall()[0]
             if dummy2 != None:
                 app_log.info("That transaction is already in our ledger")
-            # reject transactions which are already in the ledger
+                # reject transactions which are already in the ledger
                 acceptable = 0
         except:
             pass
@@ -188,7 +193,8 @@ def merge_mempool(data):
             c.execute('SELECT max(block_height) FROM transactions')
             db_block_height = c.fetchone()[0]
 
-            db_block_50 = int(db_block_height) - 50 #warning: this is not precise, real fee will be known only once mined
+            db_block_50 = int(
+                db_block_height) - 50  # warning: this is not precise, real fee will be known only once mined
             try:
                 c.execute("SELECT timestamp FROM transactions WHERE block_height ='" + str(db_block_50) + "';")
                 ledger_timestamp_50 = c.fetchone()[0]
@@ -207,19 +213,23 @@ def merge_mempool(data):
             if float(time_now) < float(mempool_timestamp):
                 app_log.info("Mempool: Future mining not allowed")
 
-            elif (float(balance)) - (float(fee)) < 0:  # removed +float(db_amount) because it is a part of the incoming block
-                    app_log.info("Mempool: Cannot afford to pay fees")
+            elif (float(balance)) - (
+            float(fee)) < 0:  # removed +float(db_amount) because it is a part of the incoming block
+                app_log.info("Mempool: Cannot afford to pay fees")
             # verify signatures and balances
             else:
-                m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?)", (mempool_timestamp,mempool_address,mempool_recipient,str(float(mempool_amount)),mempool_signature_enc,mempool_public_key_hashed,mempool_openfield))
+                m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?)", (
+                mempool_timestamp, mempool_address, mempool_recipient, str(float(mempool_amount)),
+                mempool_signature_enc, mempool_public_key_hashed, mempool_openfield))
                 app_log.info("Node: Mempool updated with a received transaction")
                 mempool.commit()  # Save (commit) the changes
                 mempool.close()
 
 
-            # merge mempool
+                # merge mempool
 
-            # receive mempool
+                # receive mempool
+
 
 def purge_old_peers():
     with open("peers.txt", "r") as peer_list:
@@ -249,6 +259,7 @@ def purge_old_peers():
                 output.write(str(x) + "\n")
             output.close()
 
+
 def verify():
     try:
         invalid = 0
@@ -263,7 +274,7 @@ def verify():
             db_public_key = RSA.importKey(base64.b64decode(db_public_key_hashed))
             db_openfield = row[11]
 
-            db_transaction = (db_timestamp,db_address,db_recipient,str(float(db_amount)),db_openfield)
+            db_transaction = (db_timestamp, db_address, db_recipient, str(float(db_amount)), db_openfield)
 
             db_signature_dec = base64.b64decode(db_signature_enc)
             verifier = PKCS1_v1_5.new(db_public_key)
@@ -289,6 +300,7 @@ def verify():
             conn.close()
             # verify blockchain
 
+
 def blocknotfound(block_hash_delete):
     global busy
     while busy == 1:
@@ -306,11 +318,11 @@ def blocknotfound(block_hash_delete):
             results = c.fetchone()
             db_block_height = results[0]
             db_timestamp = results[1]
-            #db_address = results[2]
-            #db_recipient = results[3]
-            #db_amount = results[4]
-            #db_signature = results[5]
-            #db_public_key_hashed = results[6]
+            # db_address = results[2]
+            # db_recipient = results[3]
+            # db_amount = results[4]
+            # db_signature = results[5]
+            # db_public_key_hashed = results[6]
             db_block_hash = results[7]
             db_confirmations = results[10]
 
@@ -323,8 +335,8 @@ def blocknotfound(block_hash_delete):
                 conn.close()
 
             elif (db_block_hash != block_hash_delete):
-                #print db_block_hash
-                #print block_hash_delete
+                # print db_block_hash
+                # print block_hash_delete
                 app_log.info("Client: We moved away from the block to rollback, skipping")
                 conn.close()
 
@@ -339,7 +351,8 @@ def blocknotfound(block_hash_delete):
             pass
         busy = 0
 
-            # delete followups
+        # delete followups
+
 
 def consensus_add(consensus_ip, consensus_blockheight, consensus_hash):
     global consensus_ip_list
@@ -365,7 +378,7 @@ def consensus_add(consensus_ip, consensus_blockheight, consensus_hash):
             del consensus_ip_list[consensus_index]  # remove ip
             del consensus_blockheight_list[consensus_index]  # remove ip's opinion
             if consensus_blockheight != "none":
-                del consensus_hash_list[consensus_index] # remove hash
+                del consensus_hash_list[consensus_index]  # remove hash
 
             app_log.info("Updating " + str(consensus_ip) + " in consensus")
             consensus_ip_list.append(consensus_ip)
@@ -379,11 +392,13 @@ def consensus_add(consensus_ip, consensus_blockheight, consensus_hash):
 
     consensus = most_common(consensus_blockheight_list)
 
-    consensus_percentage = (float(consensus_blockheight_list.count(consensus) / float(len(consensus_blockheight_list)))) * 100
+    consensus_percentage = (float(
+        consensus_blockheight_list.count(consensus) / float(len(consensus_blockheight_list)))) * 100
     app_log.info("Current active connections: " + str(len(active_pool)))
     app_log.info("Current block consensus: " + str(consensus) + " = " + str(consensus_percentage) + "%")
 
     return
+
 
 def consensus_remove(consensus_ip):
     global consensus_ip_list
@@ -397,6 +412,7 @@ def consensus_remove(consensus_ip):
         del consensus_hash_list[consensus_index]  # remove hash
     else:
         app_log.info("Client " + str(consensus_ip) + " not present in the consensus pool")
+
 
 def manager():
     global banlist
@@ -437,6 +453,7 @@ def manager():
         time.sleep(10)
     return
 
+
 def digest_block(data):  # this function has become the transaction engine core over time, rudimentary naming
     global busy
     while busy == 1:
@@ -471,11 +488,11 @@ def digest_block(data):  # this function has become the transaction engine core 
                         raise
                     except:
                         pass
-                    # reject block with transactions which are already in the ledger
+                        # reject block with transactions which are already in the ledger
 
                 if len(signature_list) != len(set(signature_list)):
                     app_log.info("There are duplicate transactions in this block, rejected")
-                    block_valid = 0 #dont really need this one
+                    block_valid = 0  # dont really need this one
                     raise
                 # reject block with duplicate transactions
 
@@ -489,23 +506,26 @@ def digest_block(data):  # this function has become the transaction engine core 
                     received_public_key_hashed = transaction[5]
                     received_openfield = transaction[6]
 
-                    received_public_key = RSA.importKey(base64.b64decode(received_public_key_hashed)) #convert readable key to instance
+                    received_public_key = RSA.importKey(
+                        base64.b64decode(received_public_key_hashed))  # convert readable key to instance
                     received_signature_dec = base64.b64decode(received_signature_enc)
                     verifier = PKCS1_v1_5.new(received_public_key)
 
-                    h = SHA.new(str((received_timestamp, received_address, received_recipient, received_amount,received_openfield)))
+                    h = SHA.new(str((received_timestamp, received_address, received_recipient, received_amount,
+                                     received_openfield)))
                     if verifier.verify(h, received_signature_dec):
                         app_log.info("Node: The signature is valid")
 
-                    if transaction == transaction_list[-1]:  # recognize the last transaction as the mining reward transaction
+                    if transaction == transaction_list[
+                        -1]:  # recognize the last transaction as the mining reward transaction
                         miner_address = received_address
                         block_timestamp = received_timestamp
 
 
-                            # verify signatures
+                        # verify signatures
 
-
-                c.execute("SELECT block_height,block_hash FROM transactions ORDER BY block_height DESC LIMIT 1;")  # extract data from ledger to construct new block_hash
+                c.execute(
+                    "SELECT block_height,block_hash FROM transactions ORDER BY block_height DESC LIMIT 1;")  # extract data from ledger to construct new block_hash
                 result = c.fetchall()
                 db_block_height = result[0][0]
                 db_block_hash = result[0][1]
@@ -520,21 +540,22 @@ def digest_block(data):  # this function has become the transaction engine core 
                     db_public_key_hashed = transaction[5]
                     db_openfield = transaction[6]
 
-                    #print "sync this"
-                    #print block_timestamp
-                    #print transaction_list
-                    #print db_block_hash
-                    #print (str((block_timestamp,transaction_list,db_block_hash)))
-                    block_hash = hashlib.sha224(str((block_timestamp,transaction_list,db_block_hash))).hexdigest()  # calculate block_hash from the ledger #PROBLEM HEREEEEE
+                    # print "sync this"
+                    # print block_timestamp
+                    # print transaction_list
+                    # print db_block_hash
+                    # print (str((block_timestamp,transaction_list,db_block_hash)))
+                    block_hash = hashlib.sha224(str((block_timestamp, transaction_list,
+                                                     db_block_hash))).hexdigest()  # calculate block_hash from the ledger #PROBLEM HEREEEEE
 
                     app_log.info("Digest: tx sig not found in the local ledger, proceeding to check before insert")
                     # if not in ledger
                     # calculate block height from the ledger
 
                     # verify balance
-                    #conn = sqlite3.connect('ledger.db') #defined higher, remove!
-                    #conn.text_factory = str
-                    #c = conn.cursor()
+                    # conn = sqlite3.connect('ledger.db') #defined higher, remove!
+                    # conn.text_factory = str
+                    # c = conn.cursor()
 
                     mempool = sqlite3.connect('mempool.db')
                     mempool.text_factory = str
@@ -547,15 +568,14 @@ def digest_block(data):  # this function has become the transaction engine core 
                     block_credit = 0
                     credit_block = 0
 
-                    for x in transaction_list: #quite nasty, care not to overlap variables
+                    for x in transaction_list:  # quite nasty, care not to overlap variables
                         if x[2] == db_address:
                             block_credit = float(block_credit) + float(x[3])
                         if x[1] == db_address:
                             credit_block = float(credit_block) + float(x[3])
 
-
-                    app_log.info("Digest: Incoming block credit: "+str(block_credit))
-                    app_log.info("Digest: Incoming block debit: "+str(credit_block))
+                    app_log.info("Digest: Incoming block credit: " + str(block_credit))
+                    app_log.info("Digest: Incoming block debit: " + str(credit_block))
                     # include the new block
 
                     c.execute("SELECT sum(amount) FROM transactions WHERE recipient = '" + db_address + "'")
@@ -574,7 +594,6 @@ def digest_block(data):  # this function has become the transaction engine core 
                     fees = c.fetchone()[0]
                     c.execute("SELECT sum(reward) FROM transactions WHERE address = '" + db_address + "'")
                     rewards = c.fetchone()[0]
-
 
                     if fees == None:
                         fees = 0
@@ -615,21 +634,25 @@ def digest_block(data):  # this function has become the transaction engine core 
                         else:
                             reward = 0
 
-                          # dont request a fee for mined block so new accounts can mine
+                            # dont request a fee for mined block so new accounts can mine
 
                         if miner_address[0:diff] == block_hash[0:diff]:  # simplified comparison, no backwards mining
                             app_log.info("Digest: Difficulty requirement satisfied")
 
-                            if (float(balance))-(float(fee)) < 0: #removed +float(db_amount) because it is a part of the incoming block
+                            if (float(balance)) - (
+                            float(fee)) < 0:  # removed +float(db_amount) because it is a part of the incoming block
                                 app_log.info("Digest: Cannot afford to pay fees")
                                 block_valid = 0
 
                             else:
-                                #append, but do not insert to ledger before whole block is validated
+                                # append, but do not insert to ledger before whole block is validated
                                 app_log.info("Digest: Appending transaction back to block")
-                                block_transactions.append((block_height_new,db_timestamp,db_address,db_recipient,str(float(db_amount)),db_signature,db_public_key_hashed,block_hash,fee,reward,str(0),db_openfield))
+                                block_transactions.append((block_height_new, db_timestamp, db_address, db_recipient,
+                                                           str(float(db_amount)), db_signature, db_public_key_hashed,
+                                                           block_hash, fee, reward, str(0), db_openfield))
                         else:
-                            app_log.info("Digest: Difficulty requirement not satisfied: "+miner_address+" "+block_hash)
+                            app_log.info(
+                                "Digest: Difficulty requirement not satisfied: " + miner_address + " " + block_hash)
                             block_valid = 0
 
                     try:
@@ -638,16 +661,19 @@ def digest_block(data):  # this function has become the transaction engine core 
                             "DELETE FROM transactions WHERE signature = '" + db_signature + "';")  # delete tx from mempool now that it is in the ledger
                         mempool.commit()
                     except:
-                        #tx was not in the local mempool
+                        # tx was not in the local mempool
                         pass
                     mempool.close()
 
-                #whole block validation
+                # whole block validation
                 if block_valid == 1:
                     app_log.info("Block valid")
                     for transaction in block_transactions:
-                        #print transaction
-                        c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (transaction[0],transaction[1],transaction[2],transaction[3],transaction[4],transaction[5],transaction[6],transaction[7],transaction[8],transaction[9],transaction[10],transaction[11]))
+                        # print transaction
+                        c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
+                        transaction[0], transaction[1], transaction[2], transaction[3], transaction[4], transaction[5],
+                        transaction[6], transaction[7], transaction[8], transaction[9], transaction[10],
+                        transaction[11]))
                         conn.commit()
                     conn.close()
 
@@ -655,13 +681,13 @@ def digest_block(data):  # this function has become the transaction engine core 
                 else:
                     app_log.info("A part of the block is invalid, rejected")
 
-                # whole block validation
+                    # whole block validation
 
 
             except Exception, e:
                 app_log.info("Digesting complete")
                 if debug_conf == 1:
-                    raise#debug
+                    raise  # debug
             busy = 0
             return
 
@@ -720,7 +746,8 @@ if not os.path.exists('mempool.db'):
     mempool = sqlite3.connect('mempool.db')
     mempool.text_factory = str
     m = mempool.cursor()
-    m.execute("CREATE TABLE IF NOT EXISTS transactions (timestamp, address, recipient, amount, signature, public_key, openfield)")
+    m.execute(
+        "CREATE TABLE IF NOT EXISTS transactions (timestamp, address, recipient, amount, signature, public_key, openfield)")
     mempool.commit()
     mempool.close()
     app_log.info("Core: Created mempool file")
@@ -754,6 +781,7 @@ if str(
 if verify_conf == 1:
     verify()
 
+
 ### LOCAL CHECKS FINISHED ###
 
 class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
@@ -768,7 +796,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 if data == 'version____':
                     data = self.request.recv(11)
                     if version != data:
-                        app_log.info("Protocol version mismatch: " + data +", should be "+version)
+                        app_log.info("Protocol version mismatch: " + data + ", should be " + version)
                         self.request.sendall("notok______")
                         time.sleep(0.1)
                         raise
@@ -778,64 +806,68 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         time.sleep(0.1)
 
                 if data == 'mempool____':
-                        try:
-                            # receive theirs
-                            segments = ""
-                            data = self.request.recv(10)
-                            app_log.info("Node: Number of incoming segments: " + data)  # how many segments to receive
-                            mempool_count = int(data)
-                            while int(mempool_count) > 0:  # while there are segments to receive
+                    try:
+                        # receive theirs
+                        segments = ""
+                        data = self.request.recv(10)
+                        app_log.info("Node: Number of incoming segments: " + data)  # how many segments to receive
+                        mempool_count = int(data)
 
-                                segment_length = self.request.recv(10)  # identify segment length
-                                app_log.info("Node: Segment length: " + str(segment_length))
+                        while int(mempool_count) > 0:  # while there are segments to receive
 
-                                segment = self.request.recv(int(segment_length))
-                                app_log.info("Node: Received segment: " + segment)
+                            segment_length = self.request.recv(10)  # identify segment length
+                            app_log.info("Node: Segment length: " + str(segment_length))
 
-                                segments = segments + str(segment)
-                                mempool_count = int(mempool_count) - 1
+                            segment = self.request.recv(int(segment_length))
+                            app_log.info("Node: Received segment: " + segment)
 
-                            app_log.info("Node: Combined segments: " + segments)
-                            merge_mempool(segments)
-                            # receive theirs
+                            segments = segments + str(segment)
+                            mempool_count = int(mempool_count) - 1
 
-                            mempool = sqlite3.connect('mempool.db')
-                            mempool.text_factory = str
-                            m = mempool.cursor()
-                            m.execute('SELECT * FROM transactions')
-                            mempool_txs = m.fetchall()
+                        app_log.info("Node: Combined segments: " + segments)
+                        merge_mempool(segments)
+                        # receive theirs
 
-                            #send own
-                            app_log.info("Node: Extracted from the mempool: "+str(mempool_txs)) #improve: sync based on signatures only
+                        mempool = sqlite3.connect('mempool.db')
+                        mempool.text_factory = str
+                        m = mempool.cursor()
+                        m.execute('SELECT * FROM transactions')
+                        mempool_txs = m.fetchall()
 
-                            mempool_split = split2len(str(mempool_txs), 6000)  # mempool txs must be converted to string
-                            mempool_count = len(mempool_split)  # how many segments of 500 will be sent
-                            while len(str(mempool_count)) != 10:
-                                mempool_count = "0" + str(mempool_count)  # number must be 10 long
-                            self.request.sendall(str(mempool_count))  # send how many segments will be transferred
+                        # send own
+                        app_log.info("Node: Extracted from the mempool: " + str(
+                            mempool_txs))  # improve: sync based on signatures only
+
+                        mempool_split = split2len(str(mempool_txs), 3000)  # mempool txs must be converted to string
+                        mempool_count = len(mempool_split)  # how many segments of 500 will be sent
+                        while len(str(mempool_count)) != 10:
+                            mempool_count = "0" + str(mempool_count)  # number must be 10 long
+                        self.request.sendall(str(mempool_count))  # send how many segments will be transferred
+                        time.sleep(0.1)
+                        # print (str(mempool_count))
+
+                        mempool_index = 0
+                        while int(mempool_count) > 0:
+                            segment_length = len(mempool_split[mempool_index])
+                            while len(str(segment_length)) != 10:
+                                segment_length = "0" + str(segment_length)
+
+                            app_log.info("Node: Segment length: " + str(segment_length))
+                            self.request.sendall(
+                                segment_length)  # send how much they should receive, usually 500, except the last segment
                             time.sleep(0.1)
-                            # print (str(mempool_count))
 
-                            mempool_index = 0
-                            while int(mempool_count) > 0:
-                                segment_length = len(mempool_split[mempool_index])
-                                while len(str(segment_length)) != 10:
-                                    segment_length = "0" + str(segment_length)
+                            app_log.info("Node: Segment to dispatch: " + str(
+                                mempool_split[mempool_index]))  # send segment !!!!!!!!!
+                            self.request.sendall(mempool_split[mempool_index])  # send segment
+                            time.sleep(0.1)
 
-                                app_log.info("Node: Segment length: " + str(segment_length))
-                                self.request.sendall(segment_length)  # send how much they should receive, usually 500, except the last segment
-                                time.sleep(0.1)
+                            mempool_count = int(mempool_count) - 1
+                            mempool_index = mempool_index + 1
+                            # send own
 
-                                app_log.info("Node: Segment to dispatch: " + str(mempool_split[mempool_index]))  # send segment !!!!!!!!!
-                                self.request.sendall(mempool_split[mempool_index])  # send segment
-                                time.sleep(0.1)
-
-                                mempool_count = int(mempool_count) - 1
-                                mempool_index = mempool_index + 1
-                            #send own
-
-                        except:
-                            pass
+                    except:
+                        pass
 
                 if data == 'helloserver':
                     with open("peers.txt", "r") as peer_list:
@@ -896,6 +928,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     data = self.request.recv(10)
                     app_log.info("Node: Number of incoming segments: " + data)  # how many segments to receive
                     ledger_count = int(data)
+
                     while int(ledger_count) > 0:  # while there are segments to receive
                         segment_length = self.request.recv(10)  # identify segment length
                         app_log.info("Node: Segment length: " + str(segment_length))
@@ -924,7 +957,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     # consensus pool 1 (connection from them)
                     consensus_ip = self.request.getpeername()[0]
                     consensus_blockheight = int(subdata)  # str int to remove leading zeros
-                    consensus_add(consensus_ip,consensus_blockheight,"none")
+                    consensus_add(consensus_ip, consensus_blockheight, "none")
                     # consensus pool 1 (connection from them)
 
                     conn = sqlite3.connect('ledger.db')
@@ -954,7 +987,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         update_me = 0
 
                     if update_me == 1:
-
                         conn = sqlite3.connect('ledger.db')
                         conn.text_factory = str
                         c = conn.cursor()
@@ -966,8 +998,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         self.request.sendall(db_block_hash)  # send latest block_hash
                         time.sleep(0.1)
 
-                        #receive their latest hash
-                        #confirm you know that hash or continue receiving
+                        # receive their latest hash
+                        # confirm you know that hash or continue receiving
 
                     if update_me == 0:  # update them if update_me is 0
 
@@ -995,8 +1027,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                 time.sleep(0.1)
 
                             else:
-                                c.execute("SELECT timestamp,address,recipient,amount,signature,public_key,openfield FROM transactions WHERE block_height='" + str(
-                                    int(block_hash_client_block) + 1) + "'")  # select incoming transaction + 1, only columns that need not be verified
+                                c.execute(
+                                    "SELECT timestamp,address,recipient,amount,signature,public_key,openfield FROM transactions WHERE block_height='" + str(
+                                        int(
+                                            block_hash_client_block) + 1) + "'")  # select incoming transaction + 1, only columns that need not be verified
                                 block_hash_send = c.fetchall()
 
                                 app_log.info("Node: Selected " + str(block_hash_send) + " to send")
@@ -1005,13 +1039,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                 self.request.sendall("blockfound_")
                                 time.sleep(0.1)
 
-
-
-
-
                                 # send own
-                                ledger_split = split2len(str(block_hash_send),
-                                                         6000)  # ledger txs must be converted to string
+                                ledger_split = split2len(str(block_hash_send),3000)  # ledger txs must be converted to string
                                 ledger_count = len(ledger_split)  # how many segments of 500 will be sent
                                 while len(str(ledger_count)) != 10:
                                     ledger_count = "0" + str(ledger_count)  # number must be 10 long
@@ -1025,11 +1054,13 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                     while len(str(segment_length)) != 10:
                                         segment_length = "0" + str(segment_length)
 
-                                    self.request.sendall(segment_length)  # send how much they should receive, usually 500, except the last segment
+                                    self.request.sendall(
+                                        segment_length)  # send how much they should receive, usually 500, except the last segment
                                     app_log.info("Client: Segment length: " + str(segment_length))
                                     time.sleep(0.1)
 
-                                    app_log.info("Client: Segment to dispatch: " + str(ledger_split[ledger_index]))  # send segment !!!!!!!!!
+                                    app_log.info("Client: Segment to dispatch: " + str(
+                                        ledger_split[ledger_index]))  # send segment !!!!!!!!!
                                     self.request.sendall(ledger_split[ledger_index])  # send segment
                                     time.sleep(0.1)
 
@@ -1066,7 +1097,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             # newly apply on self
 
                 if data == "nonewblocks":
-                    #digest_block() #temporary #otherwise passive node will not be able to digest
+                    # digest_block() #temporary #otherwise passive node will not be able to digest
 
                     self.request.sendall("sync_______")
                     time.sleep(0.1)
@@ -1081,17 +1112,20 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     self.request.sendall("sync_______")
                     time.sleep(0.1)
 
-                if data == "block______": #from miner
+                if data == "block______":  # from miner
                     # receive theirs
                     segments = ""
                     data = self.request.recv(10)
                     app_log.info("Node: Number of incoming mined segments: " + data)  # how many segments to receive
                     ledger_count = int(data)
+
                     while int(ledger_count) > 0:  # while there are segments to receive
                         segment_length = self.request.recv(10)  # identify segment length
                         app_log.info("Node: Mined segment length: " + str(segment_length))
+
                         segment = self.request.recv(int(segment_length))
                         app_log.info("Node: Received mined segment: " + segment)
+
                         segments = segments + str(segment)
                         ledger_count = int(ledger_count) - 1
 
@@ -1114,7 +1148,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 consensus_remove(consensus_ip)
                 # remove from consensus (connection from them)
 
-                raise #for test purposes
+                raise  # for test purposes
                 break
 
 
@@ -1156,7 +1190,7 @@ def worker(HOST, PORT):
 
                 # communication starter
                 data = s.recv(11)  # receive data, one and the only root point
-                app_log.info('Client: Received '+data+' from ' + this_client)
+                app_log.info('Client: Received ' + data + ' from ' + this_client)
                 if data == "":
                     app_log.info("Communication error")
                     raise
@@ -1236,7 +1270,6 @@ def worker(HOST, PORT):
                         update_me = 1
 
                     if update_me == 1:
-
                         conn = sqlite3.connect('ledger.db')
                         conn.text_factory = str
                         c = conn.cursor()
@@ -1254,8 +1287,8 @@ def worker(HOST, PORT):
                         consensus_add(consensus_ip, consensus_blockheight, "none")
                         # consensus pool 2 (active connection)
 
-                        #receive their latest hash
-                        #confirm you know that hash or continue receiving
+                        # receive their latest hash
+                        # confirm you know that hash or continue receiving
 
                     if update_me == 0:  # update them if update_me is 0
                         data = s.recv(56)  # receive client's last block_hash
@@ -1288,8 +1321,9 @@ def worker(HOST, PORT):
                                 time.sleep(0.1)
 
                             else:
-                                c.execute("SELECT timestamp,address,recipient,amount,signature,public_key,openfield FROM transactions WHERE block_height='" + str(
-                                    int(block_hash_client_block) + 1) + "'")  # select incoming transaction + 1
+                                c.execute(
+                                    "SELECT timestamp,address,recipient,amount,signature,public_key,openfield FROM transactions WHERE block_height='" + str(
+                                        int(block_hash_client_block) + 1) + "'")  # select incoming transaction + 1
                                 block_hash_send = c.fetchall()
 
                                 app_log.info("Client: Selected " + str(block_hash_send) + " to send")
@@ -1298,19 +1332,8 @@ def worker(HOST, PORT):
                                 s.sendall("blockfound_")
                                 time.sleep(0.1)
 
-
-
-
-
-
-
-
-
-
-
                                 # send own
-                                ledger_split = split2len(str(block_hash_send),
-                                                         6000)  # ledger txs must be converted to string
+                                ledger_split = split2len(str(block_hash_send),3000)  # ledger txs must be converted to string
                                 ledger_count = len(ledger_split)  # how many segments of 500 will be sent
                                 while len(str(ledger_count)) != 10:
                                     ledger_count = "0" + str(ledger_count)  # number must be 10 long
@@ -1368,11 +1391,14 @@ def worker(HOST, PORT):
                     data = s.recv(10)
                     app_log.info("Node: Number of incoming segments: " + data)  # how many segments to receive
                     ledger_count = int(data)
+
                     while int(ledger_count) > 0:  # while there are segments to receive
                         segment_length = s.recv(10)  # identify segment length
                         app_log.info("Node: Segment length: " + str(segment_length))
+
                         segment = s.recv(int(segment_length))
                         app_log.info("Node: Received segment: " + segment)
+
                         segments = segments + str(segment)
                         ledger_count = int(ledger_count) - 1
 
@@ -1380,18 +1406,18 @@ def worker(HOST, PORT):
                     digest_block(segments)
                     # receive theirs
 
-                    #digest_block(data) goddamn bug
-                    #digest_block() #temporary
+                    # digest_block(data) goddamn bug
+                    # digest_block() #temporary
 
                     while busy == 1:
                         time.sleep(1)
                     s.sendall("sendsync___")
                     time.sleep(0.1)
 
-                        # block_hash validation end
+                    # block_hash validation end
 
                 if data == "nonewblocks":
-                    #digest_block() #temporary #otherwise passive node will not be able to digest
+                    # digest_block() #temporary #otherwise passive node will not be able to digest
 
                     # sand and receive mempool
                     s.sendall("mempool____")
@@ -1404,16 +1430,17 @@ def worker(HOST, PORT):
                     mempool_txs = m.fetchall()
 
                     app_log.info(
-                        "Client: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
+                        "Client: Extracted from the mempool: " + str(
+                            mempool_txs))  # improve: sync based on signatures only
 
                     # send own
-                    mempool_split = split2len(str(mempool_txs), 6000) #mempool txs must be converted to string
+                    mempool_split = split2len(str(mempool_txs), 3000)  # mempool txs must be converted to string
                     mempool_count = len(mempool_split)  # how many segments of 500 will be sent
                     while len(str(mempool_count)) != 10:
                         mempool_count = "0" + str(mempool_count)  # number must be 10 long
                     s.sendall(str(mempool_count))  # send how many segments will be transferred
                     time.sleep(0.1)
-                    #print (str(mempool_count))
+                    # print (str(mempool_count))
 
                     mempool_index = 0
                     while int(mempool_count) > 0:
@@ -1422,10 +1449,12 @@ def worker(HOST, PORT):
                             segment_length = "0" + str(segment_length)
 
                         app_log.info("Client: Segment length: " + str(segment_length))
-                        s.sendall(segment_length)  # send how much they should receive, usually 500, except the last segment
+                        s.sendall(
+                            segment_length)  # send how much they should receive, usually 500, except the last segment
                         time.sleep(0.1)
 
-                        app_log.info("Client: Segment to dispatch: " +str(mempool_split[mempool_index]))  # send segment !!!!!!!!!
+                        app_log.info("Client: Segment to dispatch: " + str(
+                            mempool_split[mempool_index]))  # send segment !!!!!!!!!
                         s.sendall(mempool_split[mempool_index])  # send segment
                         time.sleep(0.1)
 
@@ -1438,6 +1467,7 @@ def worker(HOST, PORT):
                     data = s.recv(10)
                     app_log.info("Client: Number of incoming segments: " + data)  # how many segments to receive
                     mempool_count = int(data)
+
                     while int(mempool_count) > 0:  # while there are segments to receive
 
                         segment_length = s.recv(10)  # identify segment length
@@ -1453,12 +1483,6 @@ def worker(HOST, PORT):
                     merge_mempool(segments)
                     # receive theirs
 
-
-
-
-
-
-
                     # receive mempool
 
                     app_log.info("Client: We seem to be at the latest block. Paused before recheck")
@@ -1470,14 +1494,14 @@ def worker(HOST, PORT):
                     time.sleep(0.1)
 
         except Exception as e:
-            #remove from active pool
+            # remove from active pool
             if this_client in active_pool:
                 app_log.info("Will remove " + str(this_client) + " from active pool " + str(active_pool))
                 active_pool.remove(this_client)
             # remove from active pool
 
             # remove from consensus 2
-            if connected == 1:#if ever connected
+            if connected == 1:  # if ever connected
                 consensus_ip = s.getpeername()[0]
                 consensus_remove(consensus_ip)
             # remove from consensus 2
