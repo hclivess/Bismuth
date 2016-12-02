@@ -808,7 +808,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             #send own
                             app_log.info("Node: Extracted from the mempool: "+str(mempool_txs)) #improve: sync based on signatures only
 
-                            mempool_split = split2len(str(mempool_txs), 8000)  # mempool txs must be converted to string
+                            mempool_split = split2len(str(mempool_txs), 6000)  # mempool txs must be converted to string
                             mempool_count = len(mempool_split)  # how many segments of 500 will be sent
                             while len(str(mempool_count)) != 10:
                                 mempool_count = "0" + str(mempool_count)  # number must be 10 long
@@ -899,8 +899,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     while int(ledger_count) > 0:  # while there are segments to receive
                         segment_length = self.request.recv(10)  # identify segment length
                         app_log.info("Node: Segment length: " + str(segment_length))
+
                         segment = self.request.recv(int(segment_length))
                         app_log.info("Node: Received segment: " + segment)
+
                         segments = segments + str(segment)
                         ledger_count = int(ledger_count) - 1
 
@@ -1009,7 +1011,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                                 # send own
                                 ledger_split = split2len(str(block_hash_send),
-                                                         8000)  # ledger txs must be converted to string
+                                                         6000)  # ledger txs must be converted to string
                                 ledger_count = len(ledger_split)  # how many segments of 500 will be sent
                                 while len(str(ledger_count)) != 10:
                                     ledger_count = "0" + str(ledger_count)  # number must be 10 long
@@ -1022,12 +1024,12 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                     segment_length = len(ledger_split[ledger_index])
                                     while len(str(segment_length)) != 10:
                                         segment_length = "0" + str(segment_length)
-                                    self.request.sendall(
-                                        segment_length)  # send how much they should receive, usually 500, except the last segment
+
+                                    self.request.sendall(segment_length)  # send how much they should receive, usually 500, except the last segment
                                     app_log.info("Client: Segment length: " + str(segment_length))
                                     time.sleep(0.1)
-                                    app_log.info("Client: Segment to dispatch: " + str(
-                                        ledger_split[ledger_index]))  # send segment !!!!!!!!!
+
+                                    app_log.info("Client: Segment to dispatch: " + str(ledger_split[ledger_index]))  # send segment !!!!!!!!!
                                     self.request.sendall(ledger_split[ledger_index])  # send segment
                                     time.sleep(0.1)
 
@@ -1308,7 +1310,7 @@ def worker(HOST, PORT):
 
                                 # send own
                                 ledger_split = split2len(str(block_hash_send),
-                                                         8000)  # ledger txs must be converted to string
+                                                         6000)  # ledger txs must be converted to string
                                 ledger_count = len(ledger_split)  # how many segments of 500 will be sent
                                 while len(str(ledger_count)) != 10:
                                     ledger_count = "0" + str(ledger_count)  # number must be 10 long
@@ -1405,7 +1407,7 @@ def worker(HOST, PORT):
                         "Client: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
 
                     # send own
-                    mempool_split = split2len(str(mempool_txs), 8000) #mempool txs must be converted to string
+                    mempool_split = split2len(str(mempool_txs), 6000) #mempool txs must be converted to string
                     mempool_count = len(mempool_split)  # how many segments of 500 will be sent
                     while len(str(mempool_count)) != 10:
                         mempool_count = "0" + str(mempool_count)  # number must be 10 long
