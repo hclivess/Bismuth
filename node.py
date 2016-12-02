@@ -785,13 +785,15 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             app_log.info("Node: Number of incoming segments: " + data)  # how many segments to receive
                             mempool_count = int(data)
                             while int(mempool_count) > 0:  # while there are segments to receive
-                                mempool_count = int(mempool_count) - 1
 
                                 segment_length = self.request.recv(10)  # identify segment length
                                 app_log.info("Node: Segment length: " + str(segment_length))
+
                                 segment = self.request.recv(int(segment_length))
                                 app_log.info("Node: Received segment: " + segment)
+
                                 segments = segments + str(segment)
+                                mempool_count = int(mempool_count) - 1
 
                             app_log.info("Node: Combined segments: " + segments)
                             merge_mempool(segments)
@@ -819,14 +821,15 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                 segment_length = len(mempool_split[mempool_index])
                                 while len(str(segment_length)) != 10:
                                     segment_length = "0" + str(segment_length)
-                                self.request.sendall(
-                                    segment_length)  # send how much they should receive, usually 500, except the last segment
-                                time.sleep(0.1)
+
                                 app_log.info("Node: Segment length: " + str(segment_length))
-                                app_log.info("Node: Segment to dispatch: " + str(
-                                    mempool_split[mempool_index]))  # send segment !!!!!!!!!
+                                self.request.sendall(segment_length)  # send how much they should receive, usually 500, except the last segment
+                                time.sleep(0.1)
+
+                                app_log.info("Node: Segment to dispatch: " + str(mempool_split[mempool_index]))  # send segment !!!!!!!!!
                                 self.request.sendall(mempool_split[mempool_index])  # send segment
                                 time.sleep(0.1)
+
                                 mempool_count = int(mempool_count) - 1
                                 mempool_index = mempool_index + 1
                             #send own
@@ -1375,7 +1378,7 @@ def worker(HOST, PORT):
                     digest_block(segments)
                     # receive theirs
 
-                    digest_block(data)
+                    #digest_block(data) goddamn bug
                     #digest_block() #temporary
 
                     while busy == 1:
@@ -1415,12 +1418,15 @@ def worker(HOST, PORT):
                         segment_length = len(mempool_split[mempool_index])
                         while len(str(segment_length)) != 10:
                             segment_length = "0" + str(segment_length)
+
+                        app_log.info("Client: Segment length: " + str(segment_length))
                         s.sendall(segment_length)  # send how much they should receive, usually 500, except the last segment
                         time.sleep(0.1)
-                        app_log.info("Client: Segment length: "+str(segment_length))
+
                         app_log.info("Client: Segment to dispatch: " +str(mempool_split[mempool_index]))  # send segment !!!!!!!!!
                         s.sendall(mempool_split[mempool_index])  # send segment
                         time.sleep(0.1)
+
                         mempool_count = int(mempool_count) - 1
                         mempool_index = mempool_index + 1
                     # send own
@@ -1431,12 +1437,15 @@ def worker(HOST, PORT):
                     app_log.info("Client: Number of incoming segments: " + data)  # how many segments to receive
                     mempool_count = int(data)
                     while int(mempool_count) > 0:  # while there are segments to receive
-                        mempool_count = int(mempool_count) - 1
+
                         segment_length = s.recv(10)  # identify segment length
                         app_log.info("Client: Segment length: " + segment_length)
+
                         segment = s.recv(int(segment_length))
                         app_log.info("Client: Received segment: " + segment)
+
                         segments = segments + str(segment)
+                        mempool_count = int(mempool_count) - 1
 
                     app_log.info("Client: Combined segments: " + segments)
                     merge_mempool(segments)
