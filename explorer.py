@@ -1,5 +1,6 @@
 import sqlite3
 import web
+import time
 
 urls = (
     '/', 'index'
@@ -202,7 +203,7 @@ class index:
         for x in all:
             view.append("<tr>")
             view.append("<td>" + str(x[0]) + "</td>")
-            view.append("<td>" + str(x[1]) + "</td>")
+            view.append("<td>" + str(time.strftime("%Y/%m/%d,%H:%M:%S", time.localtime(float(x[1])))))
             view.append("<td>" + str(x[2]) + "</td>")
             view.append("<td>" + str(x[3].encode('utf-8')) + "</td>")
             view.append("<td>" + str(x[4]) + "</td>")
