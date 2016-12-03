@@ -210,6 +210,7 @@ def miner(args):
                 global busy
                 while busy == 1:
                     time.sleep(0.1)
+                busy = 1
 
                 #remove sent from mempool
                 mempool = sqlite3.connect("mempool.db")

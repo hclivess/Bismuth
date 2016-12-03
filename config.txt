@@ -9,3 +9,4 @@ debug=1
 purge=0
 segment_limit=64000
 pause=5
+mining_threads=8
