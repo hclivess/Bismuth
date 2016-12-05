@@ -101,6 +101,10 @@ def miner(args):
             tries = tries +1
             # calculate new hash
 
+
+            while busy == 1:
+                time.sleep(0.1)
+            busy = 1
             conn = sqlite3.connect("ledger.db") #open to select the last tx to create a new hash from
             conn.text_factory = str
             c = conn.cursor()
@@ -117,7 +121,7 @@ def miner(args):
             m.execute("SELECT * FROM transactions ORDER BY timestamp;")
             result = m.fetchall() #select all txs from mempool
             mempool.close()
-
+            busy = 0
 
             transactions = []
             del transactions[:] # empty
