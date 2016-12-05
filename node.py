@@ -1145,10 +1145,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 # app_log.info("Server resting") #prevent cpu overload
             except Exception, e:
                 app_log.info("Node: Lost connection")
-                #experimental
-                self.request.shutdown()
-                self.request.close()
-                # experimental
                 app_log.info("Node: "+str(e))
 
                 # remove from consensus (connection from them)
