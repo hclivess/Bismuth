@@ -804,7 +804,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         self.request.sendall("ok_________")
                         time.sleep(0.1)
 
-                if data == 'mempool____':
+                elif data == 'mempool____':
                     try:
                         # receive theirs
                         segments = ""
@@ -868,7 +868,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     except:
                         pass
 
-                if data == 'helloserver':
+                elif data == 'helloserver':
                     with open("peers.txt", "r") as peer_list:
                         peers = peer_list.read()
                         app_log.info("Node: " + peers)
@@ -916,13 +916,13 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     self.request.sendall("sync_______")
                     time.sleep(0.1)
 
-                if data == "sendsync___":
+                elif data == "sendsync___":
                     while busy == 1:
                         time.sleep(1)
                     self.request.sendall("sync_______")
                     time.sleep(0.1)
 
-                if data == "blockfound_":
+                elif data == "blockfound_":
                     app_log.info("Node: Client has the block")  # node should start sending txs in this step
 
                     # receive theirs
@@ -951,7 +951,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     self.request.sendall("sync_______")
                     time.sleep(0.1)
 
-                if data == "blockheight":
+                elif data == "blockheight":
                     subdata = self.request.recv(11)  # receive client's last block height
                     received_block_height = subdata
                     app_log.info("Node: Received block height: " + received_block_height)
@@ -1098,13 +1098,13 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             blocknotfound(db_block_hash)
                             # newly apply on self
 
-                if data == "nonewblocks":
+                elif data == "nonewblocks":
                     # digest_block() #temporary #otherwise passive node will not be able to digest
 
                     self.request.sendall("sync_______")
                     time.sleep(0.1)
 
-                if data == "blocknotfou":
+                elif data == "blocknotfou":
                     block_hash_delete = self.request.recv(56)
                     blocknotfound(block_hash_delete)
 
@@ -1114,7 +1114,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     self.request.sendall("sync_______")
                     time.sleep(0.1)
 
-                if data == "block______":  # from miner
+                elif data == "block______":  # from miner
                     # receive theirs
                     segments = ""
                     data = self.request.recv(10)
@@ -1135,9 +1135,14 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     digest_block(segments)
                     # receive theirs
 
-                if data == "":
+                elif data == "":
                     app_log.info("Node: Communication error")
                     raise
+
+                else:
+                    app_log.info("Unexpected error")
+                    raise
+
                 time.sleep(0.1)
 
                 # app_log.info("Server resting") #prevent cpu overload

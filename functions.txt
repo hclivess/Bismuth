@@ -1,30 +1,19 @@
-Communicatiion functions documentation:
+node (server) input functions:
 
-Communication Manager:
-Open peers.txt
-Count threads
-Start clients within the thread pool limit
-Manage "tried" list
+version____
+mempool____
+helloserver
+sendsync___
+blockfound_
+blockheight
+nonewblocks
+blocknotfou
+block______
 
-Node:
+client (passive) input functions:
 
 peers______
 sync_______
-mytxhash___
-nonewblocks
-blockfound_
 blocknotfou
-
----
-
-Client
-
-helloserver
-sendsync___
-nonewblocks
 blockfound_
-blocknotfou
-blockheight
- 
- 
- just a draft, not precise or complete
+nonewblocks
