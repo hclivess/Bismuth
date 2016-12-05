@@ -1191,8 +1191,14 @@ def worker(HOST, PORT):
                 time.sleep(0.1)
 
             # communication starter
-            data = s.recv(11)  # receive data, one and the only root point
-            app_log.info('Client: Received ' + data + ' from ' + this_client)
+
+            r, _, _ = select.select([s], [], [])
+            if r:
+                data = s.recv(11)  # receive data, one and the only root point
+                app_log.info('Client: Received ' + data + ' from ' + this_client)
+            else:
+                app_log.info('Client: Issue with socket select')
+                raise
 
             if data == "peers______":
                 subdata = s.recv(2048)  # peers are larger
