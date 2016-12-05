@@ -1171,6 +1171,7 @@ def worker(HOST, PORT):
 
     while True:
         try:
+
             # communication starter
             if first_run == 1:
                 first_run = 0
@@ -1370,8 +1371,6 @@ def worker(HOST, PORT):
                         c.execute('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1')
                         db_block_hash = c.fetchone()[0]  # get latest block_hash
                         conn.close()
-                        blocknotfound(db_block_hash)
-                        # newly apply on self
 
             elif data == "blocknotfou":
                 block_hash_delete = s.recv(56)
@@ -1500,7 +1499,6 @@ def worker(HOST, PORT):
             else:
                 app_log.info("Unexpected error")
                 raise
-
 
         except Exception as e:
             # properly end the connection
