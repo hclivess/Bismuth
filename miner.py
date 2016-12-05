@@ -101,7 +101,7 @@ def miner(args):
             tries = tries +1
             # calculate new hash
 
-
+            global busy
             while busy == 1:
                 time.sleep(0.1)
             busy = 1
@@ -210,8 +210,6 @@ def miner(args):
                         app_log.info("Miner: Please start your node for the block to be submitted or adjust mining ip in settings.")
                         time.sleep(1)
 
-
-                global busy
                 while busy == 1:
                     time.sleep(0.1)
                 busy = 1
@@ -240,4 +238,5 @@ if __name__ == '__main__':
         p = Process(target=miner, args=str(q+1))
         p.start()
         print "thread "+str(p)+ " started"
+
 
