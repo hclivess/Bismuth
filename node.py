@@ -7,6 +7,7 @@ import hashlib
 import os
 import re
 import socket
+import select
 import sqlite3
 import sys
 import threading
@@ -430,7 +431,7 @@ def manager():
                 PORT = int(tuple[1])
                 # app_log.info(PORT)
 
-                app_log.info(HOST + ":" + str(PORT))
+                app_log.info("Will attempt to connect to " + HOST + ":" + str(PORT))
                 if threads_count <= threads_limit and str(HOST + ":" + str(PORT)) not in tried and str(
                                         HOST + ":" + str(PORT)) not in active_pool and str(HOST) not in banlist:
                     tried.append(HOST + ":" + str(PORT))
@@ -1144,7 +1145,11 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 # app_log.info("Server resting") #prevent cpu overload
             except Exception, e:
                 app_log.info("Node: Lost connection")
-                app_log.info(e)
+                #experimental
+                self.request.shutdown()
+                self.request.close()
+                # experimental
+                app_log.info("Node: "+str(e))
 
                 # remove from consensus (connection from them)
                 consensus_ip = self.request.getpeername()[0]
@@ -1157,347 +1162,354 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
 # client thread
 def worker(HOST, PORT):
+    last_ping = time.time()
+
+    connected = 0
+    this_client = (HOST + ":" + str(PORT))
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect((HOST, PORT))
+    app_log.info("Client: Connected to " + str(HOST) + " " + str(PORT))
+    connected = 1
+
+    if this_client not in active_pool:
+        active_pool.append(this_client)
+        app_log.info("Current active pool: " + str(active_pool))
+
+    first_run = 1
+
     while True:
         try:
-            connected = 0
-            this_client = (HOST + ":" + str(PORT))
-            this_client_ip = HOST
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            #s.settimeout(int(timeout_conf))
-            s.connect((HOST, PORT))
-            app_log.info("Client: Connected to " + str(HOST) + " " + str(PORT))
-            connected = 1
-            if this_client not in active_pool:
-                active_pool.append(this_client)
-                app_log.info("Current active pool: " + str(active_pool))
+            # communication starter
+            if first_run == 1:
+                first_run = 0
 
-            first_run = 1
-            while True:
-                # communication starter
-                if first_run == 1:
-                    first_run = 0
-
-                    s.sendall('version____')
-                    time.sleep(0.1)
-                    s.sendall(version)
-                    time.sleep(0.1)
-                    data = s.recv(11)
-                    if data == "ok_________":
-                        app_log.info("Client: Node protocol version matches our client")
-                    else:
-                        app_log.info("Client: Node protocol version mismatch")
-                        raise
-
-                    s.sendall('helloserver')
-                    time.sleep(0.1)
-
-                # communication starter
-                data = s.recv(11)  # receive data, one and the only root point
-                app_log.info('Client: Received ' + data + ' from ' + this_client)
-                if data == "":
-                    app_log.info("Communication error")
+                s.sendall('version____')
+                time.sleep(0.1)
+                s.sendall(version)
+                time.sleep(0.1)
+                data = s.recv(11)
+                if data == "ok_________":
+                    app_log.info("Client: Node protocol version matches our client")
+                else:
+                    app_log.info("Client: Node protocol version mismatch")
                     raise
 
-                if data == "peers______":
-                    subdata = s.recv(2048)  # peers are larger
-                    # get remote peers into tuples
-                    server_peer_tuples = re.findall("'([\d\.]+)', '([\d]+)'", subdata)
-                    app_log.info(server_peer_tuples)
-                    app_log.info(len(server_peer_tuples))
-                    # get remote peers into tuples
+                s.sendall('helloserver')
+                time.sleep(0.1)
 
-                    # get local peers into tuples
-                    peer_file = open("peers.txt", 'r')
-                    peer_tuples = []
-                    for line in peer_file:
-                        extension = re.findall("'([\d\.]+)', '([\d]+)'", line)
-                        peer_tuples.extend(extension)
-                    peer_file.close()
-                    app_log.info(peer_tuples)
-                    # get local peers into tuples
+            # communication starter
+            data = s.recv(11)  # receive data, one and the only root point
+            app_log.info('Client: Received ' + data + ' from ' + this_client)
 
-                    for x in server_peer_tuples:
-                        if x not in peer_tuples:
-                            app_log.info("Client: " + str(x) + " is a new peer, saving if connectible")
-                            try:
-                                s_purge = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                                s_purge.connect((HOST[x], PORT[x]))  # save a new peer file with only active nodes
+            if data == "peers______":
+                subdata = s.recv(2048)  # peers are larger
+                # get remote peers into tuples
+                server_peer_tuples = re.findall("'([\d\.]+)', '([\d]+)'", subdata)
+                app_log.info(server_peer_tuples)
+                app_log.info(len(server_peer_tuples))
+                # get remote peers into tuples
 
-                                s_purge.shutdown()
-                                s_purge.close()
+                # get local peers into tuples
+                peer_file = open("peers.txt", 'r')
+                peer_tuples = []
+                for line in peer_file:
+                    extension = re.findall("'([\d\.]+)', '([\d]+)'", line)
+                    peer_tuples.extend(extension)
+                peer_file.close()
+                app_log.info(peer_tuples)
+                # get local peers into tuples
 
-                                peer_list_file = open("peers.txt", 'a')
-                                peer_list_file.write(str(x) + "\n")
-                                peer_list_file.close()
-                            except:
-                                app_log.info("Not connectible")
+                for x in server_peer_tuples:
+                    if x not in peer_tuples:
+                        app_log.info("Client: " + str(x) + " is a new peer, saving if connectible")
+                        try:
+                            s_purge = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                            s_purge.connect((HOST[x], PORT[x]))  # save a new peer file with only active nodes
 
-                        else:
-                            app_log.info("Client: " + str(x) + " is not a new peer")
+                            s_purge.shutdown()
+                            s_purge.close()
 
-                if data == "sync_______":
-                    # sync start
+                            peer_list_file = open("peers.txt", 'a')
+                            peer_list_file.write(str(x) + "\n")
+                            peer_list_file.close()
+                        except:
+                            app_log.info("Not connectible")
 
-                    # send block height, receive block height
-                    s.sendall("blockheight")
+                    else:
+                        app_log.info("Client: " + str(x) + " is not a new peer")
+
+            elif data == "sync_______":
+                # sync start
+
+                # send block height, receive block height
+                s.sendall("blockheight")
+                time.sleep(0.1)
+
+                conn = sqlite3.connect('ledger.db')
+                conn.text_factory = str
+                c = conn.cursor()
+                c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
+                db_block_height = c.fetchone()[0]
+                conn.close()
+
+                app_log.info("Client: Sending block height to compare: " + str(db_block_height))
+                # append zeroes to get static length
+                while len(str(db_block_height)) != 11:
+                    db_block_height = "0" + str(db_block_height)
+                s.sendall(str(db_block_height))
+                time.sleep(0.1)
+
+                subdata = s.recv(11)  # receive node's block height
+                received_block_height = subdata
+                app_log.info("Client: Node is at block height: " + str(received_block_height))
+
+                # todo add to active pool here?
+
+                if received_block_height < db_block_height:
+                    app_log.info("Client: We have a higher, sending")
+                    update_me = 0
+
+                if received_block_height > db_block_height:
+                    app_log.info("Client: Node has higher block, receiving")
+                    update_me = 1
+
+                if received_block_height == db_block_height:
+                    app_log.info("Client: We have the same block height, hash will be verified")
+                    update_me = 1
+
+                if update_me == 1:
+                    conn = sqlite3.connect('ledger.db')
+                    conn.text_factory = str
+                    c = conn.cursor()
+                    c.execute('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1')
+                    db_block_hash = c.fetchone()[0]  # get latest block_hash
+                    conn.close()
+
+                    app_log.info("Client: block_hash to send: " + str(db_block_hash))
+                    s.sendall(db_block_hash)  # send latest block_hash
                     time.sleep(0.1)
+
+                    # consensus pool 2 (active connection)
+                    consensus_ip = s.getpeername()[0]
+                    consensus_blockheight = int(subdata)  # str int to remove leading zeros
+                    consensus_add(consensus_ip, consensus_blockheight, "none")
+                    # consensus pool 2 (active connection)
+
+                    # receive their latest hash
+                    # confirm you know that hash or continue receiving
+
+                if update_me == 0:  # update them if update_me is 0
+                    data = s.recv(56)  # receive client's last block_hash
+
+                    # send all our followup hashes
+                    app_log.info("Client: Will seek the following block: " + str(data))
+
+                    # consensus pool 2 (active connection)
+                    consensus_ip = s.getpeername()[0]
+                    consensus_blockheight = int(subdata)  # str int to remove leading zeros
+                    consensus_add(consensus_ip, consensus_blockheight, data)
+                    # consensus pool 2 (active connection)
 
                     conn = sqlite3.connect('ledger.db')
                     conn.text_factory = str
                     c = conn.cursor()
-                    c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
-                    db_block_height = c.fetchone()[0]
-                    conn.close()
 
-                    app_log.info("Client: Sending block height to compare: " + str(db_block_height))
-                    # append zeroes to get static length
-                    while len(str(db_block_height)) != 11:
-                        db_block_height = "0" + str(db_block_height)
-                    s.sendall(str(db_block_height))
-                    time.sleep(0.1)
+                    try:
+                        c.execute("SELECT block_height FROM transactions WHERE block_hash='" + data + "'")
+                        block_hash_client_block = c.fetchone()[0]
 
-                    subdata = s.recv(11)  # receive node's block height
-                    received_block_height = subdata
-                    app_log.info("Client: Node is at block height: " + str(received_block_height))
+                        app_log.info("Client: Node is at block " + str(
+                            block_hash_client_block))  # now check if we have any newer
 
-                    # todo add to active pool here?
+                        c.execute('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1')
+                        db_block_hash = c.fetchone()[0]  # get latest block_hash
+                        if db_block_hash == data:
+                            app_log.info("Client: Node has the latest block")
+                            s.sendall("nonewblocks")
+                            time.sleep(0.1)
 
-                    if received_block_height < db_block_height:
-                        app_log.info("Client: We have a higher, sending")
-                        update_me = 0
+                        else:
+                            c.execute(
+                                "SELECT timestamp,address,recipient,amount,signature,public_key,openfield FROM transactions WHERE block_height='" + str(
+                                    int(block_hash_client_block) + 1) + "'")  # select incoming transaction + 1
+                            block_hash_send = c.fetchall()
 
-                    if received_block_height > db_block_height:
-                        app_log.info("Client: Node has higher block, receiving")
-                        update_me = 1
+                            app_log.info("Client: Selected " + str(block_hash_send) + " to send")
 
-                    if received_block_height == db_block_height:
-                        app_log.info("Client: We have the same block height, hash will be verified")
-                        update_me = 1
+                            conn.close()
+                            s.sendall("blockfound_")
+                            time.sleep(0.1)
 
-                    if update_me == 1:
+                            # send own
+                            ledger_split = split2len(str(block_hash_send),int(segment_limit_conf))  # ledger txs must be converted to string
+                            ledger_count = len(ledger_split)  # how many segments of 500 will be sent
+                            while len(str(ledger_count)) != 10:
+                                ledger_count = "0" + str(ledger_count)  # number must be 10 long
+                            s.sendall(str(ledger_count))  # send how many segments will be transferred
+                            time.sleep(0.1)
+                            # print (str(ledger_count))
+
+                            ledger_index = 0
+                            while int(ledger_count) > 0:
+                                segment_length = len(ledger_split[ledger_index])
+                                while len(str(segment_length)) != 10:
+                                    segment_length = "0" + str(segment_length)
+
+                                s.sendall(segment_length)  # send how much they should receive, usually 500, except the last segment
+                                app_log.info("Client: Segment length: " + str(segment_length))
+                                time.sleep(0.1)
+
+                                app_log.info("Client: Segment to dispatch: " + str(ledger_split[ledger_index]))  # send segment !!!!!!!!!
+                                s.sendall(ledger_split[ledger_index])  # send segment
+                                time.sleep(0.1)
+
+                                ledger_count = int(ledger_count) - 1
+                                ledger_index = ledger_index + 1
+                                # send own
+
+
+                    except:
+                        app_log.info("Node: Block not found")
+                        s.sendall("blocknotfou")
+                        time.sleep(0.1)
+                        # newly apply on self
                         conn = sqlite3.connect('ledger.db')
                         conn.text_factory = str
                         c = conn.cursor()
                         c.execute('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1')
                         db_block_hash = c.fetchone()[0]  # get latest block_hash
                         conn.close()
+                        blocknotfound(db_block_hash)
+                        # newly apply on self
 
-                        app_log.info("Client: block_hash to send: " + str(db_block_hash))
-                        s.sendall(db_block_hash)  # send latest block_hash
-                        time.sleep(0.1)
+            elif data == "blocknotfou":
+                block_hash_delete = s.recv(56)
+                blocknotfound(block_hash_delete)
 
-                        # consensus pool 2 (active connection)
-                        consensus_ip = s.getpeername()[0]
-                        consensus_blockheight = int(subdata)  # str int to remove leading zeros
-                        consensus_add(consensus_ip, consensus_blockheight, "none")
-                        # consensus pool 2 (active connection)
+                while busy == 1:
+                    time.sleep(1)
+                s.sendall("sendsync___")
+                time.sleep(0.1)
 
-                        # receive their latest hash
-                        # confirm you know that hash or continue receiving
+            elif data == "blockfound_":
 
-                    if update_me == 0:  # update them if update_me is 0
-                        data = s.recv(56)  # receive client's last block_hash
+                app_log.info("Client: Node has the block")  # node should start sending txs in this step
 
-                        # send all our followup hashes
-                        app_log.info("Client: Will seek the following block: " + str(data))
+                # receive theirs
+                segments = ""
+                data = s.recv(10)
+                app_log.info("Node: Number of incoming segments: " + data)  # how many segments to receive
+                ledger_count = int(data)
 
-                        # consensus pool 2 (active connection)
-                        consensus_ip = s.getpeername()[0]
-                        consensus_blockheight = int(subdata)  # str int to remove leading zeros
-                        consensus_add(consensus_ip, consensus_blockheight, data)
-                        # consensus pool 2 (active connection)
+                while int(ledger_count) > 0:  # while there are segments to receive
+                    segment_length = s.recv(10)  # identify segment length
+                    app_log.info("Node: Segment length: " + str(segment_length))
 
-                        conn = sqlite3.connect('ledger.db')
-                        conn.text_factory = str
-                        c = conn.cursor()
+                    segment = s.recv(int(segment_length))
+                    app_log.info("Node: Received segment: " + segment)
 
-                        try:
-                            c.execute("SELECT block_height FROM transactions WHERE block_hash='" + data + "'")
-                            block_hash_client_block = c.fetchone()[0]
+                    segments = segments + str(segment)
+                    ledger_count = int(ledger_count) - 1
 
-                            app_log.info("Client: Node is at block " + str(
-                                block_hash_client_block))  # now check if we have any newer
+                app_log.info("Node: Combined segments: " + segments)
+                digest_block(segments)
+                # receive theirs
 
-                            c.execute('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1')
-                            db_block_hash = c.fetchone()[0]  # get latest block_hash
-                            if db_block_hash == data:
-                                app_log.info("Client: Node has the latest block")
-                                s.sendall("nonewblocks")
-                                time.sleep(0.1)
+                # digest_block(data) goddamn bug
+                # digest_block() #temporary
 
-                            else:
-                                c.execute(
-                                    "SELECT timestamp,address,recipient,amount,signature,public_key,openfield FROM transactions WHERE block_height='" + str(
-                                        int(block_hash_client_block) + 1) + "'")  # select incoming transaction + 1
-                                block_hash_send = c.fetchall()
+                while busy == 1:
+                    time.sleep(1)
+                s.sendall("sendsync___")
+                time.sleep(0.1)
 
-                                app_log.info("Client: Selected " + str(block_hash_send) + " to send")
+                # block_hash validation end
 
-                                conn.close()
-                                s.sendall("blockfound_")
-                                time.sleep(0.1)
+            elif data == "nonewblocks":
+                # digest_block() #temporary #otherwise passive node will not be able to digest
 
-                                # send own
-                                ledger_split = split2len(str(block_hash_send),int(segment_limit_conf))  # ledger txs must be converted to string
-                                ledger_count = len(ledger_split)  # how many segments of 500 will be sent
-                                while len(str(ledger_count)) != 10:
-                                    ledger_count = "0" + str(ledger_count)  # number must be 10 long
-                                s.sendall(str(ledger_count))  # send how many segments will be transferred
-                                time.sleep(0.1)
-                                # print (str(ledger_count))
+                # sand and receive mempool
+                s.sendall("mempool____")
+                time.sleep(0.1)
 
-                                ledger_index = 0
-                                while int(ledger_count) > 0:
-                                    segment_length = len(ledger_split[ledger_index])
-                                    while len(str(segment_length)) != 10:
-                                        segment_length = "0" + str(segment_length)
+                mempool = sqlite3.connect('mempool.db')
+                mempool.text_factory = str
+                m = mempool.cursor()
+                m.execute('SELECT * FROM transactions')
+                mempool_txs = m.fetchall()
 
-                                    s.sendall(segment_length)  # send how much they should receive, usually 500, except the last segment
-                                    app_log.info("Client: Segment length: " + str(segment_length))
-                                    time.sleep(0.1)
+                app_log.info(
+                    "Client: Extracted from the mempool: " + str(
+                        mempool_txs))  # improve: sync based on signatures only
 
-                                    app_log.info("Client: Segment to dispatch: " + str(ledger_split[ledger_index]))  # send segment !!!!!!!!!
-                                    s.sendall(ledger_split[ledger_index])  # send segment
-                                    time.sleep(0.1)
+                # send own
+                mempool_split = split2len(str(mempool_txs), int(segment_limit_conf))  # mempool txs must be converted to string
+                mempool_count = len(mempool_split)  # how many segments of 500 will be sent
+                while len(str(mempool_count)) != 10:
+                    mempool_count = "0" + str(mempool_count)  # number must be 10 long
+                s.sendall(str(mempool_count))  # send how many segments will be transferred
+                time.sleep(0.1)
+                # print (str(mempool_count))
 
-                                    ledger_count = int(ledger_count) - 1
-                                    ledger_index = ledger_index + 1
-                                    # send own
+                mempool_index = 0
+                while int(mempool_count) > 0:
+                    segment_length = len(mempool_split[mempool_index])
+                    while len(str(segment_length)) != 10:
+                        segment_length = "0" + str(segment_length)
 
-
-                        except:
-                            app_log.info("Node: Block not found")
-                            s.sendall("blocknotfou")
-                            time.sleep(0.1)
-                            # newly apply on self
-                            conn = sqlite3.connect('ledger.db')
-                            conn.text_factory = str
-                            c = conn.cursor()
-                            c.execute('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1')
-                            db_block_hash = c.fetchone()[0]  # get latest block_hash
-                            conn.close()
-                            blocknotfound(db_block_hash)
-                            # newly apply on self
-
-                if data == "blocknotfou":
-                    block_hash_delete = s.recv(56)
-                    blocknotfound(block_hash_delete)
-
-                    while busy == 1:
-                        time.sleep(1)
-                    s.sendall("sendsync___")
+                    app_log.info("Client: Segment length: " + str(segment_length))
+                    s.sendall(
+                        segment_length)  # send how much they should receive, usually 500, except the last segment
                     time.sleep(0.1)
 
-                if data == "blockfound_":
-
-                    app_log.info("Client: Node has the block")  # node should start sending txs in this step
-
-                    # receive theirs
-                    segments = ""
-                    data = s.recv(10)
-                    app_log.info("Node: Number of incoming segments: " + data)  # how many segments to receive
-                    ledger_count = int(data)
-
-                    while int(ledger_count) > 0:  # while there are segments to receive
-                        segment_length = s.recv(10)  # identify segment length
-                        app_log.info("Node: Segment length: " + str(segment_length))
-
-                        segment = s.recv(int(segment_length))
-                        app_log.info("Node: Received segment: " + segment)
-
-                        segments = segments + str(segment)
-                        ledger_count = int(ledger_count) - 1
-
-                    app_log.info("Node: Combined segments: " + segments)
-                    digest_block(segments)
-                    # receive theirs
-
-                    # digest_block(data) goddamn bug
-                    # digest_block() #temporary
-
-                    while busy == 1:
-                        time.sleep(1)
-                    s.sendall("sendsync___")
+                    app_log.info("Client: Segment to dispatch: " + str(
+                        mempool_split[mempool_index]))  # send segment !!!!!!!!!
+                    s.sendall(mempool_split[mempool_index])  # send segment
                     time.sleep(0.1)
 
-                    # block_hash validation end
+                    mempool_count = int(mempool_count) - 1
+                    mempool_index = mempool_index + 1
+                # send own
 
-                if data == "nonewblocks":
-                    # digest_block() #temporary #otherwise passive node will not be able to digest
+                # receive theirs
+                segments = ""
+                data = s.recv(10)
+                app_log.info("Client: Number of incoming segments: " + data)  # how many segments to receive
+                mempool_count = int(data)
 
-                    # sand and receive mempool
-                    s.sendall("mempool____")
-                    time.sleep(0.1)
+                while int(mempool_count) > 0:  # while there are segments to receive
 
-                    mempool = sqlite3.connect('mempool.db')
-                    mempool.text_factory = str
-                    m = mempool.cursor()
-                    m.execute('SELECT * FROM transactions')
-                    mempool_txs = m.fetchall()
+                    segment_length = s.recv(10)  # identify segment length
+                    app_log.info("Client: Segment length: " + segment_length)
 
-                    app_log.info(
-                        "Client: Extracted from the mempool: " + str(
-                            mempool_txs))  # improve: sync based on signatures only
+                    segment = s.recv(int(segment_length))
+                    app_log.info("Client: Received segment: " + segment)
 
-                    # send own
-                    mempool_split = split2len(str(mempool_txs), int(segment_limit_conf))  # mempool txs must be converted to string
-                    mempool_count = len(mempool_split)  # how many segments of 500 will be sent
-                    while len(str(mempool_count)) != 10:
-                        mempool_count = "0" + str(mempool_count)  # number must be 10 long
-                    s.sendall(str(mempool_count))  # send how many segments will be transferred
-                    time.sleep(0.1)
-                    # print (str(mempool_count))
+                    segments = segments + str(segment)
+                    mempool_count = int(mempool_count) - 1
 
-                    mempool_index = 0
-                    while int(mempool_count) > 0:
-                        segment_length = len(mempool_split[mempool_index])
-                        while len(str(segment_length)) != 10:
-                            segment_length = "0" + str(segment_length)
+                app_log.info("Client: Combined segments: " + segments)
+                merge_mempool(segments)
+                # receive theirs
 
-                        app_log.info("Client: Segment length: " + str(segment_length))
-                        s.sendall(
-                            segment_length)  # send how much they should receive, usually 500, except the last segment
-                        time.sleep(0.1)
+                # receive mempool
 
-                        app_log.info("Client: Segment to dispatch: " + str(
-                            mempool_split[mempool_index]))  # send segment !!!!!!!!!
-                        s.sendall(mempool_split[mempool_index])  # send segment
-                        time.sleep(0.1)
+                app_log.info("Client: We seem to be at the latest block. Paused before recheck")
 
-                        mempool_count = int(mempool_count) - 1
-                        mempool_index = mempool_index + 1
-                    # send own
+                time.sleep(int(pause_conf))
+                while busy == 1:
+                    time.sleep(1)
+                s.sendall("sendsync___")
+                time.sleep(0.1)
 
-                    # receive theirs
-                    segments = ""
-                    data = s.recv(10)
-                    app_log.info("Client: Number of incoming segments: " + data)  # how many segments to receive
-                    mempool_count = int(data)
+            elif data == "":
+                app_log.info("Communication error")
+                raise
 
-                    while int(mempool_count) > 0:  # while there are segments to receive
+            else:
+                app_log.info("Unexpected error")
+                raise
 
-                        segment_length = s.recv(10)  # identify segment length
-                        app_log.info("Client: Segment length: " + segment_length)
-
-                        segment = s.recv(int(segment_length))
-                        app_log.info("Client: Received segment: " + segment)
-
-                        segments = segments + str(segment)
-                        mempool_count = int(mempool_count) - 1
-
-                    app_log.info("Client: Combined segments: " + segments)
-                    merge_mempool(segments)
-                    # receive theirs
-
-                    # receive mempool
-
-                    app_log.info("Client: We seem to be at the latest block. Paused before recheck")
-
-                    time.sleep(int(pause_conf))
-                    while busy == 1:
-                        time.sleep(1)
-                    s.sendall("sendsync___")
-                    time.sleep(0.1)
 
         except Exception as e:
             # properly end the connection
