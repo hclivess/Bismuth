@@ -249,7 +249,6 @@ def purge_old_peers():
             try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 s.connect((HOST, PORT))
-                s.shutdown()
                 s.close()
             except:
                 if purge_conf == 1:
@@ -450,7 +449,7 @@ def manager():
         app_log.info("Current connections: " + str(len(active_pool)))
 
         # app_log.info(threading.enumerate() all threads)
-        time.sleep(10)
+        time.sleep(int(pause_conf))
     return
 
 
@@ -895,7 +894,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         peer_test.connect((str(peer_ip), int(str(port))))  # double parentheses mean tuple
                         app_log.info("Node: Distant peer connectible")
                         # properly end the connection
-                        peer_test.shutdown()
                         peer_test.close()
                         # properly end the connection
                         if peer_tuple not in str(peer_tuples):  # stringing tuple is a nasty way
@@ -1158,9 +1156,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
 # client thread
 def worker(HOST, PORT):
-    last_ping = time.time()
 
-    connected = 0
     this_client = (HOST + ":" + str(PORT))
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.connect((HOST, PORT))
@@ -1222,7 +1218,6 @@ def worker(HOST, PORT):
                             s_purge = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                             s_purge.connect((HOST[x], PORT[x]))  # save a new peer file with only active nodes
 
-                            s_purge.shutdown()
                             s_purge.close()
 
                             peer_list_file = open("peers.txt", 'a')
@@ -1509,7 +1504,6 @@ def worker(HOST, PORT):
 
         except Exception as e:
             # properly end the connection
-            s.shutdown()
             s.close()
             #properly end the connection
 
@@ -1570,10 +1564,6 @@ if __name__ == "__main__":
         server.server_close()
 
     except Exception, e:
-        # properly end the connection
-        server.shutdown()
-        server.server_close()
-        # properly end the connection
         app_log.info("Node already running?")
         app_log.info(e)
         raise  # only test
