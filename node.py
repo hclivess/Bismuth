@@ -793,7 +793,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     app_log.info("Node: Received: " + data + " from " + str(self.request.getpeername()[0]))  # will add custom ports later
                 else:
                     app_log.info('Node: Issue with socket select')
-                raise
+                    raise
 
                 if data == 'version____':
                     data = self.request.recv(11)
