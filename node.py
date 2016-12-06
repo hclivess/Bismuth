@@ -787,10 +787,13 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
     def handle(self):  # server defined here
         while True:
             try:
-                data = self.request.recv(11)
-                # cur_thread = threading.current_thread()
-                app_log.info("Node: Received: " + data + " from " + str(
-                    self.request.getpeername()[0]))  # will add custom ports later
+                r, _, _ = select.select([self.request], [], [])
+                if r:
+                    data = self.request.recv(11)  # receive data, one and the only root point
+                    app_log.info("Node: Received: " + data + " from " + str(self.request.getpeername()[0]))  # will add custom ports later
+                else:
+                    app_log.info('Node: Issue with socket select')
+                raise
 
                 if data == 'version____':
                     data = self.request.recv(11)
