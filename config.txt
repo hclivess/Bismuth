@@ -7,6 +7,6 @@ mining_ip=127.0.0.1
 rebuild_db=1
 debug=1
 purge=0
-segment_limit=16000
+segment_limit=4096
 pause=5
 mining_threads=8
