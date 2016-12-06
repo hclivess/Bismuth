@@ -795,6 +795,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     app_log.info('Node: Issue with socket select') #connection will be cut in higher except
                     raise
 
+                consensus_ip = self.request.getpeername()[0]
+
                 if data == 'version____':
                     data = self.request.recv(11)
                     if version != data:
@@ -1145,7 +1147,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 app_log.info("Node: "+str(e))
 
                 # remove from consensus (connection from them)
-                consensus_ip = self.request.getpeername()[0]
                 consensus_remove(consensus_ip)
                 # remove from consensus (connection from them)
                 if debug_conf == 1:
@@ -1200,6 +1201,7 @@ def worker(HOST, PORT):
                 app_log.info('Client: Issue with socket select') #connection will be cut in higher except
                 raise
 
+            consensus_ip = s.getpeername()[0]
             if data == "peers______":
                 subdata = s.recv(2048)  # peers are larger
                 # get remote peers into tuples
@@ -1288,7 +1290,6 @@ def worker(HOST, PORT):
                     time.sleep(0.1)
 
                     # consensus pool 2 (active connection)
-                    consensus_ip = s.getpeername()[0]
                     consensus_blockheight = int(subdata)  # str int to remove leading zeros
                     consensus_add(consensus_ip, consensus_blockheight, "none")
                     # consensus pool 2 (active connection)
@@ -1303,7 +1304,6 @@ def worker(HOST, PORT):
                     app_log.info("Client: Will seek the following block: " + str(data))
 
                     # consensus pool 2 (active connection)
-                    consensus_ip = s.getpeername()[0]
                     consensus_blockheight = int(subdata)  # str int to remove leading zeros
                     consensus_add(consensus_ip, consensus_blockheight, data)
                     # consensus pool 2 (active connection)
@@ -1519,7 +1519,6 @@ def worker(HOST, PORT):
 
             # remove from consensus 2
             if connected == 1:  # if ever connected
-                consensus_ip = s.getpeername()[0]
                 consensus_remove(consensus_ip)
             # remove from consensus 2
 
