@@ -792,7 +792,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     data = self.request.recv(11)  # receive data, one and the only root point
                     app_log.info("Node: Received: " + data + " from " + str(self.request.getpeername()[0]))  # will add custom ports later
                 else:
-                    app_log.info('Node: Issue with socket select')
+                    app_log.info('Node: Issue with socket select') #connection will be cut in higher except
                     raise
 
                 if data == 'version____':
@@ -1073,18 +1073,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                     ledger_index = ledger_index + 1
                                     # send own
 
-
-
-
-
-
-
-
-
-
-
-
-
                         except:
                             app_log.info("Node: Block not found")
                             self.request.sendall("blocknotfou")
@@ -1150,6 +1138,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                 # app_log.info("Server resting") #prevent cpu overload
             except Exception, e:
+                #properly end connection
+                self.request.close()
+                # properly end connection
                 app_log.info("Node: Lost connection")
                 app_log.info("Node: "+str(e))
 
@@ -1157,9 +1148,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 consensus_ip = self.request.getpeername()[0]
                 consensus_remove(consensus_ip)
                 # remove from consensus (connection from them)
-
-                raise  # for test purposes
-                break
+                if debug_conf == 1:
+                    raise  # for test purposes
+                else:
+                    break
 
 
 # client thread
@@ -1205,7 +1197,7 @@ def worker(HOST, PORT):
                 data = s.recv(11)  # receive data, one and the only root point
                 app_log.info('Client: Received ' + data + ' from ' + this_client)
             else:
-                app_log.info('Client: Issue with socket select')
+                app_log.info('Client: Issue with socket select') #connection will be cut in higher except
                 raise
 
             if data == "peers______":
