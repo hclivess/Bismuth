@@ -559,7 +559,7 @@ def digest_block(data):  # this function has become the transaction engine core 
                     block_hash = hashlib.sha224(str((block_timestamp, transaction_list,
                                                      db_block_hash))).hexdigest()  # calculate block_hash from the ledger #PROBLEM HEREEEEE
 
-                    app_log.info("Digest: tx sig not found in the local ledger, proceeding to check before insert")
+                    #app_log.info("Digest: tx sig not found in the local ledger, proceeding to check before insert")
                     # if not in ledger
                     # calculate block height from the ledger
 
@@ -572,8 +572,8 @@ def digest_block(data):  # this function has become the transaction engine core 
                     mempool.text_factory = str
                     m = mempool.cursor()
 
-                    app_log.info("Digest: Verifying balance")
-                    app_log.info("Digest: Received address: " + str(db_address))
+                    #app_log.info("Digest: Verifying balance")
+                    #app_log.info("Digest: Received address: " + str(db_address))
 
                     # include the new block
                     block_credit = 0
@@ -585,8 +585,8 @@ def digest_block(data):  # this function has become the transaction engine core 
                         if x[1] == db_address:
                             credit_block = float(credit_block) + float(x[3])
 
-                    app_log.info("Digest: Incoming block credit: " + str(block_credit))
-                    app_log.info("Digest: Incoming block debit: " + str(credit_block))
+                    #app_log.info("Digest: Incoming block credit: " + str(block_credit))
+                    #app_log.info("Digest: Incoming block debit: " + str(credit_block))
                     # include the new block
 
                     c.execute("SELECT sum(amount) FROM transactions WHERE recipient = '" + db_address + "'")
@@ -611,21 +611,21 @@ def digest_block(data):  # this function has become the transaction engine core 
                     if rewards == None:
                         rewards = 0
 
-                    app_log.info("Digest: Total credit: " + str(credit))
-                    app_log.info("Digest: Total debit: " + str(debit))
+                    #app_log.info("Digest: Total credit: " + str(credit))
+                    #app_log.info("Digest: Total debit: " + str(debit))
                     balance = float(credit) - float(debit) - float(fees) + float(rewards)
-                    app_log.info("Digest: Projected transction address balance: " + str(balance))
+                    #app_log.info("Digest: Projected transction address balance: " + str(balance))
 
                     db_block_50 = int(db_block_height) - 50
                     try:
                         c.execute("SELECT timestamp FROM transactions WHERE block_height ='" + str(db_block_50) + "';")
                         db_timestamp_50 = c.fetchone()[0]
                         fee = abs(1000 / (float(db_timestamp) - float(db_timestamp_50)))
-                        app_log.info("Fee: " + str(fee))
+                        #app_log.info("Fee: " + str(fee))
 
                     except Exception as e:
                         fee = 1  # presumably there are less than 50 txs
-                        app_log.info("Fee error: " + str(e))
+                        #app_log.info("Fee error: " + str(e))
                         # raise #debug
                     # calculate fee
 
