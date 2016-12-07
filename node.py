@@ -1458,7 +1458,7 @@ def worker(HOST, PORT):
                     while len(str(segment_length)) != 10:
                         segment_length = "0" + str(segment_length)
 
-                    app_log.info("Client: Segment length to dispatch: " + str(segment_length))
+                    #app_log.info("Client: Segment length to dispatch: " + str(segment_length))
                     s.sendall(segment_length)  # send how much they should receive
                     time.sleep(0.5)
 
