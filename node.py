@@ -479,7 +479,7 @@ def digest_block(data):  # this function has become the transaction engine core 
                 conn.text_factory = str
                 c = conn.cursor()
 
-                app_log.info("Node: Digesting incoming block: " + data)
+                #app_log.info("Node: Digesting incoming block: " + data)
 
                 transaction_list = ast.literal_eval(data)
 
@@ -1189,7 +1189,7 @@ def worker(HOST, PORT):
                 s.sendall(version)
                 time.sleep(0.1)
                 data = s.recv(11)
-                if data == "ok_________":
+                if (data == "ok_________"):
                     app_log.info("Client: Node protocol version matches our client")
                 else:
                     app_log.info("Client: Node protocol version mismatch")
