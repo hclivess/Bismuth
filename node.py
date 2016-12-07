@@ -496,7 +496,7 @@ def digest_block(data):  # this function has become the transaction engine core 
                         result = c.fetchall()[0]
                         app_log.info("That transaction is already in our ledger")
                         block_valid = 0
-                        return
+
                     except:
                         pass
                         # reject block with transactions which are already in the ledger
@@ -504,7 +504,7 @@ def digest_block(data):  # this function has become the transaction engine core 
                 if len(signature_list) != len(set(signature_list)):
                     app_log.info("There are duplicate transactions in this block, rejected")
                     block_valid = 0  # dont really need this one
-                    return
+
                 # reject block with duplicate transactions
 
                 for transaction in transaction_list:
