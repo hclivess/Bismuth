@@ -1048,7 +1048,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                             block_hash_client_block) + 1) + "'")  # select incoming transaction + 1, only columns that need not be verified
                                 block_hash_send = c.fetchall()
 
-                                app_log.info("Node: Selected " + str(block_hash_send) + " to send")
+                                #app_log.info("Node: Selected " + str(block_hash_send) + " to send")
 
                                 conn.close()
                                 self.request.sendall("blockfound_")
@@ -1339,7 +1339,7 @@ def worker(HOST, PORT):
                                     int(block_hash_client_block) + 1) + "'")  # select incoming transaction + 1
                             block_hash_send = c.fetchall()
 
-                            app_log.info("Client: Selected " + str(block_hash_send) + " to send")
+                            #app_log.info("Client: Selected " + str(block_hash_send) + " to send")
 
                             conn.close()
                             s.sendall("blockfound_")
