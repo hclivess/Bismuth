@@ -105,7 +105,6 @@ busy = 0
 
 def mempool_merge(data):
     # merge mempool
-    app_log.info("Merging the mempool")
     transaction_list = ast.literal_eval(data)
     for transaction in transaction_list:  # set means unique
         mempool_timestamp = transaction[0]
@@ -241,7 +240,7 @@ def mempool_merge(data):
                 mempool.commit()  # Save (commit) the changes
                 mempool.close()
 
-
+    app_log.info("Mempool merged")
                 # merge mempool
 
                 # receive mempool
