@@ -859,12 +859,12 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             app_log.info("Node: Segment length: " + str(segment_length))
                             self.request.sendall(
                                 segment_length)  # send how much they should receive, usually 500, except the last segment
-                            time.sleep(0.1)
+                            time.sleep(0.5)
 
                             app_log.info("Node: Segment to dispatch: " + str(
                                 mempool_split[mempool_index]))  # send segment !!!!!!!!!
                             self.request.sendall(mempool_split[mempool_index])  # send segment
-                            time.sleep(0.1)
+                            time.sleep(0.5)
 
                             mempool_count = int(mempool_count) - 1
                             mempool_index = mempool_index + 1
@@ -1064,12 +1064,12 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                     self.request.sendall(
                                         segment_length)  # send how much they should receive, usually 500, except the last segment
                                     app_log.info("Client: Segment length: " + str(segment_length))
-                                    time.sleep(0.1)
+                                    time.sleep(0.5)
 
                                     app_log.info("Client: Segment to dispatch: " + str(
                                         ledger_split[ledger_index]))  # send segment !!!!!!!!!
                                     self.request.sendall(ledger_split[ledger_index])  # send segment
-                                    time.sleep(0.1)
+                                    time.sleep(0.5)
 
                                     ledger_count = int(ledger_count) - 1
                                     ledger_index = ledger_index + 1
@@ -1355,11 +1355,11 @@ def worker(HOST, PORT):
 
                                 s.sendall(segment_length)  # send how much they should receive, usually 500, except the last segment
                                 app_log.info("Client: Segment length: " + str(segment_length))
-                                time.sleep(0.1)
+                                time.sleep(0.5)
 
                                 app_log.info("Client: Segment to dispatch: " + str(ledger_split[ledger_index]))  # send segment !!!!!!!!!
                                 s.sendall(ledger_split[ledger_index])  # send segment
-                                time.sleep(0.1)
+                                time.sleep(0.5)
 
                                 ledger_count = int(ledger_count) - 1
                                 ledger_index = ledger_index + 1
@@ -1456,12 +1456,12 @@ def worker(HOST, PORT):
                     app_log.info("Client: Segment length: " + str(segment_length))
                     s.sendall(
                         segment_length)  # send how much they should receive, usually 500, except the last segment
-                    time.sleep(0.1)
+                    time.sleep(0.5)
 
                     app_log.info("Client: Segment to dispatch: " + str(
                         mempool_split[mempool_index]))  # send segment !!!!!!!!!
                     s.sendall(mempool_split[mempool_index])  # send segment
-                    time.sleep(0.1)
+                    time.sleep(0.5)
 
                     mempool_count = int(mempool_count) - 1
                     mempool_index = mempool_index + 1
