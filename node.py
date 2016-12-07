@@ -1150,7 +1150,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 #properly end connection
                 self.request.close()
                 # properly end connection
-                app_log.info("Node: Lost connection")
+                app_log.info("Node: Lost connection to "+str(peer_ip))
                 app_log.info("Node: "+str(e))
 
                 # remove from consensus (connection from them)
