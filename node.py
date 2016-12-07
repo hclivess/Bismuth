@@ -849,8 +849,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         mempool_txs = m.fetchall()
 
                         # send own
-                        app_log.info("Node: Extracted from the mempool: " + str(
-                            mempool_txs))  # improve: sync based on signatures only
+                        #app_log.info("Node: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
 
                         mempool_split = split2len(str(mempool_txs), int(segment_limit_conf))  # mempool txs must be converted to string
                         mempool_count = len(mempool_split)  # how many segments of 500 will be sent
@@ -1442,9 +1441,7 @@ def worker(HOST, PORT):
                 m.execute('SELECT * FROM transactions')
                 mempool_txs = m.fetchall()
 
-                app_log.info(
-                    "Client: Extracted from the mempool: " + str(
-                        mempool_txs))  # improve: sync based on signatures only
+                #app_log.info("Client: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
 
                 # send own
                 mempool_split = split2len(str(mempool_txs), int(segment_limit_conf))  # mempool txs must be converted to string
