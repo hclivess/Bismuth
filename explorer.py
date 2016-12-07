@@ -12,7 +12,7 @@ class index:
         # redraw chart
         conn = sqlite3.connect('./ledger.db')
         c = conn.cursor()
-        c.execute("SELECT * FROM transactions ORDER BY block_height DESC LIMIT 100;")
+        c.execute("SELECT * FROM transactions ORDER BY block_height DESC, timestamp DESC LIMIT 100;")
 
         all = c.fetchall()[::-1]
 
@@ -194,7 +194,7 @@ class index:
 
         conn = sqlite3.connect('./ledger.db')
         c = conn.cursor()
-        c.execute("SELECT * FROM transactions ORDER BY block_height DESC, timestamp DESC;")
+        c.execute("SELECT * FROM transactions ORDER BY block_height DESC, timestamp DESC LIMIT 1000;")
 
         all = c.fetchall()
 
