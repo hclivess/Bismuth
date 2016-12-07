@@ -838,7 +838,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             segments = segments + str(segment)
                             mempool_count = int(mempool_count) - 1
 
-                        app_log.info("Node: Combined segments: " + segments)
+                        #app_log.info("Node: Combined segments: " + segments)
                         merge_mempool(segments)
                         # receive theirs
 
@@ -956,7 +956,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         segments = segments + str(segment)
                         ledger_count = int(ledger_count) - 1
 
-                    app_log.info("Node: Combined segments: " + segments)
+                    #app_log.info("Node: Combined segments: " + segments)
                     digest_block(segments)
                     # receive theirs
 
@@ -1417,7 +1417,7 @@ def worker(HOST, PORT):
                     segments = segments + str(segment)
                     ledger_count = int(ledger_count) - 1
 
-                app_log.info("Node: Combined segments: " + segments)
+                #app_log.info("Node: Combined segments: " + segments)
                 digest_block(segments)
                 # receive theirs
 
@@ -1493,7 +1493,7 @@ def worker(HOST, PORT):
                     segments = segments + str(segment)
                     mempool_count = int(mempool_count) - 1
 
-                app_log.info("Client: Combined segments: " + segments)
+                #app_log.info("Client: Combined segments: " + segments)
                 merge_mempool(segments)
                 # receive theirs
 
