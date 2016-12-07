@@ -129,7 +129,7 @@ def merge_mempool(data):
             m.execute("SELECT * FROM transactions WHERE signature = '" + mempool_signature_enc + "'")  # condition 1
             dummy1 = m.fetchall()[0]
             if dummy1 != None:
-                app_log.info("That transaction is already in our mempool")
+                #app_log.info("That transaction is already in our mempool")
                 acceptable = 0
                 mempool_in = 1
         except:
@@ -140,7 +140,7 @@ def merge_mempool(data):
             c.execute("SELECT * FROM transactions WHERE signature = '" + mempool_signature_enc + "'")  # condition 2
             dummy2 = c.fetchall()[0]
             if dummy2 != None:
-                app_log.info("That transaction is already in our ledger")
+                #app_log.info("That transaction is already in our ledger")
                 # reject transactions which are already in the ledger
                 acceptable = 0
                 ledger_in = 1
@@ -831,7 +831,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         while int(mempool_count) > 0:  # while there are segments to receive
 
                             segment_length = self.request.recv(10)  # identify segment length
-                            app_log.info("Node: Received segment length: " + str(segment_length))
+                            #app_log.info("Node: Received segment length: " + str(segment_length))
 
                             segment = self.request.recv(int(segment_length))
                             #app_log.info("Node: Received segment: " + segment)
@@ -946,7 +946,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     while int(ledger_count) > 0:  # while there are segments to receive
                         segment_length = self.request.recv(10)  # identify segment length
-                        app_log.info("Node: Received segment length: " + str(segment_length))
+                        #app_log.info("Node: Received segment length: " + str(segment_length))
 
                         segment = self.request.recv(int(segment_length))
                         #app_log.info("Node: Received segment: " + segment)
@@ -1123,7 +1123,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     while int(ledger_count) > 0:  # while there are segments to receive
                         segment_length = self.request.recv(10)  # identify segment length
-                        app_log.info("Node: Mined segment length: " + str(segment_length))
+                        #app_log.info("Node: Mined segment length: " + str(segment_length))
 
                         segment = self.request.recv(int(segment_length))
                         #app_log.info("Node: Received mined segment: " + segment)
@@ -1406,7 +1406,7 @@ def worker(HOST, PORT):
 
                 while int(ledger_count) > 0:  # while there are segments to receive
                     segment_length = s.recv(10)  # identify segment length
-                    app_log.info("Node: Received segment length: " + str(segment_length))
+                    #app_log.info("Node: Received segment length: " + str(segment_length))
 
                     segment = s.recv(int(segment_length))
                     #app_log.info("Node: Received segment: " + segment)
@@ -1479,7 +1479,7 @@ def worker(HOST, PORT):
                 while int(mempool_count) > 0:  # while there are segments to receive
 
                     segment_length = s.recv(10)  # identify segment length
-                    app_log.info("Client: Received segment length: " + segment_length)
+                    #app_log.info("Client: Received segment length: " + segment_length)
 
                     segment = s.recv(int(segment_length))
                     #app_log.info("Client: Received segment: " + segment)
