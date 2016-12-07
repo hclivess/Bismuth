@@ -150,6 +150,7 @@ def merge_mempool(data):
         if (mempool_in == 1) and (ledger_in == 1): #remove from mempool if it's in both ledger and mempool already
             m.execute("SELECT * FROM transactions WHERE signature = '" + mempool_signature_enc + "'")
             mempool.commit()
+            app_log.info("Transaction deleted from our mempool")
 
         if acceptable == 1:
             # verify signatures and balances
@@ -158,7 +159,7 @@ def merge_mempool(data):
             conn.text_factory = str
             c = conn.cursor()
 
-            app_log.info("Mempool: Verifying balance")
+            #app_log.info("Mempool: Verifying balance")
             app_log.info("Mempool: Received address: " + str(mempool_address))
 
             # include the new block
@@ -171,8 +172,8 @@ def merge_mempool(data):
                 if x[1] == mempool_address:
                     credit_block = float(credit_block) + float(x[3])
 
-            app_log.info("Mempool: Incoming block credit: " + str(block_credit))
-            app_log.info("Mempool: Incoming block debit: " + str(credit_block))
+            #app_log.info("Mempool: Incoming block credit: " + str(block_credit))
+            #app_log.info("Mempool: Incoming block debit: " + str(credit_block))
             # include the new block
 
             c.execute("SELECT sum(amount) FROM transactions WHERE recipient = '" + mempool_address + "'")
@@ -197,10 +198,10 @@ def merge_mempool(data):
             if rewards == None:
                 rewards = 0
 
-            app_log.info("Mempool: Total credit: " + str(credit))
-            app_log.info("Mempool: Total debit: " + str(debit))
+            #app_log.info("Mempool: Total credit: " + str(credit))
+            #app_log.info("Mempool: Total debit: " + str(debit))
             balance = float(credit) - float(debit) - float(fees) + float(rewards)
-            app_log.info("Mempool: Projected transction address balance: " + str(balance))
+            #app_log.info("Mempool: Projected transction address balance: " + str(balance))
 
             c.execute('SELECT max(block_height) FROM transactions')
             db_block_height = c.fetchone()[0]
@@ -213,11 +214,11 @@ def merge_mempool(data):
                 conn.close()
 
                 fee = abs(1000 / (float(mempool_timestamp) - float(ledger_timestamp_50)))
-                app_log.info("Fee: " + str(fee))
+                #app_log.info("Fee: " + str(fee))
 
             except Exception as e:
                 fee = 1  # presumably there are less than 50 txs
-                app_log.info("Mempool: Fee error: " + str(e))
+                #app_log.info("Mempool: Fee error: " + str(e))
                 # raise #debug
             # calculate fee
 
@@ -829,10 +830,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         while int(mempool_count) > 0:  # while there are segments to receive
 
                             segment_length = self.request.recv(10)  # identify segment length
-                            app_log.info("Node: Segment length: " + str(segment_length))
+                            app_log.info("Node: Received segment length: " + str(segment_length))
 
                             segment = self.request.recv(int(segment_length))
-                            app_log.info("Node: Received segment: " + segment)
+                            #app_log.info("Node: Received segment: " + segment)
 
                             segments = segments + str(segment)
                             mempool_count = int(mempool_count) - 1
@@ -947,10 +948,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     while int(ledger_count) > 0:  # while there are segments to receive
                         segment_length = self.request.recv(10)  # identify segment length
-                        app_log.info("Node: Segment length: " + str(segment_length))
+                        app_log.info("Node: Received segment length: " + str(segment_length))
 
                         segment = self.request.recv(int(segment_length))
-                        app_log.info("Node: Received segment: " + segment)
+                        #app_log.info("Node: Received segment: " + segment)
 
                         segments = segments + str(segment)
                         ledger_count = int(ledger_count) - 1
@@ -1128,7 +1129,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         app_log.info("Node: Mined segment length: " + str(segment_length))
 
                         segment = self.request.recv(int(segment_length))
-                        app_log.info("Node: Received mined segment: " + segment)
+                        #app_log.info("Node: Received mined segment: " + segment)
 
                         segments = segments + str(segment)
                         ledger_count = int(ledger_count) - 1
@@ -1408,10 +1409,10 @@ def worker(HOST, PORT):
 
                 while int(ledger_count) > 0:  # while there are segments to receive
                     segment_length = s.recv(10)  # identify segment length
-                    app_log.info("Node: Segment length: " + str(segment_length))
+                    app_log.info("Node: Received segment length: " + str(segment_length))
 
                     segment = s.recv(int(segment_length))
-                    app_log.info("Node: Received segment: " + segment)
+                    #app_log.info("Node: Received segment: " + segment)
 
                     segments = segments + str(segment)
                     ledger_count = int(ledger_count) - 1
@@ -1484,10 +1485,10 @@ def worker(HOST, PORT):
                 while int(mempool_count) > 0:  # while there are segments to receive
 
                     segment_length = s.recv(10)  # identify segment length
-                    app_log.info("Client: Segment length: " + segment_length)
+                    app_log.info("Client: Received segment length: " + segment_length)
 
                     segment = s.recv(int(segment_length))
-                    app_log.info("Client: Received segment: " + segment)
+                    #app_log.info("Client: Received segment: " + segment)
 
                     segments = segments + str(segment)
                     mempool_count = int(mempool_count) - 1
