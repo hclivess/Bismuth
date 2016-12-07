@@ -10,3 +10,4 @@ purge=0
 segment_limit=4096
 pause=5
 mining_threads=8
+segment_sleep=0.5

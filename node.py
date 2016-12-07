@@ -43,6 +43,8 @@ for line in lines:
         segment_limit_conf = line.strip('segment_limit=')
     if "pause=" in line:
         pause_conf = line.strip('pause=')
+    if "segment_sleep=" in line:
+        segment_sleep_conf = float(line.strip('segment_sleep='))
 
 # load config
 
@@ -869,11 +871,11 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             #app_log.info("Node: Segment length to dispatch: " + str(segment_length))
                             self.request.sendall(
                                 segment_length)  # send how much they should receive
-                            time.sleep(0.5)
+                            time.sleep(segment_sleep_conf)
 
                             #app_log.info("Node: Segment to dispatch: " + str(mempool_split[mempool_index]))  # send segment
                             self.request.sendall(mempool_split[mempool_index])  # send segment
-                            time.sleep(0.5)
+                            time.sleep(segment_sleep_conf)
 
                             mempool_count = int(mempool_count) - 1
                             mempool_index = mempool_index + 1
@@ -1072,11 +1074,11 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                     self.request.sendall(
                                         segment_length)  # send how much they should receive
                                     #app_log.info("Client: Segment length to dispatch: " + str(segment_length))
-                                    time.sleep(0.5)
+                                    time.sleep(segment_sleep_conf)
 
                                     #app_log.info("Client: Segment to dispatch: " + str(ledger_split[ledger_index]))  # send segment
                                     self.request.sendall(ledger_split[ledger_index])  # send segment
-                                    time.sleep(0.5)
+                                    time.sleep(segment_sleep_conf)
 
                                     ledger_count = int(ledger_count) - 1
                                     ledger_index = ledger_index + 1
@@ -1362,11 +1364,11 @@ def worker(HOST, PORT):
 
                                 s.sendall(segment_length)  # send how much they should receive
                                 #app_log.info("Client: Segment length to dispatch: " + str(segment_length))
-                                time.sleep(0.5)
+                                time.sleep(segment_sleep_conf)
 
                                 #app_log.info("Client: Segment to dispatch: " + str(ledger_split[ledger_index]))  # send segment
                                 s.sendall(ledger_split[ledger_index])  # send segment
-                                time.sleep(0.5)
+                                time.sleep(segment_sleep_conf)
 
                                 ledger_count = int(ledger_count) - 1
                                 ledger_index = ledger_index + 1
@@ -1460,11 +1462,11 @@ def worker(HOST, PORT):
 
                     #app_log.info("Client: Segment length to dispatch: " + str(segment_length))
                     s.sendall(segment_length)  # send how much they should receive
-                    time.sleep(0.5)
+                    time.sleep(segment_sleep_conf)
 
                     #app_log.info("Client: Segment to dispatch: " + str(mempool_split[mempool_index]))  # send segment
                     s.sendall(mempool_split[mempool_index])  # send segment
-                    time.sleep(0.5)
+                    time.sleep(segment_sleep_conf)
 
                     mempool_count = int(mempool_count) - 1
                     mempool_index = mempool_index + 1
