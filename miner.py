@@ -194,11 +194,11 @@ def miner(args):
                                 s.sendall(
                                     segment_length)  # send how much they should receive, usually 500, except the last segment
                                 app_log.info("Client: Segment length: " + str(segment_length))
-                                time.sleep(0.1)
+                                time.sleep(0.5)
                                 app_log.info(
                                     "Client: Segment to dispatch: " + str(miner_split[miner_index]))  # send segment !!!!!!!!!
                                 s.sendall(miner_split[miner_index])  # send segment
-                                time.sleep(0.1)
+                                time.sleep(0.5)
                             # send own
                             s.close()
                             submitted = 1
