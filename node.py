@@ -213,7 +213,7 @@ def merge_mempool(data):
             # calculate fee
 
             time_now = str(time.time())
-            if float(time_now) < float(mempool_timestamp):
+            if float(time_now) + 30 < float(mempool_timestamp):
                 app_log.info("Mempool: Future mining not allowed")
 
             elif (float(balance)) - (
@@ -622,7 +622,7 @@ def digest_block(data):  # this function has become the transaction engine core 
                     diff = 3
 
                     time_now = str(time.time())
-                    if float(time_now) < float(db_timestamp):
+                    if float(time_now) + 30 < float(db_timestamp):
                         app_log.info("Digest: Future mining not allowed")
                         block_valid = 0
 
@@ -856,9 +856,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             while len(str(segment_length)) != 10:
                                 segment_length = "0" + str(segment_length)
 
-                            app_log.info("Node: Segment length: " + str(segment_length))
+                            app_log.info("Node: Segment length to dispatch: " + str(segment_length))
                             self.request.sendall(
-                                segment_length)  # send how much they should receive, usually 500, except the last segment
+                                segment_length)  # send how much they should receive
                             time.sleep(0.5)
 
                             app_log.info("Node: Segment to dispatch: " + str(
@@ -1062,8 +1062,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                         segment_length = "0" + str(segment_length)
 
                                     self.request.sendall(
-                                        segment_length)  # send how much they should receive, usually 500, except the last segment
-                                    app_log.info("Client: Segment length: " + str(segment_length))
+                                        segment_length)  # send how much they should receive
+                                    app_log.info("Client: Segment length to dispatch: " + str(segment_length))
                                     time.sleep(0.5)
 
                                     app_log.info("Client: Segment to dispatch: " + str(
@@ -1353,8 +1353,8 @@ def worker(HOST, PORT):
                                 while len(str(segment_length)) != 10:
                                     segment_length = "0" + str(segment_length)
 
-                                s.sendall(segment_length)  # send how much they should receive, usually 500, except the last segment
-                                app_log.info("Client: Segment length: " + str(segment_length))
+                                s.sendall(segment_length)  # send how much they should receive
+                                app_log.info("Client: Segment length to dispatch: " + str(segment_length))
                                 time.sleep(0.5)
 
                                 app_log.info("Client: Segment to dispatch: " + str(ledger_split[ledger_index]))  # send segment !!!!!!!!!
@@ -1453,9 +1453,8 @@ def worker(HOST, PORT):
                     while len(str(segment_length)) != 10:
                         segment_length = "0" + str(segment_length)
 
-                    app_log.info("Client: Segment length: " + str(segment_length))
-                    s.sendall(
-                        segment_length)  # send how much they should receive, usually 500, except the last segment
+                    app_log.info("Client: Segment length to dispatch: " + str(segment_length))
+                    s.sendall(segment_length)  # send how much they should receive
                     time.sleep(0.5)
 
                     app_log.info("Client: Segment to dispatch: " + str(
