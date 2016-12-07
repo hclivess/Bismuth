@@ -103,8 +103,9 @@ busy = 0
 
 # port = 2829 now defined by config
 
-def merge_mempool(data):
+def mempool_merge(data):
     # merge mempool
+    app_log.info("Merging the mempool")
     transaction_list = ast.literal_eval(data)
     for transaction in transaction_list:  # set means unique
         mempool_timestamp = transaction[0]
@@ -221,7 +222,7 @@ def merge_mempool(data):
             except Exception as e:
                 fee = 1  # presumably there are less than 50 txs
                 #app_log.info("Mempool: Fee error: " + str(e))
-                # raise #debug
+                return
             # calculate fee
 
             time_now = str(time.time())
@@ -496,7 +497,7 @@ def digest_block(data):  # this function has become the transaction engine core 
                         result = c.fetchall()[0]
                         app_log.info("That transaction is already in our ledger")
                         block_valid = 0
-                        raise
+                        return
                     except:
                         pass
                         # reject block with transactions which are already in the ledger
@@ -504,7 +505,7 @@ def digest_block(data):  # this function has become the transaction engine core 
                 if len(signature_list) != len(set(signature_list)):
                     app_log.info("There are duplicate transactions in this block, rejected")
                     block_valid = 0  # dont really need this one
-                    raise
+                    return
                 # reject block with duplicate transactions
 
                 for transaction in transaction_list:
@@ -626,7 +627,7 @@ def digest_block(data):  # this function has become the transaction engine core 
                     except Exception as e:
                         fee = 1  # presumably there are less than 50 txs
                         #app_log.info("Fee error: " + str(e))
-                        # raise #debug
+                        #return #debug
                     # calculate fee
 
                     # decide reward
@@ -697,8 +698,7 @@ def digest_block(data):  # this function has become the transaction engine core 
 
             except Exception, e:
                 app_log.info("Digesting complete")
-                if debug_conf == 1:
-                    raise  # debug
+
             busy = 0
             return
 
@@ -806,7 +806,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     app_log.info("Node: Received: " + data + " from " + str(peer_ip))  # will add custom ports later
                 else:
                     app_log.info('Node: Issue with socket select') #connection will be cut in higher except
-                    self.request.close()
+                    return
 
                 consensus_ip = self.request.getpeername()[0]
 
@@ -816,7 +816,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         app_log.info("Protocol version mismatch: " + data + ", should be " + version)
                         self.request.sendall("notok______")
                         time.sleep(0.1)
-                        self.request.close()
+                        return
                     else:
                         app_log.info("Node: Protocol version matched: " + data)
                         self.request.sendall("ok_________")
@@ -827,7 +827,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         # receive theirs
                         segments = ""
                         data = self.request.recv(10)
-                        app_log.info("Node: Number of incoming segments: " + data)  # how many segments to receive
+                        app_log.info("Node: Number of incoming mempool segments: " + data)  # how many segments to receive
                         mempool_count = int(data)
 
                         while int(mempool_count) > 0:  # while there are segments to receive
@@ -842,7 +842,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             mempool_count = int(mempool_count) - 1
 
                         #app_log.info("Node: Combined segments: " + segments)
-                        merge_mempool(segments)
+                        mempool_merge(segments)
                         # receive theirs
 
                         mempool = sqlite3.connect('mempool.db')
@@ -944,7 +944,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     # receive theirs
                     segments = ""
                     data = self.request.recv(10)
-                    app_log.info("Node: Number of incoming segments: " + data)  # how many segments to receive
+                    app_log.info("Node: Number of incoming block segments: " + data)  # how many segments to receive
                     ledger_count = int(data)
 
                     while int(ledger_count) > 0:  # while there are segments to receive
@@ -1140,7 +1140,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                 else:
                     app_log.info("Unexpected error")
-                    self.request.close()
+                    return
 
                 time.sleep(0.1)
                 # app_log.info("Server resting") #prevent cpu overload
@@ -1152,7 +1152,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 # remove from consensus (connection from them)
                 consensus_remove(consensus_ip)
                 # remove from consensus (connection from them)
-                #self.request.close()
+                if self.request:
+                    self.request.close()
                 return #if you delete this, you will suffer.
 
 
@@ -1395,7 +1396,7 @@ def worker(HOST, PORT):
                 # receive theirs
                 segments = ""
                 data = s.recv(10)
-                app_log.info("Node: Number of incoming segments: " + data)  # how many segments to receive
+                app_log.info("Node: Number of incoming block segments: " + data)  # how many segments to receive
                 ledger_count = int(data)
 
                 while int(ledger_count) > 0:  # while there are segments to receive
@@ -1467,7 +1468,7 @@ def worker(HOST, PORT):
                 # receive theirs
                 segments = ""
                 data = s.recv(10)
-                app_log.info("Client: Number of incoming segments: " + data)  # how many segments to receive
+                app_log.info("Client: Number of incoming mempool segments: " + data)  # how many segments to receive
                 mempool_count = int(data)
 
                 while int(mempool_count) > 0:  # while there are segments to receive
@@ -1482,7 +1483,7 @@ def worker(HOST, PORT):
                     mempool_count = int(mempool_count) - 1
 
                 #app_log.info("Client: Combined segments: " + segments)
-                merge_mempool(segments)
+                mempool_merge(segments)
                 # receive theirs
 
                 # receive mempool
