@@ -835,6 +835,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             segment_length = self.request.recv(10)  # identify segment length
                             #app_log.info("Node: Received segment length: " + str(segment_length))
 
+                            self.request.sendall("1")  # acknowledge segment length
+                            time.sleep(segment_delivery_conf)
+
                             segment = self.request.recv(int(segment_length))
                             #app_log.info("Node: Received segment: " + segment)
 
@@ -872,6 +875,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             self.request.sendall(
                                 segment_length)  # send how much they should receive
                             time.sleep(segment_delivery_conf)
+
+                            self.request.recv(1) # receive segment length acknowledgement
 
                             #app_log.info("Node: Segment to dispatch: " + str(mempool_split[mempool_index]))  # send segment
                             self.request.sendall(mempool_split[mempool_index])  # send segment
@@ -950,6 +955,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     while int(ledger_count) > 0:  # while there are segments to receive
                         segment_length = self.request.recv(10)  # identify segment length
                         #app_log.info("Node: Received segment length: " + str(segment_length))
+
+                        self.request.sendall("1")  # acknowledge segment length
+                        time.sleep(segment_delivery_conf)
 
                         segment = self.request.recv(int(segment_length))
                         #app_log.info("Node: Received segment: " + segment)
@@ -1077,6 +1085,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                     #app_log.info("Client: Segment length to dispatch: " + str(segment_length))
                                     time.sleep(segment_delivery_conf)
 
+                                    self.request.recv(1)  # receive segment length acknowledgement
+
                                     #app_log.info("Client: Segment to dispatch: " + str(ledger_split[ledger_index]))  # send segment
                                     self.request.sendall(ledger_split[ledger_index])  # send segment
                                     time.sleep(segment_delivery_conf)
@@ -1128,6 +1138,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         segment_length = self.request.recv(10)  # identify segment length
                         #app_log.info("Node: Mined segment length: " + str(segment_length))
 
+                        self.request.sendall("1")  # acknowledge segment length
+                        time.sleep(segment_delivery_conf)
+
                         segment = self.request.recv(int(segment_length))
                         #app_log.info("Node: Received mined segment: " + segment)
 
@@ -1164,11 +1177,12 @@ def worker(HOST, PORT):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.connect((HOST, PORT))
     app_log.info("Client: Connected to " + str(HOST) + " " + str(PORT))
-    connected = 1
 
     if this_client not in active_pool:
         active_pool.append(this_client)
         app_log.info("Current active pool: " + str(active_pool))
+        connected = 1
+        consensus_ip = this_client
 
     first_run = 1
 
@@ -1359,6 +1373,8 @@ def worker(HOST, PORT):
                                 #app_log.info("Client: Segment length to dispatch: " + str(segment_length))
                                 time.sleep(segment_delivery_conf)
 
+                                s.recv(1)  # receive segment length acknowledgement
+
                                 #app_log.info("Client: Segment to dispatch: " + str(ledger_split[ledger_index]))  # send segment
                                 s.sendall(ledger_split[ledger_index])  # send segment
                                 time.sleep(segment_delivery_conf)
@@ -1402,6 +1418,9 @@ def worker(HOST, PORT):
                 while int(ledger_count) > 0:  # while there are segments to receive
                     segment_length = s.recv(10)  # identify segment length
                     #app_log.info("Node: Received segment length: " + str(segment_length))
+
+                    s.sendall("1")#acknowledge segment length
+                    time.sleep(segment_delivery_conf)
 
                     segment = s.recv(int(segment_length))
                     #app_log.info("Node: Received segment: " + segment)
@@ -1457,6 +1476,8 @@ def worker(HOST, PORT):
                     s.sendall(segment_length)  # send how much they should receive
                     time.sleep(segment_delivery_conf)
 
+                    s.recv(1)  # receive segment length acknowledgement
+
                     #app_log.info("Client: Segment to dispatch: " + str(mempool_split[mempool_index]))  # send segment
                     s.sendall(mempool_split[mempool_index])  # send segment
                     time.sleep(segment_delivery_conf)
@@ -1475,6 +1496,9 @@ def worker(HOST, PORT):
 
                     segment_length = s.recv(10)  # identify segment length
                     #app_log.info("Client: Received segment length: " + segment_length)
+
+                    s.sendall("1")#acknowledge segment length
+                    time.sleep(segment_delivery_conf)
 
                     segment = s.recv(int(segment_length))
                     #app_log.info("Client: Received segment: " + segment)
