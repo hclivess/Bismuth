@@ -806,7 +806,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     app_log.info("Node: Received: " + data + " from " + str(peer_ip))  # will add custom ports later
                 else:
                     app_log.info('Node: Issue with socket select') #connection will be cut in higher except
-                    raise
+                    self.request.close()
 
                 consensus_ip = self.request.getpeername()[0]
 
@@ -816,7 +816,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         app_log.info("Protocol version mismatch: " + data + ", should be " + version)
                         self.request.sendall("notok______")
                         time.sleep(0.1)
-                        raise
+                        self.request.close()
                     else:
                         app_log.info("Node: Protocol version matched: " + data)
                         self.request.sendall("ok_________")
@@ -920,6 +920,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             app_log.info("Core: Distant peer already in peer list")
                     except:
                         app_log.info("Node: Distant peer not connectible")
+                        pass
 
                         # raise #test only
 
@@ -1137,31 +1138,22 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     digest_block(segments)
                     # receive theirs
 
-                elif data == "":
-                    app_log.info("Node: Communication error")
-                    raise
-
                 else:
                     app_log.info("Unexpected error")
-                    raise
+                    self.request.close()
 
                 time.sleep(0.1)
-
                 # app_log.info("Server resting") #prevent cpu overload
+
             except Exception, e:
-                #properly end connection
-                self.request.close()
-                # properly end connection
                 app_log.info("Node: Lost connection to "+str(peer_ip))
                 app_log.info("Node: "+str(e))
 
                 # remove from consensus (connection from them)
                 consensus_remove(consensus_ip)
                 # remove from consensus (connection from them)
-                if debug_conf == 1:
-                    raise  # for test purposes
-                else:
-                    break
+                #self.request.close()
+                return #if you delete this, you will suffer.
 
 
 # client thread
