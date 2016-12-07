@@ -1071,7 +1071,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                                     self.request.sendall(
                                         segment_length)  # send how much they should receive
-                                    app_log.info("Client: Segment length to dispatch: " + str(segment_length))
+                                    #app_log.info("Client: Segment length to dispatch: " + str(segment_length))
                                     time.sleep(0.5)
 
                                     #app_log.info("Client: Segment to dispatch: " + str(ledger_split[ledger_index]))  # send segment
