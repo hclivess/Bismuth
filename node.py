@@ -121,6 +121,9 @@ def merge_mempool(data):
         conn.text_factory = str
         c = conn.cursor()
 
+        ledger_in = 0
+        mempool_in = 0
+
         acceptable = 1
         try:
             m.execute("SELECT * FROM transactions WHERE signature = '" + mempool_signature_enc + "'")  # condition 1
@@ -128,6 +131,7 @@ def merge_mempool(data):
             if dummy1 != None:
                 app_log.info("That transaction is already in our mempool")
                 acceptable = 0
+                mempool_in = 1
         except:
             pass
 
@@ -139,8 +143,13 @@ def merge_mempool(data):
                 app_log.info("That transaction is already in our ledger")
                 # reject transactions which are already in the ledger
                 acceptable = 0
+                ledger_in = 1
         except:
             pass
+
+        if (mempool_in == 1) and (ledger_in == 1): #remove from mempool if it's in both ledger and mempool already
+            m.execute("SELECT * FROM transactions WHERE signature = '" + mempool_signature_enc + "'")
+            mempool.commit()
 
         if acceptable == 1:
             # verify signatures and balances
