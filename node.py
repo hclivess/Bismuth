@@ -866,7 +866,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             while len(str(segment_length)) != 10:
                                 segment_length = "0" + str(segment_length)
 
-                            app_log.info("Node: Segment length to dispatch: " + str(segment_length))
+                            #app_log.info("Node: Segment length to dispatch: " + str(segment_length))
                             self.request.sendall(
                                 segment_length)  # send how much they should receive
                             time.sleep(0.5)
@@ -1361,7 +1361,7 @@ def worker(HOST, PORT):
                                     segment_length = "0" + str(segment_length)
 
                                 s.sendall(segment_length)  # send how much they should receive
-                                app_log.info("Client: Segment length to dispatch: " + str(segment_length))
+                                #app_log.info("Client: Segment length to dispatch: " + str(segment_length))
                                 time.sleep(0.5)
 
                                 #app_log.info("Client: Segment to dispatch: " + str(ledger_split[ledger_index]))  # send segment
