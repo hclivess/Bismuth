@@ -800,7 +800,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 r, _, _ = select.select([self.request], [], [])
                 if r:
                     data = self.request.recv(11)  # receive data, one and the only root point
-                    app_log.info("Node: Received: " + data + " from " + str(self.request.getpeername()[0]))  # will add custom ports later
+                    peer_ip = str(self.request.getpeername()[0])
+                    app_log.info("Node: Received: " + data + " from " + str(peer_ip))  # will add custom ports later
                 else:
                     app_log.info('Node: Issue with socket select') #connection will be cut in higher except
                     raise
@@ -898,7 +899,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         extension = re.findall("'([\d\.]+)', '([\d]+)'", line)
                         peer_tuples.extend(extension)
                     peer_file.close()
-                    peer_ip = str(self.request.getpeername()[0])
                     peer_tuple = ("('" + peer_ip + "', '" + str(port) + "')")
 
                     try:
