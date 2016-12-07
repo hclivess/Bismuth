@@ -1134,7 +1134,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         segments = segments + str(segment)
                         ledger_count = int(ledger_count) - 1
 
-                    app_log.info("Node: Combined mined segments: " + segments)
+                    #app_log.info("Node: Combined mined segments: " + segments)
                     digest_block(segments)
                     # receive theirs
 
