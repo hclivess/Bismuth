@@ -1,7 +1,7 @@
 port=2829
 genesis=8927be930a50dad85bddd1c59b947b4cd4e2ae55e3d56cb0e094b2b2
 verify=1
-version=testnet4___
+version=testnet5___
 thread_limit=25
 mining_ip=127.0.0.1
 rebuild_db=1
