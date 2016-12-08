@@ -1,3 +1,4 @@
+# caution: node does not always throw exceptions
 # caution: fees are not redistributed at the moment
 import SocketServer
 import ast
@@ -855,7 +856,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     self.request.sendall(mempool_len)
 
                     totalsent = 0
-                    while totalsent < len(mempool_txs):
+                    while totalsent < len(str(mempool_txs)):
                         sent = self.request.send(str(mempool_txs)[totalsent:])
                         if sent == 0:
                             raise RuntimeError("socket connection broken")
@@ -963,7 +964,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     # append zeroes to get static length
                     while len(str(db_block_height)) != 11:
                         db_block_height = "0" + str(db_block_height)
-                    self.request.sendall(db_block_height)
+
+                    self.request.sendall(str(db_block_height))
                     time.sleep(0.1)
                     # send own block height
 
