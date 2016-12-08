@@ -1118,9 +1118,9 @@ def worker(HOST, PORT):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         s.connect((HOST, PORT))
-        app_log.info("Client: Connected to " + str(HOST) + " " + str(PORT))
+        app_log.info("Client: Connected to " + str(this_client))
     except:
-        app_log.info("Could not connect to "+str(((HOST, PORT))))
+        app_log.info("Could not connect to "+ str(this_client))
         return
 
     if this_client not in active_pool:

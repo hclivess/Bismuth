@@ -194,7 +194,7 @@ def miner(args):
                     mempool.text_factory = str
                     m = mempool.cursor()
                     for x in removal_signature:
-                        m.execute("DELETE FROM block_send WHERE signature ='" + x + "';")
+                        m.execute("DELETE FROM transactions WHERE signature ='" + x + "';")
                         app_log.info("Removed a transaction with the following signature from mempool: "+str(x))
                     mempool.commit()
                     mempool.close()
