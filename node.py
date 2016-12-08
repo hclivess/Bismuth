@@ -960,9 +960,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     conn.close()
 
                     # append zeroes to get static length
-                    while len(str(db_block_height)) != 11:
-                        db_block_height = "0" + str(db_block_height)
-                    self.request.sendall(db_block_height)
+                    self.request.sendall(db_block_height).zfill(11)
                     time.sleep(0.1)
                     # send own block height
 
@@ -1214,10 +1212,7 @@ def worker(HOST, PORT):
                 conn.close()
 
                 app_log.info("Client: Sending block height to compare: " + str(db_block_height))
-                # append zeroes to get static length
-                while len(str(db_block_height)) != 11:
-                    db_block_height = "0" + str(db_block_height)
-                s.sendall(str(db_block_height))
+                s.sendall(str(db_block_height)).zfill(11)
                 time.sleep(0.1)
 
                 subdata = s.recv(11)  # receive node's block height
