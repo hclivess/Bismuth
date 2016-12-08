@@ -39,6 +39,12 @@ for line in lines:
         debug_conf = line.strip('debug=')
     if "purge=" in line:
         purge_conf = line.strip('purge=')
+    if "segment_limit=" in line:
+        segment_limit_conf = line.strip('segment_limit=')
+    if "pause=" in line:
+        pause_conf = line.strip('pause=')
+    if "segment_delivery=" in line:
+        segment_delivery_conf = float(line.strip('segment_delivery='))
 
 # load config
 
@@ -453,7 +459,7 @@ def manager():
         app_log.info("Current connections: " + str(len(active_pool)))
 
         # app_log.info(threading.enumerate() all threads)
-        time.sleep(int(0.1))
+        time.sleep(int(pause_conf))
     return
 
 
@@ -1103,7 +1109,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 # remove from consensus (connection from them)
                 if self.request:
                     self.request.close()
-                return
+                return #if you delete this, you will suffer.
 
 
 # client thread
@@ -1410,7 +1416,7 @@ def worker(HOST, PORT):
 
                 app_log.info("Client: We seem to be at the latest block. Paused before recheck")
 
-                time.sleep(int(0.1))
+                time.sleep(int(pause_conf))
                 while busy == 1:
                     time.sleep(1)
                 s.sendall("sendsync___")
