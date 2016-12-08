@@ -39,12 +39,6 @@ for line in lines:
         debug_conf = line.strip('debug=')
     if "purge=" in line:
         purge_conf = line.strip('purge=')
-    if "segment_limit=" in line:
-        segment_limit_conf = line.strip('segment_limit=')
-    if "pause=" in line:
-        pause_conf = line.strip('pause=')
-    if "segment_delivery=" in line:
-        segment_delivery_conf = float(line.strip('segment_delivery='))
 
 # load config
 
@@ -459,7 +453,7 @@ def manager():
         app_log.info("Current connections: " + str(len(active_pool)))
 
         # app_log.info(threading.enumerate() all threads)
-        time.sleep(int(pause_conf))
+        time.sleep(int(0.1))
     return
 
 
@@ -820,46 +814,47 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         time.sleep(0.1)
 
                 elif data == 'mempool____':
-                    try:
-                        # receive theirs
-                        data = int(self.request.recv(10)) #receive length
 
-                        chunks = []
-                        bytes_recd = 0
-                        while bytes_recd < data:
-                            chunk = self.request.recv(min(data - bytes_recd, 2048))
-                            if chunk == b'':
-                                raise RuntimeError("socket connection broken")
-                            chunks.append(chunk)
-                            bytes_recd = bytes_recd + len(chunk)
-                        segments = b''.join(chunks)
+                    # receive theirs
+                    data = int(self.request.recv(10)) #receive length
 
-                        #app_log.info("Node: Combined segments: " + segments)
+                    chunks = []
+                    bytes_recd = 0
+                    while bytes_recd < data:
+                        chunk = self.request.recv(min(data - bytes_recd, 2048))
+                        if chunk == b'':
+                            raise RuntimeError("socket connection broken")
+                        chunks.append(chunk)
+                        bytes_recd = bytes_recd + len(chunk)
+                    segments = b''.join(chunks)
+
+                    if segments != "[]":
                         mempool_merge(segments)
-                        # receive theirs
+                    else:
+                        app_log.info("Node: Received mempool was empty")
 
-                        mempool = sqlite3.connect('mempool.db')
-                        mempool.text_factory = str
-                        m = mempool.cursor()
-                        m.execute('SELECT * FROM transactions')
-                        mempool_txs = m.fetchall()
 
-                        # send own
-                        #app_log.info("Node: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
+                    # receive theirs
 
-                        mempool_len = str(len(str(mempool_txs))).zfill(10)
-                        self.request.sendall(mempool_len)
+                    mempool = sqlite3.connect('mempool.db')
+                    mempool.text_factory = str
+                    m = mempool.cursor()
+                    m.execute('SELECT * FROM transactions')
+                    mempool_txs = m.fetchall()
 
-                        totalsent = 0
-                        while totalsent < len(mempool_txs):
-                            sent = self.request.send(str(mempool_txs)[totalsent:])
-                            if sent == 0:
-                                raise RuntimeError("socket connection broken")
-                            totalsent = totalsent + sent
-                        # send own
+                    # send own
+                    #app_log.info("Node: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
 
-                    except:
-                        pass
+                    mempool_len = str(len(str(mempool_txs))).zfill(10)
+                    self.request.sendall(mempool_len)
+
+                    totalsent = 0
+                    while totalsent < len(mempool_txs):
+                        sent = self.request.send(str(mempool_txs)[totalsent:])
+                        if sent == 0:
+                            raise RuntimeError("socket connection broken")
+                        totalsent = totalsent + sent
+                    # send own
 
                 elif data == 'helloserver':
                     with open("peers.txt", "r") as peer_list:
@@ -960,7 +955,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     conn.close()
 
                     # append zeroes to get static length
-                    self.request.sendall(db_block_height).zfill(11)
+                    while len(str(db_block_height)) != 11:
+                        db_block_height = "0" + str(db_block_height)
+                    self.request.sendall(db_block_height)
                     time.sleep(0.1)
                     # send own block height
 
@@ -1029,12 +1026,12 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                 self.request.sendall("blockfound_")
                                 time.sleep(0.1)
 
-                                block_send_length = str(len(str(block_hash_send))).zfill(10)
-                                self.request.sendall(block_hash_send_length)
+                                block_send_length = str(len(str(block_send))).zfill(10)
+                                self.request.sendall(block_send_length)
 
                                 totalsent = 0
-                                while totalsent < len(block_hash_send):
-                                    sent = self.request.send(str(block_hash_send)[totalsent:])
+                                while totalsent < len(block_send):
+                                    sent = self.request.send(str(block_send)[totalsent:])
                                     if sent == 0:
                                         raise RuntimeError("socket connection broken")
                                     totalsent = totalsent + sent
@@ -1106,7 +1103,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 # remove from consensus (connection from them)
                 if self.request:
                     self.request.close()
-                return #if you delete this, you will suffer.
+                return
 
 
 # client thread
@@ -1116,9 +1113,9 @@ def worker(HOST, PORT):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         s.connect((HOST, PORT))
-        app_log.info("Client: Connected to " + str(this_client))
+        app_log.info("Client: Connected to " + this_client)
     except:
-        app_log.info("Could not connect to "+ str(this_client))
+        app_log.info("Could not connect to "+ this_client)
         return
 
     if this_client not in active_pool:
@@ -1212,7 +1209,10 @@ def worker(HOST, PORT):
                 conn.close()
 
                 app_log.info("Client: Sending block height to compare: " + str(db_block_height))
-                s.sendall(str(db_block_height)).zfill(11)
+                # append zeroes to get static length
+                while len(str(db_block_height)) != 11:
+                    db_block_height = "0" + str(db_block_height)
+                s.sendall(str(db_block_height))
                 time.sleep(0.1)
 
                 subdata = s.recv(11)  # receive node's block height
@@ -1297,12 +1297,12 @@ def worker(HOST, PORT):
                             # send own
                             # app_log.info("Node: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
 
-                            block_send_length = str(len(str(block_hash_send))).zfill(10)
-                            s.sendall(block_hash_send_length)
+                            block_send_length = str(len(str(block_send))).zfill(10)
+                            s.sendall(block_send_length)
 
                             totalsent = 0
-                            while totalsent < len(block_hash_send):
-                                sent = s.send(str(block_hash_send)[totalsent:])
+                            while totalsent < len(block_send):
+                                sent = s.send(str(block_send)[totalsent:])
                                 if sent == 0:
                                     raise RuntimeError("socket connection broken")
                                 totalsent = totalsent + sent
@@ -1365,23 +1365,21 @@ def worker(HOST, PORT):
                 # digest_block() #temporary #otherwise passive node will not be able to digest
 
                 # sand and receive mempool
-                s.sendall("mempool____")
-                time.sleep(0.1)
-
                 mempool = sqlite3.connect('mempool.db')
                 mempool.text_factory = str
                 m = mempool.cursor()
                 m.execute('SELECT * FROM transactions')
                 mempool_txs = m.fetchall()
 
-                #app_log.info("Client: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
+                s.sendall("mempool____")
+                time.sleep(0.1)
 
                 # send own
                 mempool_len = str(len(str(mempool_txs))).zfill(10)
                 s.sendall(mempool_len)
 
                 totalsent = 0
-                while totalsent < len(mempool_txs):
+                while totalsent < len(str(mempool_txs)):
                     sent = s.send(str(mempool_txs)[totalsent:])
                     if sent == 0:
                         raise RuntimeError("socket connection broken")
@@ -1401,14 +1399,18 @@ def worker(HOST, PORT):
                     bytes_recd = bytes_recd + len(chunk)
                 segments = b''.join(chunks)
 
-                mempool_merge(segments)
+                if segments != "[]":
+                    mempool_merge(segments)
+                else:
+                    app_log.info("Client: Received mempool was empty")
+
                 # receive theirs
 
                 # receive mempool
 
                 app_log.info("Client: We seem to be at the latest block. Paused before recheck")
 
-                time.sleep(int(pause_conf))
+                time.sleep(int(0.1))
                 while busy == 1:
                     time.sleep(1)
                 s.sendall("sendsync___")
@@ -1419,7 +1421,7 @@ def worker(HOST, PORT):
                 raise
 
             else:
-                app_log.info("Unexpected error")
+                app_log.info("Unexpected error, received: "+data)
                 raise
 
         except Exception as e:
