@@ -50,7 +50,6 @@ for line in lines:
 
 version = version_conf
 
-
 def most_common(lst):
     return max(set(lst), key=lst.count)
 
@@ -104,6 +103,7 @@ busy = 0
 # port = 2829 now defined by config
 
 def mempool_merge(data):
+    app_log.info("Mempool merging started")
     # merge mempool
     transaction_list = ast.literal_eval(data)
     for transaction in transaction_list:  # set means unique
@@ -239,8 +239,6 @@ def mempool_merge(data):
                 app_log.info("Node: Mempool updated with a received transaction")
                 mempool.commit()  # Save (commit) the changes
                 mempool.close()
-
-    app_log.info("Mempool merged")
                 # merge mempool
 
                 # receive mempool
@@ -824,21 +822,17 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 elif data == 'mempool____':
                     try:
                         # receive theirs
-                        segments = ""
-                        data = self.request.recv(10)
-                        app_log.info("Node: Number of incoming mempool segments: " + data)  # how many segments to receive
-                        mempool_count = int(data)
+                        data = int(self.request.recv(10)) #receive length
 
-                        while int(mempool_count) > 0:  # while there are segments to receive
-
-                            segment_length = self.request.recv(10)  # identify segment length
-                            #app_log.info("Node: Received segment length: " + str(segment_length))
-
-                            segment = self.request.recv(int(segment_length))
-                            #app_log.info("Node: Received segment: " + segment)
-
-                            segments = segments + str(segment)
-                            mempool_count = int(mempool_count) - 1
+                        chunks = []
+                        bytes_recd = 0
+                        while bytes_recd < data:
+                            chunk = self.request.recv(min(data - bytes_recd, 2048))
+                            if chunk == b'':
+                                raise RuntimeError("socket connection broken")
+                            chunks.append(chunk)
+                            bytes_recd = bytes_recd + len(chunk)
+                        segments = b''.join(chunks)
 
                         #app_log.info("Node: Combined segments: " + segments)
                         mempool_merge(segments)
@@ -853,32 +847,16 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         # send own
                         #app_log.info("Node: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
 
-                        mempool_split = split2len(str(mempool_txs), int(segment_limit_conf))  # mempool txs must be converted to string
-                        mempool_count = len(mempool_split)  # how many segments of 500 will be sent
-                        while len(str(mempool_count)) != 10:
-                            mempool_count = "0" + str(mempool_count)  # number must be 10 long
-                        self.request.sendall(str(mempool_count))  # send how many segments will be transferred
-                        time.sleep(0.1)
-                        # print (str(mempool_count))
+                        mempool_len = str(len(str(mempool_txs))).zfill(10)
+                        self.request.sendall(mempool_len)
 
-                        mempool_index = 0
-                        while int(mempool_count) > 0:
-                            segment_length = len(mempool_split[mempool_index])
-                            while len(str(segment_length)) != 10:
-                                segment_length = "0" + str(segment_length)
-
-                            #app_log.info("Node: Segment length to dispatch: " + str(segment_length))
-                            self.request.sendall(
-                                segment_length)  # send how much they should receive
-                            time.sleep(segment_delivery_conf)
-
-                            #app_log.info("Node: Segment to dispatch: " + str(mempool_split[mempool_index]))  # send segment
-                            self.request.sendall(mempool_split[mempool_index])  # send segment
-                            time.sleep(segment_delivery_conf)
-
-                            mempool_count = int(mempool_count) - 1
-                            mempool_index = mempool_index + 1
-                            # send own
+                        totalsent = 0
+                        while totalsent < len(mempool_txs):
+                            sent = self.request.send(str(mempool_txs)[totalsent:])
+                            if sent == 0:
+                                raise RuntimeError("socket connection broken")
+                            totalsent = totalsent + sent
+                        # send own
 
                     except:
                         pass
@@ -941,20 +919,18 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     app_log.info("Node: Client has the block")  # node should start sending txs in this step
 
                     # receive theirs
-                    segments = ""
-                    data = self.request.recv(10)
-                    app_log.info("Node: Number of incoming block segments: " + data)  # how many segments to receive
-                    ledger_count = int(data)
+                    segment_length = int(self.request.recv(10))  # identify segment length
 
-                    while int(ledger_count) > 0:  # while there are segments to receive
-                        segment_length = self.request.recv(10)  # identify segment length
-                        #app_log.info("Node: Received segment length: " + str(segment_length))
+                    chunks = []
+                    bytes_recd = 0
+                    while bytes_recd < segment_length:
+                        chunk = self.request.recv(min(segment_length - bytes_recd, 2048))
+                        if chunk == b'':
+                            raise RuntimeError("socket connection broken")
+                        chunks.append(chunk)
+                        bytes_recd = bytes_recd + len(chunk)
 
-                        segment = self.request.recv(int(segment_length))
-                        #app_log.info("Node: Received segment: " + segment)
-
-                        segments = segments + str(segment)
-                        ledger_count = int(ledger_count) - 1
+                    segments = b''.join(chunks)
 
                     #app_log.info("Node: Combined segments: " + segments)
                     digest_block(segments)
@@ -1055,32 +1031,15 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                 self.request.sendall("blockfound_")
                                 time.sleep(0.1)
 
-                                # send own
-                                ledger_split = split2len(str(block_hash_send),int(segment_limit_conf))  # ledger txs must be converted to string
-                                ledger_count = len(ledger_split)  # how many segments of 500 will be sent
-                                while len(str(ledger_count)) != 10:
-                                    ledger_count = "0" + str(ledger_count)  # number must be 10 long
-                                self.request.sendall(str(ledger_count))  # send how many segments will be transferred
-                                time.sleep(0.1)
-                                # print (str(ledger_count))
+                                block_hash_send_length = str(len(str(block_hash_send))).zfill(10)
+                                self.request.sendall(block_hash_send_length)
 
-                                ledger_index = 0
-                                while int(ledger_count) > 0:
-                                    segment_length = len(ledger_split[ledger_index])
-                                    while len(str(segment_length)) != 10:
-                                        segment_length = "0" + str(segment_length)
-
-                                    self.request.sendall(
-                                        segment_length)  # send how much they should receive
-                                    #app_log.info("Client: Segment length to dispatch: " + str(segment_length))
-                                    time.sleep(segment_delivery_conf)
-
-                                    #app_log.info("Client: Segment to dispatch: " + str(ledger_split[ledger_index]))  # send segment
-                                    self.request.sendall(ledger_split[ledger_index])  # send segment
-                                    time.sleep(segment_delivery_conf)
-
-                                    ledger_count = int(ledger_count) - 1
-                                    ledger_index = ledger_index + 1
+                                totalsent = 0
+                                while totalsent < len(block_hash_send):
+                                    sent = self.request.send(str(block_hash_send)[totalsent:])
+                                    if sent == 0:
+                                        raise RuntimeError("socket connection broken")
+                                    totalsent = totalsent + sent
                                     # send own
 
                         except:
@@ -1117,20 +1076,17 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                 elif data == "block______":  # from miner
                     # receive theirs
-                    segments = ""
-                    data = self.request.recv(10)
-                    app_log.info("Node: Number of incoming mined segments: " + data)  # how many segments to receive
-                    ledger_count = int(data)
+                    data = int(self.request.recv(10))  # receive length
 
-                    while int(ledger_count) > 0:  # while there are segments to receive
-                        segment_length = self.request.recv(10)  # identify segment length
-                        #app_log.info("Node: Mined segment length: " + str(segment_length))
-
-                        segment = self.request.recv(int(segment_length))
-                        #app_log.info("Node: Received mined segment: " + segment)
-
-                        segments = segments + str(segment)
-                        ledger_count = int(ledger_count) - 1
+                    chunks = []
+                    bytes_recd = 0
+                    while bytes_recd < data:
+                        chunk = self.request.recv(min(data - bytes_recd, 2048))
+                        if chunk == b'':
+                            raise RuntimeError("socket connection broken")
+                        chunks.append(chunk)
+                        bytes_recd = bytes_recd + len(chunk)
+                    segments = b''.join(chunks)
 
                     #app_log.info("Node: Combined mined segments: " + segments)
                     digest_block(segments)
@@ -1340,31 +1296,18 @@ def worker(HOST, PORT):
                             time.sleep(0.1)
 
                             # send own
-                            ledger_split = split2len(str(block_hash_send),int(segment_limit_conf))  # ledger txs must be converted to string
-                            ledger_count = len(ledger_split)  # how many segments of 500 will be sent
-                            while len(str(ledger_count)) != 10:
-                                ledger_count = "0" + str(ledger_count)  # number must be 10 long
-                            s.sendall(str(ledger_count))  # send how many segments will be transferred
-                            time.sleep(0.1)
-                            # print (str(ledger_count))
+                            # app_log.info("Node: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
 
-                            ledger_index = 0
-                            while int(ledger_count) > 0:
-                                segment_length = len(ledger_split[ledger_index])
-                                while len(str(segment_length)) != 10:
-                                    segment_length = "0" + str(segment_length)
+                            block_hash_send_length = str(len(str(block_hash_send))).zfill(10)
+                            s.sendall(block_hash_send_length)
 
-                                s.sendall(segment_length)  # send how much they should receive
-                                #app_log.info("Client: Segment length to dispatch: " + str(segment_length))
-                                time.sleep(segment_delivery_conf)
-
-                                #app_log.info("Client: Segment to dispatch: " + str(ledger_split[ledger_index]))  # send segment
-                                s.sendall(ledger_split[ledger_index])  # send segment
-                                time.sleep(segment_delivery_conf)
-
-                                ledger_count = int(ledger_count) - 1
-                                ledger_index = ledger_index + 1
-                                # send own
+                            totalsent = 0
+                            while totalsent < len(block_hash_send):
+                                sent = s.send(str(block_hash_send)[totalsent:])
+                                if sent == 0:
+                                    raise RuntimeError("socket connection broken")
+                                totalsent = totalsent + sent
+                            # send own
 
 
                     except:
@@ -1393,20 +1336,17 @@ def worker(HOST, PORT):
                 app_log.info("Client: Node has the block")  # node should start sending txs in this step
 
                 # receive theirs
-                segments = ""
-                data = s.recv(10)
-                app_log.info("Node: Number of incoming block segments: " + data)  # how many segments to receive
-                ledger_count = int(data)
+                data = int(s.recv(10))  # receive length
 
-                while int(ledger_count) > 0:  # while there are segments to receive
-                    segment_length = s.recv(10)  # identify segment length
-                    #app_log.info("Node: Received segment length: " + str(segment_length))
-
-                    segment = s.recv(int(segment_length))
-                    #app_log.info("Node: Received segment: " + segment)
-
-                    segments = segments + str(segment)
-                    ledger_count = int(ledger_count) - 1
+                chunks = []
+                bytes_recd = 0
+                while bytes_recd < data:
+                    chunk = s.recv(min(data - bytes_recd, 2048))
+                    if chunk == b'':
+                        raise RuntimeError("socket connection broken")
+                    chunks.append(chunk)
+                    bytes_recd = bytes_recd + len(chunk)
+                segments = b''.join(chunks)
 
                 #app_log.info("Node: Combined segments: " + segments)
                 digest_block(segments)
@@ -1438,50 +1378,30 @@ def worker(HOST, PORT):
                 #app_log.info("Client: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
 
                 # send own
-                mempool_split = split2len(str(mempool_txs), int(segment_limit_conf))  # mempool txs must be converted to string
-                mempool_count = len(mempool_split)  # how many segments of 500 will be sent
-                while len(str(mempool_count)) != 10:
-                    mempool_count = "0" + str(mempool_count)  # number must be 10 long
-                s.sendall(str(mempool_count))  # send how many segments will be transferred
-                time.sleep(0.1)
-                # print (str(mempool_count))
+                mempool_len = str(len(str(mempool_txs))).zfill(10)
+                s.sendall(mempool_len)
 
-                mempool_index = 0
-                while int(mempool_count) > 0:
-                    segment_length = len(mempool_split[mempool_index])
-                    while len(str(segment_length)) != 10:
-                        segment_length = "0" + str(segment_length)
-
-                    #app_log.info("Client: Segment length to dispatch: " + str(segment_length))
-                    s.sendall(segment_length)  # send how much they should receive
-                    time.sleep(segment_delivery_conf)
-
-                    #app_log.info("Client: Segment to dispatch: " + str(mempool_split[mempool_index]))  # send segment
-                    s.sendall(mempool_split[mempool_index])  # send segment
-                    time.sleep(segment_delivery_conf)
-
-                    mempool_count = int(mempool_count) - 1
-                    mempool_index = mempool_index + 1
+                totalsent = 0
+                while totalsent < len(mempool_txs):
+                    sent = s.send(str(mempool_txs)[totalsent:])
+                    if sent == 0:
+                        raise RuntimeError("socket connection broken")
+                    totalsent = totalsent + sent
                 # send own
 
                 # receive theirs
-                segments = ""
-                data = s.recv(10)
-                app_log.info("Client: Number of incoming mempool segments: " + data)  # how many segments to receive
-                mempool_count = int(data)
+                data = int(s.recv(10))  # receive length
 
-                while int(mempool_count) > 0:  # while there are segments to receive
+                chunks = []
+                bytes_recd = 0
+                while bytes_recd < data:
+                    chunk = s.recv(min(data - bytes_recd, 2048))
+                    if chunk == b'':
+                        raise RuntimeError("socket connection broken")
+                    chunks.append(chunk)
+                    bytes_recd = bytes_recd + len(chunk)
+                segments = b''.join(chunks)
 
-                    segment_length = s.recv(10)  # identify segment length
-                    #app_log.info("Client: Received segment length: " + segment_length)
-
-                    segment = s.recv(int(segment_length))
-                    #app_log.info("Client: Received segment: " + segment)
-
-                    segments = segments + str(segment)
-                    mempool_count = int(mempool_count) - 1
-
-                #app_log.info("Client: Combined segments: " + segments)
                 mempool_merge(segments)
                 # receive theirs
 
@@ -1520,12 +1440,10 @@ def worker(HOST, PORT):
             # remove from consensus 2
 
             app_log.info("Connection to " + this_client + " terminated due to " + str(e))
+            raise #TEST ONLY
             app_log.info("---thread " + str(threading.currentThread()) + " ended---")
-            if debug_conf == 1:
-                raise  # debug
-            return
 
-    return
+            return
 
 
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
