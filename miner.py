@@ -71,20 +71,13 @@ if not os.path.exists('mempool.db'):
     mempool.text_factory = str
     m = mempool.cursor()
     m.execute(
-        "CREATE TABLE IF NOT EXISTS transactions (timestamp, address, recipient, amount, signature, public_key, openfield)")
+        "CREATE TABLE IF NOT EXISTS block_hash_send (timestamp, address, recipient, amount, signature, public_key, openfield)")
     mempool.commit()
     mempool.close()
     app_log.info("Core: Created mempool file")
     # create empty mempool
 else:
     app_log.info("Mempool exists")
-
-def split2len(s, n):
-    def _f(s, n):
-        while s:
-            yield s[:n]
-            s = s[n:]
-    return list(_f(s, n))
 
 def miner(args):
     block_timestamp = 0  # init
@@ -105,7 +98,7 @@ def miner(args):
                 conn = sqlite3.connect("ledger.db") #open to select the last tx to create a new hash from
                 conn.text_factory = str
                 c = conn.cursor()
-                c.execute("SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1;")
+                c.execute("SELECT block_hash FROM block_hash_send ORDER BY block_height DESC LIMIT 1;")
                 result = c.fetchall()
                 conn.close()
 
@@ -115,20 +108,20 @@ def miner(args):
                 mempool = sqlite3.connect("mempool.db")
                 mempool.text_factory = str
                 m = mempool.cursor()
-                m.execute("SELECT * FROM transactions ORDER BY timestamp;")
+                m.execute("SELECT * FROM block_hash_send ORDER BY timestamp;")
                 result = m.fetchall() #select all txs from mempool
                 mempool.close()
                 busy = 0
 
-                transactions = []
-                del transactions[:] # empty
+                block_hash_send = []
+                del block_hash_send[:] # empty
                 removal_signature = []
                 del removal_signature[:] # empty
 
                 for dbdata in result:
                     transaction = (dbdata[0],dbdata[1],dbdata[2],str(float(dbdata[3])),dbdata[4],dbdata[5],dbdata[6]) #create tuple
                     #print transaction
-                    transactions.append(transaction) #append tuple to list for each run
+                    block_hash_send.append(transaction) #append tuple to list for each run
                     removal_signature.append(str(dbdata[4])) #for removal after successful mining
 
                 # claim reward
@@ -141,15 +134,15 @@ def miner(args):
                 signature = signer.sign(h)
                 signature_enc = base64.b64encode(signature)
 
-                transactions.append((block_timestamp,address,address,str(float(0)),signature_enc,public_key_hashed,"reward"))
+                block_hash_send.append((block_timestamp,address,address,str(float(0)),signature_enc,public_key_hashed,"reward"))
                 # claim reward
 
                 #print "sync this"
                 #print block_timestamp
-                #print transactions  # sync this
+                #print block_hash_send  # sync this
                 #print db_block_hash
-                #print (str((block_timestamp,transactions,db_block_hash)))
-                block_hash = hashlib.sha224(str((block_timestamp,transactions,db_block_hash))).hexdigest()  # we now need to use block timestamp as a variable for hash generation !!!
+                #print (str((block_timestamp,block_hash_send,db_block_hash)))
+                block_hash = hashlib.sha224(str((block_timestamp,block_hash_send,db_block_hash))).hexdigest()  # we now need to use block timestamp as a variable for hash generation !!!
 
                 #start mining
 
@@ -175,35 +168,17 @@ def miner(args):
                             #print block_send
 
                             # send own
-                            miner_split = split2len(str(transactions), int(segment_limit_conf))  # ledger txs must be converted to string
-                            miner_count = len(miner_split)  # how many segments of 500 will be sent
-                            while len(str(miner_count)) != 10:
-                                miner_count = "0" + str(miner_count)  # number must be 10 long
-                            s.sendall(str(miner_count))  # send how many segments will be transferred
-                            time.sleep(0.1)
-                            # print (str(miner_count))
+                            block_hash_send_length = str(len(str(block_hash_send))).zfill(10)
+                            s.sendall(block_hash_send_length)
 
-                            miner_index = -1
-                            while int(miner_count) > 0:
-                                miner_count = int(miner_count) - 1
-                                miner_index = miner_index + 1
+                            totalsent = 0
+                            while totalsent < len(block_hash_send):
+                                sent = s.send(str(block_hash_send)[totalsent:])
+                                if sent == 0:
+                                    raise RuntimeError("socket connection broken")
+                                totalsent = totalsent + sent
+                                # send own
 
-                                segment_length = len(miner_split[miner_index])
-                                while len(str(segment_length)) != 10:
-                                    segment_length = "0" + str(segment_length)
-                                s.sendall(
-                                    segment_length)  # send how much they should receive, usually 500, except the last segment
-                                app_log.info("Miner: Segment length: " + str(segment_length))
-                                time.sleep(0.5)
-
-                                s.recv(1)  # receive segment length acknowledgement
-
-                                app_log.info(
-                                    "Miner: Segment to dispatch: " + str(miner_split[miner_index]))  # send segment !!!!!!!!!
-                                s.sendall(miner_split[miner_index])  # send segment
-                                time.sleep(0.5)
-                            # send own
-                            s.close()
                             submitted = 1
 
                         except:
@@ -219,7 +194,7 @@ def miner(args):
                     mempool.text_factory = str
                     m = mempool.cursor()
                     for x in removal_signature:
-                        m.execute("DELETE FROM transactions WHERE signature ='" + x + "';")
+                        m.execute("DELETE FROM block_hash_send WHERE signature ='" + x + "';")
                         app_log.info("Removed a transaction with the following signature from mempool: "+str(x))
                     mempool.commit()
                     mempool.close()
