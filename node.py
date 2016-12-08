@@ -1023,7 +1023,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                     "SELECT timestamp,address,recipient,amount,signature,public_key,openfield FROM transactions WHERE block_height='" + str(
                                         int(
                                             block_hash_client_block) + 1) + "'")  # select incoming transaction + 1, only columns that need not be verified
-                                block_hash_send = c.fetchall()
+                                block_send = c.fetchall()
 
                                 #app_log.info("Node: Selected " + str(block_hash_send) + " to send")
 
@@ -1031,7 +1031,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                 self.request.sendall("blockfound_")
                                 time.sleep(0.1)
 
-                                block_hash_send_length = str(len(str(block_hash_send))).zfill(10)
+                                block_send_length = str(len(str(block_hash_send))).zfill(10)
                                 self.request.sendall(block_hash_send_length)
 
                                 totalsent = 0
@@ -1116,8 +1116,12 @@ def worker(HOST, PORT):
 
     this_client = (HOST + ":" + str(PORT))
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((HOST, PORT))
-    app_log.info("Client: Connected to " + str(HOST) + " " + str(PORT))
+    try:
+        s.connect((HOST, PORT))
+        app_log.info("Client: Connected to " + str(HOST) + " " + str(PORT))
+    except:
+        app_log.info("Could not connect to "+str(((HOST, PORT))))
+        return
 
     if this_client not in active_pool:
         active_pool.append(this_client)
@@ -1287,7 +1291,7 @@ def worker(HOST, PORT):
                             c.execute(
                                 "SELECT timestamp,address,recipient,amount,signature,public_key,openfield FROM transactions WHERE block_height='" + str(
                                     int(block_hash_client_block) + 1) + "'")  # select incoming transaction + 1
-                            block_hash_send = c.fetchall()
+                            block_send = c.fetchall()
 
                             #app_log.info("Client: Selected " + str(block_hash_send) + " to send")
 
@@ -1298,7 +1302,7 @@ def worker(HOST, PORT):
                             # send own
                             # app_log.info("Node: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
 
-                            block_hash_send_length = str(len(str(block_hash_send))).zfill(10)
+                            block_send_length = str(len(str(block_hash_send))).zfill(10)
                             s.sendall(block_hash_send_length)
 
                             totalsent = 0
