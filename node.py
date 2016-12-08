@@ -106,7 +106,13 @@ busy = 0
 def mempool_merge(data):
     app_log.info("Mempool merging started")
     # merge mempool
-    transaction_list = ast.literal_eval(data)
+
+    try:
+        transaction_list = ast.literal_eval(data)
+    except:
+        app_log.info("Mempool: Error processing") #will this fix the hang?
+        return
+
     for transaction in transaction_list:  # set means unique
         mempool_timestamp = transaction[0]
         mempool_address = transaction[1]
@@ -1150,7 +1156,7 @@ def worker(HOST, PORT):
                     app_log.info("Client: Node protocol version matches our client")
                 else:
                     app_log.info("Client: Node protocol version mismatch")
-                    raise
+                    return
 
                 s.sendall('helloserver')
                 time.sleep(0.1)
