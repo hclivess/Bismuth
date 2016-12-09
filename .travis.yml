@@ -3,7 +3,7 @@ python:
   - "2.7"
 cache: pip
 install:
-  - pip install pillow pyqrcode pypng pyinstaller web.py matplotlib pycrypto pillow
+  - pip install pillow pyqrcode pypng pyinstaller web.py matplotlib pycrypto
 script:
   - python node.py
   - python miner.py
