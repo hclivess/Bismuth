@@ -1124,23 +1124,24 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
 # client thread
 def worker(HOST, PORT):
-
-    this_client = (HOST + ":" + str(PORT))
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
+        this_client = (HOST + ":" + str(PORT))
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
         s.connect((HOST, PORT))
         app_log.info("Client: Connected to " + this_client)
+
+        if this_client not in active_pool:
+            active_pool.append(this_client)
+            app_log.info("Current active pool: " + str(active_pool))
+            connected = 1
+            consensus_ip = this_client
     except:
         app_log.info("Could not connect to "+ this_client)
-        return
-
-    if this_client not in active_pool:
-        active_pool.append(this_client)
-        app_log.info("Current active pool: " + str(active_pool))
-        connected = 1
-        consensus_ip = this_client
+        raise
 
     first_run = 1
+
 
     while True:
         try:
