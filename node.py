@@ -91,8 +91,6 @@ global consensus_hash_list
 consensus_hash_list = []
 global tried
 tried = []
-global mempool_busy
-mempool_busy = 0
 global consensus_percentage
 consensus_percentage = 100
 global banlist
@@ -1145,7 +1143,6 @@ def worker(HOST, PORT):
 
     while True:
         try:
-
             # communication starter
             if first_run == 1:
                 first_run = 0
@@ -1458,10 +1455,9 @@ def worker(HOST, PORT):
             # remove from consensus 2
 
             app_log.info("Connection to " + this_client + " terminated due to " + str(e))
-            #raise #TEST ONLY
             app_log.info("---thread " + str(threading.currentThread()) + " ended---")
 
-            return
+            raise
 
 
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
