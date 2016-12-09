@@ -1148,6 +1148,9 @@ def worker(HOST, PORT):
             if r:
                 data = s.recv(11)  # receive data, one and the only root point
                 app_log.info('Client: Received ' + data + ' from ' + this_client)
+            else:
+                app_log.info('Client: Issue with socket select') #connection will be cut in higher except
+                raise
 
             # communication starter
             if first_run == 1:
@@ -1168,10 +1171,6 @@ def worker(HOST, PORT):
                 time.sleep(0.1)
 
             # communication starter
-
-            else:
-                app_log.info('Client: Issue with socket select') #connection will be cut in higher except
-                raise
 
             consensus_ip = s.getpeername()[0]
             if data == "peers______":
