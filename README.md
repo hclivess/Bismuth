@@ -8,11 +8,7 @@ https://github.com/hclivess/Bismuth/blob/master/whitepaper.md
 
 ###Dependencies:
 
-* python 2.7
-* pycrypto
-* pillow
-* pyqrcode
-* pypng
+https://github.com/hclivess/Bismuth/blob/master/requirements.cmd
 
 ###Development plan:
 https://github.com/hclivess/Bismuth/issues
