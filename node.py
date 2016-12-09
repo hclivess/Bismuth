@@ -1144,6 +1144,10 @@ def worker(HOST, PORT):
 
     while True:
         try:
+            r, _, _ = select.select([s], [], [])
+            if r:
+                data = s.recv(11)  # receive data, one and the only root point
+                app_log.info('Client: Received ' + data + ' from ' + this_client)
 
             # communication starter
             if first_run == 1:
@@ -1165,10 +1169,6 @@ def worker(HOST, PORT):
 
             # communication starter
 
-            r, _, _ = select.select([s], [], [])
-            if r:
-                data = s.recv(11)  # receive data, one and the only root point
-                app_log.info('Client: Received ' + data + ' from ' + this_client)
             else:
                 app_log.info('Client: Issue with socket select') #connection will be cut in higher except
                 raise
@@ -1457,7 +1457,7 @@ def worker(HOST, PORT):
             # remove from consensus 2
 
             app_log.info("Connection to " + this_client + " terminated due to " + str(e))
-            raise #TEST ONLY
+            #raise #TEST ONLY
             app_log.info("---thread " + str(threading.currentThread()) + " ended---")
 
             return
