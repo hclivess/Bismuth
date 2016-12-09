@@ -1,0 +1,11 @@
+language: python
+python:
+  - "2.7"
+cache: pip
+install:
+  - pip install pillow pyqrcode pypng pyinstaller web.py matplotlib pycrypto pillow
+script:
+  - python node.py
+  - python miner.py
+  - python gui.py
+  - python explorer.py
