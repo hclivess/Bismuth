@@ -1,6 +1,8 @@
 Bismuth Readme
 =======
 
+[![Build Status](https://travis-ci.org/hclivess/Bismuth.svg?branch=master)](https://travis-ci.org/hclivess/Bismuth)
+
 Whitepaper:
 https://github.com/hclivess/Bismuth/blob/master/whitepaper.md
 
