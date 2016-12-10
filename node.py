@@ -108,7 +108,6 @@ def mempool_merge(data):
     try:
         transaction_list = ast.literal_eval(data)
 
-
         for transaction in transaction_list:  # set means unique
             mempool_timestamp = transaction[0]
             mempool_address = transaction[1]
@@ -467,10 +466,10 @@ def manager():
 
         # app_log.info(threading.enumerate() all threads)
         time.sleep(int(pause_conf))
-    return
+        return
 
+def digest_block(data):
 
-def digest_block(data):  # this function has become the transaction engine core over time, rudimentary naming
     global busy
     while busy == 1:
         app_log.info("Waiting for pool to become available")
@@ -479,6 +478,21 @@ def digest_block(data):  # this function has become the transaction engine core 
         busy = 1
         while True:
             try:
+
+                # remove possible duplicates
+                conn = sqlite3.connect('ledger.db')
+                conn.text_factory = str
+                c = conn.cursor()
+                c.execute("select block_height, count(*) FROM transactions GROUP by signature HAVING count(*) > 1")
+                result = c.fetchall()
+                for x in result:
+                    print x
+                    app_log.info("Removing duplicate: " + str(x[0]))
+                    c.execute("DELETE FROM transactions WHERE block_height >= '" + str(x[0]) + "'")
+                    conn.commit()
+                conn.close()
+                # remove possible duplicates
+
                 block_valid = 1
                 block_transactions = []
 
