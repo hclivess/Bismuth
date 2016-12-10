@@ -478,7 +478,6 @@ def digest_block(data):
         busy = 1
         while True:
             try:
-
                 # remove possible duplicates
                 conn = sqlite3.connect('ledger.db')
                 conn.text_factory = str
@@ -491,6 +490,10 @@ def digest_block(data):
                     c.execute("DELETE FROM transactions WHERE block_height >= '" + str(x[0]) + "'")
                     conn.commit()
                 conn.close()
+
+                if result:
+                    app_log.info("Skipping new block because duplicates were removed")
+                    raise
                 # remove possible duplicates
 
                 block_valid = 1
