@@ -700,7 +700,7 @@ def digest_block(data):
 
                 # whole block validation
                 if block_valid == 1:
-                    app_log.info("Block valid")
+                    app_log.info("Block valid and saved")
                     for transaction in block_transactions:
                         # print transaction
                         c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
