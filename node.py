@@ -466,7 +466,7 @@ def manager():
 
         # app_log.info(threading.enumerate() all threads)
         time.sleep(int(pause_conf))
-        return
+    return
 
 def digest_block(data):
 
@@ -1119,7 +1119,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     # receive theirs
 
                 else:
-                    app_log.info("Unexpected error")
+                    app_log.info("Unexpected error, received: " + data)
                     return
 
                 time.sleep(0.1)
@@ -1515,5 +1515,4 @@ if __name__ == "__main__":
     except Exception, e:
         app_log.info("Node already running?")
         app_log.info(e)
-        raise  # only test
 sys.exit()
