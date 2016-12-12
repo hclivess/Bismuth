@@ -217,7 +217,7 @@ def mempool_merge(data):
                     ledger_timestamp_50 = c.fetchone()[0]
                     conn.close()
 
-                    fee = abs(1000 / (float(mempool_timestamp) - float(ledger_timestamp_50)))
+                    fee = abs(1000 / (float(mempool_timestamp) - float(ledger_timestamp_50))) + len(mempool_openfield) / 100
                     #app_log.info("Fee: " + str(fee))
 
                 except Exception as e:

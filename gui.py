@@ -241,12 +241,11 @@ def refresh():
     db_block_height = result[0][0]
     db_block_50 = int(db_block_height) - 50
 
-
     try:
         time_now = str(time.time())
         c.execute("SELECT timestamp FROM transactions WHERE block_height ='" + str(db_block_50) + "';")
         db_timestamp_50 = c.fetchone()[0]
-        fee = 1000 / (float(time_now) - float(db_timestamp_50))
+        fee = abs(1000 / (float(time_now) - float(db_timestamp_50))) + len(base64.b64encode(openfield.get())) / 100
         app_log.info("Fee: " + str(fee))
 
     except Exception as e:
