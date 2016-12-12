@@ -1167,7 +1167,7 @@ def worker(HOST, PORT):
             consensus_ip = this_client
     except:
         app_log.info("Could not connect to "+ this_client)
-        raise
+        return
 
     first_run = 1
 
@@ -1487,8 +1487,7 @@ def worker(HOST, PORT):
 
             app_log.info("Connection to " + this_client + " terminated due to " + str(e))
             app_log.info("---thread " + str(threading.currentThread()) + " ended---")
-
-            raise
+            return
 
 
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
