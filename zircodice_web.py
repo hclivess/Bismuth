@@ -24,30 +24,30 @@ class index:
         # redraw chart
         conn = sqlite3.connect('./ledger.db')
         c = conn.cursor()
-        c.execute("SELECT * FROM transactions ORDER BY block_height DESC, timestamp DESC LIMIT 100;")
 
-        c.execute("select * from transactions where recipient = '" + address + "'")
+        c.execute("select * from transactions where recipient = '" + address + "' ORDER BY block_height DESC, timestamp DESC LIMIT 100;")
         result_bets = c.fetchall()
-
-        view = []
+        view_bets = []
 
         for x in result_bets:
-            view.append("<tr>")
-            view.append("<td>" + str(x[0]) + "</td>")
-            view.append("<td>" + str(time.strftime("%Y/%m/%d,%H:%M:%S", time.localtime(float(x[1])))))
-            view.append("<td>" + str(x[2]) + "</td>")
-            #view.append("<td>" + str(x[3].encode('utf-8')) + "</td>")
-            view.append("<td>" + str(x[4]) + "</td>")
-            #view.append("<td>" + str(x[5]) + "</td>")
-            #view.append("<td>" + str(x[6]) + "</td>")
-            #view.append("<td>" + str(x[7]) + "</td>")
-            #view.append("<td>" + str(x[8]) + "</td>")
-            #view.append("<td>" + str(x[9]) + "</td>")
-            #view.append("<td>" + str(x[10]) + "</td>")
-            view.append("<tr>")
+            view_bets.append("<tr>")
+            view_bets.append("<td>" + str(x[0]) + "</td>")
+            view_bets.append("<td>" + str(time.strftime("%Y/%m/%d,%H:%M:%S", time.localtime(float(x[1])))))
+            view_bets.append("<td>" + str(x[2]) + "</td>")
+            view_bets.append("<td>" + str(x[4]) + "</td>")
+            view_bets.append("<tr>")
 
-        c.execute("select * from transactions where recipient = '" + address + "'")
+        c.execute("select * from transactions where address = '" + address + "' ORDER BY block_height DESC, timestamp DESC LIMIT 100;")
         result_payouts = c.fetchall()
+        view_payouts = []
+
+        for x in result_payouts:
+            view_payouts.append("<tr>")
+            view_payouts.append("<td>" + str(x[0]) + "</td>")
+            view_payouts.append("<td>" + str(time.strftime("%Y/%m/%d,%H:%M:%S", time.localtime(float(x[1])))))
+            view_payouts.append("<td>" + str(x[3]) + "</td>")
+            view_payouts.append("<td>" + str(x[4]) + "</td>")
+            view_payouts.append("<tr>")
 
         c.close()
 
@@ -58,9 +58,13 @@ class index:
                "<link rel='stylesheet' type='text/css' href='static/style.css'>" \
                "</head>" \
                "<META http-equiv='cache-control' content='no-cache'>" \
-               "<TITLE>Transaction Explorer</TITLE>" \
-               "<body><center><h1>Beta</h1><p><table style='width:100%'>"+ str(''.join(view)) + \
-               "</table></body>" \
+               "<TITLE>ZircoDice</TITLE>" \
+               "<body><center>" \
+               "<h1>Bets</h1>" \
+               "<table style='width:100%'>"+ str(''.join(view_bets))+"</table>" \
+               "<h1>Payouts</h1>" \
+               "<table style='width:100%'>" + str(''.join(view_payouts)) + "</table>" \
+               "</body>" \
                "</html>"
 
         return html
