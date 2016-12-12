@@ -205,11 +205,11 @@ def sign():
 
 
 def refresh_auto():
-    root.after(1000, refresh)
-    root.after(1000, refresh_auto)
+    root.after(0, refresh)
+    root.after(3000, refresh_auto)
 
 def refresh():
-    #print "refresh triggered"
+    print "refresh triggered"
     conn = sqlite3.connect('ledger.db')
     conn.text_factory = str
     c = conn.cursor()
@@ -254,6 +254,20 @@ def refresh():
         app_log.info("Fee error: " + str(e))
     # calculate fee
 
+    # calculate difficulty
+    c.execute("SELECT timestamp FROM transactions WHERE block_height = '" + str(db_block_height) + "'")
+    timestamp_last_block = c.fetchall()[-1]  # select the reward block
+    # print timestamp_last_block[0]
+
+    c.execute("SELECT timestamp FROM transactions WHERE block_height = '" + str(db_block_height - 1) + "'")
+    timestamp_before_last_block = c.fetchall()[-1]  # select the reward block
+    # print timestamp_before_last_block[0]
+
+    # print float(timestamp_last_block[0]) - float(timestamp_before_last_block[0])
+    diff_msg = int(5 / ((float(timestamp_last_block[0]) - float(timestamp_before_last_block[0])) / 60))
+
+    # calculate difficulty
+
     fees_current_var.set("Current Fee: " + str('%f' % (fee)))
     balance_var.set("Balance: " + str(round(balance,2)))
     debit_var.set("Spent Total: " + str(round(debit,2)))
@@ -261,6 +275,7 @@ def refresh():
     fees_var.set("Fees Paid: " + str(round(fees,5)))
     rewards_var.set("Rewards: " + str(round(rewards, 2)))
     bl_height_var.set("Block Height: " + str(round(bl_height,2)))
+    diff_msg_var.set("Mining Difficulty: " + str(round(diff_msg,2)))
 
     conn.close()
     table()
@@ -321,6 +336,10 @@ fees_to_pay_msg.grid(row=5, column=0, sticky=N+E, padx=15)
 bl_height_var = StringVar()
 block_height = Label(f5, textvariable=bl_height_var)
 block_height.grid(row=6, column=0, sticky=N+E, padx=15)
+
+diff_msg_var = StringVar()
+diff_msg = Label(f5, textvariable=diff_msg_var)
+diff_msg.grid(row=7, column=0, sticky=N+E, padx=15)
 
 def table():
 
