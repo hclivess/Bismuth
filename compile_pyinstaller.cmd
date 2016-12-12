@@ -6,6 +6,7 @@ pyinstaller.exe --uac-admin --onefile --log-level=INFO node.py --icon=graphics\i
 pyinstaller.exe --uac-admin --onefile --log-level=INFO miner.py --icon=graphics\icon.ico
 pyinstaller.exe --uac-admin --onefile --log-level=INFO explorer.py --icon=graphics\icon.ico --hidden-import=explorer
 pyinstaller.exe --uac-admin --onefile --log-level=INFO plotter_html.py --icon=graphics\icon.ico
+pyinstaller.exe --uac-admin --onefile --log-level=INFO zircodice.py --icon=graphics\icon.ico
 pyinstaller.exe --uac-admin --onefile --log-level=INFO zircodice_web.py --icon=graphics\icon.ico --hidden-import=zircodice_web
 
 robocopy static dist\static
