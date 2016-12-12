@@ -5,7 +5,7 @@ from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
 import re
-
+import time
 
 key = RSA.importKey(open('privkey.der').read())
 public_key = key.publickey()
@@ -43,7 +43,7 @@ for x in result_bets:
         #print "player wins"
         won_count = won_count + 1
 
-        if openfield == base64.b64encode("payout for "+tx_signature):
+        if openfield == base64.b64decode("payout for "+tx_signature):
             print "paid already"
         else:
             payout_missing.append(x)
@@ -53,5 +53,17 @@ for x in result_bets:
 
 print lost_count
 print won_count
+
+for y in payout_missing:
+    payout_address = y[2]
+    print payout_address
+    bet_amount = float(y[4])
+    tx_signature = y[5]  # unique
+
+    #create transactions for missing payouts
+    timestamp = str(time.time())
+    transaction = (timestamp,address,payout_address,str(float(bet_amount+bet_amount)),base64.b64encode("payout for "+tx_signature))
+    print transaction
+    #create transactions for missing payouts
 conn.close()
 
