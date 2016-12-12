@@ -16,6 +16,7 @@ address = hashlib.sha224(public_key_readable).hexdigest()
 
 player = [5,6,7,8,9]
 bank = [0,1,2,3,4]
+bet_max = 1000
 
 conn = sqlite3.connect('ledger.db')
 conn.text_factory = str
@@ -32,6 +33,7 @@ txs_winning = []
 payout_missing = []
 
 for x in result_bets:
+    bet_amount = float(x[4])
     openfield = x[11]
     block_hash = x[7]
     #print block_hash
@@ -39,7 +41,7 @@ for x in result_bets:
     #print tx_signature
     digit_last = (re.findall("(\d)", block_hash))[-1]
     #print digit_last
-    if int(digit_last) in player:
+    if (int(digit_last) in player) and (bet_amount <= bet_max):
         #print "player wins"
         won_count = won_count + 1
 
