@@ -263,7 +263,10 @@ def refresh():
     # print timestamp_before_last_block[0]
 
     # print float(timestamp_last_block[0]) - float(timestamp_before_last_block[0])
-    diff_msg = int(5 / ((float(timestamp_last_block[0]) - float(timestamp_before_last_block[0])) / 60))
+    diff = int(5 / ((float(timestamp_last_block[0]) - float(timestamp_before_last_block[0])) / 60))
+    if diff < 3:
+        diff = 3
+    diff_msg = diff
 
     # calculate difficulty
 

@@ -115,6 +115,8 @@ def miner(args):
 
                 # print float(timestamp_last_block[0]) - float(timestamp_before_last_block[0])
                 diff = int(5 / ((float(timestamp_last_block[0]) - float(timestamp_before_last_block[0])) / 60))
+                if diff < 3:
+                    diff = 3
                 app_log.info("Calculated difficulty: " + str(diff))
                 # calculate difficulty
 
