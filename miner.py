@@ -113,8 +113,9 @@ def miner(args):
                 timestamp_before_last_block = c.fetchall()[-1]  # select the reward block
                 # print timestamp_before_last_block[0]
 
+                minutes_passed = (time.time() - float(timestamp_last_block[0])) / 60
                 # print float(timestamp_last_block[0]) - float(timestamp_before_last_block[0])
-                diff = int(5 / ((float(timestamp_last_block[0]) - float(timestamp_before_last_block[0])) / 60))
+                diff = int(5 / ((float(timestamp_last_block[0]) - float(timestamp_before_last_block[0])) / 60)) - minutes_passed
                 if diff < 3:
                     diff = 3
                 app_log.info("Calculated difficulty: " + str(diff))
@@ -165,6 +166,8 @@ def miner(args):
                 #start mining
 
                 # serialize txs
+
+
 
                 if address[0:diff] == block_hash[0:diff]:
                     app_log.info("Miner: Found a good block_hash in "+str(tries)+" cycles")

@@ -8,4 +8,4 @@ rebuild_db=0
 debug=1
 purge=0
 pause=5
-mining_threads=1
+mining_threads=3

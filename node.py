@@ -683,8 +683,10 @@ def digest_block(data):
                     timestamp_before_last_block = c.fetchall()[-1]  # select the reward block
                     # print timestamp_before_last_block[0]
 
+                    minutes_passed = (time.time() - float(timestamp_last_block[0])) / 60
                     # print float(timestamp_last_block[0]) - float(timestamp_before_last_block[0])
-                    diff = int(5 / ((float(timestamp_last_block[0]) - float(timestamp_before_last_block[0])) / 60))
+                    diff = int(5 / ((float(timestamp_last_block[0]) - float(timestamp_before_last_block[0])) / 60)) - minutes_passed
+
                     if diff < 3:
                         diff = 3
 
