@@ -24,9 +24,6 @@ c = conn.cursor()
 c.execute("select * from transactions where recipient = '"+address+"'")
 result_bets = c.fetchall()
 
-c.execute("select * from transactions where address = '"+address+"'")
-result_payouts = c.fetchall()
-
 won_count = 0
 lost_count = 0
 txs_winning = []
@@ -66,6 +63,23 @@ for y in payout_missing:
     timestamp = str(time.time())
     transaction = (timestamp,address,payout_address,str(float(bet_amount+bet_amount)),base64.b64encode("payout for "+tx_signature))
     print transaction
+
+
+    h = SHA.new(str(transaction))
+    signer = PKCS1_v1_5.new(key)
+    signature = signer.sign(h)
+    signature_enc = base64.b64encode(signature)
+    print("Encoded Signature: "+str(signature_enc))
+
+    mempool = sqlite3.connect('mempool.db')
+    mempool.text_factory = str
+    m = mempool.cursor()
+    m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?)", (timestamp, address, payout_address, str(float(bet_amount+bet_amount)), signature_enc, public_key_hashed,base64.b64encode("payout for "+tx_signature)))
+    mempool.commit()  # Save (commit) the changes
+    mempool.close()
+    print("Mempool updated with a payout transaction")
+
+
     #create transactions for missing payouts
 conn.close()
 
