@@ -98,4 +98,4 @@ while True:
 
         #create transactions for missing payouts
     conn.close()
-    time.sleep(10)
+    time.sleep(30)
