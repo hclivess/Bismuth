@@ -564,6 +564,7 @@ def digest_block(data):
                 db_block_hash = result[0][1]
                 block_height_new = db_block_height + 1
 
+                fees_block = []
                 for transaction in transaction_list:
                     db_timestamp = transaction[0]
                     db_address = transaction[1]
@@ -643,6 +644,7 @@ def digest_block(data):
                         c.execute("SELECT timestamp FROM transactions WHERE block_height ='" + str(db_block_50) + "';")
                         db_timestamp_50 = c.fetchone()[0]
                         fee = abs(1000 / (float(db_timestamp) - float(db_timestamp_50)))
+                        fees_block.append(fee)
                         #app_log.info("Fee: " + str(fee))
 
                     except Exception as e:
@@ -662,7 +664,7 @@ def digest_block(data):
 
                     else:
                         if transaction == transaction_list[-1]:
-                            reward = 25
+                            reward = 10 + sum(fees_block[:-1])
                             fee = 0
                         else:
                             reward = 0
