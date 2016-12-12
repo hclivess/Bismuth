@@ -281,6 +281,25 @@ def purge_old_peers():
 
 def verify():
     try:
+        # verify blockchain
+        conn = sqlite3.connect('ledger.db')
+        conn.text_factory = str
+        c = conn.cursor()
+        # c.execute("CREATE TABLE IF NOT EXISTS transactions (block_height, address, recipient, amount, signature, public_key)")
+        c.execute("SELECT Count(*) FROM transactions")
+        db_rows = c.fetchone()[0]
+        app_log.info("Core: Total steps: " + str(db_rows))
+
+        # verify genesis
+        c.execute("SELECT recipient FROM transactions ORDER BY block_height ASC LIMIT 1")
+        genesis = c.fetchone()[0]
+        app_log.info("Core: Genesis: " + genesis)
+        if str(
+                genesis) != genesis_conf:  # change this line to your genesis address if you want to clone
+            app_log.info("Core: Invalid genesis address")
+            sys.exit(1)
+        # verify genesis
+
         invalid = 0
         for row in c.execute('SELECT * FROM transactions ORDER BY block_height'):
             db_block_height = row[0]
@@ -643,7 +662,7 @@ def digest_block(data):
                     try:
                         c.execute("SELECT timestamp FROM transactions WHERE block_height ='" + str(db_block_50) + "';")
                         db_timestamp_50 = c.fetchone()[0]
-                        fee = abs(1000 / (float(db_timestamp) - float(db_timestamp_50)))
+                        fee = abs(1000 / (float(db_timestamp) - float(db_timestamp_50)))+len(db_openfield)/100
                         fees_block.append(fee)
                         #app_log.info("Fee: " + str(fee))
 
@@ -655,7 +674,19 @@ def digest_block(data):
 
                     # decide reward
 
-                    diff = 3
+                    #calculate difficulty
+                    c.execute("SELECT timestamp FROM transactions WHERE block_height = '" + str(db_block_height) + "'")
+                    timestamp_last_block = c.fetchall()[-1]  # select the reward block
+                    # print timestamp_last_block[0]
+
+                    c.execute("SELECT timestamp FROM transactions WHERE block_height = '" + str(db_block_height - 1) + "'")
+                    timestamp_before_last_block = c.fetchall()[-1]  # select the reward block
+                    # print timestamp_before_last_block[0]
+
+                    # print float(timestamp_last_block[0]) - float(timestamp_before_last_block[0])
+                    diff = int(5 / ((float(timestamp_last_block[0]) - float(timestamp_before_last_block[0])) / 60))
+                    # print diff
+                    # calculate difficulty
 
                     time_now = str(time.time())
                     if float(time_now) + 30 < float(db_timestamp):
@@ -793,25 +824,6 @@ if rebuild_db_conf == 1:
     db_maintenance()
 # connectivity to self node
 
-# verify blockchain
-con = None
-conn = sqlite3.connect('ledger.db')
-conn.text_factory = str
-c = conn.cursor()
-# c.execute("CREATE TABLE IF NOT EXISTS transactions (block_height, address, recipient, amount, signature, public_key)")
-c.execute("SELECT Count(*) FROM transactions")
-db_rows = c.fetchone()[0]
-app_log.info("Core: Total steps: " + str(db_rows))
-
-# verify genesis
-c.execute("SELECT recipient FROM transactions ORDER BY block_height ASC LIMIT 1")
-genesis = c.fetchone()[0]
-app_log.info("Core: Genesis: " + genesis)
-if str(
-        genesis) != genesis_conf:  # change this line to your genesis address if you want to clone
-    app_log.info("Core: Invalid genesis address")
-    sys.exit(1)
-# verify genesis
 if verify_conf == 1:
     verify()
 
