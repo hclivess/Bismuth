@@ -685,7 +685,7 @@ def digest_block(data):
 
                     # print float(timestamp_last_block[0]) - float(timestamp_before_last_block[0])
                     diff = int(5 / ((float(timestamp_last_block[0]) - float(timestamp_before_last_block[0])) / 60))
-                    # print diff
+                    app_log.info("Calculated difficulty: "+str(diff))
                     # calculate difficulty
 
                     time_now = str(time.time())

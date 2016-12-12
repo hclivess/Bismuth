@@ -98,11 +98,27 @@ def miner(args):
                 conn = sqlite3.connect("ledger.db") #open to select the last tx to create a new hash from
                 conn.text_factory = str
                 c = conn.cursor()
-                c.execute("SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1;")
+                c.execute("SELECT block_hash, block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
                 result = c.fetchall()
-                conn.close()
 
                 db_block_hash = result[0][0]
+                db_block_height = result[0][1]
+
+                # calculate difficulty
+                c.execute("SELECT timestamp FROM transactions WHERE block_height = '" + str(db_block_height) + "'")
+                timestamp_last_block = c.fetchall()[-1]  # select the reward block
+                # print timestamp_last_block[0]
+
+                c.execute("SELECT timestamp FROM transactions WHERE block_height = '" + str(db_block_height - 1) + "'")
+                timestamp_before_last_block = c.fetchall()[-1]  # select the reward block
+                # print timestamp_before_last_block[0]
+
+                # print float(timestamp_last_block[0]) - float(timestamp_before_last_block[0])
+                diff = int(5 / ((float(timestamp_last_block[0]) - float(timestamp_before_last_block[0])) / 60))
+                app_log.info("Calculated difficulty: " + str(diff))
+                # calculate difficulty
+
+                conn.close()
 
                 #serialize txs
                 mempool = sqlite3.connect("mempool.db")
@@ -148,7 +164,6 @@ def miner(args):
 
                 # serialize txs
 
-                diff = 3
                 if address[0:diff] == block_hash[0:diff]:
                     app_log.info("Miner: Found a good block_hash in "+str(tries)+" cycles")
                     tries = 0
