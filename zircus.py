@@ -4,6 +4,7 @@ import base64
 from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
+import re
 
 
 key = RSA.importKey(open('privkey.der').read())
@@ -20,6 +21,15 @@ conn = sqlite3.connect('ledger.db')
 conn.text_factory = str
 c = conn.cursor()
 c.execute("select * from transactions where recipient = '"+address+"'")
-result = c.fetchall()[0]
+result = c.fetchall()
+
+for x in result:
+    print x[7]
+    digit_last = (re.findall("(\d)", x[7]))[-1]
+    print digit_last
+    if int(digit_last) in winner:
+        print "winner"
+
+
 conn.close()
 
