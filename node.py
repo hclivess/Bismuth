@@ -217,7 +217,7 @@ def mempool_merge(data):
                     ledger_timestamp_50 = c.fetchone()[0]
                     conn.close()
 
-                    fee = abs(1000 / (float(mempool_timestamp) - float(ledger_timestamp_50))) + len(mempool_openfield) / 100
+                    fee = abs(1000 / (float(mempool_timestamp) - float(ledger_timestamp_50))) + len(mempool_openfield) / 1000
                     #app_log.info("Fee: " + str(fee))
 
                 except Exception as e:
@@ -662,7 +662,7 @@ def digest_block(data):
                     try:
                         c.execute("SELECT timestamp FROM transactions WHERE block_height ='" + str(db_block_50) + "';")
                         db_timestamp_50 = c.fetchone()[0]
-                        fee = abs(1000 / (float(db_timestamp) - float(db_timestamp_50)))+len(db_openfield)/100
+                        fee = abs(1000 / (float(db_timestamp) - float(db_timestamp_50)))+len(db_openfield)/1000
                         fees_block.append(fee)
                         #app_log.info("Fee: " + str(fee))
 
