@@ -115,7 +115,7 @@ def miner(args):
 
                 minutes_passed = (time.time() - float(timestamp_last_block[0])) / 60
                 # print float(timestamp_last_block[0]) - float(timestamp_before_last_block[0])
-                diff = int(5 / ((float(timestamp_last_block[0]) - float(timestamp_before_last_block[0])) / 60) - minutes_passed)
+                diff = int(5 / ((float(timestamp_last_block[0]) - float(timestamp_before_last_block[0])) / 60) - minutes_passed * 8)
                 if diff < 3:
                     diff = 3
                 app_log.info("Calculated difficulty: " + str(diff))

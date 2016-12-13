@@ -14,15 +14,15 @@ public_key_readable = str(key.publickey().exportKey())
 public_key_hashed = base64.b64encode(public_key_readable)
 address = hashlib.sha224(public_key_readable).hexdigest()
 
-player = [5,6,7,8,9]
-bank = [0,1,2,3,4]
+player = [5, 6, 7, 8, 9]
+bank = [0, 1, 2, 3, 4]
 bet_max = 1000
 
 while True:
     conn = sqlite3.connect('ledger.db')
     conn.text_factory = str
     c = conn.cursor()
-    c.execute("select * from transactions where recipient = '"+address+"'")
+    c.execute("select * from transactions where recipient = '" + address + "'")
     result_bets = c.fetchall()
 
     won_count = 0
@@ -35,33 +35,36 @@ while True:
 
     for x in result_bets:
         bet_amount = float(x[4])
-        openfield = x[11]
         block_hash = x[7]
-        #print block_hash
-        tx_signature = x[5] #unique
-        #print tx_signature
+        # print block_hash
+        tx_signature = x[5]  # unique
+        # print tx_signature
         digit_last = (re.findall("(\d)", block_hash))[-1]
-        #print digit_last
+        # print digit_last
         if (int(digit_last) in player) and (bet_amount <= bet_max):
-            #print "player wins"
+            # print "player wins"
             won_count = won_count + 1
 
-            if openfield == base64.b64decode("payout for "+tx_signature):
-                #print "paid already"
+            try:
+                c.execute("SELECT * FROM transactions where openfield = '" + base64.b64encode(
+                    "payout for " + tx_signature) + "' ")
+                result_in_ledger = c.fetchone()[0]
+                # print result_in_ledger
+                print "Payout transaction already in the ledger"
                 paid_count = paid_count + 1
-            else:
+
+            except:
                 payout_missing.append(x)
                 not_paid_count = not_paid_count + 1
 
         else:
-            #print "bank wins"
+            # print "bank wins"
             lost_count = lost_count + 1
 
-    print "Total client lost rounds: "+str(lost_count)
-    print "Total client won rounds: "+str(won_count)
-    print "Already paid out x times: "+str(paid_count)
+    print "Total client lost rounds: " + str(lost_count)
+    print "Total client won rounds: " + str(won_count)
+    print "Already paid out x times: " + str(paid_count)
     print "Not paid out yet x times: " + str(not_paid_count)
-
 
     for y in payout_missing:
         payout_address = y[2]
@@ -69,33 +72,37 @@ while True:
         bet_amount = float(y[4])
         tx_signature = y[5]  # unique
 
-        #create transactions for missing payouts
+        # create transactions for missing payouts
         timestamp = str(time.time())
-        transaction = (timestamp,address,payout_address,str(float(bet_amount+bet_amount)),base64.b64encode("payout for "+tx_signature))
+        transaction = (timestamp, address, payout_address, str(float(bet_amount + bet_amount)),
+                       base64.b64encode("payout for " + tx_signature))
         print transaction
 
         h = SHA.new(str(transaction))
         signer = PKCS1_v1_5.new(key)
         signature = signer.sign(h)
         signature_enc = base64.b64encode(signature)
-        print("Encoded Signature: "+str(signature_enc))
+        print("Encoded Signature: " + str(signature_enc))
 
         mempool = sqlite3.connect('mempool.db')
         mempool.text_factory = str
         m = mempool.cursor()
 
         try:
-            m.execute("SELECT * FROM transactions where openfield = '"+base64.b64encode("payout for "+tx_signature)+"' ")
+            m.execute("SELECT * FROM transactions where openfield = '" + base64.b64encode(
+                "payout for " + tx_signature) + "' ")
             result_in_mempool = m.fetchone()[0]
             print result_in_mempool
             print "Payout transaction already in the mempool"
         except:
-            m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?)", (timestamp, address, payout_address, str(float(bet_amount+bet_amount)), signature_enc, public_key_hashed,base64.b64encode("payout for "+tx_signature)))
+            m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?)", (
+            timestamp, address, payout_address, str(float(bet_amount + bet_amount)), signature_enc, public_key_hashed,
+            base64.b64encode("payout for " + tx_signature)))
             mempool.commit()  # Save (commit) the changes
             mempool.close()
             print "Mempool updated with a payout transaction"
 
 
-        #create transactions for missing payouts
+            # create transactions for missing payouts
     conn.close()
     time.sleep(30)
