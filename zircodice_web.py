@@ -61,7 +61,7 @@ class index:
                "<TITLE>ZircoDice</TITLE>" \
                "<body><center>" \
                "<h1>Welcome to ZircoDice</h1>" \
-               "<p>Please send any amount of coins to the address <strong>"+address+"</strong> and include the word '<strong>bet</strong>' in the OpenField data. It will be encrypted to 'YmV0' (in case you don't use GUI). You are betting on the last number in the hash where your bet is included, if it's 5,6,7,8,9, you win. If not, bank wins.</p>" \
+               "<p>Please send any amount of coins lower than 1000 to the address <strong>"+address+"</strong> and include the word '<strong>bet</strong>' in the OpenField data. It will be encrypted to 'YmV0' (in case you don't use GUI). You are betting on the last number in the hash where your bet is included, if it's 5,6,7,8,9, you win. If not, bank wins.</p>" \
                "<br>" \
                "<h1>Bets</h1>" \
                "<table style='width:100%'>"+ str(''.join(view_bets))+"</table>" \
