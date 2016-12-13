@@ -217,7 +217,7 @@ def miner(args):
         except Exception, e:
             print e
             time.sleep(0.1)
-            raise
+            pass
 
 if __name__ == '__main__':
     freeze_support()
