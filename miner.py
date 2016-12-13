@@ -99,19 +99,26 @@ def miner(args):
                 db_block_height = result[0][1]
 
                 # calculate difficulty
-                c.execute("SELECT timestamp FROM transactions WHERE block_height = '" + str(db_block_height) + "'")
-                timestamp_last_block = c.fetchall()[-1]  # select the reward block
-                # print timestamp_last_block[0]
+                c.execute("SELECT block_height,timestamp FROM transactions ORDER BY block_height DESC LIMIT 1;")
+                result = c.fetchall()
+                db_block_height = int(result[0][0])
+                # print db_block_height
 
-                c.execute("SELECT timestamp FROM transactions WHERE block_height = '" + str(db_block_height - 1) + "'")
-                timestamp_before_last_block = c.fetchall()[-1]  # select the reward block
-                # print timestamp_before_last_block[0]
+                timestamp_latest = float(result[0][1])
+                # print timestamp_latest
 
-                minutes_passed = (time.time() - float(timestamp_last_block[0])) / 60
-                # print float(timestamp_last_block[0]) - float(timestamp_before_last_block[0])
-                diff = int(5 / ((float(timestamp_last_block[0]) - float(timestamp_before_last_block[0])) / 60) - minutes_passed * 8)
-                if diff < 3:
+                c.execute("select avg(timestamp) from transactions where reward = 10 and block_height >= '" + (
+                str(db_block_height - 25)) + "';")
+                result = c.fetchall()  # select the reward block
+                timestamp_avg = float(result[0][0])
+                #print timestamp_avg
+
+                diff = int(1500 / (timestamp_latest - timestamp_avg))
+                if db_block_height < 50:
                     diff = 3
+                if diff < 1:
+                    diff = 1
+
                 app_log.info("Calculated difficulty: " + str(diff))
                 # calculate difficulty
 
