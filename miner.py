@@ -113,7 +113,7 @@ def miner(args):
                 timestamp_avg = float(result[0][0])
                 #print timestamp_avg
 
-                diff = int(6000 / (timestamp_latest - timestamp_avg))
+                diff = int(5000 / (timestamp_latest - timestamp_avg))
                 if db_block_height < 50:
                     diff = 3
                 if diff < 1:
