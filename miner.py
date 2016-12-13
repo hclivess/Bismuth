@@ -15,9 +15,6 @@ from Crypto.Hash import SHA
 from multiprocessing import Process
 from multiprocessing import freeze_support
 
-global busy
-busy = 0
-
 # load config
 lines = [line.rstrip('\n') for line in open('config.txt')]
 for line in lines:
@@ -60,7 +57,8 @@ while connected == 0:
         app_log.info("Connected")
         connected = 1
         s.close()
-    except:
+    except Exception, e:
+        print e
         app_log.info("Miner: Please start your node for the block to be submitted or adjust mining ip in settings.")
         time.sleep(1)
 #verify connection
@@ -91,10 +89,6 @@ def miner(args):
                 tries = tries +1
                 # calculate new hash
 
-                global busy
-                while busy == 1:
-                    time.sleep(0.1)
-                busy = 1
                 conn = sqlite3.connect("ledger.db") #open to select the last tx to create a new hash from
                 conn.text_factory = str
                 c = conn.cursor()
@@ -130,7 +124,6 @@ def miner(args):
                 m.execute("SELECT * FROM transactions ORDER BY timestamp;")
                 result = m.fetchall() #select all txs from mempool
                 mempool.close()
-                busy = 0
 
                 block_send = []
                 del block_send[:] # empty
@@ -167,8 +160,6 @@ def miner(args):
 
                 # serialize txs
 
-
-
                 if address[0:diff] == block_hash[0:diff]:
                     app_log.info("Miner: Found a good block_hash in "+str(tries)+" cycles")
                     tries = 0
@@ -201,15 +192,13 @@ def miner(args):
 
                             submitted = 1
 
-                        except:
+                        except Exception, e:
+                            print e
                             app_log.info("Miner: Please start your node for the block to be submitted or adjust mining ip in settings.")
                             time.sleep(1)
 
-                    while busy == 1:
-                        time.sleep(0.1)
-                    busy = 1
-
                     #remove sent from mempool
+
                     mempool = sqlite3.connect("mempool.db")
                     mempool.text_factory = str
                     m = mempool.cursor()
@@ -218,17 +207,17 @@ def miner(args):
                         app_log.info("Removed a transaction with the following signature from mempool: "+str(x))
                     mempool.commit()
                     mempool.close()
+
                     #remove sent from mempool
-                    busy = 0
 
                 #submit mined block to node
             else:
                 time.sleep(0.1)
                 #break
         except Exception, e:
-            app_log.info(str(e))
+            print e
             time.sleep(0.1)
-            pass
+            raise
 
 if __name__ == '__main__':
     freeze_support()
