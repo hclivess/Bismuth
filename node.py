@@ -842,11 +842,12 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 r, _, _ = select.select([self.request], [], [])
                 if r:
                     data = self.request.recv(11)  # receive data, one and the only root point
-                    peer_ip = str(self.request.getpeername()[0])
-                    app_log.info("Node: Received: " + data + " from " + str(peer_ip))  # will add custom ports later
                 else:
                     app_log.info('Node: Issue with socket select') #connection will be cut in higher except
                     return
+
+                peer_ip = str(self.request.getpeername()[0])
+                app_log.info("Node: Received: " + data + " from " + str(peer_ip))  # will add custom ports later
 
                 consensus_ip = self.request.getpeername()[0]
 
