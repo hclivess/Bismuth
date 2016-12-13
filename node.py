@@ -691,7 +691,7 @@ def digest_block(data):
 
                     minutes_passed = (time.time() - timestamp_latest) / 60
 
-                    diff = int(5000 / (timestamp_latest - timestamp_avg)) - minutes_passed
+                    diff = int(5000 / (timestamp_latest - timestamp_avg) - minutes_passed)
                     if db_block_height < 50:
                         diff = 3
                     if diff < 1:
