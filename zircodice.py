@@ -16,7 +16,7 @@ address = hashlib.sha224(public_key_readable).hexdigest()
 
 player = [5, 6, 7, 8, 9]
 bank = [0, 1, 2, 3, 4]
-bet_max = 1000
+bet_max = 100
 
 while True:
     conn = sqlite3.connect('ledger.db')
