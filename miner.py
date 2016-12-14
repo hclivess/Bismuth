@@ -15,9 +15,6 @@ from Crypto.Hash import SHA
 from multiprocessing import Process
 from multiprocessing import freeze_support
 
-global busy
-busy = 0
-
 # load config
 lines = [line.rstrip('\n') for line in open('config.txt')]
 for line in lines:
@@ -60,7 +57,8 @@ while connected == 0:
         app_log.info("Connected")
         connected = 1
         s.close()
-    except:
+    except Exception, e:
+        print e
         app_log.info("Miner: Please start your node for the block to be submitted or adjust mining ip in settings.")
         time.sleep(1)
 #verify connection
@@ -91,10 +89,6 @@ def miner(args):
                 tries = tries +1
                 # calculate new hash
 
-                global busy
-                while busy == 1:
-                    time.sleep(0.1)
-                busy = 1
                 conn = sqlite3.connect("ledger.db") #open to select the last tx to create a new hash from
                 conn.text_factory = str
                 c = conn.cursor()
@@ -105,19 +99,28 @@ def miner(args):
                 db_block_height = result[0][1]
 
                 # calculate difficulty
-                c.execute("SELECT timestamp FROM transactions WHERE block_height = '" + str(db_block_height) + "'")
-                timestamp_last_block = c.fetchall()[-1]  # select the reward block
-                # print timestamp_last_block[0]
+                c.execute("SELECT block_height,timestamp FROM transactions ORDER BY block_height DESC LIMIT 1;")
+                result = c.fetchall()
+                db_block_height = int(result[0][0])
+                # print db_block_height
 
-                c.execute("SELECT timestamp FROM transactions WHERE block_height = '" + str(db_block_height - 1) + "'")
-                timestamp_before_last_block = c.fetchall()[-1]  # select the reward block
-                # print timestamp_before_last_block[0]
+                timestamp_latest = float(result[0][1])
+                # print timestamp_latest
 
-                minutes_passed = (time.time() - float(timestamp_last_block[0])) / 60
-                # print float(timestamp_last_block[0]) - float(timestamp_before_last_block[0])
-                diff = int(5 / ((float(timestamp_last_block[0]) - float(timestamp_before_last_block[0])) / 60) - minutes_passed * 8)
-                if diff < 3:
+                c.execute("select avg(timestamp) from transactions where reward = 10 and block_height >= '" + (
+                str(db_block_height - 25)) + "';")
+                result = c.fetchall()  # select the reward block
+                timestamp_avg = float(result[0][0])
+                #print timestamp_avg
+
+                minutes_passed = (time.time() - timestamp_latest) / 60
+
+                diff = int(5000 / (timestamp_latest - timestamp_avg) - minutes_passed)
+                if db_block_height < 50:
                     diff = 3
+                if diff < 1:
+                    diff = 1
+
                 app_log.info("Calculated difficulty: " + str(diff))
                 # calculate difficulty
 
@@ -130,7 +133,6 @@ def miner(args):
                 m.execute("SELECT * FROM transactions ORDER BY timestamp;")
                 result = m.fetchall() #select all txs from mempool
                 mempool.close()
-                busy = 0
 
                 block_send = []
                 del block_send[:] # empty
@@ -167,8 +169,6 @@ def miner(args):
 
                 # serialize txs
 
-
-
                 if address[0:diff] == block_hash[0:diff]:
                     app_log.info("Miner: Found a good block_hash in "+str(tries)+" cycles")
                     tries = 0
@@ -201,15 +201,13 @@ def miner(args):
 
                             submitted = 1
 
-                        except:
+                        except Exception, e:
+                            print e
                             app_log.info("Miner: Please start your node for the block to be submitted or adjust mining ip in settings.")
                             time.sleep(1)
 
-                    while busy == 1:
-                        time.sleep(0.1)
-                    busy = 1
-
                     #remove sent from mempool
+
                     mempool = sqlite3.connect("mempool.db")
                     mempool.text_factory = str
                     m = mempool.cursor()
@@ -218,15 +216,15 @@ def miner(args):
                         app_log.info("Removed a transaction with the following signature from mempool: "+str(x))
                     mempool.commit()
                     mempool.close()
+
                     #remove sent from mempool
-                    busy = 0
 
                 #submit mined block to node
             else:
                 time.sleep(0.1)
                 #break
         except Exception, e:
-            app_log.info(str(e))
+            print e
             time.sleep(0.1)
             raise
 
