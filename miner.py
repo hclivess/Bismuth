@@ -117,7 +117,7 @@ def miner(args):
                 timestamp_difference = timestamp_last_block - timestamp_before_last_block
                 #print timestamp_difference
 
-                diff = int(math.log(1000 / timestamp_difference))
+                diff = int(math.log(2000 / timestamp_difference))
 
                 if diff < 2:
                     diff = 2
