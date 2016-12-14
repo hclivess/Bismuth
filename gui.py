@@ -259,18 +259,18 @@ def refresh():
     timestamp_last_block = float(c.fetchall()[-1][0])  # select the reward block
     # print timestamp_last_block
 
-    c.execute("select avg(timestamp) from transactions where reward = 10 and block_height >= '" + (str(db_block_height - 25)) + "';")
+    c.execute("select avg(timestamp) from transactions where reward = 10 and block_height >= '" + (str(db_block_height - 10)) + "';")
     timestamp_avg = float(c.fetchall()[-1][0])  # select the reward block
     # print timestamp_before_last_block
 
     timestamp_difference = timestamp_last_block - timestamp_avg
     # print timestamp_difference
 
-    diff = int(math.log(2000 / timestamp_difference))
+    diff = math.log(20000/timestamp_difference)
     if db_block_height < 50:
         diff = 3
-    if diff < 2:
-        diff = 2
+    #if diff < 2:
+    #    diff = 2
 
     app_log.info("Calculated difficulty: " + str(diff))
     # calculate difficulty
