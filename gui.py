@@ -266,10 +266,10 @@ def refresh():
     timestamp_difference = timestamp_last_block - timestamp_before_last_block
     #print timestamp_difference
 
-    diff = (math.log(100/timestamp_difference))
+    diff = (math.log(160/timestamp_difference))
 
-    if diff < 1:
-        diff = 1
+    if diff < 2:
+        diff = 2
 
     diff_msg = diff
 

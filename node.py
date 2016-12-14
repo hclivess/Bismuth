@@ -685,10 +685,10 @@ def digest_block(data):
                     timestamp_difference = timestamp_last_block - timestamp_before_last_block
                     #print timestamp_difference
 
-                    diff = int(math.log(100 / timestamp_difference))
+                    diff = int(math.log(160 / timestamp_difference))
 
-                    if diff < 1:
-                        diff = 1
+                    if diff < 2:
+                        diff = 2
 
                     app_log.info("Calculated difficulty: " + str(diff))
                     # calculate difficulty
@@ -723,7 +723,7 @@ def digest_block(data):
                                                            block_hash, fee, reward, str(0), db_openfield))
                         else:
                             app_log.info(
-                                "Digest: Difficulty requirement not satisfied: " + miner_address + " " + block_hash)
+                                "Digest: Difficulty requirement not satisfied: " +ord_convert(miner_address) + " " + ord_convert(block_hash))
                             block_valid = 0
 
                     try:
