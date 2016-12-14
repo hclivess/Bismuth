@@ -256,15 +256,18 @@ def refresh():
 
     # calculate difficulty
     c.execute("SELECT timestamp FROM transactions WHERE block_height = '" + str(db_block_height) + "'")
-    timestamp_last_block = c.fetchall()[-1]  # select the reward block
-    # print timestamp_last_block[0]
+    timestamp_last_block = float(c.fetchall()[-1][0])  # select the reward block
+    #print timestamp_last_block
 
     c.execute("SELECT timestamp FROM transactions WHERE block_height = '" + str(db_block_height - 1) + "'")
-    timestamp_before_last_block = c.fetchall()[-1]  # select the reward block
-    # print timestamp_before_last_block[0]
+    timestamp_before_last_block = float(c.fetchall()[-1][0])  # select the reward block
+    #print timestamp_before_last_block
 
-    # print float(timestamp_last_block[0]) - float(timestamp_before_last_block[0])
-    diff = math.log(1 / (float(timestamp_last_block[0]) - float(timestamp_before_last_block[0])))
+    timestamp_difference = timestamp_last_block - timestamp_before_last_block
+    if timestamp_difference < 1:
+        timestamp_difference = 1
+
+    diff = int(math.log(1 / timestamp_difference))
 
     if diff < 1:
         diff = 1
