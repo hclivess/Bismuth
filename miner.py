@@ -1,3 +1,4 @@
+import math
 import base64
 import socket
 import sys
@@ -77,6 +78,12 @@ if not os.path.exists('mempool.db'):
 else:
     app_log.info("Mempool exists")
 
+def ord_convert(hash_input):
+    ord_output = ""
+    for char in hash_input:
+        ord_output = ord_output + str(ord(char))
+    return ord_output
+
 def miner(args):
     block_timestamp = 0  # init
     tries = 0
@@ -99,25 +106,17 @@ def miner(args):
                 db_block_height = result[0][1]
 
                 # calculate difficulty
-                c.execute("SELECT block_height,timestamp FROM transactions ORDER BY block_height DESC LIMIT 1;")
-                result = c.fetchall()
-                db_block_height = int(result[0][0])
-                # print db_block_height
+                c.execute("SELECT timestamp FROM transactions WHERE block_height = '" + str(db_block_height) + "'")
+                timestamp_last_block = c.fetchall()[-1]  # select the reward block
+                # print timestamp_last_block[0]
 
-                timestamp_latest = float(result[0][1])
-                # print timestamp_latest
+                c.execute("SELECT timestamp FROM transactions WHERE block_height = '" + str(db_block_height - 1) + "'")
+                timestamp_before_last_block = c.fetchall()[-1]  # select the reward block
+                # print timestamp_before_last_block[0]
 
-                c.execute("select avg(timestamp) from transactions where reward = 10 and block_height >= '" + (
-                str(db_block_height - 25)) + "';")
-                result = c.fetchall()  # select the reward block
-                timestamp_avg = float(result[0][0])
-                #print timestamp_avg
+                # print float(timestamp_last_block[0]) - float(timestamp_before_last_block[0])
+                diff = math.log(1 / (float(timestamp_last_block[0]) - float(timestamp_before_last_block[0])))
 
-                minutes_passed = (time.time() - timestamp_latest) / 60
-
-                diff = int(5000 / (timestamp_latest - timestamp_avg) - minutes_passed)
-                if db_block_height < 50:
-                    diff = 3
                 if diff < 1:
                     diff = 1
 
