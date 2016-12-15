@@ -62,6 +62,14 @@ def ord_convert(hash_input):
         ord_output = ord_output + str(ord(char))
     return ord_output
 
+def receive(sdef, count):
+    r, _, _ = select.select([sdef], [], [])
+    if r:
+        data = sdef.recv(count)  # receive data, one and the only root point
+        return data
+    else:
+        app_log.info('Issue with socket select')  # connection will be cut in higher except
+        raise
 
 gc.enable()
 
@@ -840,12 +848,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
     def handle(self):  # server defined here
         while True:
             try:
-                r, _, _ = select.select([self.request], [], [])
-                if r:
-                    data = self.request.recv(11)  # receive data, one and the only root point
-                else:
-                    app_log.info('Node: Issue with socket select') #connection will be cut in higher except
-                    return
+                data = receive(self.request,11)
 
                 peer_ip = str(self.request.getpeername()[0])
                 app_log.info("Node: Received: " + data + " from " + str(peer_ip))  # will add custom ports later
