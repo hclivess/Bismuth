@@ -475,9 +475,9 @@ def manager():
                 PORT = int(tuple[1])
                 # app_log.info(PORT)
 
-                app_log.info("Will attempt to connect to " + HOST + ":" + str(PORT))
                 if threads_count <= threads_limit and str(HOST + ":" + str(PORT)) not in tried and str(
                                         HOST + ":" + str(PORT)) not in active_pool and str(HOST) not in banlist:
+                    app_log.info("Will attempt to connect to " + HOST + ":" + str(PORT))
                     tried.append(HOST + ":" + str(PORT))
                     t = threading.Thread(target=worker, args=(HOST, PORT))  # threaded connectivity to nodes here
                     app_log.info("---Starting a client thread " + str(threading.currentThread()) + "---")
@@ -495,7 +495,6 @@ def manager():
 
         # app_log.info(threading.enumerate() all threads)
         time.sleep(int(pause_conf))
-    return
 
 def digest_block(data):
 
