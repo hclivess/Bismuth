@@ -862,12 +862,12 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     data = receive(self.request,11)
                     if version != data:
                         app_log.info("Protocol version mismatch: " + data + ", should be " + version)
-                        self.request.sendall("notok______")
+                        send(self.request,"notok______")
                         time.sleep(0.1)
                         return
                     else:
                         app_log.info("Node: Protocol version matched: " + data)
-                        self.request.sendall("ok_________")
+                        send(self.request,"ok_________")
                         time.sleep(0.1)
 
                 elif data == 'mempool____':
@@ -903,7 +903,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     #app_log.info("Node: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
 
                     mempool_len = str(len(str(mempool_txs))).zfill(10)
-                    self.request.sendall(mempool_len)
+                    send(self.request,mempool_len)
 
                     totalsent = 0
                     while totalsent < len(str(mempool_txs)):
@@ -917,9 +917,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     with open("peers.txt", "r") as peer_list:
                         peers = peer_list.read()
                         app_log.info("Node: " + peers)
-                        self.request.sendall("peers______")
+                        send(self.request,"peers______")
                         time.sleep(0.1)
-                        self.request.sendall(peers)
+                        send(self.request,peers)
                         time.sleep(0.1)
                     peer_list.close()
 
@@ -958,13 +958,13 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     while busy == 1:
                         time.sleep(1)
                     app_log.info("Node: Sending sync request")
-                    self.request.sendall("sync_______")
+                    send(self.request,"sync_______")
                     time.sleep(0.1)
 
                 elif data == "sendsync___":
                     while busy == 1:
                         time.sleep(1)
-                    self.request.sendall("sync_______")
+                    send(self.request,"sync_______")
                     time.sleep(0.1)
 
                 elif data == "blockfound_":
@@ -990,7 +990,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     while busy == 1:
                         time.sleep(1)
-                    self.request.sendall("sync_______")
+                    send(self.request,"sync_______")
                     time.sleep(0.1)
 
                 elif data == "blockheight":
@@ -1015,7 +1015,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     while len(str(db_block_height)) != 11:
                         db_block_height = "0" + str(db_block_height)
 
-                    self.request.sendall(str(db_block_height))
+                    send(self.request,str(db_block_height))
                     time.sleep(0.1)
                     # send own block height
 
@@ -1040,7 +1040,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         conn.close()
 
                         app_log.info("Node: block_hash to send: " + str(db_block_hash))
-                        self.request.sendall(db_block_hash)  # send latest block_hash
+                        send(self.request,db_block_hash)
                         time.sleep(0.1)
 
                         # receive their latest hash
@@ -1068,7 +1068,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             db_block_hash = c.fetchone()[0]  # get latest block_hash
                             if db_block_hash == data:
                                 app_log.info("Node: Client has the latest block")
-                                self.request.sendall("nonewblocks")
+                                send(self.request,"nonewblocks")
                                 time.sleep(0.1)
 
                             else:
@@ -1081,11 +1081,11 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                 #app_log.info("Node: Selected " + str(block_hash_send) + " to send")
 
                                 conn.close()
-                                self.request.sendall("blockfound_")
+                                send(self.request,"blockfound_")
                                 time.sleep(0.1)
 
                                 block_send_length = str(len(str(block_send))).zfill(10)
-                                self.request.sendall(block_send_length)
+                                send(self.request,block_send_length)
 
                                 totalsent = 0
                                 while totalsent < len(block_send):
@@ -1097,9 +1097,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                         except:
                             app_log.info("Node: Block not found")
-                            self.request.sendall("blocknotfou")
+                            send(self.request,"blocknotfou")
                             time.sleep(0.1)
-                            self.request.sendall(data)
+                            send(self.request,data)
                             time.sleep(0.1)
                             # newly apply on self
                             conn = sqlite3.connect('ledger.db')
@@ -1114,7 +1114,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 elif data == "nonewblocks":
                     # digest_block() #temporary #otherwise passive node will not be able to digest
 
-                    self.request.sendall("sync_______")
+                    send(self.request,"sync_______")
                     time.sleep(0.1)
 
                 elif data == "blocknotfou":
@@ -1124,7 +1124,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     while busy == 1:
                         time.sleep(1)
                     app_log.info("Client: Deletion complete, sending sync request")
-                    self.request.sendall("sync_______")
+                    send(self.request,"sync_______")
                     time.sleep(0.1)
 
                 elif data == "block______":  # from miner
@@ -1194,9 +1194,10 @@ def worker(HOST, PORT):
             if first_run == 1:
                 first_run = 0
 
-                s.sendall('version____')
+                send(s,"version____")
                 time.sleep(0.1)
-                s.sendall(version)
+
+                send(s,version)
                 time.sleep(0.1)
                 data = receive(s,11)
                 if (data == "ok_________"):
@@ -1205,7 +1206,7 @@ def worker(HOST, PORT):
                     app_log.info("Client: Node protocol version mismatch")
                     return
 
-                s.sendall('helloserver')
+                send(s,'helloserver')
                 time.sleep(0.1)
 
             # communication starter
@@ -1259,7 +1260,7 @@ def worker(HOST, PORT):
                 # sync start
 
                 # send block height, receive block height
-                s.sendall("blockheight")
+                send(s,"blockheight")
                 time.sleep(0.1)
 
                 conn = sqlite3.connect('ledger.db')
@@ -1273,7 +1274,7 @@ def worker(HOST, PORT):
                 # append zeroes to get static length
                 while len(str(db_block_height)) != 11:
                     db_block_height = "0" + str(db_block_height)
-                s.sendall(str(db_block_height))
+                send(s,str(db_block_height))
                 time.sleep(0.1)
 
                 subdata = receive(s,11)  # receive node's block height
@@ -1303,7 +1304,7 @@ def worker(HOST, PORT):
                     conn.close()
 
                     app_log.info("Client: block_hash to send: " + str(db_block_hash))
-                    s.sendall(db_block_hash)  # send latest block_hash
+                    send(s,db_block_hash)  # send latest block_hash
                     time.sleep(0.1)
 
                     # consensus pool 2 (active connection)
@@ -1340,7 +1341,7 @@ def worker(HOST, PORT):
                         db_block_hash = c.fetchone()[0]  # get latest block_hash
                         if db_block_hash == data:
                             app_log.info("Client: Node has the latest block")
-                            s.sendall("nonewblocks")
+                            send(s,"nonewblocks")
                             time.sleep(0.1)
 
                         else:
@@ -1352,14 +1353,14 @@ def worker(HOST, PORT):
                             #app_log.info("Client: Selected " + str(block_hash_send) + " to send")
 
                             conn.close()
-                            s.sendall("blockfound_")
+                            send(s,"blockfound_")
                             time.sleep(0.1)
 
                             # send own
                             # app_log.info("Node: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
 
                             block_send_length = str(len(str(block_send))).zfill(10)
-                            s.sendall(block_send_length)
+                            send(s,block_send_length)
 
                             totalsent = 0
                             while totalsent < len(block_send):
@@ -1372,7 +1373,7 @@ def worker(HOST, PORT):
 
                     except:
                         app_log.info("Node: Block not found")
-                        s.sendall("blocknotfou")
+                        send(s,"blocknotfou")
                         time.sleep(0.1)
                         # newly apply on self
                         conn = sqlite3.connect('ledger.db')
@@ -1388,7 +1389,7 @@ def worker(HOST, PORT):
 
                 while busy == 1:
                     time.sleep(1)
-                s.sendall("sendsync___")
+                send(s,"sendsync___")
                 time.sleep(0.1)
 
             elif data == "blockfound_":
@@ -1417,7 +1418,7 @@ def worker(HOST, PORT):
 
                 while busy == 1:
                     time.sleep(1)
-                s.sendall("sendsync___")
+                send(s,"sendsync___")
                 time.sleep(0.1)
 
                 # block_hash validation end
@@ -1432,12 +1433,12 @@ def worker(HOST, PORT):
                 m.execute('SELECT * FROM transactions')
                 mempool_txs = m.fetchall()
 
-                s.sendall("mempool____")
+                send(s,"mempool____")
                 time.sleep(0.1)
 
                 # send own
                 mempool_len = str(len(str(mempool_txs))).zfill(10)
-                s.sendall(mempool_len)
+                send(s,mempool_len)
 
                 totalsent = 0
                 while totalsent < len(str(mempool_txs)):
@@ -1474,7 +1475,7 @@ def worker(HOST, PORT):
                 time.sleep(int(pause_conf))
                 while busy == 1:
                     time.sleep(1)
-                s.sendall("sendsync___")
+                send(s,"sendsync___")
                 time.sleep(0.1)
 
             elif data == "":
