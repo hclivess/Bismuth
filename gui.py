@@ -283,7 +283,7 @@ def refresh():
     credit_var.set("Received Total: " + str(round(credit,2)))
     fees_var.set("Fees Paid: " + str(round(fees,5)))
     rewards_var.set("Rewards: " + str(round(rewards, 2)))
-    bl_height_var.set("Block Height: " + str(round(bl_height,2)))
+    bl_height_var.set("Block Height: " + str(bl_height))
     diff_msg_var.set("Mining Difficulty: " + str(round(diff_msg,2)))
 
     conn.close()
