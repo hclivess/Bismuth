@@ -71,6 +71,9 @@ def receive(sdef, count):
         app_log.info('Issue with socket select')  # connection will be cut in higher except
         raise
 
+def send(sdef, data):
+    sdef.sendall(data)
+
 gc.enable()
 
 log_formatter = logging.Formatter('%(asctime)s %(levelname)s %(funcName)s(%(lineno)d) %(message)s')
@@ -856,7 +859,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 consensus_ip = self.request.getpeername()[0]
 
                 if data == 'version____':
-                    data = self.request.recv(11)
+                    data = receive(self.request,11)
                     if version != data:
                         app_log.info("Protocol version mismatch: " + data + ", should be " + version)
                         self.request.sendall("notok______")
@@ -870,7 +873,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 elif data == 'mempool____':
 
                     # receive theirs
-                    data = int(self.request.recv(10)) #receive length
+                    data = int(receive(self.request,10)) #receive length
 
                     chunks = []
                     bytes_recd = 0
@@ -1141,6 +1144,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     #app_log.info("Node: Combined mined segments: " + segments)
                     digest_block(segments)
                     # receive theirs
+                elif data == "":
+                    app_log.info("Received a ping or empty packet")
 
                 else:
                     app_log.info("Unexpected error, received: " + data)
@@ -1472,7 +1477,7 @@ def worker(HOST, PORT):
                 time.sleep(0.1)
 
             elif data == "":
-                app_log.info("Communication error")
+                app_log.info("Received a ping or empty packet")
                 raise
 
             else:
