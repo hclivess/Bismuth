@@ -116,7 +116,7 @@ def miner(args):
                 #print timestamp_difference
                 # print timestamp_difference
 
-                diff = int(math.log(20000 / timestamp_difference))
+                diff = int(math.log(100000 / timestamp_difference))
                 if db_block_height < 50:
                     diff = 3
                 if diff < 2:

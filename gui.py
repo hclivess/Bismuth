@@ -266,7 +266,7 @@ def refresh():
     timestamp_difference = timestamp_last_block - timestamp_avg
     # print timestamp_difference
 
-    diff = math.log(20000/timestamp_difference)
+    diff = math.log(100000/timestamp_difference)
     if db_block_height < 50:
         diff = 3
     #if diff < 2:
