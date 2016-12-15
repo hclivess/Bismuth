@@ -1146,10 +1146,11 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     # receive theirs
                 elif data == "":
                     app_log.info("Received a ping or empty packet")
+                    raise
 
                 else:
                     app_log.info("Unexpected error, received: " + data)
-                    return
+                    raise
 
                 time.sleep(0.1)
                 # app_log.info("Server resting") #prevent cpu overload
