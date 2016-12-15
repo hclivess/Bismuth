@@ -74,6 +74,22 @@ def receive(sdef, count):
 def send(sdef, data):
     sdef.sendall(data)
 
+def receive_chunks(sdef):
+    # receive theirs
+    data = int(receive(sdef, 10))  # receive length
+
+    chunks = []
+    bytes_recd = 0
+    while bytes_recd < data:
+        chunk = sdef.recv(min(data - bytes_recd, 2048))
+        if chunk == b'':
+            raise RuntimeError("socket connection broken")
+        chunks.append(chunk)
+        bytes_recd = bytes_recd + len(chunk)
+    segments = b''.join(chunks)
+    return segments
+    # receive theirs
+
 gc.enable()
 
 log_formatter = logging.Formatter('%(asctime)s %(levelname)s %(funcName)s(%(lineno)d) %(message)s')
@@ -872,24 +888,12 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 elif data == 'mempool____':
 
                     # receive theirs
-                    data = int(receive(self.request,10)) #receive length
-
-                    chunks = []
-                    bytes_recd = 0
-                    while bytes_recd < data:
-                        chunk = self.request.recv(min(data - bytes_recd, 2048))
-                        if chunk == b'':
-                            raise RuntimeError("socket connection broken")
-                        chunks.append(chunk)
-                        bytes_recd = bytes_recd + len(chunk)
-                    segments = b''.join(chunks)
+                    segments = receive_chunks(self.request)
 
                     if segments != "[]":
                         mempool_merge(segments)
                     else:
                         app_log.info("Node: Received mempool was empty")
-
-
                     # receive theirs
 
                     mempool = sqlite3.connect('mempool.db')
@@ -970,18 +974,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     app_log.info("Node: Client has the block")  # node should start sending txs in this step
 
                     # receive theirs
-                    segment_length = int(receive(self.request,10))  # identify segment length
-
-                    chunks = []
-                    bytes_recd = 0
-                    while bytes_recd < segment_length:
-                        chunk = self.request.recv(min(segment_length - bytes_recd, 2048))
-                        if chunk == b'':
-                            raise RuntimeError("socket connection broken")
-                        chunks.append(chunk)
-                        bytes_recd = bytes_recd + len(chunk)
-
-                    segments = b''.join(chunks)
+                    segments = receive_chunks(self.request)
 
                     #app_log.info("Node: Combined segments: " + segments)
                     digest_block(segments)
@@ -1128,17 +1121,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                 elif data == "block______":  # from miner
                     # receive theirs
-                    data = int(receive(self.request,10))  # receive length
-
-                    chunks = []
-                    bytes_recd = 0
-                    while bytes_recd < data:
-                        chunk = self.request.recv(min(data - bytes_recd, 2048))
-                        if chunk == b'':
-                            raise RuntimeError("socket connection broken")
-                        chunks.append(chunk)
-                        bytes_recd = bytes_recd + len(chunk)
-                    segments = b''.join(chunks)
+                    segments = receive_chunks(self.request)
 
                     #app_log.info("Node: Combined mined segments: " + segments)
                     digest_block(segments)
@@ -1163,7 +1146,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 # remove from consensus (connection from them)
                 if self.request:
                     self.request.close()
-                return #if you delete this, you will suffer.
+                raise #if you delete this, you will suffer.
 
 
 # client thread
@@ -1396,17 +1379,7 @@ def worker(HOST, PORT):
                 app_log.info("Client: Node has the block")  # node should start sending txs in this step
 
                 # receive theirs
-                data = int(receive(s,10))  # receive length
-
-                chunks = []
-                bytes_recd = 0
-                while bytes_recd < data:
-                    chunk = s.recv(min(data - bytes_recd, 2048))
-                    if chunk == b'':
-                        raise RuntimeError("socket connection broken")
-                    chunks.append(chunk)
-                    bytes_recd = bytes_recd + len(chunk)
-                segments = b''.join(chunks)
+                segments = receive_chunks(s)
 
                 #app_log.info("Node: Combined segments: " + segments)
                 digest_block(segments)
@@ -1448,17 +1421,7 @@ def worker(HOST, PORT):
                 # send own
 
                 # receive theirs
-                data = int(receive(s,10))  # receive length
-
-                chunks = []
-                bytes_recd = 0
-                while bytes_recd < data:
-                    chunk = s.recv(min(data - bytes_recd, 2048))
-                    if chunk == b'':
-                        raise RuntimeError("socket connection broken")
-                    chunks.append(chunk)
-                    bytes_recd = bytes_recd + len(chunk)
-                segments = b''.join(chunks)
+                segments = receive_chunks(s)
 
                 if segments != "[]":
                     mempool_merge(segments)
