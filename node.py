@@ -1146,7 +1146,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 # remove from consensus (connection from them)
                 if self.request:
                     self.request.close()
-                raise #if you delete this, you will suffer.
+                raise #major debug client
 
 
 # client thread
@@ -1466,7 +1466,7 @@ def worker(HOST, PORT):
 
             app_log.info("Connection to " + this_client + " terminated due to " + str(e))
             app_log.info("---thread " + str(threading.currentThread()) + " ended---")
-            return
+            raise #major debug
 
 
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
