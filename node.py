@@ -1,5 +1,5 @@
 # caution: node does not always throw exceptions
-# caution: fees are not redistributed at the moment
+# must unify node and client now that connections parameters are function parameters
 import math
 import SocketServer
 import ast
