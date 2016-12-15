@@ -971,7 +971,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     app_log.info("Node: Client has the block")  # node should start sending txs in this step
 
                     # receive theirs
-                    segment_length = int(self.request.recv(10))  # identify segment length
+                    segment_length = int(receive(self.request,10))  # identify segment length
 
                     chunks = []
                     bytes_recd = 0
@@ -994,7 +994,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     time.sleep(0.1)
 
                 elif data == "blockheight":
-                    subdata = self.request.recv(11)  # receive client's last block height
+                    subdata = receive(self.request,11)  # receive client's last block height
                     received_block_height = subdata
                     app_log.info("Node: Received block height: " + received_block_height)
 
@@ -1048,7 +1048,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     if update_me == 0:  # update them if update_me is 0
 
-                        data = self.request.recv(56)  # receive client's last block_hash
+                        data = receive(self.request,56)  # receive client's last block_hash
                         # send all our followup hashes
 
                         app_log.info("Node: Will seek the following block: " + str(data))
@@ -1118,7 +1118,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     time.sleep(0.1)
 
                 elif data == "blocknotfou":
-                    block_hash_delete = self.request.recv(56)
+                    block_hash_delete = receive(self.request,56)
                     blocknotfound(block_hash_delete)
 
                     while busy == 1:
@@ -1129,7 +1129,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                 elif data == "block______":  # from miner
                     # receive theirs
-                    data = int(self.request.recv(10))  # receive length
+                    data = int(receive(self.request,10))  # receive length
 
                     chunks = []
                     bytes_recd = 0
@@ -1197,7 +1197,7 @@ def worker(HOST, PORT):
                 time.sleep(0.1)
                 s.sendall(version)
                 time.sleep(0.1)
-                data = s.recv(11)
+                data = receive(s,11)
                 if (data == "ok_________"):
                     app_log.info("Client: Node protocol version matches our client")
                 else:
@@ -1211,7 +1211,7 @@ def worker(HOST, PORT):
 
             r, _, _ = select.select([s], [], [])
             if r:
-                data = s.recv(11)  # receive data, one and the only root point
+                data = receive(s,11)  # receive data, one and the only root point
                 app_log.info('Client: Received ' + data + ' from ' + this_client)
             else:
                 app_log.info('Client: Issue with socket select') #connection will be cut in higher except
@@ -1219,7 +1219,7 @@ def worker(HOST, PORT):
 
             consensus_ip = s.getpeername()[0]
             if data == "peers______":
-                subdata = s.recv(2048)  # peers are larger
+                subdata = receive(s,2048)  # peers are larger #need improvements
                 # get remote peers into tuples
                 server_peer_tuples = re.findall("'([\d\.]+)', '([\d]+)'", subdata)
                 app_log.info(server_peer_tuples)
@@ -1275,7 +1275,7 @@ def worker(HOST, PORT):
                 s.sendall(str(db_block_height))
                 time.sleep(0.1)
 
-                subdata = s.recv(11)  # receive node's block height
+                subdata = receive(s,11)  # receive node's block height
                 received_block_height = subdata
                 app_log.info("Client: Node is at block height: " + str(received_block_height))
 
@@ -1314,7 +1314,7 @@ def worker(HOST, PORT):
                     # confirm you know that hash or continue receiving
 
                 if update_me == 0:  # update them if update_me is 0
-                    data = s.recv(56)  # receive client's last block_hash
+                    data = receive(s,56)  # receive client's last block_hash
 
                     # send all our followup hashes
                     app_log.info("Client: Will seek the following block: " + str(data))
@@ -1382,7 +1382,7 @@ def worker(HOST, PORT):
                         conn.close()
 
             elif data == "blocknotfou":
-                block_hash_delete = s.recv(56)
+                block_hash_delete = receive(s,56)
                 blocknotfound(block_hash_delete)
 
                 while busy == 1:
@@ -1395,7 +1395,7 @@ def worker(HOST, PORT):
                 app_log.info("Client: Node has the block")  # node should start sending txs in this step
 
                 # receive theirs
-                data = int(s.recv(10))  # receive length
+                data = int(receive(s,10))  # receive length
 
                 chunks = []
                 bytes_recd = 0
@@ -1447,7 +1447,7 @@ def worker(HOST, PORT):
                 # send own
 
                 # receive theirs
-                data = int(s.recv(10))  # receive length
+                data = int(receive(s,10))  # receive length
 
                 chunks = []
                 bytes_recd = 0
