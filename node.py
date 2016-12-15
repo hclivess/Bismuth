@@ -713,9 +713,9 @@ def digest_block(data):
 
                     diff = int(math.log(50000 / timestamp_difference))
                     if db_block_height < 50:
-                        diff = 3
-                    if diff < 3:
-                        diff = 3
+                        diff = 4
+                    if diff < 4:
+                        diff = 4
 
                     app_log.info("Calculated difficulty: " + str(diff))
                     # calculate difficulty
