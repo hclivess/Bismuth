@@ -255,14 +255,14 @@ def refresh():
     # calculate fee
 
     # calculate difficulty
-    c.execute("SELECT avg(timestamp) FROM transactions where block_height >= '"+str(db_block_height - 10)+"' and reward = 10;")
+    c.execute("SELECT avg(timestamp) FROM transactions where block_height >= '"+str(db_block_height - 20)+"' and reward = 10;")
     timestamp_avg = c.fetchall()[0][0]  # select the reward block
     #print timestamp_avg
 
     timestamp_difference = float(db_timestamp_last) - timestamp_avg
     #print timestamp_difference
 
-    diff = math.log10(100000000/timestamp_difference)
+    diff = math.log10(1000000000/timestamp_difference)
     if db_block_height < 50:
         diff = 4
     #if diff < 4:

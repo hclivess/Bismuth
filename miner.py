@@ -96,36 +96,40 @@ def miner(args):
                 tries = tries +1
                 # calculate new hash
 
-                conn = sqlite3.connect("ledger.db") #open to select the last tx to create a new hash from
-                conn.text_factory = str
-                c = conn.cursor()
-                c.execute("SELECT block_hash, block_height,timestamp FROM transactions ORDER BY block_height DESC LIMIT 1;")
-                result = c.fetchall()
+                diff = None
+                while not diff:
 
-                db_block_hash = result[0][0]
-                db_block_height = result[0][1]
-                timestamp_last_block = float(result[0][2])
-                #print timestamp_last_block
+                    conn = sqlite3.connect("ledger.db") #open to select the last tx to create a new hash from
+                    conn.text_factory = str
+                    c = conn.cursor()
+                    c.execute("SELECT block_hash, block_height,timestamp FROM transactions ORDER BY block_height DESC LIMIT 1;")
+                    result = c.fetchall()
 
-                # calculate difficulty
-                c.execute("SELECT avg(timestamp) FROM transactions where block_height >= '" + str(db_block_height - 10) + "' and reward = 10;")
-                timestamp_avg = c.fetchall()[0][0]  # select the reward block
-                # print timestamp_avg
+                    db_block_hash = result[0][0]
+                    db_block_height = result[0][1]
+                    timestamp_last_block = float(result[0][2])
+                    #print timestamp_last_block
 
-                timestamp_difference = timestamp_last_block - timestamp_avg
-                #print timestamp_difference
-                # print timestamp_difference
+                    # calculate difficulty
+                    c.execute("SELECT avg(timestamp) FROM transactions where block_height >= '" + str(db_block_height - 20) + "' and reward = 10;")
+                    timestamp_avg = c.fetchall()[0][0]  # select the reward block
+                    # print timestamp_avg
 
-                diff = int(math.log10(100000000 / timestamp_difference))
-                if db_block_height < 50:
-                    diff = 4
-                #if diff < 4:
-                #    diff = 4
+                    timestamp_difference = timestamp_last_block - timestamp_avg
+                    #print timestamp_difference
+                    # print timestamp_difference
 
-                app_log.info("Calculated difficulty: " + str(diff))
-                # calculate difficulty
 
-                conn.close()
+                    diff = int(math.log10(1000000000 / timestamp_difference))
+                    if db_block_height < 50:
+                        diff = 4
+                    #if diff < 4:
+                    #    diff = 4
+
+                    app_log.info("Calculated difficulty: " + str(diff))
+                    # calculate difficulty
+
+                    conn.close()
 
                 #serialize txs
                 mempool = sqlite3.connect("mempool.db")
