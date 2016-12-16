@@ -108,7 +108,7 @@ def miner(args):
                     #print timestamp_last_block
 
                     # calculate difficulty
-                    c.execute("SELECT avg(timestamp) FROM transactions where block_height >= '" + str(db_block_height - 10) + "' and reward = 10;")
+                    c.execute("SELECT avg(timestamp) FROM transactions where block_height >= '" + str(db_block_height - 30) + "' and reward = 10;")
                     timestamp_avg = c.fetchall()[0][0]  # select the reward block
                     #print timestamp_avg
 
@@ -117,7 +117,7 @@ def miner(args):
                     # print timestamp_difference
 
 
-                    diff = float(math.log(1e16 / timestamp_difference))
+                    diff = float((math.log(1e18 / timestamp_difference)) - timestamp_difference / 60)
                     if db_block_height < 50:
                         diff = 4
                     #if diff < 4:
