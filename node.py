@@ -701,14 +701,14 @@ def digest_block(data):
                     timestamp_last_block = float(c.fetchall()[-1][0])  # select the reward block
                     #print timestamp_last_block
 
-                    c.execute("SELECT avg(timestamp) FROM transactions where block_height >= '" + str(db_block_height - 20) + "' and reward = 10;")
+                    c.execute("SELECT avg(timestamp) FROM transactions where block_height >= '" + str(db_block_height - 10) + "' and reward = 10;")
                     timestamp_avg = c.fetchall()[0][0]  # select the reward block
                     #print timestamp_before_last_block
 
                     timestamp_difference = timestamp_last_block - timestamp_avg
                     #print timestamp_difference
 
-                    diff = int(math.log10(1000000000 / timestamp_difference))
+                    diff = int(math.log(1000000000 / timestamp_difference))
                     if db_block_height < 50:
                         diff = 4
                     #if diff < 4:
@@ -747,7 +747,7 @@ def digest_block(data):
                                                            block_hash, fee, reward, str(0), db_openfield))
                         else:
                             app_log.info(
-                                "Digest: Difficulty requirement not satisfied: " +ord_convert(miner_address) + " " + ord_convert(block_hash))
+                                "Digest: Difficulty requirement not satisfied: " +bin_convert(miner_address) + " " + bin_convert(block_hash))
                             block_valid = 0
 
                     try:
