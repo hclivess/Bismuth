@@ -14,15 +14,13 @@ public_key_readable = str(key.publickey().exportKey())
 public_key_hashed = base64.b64encode(public_key_readable)
 address = hashlib.sha224(public_key_readable).hexdigest()
 
-player = [5, 6, 7, 8, 9]
-bank = [0, 1, 2, 3, 4]
 bet_max = 100
 
 while True:
     conn = sqlite3.connect('ledger.db')
     conn.text_factory = str
     c = conn.cursor()
-    c.execute("select * from transactions where recipient = '" + address + "' and openfield = '" + base64.b64encode("bet") + "' ")
+    c.execute("select * from transactions,openfield where recipient = '" + address + "' and openfield = '" + base64.b64encode("odd|even") + "' ")
     result_bets = c.fetchall()
 
     won_count = 0
@@ -34,6 +32,14 @@ while True:
     payout_missing = []
 
     for x in result_bets:
+        openfield = x[11]
+        if base64.b64encode(openfield) == "odd":
+            player = [2, 4, 6, 8]
+            bank = [0, 1, 3, 7, 9]
+        else: #if even
+            player = [1, 3, 7, 9]
+            bank = [0, 2, 4, 6, 8]
+
         bet_amount = float(x[4])
         block_hash = x[7]
         # print block_hash
