@@ -48,7 +48,7 @@ class index:
             view_bets.append("<td>" + str(x[4]) + "</td>")
             view_bets.append("<tr>")
 
-        c.execute("select * from transactions where address = '" + address + "' ORDER BY block_height DESC, timestamp DESC LIMIT 100;")
+        c.execute("select * from transactions where address = '" + address + "' and openfield != null ORDER BY block_height DESC, timestamp DESC LIMIT 100;")
         result_payouts = c.fetchall()
         view_payouts = []
 
