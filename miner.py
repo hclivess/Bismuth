@@ -89,7 +89,6 @@ def miner(args):
         try:
             if str(block_timestamp) != str(time.time()): #in case the time has changed
                 block_timestamp = str(time.time())
-                app_log.info("Mining in progress, " + str(tries) + " cycles have passed in thread "+ str(args))
                 tries = tries +1
                 # calculate new hash
 
@@ -117,16 +116,16 @@ def miner(args):
                     # print timestamp_difference
 
 
-                    diff = int(math.log(1000000000 / timestamp_difference))
+                    diff = int(math.log(1000000000000 / timestamp_difference))
                     if db_block_height < 50:
                         diff = 4
                     #if diff < 4:
                     #    diff = 4
-
-                    app_log.info("Calculated difficulty: " + str(diff))
                     # calculate difficulty
 
                     conn.close()
+
+                app_log.info("Mining, " + str(tries) + " cycles passed in thread " + str(args) + ", difficulty: " + str(diff) +", reached: "+str())
 
                 #serialize txs
                 mempool = sqlite3.connect("mempool.db")
