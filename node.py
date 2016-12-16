@@ -703,7 +703,7 @@ def digest_block(data):
 
                     c.execute("SELECT avg(timestamp) FROM transactions where block_height >= '" + str(db_block_height - 10) + "' and reward = 10;")
                     timestamp_avg = c.fetchall()[0][0]  # select the reward block
-                    #print timestamp_before_last_block
+                    print timestamp_avg
 
                     timestamp_difference = timestamp_last_block - timestamp_avg
                     #print timestamp_difference
