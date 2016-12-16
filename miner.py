@@ -117,7 +117,7 @@ def miner(args):
                     # print timestamp_difference
 
 
-                    diff = float(math.log(10000000000 / timestamp_difference))
+                    diff = float(math.log(1e16 / timestamp_difference))
                     if db_block_height < 50:
                         diff = 4
                     #if diff < 4:
@@ -171,7 +171,7 @@ def miner(args):
 
                 # serialize txs
 
-                if bin_convert(address)[0:diff] == bin_convert(block_hash)[0:diff]:
+                if bin_convert(address)[0:diff] in bin_convert(block_hash):
                     app_log.info("Miner: Found a good block_hash in "+str(tries)+" cycles")
                     tries = 0
 

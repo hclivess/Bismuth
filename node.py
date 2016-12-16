@@ -708,7 +708,7 @@ def digest_block(data):
                     timestamp_difference = timestamp_last_block - timestamp_avg
                     #print timestamp_difference
 
-                    diff = int(math.log(10000000000 / timestamp_difference))
+                    diff = int(math.log(1e16 / timestamp_difference))
                     if db_block_height < 50:
                         diff = 4
                     #if diff < 4:
@@ -731,7 +731,7 @@ def digest_block(data):
 
                             # dont request a fee for mined block so new accounts can mine
 
-                        if bin_convert(miner_address)[0:diff] == bin_convert(block_hash)[0:diff]:  # simplified comparison, no backwards mining
+                        if bin_convert(miner_address)[0:diff] in bin_convert(block_hash):  # simplified comparison, no backwards mining
                             app_log.info("Digest: Difficulty requirement satisfied")
 
                             if (float(balance)) - (
