@@ -110,8 +110,6 @@ global consensus_ip_list
 consensus_ip_list = []
 global consensus_blockheight_list
 consensus_blockheight_list = []
-global consensus_hash_list
-consensus_hash_list = []
 global tried
 tried = []
 global consensus_percentage
@@ -414,7 +412,6 @@ def blocknotfound(block_hash_delete):
 def consensus_add(consensus_ip, consensus_blockheight, consensus_hash):
     global consensus_ip_list
     global consensus_blockheight_list
-    global consensus_hash_list
     global consensus_percentage
 
     if consensus_ip not in consensus_ip_list:
@@ -422,8 +419,6 @@ def consensus_add(consensus_ip, consensus_blockheight, consensus_hash):
         consensus_ip_list.append(consensus_ip)
         app_log.info("Assigning " + str(consensus_blockheight) + " to peer block height list")
         consensus_blockheight_list.append(str(int(consensus_blockheight)))
-        app_log.info("Assigning " + str(consensus_hash) + " to peer hash list")
-        consensus_hash_list.append(str(consensus_hash))
 
     if consensus_ip in consensus_ip_list:
         consensus_index = consensus_ip_list.index(consensus_ip)  # get where in this list it is
@@ -434,18 +429,13 @@ def consensus_add(consensus_ip, consensus_blockheight, consensus_hash):
         else:
             del consensus_ip_list[consensus_index]  # remove ip
             del consensus_blockheight_list[consensus_index]  # remove ip's opinion
-            if consensus_blockheight != "none":
-                del consensus_hash_list[consensus_index]  # remove hash
 
             app_log.info("Updating " + str(consensus_ip) + " in consensus")
             consensus_ip_list.append(consensus_ip)
             consensus_blockheight_list.append(int(consensus_blockheight))
-            if consensus_blockheight != "none":
-                consensus_hash_list.append(str(consensus_hash))
 
     app_log.info("Consensus IP list:" + str(consensus_ip_list))
     app_log.info("Consensus opinion list:" + str(consensus_blockheight_list))
-    app_log.info("Consensus hash list:" + str(consensus_hash_list))
 
     consensus = most_common(consensus_blockheight_list)
 
@@ -466,7 +456,6 @@ def consensus_remove(consensus_ip):
         consensus_index = consensus_ip_list.index(consensus_ip)
         consensus_ip_list.remove(consensus_ip)
         del consensus_blockheight_list[consensus_index]  # remove ip's opinion
-        del consensus_hash_list[consensus_index]  # remove hash
     else:
         app_log.info("Client " + str(consensus_ip) + " not present in the consensus pool")
 
