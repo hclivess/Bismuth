@@ -708,7 +708,7 @@ def digest_block(data):
                     timestamp_difference = timestamp_last_block - timestamp_avg
                     #print timestamp_difference
 
-                    diff = int(math.log(1000000000000 / timestamp_difference))
+                    diff = int(math.log(100000000000 / timestamp_difference))
                     if db_block_height < 50:
                         diff = 4
                     #if diff < 4:

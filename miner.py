@@ -116,7 +116,7 @@ def miner(args):
                     # print timestamp_difference
 
 
-                    diff = int(math.log(1000000000000 / timestamp_difference))
+                    diff = int(math.log(100000000000 / timestamp_difference))
                     if db_block_height < 50:
                         diff = 4
                     #if diff < 4:
@@ -125,7 +125,8 @@ def miner(args):
 
                     conn.close()
 
-                app_log.info("Mining, " + str(tries) + " cycles passed in thread " + str(args) + ", difficulty: " + str(diff) +", reached: "+str())
+                if tries % 10 == 0:
+                    app_log.info("Mining, " + str(tries) + " cycles passed in thread " + str(args) + ", difficulty: " + str(diff))
 
                 #serialize txs
                 mempool = sqlite3.connect("mempool.db")
