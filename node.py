@@ -243,7 +243,7 @@ def mempool_merge(data):
                     ledger_timestamp_50 = c.fetchone()[0]
                     conn.close()
 
-                    fee = abs(1000 / (float(mempool_timestamp) - float(ledger_timestamp_50))) + len(mempool_openfield) / 1000
+                    fee = abs(1000 / (float(mempool_timestamp) - float(ledger_timestamp_50))) + len(mempool_openfield) / 200
                     #app_log.info("Fee: " + str(fee))
 
                 except Exception as e:
@@ -687,7 +687,7 @@ def digest_block(data):
                     try:
                         c.execute("SELECT timestamp FROM transactions WHERE block_height ='" + str(db_block_50) + "';")
                         db_timestamp_50 = c.fetchone()[0]
-                        fee = abs(1000 / (float(db_timestamp) - float(db_timestamp_50)))+len(db_openfield)/1000
+                        fee = abs(1000 / (float(db_timestamp) - float(db_timestamp_50)))+len(db_openfield)/200
                         fees_block.append(fee)
                         #app_log.info("Fee: " + str(fee))
 
@@ -704,18 +704,18 @@ def digest_block(data):
                     timestamp_last_block = float(c.fetchall()[-1][0])  # select the reward block
                     #print timestamp_last_block
 
-                    c.execute("select avg(timestamp) from transactions where reward = 10 and block_height >= '" + (str(db_block_height - 50)) + "';")
-                    timestamp_avg = float(c.fetchall()[-1][0])  # select the reward block
+                    c.execute("SELECT avg(timestamp) FROM transactions where block_height >= '" + str(db_block_height - 10) + "' and reward = 10;")
+                    timestamp_avg = c.fetchall()[0][0]  # select the reward block
                     #print timestamp_before_last_block
 
                     timestamp_difference = timestamp_last_block - timestamp_avg
                     #print timestamp_difference
 
-                    diff = int(math.log(100000 / timestamp_difference))
+                    diff = int(math.log10(100000000 / timestamp_difference))
                     if db_block_height < 50:
-                        diff = 5
-                    if diff < 5:
-                        diff = 5
+                        diff = 4
+                    #if diff < 4:
+                    #    diff = 4
 
                     app_log.info("Calculated difficulty: " + str(diff))
                     # calculate difficulty

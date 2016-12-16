@@ -246,7 +246,7 @@ def refresh():
         time_now = str(time.time())
         c.execute("SELECT timestamp FROM transactions WHERE block_height ='" + str(db_block_50) + "';")
         db_timestamp_50 = c.fetchone()[0]
-        fee = abs(1000 / (float(time_now) - float(db_timestamp_50))) + len(base64.b64encode(openfield.get())) / 1000
+        fee = abs(1000 / (float(time_now) - float(db_timestamp_50))) + len(base64.b64encode(openfield.get())) / 200
         app_log.info("Fee: " + str(fee))
 
     except Exception as e:
@@ -255,20 +255,16 @@ def refresh():
     # calculate fee
 
     # calculate difficulty
-    c.execute("SELECT timestamp FROM transactions WHERE block_height = '" + str(db_block_height) + "'")
-    timestamp_last_block = float(c.fetchall()[-1][0])  # select the reward block
-    # print timestamp_last_block
+    c.execute("SELECT avg(timestamp) FROM transactions where block_height >= '"+str(db_block_height - 10)+"' and reward = 10;")
+    timestamp_avg = c.fetchall()[0][0]  # select the reward block
+    #print timestamp_avg
 
-    c.execute("select avg(timestamp) from transactions where reward = 10 and block_height >= '" + (str(db_block_height - 50)) + "';")
-    timestamp_avg = float(c.fetchall()[-1][0])  # select the reward block
-    # print timestamp_before_last_block
+    timestamp_difference = float(db_timestamp_last) - timestamp_avg
+    #print timestamp_difference
 
-    timestamp_difference = timestamp_last_block - timestamp_avg
-    # print timestamp_difference
-
-    diff = math.log(100000/timestamp_difference)
+    diff = math.log10(100000000/timestamp_difference)
     if db_block_height < 50:
-        diff = 5
+        diff = 4
     #if diff < 4:
     #    diff = 4
 
