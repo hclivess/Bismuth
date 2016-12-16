@@ -6,6 +6,7 @@ from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
 import base64
 import hashlib
+import re
 
 key = RSA.importKey(open('privkey.der').read())
 public_key = key.publickey()
@@ -25,12 +26,22 @@ class index:
         conn = sqlite3.connect('./ledger.db')
         c = conn.cursor()
 
-        c.execute("select * from transactions where recipient = '" + address + "' and openfield = '" + base64.b64encode("bet") + "' ORDER BY block_height DESC, timestamp DESC LIMIT 100;")
+        c.execute("select * from transactions where recipient = '" + address + "' and openfield = '" + base64.b64encode("odd|even") + "' ORDER BY block_height DESC, timestamp DESC LIMIT 100;")
         result_bets = c.fetchall()
         view_bets = []
 
         for x in result_bets:
-            view_bets.append("<tr>")
+            block_hash = x[7]
+            openfield = x[11]
+            digit_last = (re.findall("(\d)", block_hash))[-1]
+            if (digit_last % 2 == 0) and base64.b64encode("odd"): #if bets odd and wins
+                cell_color = "green"
+            elif (digit_last % 2 != 0) and base64.b64encode("even"): #if bets even and wins
+                cell_color = "green"
+            else:
+                cell_color = "red"
+
+            view_bets.append("<tr bgcolor="+cell_color+">")
             view_bets.append("<td>" + str(x[0]) + "</td>")
             view_bets.append("<td>" + str(time.strftime("%Y/%m/%d,%H:%M:%S", time.localtime(float(x[1])))))
             view_bets.append("<td>" + str(x[2]) + "</td>")
