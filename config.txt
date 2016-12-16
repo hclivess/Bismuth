@@ -9,4 +9,4 @@ debug=1
 purge=0
 pause=5
 mining_threads=1
-diff_recalc=100
+diff_recalc=200

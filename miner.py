@@ -94,7 +94,6 @@ def miner(args):
                 tries = tries +1
                 # calculate new hash
 
-                diff = None
                 if tries % int(diff_recalc_conf) == 0 or tries == 1:
 
                     conn = sqlite3.connect("ledger.db") #open to select the last tx to create a new hash from
@@ -118,7 +117,7 @@ def miner(args):
                     # print timestamp_difference
 
 
-                    diff = float(math.log(1000000 / timestamp_difference))
+                    diff = float(math.log(10000000000 / timestamp_difference))
                     if db_block_height < 50:
                         diff = 4
                     #if diff < 4:
