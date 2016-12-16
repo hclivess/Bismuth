@@ -27,6 +27,8 @@ for line in lines:
         segment_limit_conf = line.strip('segment_limit=')
     if "mining_threads=" in line:
         mining_threads_conf = line.strip('mining_threads=')
+    if "diff_recalc=" in line:
+        diff_recalc_conf = line.strip('diff_recalc=')
 # load config
 
 #import keys
@@ -93,7 +95,7 @@ def miner(args):
                 # calculate new hash
 
                 diff = None
-                while not diff:
+                if tries % int(diff_recalc_conf) == 0 or tries == 1:
 
                     conn = sqlite3.connect("ledger.db") #open to select the last tx to create a new hash from
                     conn.text_factory = str
@@ -125,7 +127,6 @@ def miner(args):
 
                     conn.close()
 
-                if tries % 10 == 0:
                     app_log.info("Mining, " + str(tries) + " cycles passed in thread " + str(args) + ", difficulty: " + str(diff))
 
                 #serialize txs
