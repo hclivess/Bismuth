@@ -78,11 +78,8 @@ if not os.path.exists('mempool.db'):
 else:
     app_log.info("Mempool exists")
 
-def ord_convert(hash_input):
-    ord_output = ""
-    for char in hash_input:
-        ord_output = ord_output + str(ord(char))
-    return ord_output
+def bin_convert(string):
+    return ''.join(format(ord(x), 'b') for x in string)
 
 def miner(args):
     block_timestamp = 0  # init
@@ -174,7 +171,7 @@ def miner(args):
 
                 # serialize txs
 
-                if ord_convert(address)[0:diff] == ord_convert(block_hash)[0:diff]:
+                if bin_convert(address)[0:diff] == bin_convert(block_hash)[0:diff]:
                     app_log.info("Miner: Found a good block_hash in "+str(tries)+" cycles")
                     tries = 0
 

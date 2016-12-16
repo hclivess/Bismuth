@@ -56,11 +56,8 @@ def most_common(lst):
     return max(set(lst), key=lst.count)
 
 
-def ord_convert(hash_input):
-    ord_output = ""
-    for char in hash_input:
-        ord_output = ord_output + str(ord(char))
-    return ord_output
+def bin_convert(string):
+    return ''.join(format(ord(x), 'b') for x in string)
 
 def receive(sdef, count):
     r, _, _ = select.select([sdef], [], [])
@@ -734,7 +731,7 @@ def digest_block(data):
 
                             # dont request a fee for mined block so new accounts can mine
 
-                        if ord_convert(miner_address)[0:diff] == ord_convert(block_hash)[0:diff]:  # simplified comparison, no backwards mining
+                        if bin_convert(miner_address)[0:diff] == bin_convert(block_hash)[0:diff]:  # simplified comparison, no backwards mining
                             app_log.info("Digest: Difficulty requirement satisfied")
 
                             if (float(balance)) - (
