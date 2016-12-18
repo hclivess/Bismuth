@@ -95,7 +95,7 @@ class index:
                "<TITLE>ZircoDice</TITLE>" \
                "<body><body background="'static/bg.jpg'"><center>" \
                "<h1>Welcome to ZircoDice</h1>" \
-               "<p>Please send any amount of coins lower than 100 to the address <strong>"+address+"</strong> and include the word '<strong>even</strong>' or '<strong>odd</strong>' in the OpenField data.<br> You are betting on the last number in the hash where your bet is included. 0 means bank wins.<br>If you win, you will receive 2x your bet.</p>" \
+               "<p>Please send any amount of coins lower than 100 to the address <strong>"+address+"</strong> and include the word '<strong>even</strong>' or '<strong>odd</strong>' in the OpenField data.<br> You are betting on the last number in the block hash where your bet is included. 0 means bank wins.<br>If you win, you will receive 2x your bet.</p>" \
                "<br>" \
                "<h1>Bets</h1>" \
                "<table style='width:100%'>"+ str(''.join(view_bets))+"</table>" \
