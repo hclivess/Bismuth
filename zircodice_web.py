@@ -52,12 +52,12 @@ class index:
                 result = "loss"
 
             view_bets.append("<tr bgcolor="+cell_color+">")
-            view_bets.append("<td>" + str(x[0]) + "</td>")
-            view_bets.append("<td>" + str(time.strftime("%Y/%m/%d,%H:%M:%S", time.localtime(float(x[1])))))
-            view_bets.append("<td>" + str(x[2]) + "</td>")
-            view_bets.append("<td>" + str(x[7]) + "</td>")
+            view_bets.append("<td>" + str(x[0]) + "</td>")#block height
+            view_bets.append("<td>" + str(time.strftime("%Y/%m/%d,%H:%M:%S", time.localtime(float(x[1])))))#time
+            view_bets.append("<td>" + str(x[2]) + "</td>") #player
+            view_bets.append("<td>" + str(x[7]) + "</td>") #block hash
             view_bets.append("<td>" + str(digit_last) + "</td>")
-            view_bets.append("<td>" + str(x[4]) + "</td>")
+            view_bets.append("<td>" + str(x[4]) + "</td>") #amount
             view_bets.append("<td>" + str(base64.b64decode(x[11])) + "</td>")
             view_bets.append("<td>" + result + "</td>")
             view_bets.append("<tr>")
@@ -75,11 +75,11 @@ class index:
             #print betting_signatures
             if x[11].startswith(base64.b64encode("payout")):
                 view_payouts.append("<tr bgcolor=lightblue>")
-                view_payouts.append("<td>" + str(x[0]) + "</td>")
-                view_payouts.append("<td>" + str(time.strftime("%Y/%m/%d,%H:%M:%S", time.localtime(float(x[1])))))
-                view_payouts.append("<td>" + str(x[2]) + "</td>")
-                view_payouts.append("<td>" + str(x[3]) + "</td>")
-                view_payouts.append("<td>" + str(x[4]) + "</td>")
+                view_payouts.append("<td>" + str(x[0]) + "</td>") #block height
+                view_payouts.append("<td>" + str(time.strftime("%Y/%m/%d,%H:%M:%S", time.localtime(float(x[1]))))) #time
+                view_payouts.append("<td>" + str(x[3]) + "</td>")  #player
+                view_payouts.append("<td>" + str(x[7]) + "</td>") #block hash
+                view_payouts.append("<td>" + str(x[4]) + "</td>") #amount
                 view_payouts.append("<tr>")
 
         c.close()
