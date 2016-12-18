@@ -26,39 +26,61 @@ class index:
         conn = sqlite3.connect('./ledger.db')
         c = conn.cursor()
 
-        c.execute("select * from transactions where recipient = '" + address + "' and openfield = '" + base64.b64encode("odd|even") + "' ORDER BY block_height DESC, timestamp DESC LIMIT 100;")
+        c.execute("select * from transactions where recipient = '" + address + "' and openfield = '" + base64.b64encode("odd") + "' OR '" + base64.b64encode("even") + "' ORDER BY block_height DESC, timestamp DESC LIMIT 100;")
         result_bets = c.fetchall()
         view_bets = []
 
+
+
+        view_bets.append("<tr bgcolor=white>")
+        view_bets.append("<td>Block Height</td><td>Time</td><td>Block Hash</td><td>Hash Last Number</td><td>Amount Bet</td><td>Bet on</td><td>Result</td>")
+        view_bets.append("</tr>")
+
+        betting_signatures = []
         for x in result_bets:
             block_hash = x[7]
-            openfield = x[11]
-            digit_last = (re.findall("(\d)", block_hash))[-1]
-            if (digit_last % 2 == 0) and base64.b64encode("odd"): #if bets odd and wins
+            openfield = str(x[11])
+            betting_signatures.append(x[5]) #sig
+            #print openfield
+            digit_last = int((re.findall("(\d)", block_hash))[-1])
+            if (digit_last % 2 == 0) and (openfield == base64.b64encode("odd")): #if bets odd and wins
                 cell_color = "green"
-            elif (digit_last % 2 != 0) and base64.b64encode("even"): #if bets even and wins
+                result = "win"
+            elif (digit_last % 2 != 0) and (openfield == base64.b64encode("even")): #if bets even and wins
                 cell_color = "green"
+                result = "win"
             else:
                 cell_color = "red"
+                result = "loss"
 
             view_bets.append("<tr bgcolor="+cell_color+">")
             view_bets.append("<td>" + str(x[0]) + "</td>")
             view_bets.append("<td>" + str(time.strftime("%Y/%m/%d,%H:%M:%S", time.localtime(float(x[1])))))
-            view_bets.append("<td>" + str(x[2]) + "</td>")
+            view_bets.append("<td>" + str(x[7]) + "</td>")
+            view_bets.append("<td>" + str(digit_last) + "</td>")
             view_bets.append("<td>" + str(x[4]) + "</td>")
+            view_bets.append("<td>" + str(base64.b64decode(x[11])) + "</td>")
+            view_bets.append("<td>" + result + "</td>")
             view_bets.append("<tr>")
 
-        c.execute("select * from transactions where address = '" + address + "' and openfield != null ORDER BY block_height DESC, timestamp DESC LIMIT 100;")
+        c.execute("select * from transactions where address = '" + address + "' ORDER BY block_height DESC, timestamp DESC LIMIT 100;")
         result_payouts = c.fetchall()
+        #print result_payouts
         view_payouts = []
 
+        view_payouts.append("<tr bgcolor=white>")
+        view_payouts.append("<td>Block Height</td><td>Time</td><td>Block Hash</td><td>Amount</td>")
+        view_payouts.append("</tr>")
+
         for x in result_payouts:
-            view_payouts.append("<tr>")
-            view_payouts.append("<td>" + str(x[0]) + "</td>")
-            view_payouts.append("<td>" + str(time.strftime("%Y/%m/%d,%H:%M:%S", time.localtime(float(x[1])))))
-            view_payouts.append("<td>" + str(x[3]) + "</td>")
-            view_payouts.append("<td>" + str(x[4]) + "</td>")
-            view_payouts.append("<tr>")
+            #print betting_signatures
+            if x[11] == base64.b64encode("payout for "+x[5]):
+                view_payouts.append("<tr bgcolor=lightblue>")
+                view_payouts.append("<td>" + str(x[0]) + "</td>")
+                view_payouts.append("<td>" + str(time.strftime("%Y/%m/%d,%H:%M:%S", time.localtime(float(x[1])))))
+                view_payouts.append("<td>" + str(x[3]) + "</td>")
+                view_payouts.append("<td>" + str(x[4]) + "</td>")
+                view_payouts.append("<tr>")
 
         c.close()
 
@@ -70,9 +92,9 @@ class index:
                "</head>" \
                "<META http-equiv='cache-control' content='no-cache'>" \
                "<TITLE>ZircoDice</TITLE>" \
-               "<body><center>" \
+               "<body><body background="'static/bg.png'"><center>" \
                "<h1>Welcome to ZircoDice</h1>" \
-               "<p>Please send any amount of coins lower than 1000 to the address <strong>"+address+"</strong> and include the word '<strong>bet</strong>' in the OpenField data. It will be encrypted to 'YmV0' (in case you don't use GUI). You are betting on the last number in the hash where your bet is included, if it's 5,6,7,8,9, you win. If not, bank wins.</p>" \
+               "<p>Please send any amount of coins lower than 100 to the address <strong>"+address+"</strong> and include the word '<strong>even</strong>' or '<strong>odd</strong>' in the OpenField data. You are betting on the last number in the hash where your bet is included.</p>" \
                "<br>" \
                "<h1>Bets</h1>" \
                "<table style='width:100%'>"+ str(''.join(view_bets))+"</table>" \

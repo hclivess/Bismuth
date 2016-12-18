@@ -20,7 +20,7 @@ while True:
     conn = sqlite3.connect('ledger.db')
     conn.text_factory = str
     c = conn.cursor()
-    c.execute("select * from transactions where recipient = '" + address + "' and openfield = '" + base64.b64encode("odd|even") + "' ")
+    c.execute("select * from transactions where recipient = '" + address + "' and openfield = '" + base64.b64encode("odd") + "' OR '" + base64.b64encode("even") + "' ")
     result_bets = c.fetchall()
 
     won_count = 0
@@ -32,8 +32,9 @@ while True:
     payout_missing = []
 
     for x in result_bets:
-        openfield = x[11]
-        if base64.b64encode(openfield) == "odd":
+        openfield = str(x[11])
+        print openfield
+        if base64.b64decode(openfield) == "odd":
             player = [2, 4, 6, 8]
             bank = [0, 1, 3, 7, 9]
         else: #if even
