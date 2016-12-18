@@ -30,8 +30,6 @@ class index:
         result_bets = c.fetchall()
         view_bets = []
 
-
-
         view_bets.append("<tr bgcolor=white>")
         view_bets.append("<td>Block Height</td><td>Time</td><td>Block Hash</td><td>Hash Last Number</td><td>Amount Bet</td><td>Bet on</td><td>Result</td>")
         view_bets.append("</tr>")
@@ -74,7 +72,7 @@ class index:
 
         for x in result_payouts:
             #print betting_signatures
-            if x[11] == base64.b64encode("payout for "+x[5]):
+            if x[11].startswith(base64.b64encode("payout")):
                 view_payouts.append("<tr bgcolor=lightblue>")
                 view_payouts.append("<td>" + str(x[0]) + "</td>")
                 view_payouts.append("<td>" + str(time.strftime("%Y/%m/%d,%H:%M:%S", time.localtime(float(x[1])))))
@@ -88,13 +86,13 @@ class index:
                "<html>" \
                "<head>" \
                "<meta http-equiv='refresh' content='60' >" \
-               "<link rel='stylesheet' type='text/css' href='static/style.css'>" \
+               "<link rel='stylesheet' type='text/css' href='static/style_zircodice.css'>" \
                "</head>" \
                "<META http-equiv='cache-control' content='no-cache'>" \
                "<TITLE>ZircoDice</TITLE>" \
-               "<body><body background="'static/bg.png'"><center>" \
+               "<body><body background="'static/bg.jpg'"><center>" \
                "<h1>Welcome to ZircoDice</h1>" \
-               "<p>Please send any amount of coins lower than 100 to the address <strong>"+address+"</strong> and include the word '<strong>even</strong>' or '<strong>odd</strong>' in the OpenField data. You are betting on the last number in the hash where your bet is included.</p>" \
+               "<p>Please send any amount of coins lower than 100 to the address <strong>"+address+"</strong> and include the word '<strong>even</strong>' or '<strong>odd</strong>' in the OpenField data.<br> You are betting on the last number in the hash where your bet is included.</p>" \
                "<br>" \
                "<h1>Bets</h1>" \
                "<table style='width:100%'>"+ str(''.join(view_bets))+"</table>" \
