@@ -219,6 +219,7 @@ class index:
 
         html = "<!DOCTYPE html>" \
                "<html>" \
+               "<link rel = 'icon' href = 'static/bismuth.ico' type = 'image/x-icon' / >" \
                "<head>" \
                "<meta http-equiv='refresh' content='60' >" \
                "<link rel='stylesheet' type='text/css' href='static/style.css'>" \
