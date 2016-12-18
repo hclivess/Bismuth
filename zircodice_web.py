@@ -31,7 +31,7 @@ class index:
         view_bets = []
 
         view_bets.append("<tr bgcolor=white>")
-        view_bets.append("<td>Block Height</td><td>Time</td><td>Block Hash</td><td>Hash Last Number</td><td>Amount Bet</td><td>Bet on</td><td>Result</td>")
+        view_bets.append("<td>Block Height</td><td>Time</td><td>Player</td><td>Block Hash</td><td>Hash Last Number</td><td>Amount Bet</td><td>Bet on</td><td>Result</td>")
         view_bets.append("</tr>")
 
         betting_signatures = []
@@ -54,6 +54,7 @@ class index:
             view_bets.append("<tr bgcolor="+cell_color+">")
             view_bets.append("<td>" + str(x[0]) + "</td>")
             view_bets.append("<td>" + str(time.strftime("%Y/%m/%d,%H:%M:%S", time.localtime(float(x[1])))))
+            view_bets.append("<td>" + str(x[2]) + "</td>")
             view_bets.append("<td>" + str(x[7]) + "</td>")
             view_bets.append("<td>" + str(digit_last) + "</td>")
             view_bets.append("<td>" + str(x[4]) + "</td>")
@@ -67,7 +68,7 @@ class index:
         view_payouts = []
 
         view_payouts.append("<tr bgcolor=white>")
-        view_payouts.append("<td>Block Height</td><td>Time</td><td>Block Hash</td><td>Amount</td>")
+        view_payouts.append("<td>Block Height</td><td>Time</td><td>Player</td><td>Block Hash</td><td>Amount</td>")
         view_payouts.append("</tr>")
 
         for x in result_payouts:
@@ -76,6 +77,7 @@ class index:
                 view_payouts.append("<tr bgcolor=lightblue>")
                 view_payouts.append("<td>" + str(x[0]) + "</td>")
                 view_payouts.append("<td>" + str(time.strftime("%Y/%m/%d,%H:%M:%S", time.localtime(float(x[1])))))
+                view_payouts.append("<td>" + str(x[2]) + "</td>")
                 view_payouts.append("<td>" + str(x[3]) + "</td>")
                 view_payouts.append("<td>" + str(x[4]) + "</td>")
                 view_payouts.append("<tr>")
@@ -84,6 +86,7 @@ class index:
 
         html = "<!DOCTYPE html>" \
                "<html>" \
+               "<link rel = 'icon' href = 'static/zircodice.ico' type = 'image/x-icon' / >" \
                "<head>" \
                "<meta http-equiv='refresh' content='60' >" \
                "<link rel='stylesheet' type='text/css' href='static/style_zircodice.css'>" \
