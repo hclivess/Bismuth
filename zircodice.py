@@ -35,10 +35,10 @@ while True:
         openfield = str(x[11])
         print openfield
         if base64.b64decode(openfield) == "odd":
-            player = [2, 4, 6, 8]
-            bank = [0, 1, 3, 7, 9]
+            player = [0, 2, 4, 6, 8]
+            bank = [1, 3, 5, 7, 9]
         else: #if even
-            player = [1, 3, 7, 9]
+            player = [1, 3, 5, 7, 9]
             bank = [0, 2, 4, 6, 8]
 
         bet_amount = float(x[4])
