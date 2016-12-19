@@ -26,7 +26,7 @@ class index:
         conn = sqlite3.connect('./ledger.db')
         c = conn.cursor()
 
-        c.execute("select * from transactions where recipient = '" + address + "' and openfield = '" + base64.b64encode("odd") + "' OR '" + base64.b64encode("even") + "' ORDER BY block_height DESC, timestamp DESC LIMIT 100;")
+        c.execute("select * from transactions where openfield = '" + base64.b64encode("odd") + "' OR openfield = '" + base64.b64encode("even") + "' and recipient = '" + address + "' ")
         result_bets = c.fetchall()
         view_bets = []
 

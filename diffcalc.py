@@ -8,6 +8,9 @@ c = conn.cursor()
 c.execute("SELECT distinct block_height FROM transactions where reward = 10")
 all_blocks = c.fetchall()
 print all_blocks
+
+diffs_all = []
+
 for x in all_blocks:
     try:
         # calculate difficulty
@@ -25,7 +28,10 @@ for x in all_blocks:
         diff = (math.log(1e18/timestamp_difference))
 
         print diff
+
+        diffs_all.append(diff)
     except Exception, e:
         print "problem "+str(e)+" with block diff calc at: "+str(x[0])
         pass
 
+print diffs_all

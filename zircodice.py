@@ -20,7 +20,7 @@ while True:
     conn = sqlite3.connect('ledger.db')
     conn.text_factory = str
     c = conn.cursor()
-    c.execute("select * from transactions where recipient = '" + address + "' and openfield = '" + base64.b64encode("odd") + "' OR '" + base64.b64encode("even") + "' ")
+    c.execute("select * from transactions where openfield = '" + base64.b64encode("odd") + "' OR openfield = '" + base64.b64encode("even") + "' and recipient = '" + address + "' ")
     result_bets = c.fetchall()
 
     won_count = 0
