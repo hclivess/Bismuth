@@ -686,7 +686,7 @@ def digest_block(data):
 
                     # calculate difficulty
                     c.execute("SELECT timestamp FROM transactions WHERE block_height = '" + str(db_block_height) + " and reward = 10 '")
-                    timestamp_last_block = float(c.fetchall()[-1][0])  # select the reward block
+                    timestamp_last_block = float(c.fetchall()[0][0])  # select the reward block
                     #print timestamp_last_block
 
                     c.execute("SELECT avg(timestamp) FROM transactions where block_height >= '" + str(db_block_height - 30) + "' and reward = 10;")
