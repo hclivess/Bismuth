@@ -236,7 +236,7 @@ def refresh():
     app_log.info("Node: Transction address balance: " + str(balance))
 
     # calculate fee - identical to that in node
-    c.execute("SELECT * FROM transactions WHERE reward = 10 ORDER BY block_height DESC LIMIT 1;")
+    c.execute("SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1;")
     result = c.fetchall()
     db_timestamp_last = result[0][1]
     db_block_height = result[0][0]
