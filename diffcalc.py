@@ -14,7 +14,7 @@ diffs_all = []
 for x in all_blocks:
     try:
         # calculate difficulty
-        c.execute("SELECT timestamp FROM transactions WHERE block_height = '" + str(x[0]) + "'")
+        c.execute("SELECT timestamp FROM transactions WHERE block_height = '" + str(x[0]) + "' and reward = 10")
         timestamp_last_block = float(c.fetchall()[-1][0])  # select the reward block
         #print timestamp_last_block
 

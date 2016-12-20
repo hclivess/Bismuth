@@ -99,7 +99,7 @@ def miner(args):
                     conn = sqlite3.connect("ledger.db") #open to select the last tx to create a new hash from
                     conn.text_factory = str
                     c = conn.cursor()
-                    c.execute("SELECT block_hash, block_height,timestamp FROM transactions ORDER BY block_height DESC LIMIT 1;")
+                    c.execute("SELECT block_hash, block_height,timestamp FROM transactions WHERE reward = 10 ORDER BY block_height DESC LIMIT 1;")
                     result = c.fetchall()
 
                     db_block_hash = result[0][0]
