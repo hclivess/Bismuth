@@ -99,7 +99,7 @@ def miner(args):
                     conn = sqlite3.connect("ledger.db") #open to select the last tx to create a new hash from
                     conn.text_factory = str
                     c = conn.cursor()
-                    c.execute("SELECT block_hash, block_height,timestamp FROM transactions WHERE reward = 10 ORDER BY block_height DESC LIMIT 1;")
+                    c.execute("SELECT block_hash, block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")
                     result = c.fetchall()
 
                     db_block_hash = result[0][0]
@@ -108,14 +108,12 @@ def miner(args):
                     #print timestamp_last_block
 
                     # calculate difficulty
-                    c.execute("SELECT avg(timestamp) FROM transactions where block_height >= '" + str(db_block_height - 30) + "' and reward = 10;")
+                    c.execute("SELECT avg(timestamp) FROM transactions where block_height >= '" + str(db_block_height - 30) + "' and reward != 0;")
                     timestamp_avg = c.fetchall()[0][0]  # select the reward block
                     #print timestamp_avg
 
                     timestamp_difference = timestamp_last_block - timestamp_avg
                     #print timestamp_difference
-                    # print timestamp_difference
-
 
                     diff = float(math.log(1e18 / timestamp_difference))
                     if db_block_height < 50:

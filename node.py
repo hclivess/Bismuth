@@ -578,19 +578,18 @@ def digest_block(data):
                     if verifier.verify(h, received_signature_dec):
                         app_log.info("Node: The signature is valid")
 
-                    if transaction == transaction_list[
-                        -1]:  # recognize the last transaction as the mining reward transaction
+                    if transaction == transaction_list[-1]:  # recognize the last transaction as the mining reward transaction
                         miner_address = received_address
                         block_timestamp = received_timestamp
 
 
                         # verify signatures
 
-                c.execute(
-                    "SELECT block_height,block_hash FROM transactions ORDER BY block_height DESC LIMIT 1;")  # extract data from ledger to construct new block_hash
+                c.execute("SELECT block_hash, block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")
                 result = c.fetchall()
-                db_block_height = result[0][0]
-                db_block_hash = result[0][1]
+                db_block_height = result[0][1]
+                db_block_hash = result[0][0]
+                db_timestamp_last = float(result[0][2])
                 block_height_new = db_block_height + 1
 
                 fees_block = []
@@ -612,13 +611,6 @@ def digest_block(data):
                                                      db_block_hash))).hexdigest()  # calculate block_hash from the ledger #PROBLEM HEREEEEE
 
                     #app_log.info("Digest: tx sig not found in the local ledger, proceeding to check before insert")
-                    # if not in ledger
-                    # calculate block height from the ledger
-
-                    # verify balance
-                    # conn = sqlite3.connect('ledger.db') #defined higher, remove!
-                    # conn.text_factory = str
-                    # c = conn.cursor()
 
                     mempool = sqlite3.connect('mempool.db')
                     mempool.text_factory = str
@@ -685,15 +677,11 @@ def digest_block(data):
                     # decide reward
 
                     # calculate difficulty
-                    c.execute("SELECT timestamp FROM transactions WHERE block_height = '" + str(db_block_height) + " and reward = 10 '")
-                    timestamp_last_block = float(c.fetchall()[0][0])  # select the reward block
-                    #print timestamp_last_block
-
-                    c.execute("SELECT avg(timestamp) FROM transactions where block_height >= '" + str(db_block_height - 30) + "' and reward = 10;")
+                    c.execute("SELECT avg(timestamp) FROM transactions where block_height >= '" + str(db_block_height - 30) + "' and reward != 0;")
                     timestamp_avg = c.fetchall()[0][0]  # select the reward block
-                    print timestamp_avg
+                    #print timestamp_avg
 
-                    timestamp_difference = timestamp_last_block - timestamp_avg
+                    timestamp_difference = db_timestamp_last - timestamp_avg
                     #print timestamp_difference
 
                     diff = int(math.log(1e18 / timestamp_difference))
@@ -769,6 +757,7 @@ def digest_block(data):
 
             except Exception, e:
                 app_log.info("Digesting complete")
+                raise #never leave on
 
             busy = 0
             return

@@ -236,9 +236,10 @@ def refresh():
     app_log.info("Node: Transction address balance: " + str(balance))
 
     # calculate fee - identical to that in node
-    c.execute("SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1;")
+    c.execute("SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;") #or it takes the first
     result = c.fetchall()
     db_timestamp_last = result[0][1]
+    print db_timestamp_last
     db_block_height = result[0][0]
     db_block_50 = int(db_block_height) - 50
 
@@ -255,12 +256,12 @@ def refresh():
     # calculate fee
 
     # calculate difficulty
-    c.execute("SELECT avg(timestamp) FROM transactions where block_height >= '"+str(db_block_height - 30)+"' and reward = 10;")
+    c.execute("SELECT avg(timestamp) FROM transactions where block_height >= '"+str(db_block_height - 30)+"' and reward != 0;")
     timestamp_avg = c.fetchall()[0][0]  # select the reward block
-    #print timestamp_avg
+    print timestamp_avg
 
     timestamp_difference = float(db_timestamp_last) - timestamp_avg
-    print timestamp_difference
+    #print timestamp_difference
 
     diff = (math.log(1e18/timestamp_difference))
     if db_block_height < 50:
@@ -268,7 +269,7 @@ def refresh():
     #if diff < 4:
     #    diff = 4
 
-    app_log.info("Calculated difficulty: " + str(diff))
+    print("Calculated difficulty: " + str(diff))
     # calculate difficulty
 
     diff_msg = diff
