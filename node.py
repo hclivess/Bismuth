@@ -522,8 +522,7 @@ def digest_block(data):
                 conn.close()
 
                 if result:
-                    app_log.info("Skipping new block because duplicates were removed")
-                    raise
+                    raise ValueError("Skipping new block because duplicates were removed")
                 # remove possible duplicates
 
                 block_valid = 1
@@ -1113,12 +1112,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     digest_block(segments)
                     # receive theirs
                 elif data == "":
-                    app_log.info("Received a ping or empty packet")
-                    raise
+                    raise ValueError("Received a ping or empty packet")
 
                 else:
-                    app_log.info("Unexpected error, received: " + data)
-                    raise
+                    raise ValueError("Unexpected error, received: " + data)
 
                 time.sleep(0.1)
                 # app_log.info("Server resting") #prevent cpu overload
@@ -1158,9 +1155,14 @@ def worker(HOST, PORT):
 
     first_run = 1
 
+    time_now = time.time()
+    timer = time_now #save current time
 
     while True:
         try:
+            if time.time() - timer > 10: #if timer surpasses
+                raise ValueError("Client: Connection issue, run reset")
+
             # communication starter
             if first_run == 1:
                 first_run = 0
@@ -1183,6 +1185,9 @@ def worker(HOST, PORT):
             # communication starter
 
             data = receive(s,11)  # receive data, one and the only root point
+
+            if data:
+                timer = time.time() #reset timer
 
             consensus_ip = s.getpeername()[0]
             if data == "peers______":
@@ -1424,12 +1429,11 @@ def worker(HOST, PORT):
                 time.sleep(0.1)
 
             elif data == "":
-                app_log.info("Received a ping or empty packet")
-                raise
+                raise ValueError("Received a ping or empty packet")
+
 
             else:
-                app_log.info("Unexpected error, received: "+data)
-                raise
+                raise ValueError("Unexpected error, received: "+data)
 
         except Exception as e:
             # properly end the connection
