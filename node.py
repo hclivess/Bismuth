@@ -757,7 +757,7 @@ def digest_block(data):
 
             except Exception, e:
                 app_log.info("Digesting complete")
-                raise #never leave on
+                #raise #never leave on
 
             busy = 0
             return
