@@ -63,11 +63,8 @@ def send(sdef, data):
     sdef.sendall(data)
 
 def receive(sdef, slen):
-
-    print "HELLOOO"+ str(slen)
     # receive theirs
     data = int(sdef.recv(slen))  # receive length
-    print "HELLOOO222" + str(data)
     chunks = []
     bytes_recd = 0
     while bytes_recd < data:
@@ -353,7 +350,7 @@ def verify():
             # verify blockchain
 
 
-def blocknotfound(block_hash_delete):
+def blocknf(block_hash_delete):
     global busy
     while busy == 1:
         app_log.info("Waiting for pool to become available")
@@ -833,26 +830,26 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
     def handle(self):  # server defined here
         while True:
             try:
-                data = receive(self.request,11)
+                data = receive(self.request,10)
 
                 peer_ip = str(self.request.getpeername()[0])
                 app_log.info("Node: Received: " + data + " from " + str(peer_ip))  # will add custom ports later
 
                 consensus_ip = self.request.getpeername()[0]
 
-                if data == 'version____':
-                    data = receive(self.request,11)
+                if data == 'version':
+                    data = receive(self.request,10)
                     if version != data:
                         app_log.info("Protocol version mismatch: " + data + ", should be " + version)
-                        send(self.request,"notok______")
-                        time.sleep(0.1)
+                        send(self.request, (str(len("notok"))).zfill(10))
+                        send(self.request,"notok")
                         return
                     else:
                         app_log.info("Node: Protocol version matched: " + data)
-                        send(self.request,"ok_________")
-                        time.sleep(0.1)
+                        send(self.request, (str(len("ok"))).zfill(10))
+                        send(self.request,"ok")
 
-                elif data == 'mempool____':
+                elif data == 'mempool':
 
                     # receive theirs
                     segments = receive(self.request,10)
@@ -883,16 +880,17 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         totalsent = totalsent + sent
                     # send own
 
-                elif data == 'helloserver':
+                elif data == 'hello':
                     with open("peers.txt", "r") as peer_list:
                         peers = peer_list.read()
                         app_log.info("Node: " + peers)
-                        send(self.request,"peers______")
-                        time.sleep(0.1)
-                        send(self.request,len(peers).zfill(10))
-                        time.sleep(0.1)
-                        send(self.request,peers)
-                        time.sleep(0.1)
+
+                        send(self.request, (str(len("peers"))).zfill(10))
+                        send(self.request,"peers")
+
+                        send(self.request,(str(len(peers))).zfill(10))
+                        send(self.request,str(peers))
+
                     peer_list.close()
 
                     # save peer if connectible
@@ -930,14 +928,15 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     while busy == 1:
                         time.sleep(1)
                     app_log.info("Node: Sending sync request")
-                    send(self.request,"sync_______")
-                    time.sleep(0.1)
+                    send(self.request, (str(len("sync"))).zfill(10))
+                    send(self.request, "sync")
 
-                elif data == "sendsync___":
+                elif data == "sendsync":
                     while busy == 1:
                         time.sleep(1)
-                    send(self.request,"sync_______")
-                    time.sleep(0.1)
+
+                    send(self.request, (str(len("sync"))).zfill(10))
+                    send(self.request, "sync")
 
                 elif data == "blockfound_":
                     app_log.info("Node: Client has the block")  # node should start sending txs in this step
@@ -951,17 +950,16 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     while busy == 1:
                         time.sleep(1)
-                    send(self.request,"sync_______")
-                    time.sleep(0.1)
+                    send(self.request, (str(len("sync"))).zfill(10))
+                    send(self.request, "sync")
 
                 elif data == "blockheight":
-                    subdata = receive(self.request,11)  # receive client's last block height
-                    received_block_height = subdata
+                    received_block_height = receive(self.request,10)  # receive client's last block height
                     app_log.info("Node: Received block height: " + received_block_height)
 
                     # consensus pool 1 (connection from them)
                     consensus_ip = self.request.getpeername()[0]
-                    consensus_blockheight = int(subdata)  # str int to remove leading zeros
+                    consensus_blockheight = int(received_block_height)  # str int to remove leading zeros
                     consensus_add(consensus_ip, consensus_blockheight, "none")
                     # consensus pool 1 (connection from them)
 
@@ -973,11 +971,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     conn.close()
 
                     # append zeroes to get static length
-                    while len(str(db_block_height)) != 11:
-                        db_block_height = "0" + str(db_block_height)
-
-                    send(self.request,str(db_block_height))
-                    time.sleep(0.1)
+                    send(self.request, (str(len(db_block_height))).zfill(10))
+                    send(self.request, str(db_block_height))
                     # send own block height
 
                     if received_block_height > db_block_height:
@@ -1001,15 +996,15 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         conn.close()
 
                         app_log.info("Node: block_hash to send: " + str(db_block_hash))
-                        send(self.request,db_block_hash)
-                        time.sleep(0.1)
+                        send(self.request, (str(len(db_block_hash))).zfill(10))
+                        send(self.request, str(db_block_hash))
 
                         # receive their latest hash
                         # confirm you know that hash or continue receiving
 
                     if update_me == 0:  # update them if update_me is 0
 
-                        data = receive(self.request,56)  # receive client's last block_hash
+                        data = receive(self.request,10)  # receive client's last block_hash
                         # send all our followup hashes
 
                         app_log.info("Node: Will seek the following block: " + str(data))
@@ -1029,8 +1024,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             db_block_hash = c.fetchone()[0]  # get latest block_hash
                             if db_block_hash == data:
                                 app_log.info("Node: Client has the latest block")
-                                send(self.request,"nonewblocks")
-                                time.sleep(0.1)
+                                send(self.request, (str(len("nonewblk"))).zfill(10))
+                                send(self.request, "nonewblk")
 
                             else:
                                 c.execute(
@@ -1042,8 +1037,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                 #app_log.info("Node: Selected " + str(block_hash_send) + " to send")
 
                                 conn.close()
-                                send(self.request,"blockfound_")
-                                time.sleep(0.1)
+                                send(self.request, (str(len("blockfound"))).zfill(10))
+                                send(self.request, "blockfound")
 
                                 block_send_length = str(len(str(block_send))).zfill(10)
                                 send(self.request,block_send_length)
@@ -1058,40 +1053,41 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                         except:
                             app_log.info("Node: Block not found")
-                            send(self.request,"blocknotfou")
-                            time.sleep(0.1)
-                            send(self.request,data)
-                            time.sleep(0.1)
-                            # newly apply on self
+                            send(self.request, (str(len("blocknf"))).zfill(10))
+                            send(self.request, "blocknf")
+
+                            send(self.request, (str(len(data))).zfill(10))
+                            send(self.request, data)
+
                             conn = sqlite3.connect('ledger.db')
                             conn.text_factory = str
                             c = conn.cursor()
                             c.execute('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1')
                             db_block_hash = c.fetchone()[0]  # get latest block_hash
                             conn.close()
-                            blocknotfound(db_block_hash)
+                            blocknf(db_block_hash)
                             # newly apply on self
 
-                elif data == "nonewblocks":
+                elif data == "nonewblk":
                     # digest_block() #temporary #otherwise passive node will not be able to digest
 
-                    send(self.request,"sync_______")
-                    time.sleep(0.1)
+                    send(self.request, (str(len("sync"))).zfill(10))
+                    send(self.request, "sync")
 
-                elif data == "blocknotfou":
-                    block_hash_delete = receive(self.request,56)
-                    blocknotfound(block_hash_delete)
+                elif data == "blocknf":
+                    block_hash_delete = receive(self.request,10)
+                    blocknf(block_hash_delete)
 
                     while busy == 1:
                         time.sleep(1)
                     app_log.info("Client: Deletion complete, sending sync request")
-                    send(self.request,"sync_______")
-                    time.sleep(0.1)
 
-                elif data == "block______":  # from miner
+                    send(self.request, (str(len("sync"))).zfill(10))
+                    send(self.request, "sync")
+
+                elif data == "block":  # from miner
                     # receive theirs
                     segments = receive(self.request,10)
-
                     #app_log.info("Node: Combined mined segments: " + segments)
                     digest_block(segments)
                     # receive theirs
@@ -1101,8 +1097,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 else:
                     raise ValueError("Unexpected error, received: " + data)
 
-                time.sleep(0.1)
-                # app_log.info("Server resting") #prevent cpu overload
+                time.sleep(0.1)#prevent cpu overload
+                # app_log.info("Server resting")
 
             except Exception, e:
                 app_log.info("Node: Lost connection to "+str(peer_ip))
@@ -1113,7 +1109,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 # remove from consensus (connection from them)
                 if self.request:
                     self.request.close()
-                if debug_conf == 1:
+                if debug_conf == "1":
                     raise #major debug client
                 else:
                     return
@@ -1139,44 +1135,39 @@ def worker(HOST, PORT):
 
     first_run = 1
 
-    #time_now = time.time()
-    #timer = time_now #save current time
-
     while True:
         try:
-            #if time.time() - timer > 10: #if timer surpasses
-            #    raise ValueError("Client: Connection issue, run reset")
-
             # communication starter
             if first_run == 1:
                 first_run = 0
 
-                send(s,"version____")
-                time.sleep(0.1)
-
+                send(s,(str(len("version"))).zfill(10))
+                send(s,"version")
+                send(s, (str(len(version))).zfill(10))
                 send(s,version)
-                time.sleep(0.1)
-                data = receive(s,11)
-                if (data == "ok_________"):
+
+                data = receive(s,10)
+
+                if (data == "ok"):
                     app_log.info("Client: Node protocol version matches our client")
                 else:
                     app_log.info("Client: Node protocol version mismatch")
                     return
 
-                send(s,'helloserver')
-                time.sleep(0.1)
+                send(s, (str(len("hello"))).zfill(10))
+                send(s, "hello")
 
             # communication starter
 
-            data = receive(s,11)  # receive data, one and the only root point
+            data = receive(s,10)  # receive data, one and the only root point
 
             #if data:
             #    timer = time.time() #reset timer
 
             consensus_ip = s.getpeername()[0]
-            if data == "peers______":
-                peerlist_len = receive(s,10)  # peers are larger
-                subdata = receive(s,peerlist_len)
+            if data == "peers":
+                subdata = receive(s,10)
+
                 # get remote peers into tuples
                 server_peer_tuples = re.findall("'([\d\.]+)', '([\d]+)'", subdata)
                 app_log.info(server_peer_tuples)
@@ -1211,12 +1202,12 @@ def worker(HOST, PORT):
                     else:
                         app_log.info("Client: " + str(x) + " is not a new peer")
 
-            elif data == "sync_______":
+            elif data == "sync":
                 # sync start
 
                 # send block height, receive block height
-                send(s,"blockheight")
-                time.sleep(0.1)
+                send(s, (str(len("blockheight"))).zfill(10))
+                send(s, "blockheight")
 
                 conn = sqlite3.connect('ledger.db')
                 conn.text_factory = str
@@ -1227,16 +1218,11 @@ def worker(HOST, PORT):
 
                 app_log.info("Client: Sending block height to compare: " + str(db_block_height))
                 # append zeroes to get static length
-                while len(str(db_block_height)) != 11:
-                    db_block_height = "0" + str(db_block_height)
-                send(s,str(db_block_height))
-                time.sleep(0.1)
+                send(s, (str(len(db_block_height))).zfill(10))
+                send(s, str(db_block_height))
 
-                subdata = receive(s,11)  # receive node's block height
-                received_block_height = subdata
+                received_block_height = receive(s,10)  # receive node's block height
                 app_log.info("Client: Node is at block height: " + str(received_block_height))
-
-                # todo add to active pool here?
 
                 if received_block_height < db_block_height:
                     app_log.info("Client: We have a higher, sending")
@@ -1259,11 +1245,11 @@ def worker(HOST, PORT):
                     conn.close()
 
                     app_log.info("Client: block_hash to send: " + str(db_block_hash))
-                    send(s,db_block_hash)  # send latest block_hash
-                    time.sleep(0.1)
+                    send(s, (str(len(db_block_hash))).zfill(10))
+                    send(s, str(db_block_hash))
 
                     # consensus pool 2 (active connection)
-                    consensus_blockheight = int(subdata)  # str int to remove leading zeros
+                    consensus_blockheight = int(received_block_height)  # str int to remove leading zeros
                     consensus_add(consensus_ip, consensus_blockheight, "none")
                     # consensus pool 2 (active connection)
 
@@ -1277,7 +1263,7 @@ def worker(HOST, PORT):
                     app_log.info("Client: Will seek the following block: " + str(data))
 
                     # consensus pool 2 (active connection)
-                    consensus_blockheight = int(subdata)  # str int to remove leading zeros
+                    consensus_blockheight = int(received_block_height)  # str int to remove leading zeros
                     consensus_add(consensus_ip, consensus_blockheight, data)
                     # consensus pool 2 (active connection)
 
@@ -1296,8 +1282,8 @@ def worker(HOST, PORT):
                         db_block_hash = c.fetchone()[0]  # get latest block_hash
                         if db_block_hash == data:
                             app_log.info("Client: Node has the latest block")
-                            send(s,"nonewblocks")
-                            time.sleep(0.1)
+                            send(s, (str(len("nonewblk"))).zfill(10))
+                            send(s, "nonewblk")
 
                         else:
                             c.execute(
@@ -1308,13 +1294,13 @@ def worker(HOST, PORT):
                             #app_log.info("Client: Selected " + str(block_hash_send) + " to send")
 
                             conn.close()
-                            send(s,"blockfound_")
-                            time.sleep(0.1)
+                            send(s, (str(len("blockfound"))).zfill(10))
+                            send(s, "blockfound")
 
                             # send own
                             # app_log.info("Node: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
 
-                            block_send_length = str(len(str(block_send))).zfill(10)
+                            block_send_length = str(len(str(block_send))).zfill(10) #REWORK THIS ASAP
                             send(s,block_send_length)
 
                             totalsent = 0
@@ -1328,26 +1314,19 @@ def worker(HOST, PORT):
 
                     except:
                         app_log.info("Node: Block not found")
-                        send(s,"blocknotfou")
-                        time.sleep(0.1)
-                        # newly apply on self
-                        conn = sqlite3.connect('ledger.db')
-                        conn.text_factory = str
-                        c = conn.cursor()
-                        c.execute('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1')
-                        db_block_hash = c.fetchone()[0]  # get latest block_hash
-                        conn.close()
+                        send(s, (str(len("blocknf"))).zfill(10))
+                        send(s, "blocknf")
 
-            elif data == "blocknotfou":
-                block_hash_delete = receive(s,56)
-                blocknotfound(block_hash_delete)
+            elif data == "blocknf":
+                block_hash_delete = receive(s,10)
+                blocknf(block_hash_delete)
 
                 while busy == 1:
                     time.sleep(1)
-                send(s,"sendsync___")
-                time.sleep(0.1)
+                send(s, (str(len("sendsync"))).zfill(10))
+                send(s, "sendsync")
 
-            elif data == "blockfound_":
+            elif data == "blockfound":
 
                 app_log.info("Client: Node has the block")  # node should start sending txs in this step
 
@@ -1363,12 +1342,12 @@ def worker(HOST, PORT):
 
                 while busy == 1:
                     time.sleep(1)
-                send(s,"sendsync___")
-                time.sleep(0.1)
+                send(s, (str(len("sendsync"))).zfill(10))
+                send(s, "sendsync")
 
                 # block_hash validation end
 
-            elif data == "nonewblocks":
+            elif data == "nonewblk":
                 # digest_block() #temporary #otherwise passive node will not be able to digest
 
                 # sand and receive mempool
@@ -1378,8 +1357,8 @@ def worker(HOST, PORT):
                 m.execute('SELECT * FROM transactions')
                 mempool_txs = m.fetchall()
 
-                send(s,"mempool____")
-                time.sleep(0.1)
+                send(s, (str(len("mempool"))).zfill(10))
+                send(s, "mempool")
 
                 # send own
                 mempool_len = str(len(str(mempool_txs))).zfill(10)
@@ -1410,12 +1389,11 @@ def worker(HOST, PORT):
                 time.sleep(int(pause_conf))
                 while busy == 1:
                     time.sleep(1)
-                send(s,"sendsync___")
-                time.sleep(0.1)
+                send(s, (str(len("sendsync"))).zfill(10))
+                send(s, "sendsync")
 
             elif data == "":
                 raise ValueError("Received a ping or empty packet")
-
 
             else:
                 raise ValueError("Unexpected error, received: "+data)
@@ -1438,7 +1416,7 @@ def worker(HOST, PORT):
 
             app_log.info("Connection to " + this_client + " terminated due to " + str(e))
             app_log.info("---thread " + str(threading.currentThread()) + " ended---")
-            if debug_conf == 1:
+            if debug_conf == "1":
                 raise  # major debug client
             else:
                 return
