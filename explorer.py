@@ -43,9 +43,9 @@ class index:
         f.write('<script src="Chart.js"></script>\n')
         f.write('<link rel="stylesheet" type="text/css" href="style.css">\n')
         f.write('</head>\n')
-        f.write('<body>\n')
-        f.write('<div style="width:100%">\n')
-        f.write('<div>\n')
+        f.write('<body bgcolor = "white">\n')
+
+
         # define canvas
         f.write("<h1>Timestamp progression</h1>")
         f.write('<canvas id="canvas" height="150" width="600"></canvas>\n')
@@ -62,8 +62,7 @@ class index:
         f.write("<h1>Confirmations per block</h1>")
         f.write('<canvas id="canvas5" height="150" width="600"></canvas>\n')
         # define canvas
-        f.write('</div>\n')
-        f.write('</div>\n')
+
         f.write('<script>\n')
         f.write('var randomScalingFactor = function(){ return Math.round(Math.random()*100)};\n')
 
@@ -105,8 +104,8 @@ class index:
         f.write('{\n')
         f.write('label: "My First dataset 1",\n')
         f.write('fillColor : "rgba(220,220,220,0.2)",\n')
-        f.write('strokeColor : "rgba(220,220,220,1)",\n')
-        f.write('pointColor : "rgba(220,220,220,1)",\n')
+        f.write('strokeColor : "lightblue",\n')
+        f.write('pointColor : "#82CAFF",\n')
         f.write('pointStrokeColor : "#fff",\n')
         f.write('pointHighlightFill : "#fff",\n')
         f.write('pointHighlightStroke : "rgba(220,220,220,1)",\n')
@@ -123,8 +122,8 @@ class index:
         f.write('{\n')
         f.write('label: "My First dataset 2",\n')
         f.write('fillColor : "rgba(220,220,220,0.2)",\n')
-        f.write('strokeColor : "rgba(220,220,220,1)",\n')
-        f.write('pointColor : "rgba(220,220,220,1)",\n')
+        f.write('strokeColor : "lightblue",\n')
+        f.write('pointColor : "#82CAFF",\n')
         f.write('pointStrokeColor : "#fff",\n')
         f.write('pointHighlightFill : "#fff",\n')
         f.write('pointHighlightStroke : "rgba(220,220,220,1)",\n')
@@ -140,8 +139,8 @@ class index:
         f.write('{\n')
         f.write('label: "My First dataset 3",\n')
         f.write('fillColor : "rgba(220,220,220,0.2)",\n')
-        f.write('strokeColor : "rgba(220,220,220,1)",\n')
-        f.write('pointColor : "rgba(220,220,220,1)",\n')
+        f.write('strokeColor : "lightblue",\n')
+        f.write('pointColor : "#82CAFF",\n')
         f.write('pointStrokeColor : "#fff",\n')
         f.write('pointHighlightFill : "#fff",\n')
         f.write('pointHighlightStroke : "rgba(220,220,220,1)",\n')
@@ -157,8 +156,8 @@ class index:
         f.write('{\n')
         f.write('label: "My First dataset 4",\n')
         f.write('fillColor : "rgba(220,220,220,0.2)",\n')
-        f.write('strokeColor : "rgba(220,220,220,1)",\n')
-        f.write('pointColor : "rgba(220,220,220,1)",\n')
+        f.write('strokeColor : "lightblue",\n')
+        f.write('pointColor : "#82CAFF",\n')
         f.write('pointStrokeColor : "#fff",\n')
         f.write('pointHighlightFill : "#fff",\n')
         f.write('pointHighlightStroke : "rgba(220,220,220,1)",\n')
@@ -174,8 +173,8 @@ class index:
         f.write('{\n')
         f.write('label: "My First dataset 5",\n')
         f.write('fillColor : "rgba(220,220,220,0.2)",\n')
-        f.write('strokeColor : "rgba(220,220,220,1)",\n')
-        f.write('pointColor : "rgba(220,220,220,1)",\n')
+        f.write('strokeColor : "lightblue",\n')
+        f.write('pointColor : "#82CAFF",\n')
         f.write('pointStrokeColor : "#fff",\n')
         f.write('pointHighlightFill : "#fff",\n')
         f.write('pointHighlightStroke : "rgba(220,220,220,1)",\n')
@@ -201,7 +200,6 @@ class index:
         view = []
         i = 0
         for x in all:
-            print i
             if i % 2 == 0:
                 color_cell = "#E8E8E8"
             else:
@@ -232,7 +230,8 @@ class index:
                "</head>" \
                "<META http-equiv='cache-control' content='no-cache'>" \
                "<TITLE>Transaction Explorer</TITLE>" \
-               "<body><center><h1>Bismuth Transaction Explorer</h1></center><iframe src='static/plotter.html' width='100%' height='550'></iframe><table style='width:100%'><tr><td>Block</td><td>Timestamp</td><td>From</td><td>To</td><td>Amount</td><td>Block Hash</td><td>Fee</td><td>Reward</td><td>Confirmations</td></tr>" + str(''.join(view)) + \
+               "<body><body background="'static/explorer_bg.png'"><center>" \
+               "<center><h1>Bismuth Transaction Explorer</h1></center><iframe src='static/plotter.html' width='100%' height='550'></iframe><table style='width:100%'><tr><td>Block</td><td>Timestamp</td><td>From</td><td>To</td><td>Amount</td><td>Block Hash</td><td>Fee</td><td>Reward</td><td>Confirmations</td></tr>" + str(''.join(view)) + \
                "</table></body>" \
                "</html>"
 
