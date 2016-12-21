@@ -199,9 +199,14 @@ class index:
         all = c.fetchall()
 
         view = []
-
+        i = 0
         for x in all:
-            view.append("<tr>")
+            print i
+            if i % 2 == 0:
+                color_cell = "#E8E8E8"
+            else:
+                color_cell = "white"
+            view.append("<tr bgcolor ="+color_cell+">")
             view.append("<td>" + str(x[0]) + "</td>")
             view.append("<td>" + str(time.strftime("%Y/%m/%d,%H:%M:%S", time.localtime(float(x[1])))))
             view.append("<td>" + str(x[2]) + "</td>")
@@ -214,6 +219,7 @@ class index:
             view.append("<td>" + str(x[9]) + "</td>")
             view.append("<td>" + str(x[10]) + "</td>")
             view.append("<tr>")
+            i = i+1
 
         c.close()
 
