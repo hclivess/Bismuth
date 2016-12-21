@@ -63,7 +63,7 @@ def send(sdef, data):
 def receive(sdef, slen):
     # receive theirs
     data = int(sdef.recv(slen))  # receive length
-    # print "To receive: "+str(data)
+    #print "To receive: "+str(data)
 
     chunks = []
     bytes_recd = 0
@@ -75,7 +75,7 @@ def receive(sdef, slen):
         bytes_recd = bytes_recd + len(chunk)
     segments = b''.join(chunks)
 
-    # print "Received segments: "+str(segments)
+    #print "Received segments: "+str(segments)
     return segments
     # receive theirs
 
@@ -116,6 +116,7 @@ busy = 0
 # port = 2829 now defined by config
 
 def mempool_merge(data):
+    print data
     if data == "":
         app_log.info("Mempool was empty")
     else:
@@ -864,7 +865,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     # receive theirs
                     segments = receive(self.request, 10)
                     mempool_merge(segments)
-
                     # receive theirs
 
                     mempool = sqlite3.connect('mempool.db')
@@ -874,10 +874,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     mempool_txs = m.fetchall()
 
                     # send own
-                    # app_log.info("Incoming: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
+                    app_log.info("Incoming: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
 
                     if len(mempool_txs) > 0:
-                        send(self.request, (str(len(mempool_txs))).zfill(10))
+                        send(self.request, (str(len(str(mempool_txs)))).zfill(10))
                         send(self.request, str(mempool_txs))
                         # send own
 
@@ -1333,12 +1333,14 @@ def worker(HOST, PORT):
                 m.execute('SELECT * FROM transactions')
                 mempool_txs = m.fetchall()
 
+                app_log.info("Outgoing: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
+
                 if len(mempool_txs) > 0:
                     send(s, (str(len("mempool"))).zfill(10))
                     send(s, "mempool")
 
                     # send own
-                    send(s, (str(len(mempool_txs))).zfill(10))
+                    send(s, (str(len(str(mempool_txs)))).zfill(10))
                     send(s, str(mempool_txs))
                     # send own
 
