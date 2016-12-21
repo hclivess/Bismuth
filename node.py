@@ -1076,7 +1076,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     raise ValueError("Received a ping or empty packet")
 
                 else:
-                    raise ValueError("Unexpected error, received: " + data)
+                    raise ValueError("Unexpected error, received: " + str(data))
 
                 time.sleep(0.1)  # prevent cpu overload
                 # app_log.info("Server resting")
