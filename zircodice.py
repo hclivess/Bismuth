@@ -14,7 +14,7 @@ public_key_readable = str(key.publickey().exportKey())
 public_key_hashed = base64.b64encode(public_key_readable)
 address = hashlib.sha224(public_key_readable).hexdigest()
 
-bet_max = 100
+bet_max = 1000
 
 while True:
     conn = sqlite3.connect('ledger.db')

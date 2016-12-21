@@ -16,6 +16,9 @@ from Crypto.Hash import SHA
 from multiprocessing import Process
 from multiprocessing import freeze_support
 
+def send(sdef, data):
+    sdef.sendall(data)
+
 # load config
 lines = [line.rstrip('\n') for line in open('config.txt')]
 for line in lines:
@@ -183,21 +186,11 @@ def miner(args):
                             app_log.info("Connected")
 
                             app_log.info("Miner: Proceeding to submit mined block")
-                            s.sendall("block______")
-                            time.sleep(0.1)
-                            #print block_send
 
-                            # send own
-                            block_send_length = str(len(str(block_send))).zfill(10)
-                            s.sendall(block_send_length)
-
-                            totalsent = 0
-                            while totalsent < len(block_send):
-                                sent = s.send(str(block_send)[totalsent:])
-                                if sent == 0:
-                                    raise RuntimeError("socket connection broken")
-                                totalsent = totalsent + sent
-                                # send own
+                            send(s, (str(len("block"))).zfill(10))
+                            send(s, "block")
+                            send(s, (str(len(str(block_send)))).zfill(10))
+                            send(s, str(block_send))
 
                             submitted = 1
 
