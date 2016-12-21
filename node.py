@@ -835,7 +835,7 @@ if verify_conf == 1:
 
 
 ### LOCAL CHECKS FINISHED ###
-
+app_log.info("Starting up...")
 class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
     def handle(self):  # server defined here
         while True:
