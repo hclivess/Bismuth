@@ -95,8 +95,8 @@ app_log.addHandler(ch)
 
 global active_pool
 active_pool = []
-global consensus_ip_list
-consensus_ip_list = []
+global peer_ip_list
+peer_ip_list = []
 global consensus_blockheight_list
 consensus_blockheight_list = []
 global tried
@@ -405,32 +405,32 @@ def blocknf(block_hash_delete):
         # delete followups
 
 
-def consensus_add(consensus_ip, consensus_blockheight):
-    global consensus_ip_list
+def consensus_add(peer_ip, consensus_blockheight):
+    global peer_ip_list
     global consensus_blockheight_list
     global consensus_percentage
 
-    if consensus_ip not in consensus_ip_list:
-        app_log.info("Adding " + str(consensus_ip) + " to consensus peer list")
-        consensus_ip_list.append(consensus_ip)
+    if peer_ip not in peer_ip_list:
+        app_log.info("Adding " + str(peer_ip) + " to consensus peer list")
+        peer_ip_list.append(peer_ip)
         app_log.info("Assigning " + str(consensus_blockheight) + " to peer block height list")
         consensus_blockheight_list.append(str(int(consensus_blockheight)))
 
-    if consensus_ip in consensus_ip_list:
-        consensus_index = consensus_ip_list.index(consensus_ip)  # get where in this list it is
+    if peer_ip in peer_ip_list:
+        consensus_index = peer_ip_list.index(peer_ip)  # get where in this list it is
 
         if consensus_blockheight_list[consensus_index] == (consensus_blockheight):
-            app_log.info("Opinion of " + str(consensus_ip) + " hasn't changed")
+            app_log.info("Opinion of " + str(peer_ip) + " hasn't changed")
 
         else:
-            del consensus_ip_list[consensus_index]  # remove ip
+            del peer_ip_list[consensus_index]  # remove ip
             del consensus_blockheight_list[consensus_index]  # remove ip's opinion
 
-            app_log.info("Updating " + str(consensus_ip) + " in consensus")
-            consensus_ip_list.append(consensus_ip)
+            app_log.info("Updating " + str(peer_ip) + " in consensus")
+            peer_ip_list.append(peer_ip)
             consensus_blockheight_list.append(int(consensus_blockheight))
 
-    app_log.info("Consensus IP list:" + str(consensus_ip_list))
+    app_log.info("Consensus IP list:" + str(peer_ip_list))
     app_log.info("Consensus opinion list:" + str(consensus_blockheight_list))
 
     consensus = most_common(consensus_blockheight_list)
@@ -443,17 +443,17 @@ def consensus_add(consensus_ip, consensus_blockheight):
     return
 
 
-def consensus_remove(consensus_ip):
-    global consensus_ip_list
+def consensus_remove(peer_ip):
+    global peer_ip_list
     global consensus_blockheight_list
-    if consensus_ip in consensus_ip_list:
+    if peer_ip in peer_ip_list:
         app_log.info(
-            "Will remove " + str(consensus_ip) + " from consensus pool " + str(consensus_ip_list))
-        consensus_index = consensus_ip_list.index(consensus_ip)
-        consensus_ip_list.remove(consensus_ip)
+            "Will remove " + str(peer_ip) + " from consensus pool " + str(peer_ip_list))
+        consensus_index = peer_ip_list.index(peer_ip)
+        peer_ip_list.remove(peer_ip)
         del consensus_blockheight_list[consensus_index]  # remove ip's opinion
     else:
-        app_log.info("Incoming IP of " + str(consensus_ip) + " not present in the consensus pool")
+        app_log.info("IP of " + str(peer_ip) + " not present in the consensus pool")
 
 
 def manager():
@@ -837,7 +837,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         while True:
             try:
                 peer_ip = self.request.getpeername()[0]
-                consensus_ip = peer_ip
 
                 try:
                     data = receive(self.request, 10)
@@ -958,7 +957,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     # consensus pool 1 (connection from them)
                     consensus_blockheight = int(received_block_height)  # str int to remove leading zeros
-                    consensus_add(consensus_ip, consensus_blockheight)
+                    consensus_add(peer_ip, consensus_blockheight)
                     # consensus pool 1 (connection from them)
 
                     conn = sqlite3.connect('ledger.db')
@@ -1089,7 +1088,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 app_log.info("Incoming: " + str(e))
 
                 # remove from consensus (connection from them)
-                consensus_remove(consensus_ip)
+                consensus_remove(peer_ip)
                 # remove from consensus (connection from them)
                 if self.request:
                     self.request.close()
@@ -1111,7 +1110,7 @@ def worker(HOST, PORT):
         if this_client not in active_pool:
             active_pool.append(this_client)
             app_log.info("Current active pool: " + str(active_pool))
-            connected = 1
+
     except:
         app_log.info("Could not connect to " + this_client)
         return
@@ -1121,7 +1120,7 @@ def worker(HOST, PORT):
     while True:
         try:
             # communication starter
-            consensus_ip = s.getpeername()[0]
+            peer_ip = s.getpeername()[0]
 
             if first_run == 1:
                 first_run = 0
@@ -1234,7 +1233,7 @@ def worker(HOST, PORT):
 
                     # consensus pool 2 (active connection)
                     consensus_blockheight = int(received_block_height)  # str int to remove leading zeros
-                    consensus_add(consensus_ip, consensus_blockheight)
+                    consensus_add(peer_ip, consensus_blockheight)
                     # consensus pool 2 (active connection)
 
                     # receive their latest hash
@@ -1248,7 +1247,7 @@ def worker(HOST, PORT):
 
                     # consensus pool 2 (active connection)
                     consensus_blockheight = int(received_block_height)  # str int to remove leading zeros
-                    consensus_add(consensus_ip, consensus_blockheight)
+                    consensus_add(peer_ip, consensus_blockheight)
                     # consensus pool 2 (active connection)
 
                     conn = sqlite3.connect('ledger.db')
@@ -1378,8 +1377,7 @@ def worker(HOST, PORT):
             # remove from active pool
 
             # remove from consensus 2
-            if connected == 1:  # if ever connected
-                consensus_remove(consensus_ip)
+            consensus_remove(peer_ip)
             # remove from consensus 2
 
             app_log.info("Connection to " + this_client + " terminated due to " + str(e))
