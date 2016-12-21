@@ -62,23 +62,23 @@ def send(sdef, data):
 
 def receive(sdef, slen):
     # receive theirs
-    data = int(sdef.recv(slen))  # receive length
-    #print "To receive: "+str(data)
+    try:
+        data = int(sdef.recv(slen))  # receive length
+    # print "To receive: "+str(data)
 
-    chunks = []
-    bytes_recd = 0
-    while bytes_recd < data:
-        chunk = sdef.recv(min(data - bytes_recd, 2048))
-        if chunk == b'':
-            raise RuntimeError("socket connection broken")
-        chunks.append(chunk)
-        bytes_recd = bytes_recd + len(chunk)
-    segments = b''.join(chunks)
-
-    #print "Received segments: "+str(segments)
-    return segments
-    # receive theirs
-
+        chunks = []
+        bytes_recd = 0
+        while bytes_recd < data:
+            chunk = sdef.recv(min(data - bytes_recd, 2048))
+            if chunk == b'':
+                raise RuntimeError("socket connection broken")
+            chunks.append(chunk)
+            bytes_recd = bytes_recd + len(chunk)
+        segments = b''.join(chunks)
+        # print "Received segments: "+str(segments)
+        return segments
+    except Exception as e:
+        app_log.info("Socket issue: "+str(e))
 
 gc.enable()
 
@@ -840,12 +840,12 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
     def handle(self):  # server defined here
         while True:
             try:
+                peer_ip = str(self.request.getpeername()[0])
+                consensus_ip = peer_ip
+
                 data = receive(self.request, 10)
 
-                peer_ip = str(self.request.getpeername()[0])
                 app_log.info("Incoming: Received: " + data + " from " + str(peer_ip))  # will add custom ports later
-
-                consensus_ip = self.request.getpeername()[0]
 
                 if data == 'version':
                     data = receive(self.request, 10)
@@ -957,7 +957,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     app_log.info("Incoming: Received block height: " + received_block_height)
 
                     # consensus pool 1 (connection from them)
-                    consensus_ip = self.request.getpeername()[0]
                     consensus_blockheight = int(received_block_height)  # str int to remove leading zeros
                     consensus_add(consensus_ip, consensus_blockheight)
                     # consensus pool 1 (connection from them)
@@ -1111,7 +1110,6 @@ def worker(HOST, PORT):
             active_pool.append(this_client)
             app_log.info("Current active pool: " + str(active_pool))
             connected = 1
-            consensus_ip = this_client
     except:
         app_log.info("Could not connect to " + this_client)
         return
@@ -1121,6 +1119,8 @@ def worker(HOST, PORT):
     while True:
         try:
             # communication starter
+            consensus_ip = s.getpeername()[0]
+
             if first_run == 1:
                 first_run = 0
 
@@ -1147,7 +1147,6 @@ def worker(HOST, PORT):
             # if data:
             #    timer = time.time() #reset timer
 
-            consensus_ip = s.getpeername()[0]
             if data == "peers":
                 subdata = receive(s, 10)
 
