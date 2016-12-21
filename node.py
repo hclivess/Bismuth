@@ -872,8 +872,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     # send own
                     #app_log.info("Node: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
 
-                    send(self.request, (str(len(mempool_txs))).zfill(10))
-                    send(self.request, str(mempool_txs))
+                    if len(mempool_txs) > 0:
+                        send(self.request, (str(len(mempool_txs))).zfill(10))
+                        send(self.request, str(mempool_txs))
                     # send own
 
                 elif data == 'hello':
@@ -1340,20 +1341,19 @@ def worker(HOST, PORT):
                 m.execute('SELECT * FROM transactions')
                 mempool_txs = m.fetchall()
 
-                send(s, (str(len("mempool"))).zfill(10))
-                send(s, "mempool")
+                if len(mempool_txs) > 0:
+                    send(s, (str(len("mempool"))).zfill(10))
+                    send(s, "mempool")
 
-                # send own
-                send(s, (str(len(mempool_txs))).zfill(10))
-                send(s, str(mempool_txs))
-                # send own
+                    # send own
+                    send(s, (str(len(mempool_txs))).zfill(10))
+                    send(s, str(mempool_txs))
+                    # send own
 
-                # receive theirs
-                segments = receive(s,10)
-                mempool_merge(segments)
-
-
-                # receive theirs
+                    # receive theirs
+                    segments = receive(s,10)
+                    mempool_merge(segments)
+                    # receive theirs
 
                 # receive mempool
 
