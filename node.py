@@ -452,7 +452,7 @@ def consensus_remove(consensus_ip):
         consensus_ip_list.remove(consensus_ip)
         del consensus_blockheight_list[consensus_index]  # remove ip's opinion
     else:
-        app_log.info("Client " + str(consensus_ip) + " not present in the consensus pool")
+        app_log.info("Incoming IP of " + str(consensus_ip) + " not present in the consensus pool")
 
 
 def manager():
@@ -933,7 +933,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     send(self.request, (str(len("sync"))).zfill(10))
                     send(self.request, "sync")
 
-                elif data == "blockfound_":
+                elif data == "blockfound":
                     app_log.info("Incoming: Client has the block")  # node should start sending txs in this step
 
                     # receive theirs
@@ -1095,6 +1095,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 except NameError:
                     peer_ip = "pinging peer"
                     consensus_ip = "pinging peer"
+                    pass
 
                 app_log.info("Incoming: Lost connection to "+str(peer_ip))
                 app_log.info("Incoming: "+str(e))
