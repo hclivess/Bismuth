@@ -978,18 +978,19 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     send(self.request, str(db_block_height))
                     # send own block height
 
-                    if received_block_height > db_block_height:
+                    if int(received_block_height) > db_block_height:
                         app_log.info("Node: Client has higher block")
                         update_me = 1
 
-                    if received_block_height < db_block_height:
+                    if int(received_block_height) < db_block_height:
                         app_log.info("Node: We have a higher block, hash will be verified")
                         update_me = 0
 
-                    if received_block_height == db_block_height:
+                    if int(received_block_height) == db_block_height:
                         app_log.info("Node: We have the same block height, hash will be verified")
                         update_me = 0
 
+                    print "Update me:" + str(update_me)
                     if update_me == 1:
                         conn = sqlite3.connect('ledger.db')
                         conn.text_factory = str
@@ -1004,8 +1005,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                         # receive their latest hash
                         # confirm you know that hash or continue receiving
-
-                    print update_me
+                        
                     if update_me == 0:  # update them if update_me is 0
                         data = receive(self.request,10)  # receive client's last block_hash
                         # send all our followup hashes
@@ -1227,18 +1227,19 @@ def worker(HOST, PORT):
                 received_block_height = receive(s,10)  # receive node's block height
                 app_log.info("Client: Node is at block height: " + str(received_block_height))
 
-                if received_block_height < db_block_height:
+                if int(received_block_height) < db_block_height:
                     app_log.info("Client: We have a higher, sending")
                     update_me = 0
 
-                if received_block_height > db_block_height:
+                if int(received_block_height) > db_block_height:
                     app_log.info("Client: Node has higher block, receiving")
                     update_me = 1
 
-                if received_block_height == db_block_height:
+                if int(received_block_height) == db_block_height:
                     app_log.info("Client: We have the same block height, hash will be verified")
                     update_me = 1
 
+                print "Update me:"+str(update_me)
                 if update_me == 1:
                     conn = sqlite3.connect('ledger.db')
                     conn.text_factory = str
@@ -1258,8 +1259,7 @@ def worker(HOST, PORT):
 
                     # receive their latest hash
                     # confirm you know that hash or continue receiving
-
-                print update_me
+                
                 if update_me == 0:  # update them if update_me is 0
                     data = receive(s,10)  # receive client's last block_hash
 
