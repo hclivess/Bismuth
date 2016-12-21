@@ -1047,15 +1047,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             send(self.request, (str(len(data))).zfill(10))
                             send(self.request, data)
 
-                            conn = sqlite3.connect('ledger.db')
-                            conn.text_factory = str
-                            c = conn.cursor()
-                            c.execute('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1')
-                            db_block_hash = c.fetchone()[0]  # get latest block_hash
-                            conn.close()
-                            blocknf(db_block_hash)
-                            # newly apply on self
-
                 elif data == "nonewblk":
                     # digest_block() #temporary #otherwise passive node will not be able to digest
 
