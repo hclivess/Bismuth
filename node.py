@@ -30,23 +30,20 @@ for line in lines:
     if "genesis=" in line:
         genesis_conf = line.strip('genesis=')
     if "verify=" in line:
-        verify_conf = line.strip('verify=')
+        verify_conf = int(line.strip('verify='))
     if "version=" in line:
         version_conf = line.strip('version=')
     if "thread_limit=" in line:
-        thread_limit_conf = line.strip('thread_limit=')
+        thread_limit_conf = int(line.strip('thread_limit='))
     if "rebuild_db=" in line:
-        rebuild_db_conf = line.strip('rebuild_db=')
+        rebuild_db_conf = int(line.strip('rebuild_db='))
     if "debug=" in line:
-        debug_conf = line.strip('debug=')
+        debug_conf = int(line.strip('debug='))
     if "purge=" in line:
-        purge_conf = line.strip('purge=')
-    if "segment_limit=" in line:
-        segment_limit_conf = line.strip('segment_limit=')
+        purge_conf = int(line.strip('purge='))
     if "pause=" in line:
         pause_conf = line.strip('pause=')
-    if "segment_delivery=" in line:
-        segment_delivery_conf = float(line.strip('segment_delivery='))
+
 
 # load config
 
@@ -971,7 +968,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     conn.close()
 
                     # append zeroes to get static length
-                    send(self.request, (str(len(db_block_height))).zfill(10))
+                    send(self.request, (str(len(str(db_block_height)))).zfill(10))
                     send(self.request, str(db_block_height))
                     # send own block height
 
@@ -1109,7 +1106,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 # remove from consensus (connection from them)
                 if self.request:
                     self.request.close()
-                if debug_conf == "1":
+                if debug_conf == 1:
                     raise #major debug client
                 else:
                     return
@@ -1218,7 +1215,7 @@ def worker(HOST, PORT):
 
                 app_log.info("Client: Sending block height to compare: " + str(db_block_height))
                 # append zeroes to get static length
-                send(s, (str(len(db_block_height))).zfill(10))
+                send(s, (str(len(str(db_block_height)))).zfill(10))
                 send(s, str(db_block_height))
 
                 received_block_height = receive(s,10)  # receive node's block height
@@ -1416,7 +1413,7 @@ def worker(HOST, PORT):
 
             app_log.info("Connection to " + this_client + " terminated due to " + str(e))
             app_log.info("---thread " + str(threading.currentThread()) + " ended---")
-            if debug_conf == "1":
+            if debug_conf == 1:
                 raise  # major debug client
             else:
                 return
