@@ -59,22 +59,15 @@ def most_common(lst):
 def bin_convert(string):
     return ''.join(format(ord(x), 'b') for x in string)
 
-def receive(sdef, count):
-    r, _, _ = select.select([sdef], [], [])
-    if r:
-        data = sdef.recv(count)  # receive data, one and the only root point
-        return data
-    else:
-        app_log.info('Issue with socket select')  # connection will be cut in higher except
-        raise
-
 def send(sdef, data):
     sdef.sendall(data)
 
-def receive_chunks(sdef, slen):
-    # receive theirs
-    data = int(receive(sdef, slen))  # receive length
+def receive(sdef, slen):
 
+    print "HELLOOO"+ str(slen)
+    # receive theirs
+    data = int(sdef.recv(slen))  # receive length
+    print "HELLOOO222" + str(data)
     chunks = []
     bytes_recd = 0
     while bytes_recd < data:
@@ -862,7 +855,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 elif data == 'mempool____':
 
                     # receive theirs
-                    segments = receive_chunks(self.request,10)
+                    segments = receive(self.request,10)
 
                     if segments != "[]":
                         mempool_merge(segments)
@@ -895,6 +888,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         peers = peer_list.read()
                         app_log.info("Node: " + peers)
                         send(self.request,"peers______")
+                        time.sleep(0.1)
+                        send(self.request,len(peers).zfill(10))
                         time.sleep(0.1)
                         send(self.request,peers)
                         time.sleep(0.1)
@@ -948,7 +943,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     app_log.info("Node: Client has the block")  # node should start sending txs in this step
 
                     # receive theirs
-                    segments = receive_chunks(self.request,10)
+                    segments = receive(self.request,10)
 
                     #app_log.info("Node: Combined segments: " + segments)
                     digest_block(segments)
@@ -1095,7 +1090,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                 elif data == "block______":  # from miner
                     # receive theirs
-                    segments = receive_chunks(self.request,10)
+                    segments = receive(self.request,10)
 
                     #app_log.info("Node: Combined mined segments: " + segments)
                     digest_block(segments)
@@ -1144,13 +1139,13 @@ def worker(HOST, PORT):
 
     first_run = 1
 
-    time_now = time.time()
-    timer = time_now #save current time
+    #time_now = time.time()
+    #timer = time_now #save current time
 
     while True:
         try:
-            if time.time() - timer > 10: #if timer surpasses
-                raise ValueError("Client: Connection issue, run reset")
+            #if time.time() - timer > 10: #if timer surpasses
+            #    raise ValueError("Client: Connection issue, run reset")
 
             # communication starter
             if first_run == 1:
@@ -1175,12 +1170,13 @@ def worker(HOST, PORT):
 
             data = receive(s,11)  # receive data, one and the only root point
 
-            if data:
-                timer = time.time() #reset timer
+            #if data:
+            #    timer = time.time() #reset timer
 
             consensus_ip = s.getpeername()[0]
             if data == "peers______":
-                subdata = receive(s,2048)  # peers are larger #need improvements
+                peerlist_len = receive(s,10)  # peers are larger
+                subdata = receive(s,peerlist_len)
                 # get remote peers into tuples
                 server_peer_tuples = re.findall("'([\d\.]+)', '([\d]+)'", subdata)
                 app_log.info(server_peer_tuples)
@@ -1356,7 +1352,7 @@ def worker(HOST, PORT):
                 app_log.info("Client: Node has the block")  # node should start sending txs in this step
 
                 # receive theirs
-                segments = receive_chunks(s,10)
+                segments = receive(s,10)
 
                 #app_log.info("Node: Combined segments: " + segments)
                 digest_block(segments)
@@ -1398,7 +1394,7 @@ def worker(HOST, PORT):
                 # send own
 
                 # receive theirs
-                segments = receive_chunks(s,10)
+                segments = receive(s,10)
 
                 if segments != "[]":
                     mempool_merge(segments)
