@@ -116,7 +116,6 @@ busy = 0
 # port = 2829 now defined by config
 
 def mempool_merge(data):
-    print data
     if data == "":
         app_log.info("Mempool was empty")
     else:
