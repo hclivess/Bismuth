@@ -43,24 +43,27 @@ for line in lines:
     if "pause=" in line:
         pause_conf = line.strip('pause=')
 
-
 # load config
 
 version = version_conf
 
+
 def most_common(lst):
     return max(set(lst), key=lst.count)
+
 
 def bin_convert(string):
     return ''.join(format(ord(x), 'b') for x in string)
 
+
 def send(sdef, data):
     sdef.sendall(data)
+
 
 def receive(sdef, slen):
     # receive theirs
     data = int(sdef.recv(slen))  # receive length
-    #print "To receive: "+str(data)
+    # print "To receive: "+str(data)
 
     chunks = []
     bytes_recd = 0
@@ -72,9 +75,10 @@ def receive(sdef, slen):
         bytes_recd = bytes_recd + len(chunk)
     segments = b''.join(chunks)
 
-    #print "Received segments: "+str(segments)
+    # print "Received segments: "+str(segments)
     return segments
     # receive theirs
+
 
 gc.enable()
 
@@ -121,7 +125,7 @@ def mempool_merge(data):
         try:
             transaction_list = ast.literal_eval(data)
 
-            for transaction in transaction_list: # set means unique
+            for transaction in transaction_list:  # set means unique
                 mempool_timestamp = transaction[0]
                 mempool_address = transaction[1]
                 mempool_recipient = transaction[2]
@@ -146,7 +150,7 @@ def mempool_merge(data):
                     m.execute("SELECT * FROM transactions WHERE signature = '" + mempool_signature_enc + "'")  # condition 1
                     dummy1 = m.fetchall()[0]
                     if dummy1 != None:
-                        #app_log.info("That transaction is already in our mempool")
+                        # app_log.info("That transaction is already in our mempool")
                         acceptable = 0
                         mempool_in = 1
                 except:
@@ -157,14 +161,14 @@ def mempool_merge(data):
                     c.execute("SELECT * FROM transactions WHERE signature = '" + mempool_signature_enc + "'")  # condition 2
                     dummy2 = c.fetchall()[0]
                     if dummy2 != None:
-                        #app_log.info("That transaction is already in our ledger")
+                        # app_log.info("That transaction is already in our ledger")
                         # reject transactions which are already in the ledger
                         acceptable = 0
                         ledger_in = 1
                 except:
                     pass
 
-                if (mempool_in == 1) and (ledger_in == 1): #remove from mempool if it's in both ledger and mempool already
+                if (mempool_in == 1) and (ledger_in == 1):  # remove from mempool if it's in both ledger and mempool already
                     m.execute("DELETE * FROM transactions WHERE signature = '" + mempool_signature_enc + "'")
                     mempool.commit()
                     app_log.info("Transaction deleted from our mempool")
@@ -176,21 +180,21 @@ def mempool_merge(data):
                     conn.text_factory = str
                     c = conn.cursor()
 
-                    #app_log.info("Mempool: Verifying balance")
+                    # app_log.info("Mempool: Verifying balance")
                     app_log.info("Mempool: Received address: " + str(mempool_address))
 
                     # include the new block
                     block_credit = 0
                     credit_block = 0
 
-                    for x in transaction_list: # quite nasty, care not to overlap variables
+                    for x in transaction_list:  # quite nasty, care not to overlap variables
                         if x[2] == mempool_address:
                             block_credit = float(block_credit) + float(x[3])
                         if x[1] == mempool_address:
                             credit_block = float(credit_block) + float(x[3])
 
-                    #app_log.info("Mempool: Incoming block credit: " + str(block_credit))
-                    #app_log.info("Mempool: Incoming block debit: " + str(credit_block))
+                    # app_log.info("Mempool: Incoming block credit: " + str(block_credit))
+                    # app_log.info("Mempool: Incoming block debit: " + str(credit_block))
                     # include the new block
 
                     c.execute("SELECT sum(amount) FROM transactions WHERE recipient = '" + mempool_address + "'")
@@ -215,10 +219,10 @@ def mempool_merge(data):
                     if rewards == None:
                         rewards = 0
 
-                    #app_log.info("Mempool: Total credit: " + str(credit))
-                    #app_log.info("Mempool: Total debit: " + str(debit))
+                    # app_log.info("Mempool: Total credit: " + str(credit))
+                    # app_log.info("Mempool: Total debit: " + str(debit))
                     balance = float(credit) - float(debit) - float(fees) + float(rewards)
-                    #app_log.info("Mempool: Projected transction address balance: " + str(balance))
+                    # app_log.info("Mempool: Projected transction address balance: " + str(balance))
 
                     c.execute('SELECT max(block_height) FROM transactions')
                     db_block_height = c.fetchone()[0]
@@ -231,11 +235,11 @@ def mempool_merge(data):
                         conn.close()
 
                         fee = abs(1000 / (float(mempool_timestamp) - float(ledger_timestamp_50))) + len(mempool_openfield) / 200
-                        #app_log.info("Fee: " + str(fee))
+                        # app_log.info("Fee: " + str(fee))
 
                     except Exception as e:
                         fee = 1  # presumably there are less than 50 txs
-                        #app_log.info("Mempool: Fee error: " + str(e))
+                        # app_log.info("Mempool: Fee error: " + str(e))
                         return
                     # calculate fee
 
@@ -244,13 +248,13 @@ def mempool_merge(data):
                         app_log.info("Mempool: Future mining not allowed")
 
                     elif (float(balance)) - (
-                    float(fee)) < 0: # removed +float(db_amount) because it is a part of the incoming block
+                            float(fee)) < 0:  # removed +float(db_amount) because it is a part of the incoming block
                         app_log.info("Mempool: Cannot afford to pay fees")
                     # verify signatures and balances
                     else:
                         m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?)", (
-                        mempool_timestamp, mempool_address, mempool_recipient, str(float(mempool_amount)),
-                        mempool_signature_enc, mempool_public_key_hashed, mempool_openfield))
+                            mempool_timestamp, mempool_address, mempool_recipient, str(float(mempool_amount)),
+                            mempool_signature_enc, mempool_public_key_hashed, mempool_openfield))
                         app_log.info("Incoming: Mempool updated with a received transaction")
                         mempool.commit()  # Save (commit) the changes
                         mempool.close()
@@ -260,11 +264,12 @@ def mempool_merge(data):
 
             app_log.info("Mempool: Finished")
         except:
-            app_log.info("Mempool: Error processing") #will this fix the hang?
+            app_log.info("Mempool: Error processing")  # will this fix the hang?
             if debug_conf == 1:
                 raise
             else:
                 return
+
 
 def purge_old_peers():
     with open("peers.txt", "r") as peer_list:
@@ -311,7 +316,7 @@ def verify():
         genesis = c.fetchone()[0]
         app_log.info("Core: Genesis: " + genesis)
         if str(
-                genesis) != genesis_conf: # change this line to your genesis address if you want to clone
+                genesis) != genesis_conf:  # change this line to your genesis address if you want to clone
             app_log.info("Core: Invalid genesis address")
             sys.exit(1)
         # verify genesis
@@ -493,8 +498,8 @@ def manager():
         # app_log.info(threading.enumerate() all threads)
         time.sleep(int(pause_conf))
 
-def digest_block(data):
 
+def digest_block(data):
     global busy
     while busy == 1:
         app_log.info("Waiting for pool to become available")
@@ -527,13 +532,13 @@ def digest_block(data):
                 conn.text_factory = str
                 c = conn.cursor()
 
-                #app_log.info("Incoming: Digesting incoming block: " + data)
+                # app_log.info("Incoming: Digesting incoming block: " + data)
 
                 transaction_list = ast.literal_eval(data)
 
                 # reject block with duplicate transactions
                 signature_list = []
-                for r in transaction_list: # sig must be the 6th row 5
+                for r in transaction_list:  # sig must be the 6th row 5
                     signature_list.append(r[4])
 
                     # reject block with transactions which are already in the ledger
@@ -573,7 +578,7 @@ def digest_block(data):
                     if verifier.verify(h, received_signature_dec):
                         app_log.info("Incoming: The signature is valid")
 
-                    if transaction == transaction_list[-1]: # recognize the last transaction as the mining reward transaction
+                    if transaction == transaction_list[-1]:  # recognize the last transaction as the mining reward transaction
                         miner_address = received_address
                         block_timestamp = received_timestamp
 
@@ -605,27 +610,27 @@ def digest_block(data):
                     block_hash = hashlib.sha224(str((block_timestamp, transaction_list,
                                                      db_block_hash))).hexdigest()  # calculate block_hash from the ledger #PROBLEM HEREEEEE
 
-                    #app_log.info("Digest: tx sig not found in the local ledger, proceeding to check before insert")
+                    # app_log.info("Digest: tx sig not found in the local ledger, proceeding to check before insert")
 
                     mempool = sqlite3.connect('mempool.db')
                     mempool.text_factory = str
                     m = mempool.cursor()
 
-                    #app_log.info("Digest: Verifying balance")
-                    #app_log.info("Digest: Received address: " + str(db_address))
+                    # app_log.info("Digest: Verifying balance")
+                    # app_log.info("Digest: Received address: " + str(db_address))
 
                     # include the new block
                     block_credit = 0
                     credit_block = 0
 
-                    for x in transaction_list: # quite nasty, care not to overlap variables
+                    for x in transaction_list:  # quite nasty, care not to overlap variables
                         if x[2] == db_address:
                             block_credit = float(block_credit) + float(x[3])
                         if x[1] == db_address:
                             credit_block = float(credit_block) + float(x[3])
 
-                    #app_log.info("Digest: Incoming block credit: " + str(block_credit))
-                    #app_log.info("Digest: Incoming block debit: " + str(credit_block))
+                    # app_log.info("Digest: Incoming block credit: " + str(block_credit))
+                    # app_log.info("Digest: Incoming block debit: " + str(credit_block))
                     # include the new block
 
                     c.execute("SELECT sum(amount) FROM transactions WHERE recipient = '" + db_address + "'")
@@ -650,23 +655,23 @@ def digest_block(data):
                     if rewards == None:
                         rewards = 0
 
-                    #app_log.info("Digest: Total credit: " + str(credit))
-                    #app_log.info("Digest: Total debit: " + str(debit))
+                    # app_log.info("Digest: Total credit: " + str(credit))
+                    # app_log.info("Digest: Total debit: " + str(debit))
                     balance = float(credit) - float(debit) - float(fees) + float(rewards)
-                    #app_log.info("Digest: Projected transction address balance: " + str(balance))
+                    # app_log.info("Digest: Projected transction address balance: " + str(balance))
 
                     db_block_50 = int(db_block_height) - 50
                     try:
                         c.execute("SELECT timestamp FROM transactions WHERE block_height ='" + str(db_block_50) + "';")
                         db_timestamp_50 = c.fetchone()[0]
-                        fee = abs(1000 / (float(db_timestamp) - float(db_timestamp_50)))+len(db_openfield)/200
+                        fee = abs(1000 / (float(db_timestamp) - float(db_timestamp_50))) + len(db_openfield) / 200
                         fees_block.append(fee)
-                        #app_log.info("Fee: " + str(fee))
+                        # app_log.info("Fee: " + str(fee))
 
                     except Exception as e:
                         fee = 1  # presumably there are less than 50 txs
-                        #app_log.info("Fee error: " + str(e))
-                        #return #debug
+                        # app_log.info("Fee error: " + str(e))
+                        # return #debug
                     # calculate fee
 
                     # decide reward
@@ -674,15 +679,15 @@ def digest_block(data):
                     # calculate difficulty
                     c.execute("SELECT avg(timestamp) FROM transactions where block_height >= '" + str(db_block_height - 30) + "' and reward != 0;")
                     timestamp_avg = c.fetchall()[0][0]  # select the reward block
-                    #print timestamp_avg
+                    # print timestamp_avg
 
                     timestamp_difference = db_timestamp_last - timestamp_avg
-                    #print timestamp_difference
+                    # print timestamp_difference
 
                     diff = int(math.log(1e18 / timestamp_difference))
                     if db_block_height < 50:
                         diff = 4
-                    #if diff < 4:
+                    # if diff < 4:
                     #    diff = 4
 
                     app_log.info("Calculated difficulty: " + str(diff))
@@ -702,11 +707,11 @@ def digest_block(data):
 
                             # dont request a fee for mined block so new accounts can mine
 
-                        if bin_convert(miner_address)[0:diff] in bin_convert(block_hash): # simplified comparison, no backwards mining
+                        if bin_convert(miner_address)[0:diff] in bin_convert(block_hash):  # simplified comparison, no backwards mining
                             app_log.info("Digest: Difficulty requirement satisfied")
 
                             if (float(balance)) - (
-                            float(fee)) < 0: # removed +float(db_amount) because it is a part of the incoming block
+                                    float(fee)) < 0:  # removed +float(db_amount) because it is a part of the incoming block
                                 app_log.info("Digest: Cannot afford to pay fees")
                                 block_valid = 0
 
@@ -718,7 +723,7 @@ def digest_block(data):
                                                            block_hash, fee, reward, str(0), db_openfield))
                         else:
                             app_log.info(
-                                "Digest: Difficulty requirement not satisfied: " +bin_convert(miner_address) + " " + bin_convert(block_hash))
+                                "Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
                             block_valid = 0
 
                     try:
@@ -737,9 +742,9 @@ def digest_block(data):
                     for transaction in block_transactions:
                         # print transaction
                         c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
-                        transaction[0], transaction[1], transaction[2], transaction[3], transaction[4], transaction[5],
-                        transaction[6], transaction[7], transaction[8], transaction[9], transaction[10],
-                        transaction[11]))
+                            transaction[0], transaction[1], transaction[2], transaction[3], transaction[4], transaction[5],
+                            transaction[6], transaction[7], transaction[8], transaction[9], transaction[10],
+                            transaction[11]))
                         conn.commit()
                     conn.close()
 
@@ -752,7 +757,7 @@ def digest_block(data):
 
             except Exception, e:
                 app_log.info("Digesting complete")
-                #raise #never leave on
+                # raise #never leave on
 
             busy = 0
             return
@@ -832,10 +837,10 @@ if verify_conf == 1:
 ### LOCAL CHECKS FINISHED ###
 
 class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
-    def handle(self): # server defined here
+    def handle(self):  # server defined here
         while True:
             try:
-                data = receive(self.request,10)
+                data = receive(self.request, 10)
 
                 peer_ip = str(self.request.getpeername()[0])
                 app_log.info("Incoming: Received: " + data + " from " + str(peer_ip))  # will add custom ports later
@@ -843,21 +848,21 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 consensus_ip = self.request.getpeername()[0]
 
                 if data == 'version':
-                    data = receive(self.request,10)
+                    data = receive(self.request, 10)
                     if version != data:
                         app_log.info("Protocol version mismatch: " + data + ", should be " + version)
                         send(self.request, (str(len("notok"))).zfill(10))
-                        send(self.request,"notok")
+                        send(self.request, "notok")
                         return
                     else:
                         app_log.info("Incoming: Protocol version matched: " + data)
                         send(self.request, (str(len("ok"))).zfill(10))
-                        send(self.request,"ok")
+                        send(self.request, "ok")
 
                 elif data == 'mempool':
 
                     # receive theirs
-                    segments = receive(self.request,10)
+                    segments = receive(self.request, 10)
                     mempool_merge(segments)
 
                     # receive theirs
@@ -869,22 +874,22 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     mempool_txs = m.fetchall()
 
                     # send own
-                    #app_log.info("Incoming: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
+                    # app_log.info("Incoming: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
 
                     if len(mempool_txs) > 0:
                         send(self.request, (str(len(mempool_txs))).zfill(10))
                         send(self.request, str(mempool_txs))
-                    # send own
+                        # send own
 
                 elif data == 'hello':
                     with open("peers.txt", "r") as peer_list:
                         peers = peer_list.read()
 
                         send(self.request, (str(len("peers"))).zfill(10))
-                        send(self.request,"peers")
+                        send(self.request, "peers")
 
-                        send(self.request,(str(len(peers))).zfill(10))
-                        send(self.request,str(peers))
+                        send(self.request, (str(len(peers))).zfill(10))
+                        send(self.request, str(peers))
 
                     peer_list.close()
 
@@ -905,7 +910,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         # properly end the connection
                         peer_test.close()
                         # properly end the connection
-                        if peer_tuple not in str(peer_tuples): # stringing tuple is a nasty way
+                        if peer_tuple not in str(peer_tuples):  # stringing tuple is a nasty way
                             peer_list_file = open("peers.txt", 'a')
                             peer_list_file.write((peer_tuple) + "\n")
                             app_log.info("Incoming: Distant peer saved to peer list")
@@ -937,9 +942,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     app_log.info("Incoming: Client has the block")  # node should start sending txs in this step
 
                     # receive theirs
-                    segments = receive(self.request,10)
+                    segments = receive(self.request, 10)
 
-                    #app_log.info("Incoming: Combined segments: " + segments)
+                    # app_log.info("Incoming: Combined segments: " + segments)
                     digest_block(segments)
                     # receive theirs
 
@@ -949,7 +954,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     send(self.request, "sync")
 
                 elif data == "blockheight":
-                    received_block_height = receive(self.request,10)  # receive client's last block height
+                    received_block_height = receive(self.request, 10)  # receive client's last block height
                     app_log.info("Incoming: Received block height: " + received_block_height)
 
                     # consensus pool 1 (connection from them)
@@ -982,7 +987,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         app_log.info("Incoming: We have the same block height, hash will be verified")
                         update_me = 0
 
-                    #print "Update me:" + str(update_me)
+                    # print "Update me:" + str(update_me)
                     if update_me == 1:
                         conn = sqlite3.connect('ledger.db')
                         conn.text_factory = str
@@ -997,9 +1002,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                         # receive their latest hash
                         # confirm you know that hash or continue receiving
-                        
-                    if update_me == 0: # update them if update_me is 0
-                        data = receive(self.request,10)  # receive client's last block_hash
+
+                    if update_me == 0:  # update them if update_me is 0
+                        data = receive(self.request, 10)  # receive client's last block_hash
                         # send all our followup hashes
 
                         app_log.info("Incoming: Will seek the following block: " + str(data))
@@ -1029,14 +1034,14 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                             block_hash_client_block) + 1) + "'")  # select incoming transaction + 1, only columns that need not be verified
                                 block_send = c.fetchall()
 
-                                #app_log.info("Incoming: Selected " + str(block_hash_send) + " to send")
+                                app_log.info("Incoming: Selected " + str(block_send) + " to send")
 
                                 conn.close()
                                 send(self.request, (str(len("blockfound"))).zfill(10))
                                 send(self.request, "blockfound")
 
-                                send(self.request, (str(len(block_send))).zfill(10))
-                                send(self.request, block_send)
+                                send(self.request, (str(len(str(block_send)))).zfill(10))
+                                send(self.request, str(block_send))
                                 # send own
 
                         except:
@@ -1054,7 +1059,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     send(self.request, "sync")
 
                 elif data == "blocknf":
-                    block_hash_delete = receive(self.request,10)
+                    block_hash_delete = receive(self.request, 10)
                     blocknf(block_hash_delete)
 
                     while busy == 1:
@@ -1064,10 +1069,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     send(self.request, (str(len("sync"))).zfill(10))
                     send(self.request, "sync")
 
-                elif data == "block": # from miner
+                elif data == "block":  # from miner
                     # receive theirs
-                    segments = receive(self.request,10)
-                    #app_log.info("Incoming: Combined mined segments: " + segments)
+                    segments = receive(self.request, 10)
+                    # app_log.info("Incoming: Combined mined segments: " + segments)
                     digest_block(segments)
                     # receive theirs
                 elif data == "":
@@ -1076,20 +1081,12 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 else:
                     raise ValueError("Unexpected error, received: " + data)
 
-                time.sleep(0.1)#prevent cpu overload
+                time.sleep(0.1)  # prevent cpu overload
                 # app_log.info("Server resting")
 
             except Exception, e:
-                try:
-                    peer_ip #try if defined
-                    consensus_ip #try if defined
-                except NameError:
-                    peer_ip = "pinging peer"
-                    consensus_ip = "pinging peer"
-                    pass
-
-                app_log.info("Incoming: Lost connection to "+str(peer_ip))
-                app_log.info("Incoming: "+str(e))
+                app_log.info("Incoming: Lost connection to " + str(peer_ip))
+                app_log.info("Incoming: " + str(e))
 
                 # remove from consensus (connection from them)
                 consensus_remove(consensus_ip)
@@ -1097,7 +1094,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 if self.request:
                     self.request.close()
                 if debug_conf == 1:
-                    raise #major debug client
+                    raise  # major debug client
                 else:
                     return
 
@@ -1117,7 +1114,7 @@ def worker(HOST, PORT):
             connected = 1
             consensus_ip = this_client
     except:
-        app_log.info("Could not connect to "+ this_client)
+        app_log.info("Could not connect to " + this_client)
         return
 
     first_run = 1
@@ -1128,12 +1125,12 @@ def worker(HOST, PORT):
             if first_run == 1:
                 first_run = 0
 
-                send(s,(str(len("version"))).zfill(10))
-                send(s,"version")
+                send(s, (str(len("version"))).zfill(10))
+                send(s, "version")
                 send(s, (str(len(version))).zfill(10))
-                send(s,version)
+                send(s, version)
 
-                data = receive(s,10)
+                data = receive(s, 10)
 
                 if (data == "ok"):
                     app_log.info("Outgoing: Node protocol version matches our client")
@@ -1146,18 +1143,18 @@ def worker(HOST, PORT):
 
             # communication starter
 
-            data = receive(s,10)  # receive data, one and the only root point
+            data = receive(s, 10)  # receive data, one and the only root point
 
-            #if data:
+            # if data:
             #    timer = time.time() #reset timer
 
             consensus_ip = s.getpeername()[0]
             if data == "peers":
-                subdata = receive(s,10)
+                subdata = receive(s, 10)
 
                 # get remote peers into tuples
                 server_peer_tuples = re.findall("'([\d\.]+)', '([\d]+)'", subdata)
-                app_log.info("Received following "+str(len((server_peer_tuples)))+" peers: "+str(server_peer_tuples))
+                app_log.info("Received following " + str(len((server_peer_tuples))) + " peers: " + str(server_peer_tuples))
                 # get remote peers into tuples
 
                 # get local peers into tuples
@@ -1207,7 +1204,7 @@ def worker(HOST, PORT):
                 send(s, (str(len(str(db_block_height)))).zfill(10))
                 send(s, str(db_block_height))
 
-                received_block_height = receive(s,10)  # receive node's block height
+                received_block_height = receive(s, 10)  # receive node's block height
                 app_log.info("Outgoing: Node is at block height: " + str(received_block_height))
 
                 if int(received_block_height) < db_block_height:
@@ -1222,7 +1219,7 @@ def worker(HOST, PORT):
                     app_log.info("Outgoing: We have the same block height, hash will be verified")
                     update_me = 1
 
-                #print "Update me:"+str(update_me)
+                # print "Update me:"+str(update_me)
                 if update_me == 1:
                     conn = sqlite3.connect('ledger.db')
                     conn.text_factory = str
@@ -1242,9 +1239,9 @@ def worker(HOST, PORT):
 
                     # receive their latest hash
                     # confirm you know that hash or continue receiving
-                
-                if update_me == 0: # update them if update_me is 0
-                    data = receive(s,10)  # receive client's last block_hash
+
+                if update_me == 0:  # update them if update_me is 0
+                    data = receive(s, 10)  # receive client's last block_hash
 
                     # send all our followup hashes
                     app_log.info("Outgoing: Will seek the following block: " + str(data))
@@ -1277,28 +1274,27 @@ def worker(HOST, PORT):
                                 "SELECT timestamp,address,recipient,amount,signature,public_key,openfield FROM transactions WHERE block_height='" + str(
                                     int(block_hash_client_block) + 1) + "'")  # select incoming transaction + 1
                             block_send = c.fetchall()
-
-                            #app_log.info("Outgoing: Selected " + str(block_hash_send) + " to send")
-
                             conn.close()
+
+                            app_log.info("Outgoing: Selected " + str(block_send) + " to send")
+
                             send(s, (str(len("blockfound"))).zfill(10))
                             send(s, "blockfound")
 
                             # send own
-                            # app_log.info("Incoming: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
-
-                            send(s, (str(len(block_send))).zfill(10))
-                            send(s, block_send)
+                            send(s, (str(len(str(block_send)))).zfill(10))
+                            send(s, str(block_send))
                             # send own
-
-
                     except:
-                        app_log.info("Incoming: Block not found")
+                        app_log.info("Outgoing: Block not found")
                         send(s, (str(len("blocknf"))).zfill(10))
                         send(s, "blocknf")
 
+                        send(s, (str(len(data))).zfill(10))
+                        send(s, data)
+
             elif data == "blocknf":
-                block_hash_delete = receive(s,10)
+                block_hash_delete = receive(s, 10)
                 blocknf(block_hash_delete)
 
                 while busy == 1:
@@ -1311,9 +1307,9 @@ def worker(HOST, PORT):
                 app_log.info("Outgoing: Node has the block")  # node should start sending txs in this step
 
                 # receive theirs
-                segments = receive(s,10)
+                segments = receive(s, 10)
 
-                #app_log.info("Incoming: Combined segments: " + segments)
+                # app_log.info("Incoming: Combined segments: " + segments)
                 digest_block(segments)
                 # receive theirs
 
@@ -1347,7 +1343,7 @@ def worker(HOST, PORT):
                     # send own
 
                     # receive theirs
-                    segments = receive(s,10)
+                    segments = receive(s, 10)
                     mempool_merge(segments)
                     # receive theirs
 
@@ -1365,12 +1361,12 @@ def worker(HOST, PORT):
                 raise ValueError("Received a ping or empty packet")
 
             else:
-                raise ValueError("Unexpected error, received: "+data)
+                raise ValueError("Unexpected error, received: " + data)
 
         except Exception as e:
             # properly end the connection
             s.close()
-            #properly end the connection
+            # properly end the connection
 
             # remove from active pool
             if this_client in active_pool:
@@ -1379,7 +1375,7 @@ def worker(HOST, PORT):
             # remove from active pool
 
             # remove from consensus 2
-            if connected == 1: # if ever connected
+            if connected == 1:  # if ever connected
                 consensus_remove(consensus_ip)
             # remove from consensus 2
 
