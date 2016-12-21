@@ -840,12 +840,11 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
     def handle(self):  # server defined here
         while True:
             try:
-                peer_ip = str(self.request.getpeername()[0])
+                peer_ip = self.request.getpeername()[0]
                 consensus_ip = peer_ip
-
                 data = receive(self.request, 10)
 
-                app_log.info("Incoming: Received: " + data + " from " + str(peer_ip))  # will add custom ports later
+                app_log.info("Incoming: Received: " + str(data) + " from " + str(peer_ip))  # will add custom ports later
 
                 if data == 'version':
                     data = receive(self.request, 10)
