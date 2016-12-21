@@ -957,7 +957,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     # consensus pool 1 (connection from them)
                     consensus_ip = self.request.getpeername()[0]
                     consensus_blockheight = int(received_block_height)  # str int to remove leading zeros
-                    consensus_add(consensus_ip, consensus_blockheight, "none")
+                    consensus_add(consensus_ip, consensus_blockheight)
                     # consensus pool 1 (connection from them)
 
                     conn = sqlite3.connect('ledger.db')
@@ -1000,7 +1000,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         # confirm you know that hash or continue receiving
 
                     if update_me == 0:  # update them if update_me is 0
-
                         data = receive(self.request,10)  # receive client's last block_hash
                         # send all our followup hashes
 
@@ -1247,21 +1246,21 @@ def worker(HOST, PORT):
 
                     # consensus pool 2 (active connection)
                     consensus_blockheight = int(received_block_height)  # str int to remove leading zeros
-                    consensus_add(consensus_ip, consensus_blockheight, "none")
+                    consensus_add(consensus_ip, consensus_blockheight)
                     # consensus pool 2 (active connection)
 
                     # receive their latest hash
                     # confirm you know that hash or continue receiving
 
                 if update_me == 0:  # update them if update_me is 0
-                    data = receive(s,56)  # receive client's last block_hash
+                    data = receive(s,10)  # receive client's last block_hash
 
                     # send all our followup hashes
                     app_log.info("Client: Will seek the following block: " + str(data))
 
                     # consensus pool 2 (active connection)
                     consensus_blockheight = int(received_block_height)  # str int to remove leading zeros
-                    consensus_add(consensus_ip, consensus_blockheight, data)
+                    consensus_add(consensus_ip, consensus_blockheight)
                     # consensus pool 2 (active connection)
 
                     conn = sqlite3.connect('ledger.db')
