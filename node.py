@@ -61,24 +61,20 @@ def send(sdef, data):
 
 
 def receive(sdef, slen):
-    # receive theirs
-    try:
-        data = int(sdef.recv(slen))  # receive length
+    data = int(sdef.recv(slen))  # receive length
     # print "To receive: "+str(data)
 
-        chunks = []
-        bytes_recd = 0
-        while bytes_recd < data:
-            chunk = sdef.recv(min(data - bytes_recd, 2048))
-            if chunk == b'':
-                raise RuntimeError("socket connection broken")
-            chunks.append(chunk)
-            bytes_recd = bytes_recd + len(chunk)
-        segments = b''.join(chunks)
-        # print "Received segments: "+str(segments)
-        return segments
-    except Exception as e:
-        app_log.info("Socket issue: "+str(e))
+    chunks = []
+    bytes_recd = 0
+    while bytes_recd < data:
+        chunk = sdef.recv(min(data - bytes_recd, 2048))
+        if chunk == b'':
+            raise RuntimeError("socket connection broken")
+        chunks.append(chunk)
+        bytes_recd = bytes_recd + len(chunk)
+    segments = b''.join(chunks)
+    # print "Received segments: "+str(segments)
+    return segments
 
 gc.enable()
 
@@ -842,7 +838,11 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             try:
                 peer_ip = self.request.getpeername()[0]
                 consensus_ip = peer_ip
-                data = receive(self.request, 10)
+
+                try:
+                    data = receive(self.request, 10)
+                except:
+                    data = "ping"
 
                 app_log.info("Incoming: Received: " + str(data) + " from " + str(peer_ip))  # will add custom ports later
 
@@ -905,6 +905,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         peer_test = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                         peer_test.connect((str(peer_ip), int(str(port))))  # double parentheses mean tuple
                         app_log.info("Incoming: Distant peer connectible")
+
                         # properly end the connection
                         peer_test.close()
                         # properly end the connection
@@ -1072,8 +1073,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     # app_log.info("Incoming: Combined mined segments: " + segments)
                     digest_block(segments)
                     # receive theirs
-                elif data == "":
-                    raise ValueError("Received a ping or empty packet")
+
+                elif data == "ping":
+                    app_log.info("Incoming: Received: " + str(data) + " from " + str(peer_ip))
+                    break
 
                 else:
                     raise ValueError("Unexpected error, received: " + str(data))
@@ -1125,6 +1128,7 @@ def worker(HOST, PORT):
 
                 send(s, (str(len("version"))).zfill(10))
                 send(s, "version")
+
                 send(s, (str(len(version))).zfill(10))
                 send(s, version)
 
@@ -1161,7 +1165,6 @@ def worker(HOST, PORT):
                     extension = re.findall("'([\d\.]+)', '([\d]+)'", line)
                     peer_tuples.extend(extension)
                 peer_file.close()
-                app_log.info(peer_tuples)
                 # get local peers into tuples
 
                 for x in server_peer_tuples:
@@ -1356,8 +1359,9 @@ def worker(HOST, PORT):
                 send(s, (str(len("sendsync"))).zfill(10))
                 send(s, "sendsync")
 
-            elif data == "":
-                raise ValueError("Received a ping or empty packet")
+            elif data == "ping":
+                app_log.info("Outgoing: Received ping")
+                break
 
             else:
                 raise ValueError("Unexpected error, received: " + data)
