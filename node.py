@@ -71,9 +71,9 @@ def receive(sdef, count):
 def send(sdef, data):
     sdef.sendall(data)
 
-def receive_chunks(sdef):
+def receive_chunks(sdef, slen):
     # receive theirs
-    data = int(receive(sdef, 10))  # receive length
+    data = int(receive(sdef, slen))  # receive length
 
     chunks = []
     bytes_recd = 0
@@ -862,7 +862,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 elif data == 'mempool____':
 
                     # receive theirs
-                    segments = receive_chunks(self.request)
+                    segments = receive_chunks(self.request,10)
 
                     if segments != "[]":
                         mempool_merge(segments)
@@ -948,7 +948,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     app_log.info("Node: Client has the block")  # node should start sending txs in this step
 
                     # receive theirs
-                    segments = receive_chunks(self.request)
+                    segments = receive_chunks(self.request,10)
 
                     #app_log.info("Node: Combined segments: " + segments)
                     digest_block(segments)
@@ -1095,7 +1095,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                 elif data == "block______":  # from miner
                     # receive theirs
-                    segments = receive_chunks(self.request)
+                    segments = receive_chunks(self.request,10)
 
                     #app_log.info("Node: Combined mined segments: " + segments)
                     digest_block(segments)
@@ -1356,7 +1356,7 @@ def worker(HOST, PORT):
                 app_log.info("Client: Node has the block")  # node should start sending txs in this step
 
                 # receive theirs
-                segments = receive_chunks(s)
+                segments = receive_chunks(s,10)
 
                 #app_log.info("Node: Combined segments: " + segments)
                 digest_block(segments)
@@ -1398,7 +1398,7 @@ def worker(HOST, PORT):
                 # send own
 
                 # receive theirs
-                segments = receive_chunks(s)
+                segments = receive_chunks(s,10)
 
                 if segments != "[]":
                     mempool_merge(segments)
