@@ -62,6 +62,9 @@ def send(sdef, data):
 def receive(sdef, slen):
     # receive theirs
     data = int(sdef.recv(slen))  # receive length
+
+    print "To receive: "+str(data)
+
     chunks = []
     bytes_recd = 0
     while bytes_recd < data:
@@ -71,6 +74,9 @@ def receive(sdef, slen):
         chunks.append(chunk)
         bytes_recd = bytes_recd + len(chunk)
     segments = b''.join(chunks)
+
+    print "Received segments: "+str(segments)
+
     return segments
     # receive theirs
 
@@ -396,7 +402,7 @@ def blocknf(block_hash_delete):
         # delete followups
 
 
-def consensus_add(consensus_ip, consensus_blockheight, consensus_hash):
+def consensus_add(consensus_ip, consensus_blockheight):
     global consensus_ip_list
     global consensus_blockheight_list
     global consensus_percentage
@@ -999,6 +1005,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         # receive their latest hash
                         # confirm you know that hash or continue receiving
 
+                    print update_me
                     if update_me == 0:  # update them if update_me is 0
                         data = receive(self.request,10)  # receive client's last block_hash
                         # send all our followup hashes
@@ -1252,6 +1259,7 @@ def worker(HOST, PORT):
                     # receive their latest hash
                     # confirm you know that hash or continue receiving
 
+                print update_me
                 if update_me == 0:  # update them if update_me is 0
                     data = receive(s,10)  # receive client's last block_hash
 
