@@ -26,6 +26,11 @@ class index:
         conn = sqlite3.connect('./ledger.db')
         c = conn.cursor()
 
+        c.execute("SELECT block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")
+        result = c.fetchall()
+        last_block_height = result[0][0]
+        last_timestamp = result[0][1]
+
         c.execute("select * from transactions where openfield = '" + base64.b64encode("odd") + "' OR openfield = '" + base64.b64encode("even") + "' and recipient = '" + address + "' ORDER BY block_height DESC, timestamp DESC LIMIT 100;")
         result_bets = c.fetchall()
         view_bets = []
@@ -83,7 +88,6 @@ class index:
                 view_payouts.append("<tr>")
 
         c.close()
-
         html = "<!DOCTYPE html>" \
                "<html>" \
                "<link rel = 'icon' href = 'static/zircodice.ico' type = 'image/x-icon' / >" \
@@ -95,12 +99,13 @@ class index:
                "<TITLE>ZircoDice</TITLE>" \
                "<body><body background="'static/bg.jpg'"><center>" \
                "<h1>Welcome to ZircoDice</h1>" \
-               "<p>Please send any amount of coins lower than 100 to the address <strong>"+address+"</strong> and include the word '<strong>even</strong>' or '<strong>odd</strong>' in the OpenField data.<br> You are betting on the last number in the block hash where your bet is included. 0 is considered an odd number.<br>If you win, you will receive 2x your bet.</p>" \
+               "<p>Please send any amount of coins lower than 1000 to the address <strong>"+address+"</strong> and include the word '<strong>even</strong>' or '<strong>odd</strong>' in the OpenField data.<br> You are betting on the last number in the block hash where your bet is included. 0 is considered an odd number.<br>If you win, you will receive 2x your bet.</p>" \
                "<br>" \
                "<h1>Bets</h1>" \
                "<table style='width:100%'>"+ str(''.join(view_bets))+"</table>" \
                "<h1>Payouts</h1>" \
                "<table style='width:100%'>" + str(''.join(view_payouts)) + "</table>" \
+               "<p>We are currently at block " + str(last_block_height) + " from " + str(time.strftime("%Y/%m/%d,%H:%M:%S", time.localtime(float(last_timestamp)))) +" ("+str(int((time.time() - float(last_timestamp))/60))+" minutes ago)</p>" \
                "</body>" \
                "</html>"
 
