@@ -65,7 +65,7 @@ class index:
             view_bets.append("<td>" + str(x[4]) + "</td>") #amount
             view_bets.append("<td>" + str(base64.b64decode(x[11])) + "</td>")
             view_bets.append("<td>" + result + "</td>")
-            view_bets.append("<tr>")
+            view_bets.append("</tr>")
 
         c.execute("select * from transactions where address = '" + address + "' ORDER BY block_height DESC, timestamp DESC LIMIT 100;")
         result_payouts = c.fetchall()
@@ -85,7 +85,7 @@ class index:
                 view_payouts.append("<td>" + str(x[3]) + "</td>")  #player
                 view_payouts.append("<td>" + str(x[7]) + "</td>") #block hash
                 view_payouts.append("<td>" + str(x[4]) + "</td>") #amount
-                view_payouts.append("<tr>")
+                view_payouts.append("</tr>")
 
         c.close()
         html = "<!DOCTYPE html>" \
