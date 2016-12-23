@@ -165,10 +165,13 @@ def mempool_merge(data):
                     pass
 
                 if (mempool_in == 1) and (ledger_in == 1):  # remove from mempool if it's in both ledger and mempool already
-                    m.execute("DELETE * FROM transactions WHERE signature = '" + mempool_signature_enc + "'")
-                    mempool.commit()
-                    app_log.info("Transaction deleted from our mempool")
-
+                    try:
+                        m.execute("DELETE * FROM transactions WHERE signature = '" + mempool_signature_enc + "'")
+                        mempool.commit()
+                        app_log.info("Transaction deleted from our mempool")
+                    except: #experimental try and except
+                        app_log.info("Transaction was not present in the pool anymore")
+                        pass #continue to mempool finished message
                 if acceptable == 1:
                     # verify signatures and balances
                     # verify balance
