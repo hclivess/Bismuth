@@ -47,13 +47,13 @@ class index:
             #print openfield
             digit_last = int((re.findall("(\d)", block_hash))[-1])
             if (digit_last % 2 == 0) and (openfield == base64.b64encode("odd")): #if bets odd and wins
-                cell_color = "green"
+                cell_color = "#990000"
                 result = "win"
             elif (digit_last % 2 != 0) and (openfield == base64.b64encode("even")): #if bets even and wins
-                cell_color = "green"
+                cell_color = "#009900"
                 result = "win"
             else:
-                cell_color = "red"
+                cell_color = "#cc0000"
                 result = "loss"
 
             view_bets.append("<tr bgcolor="+cell_color+">")
