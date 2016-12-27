@@ -276,7 +276,7 @@ def refresh():
 
 #network status
     last_block_ago = float(time_now) - float(db_timestamp_last)
-    if last_block_ago > 120:
+    if last_block_ago > 300:
         sync_msg = str(int(last_block_ago/60))+"m behind"
         sync_msg_label.config(fg='red')
     else:
