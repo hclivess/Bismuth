@@ -55,25 +55,25 @@ def bin_convert(string):
     return ''.join(format(ord(x), 'b') for x in string)
 
 def send(sdef, data):
-    sdef.settimeout(30)
     sdef.sendall(data)
-    sdef.settimeout(None)
 
 def receive(sdef, slen):
-    sdef.settimeout(30)
-    data = int(sdef.recv(slen))  # receive length
-    # print "To receive: "+str(data)
+    ready = select.select([sdef], [], [], 30)
+    if ready[0]:
+        data = int(sdef.recv(slen))  # receive length
+        # print "To receive: "+str(data)
 
     chunks = []
     bytes_recd = 0
     while bytes_recd < data:
-        chunk = sdef.recv(min(data - bytes_recd, 2048))
-        if chunk == b'':
-            raise RuntimeError("socket connection broken")
-        chunks.append(chunk)
-        bytes_recd = bytes_recd + len(chunk)
+        ready = select.select([sdef], [], [], 30)
+        if ready[0]:
+            chunk = sdef.recv(min(data - bytes_recd, 2048))
+            if chunk == b'':
+                raise RuntimeError("socket connection broken")
+            chunks.append(chunk)
+            bytes_recd = bytes_recd + len(chunk)
     segments = b''.join(chunks)
-    sdef.settimeout(None)
     # print "Received segments: "+str(segments)
 
     return segments
