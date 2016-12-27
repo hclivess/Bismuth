@@ -278,8 +278,10 @@ def refresh():
     last_block_ago = float(time_now) - float(db_timestamp_last)
     if last_block_ago > 120:
         sync_msg = str(int(last_block_ago/60))+"m behind"
+        sync_msg_label.config(fg='red')
     else:
         sync_msg = "Up to date"
+        sync_msg_label.config(fg='green')
 
 #network status
 
@@ -326,40 +328,41 @@ quit_b.grid(row=13, column=0, sticky=W+E+S, pady=4,padx=15)
 
 # update balance label
 balance_var = StringVar()
-balance_msg = Label(f5, textvariable=balance_var)
-balance_msg.grid(row=0, column=0, sticky=N+E, padx=15, pady=(15, 0))
+balance_msg_label = Label(f5, textvariable=balance_var)
+balance_msg_label.grid(row=0, column=0, sticky=N+E, padx=15, pady=(15, 0))
 
 debit_var = StringVar()
-spent_msg = Label(f5, textvariable=debit_var)
-spent_msg.grid(row=1, column=0, sticky=N+E, padx=15)
+spent_msg_label = Label(f5, textvariable=debit_var)
+spent_msg_label.grid(row=1, column=0, sticky=N+E, padx=15)
 
 credit_var = StringVar()
-received_msg = Label(f5, textvariable=credit_var)
-received_msg.grid(row=2, column=0, sticky=N+E, padx=15)
+received_msg_label = Label(f5, textvariable=credit_var)
+received_msg_label.grid(row=2, column=0, sticky=N+E, padx=15)
 
 fees_var = StringVar()
-fees_paid_msg = Label(f5, textvariable=fees_var)
-fees_paid_msg.grid(row=3, column=0, sticky=N+E, padx=15)
+fees_paid_msg_label = Label(f5, textvariable=fees_var)
+fees_paid_msg_label.grid(row=3, column=0, sticky=N+E, padx=15)
 
 rewards_var = StringVar()
-rewards_paid_msg = Label(f5, textvariable=rewards_var)
-rewards_paid_msg.grid(row=4, column=0, sticky=N+E, padx=15)
+rewards_paid_msg_label = Label(f5, textvariable=rewards_var)
+rewards_paid_msg_label.grid(row=4, column=0, sticky=N+E, padx=15)
 
 fees_current_var = StringVar()
-fees_to_pay_msg = Label(f5, textvariable=fees_current_var)
-fees_to_pay_msg.grid(row=5, column=0, sticky=N+E, padx=15)
+fees_to_pay_msg_label = Label(f5, textvariable=fees_current_var)
+fees_to_pay_msg_label.grid(row=5, column=0, sticky=N+E, padx=15)
 
 bl_height_var = StringVar()
-block_height = Label(f5, textvariable=bl_height_var)
-block_height.grid(row=6, column=0, sticky=N+E, padx=15)
+block_height_label = Label(f5, textvariable=bl_height_var)
+block_height_label.grid(row=6, column=0, sticky=N+E, padx=15)
 
 diff_msg_var = StringVar()
-diff_msg = Label(f5, textvariable=diff_msg_var)
-diff_msg.grid(row=7, column=0, sticky=N+E, padx=15)
+diff_msg_label = Label(f5, textvariable=diff_msg_var)
+diff_msg_label.grid(row=7, column=0, sticky=N+E, padx=15)
 
 sync_msg_var = StringVar()
-sync_msg = Label(f5, textvariable=sync_msg_var)
-sync_msg.grid(row=8, column=0, sticky=N+E, padx=15)
+sync_msg_label = Label(f5, textvariable=sync_msg_var)
+sync_msg_label.grid(row=8, column=0, sticky=N+E, padx=15)
+
 
 def table():
 
