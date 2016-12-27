@@ -47,7 +47,6 @@ for line in lines:
 
 version = version_conf
 
-
 def most_common(lst):
     return max(set(lst), key=lst.count)
 
@@ -55,12 +54,12 @@ def most_common(lst):
 def bin_convert(string):
     return ''.join(format(ord(x), 'b') for x in string)
 
-
 def send(sdef, data):
+    sdef.settimeout(10)
     sdef.sendall(data)
 
-
 def receive(sdef, slen):
+    sdef.settimeout(10)
     data = int(sdef.recv(slen))  # receive length
     # print "To receive: "+str(data)
 
