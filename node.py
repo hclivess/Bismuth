@@ -55,12 +55,12 @@ def bin_convert(string):
     return ''.join(format(ord(x), 'b') for x in string)
 
 def send(sdef, data):
-    sdef.settimeout(10)
+    sdef.settimeout(30)
     sdef.sendall(data)
     sdef.settimeout(None)
 
 def receive(sdef, slen):
-    sdef.settimeout(10)
+    sdef.settimeout(30)
     data = int(sdef.recv(slen))  # receive length
     # print "To receive: "+str(data)
 
