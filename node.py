@@ -55,9 +55,11 @@ def bin_convert(string):
     return ''.join(format(ord(x), 'b') for x in string)
 
 def send(sdef, data):
+    sdef.setblocking(0) #does this work?
     sdef.sendall(data)
 
 def receive(sdef, slen):
+    sdef.setblocking(0) #does this work?
     ready = select.select([sdef], [], [], 30)
     if ready[0]:
         data = int(sdef.recv(slen))  # receive length
@@ -286,6 +288,7 @@ def purge_old_peers():
 
             try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                #s.setblocking(0)
                 s.connect((HOST, PORT))
                 s.close()
             except:
@@ -907,6 +910,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     try:
                         app_log.info("Testing connectivity to: " + str(peer_ip))
                         peer_test = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        #peer_test.setblocking(0)
                         peer_test.connect((str(peer_ip), int(str(port))))  # double parentheses mean tuple
                         app_log.info("Incoming: Distant peer connectible")
 
@@ -1108,7 +1112,7 @@ def worker(HOST, PORT):
     try:
         this_client = (HOST + ":" + str(PORT))
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
+        #s.setblocking(0)
         s.connect((HOST, PORT))
         app_log.info("Outgoing: Connected to " + this_client)
 
@@ -1176,6 +1180,7 @@ def worker(HOST, PORT):
                         app_log.info("Outgoing: " + str(x) + " is a new peer, saving if connectible")
                         try:
                             s_purge = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                            #s_purge = s.setblocking(0)
                             s_purge.connect((HOST[x], PORT[x]))  # save a new peer file with only active nodes
 
                             s_purge.close()
