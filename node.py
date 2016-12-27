@@ -55,12 +55,12 @@ def bin_convert(string):
     return ''.join(format(ord(x), 'b') for x in string)
 
 def send(sdef, data):
-    #sdef.setblocking(0) #needs adjustments in core mechanics
+    sdef.setblocking(0) #needs adjustments in core mechanics
     sdef.sendall(data)
 
 def receive(sdef, slen):
-    #sdef.setblocking(0) #needs adjustments in core mechanics
-    ready = select.select([sdef], [], [], 30)
+    sdef.setblocking(0) #needs adjustments in core mechanics
+    ready = select.select([sdef], [], [], 60)
     if ready[0]:
         data = int(sdef.recv(slen))  # receive length
         # print "To receive: "+str(data)
@@ -71,7 +71,7 @@ def receive(sdef, slen):
     chunks = []
     bytes_recd = 0
     while bytes_recd < data:
-        ready = select.select([sdef], [], [], 30)
+        ready = select.select([sdef], [], [], 60)
         if ready[0]:
             chunk = sdef.recv(min(data - bytes_recd, 2048))
             if chunk == b'':
