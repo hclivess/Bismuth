@@ -65,7 +65,7 @@ def receive(sdef, slen):
         data = int(sdef.recv(slen))  # receive length
         # print "To receive: "+str(data)
     else:
-        print "uh oh"
+        raise RuntimeError("Socket timeout")
 
 
     chunks = []
@@ -75,11 +75,11 @@ def receive(sdef, slen):
         if ready[0]:
             chunk = sdef.recv(min(data - bytes_recd, 2048))
             if chunk == b'':
-                raise RuntimeError("socket connection broken")
+                raise RuntimeError("Socket connection broken")
             chunks.append(chunk)
             bytes_recd = bytes_recd + len(chunk)
         else:
-            print "uh oh"
+            raise RuntimeError("Socket timeout")
     segments = b''.join(chunks)
     # print "Received segments: "+str(segments)
 
