@@ -64,6 +64,9 @@ def receive(sdef, slen):
     if ready[0]:
         data = int(sdef.recv(slen))  # receive length
         # print "To receive: "+str(data)
+    else:
+        print "uh oh"
+
 
     chunks = []
     bytes_recd = 0
@@ -75,6 +78,8 @@ def receive(sdef, slen):
                 raise RuntimeError("socket connection broken")
             chunks.append(chunk)
             bytes_recd = bytes_recd + len(chunk)
+        else:
+            print "uh oh"
     segments = b''.join(chunks)
     # print "Received segments: "+str(segments)
 
