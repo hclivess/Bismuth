@@ -274,6 +274,15 @@ def refresh():
 
     diff_msg = diff
 
+#network status
+    last_block_ago = float(time_now) - float(db_timestamp_last)
+    if last_block_ago > 120:
+        sync_msg = str(int(last_block_ago/60))+"m behind"
+    else:
+        sync_msg = "Up to date"
+
+#network status
+
     fees_current_var.set("Current Fee: " + str('%f' % (fee)))
     balance_var.set("Balance: " + str(round(balance,2)))
     debit_var.set("Spent Total: " + str(round(debit,2)))
@@ -282,6 +291,7 @@ def refresh():
     rewards_var.set("Rewards: " + str(round(rewards, 2)))
     bl_height_var.set("Block Height: " + str(bl_height))
     diff_msg_var.set("Mining Difficulty: " + str(round(diff_msg,2)))
+    sync_msg_var.set("Network: " + str(sync_msg))
 
     conn.close()
     table()
@@ -293,22 +303,22 @@ def refresh():
 #buttons
 
 send_b = Button(f5, text="Send Bismuth", command=send, height=1, width=15)
-send_b.grid(row=7, column=0, sticky=W+E+S, pady=(100, 4), padx=15)
+send_b.grid(row=9, column=0, sticky=W+E+S, pady=(100, 4), padx=15)
 
 if "posix" not in os.name:
     start_b = Button(f5, text="Generate QR Code", command=qr, height=1, width=15)
 else:
     start_b = Button(f5, text="Generate QR Code", command=qr, height=1, width=15, state=DISABLED)
-start_b.grid(row=8, column=0, sticky=W+E+S, pady=4,padx=15,columnspan=4)
+start_b.grid(row=10, column=0, sticky=W+E+S, pady=4,padx=15,columnspan=4)
 
 balance_b = Button(f5, text="Manual Refresh", command=refresh, height=1, width=15)
-balance_b.grid(row=9, column=0, sticky=W+E+S, pady=4,padx=15)
+balance_b.grid(row=11, column=0, sticky=W+E+S, pady=4,padx=15)
 
 sign_b = Button(f5, text="Sign Message", command=sign, height=1, width=15)
-sign_b.grid(row=10, column=0, sticky=W+E+S, pady=4,padx=15)
+sign_b.grid(row=12, column=0, sticky=W+E+S, pady=4,padx=15)
 
 quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=15)
-quit_b.grid(row=11, column=0, sticky=W+E+S, pady=4,padx=15)
+quit_b.grid(row=13, column=0, sticky=W+E+S, pady=4,padx=15)
 
 #buttons
 
@@ -346,6 +356,10 @@ block_height.grid(row=6, column=0, sticky=N+E, padx=15)
 diff_msg_var = StringVar()
 diff_msg = Label(f5, textvariable=diff_msg_var)
 diff_msg.grid(row=7, column=0, sticky=N+E, padx=15)
+
+sync_msg_var = StringVar()
+sync_msg = Label(f5, textvariable=sync_msg_var)
+sync_msg.grid(row=8, column=0, sticky=N+E, padx=15)
 
 def table():
 
