@@ -57,6 +57,7 @@ def bin_convert(string):
 def send(sdef, data):
     sdef.settimeout(10)
     sdef.sendall(data)
+    sdef.settimeout(None)
 
 def receive(sdef, slen):
     sdef.settimeout(10)
@@ -72,7 +73,9 @@ def receive(sdef, slen):
         chunks.append(chunk)
         bytes_recd = bytes_recd + len(chunk)
     segments = b''.join(chunks)
+    sdef.settimeout(None)
     # print "Received segments: "+str(segments)
+
     return segments
 
 gc.enable()
