@@ -55,11 +55,11 @@ def bin_convert(string):
     return ''.join(format(ord(x), 'b') for x in string)
 
 def send(sdef, data):
-    sdef.setblocking(0) #does this work?
+    #sdef.setblocking(0) #does this work?
     sdef.sendall(data)
 
 def receive(sdef, slen):
-    sdef.setblocking(0) #does this work?
+    #sdef.setblocking(0) #does this work?
     ready = select.select([sdef], [], [], 30)
     if ready[0]:
         data = int(sdef.recv(slen))  # receive length
