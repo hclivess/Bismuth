@@ -873,7 +873,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     mempool_txs = m.fetchall()
 
                     # send own
-                    app_log.info("Incoming: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
+                    #app_log.info("Incoming: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
 
                     if len(mempool_txs) > 0:
                         send(self.request, (str(len(str(mempool_txs)))).zfill(10))
@@ -1033,7 +1033,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                             block_hash_client_block) + 1) + "'")  # select incoming transaction + 1, only columns that need not be verified
                                 block_send = c.fetchall()
 
-                                app_log.info("Incoming: Selected " + str(block_send) + " to send")
+                                #app_log.info("Incoming: Selected " + str(block_send) + " to send")
 
                                 conn.close()
                                 send(self.request, (str(len("blockfound"))).zfill(10))
@@ -1277,7 +1277,7 @@ def worker(HOST, PORT):
                             block_send = c.fetchall()
                             conn.close()
 
-                            app_log.info("Outgoing: Selected " + str(block_send) + " to send")
+                            #app_log.info("Outgoing: Selected " + str(block_send) + " to send")
 
                             send(s, (str(len("blockfound"))).zfill(10))
                             send(s, "blockfound")
@@ -1334,7 +1334,7 @@ def worker(HOST, PORT):
                 m.execute('SELECT * FROM transactions')
                 mempool_txs = m.fetchall()
 
-                app_log.info("Outgoing: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
+                #app_log.info("Outgoing: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
 
                 if len(mempool_txs) > 0:
                     send(s, (str(len("mempool"))).zfill(10))
