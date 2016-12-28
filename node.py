@@ -848,9 +848,8 @@ app_log.info("Starting up...")
 class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
     def handle(self):  # server defined here
         while True:
+            peer_ip = self.request.getpeername()[0]
             try:
-                peer_ip = self.request.getpeername()[0]
-
                 try:
                     data = receive(self.request, 10)
                 except:
@@ -1132,10 +1131,9 @@ def worker(HOST, PORT):
     first_run = 1
 
     while True:
+        peer_ip = s.getpeername()[0]
         try:
             # communication starter
-            peer_ip = s.getpeername()[0]
-
             if first_run == 1:
                 first_run = 0
 
@@ -1381,10 +1379,6 @@ def worker(HOST, PORT):
                 raise ValueError("Unexpected error, received: " + data)
 
         except Exception as e:
-            # properly end the connection
-            s.close()
-            # properly end the connection
-
             # remove from active pool
             if this_client in active_pool:
                 app_log.info("Will remove " + str(this_client) + " from active pool " + str(active_pool))
@@ -1397,6 +1391,12 @@ def worker(HOST, PORT):
 
             app_log.info("Connection to " + this_client + " terminated due to " + str(e))
             app_log.info("---thread " + str(threading.currentThread()) + " ended---")
+
+            # properly end the connection
+            if s:
+                s.close()
+            # properly end the connection
+
             if debug_conf == 1:
                 raise  # major debug client
             else:
