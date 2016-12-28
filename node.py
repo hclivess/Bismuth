@@ -1347,19 +1347,19 @@ def worker(HOST, PORT):
 
                 #app_log.info("Outgoing: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
 
-                if len(mempool_txs) > 0:
-                    send(s, (str(len("mempool"))).zfill(10))
-                    send(s, "mempool")
+                #if len(mempool_txs) > 0: #wont sync mempool until we send something, which is bad
+                send(s, (str(len("mempool"))).zfill(10))
+                send(s, "mempool")
 
-                    # send own
-                    send(s, (str(len(str(mempool_txs)))).zfill(10))
-                    send(s, str(mempool_txs))
-                    # send own
+                # send own
+                send(s, (str(len(str(mempool_txs)))).zfill(10))
+                send(s, str(mempool_txs))
+                # send own
 
-                    # receive theirs
-                    segments = receive(s, 10)
-                    mempool_merge(segments)
-                    # receive theirs
+                # receive theirs
+                segments = receive(s, 10)
+                mempool_merge(segments)
+                # receive theirs
 
                 # receive mempool
 
