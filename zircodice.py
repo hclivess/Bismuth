@@ -78,7 +78,7 @@ while True:
 
 
     for y in payout_missing:
-        if int(last_block_height) >= y[0] + 1:  # pay after + x blocks
+        if int(last_block_height) >= y[0] + 5:  # pay after + x blocks
             payout_address = y[2]
             print payout_address
             bet_amount = float(y[4])
