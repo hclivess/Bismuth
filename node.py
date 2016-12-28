@@ -885,10 +885,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     # send own
                     #app_log.info("Incoming: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
 
-                    if len(mempool_txs) > 0:
-                        send(self.request, (str(len(str(mempool_txs)))).zfill(10))
-                        send(self.request, str(mempool_txs))
-                        # send own
+                    #if len(mempool_txs) > 0: same as the other
+                    send(self.request, (str(len(str(mempool_txs)))).zfill(10))
+                    send(self.request, str(mempool_txs))
+                    # send own
 
                 elif data == 'hello':
                     with open("peers.txt", "r") as peer_list:
