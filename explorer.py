@@ -120,10 +120,7 @@ class index:
 
         c.close()
 
-        html = "<body><body background="'static/explorer_bg.png'"><center>" \
-               "<center><h1>Bismuth Transaction Explorer</h1></center>"+ str(''.join(plotter)) +"<table style='width:100%' bgcolor='white'><tr><td>Block</td><td>Timestamp</td><td>From</td><td>To</td><td>Amount</td><td>Block Hash</td><td>Fee</td><td>Reward</td><td>Confirmations</td></tr>" + str(''.join(view)) + \
-               "</table></body>" \
-               "</html>"
+        html = "<body><body background="'static/explorer_bg.png'"><center><center><h1>Bismuth Transaction Explorer</h1></center>"+ str(''.join(plotter)) +"<table style='width:100%' bgcolor='white'><tr><td>Block</td><td>Timestamp</td><td>From</td><td>To</td><td>Amount</td><td>Block Hash</td><td>Fee</td><td>Reward</td><td>Confirmations</td></tr>" + str(''.join(view)) +"</table></body></html>"
 
         return html
 
