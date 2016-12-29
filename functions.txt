@@ -1,19 +1,19 @@
-node (server) input functions:
+node (server/incoming) input functions:
 
-version____
-mempool____
-helloserver
-sendsync___
-blockfound_
+version
+mempool
+hello
+sendsync
+blockfound
 blockheight
-nonewblocks
-blocknotfou
-block______
+nonewblk
+blocknf
+block
 
-client (passive) input functions:
+client (passive/outgoing) input functions:
 
-peers______
-sync_______
-blocknotfou
-blockfound_
-nonewblocks
+peers
+sync
+blocknf
+blockfound
+nonewblk
