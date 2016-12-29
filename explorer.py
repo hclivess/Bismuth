@@ -33,59 +33,59 @@ class index:
             axis9.append(x[9])  # append reward
             axis10.append(x[10])  # append confirmations
 
-        output = "static/plotter.html"
-        f = open(output, 'w')
+        plotter = []
 
-        f.write('<!doctype html>\n')
-        f.write('<html>\n')
-        f.write('<head>\n')
-        f.write('<title>Line Chart</title>\n')
-        f.write('<script src="Chart.js"></script>\n')
-        f.write('<link rel="stylesheet" type="text/css" href="style.css">\n')
-        f.write('</head>\n')
-        f.write('<body bgcolor = "white">\n')
+        plotter.append('<!doctype html>\n')
+        plotter.append('<html>\n')
+        plotter.append('<link rel = "icon" href = "static/explorer.ico" type = "image/x-icon" / >\n')
+        plotter.append('<head>\n')
+        plotter.append('<meta http-equiv="refresh" content="60" >')
+        plotter.append('<link rel="stylesheet" type="text/css" href="static/style.css">')
+        plotter.append('<title>Transaction Explorer</title>\n')
+        plotter.append('<script src="static/Chart.js"></script>\n')
+        #plotter.append('<link rel="stylesheet" type="text/css" href="style.css">\n')
+        plotter.append('</head>\n')
+        plotter.append('<body bgcolor = "white">\n')
 
         # define canvas
-        f.write('<canvas id="canvas" height="150" width="600"></canvas>\n')
+        plotter.append('<canvas id="canvas" height="150" width="600"></canvas>\n')
         # define canvas
 
-        f.write('<script>\n')
+        plotter.append('<script>\n')
 
         # onload
-        f.write("var ctx = document.getElementById('canvas').getContext('2d');")
+        plotter.append("var ctx = document.getElementById('canvas').getContext('2d');")
         # onload
 
         # segment
-        f.write("var canvas = new Chart(ctx, {")
-        f.write("type: 'line',")
-        f.write("data: {")
-        f.write("labels: "+ str(map(str, axis0)) +",")
-        f.write("datasets: [{")
-        f.write("label: 'Timestamp progression',")
-        f.write("data: "+ str(map(str, axis1)) +",")
-        f.write("backgroundColor: 'rgba(153, 255, 51, 0.4)'")
-        f.write("}, {")
-        f.write("label: 'Spending in time',")
-        f.write("data: "+ str(map(str, axis4)) +",")
-        f.write("backgroundColor: 'rgba(255, 153, 0, 0.4)'")
-        f.write("}, {")
-        f.write("label: 'Fee in time',")
-        f.write("data: "+ str(map(str, axis8)) +",")
-        f.write("backgroundColor: 'rgba(63, 65, 191, 0.4)'")
-        f.write("}, {")
-        f.write("label: 'Reward in time',")
-        f.write("data: "+ str(map(str, axis9)) +",")
-        f.write("backgroundColor: 'rgba(189, 63, 191, 0.4)'")
-        f.write("}]")
-        f.write("}")
-        f.write("});")
+        plotter.append("var canvas = new Chart(ctx, {\n")
+        plotter.append("type: 'line',\n")
+        plotter.append("data: {\n")
+        plotter.append("labels: "+ str(map(str, axis0)) +",\n")
+        plotter.append("datasets: [{\n")
+        plotter.append("label: 'Timestamp progression',\n")
+        plotter.append("data: "+ str(map(str, axis1)) +",\n")
+        plotter.append("backgroundColor: 'rgba(153, 255, 51, 0.4)'\n")
+        plotter.append("}, {\n")
+        plotter.append("label: 'Spending in time',\n")
+        plotter.append("data: "+ str(map(str, axis4)) +",\n")
+        plotter.append("backgroundColor: 'rgba(255, 153, 0, 0.4)'\n")
+        plotter.append("}, {\n")
+        plotter.append("label: 'Fee in time',\n")
+        plotter.append("data: "+ str(map(str, axis8)) +",\n")
+        plotter.append("backgroundColor: 'rgba(63, 65, 191, 0.4)'\n")
+        plotter.append("}, {\n")
+        plotter.append("label: 'Reward in time',\n")
+        plotter.append("data: "+ str(map(str, axis9)) +",\n")
+        plotter.append("backgroundColor: 'rgba(189, 63, 191, 0.4)'\n")
+        plotter.append("}]\n")
+        plotter.append("}\n")
+        plotter.append("});\n")
         # segment
 
-        f.write('</script>\n')
-        f.write('</body>\n')
-        f.write('</html>')
-
-        f.close()
+        plotter.append('</script>\n')
+        plotter.append('</body>\n')
+        plotter.append('</html>')
         # redraw chart
 
         conn = sqlite3.connect('./ledger.db')
@@ -118,17 +118,8 @@ class index:
 
         c.close()
 
-        html = "<!DOCTYPE html>" \
-               "<html>" \
-               "<link rel = 'icon' href = 'static/explorer.ico' type = 'image/x-icon' / >" \
-               "<head>" \
-               "<meta http-equiv='refresh' content='60' >" \
-               "<link rel='stylesheet' type='text/css' href='static/style.css'>" \
-               "</head>" \
-               "<META http-equiv='cache-control' content='no-cache'>" \
-               "<TITLE>Transaction Explorer</TITLE>" \
-               "<body><body background="'static/explorer_bg.png'"><center>" \
-               "<center><h1>Bismuth Transaction Explorer</h1></center><iframe src='static/plotter.html' width='100%' height='550'></iframe><table style='width:100%' bgcolor='white'><tr><td>Block</td><td>Timestamp</td><td>From</td><td>To</td><td>Amount</td><td>Block Hash</td><td>Fee</td><td>Reward</td><td>Confirmations</td></tr>" + str(''.join(view)) + \
+        html = "<body><body background="'static/explorer_bg.png'"><center>" \
+               "<center><h1>Bismuth Transaction Explorer</h1></center>"+ str(''.join(plotter)) +"<table style='width:100%' bgcolor='white'><tr><td>Block</td><td>Timestamp</td><td>From</td><td>To</td><td>Amount</td><td>Block Hash</td><td>Fee</td><td>Reward</td><td>Confirmations</td></tr>" + str(''.join(view)) + \
                "</table></body>" \
                "</html>"
 
