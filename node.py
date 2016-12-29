@@ -1364,10 +1364,6 @@ def worker(HOST, PORT):
                 send(s, (str(len("sendsync"))).zfill(10))
                 send(s, "sendsync")
 
-            elif data == "ping":
-                app_log.info("Outgoing: Received ping")
-                break
-
             else:
                 raise ValueError("Unexpected error, received: " + data)
 
