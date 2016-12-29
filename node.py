@@ -850,10 +850,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         while True:
             peer_ip = self.request.getpeername()[0]
             try:
-                try:
-                    data = receive(self.request, 10)
-                except:
-                    data = "ping"
+                data = receive(self.request, 10)
 
                 app_log.info("Incoming: Received: " + str(data) + " from " + str(peer_ip))  # will add custom ports later
 
@@ -1085,10 +1082,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     # app_log.info("Incoming: Combined mined segments: " + segments)
                     digest_block(segments)
                     # receive theirs
-
-                elif data == "ping":
-                    app_log.info("Incoming: Received: " + str(data) + " from " + str(peer_ip))
-                    break
 
                 else:
                     raise ValueError("Unexpected error, received: " + str(data))
