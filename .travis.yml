@@ -3,10 +3,9 @@ python:
   - "2.7"
 cache: pip
 install:
-  - pip install pillow pyqrcode pypng pyinstaller web.py matplotlib pycrypto
+  - pip install pillow pyqrcode pypng pyinstaller web.py pycrypto
 script: 
   - pyinstaller --uac-admin --onefile --noconsole --log-level=INFO gui.py --icon=graphics\icon.ico
   - pyinstaller --uac-admin --onefile --log-level=INFO node.py --icon=graphics\icon.ico
   - pyinstaller --uac-admin --onefile --log-level=INFO miner.py --icon=graphics\icon.ico
   - pyinstaller --uac-admin --onefile --log-level=INFO explorer.py --icon=graphics\icon.ico --hidden-import=explorer
-  - pyinstaller --uac-admin --onefile --log-level=INFO plotter_html.py --icon=graphics\icon.ico
