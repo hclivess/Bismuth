@@ -45,22 +45,8 @@ class index:
         f.write('</head>\n')
         f.write('<body bgcolor = "white">\n')
 
-
         # define canvas
-        f.write("<h1>Timestamp progression</h1>")
         f.write('<canvas id="canvas" height="150" width="600"></canvas>\n')
-
-        f.write("<h1>Spending in time</h1>")
-        f.write('<canvas id="canvas2" height="150" width="600"></canvas>\n')
-
-        f.write("<h1>Fee in time</h1>")
-        f.write('<canvas id="canvas3" height="150" width="600"></canvas>\n')
-
-        f.write("<h1>Reward in time</h1>")
-        f.write('<canvas id="canvas4" height="150" width="600"></canvas>\n')
-
-        f.write("<h1>Confirmations per block</h1>")
-        f.write('<canvas id="canvas5" height="150" width="600"></canvas>\n')
         # define canvas
 
         f.write('<script>\n')
@@ -73,15 +59,23 @@ class index:
         f.write("var canvas = new Chart(ctx, {")
         f.write("type: 'line',")
         f.write("data: {")
-        f.write("labels: ['M', 'T', 'W', 'T', 'F', 'S', 'S'],")
+        f.write("labels: "+ str(map(str, axis0)) +",")
         f.write("datasets: [{")
-        f.write("label: 'apples',")
-        f.write("data: [12, 19, 3, 17, 6, 3, 7],")
+        f.write("label: 'Timestamp progression',")
+        f.write("data: "+ str(map(str, axis1)) +",")
         f.write("backgroundColor: 'rgba(153, 255, 51, 0.4)'")
         f.write("}, {")
-        f.write("label: 'oranges',")
-        f.write("data: [2, 29, 5, 5, 2, 3, 10],")
+        f.write("label: 'Spending in time',")
+        f.write("data: "+ str(map(str, axis4)) +",")
         f.write("backgroundColor: 'rgba(255, 153, 0, 0.4)'")
+        f.write("}, {")
+        f.write("label: 'Fee in time',")
+        f.write("data: "+ str(map(str, axis8)) +",")
+        f.write("backgroundColor: 'rgba(63, 65, 191, 0.4)'")
+        f.write("}, {")
+        f.write("label: 'Reward in time',")
+        f.write("data: "+ str(map(str, axis9)) +",")
+        f.write("backgroundColor: 'rgba(189, 63, 191, 0.4)'")
         f.write("}]")
         f.write("}")
         f.write("});")
