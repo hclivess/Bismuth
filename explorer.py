@@ -25,9 +25,8 @@ class index:
 
         i = 1
         for x in all:
-            axis0.append(x[0])  # append timestamp
-            axis1.append(x[1])  # append block height
-
+            axis0.append(x[0])  # append block height
+            axis1.append(x[1])  # append timestamp
             axis4.append(x[4])  # append amount
             axis8.append(x[8])  # append fee
             axis9.append(x[9])  # append reward
