@@ -77,8 +77,11 @@ while True:
     last_block_height = c.fetchone()[0]
 
 
+    processed = []
     for y in payout_missing:
-        if int(last_block_height) >= y[0] + 5:  # pay after + x blocks
+        if y not in processed:
+            processed.append(y)
+
             payout_address = y[2]
             print payout_address
             bet_amount = float(y[4])
