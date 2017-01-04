@@ -543,7 +543,7 @@ def digest_block(data):
                 # remove possible duplicates
 
                 block_valid = 1
-                block_transactions = []
+
 
                 # app_log.info("Incoming: Digesting incoming block: " + data)
 
@@ -552,7 +552,10 @@ def digest_block(data):
 
                 # reject block with duplicate transactions
                 signature_list = []
+                block_transactions = []
+
                 for transaction_list in block_list:
+
                     for r in transaction_list:  # sig must be the 6th row 5
                         signature_list.append(r[4])
 
@@ -570,6 +573,7 @@ def digest_block(data):
                     if len(signature_list) != len(set(signature_list)):
                         app_log.info("There are duplicate transactions in this block, rejected")
                         block_valid = 0  # dont really need this one
+                    del signature_list[:]
 
                     # reject block with duplicate transactions
 
@@ -756,6 +760,7 @@ def digest_block(data):
                                 transaction[11]))
                             conn.commit()
                         app_log.info("Block valid and saved")
+                        del block_transactions[:]
                     else:
                         app_log.info("A part of the block is invalid, rejected")
 
@@ -1035,7 +1040,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                 send(self.request, "nonewblk")
 
                             else:
-                                c.execute("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,openfield FROM transactions WHERE block_height >'" + str(int(client_block)) + "' AND block_height <'" + str(int(client_block + 10)) + "'")  # select incoming transaction + 1, only columns that need not be verified
+                                c.execute("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,openfield FROM transactions WHERE block_height >'" + str(int(client_block)) + "' AND block_height <'" + str(int(client_block + 100)) + "'")  # select incoming transaction + 1, only columns that need not be verified
                                 blocks_fetched = c.fetchall()
                                 blocks_send = [[l[1:] for l in group] for _, group in groupby(blocks_fetched, key=itemgetter(0))]
 
@@ -1273,7 +1278,7 @@ def worker(HOST, PORT):
                             send(s, "nonewblk")
 
                         else:
-                            c.execute("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,openfield FROM transactions WHERE block_height >'" + str(int(client_block)) + "' AND block_height <'" + str(int(client_block + 10)) + "'")  # select incoming transaction + 1, only columns that need not be verified
+                            c.execute("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,openfield FROM transactions WHERE block_height >'" + str(int(client_block)) + "' AND block_height <'" + str(int(client_block + 100)) + "'")  # select incoming transaction + 1, only columns that need not be verified
                             blocks_fetched = c.fetchall()
                             blocks_send = [[l[1:] for l in group] for _, group in groupby(blocks_fetched, key=itemgetter(0))]
                             conn.close()
