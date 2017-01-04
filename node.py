@@ -140,7 +140,7 @@ def mempool_merge(data):
                 mempool_signature_enc = transaction[4]
                 mempool_public_key_hashed = transaction[5]
                 mempool_openfield = transaction[6]
-
+                
                 mempool = sqlite3.connect('mempool.db')
                 mempool.text_factory = str
                 m = mempool.cursor()
@@ -533,7 +533,7 @@ def digest_block(data):
                 c.execute("select block_height, count(*) FROM transactions GROUP by signature HAVING count(*) > 1")
                 result = c.fetchall()
                 for x in result:
-                    print x
+                    #print x
                     app_log.info("Removing duplicate: " + str(x[0]))
                     c.execute("DELETE FROM transactions WHERE block_height >= '" + str(x[0]) + "'")
                     conn.commit()
@@ -548,7 +548,7 @@ def digest_block(data):
                 # app_log.info("Incoming: Digesting incoming block: " + data)
 
                 block_list = ast.literal_eval(data)
-                print block_list
+                #print block_list
 
                 # reject block with duplicate transactions
                 signature_list = []
@@ -753,7 +753,7 @@ def digest_block(data):
                     # whole block validation
                     if block_valid == 1:
                         for transaction in block_transactions:
-                            print transaction
+                            #print transaction
                             c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
                                 transaction[0], transaction[1], transaction[2], transaction[3], transaction[4], transaction[5],
                                 transaction[6], transaction[7], transaction[8], transaction[9], transaction[10],
