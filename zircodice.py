@@ -80,7 +80,7 @@ while True:
     processed = []
     for y in payout_missing:
         if y not in processed:
-            processed.append(y)
+            processed.append(y) #can overflow
 
             payout_address = y[2]
             print payout_address
