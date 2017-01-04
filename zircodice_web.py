@@ -23,7 +23,7 @@ class index:
     def GET(self):
 
         # redraw chart
-        conn = sqlite3.connect('./ledger.db')
+        conn = sqlite3.connect('static/ledger.db')
         c = conn.cursor()
 
         c.execute("SELECT block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")

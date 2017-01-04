@@ -17,7 +17,7 @@ address = hashlib.sha224(public_key_readable).hexdigest()
 bet_max = 1000
 
 while True:
-    conn = sqlite3.connect('ledger.db')
+    conn = sqlite3.connect('static/ledger.db')
     conn.text_factory = str
     c = conn.cursor()
     c.execute("select * from transactions where openfield = '" + base64.b64encode("odd") + "' OR openfield = '" + base64.b64encode("even") + "' and recipient = '" + address + "' ")
