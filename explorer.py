@@ -90,7 +90,7 @@ class index:
         plotter.append('</html>')
         # redraw chart
 
-        conn = sqlite3.connect('./ledger.db')
+        conn = sqlite3.connect('static/ledger.db')
         c = conn.cursor()
         c.execute("SELECT * FROM transactions ORDER BY block_height DESC, timestamp DESC LIMIT 1000;")
 
@@ -120,7 +120,7 @@ class index:
 
         c.close()
 
-        html = "<body><body background="'static/explorer_bg.png'"><center><center><h1>Bismuth Transaction Explorer</h1></center>"+ str(''.join(plotter)) +"<table style='width:100%' bgcolor='white'><tr><td>Block</td><td>Timestamp</td><td>From</td><td>To</td><td>Amount</td><td>Block Hash</td><td>Fee</td><td>Reward</td><td>Confirmations</td></tr>" + str(''.join(view)) +"</table></body></html>"
+        html = "<body><body background="'static/explorer_bg.png'"><center><center><h1>Bismuth Transaction Explorer</h1></center><p><a href='static/ledger.db'>download latest blockchain</a></p>"+ str(''.join(plotter)) +"<table style='width:100%' bgcolor='white'><tr><td>Block</td><td>Timestamp</td><td>From</td><td>To</td><td>Amount</td><td>Block Hash</td><td>Fee</td><td>Reward</td><td>Confirmations</td></tr>" + str(''.join(view)) +"</table></body></html>"
 
         return html
 
