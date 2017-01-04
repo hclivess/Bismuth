@@ -605,7 +605,7 @@ def digest_block(data):
                     db_block_height = result[0][1]
                     db_block_hash = result[0][0]
                     db_timestamp_last = float(result[0][2])
-                    block_height_new = db_block_height + 1 #CHANGE THISSSSSS
+                    block_height_new = db_block_height + 1
 
                     fees_block = []
                     for transaction in transaction_list:
@@ -748,15 +748,14 @@ def digest_block(data):
 
                     # whole block validation
                     if block_valid == 1:
-                        app_log.info("Block valid and saved")
-                        for transaction in transaction_list:
-                            # print transaction
+                        for transaction in block_transactions:
+                            print transaction
                             c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
                                 transaction[0], transaction[1], transaction[2], transaction[3], transaction[4], transaction[5],
                                 transaction[6], transaction[7], transaction[8], transaction[9], transaction[10],
                                 transaction[11]))
                             conn.commit()
-
+                        app_log.info("Block valid and saved")
                     else:
                         app_log.info("A part of the block is invalid, rejected")
 
@@ -767,7 +766,7 @@ def digest_block(data):
                 conn.close()
                 mempool.close()
                 app_log.info("Digesting complete")
-                #raise #never leave on
+                raise #never leave on
 
             busy = 0
             return
