@@ -1,4 +1,6 @@
 # must unify node and client now that connections parameters are function parameters
+from itertools import groupby
+from operator import itemgetter
 import math
 import SocketServer
 import ast
@@ -544,6 +546,7 @@ def digest_block(data):
                 # app_log.info("Incoming: Digesting incoming block: " + data)
 
                 transaction_list = ast.literal_eval(data)
+                print transaction_list
 
                 # reject block with duplicate transactions
                 signature_list = []
@@ -946,7 +949,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     send(self.request, (str(len("sync"))).zfill(10))
                     send(self.request, "sync")
 
-                elif data == "blockfound":
+                elif data == "blocksfnd":
                     app_log.info("Incoming: Client has the block")  # node should start sending txs in this step
 
                     # receive theirs
@@ -1035,20 +1038,18 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                 send(self.request, "nonewblk")
 
                             else:
-                                c.execute(
-                                    "SELECT timestamp,address,recipient,amount,signature,public_key,openfield FROM transactions WHERE block_height='" + str(
-                                        int(
-                                            block_hash_client_block) + 1) + "'")  # select incoming transaction + 1, only columns that need not be verified
-                                block_send = c.fetchall()
+                                c.execute("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,openfield FROM transactions WHERE block_height >'" + str(int(client_block)) + "' AND block_height <'" + str(int(client_block + 10)) + "'")  # select incoming transaction + 1, only columns that need not be verified
+                                blocks_fetched = c.fetchall()
+                                blocks_send = [[l[1:] for l in group] for _, group in groupby(blocks_fetched, key=itemgetter(0))]
 
-                                #app_log.info("Incoming: Selected " + str(block_send) + " to send")
+                                #app_log.info("Incoming: Selected " + str(blocks_send) + " to send")
 
                                 conn.close()
-                                send(self.request, (str(len("blockfound"))).zfill(10))
-                                send(self.request, "blockfound")
+                                send(self.request, (str(len("blocksfnd"))).zfill(10))
+                                send(self.request, "blocksfnd")
 
-                                send(self.request, (str(len(str(block_send)))).zfill(10))
-                                send(self.request, str(block_send))
+                                send(self.request, (str(len(str(blocks_send)))).zfill(10))
+                                send(self.request, str(blocks_send))
                                 # send own
 
                         except:
@@ -1275,20 +1276,19 @@ def worker(HOST, PORT):
                             send(s, "nonewblk")
 
                         else:
-                            c.execute(
-                                "SELECT timestamp,address,recipient,amount,signature,public_key,openfield FROM transactions WHERE block_height='" + str(
-                                    int(block_hash_client_block) + 1) + "'")  # select incoming transaction + 1
-                            block_send = c.fetchall()
+                            c.execute("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,openfield FROM transactions WHERE block_height >'" + str(int(client_block)) + "' AND block_height <'" + str(int(client_block + 10)) + "'")  # select incoming transaction + 1, only columns that need not be verified
+                            blocks_fetched = c.fetchall()
+                            blocks_send = [[l[1:] for l in group] for _, group in groupby(blocks_fetched, key=itemgetter(0))]
                             conn.close()
 
-                            #app_log.info("Outgoing: Selected " + str(block_send) + " to send")
+                            #app_log.info("Outgoing: Selected " + str(blocks_send) + " to send")
 
-                            send(s, (str(len("blockfound"))).zfill(10))
-                            send(s, "blockfound")
+                            send(s, (str(len("blocksfnd"))).zfill(10))
+                            send(s, "blocksfnd")
 
                             # send own
-                            send(s, (str(len(str(block_send)))).zfill(10))
-                            send(s, str(block_send))
+                            send(s, (str(len(str(blocks_send)))).zfill(10))
+                            send(s, str(blocks_send))
                             # send own
                     except:
                         app_log.info("Outgoing: Block not found")
@@ -1307,7 +1307,7 @@ def worker(HOST, PORT):
                 send(s, (str(len("sendsync"))).zfill(10))
                 send(s, "sendsync")
 
-            elif data == "blockfound":
+            elif data == "blocksfnd":
 
                 app_log.info("Outgoing: Node has the block")  # node should start sending txs in this step
 
