@@ -44,6 +44,9 @@ for line in lines:
         purge_conf = int(line.strip('purge='))
     if "pause=" in line:
         pause_conf = line.strip('pause=')
+    if "ledger_path=" in line:
+        ledger_path_conf = line.strip('ledger_path=')
+        print ledger_path_conf
 
 # load config
 
@@ -145,7 +148,7 @@ def mempool_merge(data):
                 mempool.text_factory = str
                 m = mempool.cursor()
 
-                conn = sqlite3.connect('ledger.db')
+                conn = sqlite3.connect(ledger_path_conf)
                 conn.text_factory = str
                 c = conn.cursor()
 
@@ -186,7 +189,7 @@ def mempool_merge(data):
                 if acceptable == 1:
                     # verify signatures and balances
                     # verify balance
-                    conn = sqlite3.connect('ledger.db')
+                    conn = sqlite3.connect(ledger_path_conf)
                     conn.text_factory = str
                     c = conn.cursor()
 
@@ -314,7 +317,7 @@ def purge_old_peers():
 def verify():
     try:
         # verify blockchain
-        conn = sqlite3.connect('ledger.db')
+        conn = sqlite3.connect(ledger_path_conf)
         conn.text_factory = str
         c = conn.cursor()
         # c.execute("CREATE TABLE IF NOT EXISTS transactions (block_height, address, recipient, amount, signature, public_key)")
@@ -380,7 +383,7 @@ def blocknf(block_hash_delete):
         try:
             busy = 1
 
-            conn = sqlite3.connect('ledger.db')
+            conn = sqlite3.connect(ledger_path_conf)
             conn.text_factory = str
             c = conn.cursor()
 
@@ -520,7 +523,7 @@ def digest_block(data):
 
         while True:
             try:
-                conn = sqlite3.connect('ledger.db')
+                conn = sqlite3.connect(ledger_path_conf)
                 conn.text_factory = str
                 c = conn.cursor()
 
@@ -779,7 +782,7 @@ def digest_block(data):
 
 def db_maintenance():
     # db maintenance
-    conn = sqlite3.connect("ledger.db")
+    conn = sqlite3.connect(ledger_path_conf)
     conn.execute("VACUUM")
     conn.close()
     conn = sqlite3.connect("mempool.db")
@@ -975,7 +978,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     consensus_add(peer_ip, consensus_blockheight)
                     # consensus pool 1 (connection from them)
 
-                    conn = sqlite3.connect('ledger.db')
+                    conn = sqlite3.connect(ledger_path_conf)
                     conn.text_factory = str
                     c = conn.cursor()
                     c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
@@ -1001,7 +1004,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     # print "Update me:" + str(update_me)
                     if update_me == 1:
-                        conn = sqlite3.connect('ledger.db')
+                        conn = sqlite3.connect(ledger_path_conf)
                         conn.text_factory = str
                         c = conn.cursor()
                         c.execute('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1')
@@ -1021,7 +1024,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                         app_log.info("Incoming: Will seek the following block: " + str(data))
 
-                        conn = sqlite3.connect('ledger.db')
+                        conn = sqlite3.connect(ledger_path_conf)
                         conn.text_factory = str
                         c = conn.cursor()
 
@@ -1200,7 +1203,7 @@ def worker(HOST, PORT):
                 send(s, (str(len("blockheight"))).zfill(10))
                 send(s, "blockheight")
 
-                conn = sqlite3.connect('ledger.db')
+                conn = sqlite3.connect(ledger_path_conf)
                 conn.text_factory = str
                 c = conn.cursor()
                 c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
@@ -1229,7 +1232,7 @@ def worker(HOST, PORT):
 
                 # print "Update me:"+str(update_me)
                 if update_me == 1:
-                    conn = sqlite3.connect('ledger.db')
+                    conn = sqlite3.connect(ledger_path_conf)
                     conn.text_factory = str
                     c = conn.cursor()
                     c.execute('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1')
@@ -1259,7 +1262,7 @@ def worker(HOST, PORT):
                     consensus_add(peer_ip, consensus_blockheight)
                     # consensus pool 2 (active connection)
 
-                    conn = sqlite3.connect('ledger.db')
+                    conn = sqlite3.connect(ledger_path_conf)
                     conn.text_factory = str
                     c = conn.cursor()
 
