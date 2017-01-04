@@ -99,7 +99,7 @@ def miner(args):
 
                 if tries % int(diff_recalc_conf) == 0 or tries == 1:
 
-                    conn = sqlite3.connect("ledger.db") #open to select the last tx to create a new hash from
+                    conn = sqlite3.connect("static/ledger.db") #open to select the last tx to create a new hash from
                     conn.text_factory = str
                     c = conn.cursor()
                     c.execute("SELECT block_hash, block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")
