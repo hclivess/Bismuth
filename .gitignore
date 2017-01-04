@@ -7,9 +7,7 @@ dist/
 gui.build/
 node.build/
 workspace/
-.idea/XBM-Bismuth.iml
-.idea/misc.xml
-.idea/workspace.xml
 *.log
-*.der
+privkey.der
+pubkey.der
 address.txt
