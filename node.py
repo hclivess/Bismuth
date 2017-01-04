@@ -1025,10 +1025,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                         try:
                             c.execute("SELECT block_height FROM transactions WHERE block_hash='" + data + "'")
-                            block_hash_client_block = c.fetchone()[0]
+                            client_block = c.fetchone()[0]
 
                             app_log.info("Incoming: Client is at block " + str(
-                                block_hash_client_block))  # now check if we have any newer
+                                client_block))  # now check if we have any newer
 
                             c.execute('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1')
                             db_block_hash = c.fetchone()[0]  # get latest block_hash
@@ -1263,10 +1263,10 @@ def worker(HOST, PORT):
 
                     try:
                         c.execute("SELECT block_height FROM transactions WHERE block_hash='" + data + "'")
-                        block_hash_client_block = c.fetchone()[0]
+                        client_block = c.fetchone()[0]
 
                         app_log.info("Outgoing: Node is at block " + str(
-                            block_hash_client_block))  # now check if we have any newer
+                            client_block))  # now check if we have any newer
 
                         c.execute('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1')
                         db_block_hash = c.fetchone()[0]  # get latest block_hash
