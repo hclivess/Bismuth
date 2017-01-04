@@ -547,7 +547,6 @@ def digest_block(data):
 
                 block_valid = 1
 
-
                 # app_log.info("Incoming: Digesting incoming block: " + data)
 
                 block_list = ast.literal_eval(data)
