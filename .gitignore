@@ -11,6 +11,5 @@ workspace/
 .idea/misc.xml
 .idea/workspace.xml
 *.log
-*.db
 *.der
 address.txt
