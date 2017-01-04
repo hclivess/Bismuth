@@ -551,6 +551,10 @@ def digest_block(data):
                 # app_log.info("Incoming: Digesting incoming block: " + data)
 
                 block_list = ast.literal_eval(data)
+                if not any(isinstance(el, list) for el in block_list): #if it's not a list of lists
+                    new_list = []
+                    new_list.append(block_list)
+                    block_list = new_list #make it a list of lists
                 #print block_list
 
                 # reject block with duplicate transactions
