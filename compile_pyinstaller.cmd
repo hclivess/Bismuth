@@ -11,7 +11,7 @@ pyinstaller.exe --uac-admin --onefile --log-level=INFO zircodice_web.py --icon=g
 robocopy static dist\static
 copy peers.txt dist\peers.txt
 copy config.txt dist\config.txt
-copy explorer_custom_port.cmd dist\explorer_custom_port.cmd
+copy ledger_explorer.cmd dist\ledger_explorer.cmd
 "C:\Program Files (x86)\Inno Setup 5\iscc" /q "setup.iss"
 pause
 
