@@ -211,7 +211,7 @@ def refresh_auto():
 
 def refresh():
     print "refresh triggered"
-    conn = sqlite3.connect('ledger.db')
+    conn = sqlite3.connect('static/ledger.db')
     conn.text_factory = str
     c = conn.cursor()
     c.execute("SELECT sum(amount) FROM transactions WHERE recipient = '" + address + "'")
