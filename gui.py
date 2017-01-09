@@ -371,7 +371,7 @@ def table():
 
     datasheet = ["time", "from", "to", "amount"]
 
-    conn = sqlite3.connect('ledger.db')
+    conn = sqlite3.connect('static/ledger.db')
     conn.text_factory = str
     c = conn.cursor()
     for row in c.execute("SELECT * FROM transactions WHERE address = '" + str(address) + "' OR recipient = '" + str(address) + "' ORDER BY block_height DESC LIMIT 19;"):
