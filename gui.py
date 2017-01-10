@@ -1,4 +1,5 @@
 #icons created using http://www.winterdrache.de/freeware/png2ico/
+global input_password
 
 import PIL.Image
 import PIL.ImageTk
@@ -8,7 +9,6 @@ import os
 from datetime import datetime
 import hashlib
 import sqlite3
-import socket
 import time
 import base64
 import logging
@@ -18,6 +18,8 @@ import math
 from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
+from Crypto.Cipher import DES
+from Crypto import Random
 
 from Tkinter import *
 
@@ -54,6 +56,45 @@ private_key_readable = str(key.exportKey())
 public_key_readable = str(key.publickey().exportKey())
 public_key_hashed = base64.b64encode(public_key_readable)
 address = hashlib.sha224(public_key_readable).hexdigest()
+
+def enter_password():
+    top3 = Toplevel()
+    top3.title("Enter Password")
+
+    input_password= Entry(top3)
+    input_password.grid(row=0, column=0, sticky=N+E, padx=15, pady=(0, 0))
+
+    enter = Button(top3, text="Enter", command=top3.destroy)
+    enter.grid(row=1, column=0, sticky=W+E, padx=15, pady=(15, 5))
+
+    return input_password.get().zfill(8)
+
+def encrypt():
+    print "encrypt triggered"
+    password = enter_password()
+
+    iv = Random.get_random_bytes(8)
+    des = DES.new(password, DES.MODE_CFB, iv)
+
+    cipher_text = base64.b64encode(des.encrypt(private_key_readable))
+
+    pem_file = open("privkey_encrypted.der", 'a')
+    pem_file.write(str(cipher_text))
+    pem_file.close()
+
+
+
+def decrypt():
+
+    print "decrypt triggered"
+    password = enter_password()
+
+    encrypted_privkey = open('privkey_encrypted.der').read()
+
+    iv = Random.get_random_bytes(8)
+    des = DES.new(password, DES.MODE_CFB, iv)
+
+    print des.decrypt(base64.b64decode(encrypted_privkey))
 
 def send():
     app_log.info("Received tx command")
@@ -204,7 +245,6 @@ def sign():
     dismiss.grid(row=8, column=0, sticky=W+E, padx=15, pady=(15, 5))
     # popup
 
-
 def refresh_auto():
     root.after(0, refresh)
     root.after(10000, refresh_auto)
@@ -297,9 +337,6 @@ def refresh():
 
     conn.close()
     table()
-
-
-
     #root.after(1000, refresh)
 
 #buttons
@@ -319,8 +356,15 @@ balance_b.grid(row=11, column=0, sticky=W+E+S, pady=4,padx=15)
 sign_b = Button(f5, text="Sign Message", command=sign, height=1, width=15)
 sign_b.grid(row=12, column=0, sticky=W+E+S, pady=4,padx=15)
 
+encrypt_b = Button(f5, text="Encrypt", command=encrypt, height=1, width=10)
+encrypt_b.grid(row=14, column=0, sticky=W, pady=4,padx=15)
+
+decrypt_b = Button(f5, text="Unlock", command=decrypt, height=1, width=10)
+decrypt_b.grid(row=14, column=0, sticky=E, pady=4,padx=15)
+
 quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=15)
-quit_b.grid(row=13, column=0, sticky=W+E+S, pady=4,padx=15)
+quit_b.grid(row=15, column=0, sticky=W+E+S, pady=4,padx=15)
+
 
 #buttons
 
