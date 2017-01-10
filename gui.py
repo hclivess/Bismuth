@@ -16,10 +16,7 @@ from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
 
-from cryptography.fernet import Fernet
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from simplecrypt import encrypt, decrypt
 
 from Tkinter import *
 
@@ -69,23 +66,17 @@ def encrypt_get_password():
     input_password= Entry(top3, textvariable=password_var_enc, show='*')
     input_password.grid(row=0, column=0, sticky=N+E, padx=15, pady=(0, 0))
 
-    enter = Button(top3, text="Encrypt", command = encrypt)
+    enter = Button(top3, text="Encrypt", command = encrypt_fn)
     enter.grid(row=1, column=0, sticky=W+E, padx=15, pady=(15, 5))
     # enter password
 
-def encrypt():
+def encrypt_fn():
     password = password_var_enc.get()
 
-    #salt = os.urandom(16)
-    salt = "thisshouldbechangedbacktorandom"
-
-    kdf = PBKDF2HMAC(algorithm = hashes.SHA256(),length = 32,salt = salt,iterations = 100000,backend = default_backend())
-    key = base64.urlsafe_b64encode(kdf.derive(password))
-    f = Fernet(key)
-    token = f.encrypt(private_key_readable)
+    ciphertext = encrypt(password, private_key_readable)
 
     pem_file = open("privkey_encrypted.der", 'a')
-    pem_file.write(str(token))
+    pem_file.write(base64.b64encode(ciphertext))
     pem_file.close()
 
 def decrypt_get_password():
@@ -96,21 +87,16 @@ def decrypt_get_password():
     input_password= Entry(top4, textvariable=password_var_dec, show='*')
     input_password.grid(row=0, column=0, sticky=N+E, padx=15, pady=(0, 0))
 
-    enter = Button(top4, text="Decrypt", command = decrypt)
+    enter = Button(top4, text="Decrypt", command = decrypt_fn)
     enter.grid(row=1, column=0, sticky=W+E, padx=15, pady=(15, 5))
     # enter password
 
-def decrypt():
+def decrypt_fn():
     password = password_var_dec.get()
 
     encrypted_privkey = open('privkey_encrypted.der').read()
 
-    #salt = os.urandom(16)
-    salt = "thisshouldbechangedbacktorandom"
-    kdf = PBKDF2HMAC(algorithm = hashes.SHA256(),length = 32,salt = salt,iterations = 100000,backend = default_backend())
-    key = base64.urlsafe_b64encode(kdf.derive(password))
-    f = Fernet(key)
-    print f.decrypt(encrypted_privkey)
+    print decrypt(password, base64.b64decode(encrypted_privkey))
 
 def send():
     app_log.info("Received tx command")
@@ -375,7 +361,7 @@ sign_b.grid(row=12, column=0, sticky=W+E+S, pady=4,padx=15)
 encrypt_b = Button(f5, text="Encrypt", command=encrypt_get_password, height=1, width=10)
 encrypt_b.grid(row=14, column=0, sticky=W, pady=4,padx=15)
 
-decrypt_b = Button(f5, text="Decrypt", command=decrypt, height=1, width=10)
+decrypt_b = Button(f5, text="Decrypt", command=decrypt_get_password, height=1, width=10)
 decrypt_b.grid(row=14, column=0, sticky=E, pady=4,padx=15)
 
 quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=15)
