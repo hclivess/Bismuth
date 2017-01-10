@@ -1,7 +1,6 @@
 #icons created using http://www.winterdrache.de/freeware/png2ico/
 import PIL.Image
 import PIL.ImageTk
-
 import pyqrcode
 import os
 from datetime import datetime
@@ -16,8 +15,11 @@ import math
 from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
-from Crypto.Cipher import DES
-from Crypto import Random
+
+from cryptography.fernet import Fernet
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 from Tkinter import *
 
@@ -56,46 +58,59 @@ public_key_hashed = base64.b64encode(public_key_readable)
 address = hashlib.sha224(public_key_readable).hexdigest()
 
 
-password_var = StringVar()
+password_var_enc = StringVar()
+password_var_dec = StringVar()
 
-def encrypt():
+def encrypt_get_password():
     # enter password
-    print "encrypt triggered"
-
     top3 = Toplevel()
     top3.title("Enter Password")
 
-    input_password= Entry(top3, textvariable=password_var, show='*')
+    input_password= Entry(top3, textvariable=password_var_enc, show='*')
     input_password.grid(row=0, column=0, sticky=N+E, padx=15, pady=(0, 0))
 
-    enter = Button(top3, text="Enter", command = encrypt2)
+    enter = Button(top3, text="Encrypt", command = encrypt)
     enter.grid(row=1, column=0, sticky=W+E, padx=15, pady=(15, 5))
     # enter password
 
-def encrypt2():
+def encrypt():
+    password = password_var_enc.get()
 
-    print password_var.get()
+    #salt = os.urandom(16)
+    salt = "thisshouldbechangedbacktorandom"
 
-    iv = Random.get_random_bytes(8)
-    des = DES.new(password_var.get().zfill(8), DES.MODE_CFB, iv)
-
-    cipher_text = base64.b64encode(des.encrypt(private_key_readable))
+    kdf = PBKDF2HMAC(algorithm = hashes.SHA256(),length = 32,salt = salt,iterations = 100000,backend = default_backend())
+    key = base64.urlsafe_b64encode(kdf.derive(password))
+    f = Fernet(key)
+    token = f.encrypt(private_key_readable)
 
     pem_file = open("privkey_encrypted.der", 'a')
-    pem_file.write(str(cipher_text))
+    pem_file.write(str(token))
     pem_file.close()
 
+def decrypt_get_password():
+    # enter password
+    top4 = Toplevel()
+    top4.title("Enter Password")
 
+    input_password= Entry(top4, textvariable=password_var_dec, show='*')
+    input_password.grid(row=0, column=0, sticky=N+E, padx=15, pady=(0, 0))
+
+    enter = Button(top4, text="Decrypt", command = decrypt)
+    enter.grid(row=1, column=0, sticky=W+E, padx=15, pady=(15, 5))
+    # enter password
 
 def decrypt():
+    password = password_var_dec.get()
 
-    print "decrypt triggered"
     encrypted_privkey = open('privkey_encrypted.der').read()
 
-    iv = Random.get_random_bytes(8)
-    des = DES.new(password, DES.MODE_CFB, iv)
-
-    print des.decrypt(base64.b64decode(encrypted_privkey))
+    #salt = os.urandom(16)
+    salt = "thisshouldbechangedbacktorandom"
+    kdf = PBKDF2HMAC(algorithm = hashes.SHA256(),length = 32,salt = salt,iterations = 100000,backend = default_backend())
+    key = base64.urlsafe_b64encode(kdf.derive(password))
+    f = Fernet(key)
+    print f.decrypt(encrypted_privkey)
 
 def send():
     app_log.info("Received tx command")
@@ -357,10 +372,10 @@ balance_b.grid(row=11, column=0, sticky=W+E+S, pady=4,padx=15)
 sign_b = Button(f5, text="Sign Message", command=sign, height=1, width=15)
 sign_b.grid(row=12, column=0, sticky=W+E+S, pady=4,padx=15)
 
-encrypt_b = Button(f5, text="Encrypt", command=encrypt, height=1, width=10)
+encrypt_b = Button(f5, text="Encrypt", command=encrypt_get_password, height=1, width=10)
 encrypt_b.grid(row=14, column=0, sticky=W, pady=4,padx=15)
 
-decrypt_b = Button(f5, text="Unlock", command=decrypt, height=1, width=10)
+decrypt_b = Button(f5, text="Decrypt", command=decrypt, height=1, width=10)
 decrypt_b.grid(row=14, column=0, sticky=E, pady=4,padx=15)
 
 quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=15)
