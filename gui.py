@@ -1,6 +1,4 @@
 #icons created using http://www.winterdrache.de/freeware/png2ico/
-global input_password
-
 import PIL.Image
 import PIL.ImageTk
 
@@ -57,24 +55,29 @@ public_key_readable = str(key.publickey().exportKey())
 public_key_hashed = base64.b64encode(public_key_readable)
 address = hashlib.sha224(public_key_readable).hexdigest()
 
-def enter_password():
+
+password_var = StringVar()
+
+def encrypt():
+    # enter password
+    print "encrypt triggered"
+
     top3 = Toplevel()
     top3.title("Enter Password")
 
-    input_password= Entry(top3)
+    input_password= Entry(top3, textvariable=password_var, show='*')
     input_password.grid(row=0, column=0, sticky=N+E, padx=15, pady=(0, 0))
 
-    enter = Button(top3, text="Enter", command=top3.destroy)
+    enter = Button(top3, text="Enter", command = encrypt2)
     enter.grid(row=1, column=0, sticky=W+E, padx=15, pady=(15, 5))
+    # enter password
 
-    return input_password.get().zfill(8)
+def encrypt2():
 
-def encrypt():
-    print "encrypt triggered"
-    password = enter_password()
+    print password_var.get()
 
     iv = Random.get_random_bytes(8)
-    des = DES.new(password, DES.MODE_CFB, iv)
+    des = DES.new(password_var.get().zfill(8), DES.MODE_CFB, iv)
 
     cipher_text = base64.b64encode(des.encrypt(private_key_readable))
 
@@ -87,8 +90,6 @@ def encrypt():
 def decrypt():
 
     print "decrypt triggered"
-    password = enter_password()
-
     encrypted_privkey = open('privkey_encrypted.der').read()
 
     iv = Random.get_random_bytes(8)
