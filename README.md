@@ -8,7 +8,7 @@ https://github.com/hclivess/Bismuth/blob/master/whitepaper.md
 
 ###Dependencies:
 
-https://github.com/hclivess/Bismuth/blob/master/requirements.cmd
+https://github.com/hclivess/Bismuth/blob/master/travis.yml
 
 ###Development plan:
 https://github.com/hclivess/Bismuth/issues
