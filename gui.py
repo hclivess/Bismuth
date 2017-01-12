@@ -71,7 +71,7 @@ def encrypt_get_password():
     # enter password
 def lock_fn(button):
     global key
-    key = ""
+    del key
     decrypt_b.configure(text="Unlock", state=NORMAL)
     lock_b.configure(text="Locked", state=DISABLED)
 
@@ -88,6 +88,7 @@ def encrypt_fn(destroy_this):
     encrypt_b.configure(text="Encrypted", state=DISABLED)
     destroy_this.destroy()
     os.remove("privkey.der")
+    lock_b.configure(text="Lock", state=NORMAL)
 
 def decrypt_get_password():
     # enter password
@@ -97,7 +98,7 @@ def decrypt_get_password():
     input_password= Entry(top4, textvariable=password_var_dec, show='*')
     input_password.grid(row=0, column=0, sticky=N+E, padx=15, pady=(5, 5))
 
-    enter = Button(top4, text="Decrypt", command = lambda: decrypt_fn(top4))
+    enter = Button(top4, text="Unlock", command = lambda: decrypt_fn(top4))
     enter.grid(row=1, column=0, sticky=W+E, padx=15, pady=(5, 5))
 
     cancel = Button(top4, text="Cancel", command=top4.destroy)
@@ -398,34 +399,34 @@ def refresh():
 
 #buttons
 
-send_b = Button(f5, text="Send Bismuth", command=send, height=1, width=15)
+send_b = Button(f5, text="Send Bismuth", command=send, height=1, width=10)
 send_b.grid(row=9, column=0, sticky=W+E+S, pady=(4, 4), padx=15)
 
-start_b = Button(f5, text="Generate QR Code", command=qr, height=1, width=15)
+start_b = Button(f5, text="Generate QR Code", command=qr, height=1, width=10)
 if "posix" in os.name:
     start_b.configure(text="QR Disabled",state = DISABLED)
-start_b.grid(row=10, column=0, sticky=W+E+S, pady=4,padx=15,columnspan=4)
+start_b.grid(row=10, column=0, sticky=W+E+S, pady=4,padx=15)
 
-balance_b = Button(f5, text="Manual Refresh", command=refresh, height=1, width=15)
+balance_b = Button(f5, text="Manual Refresh", command=refresh, height=1, width=10)
 balance_b.grid(row=11, column=0, sticky=W+E+S, pady=4,padx=15)
 
-sign_b = Button(f5, text="Sign Message", command=sign, height=1, width=15)
+sign_b = Button(f5, text="Sign Message", command=sign, height=1, width=10)
 sign_b.grid(row=12, column=0, sticky=W+E+S, pady=4,padx=15)
 
-encrypt_b = Button(f5, text="Encrypt", command=encrypt_get_password, height=1, width=7)
+encrypt_b = Button(f5, text="Encrypt", command=encrypt_get_password, height=1, width=10)
 if encrypted == 1:
     encrypt_b.configure(text="Encrypted",state = DISABLED)
-encrypt_b.grid(row=14, column=0, sticky=W, pady=4,padx=5)
+encrypt_b.grid(row=9, column=1, sticky=W, pady=4,padx=5)
 
-decrypt_b = Button(f5, text="Unlock", command=decrypt_get_password, height=1, width=7)
+decrypt_b = Button(f5, text="Unlock", command=decrypt_get_password, height=1, width=10)
 if unlocked == 1:
     decrypt_b.configure(text="Unlocked",state = DISABLED)
-decrypt_b.grid(row=14, column=0, sticky=E, pady=4,padx=5)
+decrypt_b.grid(row=10, column=1, sticky=E, pady=4,padx=5)
 
-lock_b = Button(f5, text="Lock", command=lambda:lock_fn(lock_b), height=1, width=7,state=DISABLED)
-lock_b.grid(row=14, column=0, sticky=S, pady=4,padx=5)
+lock_b = Button(f5, text="Lock", command=lambda:lock_fn(lock_b), height=1, width=10,state=DISABLED)
+lock_b.grid(row=11, column=1, sticky=S, pady=4,padx=5)
 
-quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=15)
+quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=10)
 quit_b.grid(row=15, column=0, sticky=W+E+S, pady=4,padx=15)
 
 
@@ -554,7 +555,7 @@ logo_hash_decoded = base64.b64decode(icons.logo_hash)
 
 logo=PhotoImage(data=logo_hash_decoded)
 image = Label(f2, image=logo)
-image.grid(pady=5, padx=5)
+image.grid(pady=5, padx=20)
 #logo
 refresh_auto()
 root.mainloop()
