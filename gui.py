@@ -427,7 +427,7 @@ lock_b = Button(f5, text="Lock", command=lambda:lock_fn(lock_b), height=1, width
 lock_b.grid(row=11, column=1, sticky=S, pady=4,padx=5)
 
 quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=10)
-quit_b.grid(row=15, column=0, sticky=W+E+S, pady=4,padx=15)
+quit_b.grid(row=12, column=1, sticky=W+E+S, pady=4,padx=5)
 
 
 #buttons
@@ -555,7 +555,7 @@ logo_hash_decoded = base64.b64decode(icons.logo_hash)
 
 logo=PhotoImage(data=logo_hash_decoded)
 image = Label(f2, image=logo)
-image.grid(pady=5, padx=20)
+image.grid(pady=5, padx=40)
 #logo
 refresh_auto()
 root.mainloop()
