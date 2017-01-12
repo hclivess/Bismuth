@@ -202,7 +202,10 @@ def miner(args, password):
             raise
 
 if __name__ == '__main__':
-    password = getpass.getpass()
+    if os.path.exists('privkey_encrypted.der'):
+        password = getpass.getpass()
+    else:
+        password = ""
 
     # verify connection
     connected = 0
