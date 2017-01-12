@@ -433,7 +433,7 @@ decrypt_b.grid(row=1, column=2, sticky=E, pady=4,padx=5)
 
 lock_b = Button(f6, text="Locked", command=lambda:lock_fn(lock_b), height=1, width=10,state=DISABLED)
 if encrypted == 0:
-    decrypt_b.configure(text="Lock",state = DISABLED)
+    lock_b.configure(text="Lock",state = DISABLED)
 lock_b.grid(row=1, column=3, sticky=E, pady=4,padx=5)
 
 
