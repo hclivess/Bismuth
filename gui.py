@@ -24,6 +24,7 @@ from Tkinter import *
 
 global key
 global encrypted
+global unlocked
 
 root = Tk()
 root.wm_title("Bismuth")
@@ -104,6 +105,7 @@ def decrypt_fn():
     key = RSA.importKey(decrypted_privkey) #be able to sign
     #private_key_readable = str(key.exportKey())
     #print key
+    decrypt_b.configure(text="Unlocked", state=DISABLED)
     return key
 
 def send():
@@ -188,10 +190,12 @@ def qr():
 if not os.path.exists('privkey_encrypted.der'):
     key = RSA.importKey(open('privkey.der').read())
     private_key_readable = str(key.exportKey())
-    encrypted = 0
     #public_key = key.publickey()
+    encrypted = 0
+    unlocked = 1
 else:
     encrypted = 1
+    unlocked = 0
 
 #public_key_readable = str(key.publickey().exportKey())
 public_key_readable = open('pubkey.der').read()
@@ -394,10 +398,11 @@ sign_b.grid(row=12, column=0, sticky=W+E+S, pady=4,padx=15)
 encrypt_b = Button(f5, text="Encrypt", command=encrypt_get_password, height=1, width=10)
 if encrypted == 1:
     encrypt_b.configure(text="Encrypted",state = DISABLED)
-
 encrypt_b.grid(row=14, column=0, sticky=W, pady=4,padx=15)
 
-decrypt_b = Button(f5, text="Decrypt", command=decrypt_get_password, height=1, width=10)
+decrypt_b = Button(f5, text="Unlock", command=decrypt_get_password, height=1, width=10)
+if unlocked == 1:
+    decrypt_b.configure(text="Unlocked",state = DISABLED)
 decrypt_b.grid(row=14, column=0, sticky=E, pady=4,padx=15)
 
 quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=15)
