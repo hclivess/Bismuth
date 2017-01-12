@@ -15,6 +15,8 @@ from Crypto import Random
 
 if os.path.isfile("privkey.der") is True:
     print "privkey.der found"
+elif os.path.isfile("privkey_encrypted.der") is True:
+    print("privkey_encrypted.der found")
 
 else:
     # generate key pair and an address

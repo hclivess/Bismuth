@@ -797,6 +797,8 @@ def db_maintenance():
 # key maintenance
 if os.path.isfile("privkey.der") is True:
     app_log.info("Core: privkey.der found")
+elif os.path.isfile("privkey_encrypted.der") is True:
+    app_log.info("Core: privkey_encrypted.der found")
 else:
     # generate key pair and an address
     random_generator = Random.new().read
@@ -825,10 +827,12 @@ else:
     address_file.close()
 
 # import keys
-key = RSA.importKey(open('privkey.der').read())
-private_key_readable = str(key.exportKey())
-public_key_hashed = str(key.publickey().exportKey())
-address = hashlib.sha224(public_key_hashed).hexdigest()
+#key = RSA.importKey(open('privkey.der').read())
+#private_key_readable = str(key.exportKey())
+public_key_readable = open('pubkey.der').read()
+public_key_hashed = base64.b64encode(public_key_readable)
+address = hashlib.sha224(public_key_readable).hexdigest()
+
 
 app_log.info("Core: Local address: " + str(address))
 
