@@ -743,8 +743,8 @@ def digest_block(data):
                                                                str(float(db_amount)), db_signature, db_public_key_hashed,
                                                                block_hash, fee, reward, str(0), db_openfield))
                             else:
-                                app_log.info(
-                                    "Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
+                                #app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
+                                app_log.info("Digest: Difficulty requirement not satisfied")
                                 block_valid = 0
 
                         try:
@@ -777,7 +777,7 @@ def digest_block(data):
                 conn.close()
                 mempool.close()
                 app_log.info("Digesting complete")
-                raise #never leave on
+                #raise #never leave on
 
             busy = 0
             return
