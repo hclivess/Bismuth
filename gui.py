@@ -66,10 +66,13 @@ def encrypt_get_password():
     top3.title("Enter Password")
 
     input_password= Entry(top3, textvariable=password_var_enc, show='*')
-    input_password.grid(row=0, column=0, sticky=N+E, padx=15, pady=(0, 0))
+    input_password.grid(row=0, column=0, sticky=N+E, padx=15, pady=(5, 5))
 
     enter = Button(top3, text="Encrypt", command = encrypt_fn)
-    enter.grid(row=1, column=0, sticky=W+E, padx=15, pady=(15, 5))
+    enter.grid(row=1, column=0, sticky=W+E, padx=15, pady=(5, 5))
+
+    done = Button(top3, text="Done", command=top3.destroy)
+    done.grid(row=2, column=0, sticky=W + E, padx=15, pady=(5, 5))
     # enter password
 
 def encrypt_fn():
@@ -87,10 +90,13 @@ def decrypt_get_password():
     top4.title("Enter Password")
 
     input_password= Entry(top4, textvariable=password_var_dec, show='*')
-    input_password.grid(row=0, column=0, sticky=N+E, padx=15, pady=(0, 0))
+    input_password.grid(row=0, column=0, sticky=N+E, padx=15, pady=(5, 5))
 
     enter = Button(top4, text="Decrypt", command = decrypt_fn)
-    enter.grid(row=1, column=0, sticky=W+E, padx=15, pady=(15, 5))
+    enter.grid(row=1, column=0, sticky=W+E, padx=15, pady=(5, 5))
+
+    done = Button(top4, text="Done", command=top4.destroy)
+    done.grid(row=2, column=0, sticky=W + E, padx=15, pady=(5, 5))
     # enter password
 
 def decrypt_fn():
