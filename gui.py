@@ -415,15 +415,15 @@ sign_b.grid(row=12, column=0, sticky=W+E+S, pady=4,padx=15)
 encrypt_b = Button(f5, text="Encrypt", command=encrypt_get_password, height=1, width=7)
 if encrypted == 1:
     encrypt_b.configure(text="Encrypted",state = DISABLED)
-encrypt_b.grid(row=14, column=0, sticky=W, pady=4,padx=7)
+encrypt_b.grid(row=14, column=0, sticky=W, pady=4,padx=5)
 
 decrypt_b = Button(f5, text="Unlock", command=decrypt_get_password, height=1, width=7)
 if unlocked == 1:
     decrypt_b.configure(text="Unlocked",state = DISABLED)
-decrypt_b.grid(row=14, column=0, sticky=E, pady=4,padx=10)
+decrypt_b.grid(row=14, column=0, sticky=E, pady=4,padx=5)
 
 lock_b = Button(f5, text="Lock", command=lambda:lock_fn(lock_b), height=1, width=7,state=DISABLED)
-lock_b.grid(row=14, column=0, sticky=S, pady=4,padx=10)
+lock_b.grid(row=14, column=0, sticky=S, pady=4,padx=5)
 
 quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=15)
 quit_b.grid(row=15, column=0, sticky=W+E+S, pady=4,padx=15)
