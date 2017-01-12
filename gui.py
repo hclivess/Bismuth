@@ -74,6 +74,7 @@ def lock_fn(button):
     del key
     decrypt_b.configure(text="Unlock", state=NORMAL)
     lock_b.configure(text="Locked", state=DISABLED)
+    password_var_dec.set("")
 
 
 def encrypt_fn(destroy_this):
@@ -430,7 +431,9 @@ if unlocked == 1:
     decrypt_b.configure(text="Unlocked",state = DISABLED)
 decrypt_b.grid(row=1, column=2, sticky=E, pady=4,padx=5)
 
-lock_b = Button(f6, text="Lock", command=lambda:lock_fn(lock_b), height=1, width=10,state=DISABLED)
+lock_b = Button(f6, text="Locked", command=lambda:lock_fn(lock_b), height=1, width=10,state=DISABLED)
+if encrypted == 0:
+    decrypt_b.configure(text="Lock",state = DISABLED)
 lock_b.grid(row=1, column=3, sticky=E, pady=4,padx=5)
 
 
