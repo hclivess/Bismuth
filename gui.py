@@ -22,6 +22,8 @@ from simplecrypt import encrypt, decrypt
 
 from Tkinter import *
 
+global key
+
 root = Tk()
 root.wm_title("Bismuth")
 
@@ -47,15 +49,6 @@ my_handler.setLevel(logging.INFO)
 app_log = logging.getLogger('root')
 app_log.setLevel(logging.INFO)
 app_log.addHandler(my_handler)
-
-# import keys
-key = RSA.importKey(open('privkey.der').read())
-public_key = key.publickey()
-private_key_readable = str(key.exportKey())
-public_key_readable = str(key.publickey().exportKey())
-public_key_hashed = base64.b64encode(public_key_readable)
-address = hashlib.sha224(public_key_readable).hexdigest()
-
 
 password_var_enc = StringVar()
 password_var_dec = StringVar()
@@ -100,11 +93,15 @@ def decrypt_get_password():
     # enter password
 
 def decrypt_fn():
+    global key
     password = password_var_dec.get()
-
     encrypted_privkey = open('privkey_encrypted.der').read()
+    decrypted_privkey = decrypt(password, base64.b64decode(encrypted_privkey))
 
-    print decrypt(password, base64.b64decode(encrypted_privkey))
+    key = RSA.importKey(decrypted_privkey) #be able to sign
+    #private_key_readable = str(key.exportKey())
+    #print key
+    return key
 
 def send():
     app_log.info("Received tx command")
@@ -172,6 +169,17 @@ def qr():
     button = Button(top, text="Dismiss", command=top.destroy)
     button.pack()
     # popup
+
+# import keys
+if not os.path.exists('privkey_encrypted.der'):
+    key = RSA.importKey(open('privkey.der').read())
+    private_key_readable = str(key.exportKey())
+    #public_key = key.publickey()
+
+#public_key_readable = str(key.publickey().exportKey())
+public_key_readable = open('pubkey.der').read()
+public_key_hashed = base64.b64encode(public_key_readable)
+address = hashlib.sha224(public_key_readable).hexdigest()
 
 #frames
 f2 = Frame(root, height=100, width = 100)
