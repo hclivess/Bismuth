@@ -63,14 +63,11 @@ def encrypt_get_password():
     input_password= Entry(top3, textvariable=password_var_enc, show='*')
     input_password.grid(row=0, column=0, sticky=N+E, padx=15, pady=(5, 5))
 
-    enter = Button(top3, text="Encrypt", command = encrypt_fn)
+    enter = Button(top3, text="Encrypt", command = lambda: encrypt_fn(top3))
     enter.grid(row=1, column=0, sticky=W+E, padx=15, pady=(5, 5))
-
-    done = Button(top3, text="Done", command=top3.destroy)
-    done.grid(row=2, column=0, sticky=W + E, padx=15, pady=(5, 5))
     # enter password
 
-def encrypt_fn():
+def encrypt_fn(destroy_this):
     password = password_var_enc.get()
 
     ciphertext = encrypt(password, private_key_readable)
@@ -80,6 +77,8 @@ def encrypt_fn():
     pem_file.close()
 
     encrypt_b.configure(text="Encrypted", state=DISABLED)
+    destroy_this.destroy()
+    os.remove("privkey.der")
 
 def decrypt_get_password():
     # enter password
@@ -89,14 +88,11 @@ def decrypt_get_password():
     input_password= Entry(top4, textvariable=password_var_dec, show='*')
     input_password.grid(row=0, column=0, sticky=N+E, padx=15, pady=(5, 5))
 
-    enter = Button(top4, text="Decrypt", command = decrypt_fn)
+    enter = Button(top4, text="Decrypt", command = lambda: decrypt_fn(top4))
     enter.grid(row=1, column=0, sticky=W+E, padx=15, pady=(5, 5))
-
-    done = Button(top4, text="Done", command=top4.destroy)
-    done.grid(row=2, column=0, sticky=W + E, padx=15, pady=(5, 5))
     # enter password
 
-def decrypt_fn():
+def decrypt_fn(destroy_this):
     global key
     password = password_var_dec.get()
     encrypted_privkey = open('privkey_encrypted.der').read()
@@ -106,6 +102,8 @@ def decrypt_fn():
     #private_key_readable = str(key.exportKey())
     #print key
     decrypt_b.configure(text="Unlocked", state=DISABLED)
+    destroy_this.destroy()
+    
     return key
 
 def send():
