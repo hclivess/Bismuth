@@ -1,3 +1,4 @@
+import getpass
 import math
 import base64
 import socket
@@ -7,7 +8,8 @@ import os
 import hashlib
 import time
 import logging
-from logging.handlers import RotatingFileHandler
+
+from simplecrypt import decrypt
 
 from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
@@ -16,8 +18,17 @@ from Crypto.Hash import SHA
 from multiprocessing import Process
 from multiprocessing import freeze_support
 
-def send(sdef, data):
-    sdef.sendall(data)
+# logging #multiprocessing not supported for file output
+
+app_log = logging.getLogger('root')
+app_log.setLevel(logging.INFO)
+
+ch = logging.StreamHandler(sys.stdout)
+ch.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(asctime)s %(funcName)s(%(lineno)d) %(message)s')
+ch.setFormatter(formatter)
+app_log.addHandler(ch)
+# logging
 
 # load config
 lines = [line.rstrip('\n') for line in open('config.txt')]
@@ -34,59 +45,29 @@ for line in lines:
         diff_recalc_conf = line.strip('diff_recalc=')
 # load config
 
-#import keys
-key = RSA.importKey(open('privkey.der').read())
-private_key_readable = str(key.exportKey())
-public_key_readable = str(key.publickey().exportKey())
-public_key_hashed = base64.b64encode(public_key_readable)
-address = hashlib.sha224(public_key_readable).hexdigest()
-#import keys
-
-#logging #multiprocessing not supported for file output
-
-app_log = logging.getLogger('root')
-app_log.setLevel(logging.INFO)
-
-ch = logging.StreamHandler(sys.stdout)
-ch.setLevel(logging.DEBUG)
-formatter = logging.Formatter('%(asctime)s %(funcName)s(%(lineno)d) %(message)s')
-ch.setFormatter(formatter)
-app_log.addHandler(ch)
-#logging
-
-#verify connection
-connected = 0
-while connected == 0:
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect((mining_ip_conf, int(port)))  # connect to local node
-        app_log.info("Connected")
-        connected = 1
-        s.close()
-    except Exception, e:
-        print e
-        app_log.info("Miner: Please start your node for the block to be submitted or adjust mining ip in settings.")
-        time.sleep(1)
-#verify connection
-
-if not os.path.exists('mempool.db'):
-    # create empty mempool
-    mempool = sqlite3.connect('mempool.db')
-    mempool.text_factory = str
-    m = mempool.cursor()
-    m.execute(
-        "CREATE TABLE IF NOT EXISTS transactions (timestamp, address, recipient, amount, signature, public_key, openfield)")
-    mempool.commit()
-    mempool.close()
-    app_log.info("Core: Created mempool file")
-    # create empty mempool
-else:
-    app_log.info("Mempool exists")
+def send(sdef, data):
+    sdef.sendall(data)
 
 def bin_convert(string):
     return ''.join(format(ord(x), 'b') for x in string)
 
-def miner(args):
+def miner(args, password):
+    # import keys
+    if not os.path.exists('privkey_encrypted.der'):
+        key = RSA.importKey(open('privkey.der').read())
+        # private_key_readable = str(key.exportKey())
+        # public_key = key.publickey()
+    else:
+        encrypted_privkey = open('privkey_encrypted.der').read()
+        decrypted_privkey = decrypt(password, base64.b64decode(encrypted_privkey))
+        key = RSA.importKey(decrypted_privkey)  # be able to sign
+        # private_key_readable = decrypted_privkey
+
+    public_key_readable = open('pubkey.der').read()
+    public_key_hashed = base64.b64encode(public_key_readable)
+    address = hashlib.sha224(public_key_readable).hexdigest()
+    # import keys
+
     block_timestamp = 0  # init
     tries = 0
 
@@ -124,7 +105,6 @@ def miner(args):
                     #if diff < 4:
                     #    diff = 4
                     # calculate difficulty
-
                     conn.close()
 
                     app_log.info("Mining, " + str(tries) + " cycles passed in thread " + str(args) + ", difficulty: " + str(diff))
@@ -222,14 +202,43 @@ def miner(args):
             raise
 
 if __name__ == '__main__':
+    password = getpass.getpass()
+
+    # verify connection
+    connected = 0
+    while connected == 0:
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.connect((mining_ip_conf, int(port)))  # connect to local node
+            app_log.info("Connected")
+            connected = 1
+            s.close()
+        except Exception, e:
+            print e
+            app_log.info("Miner: Please start your node for the block to be submitted or adjust mining ip in settings.")
+            time.sleep(1)
+    # verify connection
+
+    if not os.path.exists('mempool.db'):
+        # create empty mempool
+        mempool = sqlite3.connect('mempool.db')
+        mempool.text_factory = str
+        m = mempool.cursor()
+        m.execute(
+            "CREATE TABLE IF NOT EXISTS transactions (timestamp, address, recipient, amount, signature, public_key, openfield)")
+        mempool.commit()
+        mempool.close()
+        app_log.info("Core: Created mempool file")
+        # create empty mempool
+    else:
+        app_log.info("Mempool exists")
+
     freeze_support()
     instances = range(int(mining_threads_conf))
     print instances
     for q in instances:
-        p = Process(target=miner, args=str(q+1))
+        p = Process(target=miner, args=(str(q+1), password))
         p.start()
         print "thread "+str(p)+ " started"
     p.join()
     p.terminate()
-
-

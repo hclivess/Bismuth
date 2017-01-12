@@ -226,13 +226,16 @@ f2 = Frame(root, height=100, width = 100)
 f2.grid(row = 0, column = 1, sticky = W+E+S)
 
 f3 = Frame(root, width = 500)
-f3.grid(row = 0, column = 0, sticky = W+E+S)
+f3.grid(row = 0, column = 0, sticky = W+E+N, pady = 10, padx = 10)
 
 f4 = Frame(root, height=100, width = 100)
 f4.grid(row = 1, column = 0, sticky = W+E+N, pady = 10, padx = 10)
 
 f5 = Frame(root, height=100, width = 100)
-f5.grid(row = 1, column = 1, sticky = W+E+S)
+f5.grid(row = 1, column = 1, sticky = W+E+S, pady = 10, padx = 10)
+
+f6 = Frame(root, height=100, width = 100)
+f6.grid(row = 2, column = 0, sticky = E, pady = 10, padx = 10)
 #frames
 
 
@@ -413,21 +416,24 @@ balance_b.grid(row=11, column=0, sticky=W+E+S, pady=4,padx=15)
 sign_b = Button(f5, text="Sign Message", command=sign, height=1, width=10)
 sign_b.grid(row=12, column=0, sticky=W+E+S, pady=4,padx=15)
 
-encrypt_b = Button(f5, text="Encrypt", command=encrypt_get_password, height=1, width=10)
+quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=10)
+quit_b.grid(row=13, column=0, sticky=W+E+S, pady=4,padx=15)
+
+
+encrypt_b = Button(f6, text="Encrypt", command=encrypt_get_password, height=1, width=10)
 if encrypted == 1:
     encrypt_b.configure(text="Encrypted",state = DISABLED)
-encrypt_b.grid(row=9, column=1, sticky=W, pady=4,padx=5)
+encrypt_b.grid(row=1, column=1, sticky=E, pady=4,padx=5)
 
-decrypt_b = Button(f5, text="Unlock", command=decrypt_get_password, height=1, width=10)
+decrypt_b = Button(f6, text="Unlock", command=decrypt_get_password, height=1, width=10)
 if unlocked == 1:
     decrypt_b.configure(text="Unlocked",state = DISABLED)
-decrypt_b.grid(row=10, column=1, sticky=E, pady=4,padx=5)
+decrypt_b.grid(row=1, column=2, sticky=E, pady=4,padx=5)
 
-lock_b = Button(f5, text="Lock", command=lambda:lock_fn(lock_b), height=1, width=10,state=DISABLED)
-lock_b.grid(row=11, column=1, sticky=S, pady=4,padx=5)
+lock_b = Button(f6, text="Lock", command=lambda:lock_fn(lock_b), height=1, width=10,state=DISABLED)
+lock_b.grid(row=1, column=3, sticky=E, pady=4,padx=5)
 
-quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=10)
-quit_b.grid(row=12, column=1, sticky=W+E+S, pady=4,padx=5)
+
 
 
 #buttons
@@ -525,37 +531,31 @@ def table():
     #refreshables
 
 #address and amount
-Label(f3, text="Your Address:", width=20).grid(row=0, pady=15)
 gui_address = Entry(f3,width=57)
 gui_address.grid(row=0,column=1)
 gui_address.insert(0,address)
 gui_address.configure(state="readonly")
 
-Label(f3, text="Recipient:", width=20).grid(row=1)
-Label(f3, text="Amount:", width=20).grid(row=2)
-Label(f3, text="OpenField Data:", width=20).grid(row=3)
+Label(f3, text="Your Address:", width=20,anchor="e").grid(row=0)
+Label(f3, text="Recipient:", width=20,anchor="e").grid(row=1)
+Label(f3, text="Amount:", width=20,anchor="e").grid(row=2)
+Label(f3, text="Data:", width=20,anchor="e").grid(row=3)
 
-recipient = Entry(f3, width=57)
-recipient.grid(row=1, column=1, pady=5)
-
-amount = Entry(f3, width=57)
-amount.grid(row=2, column=1, pady=5)
-
-openfield = Entry(f3, width=57)
-openfield.grid(row=3, column=1, pady=5)
+recipient = Entry(f3, width=57).grid(row=1, column=1,sticky=E)
+amount = Entry(f3, width=57).grid(row=2, column=1,sticky=E)
+openfield = Entry(f3, width=57).grid(row=3, column=1,sticky=E)
 
 balance_enumerator = Entry(f3, width=5)
 #address and amount
 
-Label(f4, text="Your latest transactions:", width=20).grid(row=0)
+Label(f3, text="Your latest transactions:", width=20,anchor="w").grid(row=8,sticky=S)
+Label(f3, text="", width=20,anchor="w").grid(row=7,sticky=S)
 
 #logo
 
 logo_hash_decoded = base64.b64decode(icons.logo_hash)
-
 logo=PhotoImage(data=logo_hash_decoded)
-image = Label(f2, image=logo)
-image.grid(pady=5, padx=40)
+image = Label(f2, image=logo).grid(pady=5, padx=40)
 #logo
 refresh_auto()
 root.mainloop()
