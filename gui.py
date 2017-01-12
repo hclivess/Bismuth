@@ -23,6 +23,7 @@ from simplecrypt import encrypt, decrypt
 from Tkinter import *
 
 global key
+global encrypted
 
 root = Tk()
 root.wm_title("Bismuth")
@@ -77,6 +78,8 @@ def encrypt_fn():
     pem_file.write(base64.b64encode(ciphertext))
     pem_file.close()
 
+    encrypt_b.configure(text="Encrypted", state=DISABLED)
+
 def decrypt_get_password():
     # enter password
     top4 = Toplevel()
@@ -104,6 +107,17 @@ def decrypt_fn():
     return key
 
 def send():
+    try:
+        key
+    except:
+        top5 = Toplevel()
+        top5.title("Locked")
+
+        Label(top5, text="Wallet is locked", width=20).grid(row=0, pady=0)
+
+        done = Button(top5, text="Cancel", command=top5.destroy)
+        done.grid(row=1, column=0, sticky=W + E, padx=15, pady=(5, 5))
+
     app_log.info("Received tx command")
     recipient_input = recipient.get()
     app_log.info("Recipient: "+recipient_input)
@@ -174,7 +188,10 @@ def qr():
 if not os.path.exists('privkey_encrypted.der'):
     key = RSA.importKey(open('privkey.der').read())
     private_key_readable = str(key.exportKey())
+    encrypted = 0
     #public_key = key.publickey()
+else:
+    encrypted = 1
 
 #public_key_readable = str(key.publickey().exportKey())
 public_key_readable = open('pubkey.der').read()
@@ -375,6 +392,9 @@ sign_b = Button(f5, text="Sign Message", command=sign, height=1, width=15)
 sign_b.grid(row=12, column=0, sticky=W+E+S, pady=4,padx=15)
 
 encrypt_b = Button(f5, text="Encrypt", command=encrypt_get_password, height=1, width=10)
+if encrypted == 1:
+    encrypt_b.configure(text="Encrypted",state = DISABLED)
+
 encrypt_b.grid(row=14, column=0, sticky=W, pady=4,padx=15)
 
 decrypt_b = Button(f5, text="Decrypt", command=decrypt_get_password, height=1, width=10)
