@@ -65,7 +65,16 @@ def encrypt_get_password():
 
     enter = Button(top3, text="Encrypt", command = lambda: encrypt_fn(top3))
     enter.grid(row=1, column=0, sticky=W+E, padx=15, pady=(5, 5))
+
+    cancel = Button(top3, text="Cancel", command=top3.destroy)
+    cancel.grid(row=2, column=0, sticky=W + E, padx=15, pady=(5, 5))
     # enter password
+def lock_fn(button):
+    global key
+    key = ""
+    decrypt_b.configure(text="Unlock", state=NORMAL)
+    lock_b.configure(text="Locked", state=DISABLED)
+
 
 def encrypt_fn(destroy_this):
     password = password_var_enc.get()
@@ -90,20 +99,31 @@ def decrypt_get_password():
 
     enter = Button(top4, text="Decrypt", command = lambda: decrypt_fn(top4))
     enter.grid(row=1, column=0, sticky=W+E, padx=15, pady=(5, 5))
+
+    cancel = Button(top4, text="Cancel", command=top4.destroy)
+    cancel.grid(row=2, column=0, sticky=W + E, padx=15, pady=(5, 5))
     # enter password
 
 def decrypt_fn(destroy_this):
     global key
-    password = password_var_dec.get()
-    encrypted_privkey = open('privkey_encrypted.der').read()
-    decrypted_privkey = decrypt(password, base64.b64decode(encrypted_privkey))
+    try:
+        password = password_var_dec.get()
+        encrypted_privkey = open('privkey_encrypted.der').read()
+        decrypted_privkey = decrypt(password, base64.b64decode(encrypted_privkey))
 
-    key = RSA.importKey(decrypted_privkey) #be able to sign
-    #private_key_readable = str(key.exportKey())
-    #print key
-    decrypt_b.configure(text="Unlocked", state=DISABLED)
-    destroy_this.destroy()
-    
+        key = RSA.importKey(decrypted_privkey) #be able to sign
+        #private_key_readable = str(key.exportKey())
+        #print key
+        decrypt_b.configure(text="Unlocked", state=DISABLED)
+        lock_b.configure(text="Lock", state=NORMAL)
+        destroy_this.destroy()
+    except:
+        top6 = Toplevel()
+        top6.title("Locked")
+        Label(top6, text="Wrong password", width=20).grid(row=0, pady=0)
+        cancel = Button(top6, text="Cancel", command=top6.destroy)
+        cancel.grid(row=1, column=0, sticky=W + E, padx=15, pady=(5, 5))
+
     return key
 
 def send():
@@ -392,15 +412,18 @@ balance_b.grid(row=11, column=0, sticky=W+E+S, pady=4,padx=15)
 sign_b = Button(f5, text="Sign Message", command=sign, height=1, width=15)
 sign_b.grid(row=12, column=0, sticky=W+E+S, pady=4,padx=15)
 
-encrypt_b = Button(f5, text="Encrypt", command=encrypt_get_password, height=1, width=10)
+encrypt_b = Button(f5, text="Encrypt", command=encrypt_get_password, height=1, width=7)
 if encrypted == 1:
     encrypt_b.configure(text="Encrypted",state = DISABLED)
-encrypt_b.grid(row=14, column=0, sticky=W, pady=4,padx=15)
+encrypt_b.grid(row=14, column=0, sticky=W, pady=4,padx=7)
 
-decrypt_b = Button(f5, text="Unlock", command=decrypt_get_password, height=1, width=10)
+decrypt_b = Button(f5, text="Unlock", command=decrypt_get_password, height=1, width=7)
 if unlocked == 1:
     decrypt_b.configure(text="Unlocked",state = DISABLED)
-decrypt_b.grid(row=14, column=0, sticky=E, pady=4,padx=15)
+decrypt_b.grid(row=14, column=0, sticky=E, pady=4,padx=10)
+
+lock_b = Button(f5, text="Lock", command=lambda:lock_fn(lock_b), height=1, width=7,state=DISABLED)
+lock_b.grid(row=14, column=0, sticky=S, pady=4,padx=10)
 
 quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=15)
 quit_b.grid(row=15, column=0, sticky=W+E+S, pady=4,padx=15)
