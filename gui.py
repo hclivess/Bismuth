@@ -29,32 +29,6 @@ global unlocked
 root = Tk()
 root.wm_title("Bismuth")
 
-if "posix" not in os.name:
-    #icon
-
-    icondata= base64.b64decode(icons.icon_hash)
-    ## The temp file is icon.ico
-    tempFile= "icon.ico"
-    iconfile= open(tempFile,"wb")
-    ## Extract the icon
-    iconfile.write(icondata)
-    iconfile.close()
-    root.wm_iconbitmap(tempFile)
-    ## Delete the tempfile
-    #icon
-
-log_formatter = logging.Formatter('%(asctime)s %(levelname)s %(funcName)s(%(lineno)d) %(message)s')
-logFile = 'gui.log'
-my_handler = RotatingFileHandler(logFile, mode='a', maxBytes=5*1024*1024, backupCount=2, encoding=None, delay=0)
-my_handler.setFormatter(log_formatter)
-my_handler.setLevel(logging.INFO)
-app_log = logging.getLogger('root')
-app_log.setLevel(logging.INFO)
-app_log.addHandler(my_handler)
-
-password_var_enc = StringVar()
-password_var_dec = StringVar()
-
 def encrypt_get_password():
     # enter password
     top3 = Toplevel()
@@ -206,40 +180,6 @@ def qr():
     button.pack()
     # popup
 
-# import keys
-if not os.path.exists('privkey_encrypted.der'):
-    key = RSA.importKey(open('privkey.der').read())
-    private_key_readable = str(key.exportKey())
-    #public_key = key.publickey()
-    encrypted = 0
-    unlocked = 1
-else:
-    encrypted = 1
-    unlocked = 0
-
-#public_key_readable = str(key.publickey().exportKey())
-public_key_readable = open('pubkey.der').read()
-public_key_hashed = base64.b64encode(public_key_readable)
-address = hashlib.sha224(public_key_readable).hexdigest()
-
-#frames
-f2 = Frame(root, height=100, width = 100)
-f2.grid(row = 0, column = 1, sticky = W+E+S)
-
-f3 = Frame(root, width = 500)
-f3.grid(row = 0, column = 0, sticky = W+E+N, pady = 10, padx = 10)
-
-f4 = Frame(root, height=100, width = 100)
-f4.grid(row = 1, column = 0, sticky = W+E+N, pady = 10, padx = 10)
-
-f5 = Frame(root, height=100, width = 100)
-f5.grid(row = 1, column = 1, sticky = W+E+S, pady = 10, padx = 10)
-
-f6 = Frame(root, height=100, width = 100)
-f6.grid(row = 2, column = 0, sticky = E, pady = 10, padx = 10)
-#frames
-
-
 def sign():
     def verify_this():
         try:
@@ -310,6 +250,59 @@ def sign():
 def refresh_auto():
     root.after(0, refresh)
     root.after(10000, refresh_auto)
+
+
+def table():
+
+    # transaction table
+    # data
+
+    datasheet = ["time", "from", "to", "amount"]
+
+    conn = sqlite3.connect('static/ledger.db')
+    conn.text_factory = str
+    c = conn.cursor()
+    for row in c.execute("SELECT * FROM transactions WHERE address = '" + str(address) + "' OR recipient = '" + str(address) + "' ORDER BY block_height DESC LIMIT 19;"):
+        db_timestamp = row[1]
+        datasheet.append(datetime.fromtimestamp(float(db_timestamp)).strftime('%Y-%m-%d %H:%M:%S'))
+        db_address = row[2]
+        datasheet.append(db_address)
+        db_recipient = row[3]
+        datasheet.append(db_recipient)
+        db_amount = row[4]
+        datasheet.append(db_amount)
+    conn.close()
+    # data
+
+    app_log.info(datasheet)
+    app_log.info(len(datasheet))
+
+    if len(datasheet) == 4:
+        app_log.info("Looks like a new address")
+
+    elif len(datasheet) < 20 * 4:
+        app_log.info(len(datasheet))
+        table_limit = len(datasheet) / 4
+    else:
+        table_limit = 20
+
+    if len(datasheet) > 4:
+        k = 0
+
+        for child in f4.winfo_children(): #prevent hangup
+            child.destroy()
+
+        for i in range(table_limit):
+            for j in range(4):
+
+                e = Entry(f4, justify=RIGHT)
+                e.configure(background='floralwhite')
+                e.grid(row=i + 1, column=j, sticky=EW)
+                e.insert(END, datasheet[k])
+                k = k + 1
+
+    # transaction table
+    #refreshables
 
 def refresh():
     #print "refresh triggered"
@@ -401,6 +394,69 @@ def refresh():
     table()
     #root.after(1000, refresh)
 
+if "posix" not in os.name:
+    #icon
+
+    icondata= base64.b64decode(icons.icon_hash)
+    ## The temp file is icon.ico
+    tempFile= "icon.ico"
+    iconfile= open(tempFile,"wb")
+    ## Extract the icon
+    iconfile.write(icondata)
+    iconfile.close()
+    root.wm_iconbitmap(tempFile)
+    ## Delete the tempfile
+    #icon
+
+log_formatter = logging.Formatter('%(asctime)s %(levelname)s %(funcName)s(%(lineno)d) %(message)s')
+logFile = 'gui.log'
+my_handler = RotatingFileHandler(logFile, mode='a', maxBytes=5*1024*1024, backupCount=2, encoding=None, delay=0)
+my_handler.setFormatter(log_formatter)
+my_handler.setLevel(logging.INFO)
+app_log = logging.getLogger('root')
+app_log.setLevel(logging.INFO)
+app_log.addHandler(my_handler)
+
+password_var_enc = StringVar()
+password_var_dec = StringVar()
+
+
+
+# import keys
+if not os.path.exists('privkey_encrypted.der'):
+    key = RSA.importKey(open('privkey.der').read())
+    private_key_readable = str(key.exportKey())
+    #public_key = key.publickey()
+    encrypted = 0
+    unlocked = 1
+else:
+    encrypted = 1
+    unlocked = 0
+
+#public_key_readable = str(key.publickey().exportKey())
+public_key_readable = open('pubkey.der').read()
+public_key_hashed = base64.b64encode(public_key_readable)
+address = hashlib.sha224(public_key_readable).hexdigest()
+#private_key_readable = str(key.exportKey())
+
+#frames
+f2 = Frame(root, height=100, width = 100)
+f2.grid(row = 0, column = 1, sticky = W+E+S)
+
+f3 = Frame(root, width = 500)
+f3.grid(row = 0, column = 0, sticky = W+E+N, pady = 10, padx = 10)
+
+f4 = Frame(root, height=100, width = 100)
+f4.grid(row = 1, column = 0, sticky = W+E+N, pady = 10, padx = 10)
+
+f5 = Frame(root, height=100, width = 100)
+f5.grid(row = 1, column = 1, sticky = W+E+S, pady = 10, padx = 10)
+
+f6 = Frame(root, height=100, width = 100)
+f6.grid(row = 2, column = 0, sticky = E, pady = 10, padx = 10)
+#frames
+
+
 #buttons
 
 send_b = Button(f5, text="Send Bismuth", command=send, height=1, width=10)
@@ -435,9 +491,6 @@ lock_b = Button(f6, text="Locked", command=lambda:lock_fn(lock_b), height=1, wid
 if encrypted == 0:
     lock_b.configure(text="Lock",state = DISABLED)
 lock_b.grid(row=1, column=3, sticky=E, pady=4,padx=5)
-
-
-
 
 #buttons
 
@@ -480,59 +533,6 @@ sync_msg_var = StringVar()
 sync_msg_label = Label(f5, textvariable=sync_msg_var)
 sync_msg_label.grid(row=8, column=0, sticky=N+E, padx=15)
 
-
-def table():
-
-    # transaction table
-    # data
-
-    datasheet = ["time", "from", "to", "amount"]
-
-    conn = sqlite3.connect('static/ledger.db')
-    conn.text_factory = str
-    c = conn.cursor()
-    for row in c.execute("SELECT * FROM transactions WHERE address = '" + str(address) + "' OR recipient = '" + str(address) + "' ORDER BY block_height DESC LIMIT 19;"):
-        db_timestamp = row[1]
-        datasheet.append(datetime.fromtimestamp(float(db_timestamp)).strftime('%Y-%m-%d %H:%M:%S'))
-        db_address = row[2]
-        datasheet.append(db_address)
-        db_recipient = row[3]
-        datasheet.append(db_recipient)
-        db_amount = row[4]
-        datasheet.append(db_amount)
-    conn.close()
-    # data
-
-    app_log.info(datasheet)
-    app_log.info(len(datasheet))
-
-    if len(datasheet) == 4:
-        app_log.info("Looks like a new address")
-
-    elif len(datasheet) < 20 * 4:
-        app_log.info(len(datasheet))
-        table_limit = len(datasheet) / 4
-    else:
-        table_limit = 20
-
-    if len(datasheet) > 4:
-        k = 0
-
-        for child in f4.winfo_children(): #prevent hangup
-            child.destroy()
-
-        for i in range(table_limit):
-            for j in range(4):
-
-                e = Entry(f4, justify=RIGHT)
-                e.configure(background='floralwhite')
-                e.grid(row=i + 1, column=j, sticky=EW)
-                e.insert(END, datasheet[k])
-                k = k + 1
-
-    # transaction table
-    #refreshables
-
 #address and amount
 gui_address = Entry(f3,width=57)
 gui_address.grid(row=0,column=1)
@@ -544,9 +544,12 @@ Label(f3, text="Recipient:", width=20,anchor="e").grid(row=1)
 Label(f3, text="Amount:", width=20,anchor="e").grid(row=2)
 Label(f3, text="Data:", width=20,anchor="e").grid(row=3)
 
-recipient = Entry(f3, width=57).grid(row=1, column=1,sticky=E)
-amount = Entry(f3, width=57).grid(row=2, column=1,sticky=E)
-openfield = Entry(f3, width=57).grid(row=3, column=1,sticky=E)
+recipient = Entry(f3, width=57)
+recipient.grid(row=1, column=1,sticky=E)
+amount = Entry(f3, width=57)
+amount.grid(row=2, column=1,sticky=E)
+openfield = Entry(f3, width=57)
+openfield.grid(row=3, column=1,sticky=E)
 
 balance_enumerator = Entry(f3, width=5)
 #address and amount
@@ -560,6 +563,7 @@ logo_hash_decoded = base64.b64decode(icons.logo_hash)
 logo=PhotoImage(data=logo_hash_decoded)
 image = Label(f2, image=logo).grid(pady=5, padx=40)
 #logo
+
 refresh_auto()
 root.mainloop()
 

@@ -133,6 +133,10 @@ def mempool_merge(data):
         # merge mempool
 
         try:
+            mempool = sqlite3.connect('mempool.db')
+            mempool.text_factory = str
+            m = mempool.cursor()
+
             block_list = ast.literal_eval(data)
 
             for transaction in block_list:  # set means unique
@@ -144,9 +148,7 @@ def mempool_merge(data):
                 mempool_public_key_hashed = transaction[5]
                 mempool_openfield = transaction[6]
                 
-                mempool = sqlite3.connect('mempool.db')
-                mempool.text_factory = str
-                m = mempool.cursor()
+
 
                 conn = sqlite3.connect(ledger_path_conf)
                 conn.text_factory = str
@@ -270,12 +272,13 @@ def mempool_merge(data):
                             mempool_signature_enc, mempool_public_key_hashed, mempool_openfield))
                         app_log.info("Incoming: Mempool updated with a received transaction")
                         mempool.commit()  # Save (commit) the changes
-                        mempool.close()
+
                         # merge mempool
 
                         # receive mempool
 
             app_log.info("Mempool: Finished")
+            mempool.close()
         except:
             app_log.info("Mempool: Error processing")  # will this fix the hang?
             if debug_conf == 1:
