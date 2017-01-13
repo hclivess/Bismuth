@@ -182,7 +182,7 @@ def mempool_merge(data):
 
                 if (mempool_in == 1) and (ledger_in == 1):  # remove from mempool if it's in both ledger and mempool already
                     try:
-                        m.execute("DELETE * FROM transactions WHERE signature = '" + mempool_signature_enc + "'")
+                        m.execute("DELETE FROM transactions WHERE signature = '" + mempool_signature_enc + "'")
                         mempool.commit()
                         app_log.info("Transaction deleted from our mempool")
                     except: #experimental try and except
