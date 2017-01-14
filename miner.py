@@ -51,22 +51,8 @@ def send(sdef, data):
 def bin_convert(string):
     return ''.join(format(ord(x), 'b') for x in string)
 
-def miner(args, pwd_val):
-    # import keys
-    if not os.path.exists('privkey_encrypted.der'):
-        key = RSA.importKey(open('privkey.der').read())
-        # private_key_readable = str(key.exportKey())
-        # public_key = key.publickey()
-    else:
-        encrypted_privkey = open('privkey_encrypted.der').read()
-        decrypted_privkey = decrypt(pwd_val, base64.b64decode(encrypted_privkey))
-        key = RSA.importKey(decrypted_privkey)  # be able to sign
-        # private_key_readable = decrypted_privkey
-
-    public_key_readable = open('pubkey.der').read()
-    public_key_hashed = base64.b64encode(public_key_readable)
-    address = hashlib.sha224(public_key_readable).hexdigest()
-    # import keys
+def miner(args, address, privatekey_readable, public_key_hashed):
+    key = RSA.importKey(privatekey_readable)
 
     block_timestamp = 0  # init
     tries = 0
@@ -202,10 +188,24 @@ def miner(args, pwd_val):
             raise
 
 if __name__ == '__main__':
-    if os.path.exists('privkey_encrypted.der'):
-        password = getpass.getpass()
-    else:
+    # import keys
+    if not os.path.exists('privkey_encrypted.der'):
         password = ""
+        key = RSA.importKey(open('privkey.der').read())
+        private_key_readable = str(key.exportKey())
+        # public_key = key.publickey()
+    else:
+        password = getpass.getpass()
+        encrypted_privkey = open('privkey_encrypted.der').read()
+        decrypted_privkey = decrypt(password, base64.b64decode(encrypted_privkey))
+        key = RSA.importKey(decrypted_privkey)  # be able to sign
+        private_key_readable = str(key.exportKey())
+
+    public_key_readable = open('pubkey.der').read()
+    public_key_hashed = base64.b64encode(public_key_readable)
+    address = hashlib.sha224(public_key_readable).hexdigest()
+    # import keys
+
 
     # verify connection
     connected = 0
@@ -240,7 +240,7 @@ if __name__ == '__main__':
     instances = range(int(mining_threads_conf))
     print instances
     for q in instances:
-        p = Process(target=miner, args=(str(q+1), password))
+        p = Process(target=miner, args=(str(q+1), address, private_key_readable, public_key_hashed))
         p.start()
         print "thread "+str(p)+ " started"
     p.join()
