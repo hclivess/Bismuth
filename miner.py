@@ -51,7 +51,7 @@ def send(sdef, data):
 def bin_convert(string):
     return ''.join(format(ord(x), 'b') for x in string)
 
-def miner(args, password):
+def miner(args, pwd_val):
     # import keys
     if not os.path.exists('privkey_encrypted.der'):
         key = RSA.importKey(open('privkey.der').read())
@@ -59,7 +59,7 @@ def miner(args, password):
         # public_key = key.publickey()
     else:
         encrypted_privkey = open('privkey_encrypted.der').read()
-        decrypted_privkey = decrypt(password, base64.b64decode(encrypted_privkey))
+        decrypted_privkey = decrypt(pwd_val, base64.b64decode(encrypted_privkey))
         key = RSA.importKey(decrypted_privkey)  # be able to sign
         # private_key_readable = decrypted_privkey
 
