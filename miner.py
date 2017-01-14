@@ -188,6 +188,7 @@ def miner(args, address, privatekey_readable, public_key_hashed):
             raise
 
 if __name__ == '__main__':
+    freeze_support() #must be this line, dont move ahead
     # import keys
     if not os.path.exists('privkey_encrypted.der'):
         password = ""
@@ -236,12 +237,12 @@ if __name__ == '__main__':
     else:
         app_log.info("Mempool exists")
 
-    freeze_support()
     instances = range(int(mining_threads_conf))
     print instances
     for q in instances:
         p = Process(target=miner, args=(str(q+1), address, private_key_readable, public_key_hashed))
         p.start()
         print "thread "+str(p)+ " started"
-    p.join()
-    p.terminate()
+    for q in instances:
+        p.join()
+        p.terminate()
