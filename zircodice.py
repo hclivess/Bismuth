@@ -33,7 +33,6 @@ while True:
 
     for x in result_bets:
         openfield = str(x[11])
-        print openfield
         if base64.b64decode(openfield) == "odd":
             player = [0, 2, 4, 6, 8]
             bank = [1, 3, 5, 7, 9]
@@ -53,14 +52,13 @@ while True:
             won_count = won_count + 1
 
             try:
-                c.execute("SELECT * FROM transactions where openfield = '" + base64.b64encode(
-                    "payout for " + tx_signature) + "' ")
+                c.execute("SELECT * FROM transactions WHERE openfield = '" + base64.b64encode("payout for " + tx_signature) + "' ") #bugged?
                 result_in_ledger = c.fetchone()[0]
-                # print result_in_ledger
                 print "Payout transaction already in the ledger"
                 paid_count = paid_count + 1
 
             except:
+                print "Appending tx to the payout list"
                 payout_missing.append(x)
                 not_paid_count = not_paid_count + 1
 
@@ -75,6 +73,7 @@ while True:
 
     c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
     last_block_height = c.fetchone()[0]
+    conn.close()
 
 
     processed = []
@@ -86,10 +85,11 @@ while True:
             print payout_address
             bet_amount = float(y[4])
             tx_signature = y[5]  # unique
+            #print y
 
             # create transactions for missing payouts
             timestamp = str(time.time())
-            transaction = (timestamp, address, payout_address, str(float(bet_amount + bet_amount)),
+            transaction = (timestamp, address, payout_address, str(float(bet_amount*2)),
                            base64.b64encode("payout for " + tx_signature))
             print transaction
 
@@ -104,14 +104,13 @@ while True:
             m = mempool.cursor()
 
             try:
-                m.execute("SELECT * FROM transactions where openfield = '" + base64.b64encode(
-                    "payout for " + tx_signature) + "' ")
+                m.execute("SELECT * FROM transactions where openfield = '" + base64.b64encode("payout for " + tx_signature) + "' ")
                 result_in_mempool = m.fetchone()[0]
                 print result_in_mempool
                 print "Payout transaction already in the mempool"
             except:
                 m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?)", (
-                timestamp, address, payout_address, str(float(bet_amount + bet_amount)), signature_enc, public_key_hashed,
+                timestamp, address, payout_address, str(float(bet_amount*2)), signature_enc, public_key_hashed,
                 base64.b64encode("payout for " + tx_signature)))
                 mempool.commit()  # Save (commit) the changes
                 mempool.close()
@@ -119,5 +118,4 @@ while True:
 
 
                 # create transactions for missing payouts
-    conn.close()
     time.sleep(30)
