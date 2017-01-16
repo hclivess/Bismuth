@@ -869,7 +869,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         while True:
             peer_ip = self.request.getpeername()[0]
             try:
-                data = receive(self.request, 10)
+                if peer_ip not in banlist:
+                    data = receive(self.request, 10)
+                else:
+                    ValueError ("Banned")
 
                 app_log.info("Incoming: Received: " + str(data) + " from " + str(peer_ip))  # will add custom ports later
 
@@ -906,7 +909,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     send(self.request, str(mempool_txs))
                     # send own
 
-                elif data == 'hello' and peer_ip not in banlist:
+                elif data == 'hello':
                     with open("peers.txt", "r") as peer_list:
                         peers = peer_list.read()
 
