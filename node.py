@@ -465,7 +465,7 @@ def consensus_add(peer_ip, consensus_blockheight):
 
     if max(consensus_blockheight_list) == consensus_blockheight:
         stallion = peer_ip
-        app_log.info("Stallion is now"+str(stallion))
+        app_log.info("Stallion is now "+str(stallion))
 
     return
 
@@ -1337,13 +1337,13 @@ def worker(HOST, PORT):
                 # receive theirs
                 segments = receive(s, 10)
 
-                    # app_log.info("Incoming: Combined segments: " + segments)
-                    if peer_ip == stallion:
-                        digest_block(segments)
-                    # receive theirs
+                # app_log.info("Incoming: Combined segments: " + segments)
+                if peer_ip == stallion:
+                    digest_block(segments)
+                # receive theirs
 
-                    # digest_block(data) goddamn bug
-                    # digest_block() #temporary
+                # digest_block(data) goddamn bug
+                # digest_block() #temporary
 
                 while busy == 1:
                     time.sleep(1)
