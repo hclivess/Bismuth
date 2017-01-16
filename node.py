@@ -516,7 +516,7 @@ def manager():
         time.sleep(int(pause_conf))
 
 
-def digest_block(data):
+def digest_block(data, peer_ip):
     global busy
     while busy == 1:
         app_log.info("Waiting for pool to become available")
@@ -771,7 +771,8 @@ def digest_block(data):
                         app_log.info("Block valid and saved")
                         del block_transactions[:]
                     else:
-                        app_log.info("A part of the block is invalid, rejected")
+                        banlist.append(peer_ip)
+                        raise ValueError ("A part of the block is invalid, rejected, node temporarily banned")
 
                         # whole block validation
 
@@ -905,7 +906,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     send(self.request, str(mempool_txs))
                     # send own
 
-                elif data == 'hello':
+                elif data == 'hello' and peer_ip not in banlist:
                     with open("peers.txt", "r") as peer_list:
                         peers = peer_list.read()
 
@@ -971,7 +972,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     segments = receive(self.request, 10)
 
                     # app_log.info("Incoming: Combined segments: " + segments)
-                    digest_block(segments)
+                    digest_block(segments, peer_ip)
                     # receive theirs
 
                     while busy == 1:
@@ -1096,7 +1097,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     # receive theirs
                     segments = receive(self.request, 10)
                     # app_log.info("Incoming: Combined mined segments: " + segments)
-                    digest_block(segments)
+                    digest_block(segments, peer_ip)
                     # receive theirs
 
                 else:
@@ -1330,7 +1331,7 @@ def worker(HOST, PORT):
                 segments = receive(s, 10)
 
                 # app_log.info("Incoming: Combined segments: " + segments)
-                digest_block(segments)
+                digest_block(segments, peer_ip)
                 # receive theirs
 
                 # digest_block(data) goddamn bug
