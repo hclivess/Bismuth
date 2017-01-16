@@ -872,7 +872,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 if peer_ip not in banlist:
                     data = receive(self.request, 10)
                 else:
-                    ValueError ("Banned")
+                    raise ValueError ("Banned")
 
                 app_log.info("Incoming: Received: " + str(data) + " from " + str(peer_ip))  # will add custom ports later
 
