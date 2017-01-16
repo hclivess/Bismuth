@@ -465,7 +465,7 @@ def consensus_add(peer_ip, consensus_blockheight):
 
     if max(consensus_blockheight_list) == consensus_blockheight:
         stallion = peer_ip
-        app_log.info("Stallion now is "+str(stallion))
+        app_log.info("Stallion is now"+str(stallion))
 
     return
 
@@ -970,7 +970,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     send(self.request, (str(len("sync"))).zfill(10))
                     send(self.request, "sync")
 
-                elif data == "blocksfnd":
+                elif data == "blocksfnd" and peer_ip == stallion:
                     app_log.info("Incoming: Client has the block")  # node should start sending txs in this step
 
                     # receive theirs
@@ -1087,7 +1087,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     send(self.request, (str(len("sync"))).zfill(10))
                     send(self.request, "sync")
 
-                elif data == "blocknf":
+                elif data == "blocknf" and peer_ip == stallion:
                     block_hash_delete = receive(self.request, 10)
                     blocknf(block_hash_delete)
 
@@ -1238,11 +1238,11 @@ def worker(HOST, PORT):
                     app_log.info("Outgoing: We have a higher, sending")
                     update_me = 0
 
-                if int(received_block_height) > db_block_height and peer_ip == stallion:
+                if int(received_block_height) > db_block_height:
                     app_log.info("Outgoing: Node has higher block, receiving")
                     update_me = 1
 
-                if int(received_block_height) == db_block_height  and peer_ip == stallion:
+                if int(received_block_height) == db_block_height:
                     app_log.info("Outgoing: We have the same block height, hash will be verified")
                     update_me = 1
 
@@ -1319,7 +1319,7 @@ def worker(HOST, PORT):
                         send(s, (str(len(data))).zfill(10))
                         send(s, data)
 
-            elif data == "blocknf":
+            elif data == "blocknf" and peer_ip == stallion:
                 block_hash_delete = receive(s, 10)
                 blocknf(block_hash_delete)
 
@@ -1328,7 +1328,7 @@ def worker(HOST, PORT):
                 send(s, (str(len("sendsync"))).zfill(10))
                 send(s, "sendsync")
 
-            elif data == "blocksfnd":
+            elif data == "blocksfnd" and peer_ip == stallion:
 
                 app_log.info("Outgoing: Node has the block")  # node should start sending txs in this step
 
