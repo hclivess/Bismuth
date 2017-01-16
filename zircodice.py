@@ -28,7 +28,6 @@ while True:
     paid_count = 0
     not_paid_count = 0
 
-    txs_winning = []
     payout_missing = []
 
     for x in result_bets:
@@ -44,7 +43,6 @@ while True:
         block_hash = x[7]
         # print block_hash
         tx_signature = x[5]  # unique
-        # print tx_signature
         digit_last = (re.findall("(\d)", block_hash))[-1]
         # print digit_last
         if (int(digit_last) in player) and (bet_amount <= bet_max):
@@ -52,13 +50,13 @@ while True:
             won_count = won_count + 1
 
             try:
-                c.execute("SELECT * FROM transactions WHERE openfield = '" + base64.b64encode("payout for " + tx_signature) + "' ") #bugged?
+                c.execute("SELECT * FROM transactions where openfield = '" + base64.b64encode("payout for " + tx_signature) + "' ")
                 result_in_ledger = c.fetchone()[0]
-                print "Payout transaction already in the ledger"
+                print "Payout transaction already in the ledger for "+str(tx_signature)
                 paid_count = paid_count + 1
 
             except:
-                print "Appending tx to the payout list"
+                print "Appending tx to the payout list for "+str(tx_signature)
                 payout_missing.append(x)
                 not_paid_count = not_paid_count + 1
 
@@ -114,7 +112,7 @@ while True:
                 base64.b64encode("payout for " + tx_signature)))
                 mempool.commit()  # Save (commit) the changes
                 mempool.close()
-                print "Mempool updated with a payout transaction"
+                print "Mempool updated with a payout transaction for "+str(tx_signature)
 
 
                 # create transactions for missing payouts
