@@ -516,7 +516,7 @@ def manager():
         time.sleep(int(pause_conf))
 
 
-def digest_block(data, peer_ip):
+def digest_block(data):
     global busy
     while busy == 1:
         app_log.info("Waiting for pool to become available")
@@ -771,8 +771,7 @@ def digest_block(data, peer_ip):
                         app_log.info("Block valid and saved")
                         del block_transactions[:]
                     else:
-                        banlist.append(peer_ip)
-                        raise ValueError ("A part of the block is invalid, rejected, node temporarily banned")
+                        app_log.info("A part of the block is invalid, rejected")
 
                         # whole block validation
 
@@ -869,10 +868,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         while True:
             peer_ip = self.request.getpeername()[0]
             try:
-                if peer_ip not in banlist:
-                    data = receive(self.request, 10)
-                else:
-                    raise ValueError ("Banned")
+                data = receive(self.request, 10)
 
                 app_log.info("Incoming: Received: " + str(data) + " from " + str(peer_ip))  # will add custom ports later
 
@@ -975,7 +971,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     segments = receive(self.request, 10)
 
                     # app_log.info("Incoming: Combined segments: " + segments)
-                    digest_block(segments, peer_ip)
+                    digest_block(segments)
                     # receive theirs
 
                     while busy == 1:
@@ -1100,7 +1096,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     # receive theirs
                     segments = receive(self.request, 10)
                     # app_log.info("Incoming: Combined mined segments: " + segments)
-                    digest_block(segments, peer_ip)
+                    digest_block(segments)
                     # receive theirs
 
                 else:
@@ -1334,7 +1330,7 @@ def worker(HOST, PORT):
                 segments = receive(s, 10)
 
                 # app_log.info("Incoming: Combined segments: " + segments)
-                digest_block(segments, peer_ip)
+                digest_block(segments)
                 # receive theirs
 
                 # digest_block(data) goddamn bug
