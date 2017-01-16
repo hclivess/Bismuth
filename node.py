@@ -970,15 +970,16 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     send(self.request, (str(len("sync"))).zfill(10))
                     send(self.request, "sync")
 
-                elif data == "blocksfnd" and peer_ip == stallion:
-                    app_log.info("Incoming: Client has the block")  # node should start sending txs in this step
+                elif data == "blocksfnd":
+                    if peer_ip == stallion:
+                        app_log.info("Incoming: Client has the block")  # node should start sending txs in this step
 
-                    # receive theirs
-                    segments = receive(self.request, 10)
+                        # receive theirs
+                        segments = receive(self.request, 10)
 
-                    # app_log.info("Incoming: Combined segments: " + segments)
-                    digest_block(segments)
-                    # receive theirs
+                        # app_log.info("Incoming: Combined segments: " + segments)
+                        digest_block(segments)
+                        # receive theirs
 
                     while busy == 1:
                         time.sleep(1)
@@ -1087,9 +1088,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     send(self.request, (str(len("sync"))).zfill(10))
                     send(self.request, "sync")
 
-                elif data == "blocknf" and peer_ip == stallion:
-                    block_hash_delete = receive(self.request, 10)
-                    blocknf(block_hash_delete)
+                elif data == "blocknf":
+                    if peer_ip == stallion:
+                        block_hash_delete = receive(self.request, 10)
+                        blocknf(block_hash_delete)
 
                     while busy == 1:
                         time.sleep(1)
@@ -1319,28 +1321,29 @@ def worker(HOST, PORT):
                         send(s, (str(len(data))).zfill(10))
                         send(s, data)
 
-            elif data == "blocknf" and peer_ip == stallion:
-                block_hash_delete = receive(s, 10)
-                blocknf(block_hash_delete)
+            elif data == "blocknf":
+                if peer_ip == stallion:
+                    block_hash_delete = receive(s, 10)
+                    blocknf(block_hash_delete)
 
                 while busy == 1:
                     time.sleep(1)
                 send(s, (str(len("sendsync"))).zfill(10))
                 send(s, "sendsync")
 
-            elif data == "blocksfnd" and peer_ip == stallion:
+            elif data == "blocksfnd":
+                if peer_ip == stallion:
+                    app_log.info("Outgoing: Node has the block")  # node should start sending txs in this step
 
-                app_log.info("Outgoing: Node has the block")  # node should start sending txs in this step
+                    # receive theirs
+                    segments = receive(s, 10)
 
-                # receive theirs
-                segments = receive(s, 10)
+                    # app_log.info("Incoming: Combined segments: " + segments)
+                    digest_block(segments)
+                    # receive theirs
 
-                # app_log.info("Incoming: Combined segments: " + segments)
-                digest_block(segments)
-                # receive theirs
-
-                # digest_block(data) goddamn bug
-                # digest_block() #temporary
+                    # digest_block(data) goddamn bug
+                    # digest_block() #temporary
 
                 while busy == 1:
                     time.sleep(1)
