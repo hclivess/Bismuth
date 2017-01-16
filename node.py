@@ -121,6 +121,8 @@ global banlist
 banlist = []
 global busy
 busy = 0
+global stallion
+stallion = '127.0.0.1'
 
 
 # port = 2829 now defined by config
@@ -460,6 +462,10 @@ def consensus_add(peer_ip, consensus_blockheight):
         consensus_blockheight_list.count(consensus) / float(len(consensus_blockheight_list)))) * 100
     app_log.info("Current active connections: " + str(len(active_pool)))
     app_log.info("Current block consensus: " + str(consensus) + " = " + str(consensus_percentage) + "%")
+
+    if max(consensus_blockheight_list) == consensus_blockheight:
+        stallion = peer_ip
+        app_log.info("Stallion now is "+str(stallion))
 
     return
 
@@ -1000,7 +1006,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     send(self.request, str(db_block_height))
                     # send own block height
 
-                    if int(received_block_height) > db_block_height:
+                    if int(received_block_height) > db_block_height and peer_ip == stallion:
                         app_log.info("Incoming: Client has higher block")
                         update_me = 1
 
@@ -1232,11 +1238,11 @@ def worker(HOST, PORT):
                     app_log.info("Outgoing: We have a higher, sending")
                     update_me = 0
 
-                if int(received_block_height) > db_block_height:
+                if int(received_block_height) > db_block_height and peer_ip == stallion:
                     app_log.info("Outgoing: Node has higher block, receiving")
                     update_me = 1
 
-                if int(received_block_height) == db_block_height:
+                if int(received_block_height) == db_block_height  and peer_ip == stallion:
                     app_log.info("Outgoing: We have the same block height, hash will be verified")
                     update_me = 1
 
