@@ -971,13 +971,13 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     send(self.request, "sync")
 
                 elif data == "blocksfnd":
+                    app_log.info("Incoming: Client has the block")  # node should start sending txs in this step
+
+                    # receive theirs
+                    segments = receive(self.request, 10)
+
+                    # app_log.info("Incoming: Combined segments: " + segments)
                     if peer_ip == stallion:
-                        app_log.info("Incoming: Client has the block")  # node should start sending txs in this step
-
-                        # receive theirs
-                        segments = receive(self.request, 10)
-
-                        # app_log.info("Incoming: Combined segments: " + segments)
                         digest_block(segments)
                         # receive theirs
 
@@ -1089,8 +1089,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     send(self.request, "sync")
 
                 elif data == "blocknf":
+                    block_hash_delete = receive(self.request, 10)
                     if peer_ip == stallion:
-                        block_hash_delete = receive(self.request, 10)
                         blocknf(block_hash_delete)
 
                     while busy == 1:
@@ -1322,8 +1322,8 @@ def worker(HOST, PORT):
                         send(s, data)
 
             elif data == "blocknf":
+                block_hash_delete = receive(s, 10)
                 if peer_ip == stallion:
-                    block_hash_delete = receive(s, 10)
                     blocknf(block_hash_delete)
 
                 while busy == 1:
@@ -1332,14 +1332,14 @@ def worker(HOST, PORT):
                 send(s, "sendsync")
 
             elif data == "blocksfnd":
-                if peer_ip == stallion:
-                    app_log.info("Outgoing: Node has the block")  # node should start sending txs in this step
+                app_log.info("Outgoing: Node has the block")  # node should start sending txs in this step
 
-                    # receive theirs
-                    segments = receive(s, 10)
+                # receive theirs
+                segments = receive(s, 10)
 
                     # app_log.info("Incoming: Combined segments: " + segments)
-                    digest_block(segments)
+                    if peer_ip == stallion:
+                        digest_block(segments)
                     # receive theirs
 
                     # digest_block(data) goddamn bug
