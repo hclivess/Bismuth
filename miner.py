@@ -18,6 +18,8 @@ from Crypto.Hash import SHA
 from multiprocessing import Process
 from multiprocessing import freeze_support
 
+global hashrate
+hashrate = "estimating"
 # logging #multiprocessing not supported for file output
 
 app_log = logging.getLogger('root')
@@ -52,6 +54,7 @@ def bin_convert(string):
     return ''.join(format(ord(x), 'b') for x in string)
 
 def miner(args, address, privatekey_readable, public_key_hashed):
+    global hashrate
     key = RSA.importKey(privatekey_readable)
 
     block_timestamp = 0  # init
@@ -60,6 +63,7 @@ def miner(args, address, privatekey_readable, public_key_hashed):
     while True:
         try:
             if str(block_timestamp) != str(time.time()): #in case the time has changed
+                start = time.time()
                 block_timestamp = str(time.time())
                 tries = tries +1
                 # calculate new hash
@@ -93,7 +97,7 @@ def miner(args, address, privatekey_readable, public_key_hashed):
                     # calculate difficulty
                     conn.close()
 
-                    app_log.info("Mining, " + str(tries) + " cycles passed in thread " + str(args) + ", difficulty: " + str(diff))
+                    app_log.info("Mining, " + str(tries) + " cycles passed in thread " + str(args) + ", difficulty: " + str(diff)+ ", combined hashrate: " + str(hashrate) + " KH/s")
                     diff = int(diff)
                 #serialize txs
                 mempool = sqlite3.connect("mempool.db")
@@ -132,7 +136,11 @@ def miner(args, address, privatekey_readable, public_key_hashed):
                 #print block_send  # sync this
                 #print db_block_hash
                 #print (str((block_timestamp,block_send,db_block_hash)))
+
                 block_hash = hashlib.sha224(str((block_timestamp,block_send,db_block_hash))).hexdigest()  # we now need to use block timestamp as a variable for hash generation !!!
+                end = time.time()
+                hashrate_difference = end - start
+                hashrate = float(1000 / ((1/hashrate_difference) * int(mining_threads_conf)))
 
                 #start mining
 
