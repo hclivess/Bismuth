@@ -561,7 +561,7 @@ Label(f3, text="", width=20,anchor="w").grid(row=7,sticky=S)
 
 logo_hash_decoded = base64.b64decode(icons.logo_hash)
 logo=PhotoImage(data=logo_hash_decoded)
-image = Label(f2, image=logo).grid(pady=5, padx=40)
+image = Label(f2, image=logo).grid(pady=5, padx=20)
 #logo
 
 refresh_auto()
