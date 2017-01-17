@@ -429,6 +429,7 @@ def blocknf(block_hash_delete):
 
 
 def consensus_add(peer_ip, consensus_blockheight):
+    global stallion
     global peer_ip_list
     global consensus_blockheight_list
     global consensus_percentage
@@ -977,6 +978,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     segments = receive(self.request, 10)
 
                     # app_log.info("Incoming: Combined segments: " + segments)
+                    print peer_ip
+                    print stallion
                     if peer_ip == stallion:
                         digest_block(segments)
                         # receive theirs
@@ -1090,6 +1093,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                 elif data == "blocknf":
                     block_hash_delete = receive(self.request, 10)
+                    print peer_ip
+                    print stallion
                     if peer_ip == stallion:
                         blocknf(block_hash_delete)
 
@@ -1130,6 +1135,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
 # client thread
 def worker(HOST, PORT):
+    global stallion
     try:
         this_client = (HOST + ":" + str(PORT))
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -1323,6 +1329,8 @@ def worker(HOST, PORT):
 
             elif data == "blocknf":
                 block_hash_delete = receive(s, 10)
+                print peer_ip
+                print stallion
                 if peer_ip == stallion:
                     blocknf(block_hash_delete)
 
@@ -1338,6 +1346,8 @@ def worker(HOST, PORT):
                 segments = receive(s, 10)
 
                 # app_log.info("Incoming: Combined segments: " + segments)
+                print peer_ip
+                print stallion
                 if peer_ip == stallion:
                     digest_block(segments)
                 # receive theirs
