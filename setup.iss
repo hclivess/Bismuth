@@ -4,14 +4,14 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING .ISS SCRIPT FILES!
 
 [Setup]
-AppName=Bismuth
+AppName=Stallion
 AppVersion=Beta
-DefaultDirName={pf}\Bismuth
-DefaultGroupName=Bismuth
+DefaultDirName={pf}\Stallion
+DefaultGroupName=Stallion
 UninstallDisplayIcon={app}\node.exe
 Compression=lzma2
 SolidCompression=yes
-OutputBaseFilename=bismuth_installer
+OutputBaseFilename=Stallion_installer
 SetupIconFile=graphics\icon.ico
 
 WizardImageFile=graphics\left.bmp
@@ -25,7 +25,7 @@ Name: "{group}\Start"; Filename: "{app}\node.exe"
 Name: "{group}\Overview"; Filename: "{app}\gui.exe"
 Name: "{group}\Explorer"; Filename: "{app}\explorer.exe" 
 Name: "{group}\Mining"; Filename: "{app}\miner.exe"
-Name: "{group}\Uninstall Bismuth"; Filename: "{uninstallexe}"
+Name: "{group}\Uninstall Stallion"; Filename: "{uninstallexe}"
 
 Name: "{commondesktop}\Start Node"; Filename: "{app}\node.exe"
 Name: "{commondesktop}\Overview"; Filename: "{app}\gui.exe"
