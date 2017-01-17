@@ -140,7 +140,10 @@ def miner(args, address, privatekey_readable, public_key_hashed):
                 block_hash = hashlib.sha224(str((block_timestamp,block_send,db_block_hash))).hexdigest()  # we now need to use block timestamp as a variable for hash generation !!!
                 end = time.time()
                 hashrate_difference = end - start
-                hashrate = float(1000 / ((1/hashrate_difference) * int(mining_threads_conf)))
+                try:
+                    hashrate = float(1000 / ((1/hashrate_difference) * int(mining_threads_conf)))
+                except:
+                    hashrate = "estimating"
 
                 #start mining
 
