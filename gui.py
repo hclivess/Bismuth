@@ -27,7 +27,7 @@ global encrypted
 global unlocked
 
 root = Tk()
-root.wm_title("Bismuth")
+root.wm_title("Stallion")
 
 def encrypt_get_password():
     # enter password
@@ -164,7 +164,7 @@ def qr():
     #popup
     top = Toplevel()
     top.wm_iconbitmap(tempFile)
-    top.title("Bismuth Address QR Code")
+    top.title("Address QR Code")
 
     im = PIL.Image.open("address_qr.png")
 
@@ -459,7 +459,7 @@ f6.grid(row = 2, column = 0, sticky = E, pady = 10, padx = 10)
 
 #buttons
 
-send_b = Button(f5, text="Send Bismuth", command=send, height=1, width=10)
+send_b = Button(f5, text="Send", command=send, height=1, width=10)
 send_b.grid(row=9, column=0, sticky=W+E+S, pady=(4, 4), padx=15)
 
 start_b = Button(f5, text="Generate QR Code", command=qr, height=1, width=10)
