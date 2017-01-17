@@ -1007,7 +1007,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     send(self.request, str(db_block_height))
                     # send own block height
 
-                    if int(received_block_height) > db_block_height and peer_ip == stallion:
+                    if int(received_block_height) > db_block_height:
                         app_log.info("Incoming: Client has higher block")
                         update_me = 1
 
