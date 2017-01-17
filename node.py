@@ -461,7 +461,7 @@ def consensus_add(peer_ip, consensus_blockheight):
 
     consensus_percentage = (float(
         consensus_blockheight_list.count(consensus) / float(len(consensus_blockheight_list)))) * 100
-    app_log.info("Current active connections: " + str(len(active_pool)))
+    app_log.info("Current outgoing connections: " + str(len(active_pool)))
     app_log.info("Current block consensus: " + str(consensus) + " = " + str(consensus_percentage) + "%")
 
     if max(consensus_blockheight_list) == consensus_blockheight:
