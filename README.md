@@ -1,17 +1,18 @@
-Bismuth Readme
+Stallion Readme
 =======
 
-[![Build Status](https://travis-ci.org/hclivess/Bismuth.svg?branch=master)](https://travis-ci.org/hclivess/Bismuth)
+[![Build Status](https://travis-ci.org/hclivess/Stallion.svg?branch=master)](https://travis-ci.org/hclivess/Bismuth)
 
-Whitepaper:
-https://github.com/hclivess/Bismuth/blob/master/whitepaper.md
+###Whitepaper:
+
+https://github.com/hclivess/Stallion/blob/master/whitepaper.md
 
 ###Dependencies:
 
-https://github.com/hclivess/Bismuth/blob/master/travis.yml
+https://github.com/hclivess/Stallion/blob/master/.travis.yml
 
 ###Development plan:
-https://github.com/hclivess/Bismuth/issues
+https://github.com/hclivess/Stallion/issues
 
 *WARNING: This project is in the beta stage!*
 
