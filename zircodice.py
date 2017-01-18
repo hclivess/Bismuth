@@ -28,10 +28,17 @@ public_key_hashed = base64.b64encode(public_key_readable)
 address = hashlib.sha224(public_key_readable).hexdigest()
 # import keys
 
-
+run = 0
 bet_max = 1000
+checked = []
+processed = []
 
 while True:
+    if run % 500 == 0:
+        del checked[:] #prevent overflow
+        del processed[:] #prevent overflow
+        run = 0 #reset runs
+    run = run + 1
     conn = sqlite3.connect('static/ledger.db')
     conn.text_factory = str
     c = conn.cursor()
@@ -46,40 +53,44 @@ while True:
     payout_missing = []
 
     for x in result_bets:
-        openfield = str(x[11])
-        if base64.b64decode(openfield) == "odd":
-            player = [0, 2, 4, 6, 8]
-            bank = [1, 3, 5, 7, 9]
-        else: #if even
-            player = [1, 3, 5, 7, 9]
-            bank = [0, 2, 4, 6, 8]
+        if x not in checked:
+            checked.append(x)
 
-        bet_amount = float(x[4])
-        block_hash = x[7]
-        # print block_hash
-        tx_signature = x[5]  # unique
-        digit_last = (re.findall("(\d)", block_hash))[-1]
-        # print digit_last
-        if (int(digit_last) in player) and (bet_amount <= bet_max):
-            # print "player wins"
-            won_count = won_count + 1
+            openfield = str(x[11])
+            if base64.b64decode(openfield) == "odd":
+                player = [0, 2, 4, 6, 8]
+                bank = [1, 3, 5, 7, 9]
+            else: #if even
+                player = [1, 3, 5, 7, 9]
+                bank = [0, 2, 4, 6, 8]
 
-            try:
-                c.execute("SELECT * FROM transactions where openfield = '" + base64.b64encode("payout for " + tx_signature) + "' ")
-                result_in_ledger = c.fetchone()[0]
-                print "Payout transaction already in the ledger for "+str(tx_signature)
-                paid_count = paid_count + 1
+            bet_amount = float(x[4])
+            block_hash = x[7]
+            # print block_hash
+            tx_signature = x[5]  # unique
+            digit_last = (re.findall("(\d)", block_hash))[-1]
+            # print digit_last
+            if (int(digit_last) in player) and (bet_amount <= bet_max):
+                # print "player wins"
+                won_count = won_count + 1
 
-            except Exception as e:
-                print e
-                print "Appending tx to the payout list for "+str(tx_signature)
-                payout_missing.append(x)
-                not_paid_count = not_paid_count + 1
+                try:
+                    c.execute("SELECT * FROM transactions where openfield = '" + base64.b64encode("payout for " + tx_signature) + "' ")
+                    result_in_ledger = c.fetchone()[0]
+                    print "Payout transaction already in the ledger for "+str(tx_signature)
+                    paid_count = paid_count + 1
 
-        else:
-            # print "bank wins"
-            lost_count = lost_count + 1
+                except Exception as e:
+                    print e
+                    print "Appending tx to the payout list for "+str(tx_signature)
+                    payout_missing.append(x)
+                    not_paid_count = not_paid_count + 1
 
+            else:
+                # print "bank wins"
+                lost_count = lost_count + 1
+
+    print "Run: " + str(run)
     print "Total client lost rounds: " + str(lost_count)
     print "Total client won rounds: " + str(won_count)
     print "Already paid out x times: " + str(paid_count)
@@ -89,8 +100,6 @@ while True:
     last_block_height = c.fetchone()[0]
     conn.close()
 
-
-    processed = []
     for y in payout_missing:
         if y not in processed:
             processed.append(y) #can overflow
@@ -131,4 +140,4 @@ while True:
 
 
                 # create transactions for missing payouts
-    time.sleep(30)
+    time.sleep(15)
