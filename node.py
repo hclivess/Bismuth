@@ -65,7 +65,7 @@ def send(sdef, data):
 
 def receive(sdef, slen):
     sdef.setblocking(0) #needs adjustments in core mechanics
-    ready = select.select([sdef], [], [], 240)
+    ready = select.select([sdef], [], [], 30)
     if ready[0]:
         data = int(sdef.recv(slen))  # receive length
         # print "To receive: "+str(data)
@@ -140,6 +140,8 @@ def mempool_merge(data):
             m = mempool.cursor()
 
             block_list = ast.literal_eval(data)
+            print len(block_list)####################################
+
 
             for transaction in block_list:  # set means unique
                 mempool_timestamp = transaction[0]
@@ -861,6 +863,7 @@ app_log.info("Starting up...")
 class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
     def handle(self):  # server defined here
         while True:
+
             peer_ip = self.request.getpeername()[0]
             try:
                 data = receive(self.request, 10)
