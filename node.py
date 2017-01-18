@@ -746,10 +746,10 @@ def digest_block(data):
                             block_valid = 0
 
                     try:
-                        app_log.info("Digest: Removing processed transaction from the mempool")
                         m.execute(
                             "DELETE FROM transactions WHERE signature = '" + db_signature + "';")  # delete tx from mempool now that it is in the ledger
                         mempool.commit()
+                        app_log.info("Digest: Removed processed transaction from the mempool")
                     except:
                         # tx was not in the local mempool
                         pass
