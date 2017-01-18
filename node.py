@@ -65,7 +65,7 @@ def send(sdef, data):
 
 def receive(sdef, slen):
     sdef.setblocking(0) #needs adjustments in core mechanics
-    ready = select.select([sdef], [], [], 30)
+    ready = select.select([sdef], [], [], 60)
     if ready[0]:
         data = int(sdef.recv(slen))  # receive length
         # print "To receive: "+str(data)
@@ -616,6 +616,34 @@ def digest_block(data):
                 db_timestamp_last = float(result[0][2])
                 block_height_new = db_block_height + 1
 
+                # calculate difficulty
+                c.execute("SELECT avg(timestamp) FROM transactions where block_height >= '" + str(db_block_height - 30) + "' and reward != 0;")
+                timestamp_avg = c.fetchall()[0][0]  # select the reward block
+                # print timestamp_avg
+
+                timestamp_difference = db_timestamp_last - timestamp_avg
+                # print timestamp_difference
+
+                diff = int(math.log(1e18 / timestamp_difference))
+                if db_block_height < 50:
+                    diff = 4
+                # if diff < 4:
+                #    diff = 4
+
+                app_log.info("Calculated difficulty: " + str(diff))
+                # calculate difficulty
+
+                # match difficulty
+                block_hash = hashlib.sha224(str((block_timestamp, transaction_list, db_block_hash))).hexdigest()  # calculate block_hash from the ledger
+
+                if bin_convert(miner_address)[0:diff] in bin_convert(block_hash):  # simplified comparison, no backwards mining
+                    app_log.info("Digest: Difficulty requirement satisfied")
+                else:
+                    # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
+                    app_log.info("Digest: Difficulty requirement not satisfied")
+                    block_valid = 0
+                #match difficulty
+
                 fees_block = []
                 for transaction in transaction_list:
                     db_timestamp = transaction[0]
@@ -631,8 +659,6 @@ def digest_block(data):
                     # print transaction_list
                     # print db_block_hash
                     # print (str((block_timestamp,transaction_list,db_block_hash)))
-                    block_hash = hashlib.sha224(str((block_timestamp, transaction_list,
-                                                     db_block_hash))).hexdigest()  # calculate block_hash from the ledger #PROBLEM HEREEEEE
 
                     # app_log.info("Digest: tx sig not found in the local ledger, proceeding to check before insert")
 
@@ -665,10 +691,10 @@ def digest_block(data):
                         debit_ledger = 0
                     debit = float(debit_ledger) + float(credit_block)
 
-                    c.execute("SELECT sum(fee) FROM transactions WHERE address = '" + db_address + "'")
-                    fees = c.fetchone()[0]
-                    c.execute("SELECT sum(reward) FROM transactions WHERE address = '" + db_address + "'")
-                    rewards = c.fetchone()[0]
+                    c.execute("SELECT sum(fee),sum(reward) FROM transactions WHERE address = '" + db_address + "'")
+                    result = c.fetchall()[0]
+                    fees = result[0]
+                    rewards = result[1]
 
                     if fees == None:
                         fees = 0
@@ -696,23 +722,6 @@ def digest_block(data):
 
                     # decide reward
 
-                    # calculate difficulty
-                    c.execute("SELECT avg(timestamp) FROM transactions where block_height >= '" + str(db_block_height - 30) + "' and reward != 0;")
-                    timestamp_avg = c.fetchall()[0][0]  # select the reward block
-                    # print timestamp_avg
-
-                    timestamp_difference = db_timestamp_last - timestamp_avg
-                    # print timestamp_difference
-
-                    diff = int(math.log(1e18 / timestamp_difference))
-                    if db_block_height < 50:
-                        diff = 4
-                    # if diff < 4:
-                    #    diff = 4
-
-                    app_log.info("Calculated difficulty: " + str(diff))
-                    # calculate difficulty
-
                     time_now = str(time.time())
                     if float(time_now) + 30 < float(db_timestamp):
                         app_log.info("Digest: Future mining not allowed")
@@ -727,24 +736,17 @@ def digest_block(data):
 
                             # dont request a fee for mined block so new accounts can mine
 
-                        if bin_convert(miner_address)[0:diff] in bin_convert(block_hash):  # simplified comparison, no backwards mining
-                            app_log.info("Digest: Difficulty requirement satisfied")
-
-                            if (float(balance)) - (
-                                    float(fee)) < 0:  # removed +float(db_amount) because it is a part of the incoming block
-                                app_log.info("Digest: Cannot afford to pay fees")
-                                block_valid = 0
-
-                            else:
-                                # append, but do not insert to ledger before whole block is validated
-                                app_log.info("Digest: Appending transaction back to block with "+str(len(block_transactions))+" transactions in it")
-                                block_transactions.append((block_height_new, db_timestamp, db_address, db_recipient,
-                                                           str(float(db_amount)), db_signature, db_public_key_hashed,
-                                                           block_hash, fee, reward, str(0), db_openfield))
-                        else:
-                            #app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
-                            app_log.info("Digest: Difficulty requirement not satisfied")
+                        if (float(balance)) - (float(fee)) < 0:  # removed +float(db_amount) because it is a part of the incoming block
+                            app_log.info("Digest: Cannot afford to pay fees")
                             block_valid = 0
+
+                        else:
+                            # append, but do not insert to ledger before whole block is validated
+                            app_log.info("Digest: Appending transaction back to block with "+str(len(block_transactions))+" transactions in it")
+                            block_transactions.append((block_height_new, db_timestamp, db_address, db_recipient,
+                                                       str(float(db_amount)), db_signature, db_public_key_hashed,
+                                                       block_hash, fee, reward, str(0), db_openfield))
+
 
                     try:
                         m.execute(
