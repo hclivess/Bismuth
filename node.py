@@ -889,7 +889,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     mempool = sqlite3.connect('mempool.db')
                     mempool.text_factory = str
                     m = mempool.cursor()
-                    m.execute('SELECT * FROM transactions')
+                    m.execute('SELECT * FROM transactions LIMIT 5')
                     mempool_txs = m.fetchall()
 
                     # send own
@@ -1362,7 +1362,7 @@ def worker(HOST, PORT):
                 mempool = sqlite3.connect('mempool.db')
                 mempool.text_factory = str
                 m = mempool.cursor()
-                m.execute('SELECT * FROM transactions')
+                m.execute('SELECT * FROM transactions LIMIT 5')
                 mempool_txs = m.fetchall()
 
                 #app_log.info("Outgoing: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only

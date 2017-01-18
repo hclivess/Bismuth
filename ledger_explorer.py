@@ -92,7 +92,7 @@ class index:
 
         conn = sqlite3.connect('static/ledger.db')
         c = conn.cursor()
-        c.execute("SELECT * FROM transactions ORDER BY block_height DESC, timestamp DESC LIMIT 1000;")
+        c.execute("SELECT * FROM transactions ORDER BY block_height DESC, timestamp DESC LIMIT 500;")
 
         all = c.fetchall()
 
