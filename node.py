@@ -382,8 +382,6 @@ def verify():
 def blocknf(block_hash_delete):
     global busy
     try:
-        busy = 1
-
         conn = sqlite3.connect(ledger_path_conf)
         conn.text_factory = str
         c = conn.cursor()
@@ -521,8 +519,6 @@ def manager():
 
 def digest_block(data):
     global busy
-    busy = 1
-
     while True:
         try:
             conn = sqlite3.connect(ledger_path_conf)
@@ -973,6 +969,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     #print peer_ip
                     #print stallion
                     if peer_ip == stallion and busy == 0:
+                        busy = 1
                         digest_block(segments)
                         # receive theirs
 
@@ -1088,6 +1085,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     print peer_ip
                     print stallion
                     if peer_ip == stallion and busy == 0:
+                        busy = 1
                         blocknf(block_hash_delete)
 
                     while busy == 1:
@@ -1325,6 +1323,7 @@ def worker(HOST, PORT):
                 print peer_ip
                 print stallion
                 if peer_ip == stallion and busy == 0:
+                    busy = 1
                     blocknf(block_hash_delete)
 
                 while busy == 1:
@@ -1342,6 +1341,7 @@ def worker(HOST, PORT):
                 #print peer_ip
                 #print stallion
                 if peer_ip == stallion and busy == 0:
+                    busy = 1
                     digest_block(segments)
                 # receive theirs
 
