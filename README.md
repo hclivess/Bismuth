@@ -1,7 +1,7 @@
 Stallion Readme
 =======
 
-[![Build Status](https://travis-ci.org/hclivess/Stallion.svg?branch=master)](https://travis-ci.org/hclivess/Bismuth)
+[![Build Status](https://travis-ci.org/hclivess/Stallion.svg?branch=master)](https://travis-ci.org/hclivess/Stallion)
 
 ###Whitepaper:
 
