@@ -862,8 +862,9 @@ if verify_conf == 1:
 app_log.info("Starting up...")
 class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
     def handle(self):  # server defined here
+        global stallion
+        global busy
         while True:
-
             peer_ip = self.request.getpeername()[0]
             try:
                 data = receive(self.request, 10)
