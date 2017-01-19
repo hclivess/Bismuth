@@ -14,6 +14,7 @@ from simplecrypt import decrypt
 from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
+from Crypto import Random
 
 from multiprocessing import Process
 from multiprocessing import freeze_support
@@ -200,6 +201,7 @@ def miner(args, address, privatekey_readable, public_key_hashed):
 
 if __name__ == '__main__':
     freeze_support() #must be this line, dont move ahead
+    Random.atfork()
     # import keys
     if not os.path.exists('privkey_encrypted.der'):
         password = ""
