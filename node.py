@@ -521,6 +521,7 @@ def manager():
 
 
 def digest_block(data):
+    print data
     global busy
     if busy == 0:
         busy = 1
@@ -572,7 +573,7 @@ def digest_block(data):
                         c.execute("SELECT block_height FROM transactions WHERE signature = '" + r[4] + "'")
                         try:
                             result = c.fetchall()[0]
-                            app_log.info("That transaction is already in our ledger")
+                            app_log.info("That transaction is already in our ledger: "+str(result))
                             block_valid = 0
 
                         except:
@@ -773,7 +774,7 @@ def digest_block(data):
                         app_log.info("Block valid and saved")
                         del block_transactions[:]
                     else:
-                        app_log.info("A part of the block is invalid, rejected")
+                        raise ValueError("A part of the block is invalid, rejected")
 
                         # whole block validation
 
