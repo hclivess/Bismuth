@@ -1090,8 +1090,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                 elif data == "blocknf":
                     block_hash_delete = receive(self.request, 10)
-                    print peer_ip
-                    print stallion
+                    #print peer_ip
+                    #print stallion
                     if peer_ip == stallion:
                         blocknf(block_hash_delete)
 
@@ -1327,8 +1327,8 @@ def worker(HOST, PORT):
 
             elif data == "blocknf":
                 block_hash_delete = receive(s, 10)
-                print peer_ip
-                print stallion
+                #print peer_ip
+                #print stallion
                 if peer_ip == stallion:
                     blocknf(block_hash_delete)
 
