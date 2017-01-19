@@ -139,7 +139,7 @@ def mempool_merge(data):
             m = mempool.cursor()
 
             block_list = ast.literal_eval(data)
-            if len(block_list) <= 5:
+            if len(block_list) <= 5: #limit mempool transfer between nodes to 5, counterpart: LIMIT 5
                 for transaction in block_list:  # set means unique
                     mempool_timestamp = transaction[0]
                     mempool_address = transaction[1]
