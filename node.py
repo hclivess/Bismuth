@@ -523,266 +523,261 @@ def digest_block(data):
     global busy
     if busy == 0:
         busy = 1
-        while True:
-            try:
-                conn = sqlite3.connect(ledger_path_conf)
-                conn.text_factory = str
-                c = conn.cursor()
 
-                mempool = sqlite3.connect('mempool.db')
-                mempool.text_factory = str
-                m = mempool.cursor()
+        conn = sqlite3.connect(ledger_path_conf)
+        conn.text_factory = str
+        c = conn.cursor()
 
-                # remove possible duplicates
+        mempool = sqlite3.connect('mempool.db')
+        mempool.text_factory = str
+        m = mempool.cursor()
 
-                c.execute("select block_height, count(*) FROM transactions GROUP by signature HAVING count(*) > 1")
-                result = c.fetchall()
-                for x in result:
-                    #print x
-                    app_log.info("Removing duplicate: " + str(x[0]))
-                    c.execute("DELETE FROM transactions WHERE block_height >= '" + str(x[0]) + "'")
-                    conn.commit()
+        # remove possible duplicates
 
-                if result:
-                    raise ValueError("Skipping new block because duplicates were removed")
-                # remove possible duplicates
+        c.execute("select block_height, count(*) FROM transactions GROUP by signature HAVING count(*) > 1")
+        result = c.fetchall()
+        for x in result:
+            #print x
+            app_log.info("Removing duplicate: " + str(x[0]))
+            c.execute("DELETE FROM transactions WHERE block_height >= '" + str(x[0]) + "'")
+            conn.commit()
 
-                block_valid = 1
+        if result:
+            raise ValueError("Skipping new block because duplicates were removed")
+        # remove possible duplicates
 
-                # app_log.info("Incoming: Digesting incoming block: " + data)
+        block_valid = 1
 
-                block_list = ast.literal_eval(data)
-                if not any(isinstance(el, list) for el in block_list): #if it's not a list of lists
-                    new_list = []
-                    new_list.append(block_list)
-                    block_list = new_list #make it a list of lists
-                #print block_list
+        # app_log.info("Incoming: Digesting incoming block: " + data)
 
-                # reject block with duplicate transactions
-                signature_list = []
-                block_transactions = []
+        block_list = ast.literal_eval(data)
+        if not any(isinstance(el, list) for el in block_list): #if it's not a list of lists
+            new_list = []
+            new_list.append(block_list)
+            block_list = new_list #make it a list of lists
+        #print block_list
 
-                for transaction_list in block_list:
+        # reject block with duplicate transactions
+        signature_list = []
+        block_transactions = []
 
-                    for r in transaction_list:  # sig 4
-                        signature_list.append(r[4])
+        for transaction_list in block_list:
 
-                        # reject block with transactions which are already in the ledger
-                        c.execute("SELECT block_height FROM transactions WHERE signature = '" + r[4] + "'")
-                        try:
-                            result = c.fetchall()[0]
-                            app_log.info("That transaction is already in our ledger, row "+str(result[0]))
-                            block_valid = 0
+            for r in transaction_list:  # sig 4
+                signature_list.append(r[4])
 
-                        except:
-                            pass
-                            # reject block with transactions which are already in the ledger
+                # reject block with transactions which are already in the ledger
+                c.execute("SELECT block_height FROM transactions WHERE signature = '" + r[4] + "'")
+                try:
+                    result = c.fetchall()[0]
+                    app_log.info("That transaction is already in our ledger, row "+str(result[0]))
+                    block_valid = 0
 
-                    if len(signature_list) != len(set(signature_list)):
-                        app_log.info("There are duplicate transactions in this block, rejected")
-                        block_valid = 0  # dont really need this one
-                    del signature_list[:]
+                except:
+                    pass
+                    # reject block with transactions which are already in the ledger
 
-                    # reject block with duplicate transactions
+            if len(signature_list) != len(set(signature_list)):
+                app_log.info("There are duplicate transactions in this block, rejected")
+                block_valid = 0  # dont really need this one
+            del signature_list[:]
 
-                    for transaction in transaction_list:
-                        # verify signatures
-                        received_timestamp = transaction[0]
-                        received_address = transaction[1]
-                        received_recipient = transaction[2]
-                        received_amount = str(float(transaction[3]))
-                        received_signature_enc = transaction[4]
-                        received_public_key_hashed = transaction[5]
-                        received_openfield = transaction[6]
+            # reject block with duplicate transactions
 
-                        received_public_key = RSA.importKey(
-                            base64.b64decode(received_public_key_hashed))  # convert readable key to instance
-                        received_signature_dec = base64.b64decode(received_signature_enc)
-                        verifier = PKCS1_v1_5.new(received_public_key)
+            for transaction in transaction_list:
+                # verify signatures
+                received_timestamp = transaction[0]
+                received_address = transaction[1]
+                received_recipient = transaction[2]
+                received_amount = str(float(transaction[3]))
+                received_signature_enc = transaction[4]
+                received_public_key_hashed = transaction[5]
+                received_openfield = transaction[6]
 
-                        h = SHA.new(str((received_timestamp, received_address, received_recipient, received_amount,
-                                         received_openfield)))
-                        if verifier.verify(h, received_signature_dec):
-                            app_log.info("Incoming: The signature is valid")
+                received_public_key = RSA.importKey(
+                    base64.b64decode(received_public_key_hashed))  # convert readable key to instance
+                received_signature_dec = base64.b64decode(received_signature_enc)
+                verifier = PKCS1_v1_5.new(received_public_key)
 
-                        if transaction == transaction_list[-1]:  # recognize the last transaction as the mining reward transaction
-                            miner_address = received_address
-                            block_timestamp = received_timestamp
+                h = SHA.new(str((received_timestamp, received_address, received_recipient, received_amount,
+                                 received_openfield)))
+                if verifier.verify(h, received_signature_dec):
+                    app_log.info("Incoming: The signature is valid")
+
+                if transaction == transaction_list[-1]:  # recognize the last transaction as the mining reward transaction
+                    miner_address = received_address
+                    block_timestamp = received_timestamp
 
 
-                            # verify signatures
+                    # verify signatures
 
-                    c.execute("SELECT block_hash, block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")
-                    result = c.fetchall()
-                    db_block_height = result[0][1]
-                    db_block_hash = result[0][0]
-                    db_timestamp_last = float(result[0][2])
-                    block_height_new = db_block_height + 1
+            c.execute("SELECT block_hash, block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")
+            result = c.fetchall()
+            db_block_height = result[0][1]
+            db_block_hash = result[0][0]
+            db_timestamp_last = float(result[0][2])
+            block_height_new = db_block_height + 1
 
-                    # calculate difficulty
-                    c.execute("SELECT avg(timestamp) FROM transactions where block_height >= '" + str(db_block_height - 30) + "' and reward != 0;")
-                    timestamp_avg = c.fetchall()[0][0]  # select the reward block
-                    # print timestamp_avg
+            # calculate difficulty
+            c.execute("SELECT avg(timestamp) FROM transactions where block_height >= '" + str(db_block_height - 30) + "' and reward != 0;")
+            timestamp_avg = c.fetchall()[0][0]  # select the reward block
+            # print timestamp_avg
 
-                    timestamp_difference = db_timestamp_last - timestamp_avg
-                    # print timestamp_difference
+            timestamp_difference = db_timestamp_last - timestamp_avg
+            # print timestamp_difference
 
-                    diff = int(math.log(1e18 / timestamp_difference))
-                    if db_block_height < 50:
-                        diff = 4
-                    # if diff < 4:
-                    #    diff = 4
+            diff = int(math.log(1e18 / timestamp_difference))
+            if db_block_height < 50:
+                diff = 4
+            # if diff < 4:
+            #    diff = 4
 
-                    app_log.info("Calculated difficulty: " + str(diff))
-                    # calculate difficulty
+            app_log.info("Calculated difficulty: " + str(diff))
+            # calculate difficulty
 
-                    # match difficulty
-                    block_hash = hashlib.sha224(str((block_timestamp, transaction_list, db_block_hash))).hexdigest()  # calculate block_hash from the ledger
+            # match difficulty
+            block_hash = hashlib.sha224(str((block_timestamp, transaction_list, db_block_hash))).hexdigest()  # calculate block_hash from the ledger
 
-                    if bin_convert(miner_address)[0:diff] in bin_convert(block_hash):  # simplified comparison, no backwards mining
-                        app_log.info("Digest: Difficulty requirement satisfied")
+            if bin_convert(miner_address)[0:diff] in bin_convert(block_hash):  # simplified comparison, no backwards mining
+                app_log.info("Digest: Difficulty requirement satisfied")
+            else:
+                # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
+                app_log.info("Digest: Difficulty requirement not satisfied")
+                block_valid = 0
+            #match difficulty
+
+            fees_block = []
+            for transaction in transaction_list:
+                db_timestamp = transaction[0]
+                db_address = transaction[1]
+                db_recipient = transaction[2]
+                db_amount = transaction[3]
+                db_signature = transaction[4]
+                db_public_key_hashed = transaction[5]
+                db_openfield = transaction[6]
+
+                # print "sync this"
+                # print block_timestamp
+                # print transaction_list
+                # print db_block_hash
+                # print (str((block_timestamp,transaction_list,db_block_hash)))
+
+                # app_log.info("Digest: tx sig not found in the local ledger, proceeding to check before insert")
+
+                # app_log.info("Digest: Verifying balance")
+                # app_log.info("Digest: Received address: " + str(db_address))
+
+                # include the new block
+                block_credit = 0
+                credit_block = 0
+
+                for x in transaction_list:  # quite nasty, care not to overlap variables
+                    if x[2] == db_address:
+                        block_credit = float(block_credit) + float(x[3])
+                    if x[1] == db_address:
+                        credit_block = float(credit_block) + float(x[3])
+
+                # app_log.info("Digest: Incoming block credit: " + str(block_credit))
+                # app_log.info("Digest: Incoming block debit: " + str(credit_block))
+                # include the new block
+
+                c.execute("SELECT sum(amount) FROM transactions WHERE recipient = '" + db_address + "'")
+                credit_ledger = c.fetchone()[0]
+                if credit_ledger == None:
+                    credit_ledger = 0
+                credit = float(credit_ledger) + float(block_credit)
+
+                c.execute("SELECT sum(amount) FROM transactions WHERE address = '" + db_address + "'")
+                debit_ledger = c.fetchone()[0]
+                if debit_ledger == None:
+                    debit_ledger = 0
+                debit = float(debit_ledger) + float(credit_block)
+
+                c.execute("SELECT sum(fee),sum(reward) FROM transactions WHERE address = '" + db_address + "'")
+                result = c.fetchall()[0]
+                fees = result[0]
+                rewards = result[1]
+
+                if fees == None:
+                    fees = 0
+                if rewards == None:
+                    rewards = 0
+
+                # app_log.info("Digest: Total credit: " + str(credit))
+                # app_log.info("Digest: Total debit: " + str(debit))
+                balance = float(credit) - float(debit) - float(fees) + float(rewards)
+                # app_log.info("Digest: Projected transction address balance: " + str(balance))
+
+                db_block_50 = int(db_block_height) - 50
+                try:
+                    c.execute("SELECT timestamp FROM transactions WHERE block_height ='" + str(db_block_50) + "';")
+                    db_timestamp_50 = c.fetchone()[0]
+                    fee = abs(1000 / (float(db_timestamp) - float(db_timestamp_50))) + len(db_openfield) / 200
+                    fees_block.append(fee)
+                    # app_log.info("Fee: " + str(fee))
+
+                except Exception as e:
+                    fee = 1  # presumably there are less than 50 txs
+                    # app_log.info("Fee error: " + str(e))
+                    # return #debug
+                # calculate fee
+
+                # decide reward
+
+                time_now = str(time.time())
+                if float(time_now) + 30 < float(db_timestamp):
+                    app_log.info("Digest: Future mining not allowed")
+                    block_valid = 0
+
+                else:
+                    if transaction == transaction_list[-1]:
+                        reward = 10 + sum(fees_block[:-1])
+                        fee = 0
                     else:
-                        # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
-                        app_log.info("Digest: Difficulty requirement not satisfied")
+                        reward = 0
+
+                        # dont request a fee for mined block so new accounts can mine
+
+                    if (float(balance)) - (float(fee)) < 0:  # removed +float(db_amount) because it is a part of the incoming block
+                        app_log.info("Digest: Cannot afford to pay fees")
                         block_valid = 0
-                    #match difficulty
 
-                    fees_block = []
-                    for transaction in transaction_list:
-                        db_timestamp = transaction[0]
-                        db_address = transaction[1]
-                        db_recipient = transaction[2]
-                        db_amount = transaction[3]
-                        db_signature = transaction[4]
-                        db_public_key_hashed = transaction[5]
-                        db_openfield = transaction[6]
-
-                        # print "sync this"
-                        # print block_timestamp
-                        # print transaction_list
-                        # print db_block_hash
-                        # print (str((block_timestamp,transaction_list,db_block_hash)))
-
-                        # app_log.info("Digest: tx sig not found in the local ledger, proceeding to check before insert")
-
-                        # app_log.info("Digest: Verifying balance")
-                        # app_log.info("Digest: Received address: " + str(db_address))
-
-                        # include the new block
-                        block_credit = 0
-                        credit_block = 0
-
-                        for x in transaction_list:  # quite nasty, care not to overlap variables
-                            if x[2] == db_address:
-                                block_credit = float(block_credit) + float(x[3])
-                            if x[1] == db_address:
-                                credit_block = float(credit_block) + float(x[3])
-
-                        # app_log.info("Digest: Incoming block credit: " + str(block_credit))
-                        # app_log.info("Digest: Incoming block debit: " + str(credit_block))
-                        # include the new block
-
-                        c.execute("SELECT sum(amount) FROM transactions WHERE recipient = '" + db_address + "'")
-                        credit_ledger = c.fetchone()[0]
-                        if credit_ledger == None:
-                            credit_ledger = 0
-                        credit = float(credit_ledger) + float(block_credit)
-
-                        c.execute("SELECT sum(amount) FROM transactions WHERE address = '" + db_address + "'")
-                        debit_ledger = c.fetchone()[0]
-                        if debit_ledger == None:
-                            debit_ledger = 0
-                        debit = float(debit_ledger) + float(credit_block)
-
-                        c.execute("SELECT sum(fee),sum(reward) FROM transactions WHERE address = '" + db_address + "'")
-                        result = c.fetchall()[0]
-                        fees = result[0]
-                        rewards = result[1]
-
-                        if fees == None:
-                            fees = 0
-                        if rewards == None:
-                            rewards = 0
-
-                        # app_log.info("Digest: Total credit: " + str(credit))
-                        # app_log.info("Digest: Total debit: " + str(debit))
-                        balance = float(credit) - float(debit) - float(fees) + float(rewards)
-                        # app_log.info("Digest: Projected transction address balance: " + str(balance))
-
-                        db_block_50 = int(db_block_height) - 50
-                        try:
-                            c.execute("SELECT timestamp FROM transactions WHERE block_height ='" + str(db_block_50) + "';")
-                            db_timestamp_50 = c.fetchone()[0]
-                            fee = abs(1000 / (float(db_timestamp) - float(db_timestamp_50))) + len(db_openfield) / 200
-                            fees_block.append(fee)
-                            # app_log.info("Fee: " + str(fee))
-
-                        except Exception as e:
-                            fee = 1  # presumably there are less than 50 txs
-                            # app_log.info("Fee error: " + str(e))
-                            # return #debug
-                        # calculate fee
-
-                        # decide reward
-
-                        time_now = str(time.time())
-                        if float(time_now) + 30 < float(db_timestamp):
-                            app_log.info("Digest: Future mining not allowed")
-                            block_valid = 0
-
-                        else:
-                            if transaction == transaction_list[-1]:
-                                reward = 10 + sum(fees_block[:-1])
-                                fee = 0
-                            else:
-                                reward = 0
-
-                                # dont request a fee for mined block so new accounts can mine
-
-                            if (float(balance)) - (float(fee)) < 0:  # removed +float(db_amount) because it is a part of the incoming block
-                                app_log.info("Digest: Cannot afford to pay fees")
-                                block_valid = 0
-
-                            else:
-                                # append, but do not insert to ledger before whole block is validated
-                                app_log.info("Digest: Appending transaction back to block with "+str(len(block_transactions))+" transactions in it")
-                                block_transactions.append((block_height_new, db_timestamp, db_address, db_recipient,
-                                                           str(float(db_amount)), db_signature, db_public_key_hashed,
-                                                           block_hash, fee, reward, str(0), db_openfield))
-
-
-                        try:
-                            m.execute(
-                                "DELETE FROM transactions WHERE signature = '" + db_signature + "';")  # delete tx from mempool now that it is in the ledger
-                            mempool.commit()
-                            app_log.info("Digest: Removed processed transaction from the mempool")
-                        except:
-                            # tx was not in the local mempool
-                            pass
-
-                    # whole block validation
-                    if block_valid == 1:
-                        for transaction in block_transactions:
-                            #print transaction
-                            c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
-                                transaction[0], transaction[1], transaction[2], transaction[3], transaction[4], transaction[5],
-                                transaction[6], transaction[7], transaction[8], transaction[9], transaction[10],
-                                transaction[11]))
-                            conn.commit()
-                        app_log.info("Block valid and saved")
-                        del block_transactions[:]
                     else:
-                        app_log.info("A part of the block is invalid, rejected")
+                        # append, but do not insert to ledger before whole block is validated
+                        app_log.info("Digest: Appending transaction back to block with "+str(len(block_transactions))+" transactions in it")
+                        block_transactions.append((block_height_new, db_timestamp, db_address, db_recipient,
+                                                   str(float(db_amount)), db_signature, db_public_key_hashed,
+                                                   block_hash, fee, reward, str(0), db_openfield))
 
-                        # whole block validation
 
+                try:
+                    m.execute(
+                        "DELETE FROM transactions WHERE signature = '" + db_signature + "';")  # delete tx from mempool now that it is in the ledger
+                    mempool.commit()
+                    app_log.info("Digest: Removed processed transaction from the mempool")
+                except:
+                    # tx was not in the local mempool
+                    pass
 
-            except Exception, e:
-                conn.close()
-                mempool.close()
-                app_log.info("Digesting complete")
-                #raise #never leave on
+            # whole block validation
+            if block_valid == 1:
+                for transaction in block_transactions:
+                    #print transaction
+                    c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
+                        transaction[0], transaction[1], transaction[2], transaction[3], transaction[4], transaction[5],
+                        transaction[6], transaction[7], transaction[8], transaction[9], transaction[10],
+                        transaction[11]))
+                    conn.commit()
+                app_log.info("Block valid and saved")
+                del block_transactions[:]
+            else:
+                app_log.info("A part of the block is invalid, rejected")
 
+                # whole block validation
+
+        conn.close()
+        mempool.close()
+        app_log.info("Digesting complete")
         busy = 0
         return
 
