@@ -768,7 +768,15 @@ def digest_block(data):
                             transaction[0], transaction[1], transaction[2], transaction[3], transaction[4], transaction[5],
                             transaction[6], transaction[7], transaction[8], transaction[9], transaction[10],
                             transaction[11]))
-                        conn.commit()
+                        #secure commit for slow nodes
+                        passed = 0
+                        while passed == 0:
+                            try:
+                                conn.commit()
+                                passed = 1
+                            except:
+                                pass
+                        #secure commit for slow nodes
                     app_log.info("Block valid and saved")
                     del block_transactions[:]
                 else:
