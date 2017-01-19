@@ -776,7 +776,7 @@ def digest_block(data):
 
                     # whole block validation
         except Exception, e:
-            print e
+            print app_log.info(e)
             pass
 
         conn.close()
