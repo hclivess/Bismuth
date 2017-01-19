@@ -774,7 +774,7 @@ def digest_block(data):
                         app_log.info("Block valid and saved")
                         del block_transactions[:]
                     else:
-                        raise ValueError("A part of the block is invalid, rejected")
+                        app_log.info("A part of the block is invalid, rejected")
 
                         # whole block validation
 
@@ -785,8 +785,8 @@ def digest_block(data):
                 app_log.info("Digesting complete")
                 #raise #never leave on
 
-        busy = 0
-        return
+    busy = 0
+    return
 
 
 def db_maintenance():
