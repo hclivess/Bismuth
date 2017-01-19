@@ -46,7 +46,6 @@ for line in lines:
         pause_conf = line.strip('pause=')
     if "ledger_path=" in line:
         ledger_path_conf = line.strip('ledger_path=')
-        print ledger_path_conf
 
 # load config
 
@@ -521,7 +520,6 @@ def manager():
 
 
 def digest_block(data):
-    print data
     global busy
     if busy == 0:
         busy = 1
@@ -573,7 +571,7 @@ def digest_block(data):
                         c.execute("SELECT block_height FROM transactions WHERE signature = '" + r[4] + "'")
                         try:
                             result = c.fetchall()[0]
-                            app_log.info("That transaction is already in our ledger: "+str(result))
+                            app_log.info("That transaction is already in our ledger, row "+str(result[0]))
                             block_valid = 0
 
                         except:
@@ -785,8 +783,8 @@ def digest_block(data):
                 app_log.info("Digesting complete")
                 #raise #never leave on
 
-    busy = 0
-    return
+        busy = 0
+        return
 
 
 def db_maintenance():
