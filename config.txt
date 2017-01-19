@@ -8,6 +8,6 @@ rebuild_db=0
 debug=1
 purge=0
 pause=3
-mining_threads=3
+mining_threads=1
 diff_recalc=200
 ledger_path=static/ledger.db

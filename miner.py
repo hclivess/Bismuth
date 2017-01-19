@@ -55,6 +55,7 @@ def bin_convert(string):
     return ''.join(format(ord(x), 'b') for x in string)
 
 def miner(args, address, privatekey_readable, public_key_hashed):
+    Random.atfork()
     global hashrate
     key = RSA.importKey(privatekey_readable)
 
@@ -201,7 +202,6 @@ def miner(args, address, privatekey_readable, public_key_hashed):
 
 if __name__ == '__main__':
     freeze_support() #must be this line, dont move ahead
-    Random.atfork()
     # import keys
     if not os.path.exists('privkey_encrypted.der'):
         password = ""
