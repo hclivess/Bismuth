@@ -519,6 +519,7 @@ def manager():
 
 
 def digest_block(data):
+    print data
     global busy
     while True:
         try:
@@ -561,7 +562,7 @@ def digest_block(data):
 
             for transaction_list in block_list:
 
-                for r in transaction_list:  # sig must be the 6th row 5
+                for r in transaction_list:  # sig 4
                     signature_list.append(r[4])
 
                     # reject block with transactions which are already in the ledger
@@ -1100,7 +1101,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     send(self.request, (str(len("sync"))).zfill(10))
                     send(self.request, "sync")
 
-                elif data == "block":  # from miner
+                elif data == "block" and busy == 0:  # from miner
+                    busy = 1
                     # receive theirs
                     segments = receive(self.request, 10)
                     # app_log.info("Incoming: Combined mined segments: " + segments)
