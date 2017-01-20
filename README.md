@@ -3,7 +3,11 @@ Stallion Readme
 
 [![Build Status](https://travis-ci.org/hclivess/Stallion.svg?branch=master)](https://travis-ci.org/hclivess/Stallion)
 
-###Whitepaper:
+###Bitcointalk:
+
+https://bitcointalk.org/index.php?topic=1525078
+
+###Info:
 
 https://github.com/hclivess/Stallion/blob/master/whitepaper.md
 
