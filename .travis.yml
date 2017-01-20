@@ -9,3 +9,4 @@ script:
   - pyinstaller --uac-admin --onefile --log-level=INFO node.py --icon=graphics\icon.ico
   - pyinstaller --uac-admin --onefile --log-level=INFO miner.py --icon=graphics\icon.ico
   - pyinstaller --uac-admin --onefile --log-level=INFO ledger_explorer.py --icon=graphics\icon.ico --hidden-import=ledger_explorer
+  node.py
