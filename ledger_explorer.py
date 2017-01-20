@@ -38,7 +38,7 @@ class index:
         plotter.append('<html>\n')
         plotter.append('<link rel = "icon" href = "static/explorer.ico" type = "image/x-icon" / >\n')
         plotter.append('<head>\n')
-        plotter.append('<meta http-equiv="refresh" content="60" >')
+        #plotter.append('<meta http-equiv="refresh" content="60" >')
         plotter.append('<link rel="stylesheet" type="text/css" href="static/style.css">')
         plotter.append('<title>Transaction Explorer</title>\n')
         plotter.append('<script src="static/Chart.js"></script>\n')
