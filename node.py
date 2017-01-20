@@ -58,6 +58,31 @@ def most_common(lst):
 def bin_convert(string):
     return ''.join(format(ord(x), 'b') for x in string)
 
+def commit(cursor):
+    # secure commit for slow nodes
+    passed = 0
+    while passed == 0:
+        try:
+            cursor.commit()
+            passed = 1
+        except:
+            app_log.info("Retrying database commit")
+            pass
+            # secure commit for slow nodes
+def execute(cursor, what):
+    # secure execute for slow nodes
+    passed = 0
+    while passed == 0:
+        try:
+            cursor.execute(what)
+            passed = 1
+        except:
+            app_log.info("Retrying database execute")
+            pass
+            # secure execute for slow nodes
+    return cursor
+
+
 def send(sdef, data):
     sdef.setblocking(0) #needs adjustments in core mechanics
     sdef.sendall(data)
@@ -171,7 +196,7 @@ def mempool_merge(data):
 
                     try:
                         # reject transactions which are already in the ledger
-                        c.execute("SELECT * FROM transactions WHERE signature = '" + mempool_signature_enc + "'")  # condition 2
+                        execute(c,("SELECT * FROM transactions WHERE signature = '" + mempool_signature_enc + "'")) # condition 2
                         dummy2 = c.fetchall()[0]
                         if dummy2 != None:
                             # app_log.info("That transaction is already in our ledger")
@@ -184,7 +209,7 @@ def mempool_merge(data):
                     if (mempool_in == 1) and (ledger_in == 1):  # remove from mempool if it's in both ledger and mempool already
                         try:
                             m.execute("DELETE FROM transactions WHERE signature = '" + mempool_signature_enc + "'")
-                            mempool.commit()
+                            commit(mempool)
                             app_log.info("Transaction deleted from our mempool")
                         except: #experimental try and except
                             app_log.info("Transaction was not present in the pool anymore")
@@ -272,7 +297,7 @@ def mempool_merge(data):
                                 mempool_timestamp, mempool_address, mempool_recipient, str(float(mempool_amount)),
                                 mempool_signature_enc, mempool_public_key_hashed, mempool_openfield))
                             app_log.info("Mempool updated with a received transaction")
-                            mempool.commit()  # Save (commit) the changes
+                            commit(mempool)  # Save (commit) the changes
             else:
                 app_log.info("Received mempool too long")
                             # merge mempool
@@ -415,7 +440,7 @@ def blocknf(block_hash_delete):
 
                 # delete followups
                 c.execute('DELETE FROM transactions WHERE block_height >="' + str(db_block_height) + '"')
-                conn.commit()
+                commit(conn)
                 conn.close()
         except:
             pass
@@ -541,7 +566,7 @@ def digest_block(data):
                 #print x
                 app_log.info("Removing duplicate: " + str(x[0]))
                 c.execute("DELETE FROM transactions WHERE block_height >= '" + str(x[0]) + "'")
-                conn.commit()
+                commit(conn)
 
             if result:
                 raise ValueError("Skipping new block because duplicates were removed")
@@ -754,7 +779,7 @@ def digest_block(data):
                     try:
                         m.execute(
                             "DELETE FROM transactions WHERE signature = '" + db_signature + "';")  # delete tx from mempool now that it is in the ledger
-                        mempool.commit()
+                        commit(mempool)
                         app_log.info("Digest: Removed processed transaction from the mempool")
                     except:
                         # tx was not in the local mempool
@@ -769,14 +794,7 @@ def digest_block(data):
                             transaction[6], transaction[7], transaction[8], transaction[9], transaction[10],
                             transaction[11]))
                         #secure commit for slow nodes
-                        passed = 0
-                        while passed == 0:
-                            try:
-                                conn.commit()
-                                passed = 1
-                            except:
-                                pass
-                        #secure commit for slow nodes
+                        commit(conn)
                     app_log.info("Block valid and saved")
                     del block_transactions[:]
                 else:
@@ -854,7 +872,7 @@ if not os.path.exists('mempool.db'):
     m = mempool.cursor()
     m.execute(
         "CREATE TABLE IF NOT EXISTS transactions (timestamp, address, recipient, amount, signature, public_key, openfield)")
-    mempool.commit()
+    commit(mempool)
     mempool.close()
     app_log.info("Core: Created mempool file")
     # create empty mempool
@@ -1234,7 +1252,7 @@ def worker(HOST, PORT):
                 conn = sqlite3.connect(ledger_path_conf)
                 conn.text_factory = str
                 c = conn.cursor()
-                c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
+                execute(c,('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1'))
                 db_block_height = c.fetchone()[0]
                 conn.close()
 
