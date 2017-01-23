@@ -1,11 +1,11 @@
 import math
 import sqlite3
 
-conn = sqlite3.connect('ledger.db')
+conn = sqlite3.connect('static/ledger.db')
 conn.text_factory = str
 c = conn.cursor()
 
-c.execute("SELECT distinct block_height FROM transactions where reward = 10")
+c.execute("SELECT distinct block_height FROM transactions where reward = 10 and block_height > 24000")
 all_blocks = c.fetchall()
 print all_blocks
 
@@ -27,6 +27,7 @@ for x in all_blocks:
 
         diff = (math.log(1e18/timestamp_difference))
 
+        print x[0]
         print diff
 
         diffs_all.append(diff)
