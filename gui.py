@@ -152,6 +152,7 @@ def send():
     else:
         app_log.info("Client: Invalid signature")
     #enter transaction end
+    refresh()
 
 def app_quit():
     app_log.info("Received quit command")
@@ -259,10 +260,31 @@ def table():
 
     datasheet = ["time", "from", "to", "amount"]
 
+    rows_total = 19
+
+    mempool = sqlite3.connect('mempool.db')
+    mempool.text_factory = str
+    m = mempool.cursor()
+
     conn = sqlite3.connect('static/ledger.db')
     conn.text_factory = str
     c = conn.cursor()
-    for row in c.execute("SELECT * FROM transactions WHERE address = '" + str(address) + "' OR recipient = '" + str(address) + "' ORDER BY block_height DESC LIMIT 19;"):
+
+    for row in m.execute("SELECT * FROM transactions WHERE address = '" + str(address) + "' OR recipient = '" + str(address) + "' ORDER BY timestamp DESC LIMIT 19;"):
+        rows_total = rows_total - 1
+
+        #mempool_timestamp = row[1]
+        #datasheet.append(datetime.fromtimestamp(float(mempool_timestamp)).strftime('%Y-%m-%d %H:%M:%S'))
+        datasheet.append("unconfirmed")
+        mempool_address = row[1]
+        datasheet.append(mempool_address)
+        mempool_recipient = row[2]
+        datasheet.append(mempool_recipient)
+        mempool_amount = row[3]
+        datasheet.append(mempool_amount)
+    mempool.close()
+
+    for row in c.execute("SELECT * FROM transactions WHERE address = '" + str(address) + "' OR recipient = '" + str(address) + "' ORDER BY block_height DESC LIMIT '"+str(rows_total)+"';"):
         db_timestamp = row[1]
         datasheet.append(datetime.fromtimestamp(float(db_timestamp)).strftime('%Y-%m-%d %H:%M:%S'))
         db_address = row[2]

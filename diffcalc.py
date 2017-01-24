@@ -5,7 +5,7 @@ conn = sqlite3.connect('static/ledger.db')
 conn.text_factory = str
 c = conn.cursor()
 
-c.execute("SELECT distinct block_height FROM transactions where reward = 10 and block_height > 24000")
+c.execute("SELECT distinct block_height FROM transactions where reward = 10 and block_height > 20000")
 all_blocks = c.fetchall()
 print all_blocks
 
