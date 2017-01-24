@@ -258,7 +258,7 @@ def table():
     # transaction table
     # data
 
-    datasheet = ["time", "from", "to", "amount"]
+    datasheet = ["Time", "From", "To", "Amount"]
 
     rows_total = 19
 
@@ -318,9 +318,22 @@ def table():
             for j in range(4):
 
                 e = Entry(f4, justify=RIGHT)
-                e.configure(background='floralwhite')
+                datasheet_compare = [datasheet[k], datasheet[k-1], datasheet[k-2], datasheet[k-3]]
+
+                if "unconfirmed" in datasheet_compare:
+                    e.configure(readonlybackground='linen')
+                elif "Time" in datasheet_compare:
+                    pass
+                elif datasheet[k-2] == address and j == 3:
+                    e.configure(readonlybackground='indianred')
+                elif datasheet[k-1] == address and j == 3:
+                    e.configure(readonlybackground='green4')
+                else:
+                    e.configure(readonlybackground='bisque')
+
                 e.grid(row=i + 1, column=j, sticky=EW)
                 e.insert(END, datasheet[k])
+                e.configure(state="readonly")
                 k = k + 1
 
     # transaction table
