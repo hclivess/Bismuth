@@ -1,7 +1,7 @@
-Stallion Readme
+Bismuth Readme
 =======
 
-[![Build Status](https://travis-ci.org/hclivess/Stallion.svg?branch=master)](https://travis-ci.org/hclivess/Stallion)
+[![Build Status](https://travis-ci.org/hclivess/Bismuth.svg?branch=master)](https://travis-ci.org/hclivess/Bismuth)
 
 ###Bitcointalk:
 
@@ -9,14 +9,14 @@ https://bitcointalk.org/index.php?topic=1525078
 
 ###Info:
 
-https://github.com/hclivess/Stallion/blob/master/whitepaper.md
+https://github.com/hclivess/Bismuth/blob/master/whitepaper.md
 
 ###Dependencies:
 
-https://github.com/hclivess/Stallion/blob/master/.travis.yml
+https://github.com/hclivess/Bismuth/blob/master/.travis.yml
 
 ###Development plan:
-https://github.com/hclivess/Stallion/issues
+https://github.com/hclivess/Bismuth/issues
 
 *WARNING: This project is in the beta stage!*
 
@@ -35,4 +35,3 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-
