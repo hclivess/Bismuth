@@ -783,12 +783,13 @@ def digest_block(data):
                             block_valid = 0
 
                         else:
-                            if db_block_height <= 10000000:
-                                mining_reward = 10
-                            else:
-                                mining_reward = 0
-
                             if transaction == transaction_list[-1]:
+
+                                if db_block_height <= 10000000:
+                                    mining_reward = 10
+                                else:
+                                    mining_reward = 0
+
                                 reward = mining_reward + sum(fees_block[:-1])
                                 fee = 0
                             else:
