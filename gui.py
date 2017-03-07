@@ -124,7 +124,7 @@ def send():
 
     timestamp = str(time.time())
 
-    transaction = (timestamp,address,recipient_input,str(float(amount_input)),openfield_input)
+    transaction = (timestamp,address,recipient_input, '%.8f' % float(amount_input),openfield_input)
     #print transaction
 
     h = SHA.new(str(transaction))
@@ -144,7 +144,7 @@ def send():
             mempool = sqlite3.connect('mempool.db')
             mempool.text_factory = str
             m = mempool.cursor()
-            m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?)",(timestamp, address, recipient_input, str(float(amount_input)),signature_enc, public_key_hashed, openfield_input))
+            m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?)",(timestamp, address, recipient_input, '%.8f' % float(amount_input),signature_enc, public_key_hashed, openfield_input))
             mempool.commit()  # Save (commit) the changes
             mempool.close()
             app_log.info("Client: Mempool updated with a received transaction")
@@ -250,7 +250,7 @@ def sign():
 
 def refresh_auto():
     root.after(0, refresh)
-    root.after(10000, refresh_auto)
+    root.after(30000, refresh_auto)
 
 
 def table():
