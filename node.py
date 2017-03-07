@@ -188,7 +188,7 @@ def mempool_merge(data):
                     mempool_timestamp = transaction[0]
                     mempool_address = transaction[1]
                     mempool_recipient = transaction[2]
-                    mempool_amount = transaction[3]
+                    mempool_amount = '%.8f' % float(transaction[3])
                     mempool_signature_enc = transaction[4]
                     mempool_public_key_hashed = transaction[5]
                     mempool_openfield = transaction[6]
@@ -634,7 +634,7 @@ def digest_block(data):
                     received_timestamp = transaction[0]
                     received_address = transaction[1]
                     received_recipient = transaction[2]
-                    received_amount = str(float(transaction[3]))
+                    received_amount = str('%.8f' % float(transaction[3]))
                     received_signature_enc = transaction[4]
                     received_public_key_hashed = transaction[5]
                     received_openfield = transaction[6]
