@@ -284,17 +284,20 @@ def mempool_merge(data):
                         balance = float(credit) - float(debit) - float(fees) + float(rewards)
                         # app_log.info("Mempool: Projected transction address balance: " + str(balance))
 
-                        execute(c,('SELECT max(block_height) FROM transactions'))
-                        db_block_height = c.fetchone()[0]
 
-                        db_block_50 = int(
-                            db_block_height) - 50  # warning: this is not precise, real fee will be known only once mined
+
                         try:
-                            execute(c,("SELECT timestamp FROM transactions WHERE block_height ='" + str(db_block_50) + "';"))
-                            ledger_timestamp_50 = c.fetchone()[0]
+                            execute(c, ("SELECT block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
+                            result = c.fetchall()
+                            db_block_height = result[0][0]
+                            db_timestamp_last = float(result[0][1])
+
+                            execute(c, ("SELECT avg(timestamp) FROM transactions where block_height >= '" + str(db_block_height - 30) + "' and reward != 0;"))
+                            timestamp_avg = c.fetchall()[0][0]  # select the reward block
+
                             conn.close()
 
-                            fee = abs(1000 / (float(mempool_timestamp) - float(ledger_timestamp_50))) + len(mempool_openfield) / 200
+                            fee = abs(1000 / (float(db_timestamp_last) - float(timestamp_avg))) + len(mempool_openfield) / 200
                             # app_log.info("Fee: " + str(fee))
 
                         except Exception as e:

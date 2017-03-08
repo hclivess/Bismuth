@@ -371,13 +371,13 @@ def refresh():
     db_timestamp_last = result[0][1]
     #print db_timestamp_last
     db_block_height = result[0][0]
-    db_block_50 = int(db_block_height) - 50
 
-    time_now = str(time.time())
+    c.execute("SELECT avg(timestamp) FROM transactions where block_height >= '"+str(db_block_height - 30)+"' and reward != 0;")
+    timestamp_avg = c.fetchall()[0][0]  # select the reward block
+    #print timestamp_avg
+
     try:
-        c.execute("SELECT timestamp FROM transactions WHERE block_height ='" + str(db_block_50) + "';")
-        db_timestamp_50 = c.fetchone()[0]
-        fee = abs(1000 / (float(time_now) - float(db_timestamp_50))) + len(base64.b64encode(openfield.get())) / 200
+        fee = abs(1000 / (float(db_timestamp_last) - float(timestamp_avg))) + len(base64.b64encode(openfield.get())) / 200
         app_log.info("Fee: " + str(fee))
 
     except Exception as e:
@@ -386,10 +386,6 @@ def refresh():
     # calculate fee
 
     # calculate difficulty
-    c.execute("SELECT avg(timestamp) FROM transactions where block_height >= '"+str(db_block_height - 30)+"' and reward != 0;")
-    timestamp_avg = c.fetchall()[0][0]  # select the reward block
-    #print timestamp_avg
-
     timestamp_difference = float(db_timestamp_last) - timestamp_avg
     #print timestamp_difference
 
@@ -405,6 +401,7 @@ def refresh():
     diff_msg = diff
 
 #network status
+    time_now = str(time.time())
     last_block_ago = float(time_now) - float(db_timestamp_last)
     if last_block_ago > 300:
         sync_msg = str(int(last_block_ago/60))+"m behind"
