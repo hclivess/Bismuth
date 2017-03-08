@@ -707,7 +707,7 @@ def digest_block(data):
                         db_timestamp = transaction[0]
                         db_address = transaction[1]
                         db_recipient = transaction[2]
-                        db_amount = transaction[3]
+                        db_amount = '%.8f' % float(transaction[3])
                         db_signature = transaction[4]
                         db_public_key_hashed = transaction[5]
                         db_openfield = transaction[6]
