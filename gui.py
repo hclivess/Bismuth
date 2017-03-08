@@ -27,7 +27,7 @@ global encrypted
 global unlocked
 
 root = Tk()
-root.wm_title("Stallion")
+root.wm_title("Bismuth")
 
 def encrypt_get_password():
     # enter password
