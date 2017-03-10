@@ -1493,7 +1493,8 @@ if __name__ == "__main__":
         server = ThreadedTCPServer((HOST, PORT), ThreadedTCPRequestHandler)
         ip, port = server.server_address
 
-        purge_old_peers()
+        if purge_conf == 1:
+            purge_old_peers()
 
         # Start a thread with the server -- that thread will then start one
         # more thread for each request
