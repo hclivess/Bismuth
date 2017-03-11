@@ -164,8 +164,8 @@ global banlist
 banlist = []
 global busy
 busy = 0
-global stallion
-stallion = '127.0.0.1'
+global leading_node
+leading_node = '127.0.0.1'
 
 
 # port = 2829 now defined by config
@@ -472,7 +472,7 @@ def blocknf(block_hash_delete):
 
 
 def consensus_add(peer_ip, consensus_blockheight):
-    global stallion
+    global leading_node
     global peer_ip_list
     global consensus_blockheight_list
     global consensus_percentage
@@ -508,8 +508,8 @@ def consensus_add(peer_ip, consensus_blockheight):
     app_log.info("Current block consensus: " + str(consensus) + " = " + str(consensus_percentage) + "%")
 
     if max(consensus_blockheight_list) == consensus_blockheight:
-        stallion = peer_ip
-        app_log.info("Stallion is now "+str(stallion))
+        leading_node = peer_ip
+        app_log.info("Leading node is now "+str(leading_node))
 
     return
 
@@ -924,7 +924,7 @@ if verify_conf == 1:
 app_log.info("Starting up...")
 class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
     def handle(self):  # server defined here
-        global stallion
+        global leading_node
         global busy
         while True:
             peer_ip = self.request.getpeername()[0]
@@ -1033,8 +1033,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     # app_log.info("Incoming: Combined segments: " + segments)
                     #print peer_ip
-                    #print stallion
-                    if peer_ip == stallion:
+                    #print leading_node
+                    if peer_ip == leading_node:
                         digest_block(segments)
                         # receive theirs
 
@@ -1148,8 +1148,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 elif data == "blocknf":
                     block_hash_delete = receive(self.request, 10)
                     #print peer_ip
-                    #print stallion
-                    if peer_ip == stallion:
+                    #print leading_node
+                    if peer_ip == leading_node:
                         blocknf(block_hash_delete)
 
                     while busy == 1:
@@ -1189,7 +1189,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
 # client thread
 def worker(HOST, PORT):
-    global stallion
+    global leading_node
     global busy
     try:
         this_client = (HOST + ":" + str(PORT))
@@ -1385,8 +1385,8 @@ def worker(HOST, PORT):
             elif data == "blocknf":
                 block_hash_delete = receive(s, 10)
                 #print peer_ip
-                #print stallion
-                if peer_ip == stallion:
+                #print leading_node
+                if peer_ip == leading_node:
                     blocknf(block_hash_delete)
 
                 while busy == 1:
@@ -1402,8 +1402,8 @@ def worker(HOST, PORT):
 
                 # app_log.info("Incoming: Combined segments: " + segments)
                 #print peer_ip
-                #print stallion
-                if peer_ip == stallion:
+                #print leading_node
+                if peer_ip == leading_node:
                     digest_block(segments)
                 # receive theirs
 
