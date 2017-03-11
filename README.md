@@ -18,6 +18,9 @@ https://github.com/hclivess/Bismuth/blob/master/.travis.yml
 ###Development plan:
 https://github.com/hclivess/Bismuth/issues
 
+###Bismuth tools:
+https://github.com/maccaspacca/Bismuth-Tools
+
 *WARNING: This project is in the beta stage!*
 
 ###License:
