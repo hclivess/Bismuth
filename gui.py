@@ -43,6 +43,7 @@ def encrypt_get_password():
     cancel = Button(top3, text="Cancel", command=top3.destroy)
     cancel.grid(row=2, column=0, sticky=W + E, padx=15, pady=(5, 5))
     # enter password
+
 def lock_fn(button):
     global key
     del key
@@ -593,7 +594,7 @@ Label(f3, text="", width=20,anchor="w").grid(row=7,sticky=S)
 
 logo_hash_decoded = base64.b64decode(icons.logo_hash)
 logo=PhotoImage(data=logo_hash_decoded)
-image = Label(f2, image=logo).grid(pady=5, padx=20)
+image = Label(f2, image=logo).grid(pady=5, padx=50)
 #logo
 
 refresh_auto()
