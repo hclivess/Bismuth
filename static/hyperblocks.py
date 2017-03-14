@@ -1,17 +1,10 @@
 import sqlite3
 
+depth = 7
+
 conn = sqlite3.connect('ledger.db')
 conn.text_factory = str
 c = conn.cursor()
-
-hype = sqlite3.connect('hyperblocks.db')
-hype.text_factory = str
-h = hype.cursor()
-try:
-    h.execute(
-        "CREATE TABLE transactions (block_height INTEGER, timestamp, address, recipient, amount, signature, public_key, block_hash, fee, reward, confirmations, openfield)")
-except:
-    pass
 
 end_balance = 0
 addresses = []
@@ -21,7 +14,7 @@ db_block_height = c.fetchone()[0]
 print db_block_height
 
 
-for row in c.execute("SELECT * FROM transactions WHERE block_height < '"+ str(int(db_block_height) - 10000) +"' ORDER BY block_height;"):
+for row in c.execute("SELECT * FROM transactions WHERE block_height < '"+ str(int(db_block_height) - depth) +"' ORDER BY block_height;"):
     db_address = row[2]
     db_recipient = row[3]
     addresses.append (db_address)
@@ -57,26 +50,11 @@ for x in set(unique_addressess):
         print end_balance
 
         if end_balance > 0:
-            h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", ("0","Hyperblock",x,str(float(end_balance)),"0","0","0","0","0","0","0","0"))
+            c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", ("0","Hyperblock",x,str(float(end_balance)),"0","0","0","0","0","0","0","0"))
+            conn.commit()
 
-c.execute('DELETE FROM transactions ORDER BY block_height where block_height < "'+ str(int(db_block_height) - 10000) +'"')
+c.execute("DELETE FROM transactions WHERE block_height < '"+ str(int(db_block_height) - depth) +"' AND timestamp != 'Hyperblock'")
 conn.commit()
 
-hype.commit()
-hype.close()
-
-
-
-
-
-
-
-
-db_block_height = row[0]
-db_timestamp = row[1]
-
-db_amount = row[4]
-db_signature = row[5]
-db_public_key_hashed = row[6]
-db_block_hash = row[7]
-db_confirmations = row[10]
+c.execute("VACUUM")
+conn.close()
