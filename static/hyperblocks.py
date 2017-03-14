@@ -59,7 +59,7 @@ for x in set(unique_addressess):
         if end_balance > 0:
             h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", ("0","Hyperblock",x,str(float(end_balance)),"0","0","0","0","0","0","0","0"))
 
-c.execute('DELETE * FROM transactions ORDER BY block_height where block_height < "'+ str(int(db_block_height) - 10000) +'"')
+c.execute('DELETE FROM transactions ORDER BY block_height where block_height < "'+ str(int(db_block_height) - 10000) +'"')
 conn.commit()
 
 hype.commit()
