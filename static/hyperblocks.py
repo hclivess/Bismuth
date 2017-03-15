@@ -1,9 +1,11 @@
 import time
 import sqlite3
+import os
 
 depth = 10000
 
-conn = sqlite3.connect('ledger.db')
+os.rename('ledger.db','ledger.hyper')
+conn = sqlite3.connect('ledger.hyper')
 conn.text_factory = str
 c = conn.cursor()
 
@@ -60,3 +62,6 @@ conn.commit()
 
 c.execute("VACUUM")
 conn.close()
+
+os.remove('ledger.db')
+os.rename('ledger.hyper','ledger.db')
