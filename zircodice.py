@@ -42,7 +42,7 @@ while True:
     conn = sqlite3.connect('static/ledger.db')
     conn.text_factory = str
     c = conn.cursor()
-    c.execute("SELECT * FROM transactions WHERE openfield = '" + base64.b64encode("odd") + "' OR openfield = '" + base64.b64encode("even") + "' and recipient = '" + address + "' ORDER BY block_height DESC LIMIT 500")
+    c.execute("SELECT * FROM transactions WHERE openfield = ? OR openfield = ? and recipient = ? ORDER BY block_height DESC LIMIT 500",(base64.b64encode("odd"),)+(base64.b64encode("even"),)+(address,))
     result_bets = c.fetchall()
 
     won_count = 0
@@ -75,7 +75,7 @@ while True:
                 won_count = won_count + 1
 
                 try:
-                    c.execute("SELECT * FROM transactions where openfield = '" + base64.b64encode("payout for " + tx_signature) + "' ")
+                    c.execute("SELECT * FROM transactions where openfield = ?;",(base64.b64encode("payout for " + tx_signature),))
                     result_in_ledger = c.fetchone()[0]
                     print "Payout transaction already in the ledger for "+str(tx_signature)
                     paid_count = paid_count + 1
@@ -127,7 +127,7 @@ while True:
             m = mempool.cursor()
 
             try:
-                m.execute("SELECT * FROM transactions WHERE openfield = '" + base64.b64encode("payout for " + tx_signature) + "' ")
+                m.execute("SELECT * FROM transactions WHERE openfield = ?;",(base64.b64encode("payout for " + tx_signature),))
                 result_in_mempool = m.fetchone()[0]
                 print "Payout transaction already in the mempool"
             except:

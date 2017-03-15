@@ -31,7 +31,7 @@ class index:
         last_block_height = result[0][0]
         last_timestamp = result[0][1]
 
-        c.execute("select * from transactions where openfield = '" + base64.b64encode("odd") + "' OR openfield = '" + base64.b64encode("even") + "' and recipient = '" + address + "' ORDER BY block_height DESC, timestamp DESC LIMIT 100;")
+        c.execute("select * from transactions where openfield = ? OR openfield = ? and recipient = ? ORDER BY block_height DESC, timestamp DESC LIMIT 100;",(base64.b64encode("odd"),)+(base64.b64encode("even"),)+(address,))
         result_bets = c.fetchall()
         view_bets = []
 
@@ -67,7 +67,7 @@ class index:
             view_bets.append("<td>" + result + "</td>")
             view_bets.append("</tr>")
 
-        c.execute("select * from transactions WHERE address = '" + address + "' and openfield LIKE '%"+(base64.b64encode("payout"))+"%' ORDER BY block_height DESC, timestamp DESC LIMIT 100;")
+        c.execute('select * from transactions WHERE address = ? and openfield LIKE ? ORDER BY block_height DESC, timestamp DESC LIMIT 100;',(address,)+('%'+(base64.b64encode("payout"))+'%',)) #should work, needs testing
         result_payouts = c.fetchall()
         #print result_payouts
         view_payouts = []
