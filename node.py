@@ -68,7 +68,7 @@ def ledger_convert():
     c.execute("SELECT block_height FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")
     db_block_height = c.fetchone()[0]
 
-    for row in c.execute("SELECT * FROM transactions WHERE block_height < ? AND address != 'Hyperblock' AND address != 'genesis' ORDER BY block_height;", (str(int(db_block_height) - depth),)):
+    for row in c.execute("SELECT * FROM transactions WHERE block_height < ? AND address != 'Hyperblock' ORDER BY block_height;", (str(int(db_block_height) - depth),)):
         db_address = row[2]
         db_recipient = row[3]
         addresses.append(db_address)
