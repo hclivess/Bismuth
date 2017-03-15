@@ -1,6 +1,7 @@
 # must unify node and client now that connections parameters are function parameters
 from itertools import groupby
 from operator import itemgetter
+import shutil
 import math
 import SocketServer
 import ast
@@ -47,18 +48,17 @@ for line in lines:
     if "ledger_path=" in line:
         ledger_path_conf = line.strip('ledger_path=')
     if "hyperblocks=" in line:
-        hyperblocks_conf = line.strip('hyperblocks=')
+        hyperblocks_conf = int(line.strip('hyperblocks='))
 
 # load config
-
 version = version_conf
 
 def ledger_convert():
-    app_log.info("Core: Converting Ledger to Hyperblocks " + str(address))
+    app_log.info("Converting ledger to Hyperblocks")
     depth = 10000
 
-    os.rename('ledger.db', 'ledger.hyper')
-    conn = sqlite3.connect('ledger.hyper')
+    shutil.copy(ledger_path_conf, ledger_path_conf+'.hyper')
+    conn = sqlite3.connect(ledger_path_conf+'.hyper')
     conn.text_factory = str
     c = conn.cursor()
 
@@ -67,7 +67,6 @@ def ledger_convert():
 
     c.execute("SELECT block_height FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")
     db_block_height = c.fetchone()[0]
-    print db_block_height
 
     for row in c.execute("SELECT * FROM transactions WHERE block_height < ? ORDER BY block_height;", (str(int(db_block_height) - depth),)):
         db_address = row[2]
@@ -101,7 +100,8 @@ def ledger_convert():
                 rewards = 0
 
             end_balance = credit - debit - fees + rewards
-            app_log.info("Core: Processed " + str(address)) + "has a remaining balance of" + str(end_balance)
+            app_log.info("Address: "+ str(x))
+            app_log.info("Balance: " + str(end_balance))
 
             if end_balance > 0:
                 timestamp = str(time.time())
@@ -114,7 +114,8 @@ def ledger_convert():
     c.execute("VACUUM")
     conn.close()
 
-    os.rename('ledger.hyper', 'ledger.db')
+    os.remove(ledger_path_conf)
+    os.rename(ledger_path_conf+'.hyper', ledger_path_conf)
 
 def most_common(lst):
     return max(set(lst), key=lst.count)
@@ -441,15 +442,15 @@ def verify():
         # c.execute("CREATE TABLE IF NOT EXISTS transactions (block_height, address, recipient, amount, signature, public_key)")
         execute(c,("SELECT Count(*) FROM transactions"))
         db_rows = c.fetchone()[0]
-        app_log.info("Core: Total steps: " + str(db_rows))
+        app_log.info("Total steps: " + str(db_rows))
 
         # verify genesis
         execute(c,("SELECT recipient FROM transactions ORDER BY block_height ASC LIMIT 1"))
         genesis = c.fetchone()[0]
-        app_log.info("Core: Genesis: " + genesis)
+        app_log.info("Genesis: " + genesis)
         if str(
                 genesis) != genesis_conf:  # change this line to your genesis address if you want to clone
-            app_log.info("Core: Invalid genesis address")
+            app_log.info("Invalid genesis address")
             sys.exit(1)
         # verify genesis
 
@@ -477,14 +478,14 @@ def verify():
                 app_log.info(row)
                 invalid = invalid + 1
                 if db_block_height == str(1):
-                    app_log.info("Core: Your genesis signature is invalid, someone meddled with the database")
+                    app_log.info("Your genesis signature is invalid, someone meddled with the database")
                     sys.exit(1)
 
         if invalid == 0:
-            app_log.info("Core: All transacitons in the local ledger are valid")
+            app_log.info("All transacitons in the local ledger are valid")
 
     except sqlite3.Error, e:
-        app_log.info("Core: Error %s:" % e.args[0])
+        app_log.info("Error %s:" % e.args[0])
         sys.exit(1)
     finally:
         if conn:
@@ -920,14 +921,14 @@ def db_maintenance():
     conn = sqlite3.connect("mempool.db")
     execute(conn, "VACUUM")
     conn.close()
-    app_log.info("Core: Database maintenance finished")
+    app_log.info("Database maintenance finished")
 
 
 # key maintenance
 if os.path.isfile("privkey.der") is True:
-    app_log.info("Core: privkey.der found")
+    app_log.info("privkey.der found")
 elif os.path.isfile("privkey_encrypted.der") is True:
-    app_log.info("Core: privkey_encrypted.der found")
+    app_log.info("privkey_encrypted.der found")
 else:
     # generate key pair and an address
     random_generator = Random.new().read
@@ -939,9 +940,9 @@ else:
     address = hashlib.sha224(public_key_hashed).hexdigest()  # hashed public key
     # generate key pair and an address
 
-    app_log.info("Core: Your address: " + str(address))
-    app_log.info("Core: Your private key: " + str(private_key_readable))
-    app_log.info("Core: Your public key: " + str(public_key_hashed))
+    app_log.info("Your address: " + str(address))
+    app_log.info("Your private key: " + str(private_key_readable))
+    app_log.info("Your public key: " + str(public_key_hashed))
 
     pem_file = open("privkey.der", 'a')
     pem_file.write(str(private_key_readable))
@@ -963,7 +964,7 @@ public_key_hashed = base64.b64encode(public_key_readable)
 address = hashlib.sha224(public_key_readable).hexdigest()
 
 
-app_log.info("Core: Local address: " + str(address))
+app_log.info("Local address: " + str(address))
 
 if hyperblocks_conf == 1:
     ledger_convert()
@@ -976,7 +977,7 @@ if not os.path.exists('mempool.db'):
     execute(m,("CREATE TABLE IF NOT EXISTS transactions (timestamp, address, recipient, amount, signature, public_key, openfield)"))
     commit(mempool)
     mempool.close()
-    app_log.info("Core: Created mempool file")
+    app_log.info("Created mempool file")
     # create empty mempool
 else:
     app_log.info("Mempool exists")
@@ -1072,7 +1073,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             app_log.info("Incoming: Distant peer saved to peer list")
                             peer_list_file.close()
                         else:
-                            app_log.info("Core: Distant peer already in peer list")
+                            app_log.info("Distant peer already in peer list")
                     except:
                         app_log.info("Incoming: Distant peer not connectible")
                         pass
