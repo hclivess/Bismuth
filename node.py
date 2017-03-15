@@ -65,34 +65,36 @@ def ledger_convert():
     end_balance = 0
     addresses = []
 
-    c.execute("SELECT block_height FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")
+    c.execute("UPDATE transactions SET address = 'Hypoblock' WHERE address = 'Hyperblock'")
+
+    c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
     db_block_height = c.fetchone()[0]
 
-    for row in c.execute("SELECT * FROM transactions WHERE block_height < ? AND address != 'Hyperblock' ORDER BY block_height;", (str(int(db_block_height) - depth),)):
+    for row in c.execute("SELECT * FROM transactions WHERE block_height < ? ORDER BY block_height;", (str(int(db_block_height) - depth),)):
         db_address = row[2]
         db_recipient = row[3]
-        addresses.append(db_address)
-        addresses.append(db_recipient)
+        addresses.append(db_address.strip())
+        addresses.append(db_recipient.strip())
 
     unique_addressess = set(addresses)
 
     for x in set(unique_addressess):
-        c.execute("SELECT sum(amount) FROM transactions WHERE recipient = ?;", (x,))
+        c.execute("SELECT sum(amount) FROM transactions WHERE recipient = ? AND block_height < ?;", (x,)+(str(int(db_block_height) - depth),))
         credit = c.fetchone()[0]
         if credit == None:
             credit = 0
 
-        c.execute("SELECT sum(amount) FROM transactions WHERE address = ?;", (x,))
+        c.execute("SELECT sum(amount) FROM transactions WHERE address = ? AND block_height < ?;", (x,)+(str(int(db_block_height) - depth),))
         debit = c.fetchone()[0]
         if debit == None:
             debit = 0
 
-        c.execute("SELECT sum(fee) FROM transactions WHERE address = ?;", (x,))
+        c.execute("SELECT sum(fee) FROM transactions WHERE address = ? AND block_height < ?;", (x,)+(str(int(db_block_height) - depth),))
         fees = c.fetchone()[0]
         if fees == None:
             fees = 0
 
-        c.execute("SELECT sum(reward) FROM transactions WHERE address = ?;", (x,))
+        c.execute("SELECT sum(reward) FROM transactions WHERE address = ? AND block_height < ?;", (x,)+(str(int(db_block_height) - depth),))
         rewards = c.fetchone()[0]
         if rewards == None:
             rewards = 0
