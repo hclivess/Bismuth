@@ -649,7 +649,7 @@ def digest_block(data):
 
             # remove possible duplicates
 
-            execute(c,("select block_height, count(*) FROM transactions GROUP by signature HAVING count(*) > 1"))
+            execute(c,("select block_height, count(*) FROM transactions WHERE signature != '0' GROUP by signature HAVING count(*) > 1"))
             result = c.fetchall()
             for x in result:
                 #print x
