@@ -84,7 +84,7 @@ def miner(args, address, privatekey_readable, public_key_hashed):
                     #print timestamp_last_block
 
                     # calculate difficulty
-                    c.execute("SELECT avg(timestamp) FROM transactions where block_height >= '" + str(db_block_height - 30) + "' and reward != 0;")
+                    c.execute("SELECT avg(timestamp) FROM transactions where block_height >= and reward != 0;",(str(db_block_height - 30),))
                     timestamp_avg = c.fetchall()[0][0]  # select the reward block
                     #print timestamp_avg
 
@@ -185,7 +185,7 @@ def miner(args, address, privatekey_readable, public_key_hashed):
                     mempool.text_factory = str
                     m = mempool.cursor()
                     for x in removal_signature:
-                        m.execute("DELETE FROM transactions WHERE signature ='" + x + "';")
+                        m.execute("DELETE FROM transactions WHERE signature =?;",(x,))
                         app_log.info("Removed a transaction with the following signature from mempool: "+str(x))
                     mempool.commit()
                     mempool.close()

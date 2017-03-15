@@ -1,6 +1,7 @@
+import time
 import sqlite3
 
-depth = 7
+depth = 10000
 
 conn = sqlite3.connect('ledger.db')
 conn.text_factory = str
@@ -14,7 +15,7 @@ db_block_height = c.fetchone()[0]
 print db_block_height
 
 
-for row in c.execute("SELECT * FROM transactions WHERE block_height < '"+ str(int(db_block_height) - depth) +"' ORDER BY block_height;"):
+for row in c.execute("SELECT * FROM transactions WHERE block_height < ? ORDER BY block_height;",(str(int(db_block_height) - depth),)):
     db_address = row[2]
     db_recipient = row[3]
     addresses.append (db_address)
@@ -50,10 +51,11 @@ for x in set(unique_addressess):
         print end_balance
 
         if end_balance > 0:
-            c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", ("0","Hyperblock",x,str(float(end_balance)),"0","0","0","0","0","0","0","0"))
+            timestamp = str(time.time())
+            c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", ("0",timestamp,"Hyperblock",x,str(float(end_balance)),"0","0","0","0","0","0","0"))
             conn.commit()
 
-c.execute("DELETE FROM transactions WHERE block_height < '"+ str(int(db_block_height) - depth) +"' AND timestamp != 'Hyperblock'")
+c.execute("DELETE FROM transactions WHERE block_height < ? AND address != 'Hyperblock';",(str(int(db_block_height) - depth),))
 conn.commit()
 
 c.execute("VACUUM")

@@ -271,7 +271,7 @@ def table():
     conn.text_factory = str
     c = conn.cursor()
 
-    for row in m.execute("SELECT * FROM transactions WHERE address = '" + str(address) + "' OR recipient = '" + str(address) + "' ORDER BY timestamp DESC LIMIT 19;"):
+    for row in m.execute("SELECT * FROM transactions WHERE address = ? OR recipient = ? ORDER BY timestamp DESC LIMIT 19;",(address,)+(address,)):
         rows_total = rows_total - 1
 
         #mempool_timestamp = row[1]
@@ -285,7 +285,7 @@ def table():
         datasheet.append(mempool_amount)
     mempool.close()
 
-    for row in c.execute("SELECT * FROM transactions WHERE address = '" + str(address) + "' OR recipient = '" + str(address) + "' ORDER BY block_height DESC LIMIT '"+str(rows_total)+"';"):
+    for row in c.execute("SELECT * FROM transactions WHERE address = ? OR recipient = ? ORDER BY block_height DESC LIMIT ?;",(address,)+(address,)+(rows_total,)):
         db_timestamp = row[1]
         datasheet.append(datetime.fromtimestamp(float(db_timestamp)).strftime('%Y-%m-%d %H:%M:%S'))
         db_address = row[2]
@@ -345,13 +345,13 @@ def refresh():
     conn = sqlite3.connect('static/ledger.db')
     conn.text_factory = str
     c = conn.cursor()
-    c.execute("SELECT sum(amount) FROM transactions WHERE recipient = '" + address + "'")
+    c.execute("SELECT sum(amount) FROM transactions WHERE recipient = ?;", (address,))
     credit = c.fetchone()[0]
-    c.execute("SELECT sum(amount) FROM transactions WHERE address = '" + address + "'")
+    c.execute("SELECT sum(amount) FROM transactions WHERE address = ?;", (address,))
     debit = c.fetchone()[0]
-    c.execute("SELECT sum(fee) FROM transactions WHERE address = '" + address + "'")
+    c.execute("SELECT sum(fee) FROM transactions WHERE address = ?;", (address,))
     fees = c.fetchone()[0]
-    c.execute("SELECT sum(reward) FROM transactions WHERE address = '" + address + "'")
+    c.execute("SELECT sum(reward) FROM transactions WHERE address = ?;", (address,))
     rewards = c.fetchone()[0]
     c.execute("SELECT MAX(block_height) FROM transactions")
     bl_height = c.fetchone()[0]
@@ -373,7 +373,7 @@ def refresh():
     #print db_timestamp_last
     db_block_height = result[0][0]
 
-    c.execute("SELECT avg(timestamp) FROM transactions where block_height >= '"+str(db_block_height - 30)+"' and reward != 0;")
+    c.execute("SELECT avg(timestamp) FROM transactions where block_height >= ? and reward != 0;", (str(db_block_height - 30),))
     timestamp_avg = c.fetchall()[0][0]  # select the reward block
     #print timestamp_avg
 
