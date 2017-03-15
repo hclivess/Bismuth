@@ -84,7 +84,7 @@ while True:
                     paid_count = paid_count + 1
 
                 except Exception as e:
-                    print e
+                    #print e
                     print "Appending tx to the payout list for "+str(tx_signature)
                     payout_missing.append(x)
                     not_paid_count = not_paid_count + 1
