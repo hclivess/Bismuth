@@ -66,9 +66,10 @@ def commit(cursor):
             cursor.commit()
             passed = 1
         except:
-            app_log.info("Retrying database commit")
+            app_log.info("Retrying database execute due to " + str(e))
             pass
             # secure commit for slow nodes
+
 def execute(cursor, what):
     # secure execute for slow nodes
     passed = 0
@@ -76,6 +77,7 @@ def execute(cursor, what):
         try:
             #print cursor
             #print what
+
             cursor.execute(what)
             passed = 1
         except Exception, e:
@@ -954,7 +956,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     mempool = sqlite3.connect('mempool.db')
                     mempool.text_factory = str
                     m = mempool.cursor()
-                    execute(m,('SELECT * FROM transactions LIMIT 5'))
+                    execute(m,('SELECT * FROM transactions'))
                     mempool_txs = m.fetchall()
 
                     # send own
@@ -1102,7 +1104,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         c = conn.cursor()
 
                         try:
-                            execute(c,("SELECT block_height FROM transactions WHERE block_hash = ?;",(data,)))
+                            execute_param(c,("SELECT block_height FROM transactions WHERE block_hash = ?;"),(data,))
                             client_block = c.fetchone()[0]
 
                             app_log.info("Incoming: Client is at block " + str(
@@ -1345,7 +1347,7 @@ def worker(HOST, PORT):
                     c = conn.cursor()
 
                     try:
-                        execute(c,("SELECT block_height FROM transactions WHERE block_hash=?;",(data,)))
+                        execute_param(c, ("SELECT block_height FROM transactions WHERE block_hash = ?;"), (data,))
                         client_block = c.fetchone()[0]
 
                         app_log.info("Outgoing: Node is at block " + str(
