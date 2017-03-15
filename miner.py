@@ -84,7 +84,7 @@ def miner(args, address, privatekey_readable, public_key_hashed):
                     #print timestamp_last_block
 
                     # calculate difficulty
-                    c.execute("SELECT avg(timestamp) FROM transactions where block_height >= and reward != 0;",(str(db_block_height - 30),))
+                    c.execute("SELECT avg(timestamp) FROM transactions where block_height >= ? and reward != 0;",(str(db_block_height - 30),))
                     timestamp_avg = c.fetchall()[0][0]  # select the reward block
                     #print timestamp_avg
 
