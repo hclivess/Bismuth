@@ -365,7 +365,7 @@ def mempool_merge(data):
 
                         conn.close()
 
-                        fee = abs(1000 / (float(db_timestamp_last) - float(timestamp_avg))) + len(mempool_openfield) / 200
+                        fee = abs(1000 / (float(db_timestamp_last) - float(timestamp_avg))) + len(mempool_openfield) / 600
                         # app_log.info("Fee: " + str(fee))
 
                     except Exception as e:
@@ -835,7 +835,7 @@ def digest_block(data):
                         try:
                             execute_param(c,("SELECT timestamp FROM transactions WHERE block_height = ?;"),(str(db_block_50),))
                             db_timestamp_50 = c.fetchone()[0]
-                            fee = abs(1000 / (float(db_timestamp) - float(db_timestamp_50))) + len(db_openfield) / 200
+                            fee = abs(1000 / (float(db_timestamp) - float(db_timestamp_50))) + len(db_openfield) / 600
                             fees_block.append(fee)
                             # app_log.info("Fee: " + str(fee))
 
