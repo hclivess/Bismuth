@@ -63,5 +63,4 @@ conn.commit()
 c.execute("VACUUM")
 conn.close()
 
-os.remove('ledger.db')
 os.rename('ledger.hyper','ledger.db')
