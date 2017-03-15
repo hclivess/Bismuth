@@ -37,11 +37,14 @@ def encrypt_get_password():
     input_password= Entry(top3, textvariable=password_var_enc, show='*')
     input_password.grid(row=0, column=0, sticky=N+E, padx=15, pady=(5, 5))
 
+    input_password= Entry(top3, textvariable=password_var_con, show='*')
+    input_password.grid(row=1, column=0, sticky=N+E, padx=15, pady=(5, 5))
+
     enter = Button(top3, text="Encrypt", command = lambda: encrypt_fn(top3))
-    enter.grid(row=1, column=0, sticky=W+E, padx=15, pady=(5, 5))
+    enter.grid(row=2, column=0, sticky=W+E, padx=15, pady=(5, 5))
 
     cancel = Button(top3, text="Cancel", command=top3.destroy)
-    cancel.grid(row=2, column=0, sticky=W + E, padx=15, pady=(5, 5))
+    cancel.grid(row=3, column=0, sticky=W + E, padx=15, pady=(5, 5))
     # enter password
 
 def lock_fn(button):
@@ -54,17 +57,29 @@ def lock_fn(button):
 
 def encrypt_fn(destroy_this):
     password = password_var_enc.get()
+    password_conf = password_var_con.get()
 
-    ciphertext = encrypt(password, private_key_readable)
+    if password == password_conf:
 
-    pem_file = open("privkey_encrypted.der", 'a')
-    pem_file.write(base64.b64encode(ciphertext))
-    pem_file.close()
+        ciphertext = encrypt(password, private_key_readable)
 
-    encrypt_b.configure(text="Encrypted", state=DISABLED)
-    destroy_this.destroy()
-    os.remove("privkey.der")
-    lock_b.configure(text="Lock", state=NORMAL)
+        pem_file = open("privkey_encrypted.der", 'a')
+        pem_file.write(base64.b64encode(ciphertext))
+        pem_file.close()
+
+        encrypt_b.configure(text="Encrypted", state=DISABLED)
+        destroy_this.destroy()
+        os.remove("privkey.der")
+        lock_b.configure(text="Lock", state=NORMAL)
+    else:
+        mismatch = Toplevel()
+        mismatch.title("Bismuth")
+
+        mismatch_msg = Message(mismatch, text="Password mismatch", width=100)
+        mismatch_msg.pack()
+
+        button = Button(mismatch, text="Continue", command=mismatch.destroy)
+        button.pack(padx=15, pady=(5, 5))
 
 def decrypt_get_password():
     # enter password
@@ -451,6 +466,7 @@ app_log.setLevel(logging.INFO)
 app_log.addHandler(my_handler)
 
 password_var_enc = StringVar()
+password_var_con = StringVar()
 password_var_dec = StringVar()
 
 
