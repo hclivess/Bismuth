@@ -10,6 +10,9 @@ import os
 from simplecrypt import decrypt
 import getpass
 
+def percentage(percent, whole):
+  return (percent * whole) / 100.0
+
 # import keys
 if not os.path.exists('privkey_encrypted.der'):
     password = ""
@@ -112,7 +115,7 @@ while True:
 
             # create transactions for missing payouts
             timestamp = str(time.time())
-            transaction = (timestamp, address, payout_address, str(float(bet_amount*2)),
+            transaction = (timestamp, address, payout_address, str(float(bet_amount*2)-percentage(1,bet_amount)),
                            base64.b64encode("payout for " + tx_signature))
             print transaction
 
@@ -132,7 +135,7 @@ while True:
                 print "Payout transaction already in the mempool"
             except:
                 m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?)", (
-                timestamp, address, payout_address, str(float(bet_amount*2)), signature_enc, public_key_hashed,
+                timestamp, address, payout_address, str(float(bet_amount*2)-percentage(1,bet_amount)), signature_enc, public_key_hashed,
                 base64.b64encode("payout for " + tx_signature)))
                 mempool.commit()  # Save (commit) the changes
                 mempool.close()
