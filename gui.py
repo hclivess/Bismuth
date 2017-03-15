@@ -34,17 +34,23 @@ def encrypt_get_password():
     top3 = Toplevel()
     top3.title("Enter Password")
 
-    input_password= Entry(top3, textvariable=password_var_enc, show='*')
-    input_password.grid(row=0, column=0, sticky=N+E, padx=15, pady=(5, 5))
+    password_label = Label(top3, text="Input password")
+    password_label.grid(row=0, column=0, sticky=N+W, padx=15, pady=(5, 0))
 
-    input_password= Entry(top3, textvariable=password_var_con, show='*')
-    input_password.grid(row=1, column=0, sticky=N+E, padx=15, pady=(5, 5))
+    input_password= Entry(top3, textvariable=password_var_enc, show='*')
+    input_password.grid(row=1, column=0, sticky=N+E, padx=15, pady=(0, 5))
+
+    confirm_label = Label(top3, text="Confirm password")
+    confirm_label.grid(row=2, column=0, sticky=N+W, padx=15, pady=(5, 0))
+
+    input_password_con= Entry(top3, textvariable=password_var_con, show='*')
+    input_password_con.grid(row=3, column=0, sticky=N+E, padx=15, pady=(0, 5))
 
     enter = Button(top3, text="Encrypt", command = lambda: encrypt_fn(top3))
-    enter.grid(row=2, column=0, sticky=W+E, padx=15, pady=(5, 5))
+    enter.grid(row=4, column=0, sticky=W+E, padx=15, pady=(5, 5))
 
     cancel = Button(top3, text="Cancel", command=top3.destroy)
-    cancel.grid(row=3, column=0, sticky=W + E, padx=15, pady=(5, 5))
+    cancel.grid(row=5, column=0, sticky=W + E, padx=15, pady=(5, 5))
     # enter password
 
 def lock_fn(button):
@@ -78,8 +84,8 @@ def encrypt_fn(destroy_this):
         mismatch_msg = Message(mismatch, text="Password mismatch", width=100)
         mismatch_msg.pack()
 
-        button = Button(mismatch, text="Continue", command=mismatch.destroy)
-        button.pack(padx=15, pady=(5, 5))
+        mismatch_button = Button(mismatch, text="Continue", command=mismatch.destroy)
+        mismatch_button.pack(padx=15, pady=(5, 5))
 
 def decrypt_get_password():
     # enter password
