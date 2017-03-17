@@ -896,7 +896,7 @@ def digest_block(data):
                             transaction[11]))
                         #secure commit for slow nodes
                         commit(conn)
-                    app_log.info("Block valid and saved")
+                    app_log.info("Block " + transaction[0] + " valid and saved")
                     del block_transactions[:]
                 else:
                     app_log.info("A part of the block is invalid, rejected")
@@ -1000,11 +1000,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
         peer_ip = self.request.getpeername()[0]
         if peer_ip in banlist:
-            banned = 0
-        else:
             banned = 1
+        else:
             self.request.close()
-            app_log.info("IP banned, disconnected")
+            app_log.info("IP " + peer_ip + " banned, disconnected")
 
             if debug_conf == 1:
                 raise  # major debug client
@@ -1012,7 +1011,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 return
 
 
-        while banned == 0:
+        while banned != 0:
             try:
                 data = receive(self.request, 10)
 
