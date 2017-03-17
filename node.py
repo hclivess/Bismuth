@@ -84,18 +84,16 @@ def ledger_convert():
         if credit == None:
             credit = 0
 
-        c.execute("SELECT sum(amount) FROM transactions WHERE address = ? AND block_height < ?;", (x,)+(str(int(db_block_height) - depth),))
-        debit = c.fetchone()[0]
+        c.execute("SELECT sum(amount),sum(fee),sum(reward) FROM transactions WHERE address = ? AND block_height < ?;", (x,)+(str(int(db_block_height) - depth),))
+        result = c.fetchall()
+        debit = result[0][0]
+        fees = result[0][1]
+        rewards = result[0][2]
+
         if debit == None:
             debit = 0
-
-        c.execute("SELECT sum(fee) FROM transactions WHERE address = ? AND block_height < ?;", (x,)+(str(int(db_block_height) - depth),))
-        fees = c.fetchone()[0]
         if fees == None:
             fees = 0
-
-        c.execute("SELECT sum(reward) FROM transactions WHERE address = ? AND block_height < ?;", (x,)+(str(int(db_block_height) - depth),))
-        rewards = c.fetchone()[0]
         if rewards == None:
             rewards = 0
 
