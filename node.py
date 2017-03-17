@@ -996,8 +996,17 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
     def handle(self):  # server defined here
         global leading_node
         global busy
-        while True:
-            peer_ip = self.request.getpeername()[0]
+        global banlist
+
+        peer_ip = self.request.getpeername()[0]
+        if peer_ip in banlist:
+            banned = 0
+        else:
+            banned = 1
+            self.request.close()
+            raise ValueError("IP banned, disconnected")
+
+        while banned == 0:
             try:
                 data = receive(self.request, 10)
 
