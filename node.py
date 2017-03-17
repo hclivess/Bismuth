@@ -997,9 +997,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         global banlist
 
         peer_ip = self.request.getpeername()[0]
-        if peer_ip in banlist:
-            banned = 1
+        if peer_ip not in banlist:
+            banned = 0
         else:
+            banned = 1
             self.request.close()
             app_log.info("IP " + peer_ip + " banned, disconnected")
 
@@ -1009,7 +1010,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 return
 
 
-        while banned != 1:
+        while banned == 0:
             try:
                 data = receive(self.request, 10)
 
