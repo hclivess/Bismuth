@@ -105,7 +105,7 @@ def ledger_convert():
 
         if end_balance > 0:
             timestamp = str(time.time())
-            c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", ("0", timestamp, "Hyperblock", x, str(float(end_balance)), "0", "0", "0", "0", "0", "0", "0"))
+            c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (db_block_height - depth - 1, timestamp, "Hyperblock", x, str(float(end_balance)), "0", "0", "0", "0", "0", "0", "0"))
             conn.commit()
 
     c.execute("DELETE FROM transactions WHERE block_height < ? AND address != 'Hyperblock';", (str(int(db_block_height) - depth),))
@@ -1004,7 +1004,13 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         else:
             banned = 1
             self.request.close()
-            raise ValueError("IP banned, disconnected")
+            app_log.info("IP banned, disconnected")
+
+            if debug_conf == 1:
+                raise  # major debug client
+            else:
+                return
+
 
         while banned == 0:
             try:
