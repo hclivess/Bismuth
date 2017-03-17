@@ -1011,7 +1011,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 return
 
 
-        while banned != 0:
+        while banned != 1:
             try:
                 data = receive(self.request, 10)
 
