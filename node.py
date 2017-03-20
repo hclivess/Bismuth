@@ -856,7 +856,7 @@ def digest_block(data):
                             if transaction == transaction_list[-1]:
 
                                 if db_block_height <= 10000000:
-                                    mining_reward = 10
+                                    mining_reward = 10 - block_height_new / 1000000 #one zero less
                                 else:
                                     mining_reward = 0
 
