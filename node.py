@@ -24,6 +24,21 @@ from Crypto.Hash import SHA
 from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 
+log_formatter = logging.Formatter('%(asctime)s %(levelname)s %(funcName)s(%(lineno)d) %(message)s')
+logFile = 'node.log'
+my_handler = RotatingFileHandler(logFile, mode='a', maxBytes=5 * 1024 * 1024, backupCount=2, encoding=None, delay=0)
+my_handler.setFormatter(log_formatter)
+my_handler.setLevel(logging.INFO)
+app_log = logging.getLogger('root')
+app_log.setLevel(logging.INFO)
+app_log.addHandler(my_handler)
+
+ch = logging.StreamHandler(sys.stdout)
+ch.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(asctime)s %(funcName)s(%(lineno)d) %(message)s')
+ch.setFormatter(formatter)
+app_log.addHandler(ch)
+
 # load config
 lines = [line.rstrip('\n') for line in open('config.txt')]
 for line in lines:
@@ -49,7 +64,7 @@ for line in lines:
         ledger_path_conf = line.strip('ledger_path=')
     if "hyperblocks=" in line:
         hyperblocks_conf = int(line.strip('hyperblocks='))
-
+app_log.info("Configuration settings loaded")
 # load config
 version = version_conf
 
@@ -98,8 +113,8 @@ def ledger_convert():
             rewards = 0
 
         end_balance = credit - debit - fees + rewards
-        app_log.info("Address: "+ str(x))
-        app_log.info("Balance: " + str(end_balance))
+        #app_log.info("Address: "+ str(x))
+        #app_log.info("Balance: " + str(end_balance))
 
         if end_balance > 0:
             timestamp = str(time.time())
@@ -201,20 +216,7 @@ def receive(sdef, slen):
 
 gc.enable()
 
-log_formatter = logging.Formatter('%(asctime)s %(levelname)s %(funcName)s(%(lineno)d) %(message)s')
-logFile = 'node.log'
-my_handler = RotatingFileHandler(logFile, mode='a', maxBytes=5 * 1024 * 1024, backupCount=2, encoding=None, delay=0)
-my_handler.setFormatter(log_formatter)
-my_handler.setLevel(logging.INFO)
-app_log = logging.getLogger('root')
-app_log.setLevel(logging.INFO)
-app_log.addHandler(my_handler)
 
-ch = logging.StreamHandler(sys.stdout)
-ch.setLevel(logging.DEBUG)
-formatter = logging.Formatter('%(asctime)s %(funcName)s(%(lineno)d) %(message)s')
-ch.setFormatter(formatter)
-app_log.addHandler(ch)
 
 global active_pool
 active_pool = []
@@ -997,6 +999,19 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         global banlist
 
         peer_ip = self.request.getpeername()[0]
+
+        if threading.active_count() < thread_limit_conf:
+            capacity = 1
+        else:
+            capacity = 0
+            self.request.close()
+            app_log.info("Free capacity for " + peer_ip + " unavailable, disconnected")
+
+            if debug_conf == 1:
+                raise  # major debug client
+            else:
+                return
+
         if peer_ip not in banlist:
             banned = 0
         else:
@@ -1010,7 +1025,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 return
 
 
-        while banned == 0:
+        while banned == 0 and capacity == 1:
             try:
                 data = receive(self.request, 10)
 
