@@ -137,19 +137,31 @@ def send():
         done.grid(row=1, column=0, sticky=W + E, padx=15, pady=(5, 5))
 
     app_log.info("Received tx command")
-    recipient_input = recipient.get().strip()
 
-    if len(recipient_input) != "56":
+    recipient_input = recipient.get().strip()
+    amount_input = amount.get().strip()
+
+    try:
+        float(amount_input)
+    except:
+        top7 = Toplevel()
+        top7.title("Invalid amount")
+        Label(top7, text="Amount must be a number", width=20).grid(row=0, pady=0)
+        done = Button(top7, text="Cancel", command=top7.destroy)
+        done.grid(row=1, column=0, sticky=W + E, padx=15, pady=(5, 5))
+
+    openfield_input = base64.b64encode(openfield.get()).strip()
+
+    if len(recipient_input) != 56:
         top6 = Toplevel()
         top6.title("Invalid address")
         Label(top6, text="Wrong address length", width=20).grid(row=0, pady=0)
         done = Button(top6, text="Cancel", command=top6.destroy)
         done.grid(row=1, column=0, sticky=W + E, padx=15, pady=(5, 5))
     else:
-        app_log.info("Recipient: "+recipient_input)
-        amount_input = amount.get().strip()
-        app_log.info("Amount: "+amount_input)
-        openfield_input = base64.b64encode(openfield.get()).strip()
+
+        app_log.info("Amount: " + amount_input)
+        app_log.info("Recipient: " + recipient_input)
         app_log.info("OpenField Data: "+openfield_input)
 
         timestamp = str(time.time())
