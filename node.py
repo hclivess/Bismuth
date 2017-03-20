@@ -40,6 +40,7 @@ ch.setFormatter(formatter)
 app_log.addHandler(ch)
 
 # load config
+global rollback_limit_conf
 lines = [line.rstrip('\n') for line in open('config.txt')]
 for line in lines:
     if "port=" in line:
@@ -64,9 +65,14 @@ for line in lines:
         ledger_path_conf = line.strip('ledger_path=')
     if "hyperblocks=" in line:
         hyperblocks_conf = int(line.strip('hyperblocks='))
+    if "rollback_limit=" in line:
+        rollback_limit_conf = int(line.strip('rollback_limit='))
+
 app_log.info("Configuration settings loaded")
 # load config
 version = version_conf
+
+
 
 def ledger_convert():
     app_log.info("Converting ledger to Hyperblocks")
@@ -525,12 +531,15 @@ def blocknf(block_hash_delete):
                 conn.close()
 
             else:
-                app_log.info("Outgoing: Node didn't find the block, deleting latest entry") #PRONE TO ATTACK
-
                 # delete followups
                 execute_param(c,("DELETE FROM transactions WHERE block_height >= ?;"),(str(db_block_height),))
                 commit(conn)
                 conn.close()
+
+                app_log.info("Outgoing: Node didn't find the block, deleted latest entry")  # PRONE TO ATTACK
+
+
+
         except:
             pass
         busy = 0
@@ -998,6 +1007,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         global busy
         global banlist
 
+        global rollback_limit
+        rollbacks = 0
+
         peer_ip = self.request.getpeername()[0]
 
         if threading.active_count() < thread_limit_conf:
@@ -1248,7 +1260,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     #print peer_ip
                     #print leading_node
                     if peer_ip == leading_node:
+                        rollbacks = rollbacks + 1
                         blocknf(block_hash_delete)
+                        if rollbacks >= rollback_limit:
+                            banlist.append(peer_ip)
 
                     while busy == 1:
                         time.sleep(1)
