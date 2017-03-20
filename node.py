@@ -254,8 +254,8 @@ def mempool_merge(data):
 
             for transaction in block_list:  # set means unique
                 mempool_timestamp = transaction[0]
-                mempool_address = transaction[1]
-                mempool_recipient = transaction[2]
+                mempool_address = transaction[1][:56]
+                mempool_recipient = transaction[2][:56]
                 mempool_amount = '%.8f' % float(transaction[3])
                 mempool_signature_enc = transaction[4]
                 mempool_public_key_hashed = transaction[5]
@@ -702,8 +702,8 @@ def digest_block(data):
                 for transaction in transaction_list:
                     # verify signatures
                     received_timestamp = transaction[0]
-                    received_address = transaction[1]
-                    received_recipient = transaction[2]
+                    received_address = transaction[1][:56]
+                    received_recipient = transaction[2][:56]
                     received_amount = '%.8f' % float(transaction[3])
                     received_signature_enc = transaction[4]
                     received_public_key_hashed = transaction[5]
@@ -772,8 +772,8 @@ def digest_block(data):
                 if block_valid == 1:
                     for transaction in transaction_list:
                         db_timestamp = transaction[0]
-                        db_address = transaction[1]
-                        db_recipient = transaction[2]
+                        db_address = transaction[1][:56]
+                        db_recipient = transaction[2][:56]
                         db_amount = '%.8f' % float(transaction[3])
                         db_signature = transaction[4]
                         db_public_key_hashed = transaction[5]
@@ -891,7 +891,7 @@ def digest_block(data):
                     for transaction in block_transactions:
                         #print transaction
                         execute_param(c,"INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
-                            transaction[0], transaction[1], transaction[2], transaction[3], transaction[4], transaction[5],
+                            transaction[0], transaction[1][:56], transaction[2][:56], transaction[3], transaction[4], transaction[5],
                             transaction[6], transaction[7], transaction[8], transaction[9], transaction[10],
                             transaction[11]))
                         #secure commit for slow nodes

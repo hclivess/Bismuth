@@ -137,44 +137,52 @@ def send():
         done.grid(row=1, column=0, sticky=W + E, padx=15, pady=(5, 5))
 
     app_log.info("Received tx command")
-    recipient_input = recipient.get()
-    app_log.info("Recipient: "+recipient_input)
-    amount_input = amount.get()
-    app_log.info("Amount: "+amount_input)
-    openfield_input = base64.b64encode(openfield.get())
-    app_log.info("OpenField Data: "+openfield_input)
+    recipient_input = recipient.get().strip()
 
-    timestamp = str(time.time())
-
-    transaction = (timestamp,address,recipient_input, '%.8f' % float(amount_input),openfield_input)
-    #print transaction
-
-    h = SHA.new(str(transaction))
-    signer = PKCS1_v1_5.new(key)
-    signature = signer.sign(h)
-    signature_enc = base64.b64encode(signature)
-    app_log.info("Client: Encoded Signature: "+str(signature_enc))
-
-    verifier = PKCS1_v1_5.new(key)
-    if verifier.verify(h, signature) == True:
-        if float(amount_input) < 0:
-            app_log.info("Client: Signature OK, but cannot use negative amounts")
-
-        else:
-            app_log.info("Client: The signature is valid, proceeding to save transaction, signature, new txhash and the public key")
-
-            mempool = sqlite3.connect('mempool.db')
-            mempool.text_factory = str
-            m = mempool.cursor()
-            m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?)",(timestamp, address, recipient_input, '%.8f' % float(amount_input),signature_enc, public_key_hashed, openfield_input))
-            mempool.commit()  # Save (commit) the changes
-            mempool.close()
-            app_log.info("Client: Mempool updated with a received transaction")
-            #refresh() experimentally disabled
+    if len(recipient_input) != "56":
+        top6 = Toplevel()
+        top6.title("Invalid address")
+        Label(top6, text="Wrong address length", width=20).grid(row=0, pady=0)
+        done = Button(top6, text="Cancel", command=top6.destroy)
+        done.grid(row=1, column=0, sticky=W + E, padx=15, pady=(5, 5))
     else:
-        app_log.info("Client: Invalid signature")
-    #enter transaction end
-    refresh()
+        app_log.info("Recipient: "+recipient_input)
+        amount_input = amount.get().strip()
+        app_log.info("Amount: "+amount_input)
+        openfield_input = base64.b64encode(openfield.get()).strip()
+        app_log.info("OpenField Data: "+openfield_input)
+
+        timestamp = str(time.time())
+
+        transaction = (timestamp,address,recipient_input, '%.8f' % float(amount_input),openfield_input)
+        #print transaction
+
+        h = SHA.new(str(transaction))
+        signer = PKCS1_v1_5.new(key)
+        signature = signer.sign(h)
+        signature_enc = base64.b64encode(signature)
+        app_log.info("Client: Encoded Signature: "+str(signature_enc))
+
+        verifier = PKCS1_v1_5.new(key)
+        if verifier.verify(h, signature) == True:
+            if float(amount_input) < 0:
+                app_log.info("Client: Signature OK, but cannot use negative amounts")
+
+            else:
+                app_log.info("Client: The signature is valid, proceeding to save transaction, signature, new txhash and the public key")
+
+                mempool = sqlite3.connect('mempool.db')
+                mempool.text_factory = str
+                m = mempool.cursor()
+                m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?)",(timestamp, address, recipient_input, '%.8f' % float(amount_input),signature_enc, public_key_hashed, openfield_input))
+                mempool.commit()  # Save (commit) the changes
+                mempool.close()
+                app_log.info("Client: Mempool updated with a received transaction")
+                #refresh() experimentally disabled
+        else:
+            app_log.info("Client: Invalid signature")
+        #enter transaction end
+        refresh()
 
 def app_quit():
     app_log.info("Received quit command")
