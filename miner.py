@@ -93,7 +93,7 @@ def miner(args, address, privatekey_readable, public_key_hashed):
 
                     diff = float(math.log(1e18 / timestamp_difference))
                     if db_block_height < 50:
-                        diff = 4
+                        diff = 33
                     #if diff < 4:
                     #    diff = 4
                     # calculate difficulty

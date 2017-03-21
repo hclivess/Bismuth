@@ -758,7 +758,7 @@ def digest_block(data):
 
                 diff = int(math.log(1e18 / timestamp_difference))
                 if db_block_height < 50:
-                    diff = 4
+                    diff = 33
                 # if diff < 4:
                 #    diff = 4
 
