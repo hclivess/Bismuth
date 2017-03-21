@@ -1,3 +1,5 @@
+Everything is custom socket-based, no external RPC supported
+
 node (server/incoming) input functions:
 
 version
