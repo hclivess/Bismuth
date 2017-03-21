@@ -79,10 +79,12 @@ def unban(ip):
     
     warning_list = [x for x in warning_list if x != ip]
     banlist = [x for x in banlist if x != ip]
+    app_log.info("Unbanned " + ip + ", because it provided a valid block")
 
 def warning(ip):
     global warning_list
     warning_list.append(ip)
+    app_log.info("Added a warning to "+ip)
 
 def ledger_convert():
     app_log.info("Converting ledger to Hyperblocks")
