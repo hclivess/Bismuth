@@ -40,7 +40,8 @@ ch.setFormatter(formatter)
 app_log.addHandler(ch)
 
 # load config
-global rollback_limit_conf
+global warning_list_limit_conf
+
 lines = [line.rstrip('\n') for line in open('config.txt')]
 for line in lines:
     if "port=" in line:
@@ -65,14 +66,23 @@ for line in lines:
         ledger_path_conf = line.strip('ledger_path=')
     if "hyperblocks=" in line:
         hyperblocks_conf = int(line.strip('hyperblocks='))
-    if "rollback_limit=" in line:
-        rollback_limit_conf = int(line.strip('rollback_limit='))
+    if "warning_list_limit=" in line:
+        warning_list_limit_conf = int(line.strip('warning_list_limit='))
 
 app_log.info("Configuration settings loaded")
 # load config
 version = version_conf
 
+def unban(ip):
+    global warning_list
+    global banlist
+    
+    warning_list = [x for x in warning_list if x != ip]
+    banlist = [x for x in banlist if x != ip]
 
+def warning(ip):
+    global warning_list
+    warning_list.append(ip)
 
 def ledger_convert():
     app_log.info("Converting ledger to Hyperblocks")
@@ -234,6 +244,8 @@ global tried
 tried = []
 global consensus_percentage
 consensus_percentage = 100
+global warning_list
+warning_list = []
 global banlist
 banlist = []
 global busy
@@ -642,8 +654,10 @@ def manager():
         time.sleep(int(pause_conf))
 
 
-def digest_block(data):
+def digest_block(data,peer_ip):
+    global warning_list
     global busy
+
     if busy == 0:
         busy = 1
 
@@ -907,8 +921,11 @@ def digest_block(data):
                         commit(conn)
                     app_log.info("Block " + transaction[0] + " valid and saved")
                     del block_transactions[:]
+                    unban(peer_ip)
+                    
                 else:
                     app_log.info("A part of the block is invalid, rejected")
+                    warning(peer_ip)
 
                     # whole block validation
         except Exception, e:
@@ -1006,9 +1023,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         global leading_node
         global busy
         global banlist
-
-        global rollback_limit
-        rollbacks = 0
+        global warning_list_limit_conf
 
         peer_ip = self.request.getpeername()[0]
 
@@ -1036,8 +1051,11 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             else:
                 return
 
+        if warning_list.count(peer_ip) >= warning_list_limit_conf:
+            banlist.append(peer_ip)
 
         while banned == 0 and capacity == 1:
+
             try:
                 data = receive(self.request, 10)
 
@@ -1145,7 +1163,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     #print peer_ip
                     #print leading_node
                     if peer_ip == leading_node:
-                        digest_block(segments)
+                        digest_block(segments, peer_ip)
                         # receive theirs
 
                     while busy == 1:
@@ -1260,10 +1278,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     #print peer_ip
                     #print leading_node
                     if peer_ip == leading_node:
-                        rollbacks = rollbacks + 1
                         blocknf(block_hash_delete)
-                        if rollbacks >= rollback_limit:
-                            banlist.append(peer_ip)
+                        warning_list.append(peer_ip)
 
                     while busy == 1:
                         time.sleep(1)
@@ -1276,7 +1292,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     # receive theirs
                     segments = receive(self.request, 10)
                     # app_log.info("Incoming: Combined mined segments: " + segments)
-                    digest_block(segments)
+                    digest_block(segments, peer_ip)
                     # receive theirs
 
                 else:
@@ -1517,7 +1533,7 @@ def worker(HOST, PORT):
                 #print peer_ip
                 #print leading_node
                 if peer_ip == leading_node:
-                    digest_block(segments)
+                    digest_block(segments, peer_ip)
                 # receive theirs
 
                 # digest_block(data) goddamn bug
