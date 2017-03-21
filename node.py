@@ -921,7 +921,7 @@ def digest_block(data,peer_ip):
                             transaction[11]))
                         #secure commit for slow nodes
                         commit(conn)
-                    app_log.info("Block " + transaction[0] + " valid and saved")
+                    app_log.info("Block " + str(transaction[0]) + " valid and saved")
                     del block_transactions[:]
                     unban(peer_ip)
                     
