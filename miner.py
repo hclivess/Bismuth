@@ -115,14 +115,14 @@ def miner(args, address, privatekey_readable, public_key_hashed):
                 del removal_signature[:] # empty
 
                 for dbdata in result:
-                    transaction = (dbdata[0],dbdata[1][:56],dbdata[2][:56],str(float(dbdata[3])),dbdata[4],dbdata[5],dbdata[6]) #create tuple
+                    transaction = (dbdata[0],dbdata[1][:56],dbdata[2][:56],'%.8f' % (float(dbdata[3])),dbdata[4],dbdata[5],dbdata[6]) #create tuple
                     #print transaction
                     block_send.append(transaction) #append tuple to list for each run
                     removal_signature.append(str(dbdata[4])) #for removal after successful mining
 
                 # claim reward
                 transaction_reward = tuple
-                transaction_reward = (block_timestamp,address,address,str(float(0)),"reward") #only this part is signed!
+                transaction_reward = (block_timestamp,address[:56],address[:56],'%.8f' % float(0),"reward") #only this part is signed!
                 #print transaction_reward
 
                 h = SHA.new(str(transaction_reward))
@@ -130,7 +130,7 @@ def miner(args, address, privatekey_readable, public_key_hashed):
                 signature = signer.sign(h)
                 signature_enc = base64.b64encode(signature)
 
-                block_send.append((block_timestamp,address,address,str(float(0)),signature_enc,public_key_hashed,"reward"))
+                block_send.append((block_timestamp,address[:56],address[:56],'%.8f' % float(0),signature_enc,public_key_hashed,"reward"))
                 # claim reward
 
                 #print "sync this"
@@ -143,7 +143,7 @@ def miner(args, address, privatekey_readable, public_key_hashed):
                 end = time.time()
                 hashrate_difference = end - start
                 try:
-                    hashrate = float(1000 / ((1/hashrate_difference) * int(mining_threads_conf)))
+                    hashrate = '%.8f' % float(1000 / ((1/hashrate_difference) * int(mining_threads_conf)))
                 except:
                     hashrate = "estimating"
 

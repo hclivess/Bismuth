@@ -765,6 +765,9 @@ def digest_block(data, peer_ip):
                                      received_openfield)))
                     if verifier.verify(h, received_signature_dec):
                         app_log.info("Incoming: The signature is valid")
+                    else:
+                        app_log.info("Incoming: Invalid signature")
+                        block_valid = 0
 
                     if transaction == transaction_list[
                         -1]:  # recognize the last transaction as the mining reward transaction
