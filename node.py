@@ -39,6 +39,7 @@ formatter = logging.Formatter('%(asctime)s %(funcName)s(%(lineno)d) %(message)s'
 ch.setFormatter(formatter)
 app_log.addHandler(ch)
 
+
 # load config
 global warning_list_limit_conf
 
@@ -72,7 +73,6 @@ for line in lines:
 app_log.info("Configuration settings loaded")
 # load config
 version = version_conf
-lock = threading.Lock()
 
 def unban(ip):
     global warning_list
@@ -679,7 +679,9 @@ def manager():
 
 
 def digest_block(data, peer_ip):
-    lock.aquire() #instead of busy
+    digest_lock = threading.Lock()
+    digest_lock.acquire() #instead of busy
+
     global warning_list
     #global busy
 
@@ -981,7 +983,7 @@ def digest_block(data, peer_ip):
         mempool.close()
         app_log.info("Digesting complete")
         #busy = 0
-        lock.release() #instead of busy
+        digest_lock.release() #instead of busy
 
         if debug_conf == 1:
             raise  # major debug client
