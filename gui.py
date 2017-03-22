@@ -151,6 +151,7 @@ def send():
         done.grid(row=1, column=0, sticky=W + E, padx=15, pady=(5, 5))
 
     openfield_input = base64.b64encode(openfield.get()).strip()
+    keep_input = keep_var.get()
 
     if len(recipient_input) != 56:
         top6 = Toplevel()
@@ -186,7 +187,7 @@ def send():
                 mempool = sqlite3.connect('mempool.db')
                 mempool.text_factory = str
                 m = mempool.cursor()
-                m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?)",(timestamp, address, recipient_input, '%.8f' % float(amount_input),signature_enc, public_key_hashed, openfield_input))
+                m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)",(timestamp, address, recipient_input, '%.8f' % float(amount_input),signature_enc, public_key_hashed, keep_input, openfield_input))
                 mempool.commit()  # Save (commit) the changes
                 mempool.close()
                 app_log.info("Client: Mempool updated with a received transaction")
@@ -419,7 +420,7 @@ def refresh():
     #print timestamp_avg
 
     try:
-        fee = abs(100 / (float(db_timestamp_last) - float(timestamp_avg))) + len(base64.b64encode(openfield.get())) / 600
+        fee = abs(100 / (float(db_timestamp_last) - float(timestamp_avg))) + len(base64.b64encode(openfield.get())) / 600 + int(keep_var.get())
         app_log.info("Fee: " + str(fee))
 
     except Exception as e:
@@ -608,6 +609,8 @@ sync_msg_var = StringVar()
 sync_msg_label = Label(f5, textvariable=sync_msg_var)
 sync_msg_label.grid(row=8, column=0, sticky=N+E, padx=15)
 
+keep_var = IntVar()
+
 #address and amount
 gui_address = Entry(f3,width=57)
 gui_address.grid(row=0,column=1)
@@ -625,6 +628,8 @@ amount = Entry(f3, width=57)
 amount.grid(row=2, column=1,sticky=E)
 openfield = Entry(f3, width=57)
 openfield.grid(row=3, column=1,sticky=E)
+keep = Checkbutton(f3, text="Forever", variable=keep_var)
+keep.grid(row=4, column=1,sticky=E)
 
 balance_enumerator = Entry(f3, width=5)
 #address and amount

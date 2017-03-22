@@ -110,7 +110,7 @@ def ledger_convert():
     c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
     db_block_height = c.fetchone()[0]
 
-    for row in c.execute("SELECT * FROM transactions WHERE block_height < ? ORDER BY block_height;",
+    for row in c.execute("SELECT * FROM transactions WHERE block_height < ? AND keep = '0' ORDER BY block_height;",
                          (str(int(db_block_height) - depth),)):
         db_address = row[2]
         db_recipient = row[3]
@@ -120,13 +120,13 @@ def ledger_convert():
     unique_addressess = set(addresses)
 
     for x in set(unique_addressess):
-        c.execute("SELECT sum(amount) FROM transactions WHERE recipient = ? AND block_height < ?;",
+        c.execute("SELECT sum(amount) FROM transactions WHERE recipient = ? AND block_height < ?  AND keep = '0';",
                   (x,) + (str(int(db_block_height) - depth),))
         credit = c.fetchone()[0]
         if credit == None:
             credit = 0
 
-        c.execute("SELECT sum(amount),sum(fee),sum(reward) FROM transactions WHERE address = ? AND block_height < ?;",
+        c.execute("SELECT sum(amount),sum(fee),sum(reward) FROM transactions WHERE address = ? AND block_height < ?  AND keep = '0';",
                   (x,) + (str(int(db_block_height) - depth),))
         result = c.fetchall()
         debit = result[0][0]
@@ -151,7 +151,7 @@ def ledger_convert():
             "0", "0"))
             conn.commit()
 
-    c.execute("DELETE FROM transactions WHERE block_height < ? AND address != 'Hyperblock';",
+    c.execute("DELETE FROM transactions WHERE block_height < ? AND address != 'Hyperblock' AND keep = '0';",
               (str(int(db_block_height) - depth),))
     conn.commit()
 
@@ -295,7 +295,8 @@ def mempool_merge(data):
                 mempool_amount = '%.8f' % float(transaction[3])
                 mempool_signature_enc = transaction[4]
                 mempool_public_key_hashed = transaction[5]
-                mempool_openfield = transaction[6]
+                mempool_keep = transaction[6]
+                mempool_openfield = transaction[7]
 
                 conn = sqlite3.connect(ledger_path_conf)
                 conn.text_factory = str
@@ -406,7 +407,7 @@ def mempool_merge(data):
                         conn.close()
 
                         fee = abs(100 / (float(db_timestamp_last) - float(timestamp_avg))) + len(
-                            mempool_openfield) / 600
+                            mempool_openfield) / 600 + int(mempool_keep)
                         # app_log.info("Fee: " + str(fee))
 
                     except Exception as e:
@@ -424,9 +425,9 @@ def mempool_merge(data):
                         app_log.info("Mempool: Cannot afford to pay fees")
                     # verify signatures and balances
                     else:
-                        execute_param(m, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?)", (
+                        execute_param(m, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (
                             mempool_timestamp, mempool_address, mempool_recipient, str(float(mempool_amount)),
-                            mempool_signature_enc, mempool_public_key_hashed, mempool_openfield))
+                            mempool_signature_enc, mempool_public_key_hashed, mempool_keep, mempool_openfield))
                         app_log.info("Mempool updated with a received transaction")
                         commit(mempool)  # Save (commit) the changes
 
@@ -480,7 +481,6 @@ def verify():
         conn = sqlite3.connect(ledger_path_conf)
         conn.text_factory = str
         c = conn.cursor()
-        # c.execute("CREATE TABLE IF NOT EXISTS transactions (block_height, address, recipient, amount, signature, public_key)")
         execute(c, ("SELECT Count(*) FROM transactions"))
         db_rows = c.fetchone()[0]
         app_log.info("Total steps: " + str(db_rows))
@@ -505,9 +505,10 @@ def verify():
             db_signature_enc = row[5]
             db_public_key_hashed = row[6]
             db_public_key = RSA.importKey(base64.b64decode(db_public_key_hashed))
-            db_openfield = row[11]
+            db_keep = row[11]
+            db_openfield = row[12]
 
-            db_transaction = (db_timestamp, db_address, db_recipient, str(float(db_amount)), db_openfield)
+            db_transaction = (db_timestamp, db_address, db_recipient, str(float(db_amount)), db_keep, db_openfield)
 
             db_signature_dec = base64.b64decode(db_signature_enc)
             verifier = PKCS1_v1_5.new(db_public_key)
@@ -553,7 +554,7 @@ def blocknf(block_hash_delete):
             # db_signature = results[5]
             # db_public_key_hashed = results[6]
             db_block_hash = results[7]
-            db_confirmations = results[10]
+            db_keep = results[10]
 
             if db_block_height < 2:
                 app_log.info("Outgoing: Will not roll back this block")
@@ -681,6 +682,8 @@ def digest_block(data, peer_ip):
     global warning_list
     global busy
 
+    #print data
+
     if busy == 0:
         busy = 1
 
@@ -754,14 +757,15 @@ def digest_block(data, peer_ip):
                     received_amount = '%.8f' % float(transaction[3])
                     received_signature_enc = transaction[4]
                     received_public_key_hashed = transaction[5]
-                    received_openfield = transaction[6]
+                    received_keep = transaction[6]
+                    received_openfield = transaction[7]
 
                     received_public_key = RSA.importKey(
                         base64.b64decode(received_public_key_hashed))  # convert readable key to instance
                     received_signature_dec = base64.b64decode(received_signature_enc)
                     verifier = PKCS1_v1_5.new(received_public_key)
 
-                    h = SHA.new(str((received_timestamp, received_address, received_recipient, received_amount,
+                    h = SHA.new(str((received_timestamp, received_address, received_recipient, received_amount, received_keep,
                                      received_openfield)))
                     if verifier.verify(h, received_signature_dec):
                         app_log.info("Incoming: The signature is valid")
@@ -769,8 +773,7 @@ def digest_block(data, peer_ip):
                         app_log.info("Incoming: Invalid signature")
                         block_valid = 0
 
-                    if transaction == transaction_list[
-                        -1]:  # recognize the last transaction as the mining reward transaction
+                    if transaction == transaction_list[-1]:  # recognize the last transaction as the mining reward transaction
                         miner_address = received_address
                         block_timestamp = received_timestamp
 
@@ -833,7 +836,8 @@ def digest_block(data, peer_ip):
                         db_amount = '%.8f' % float(transaction[3])
                         db_signature = transaction[4]
                         db_public_key_hashed = transaction[5]
-                        db_openfield = transaction[6]
+                        db_keep = transaction[6]
+                        db_openfield = transaction[7]
 
                         # print "sync this"
                         # print block_timestamp
@@ -893,7 +897,7 @@ def digest_block(data, peer_ip):
                             execute_param(c, ("SELECT timestamp FROM transactions WHERE block_height = ?;"),
                                           (str(db_block_50),))
                             db_timestamp_50 = c.fetchone()[0]
-                            fee = abs(100 / (float(db_timestamp) - float(db_timestamp_50))) + len(db_openfield) / 600
+                            fee = abs(100 / (float(db_timestamp) - float(db_timestamp_50))) + len(db_openfield) / 600 + int(db_keep)
                             fees_block.append(fee)
                             # app_log.info("Fee: " + str(fee))
 
@@ -936,7 +940,7 @@ def digest_block(data, peer_ip):
                                     len(block_transactions)) + " transactions in it")
                                 block_transactions.append((block_height_new, db_timestamp, db_address, db_recipient,
                                                            db_amount, db_signature, db_public_key_hashed,
-                                                           block_hash, fee, reward, "0", db_openfield))
+                                                           block_hash, fee, reward, db_keep, db_openfield))
 
                         try:
                             execute_param(m, ("DELETE FROM transactions WHERE signature = ?;"),
@@ -1044,7 +1048,7 @@ if not os.path.exists('mempool.db'):
     mempool.text_factory = str
     m = mempool.cursor()
     execute(m, (
-    "CREATE TABLE IF NOT EXISTS transactions (timestamp, address, recipient, amount, signature, public_key, openfield)"))
+    "CREATE TABLE IF NOT EXISTS transactions (timestamp, address, recipient, amount, signature, public_key, keep, openfield)"))
     commit(mempool)
     mempool.close()
     app_log.info("Created mempool file")
