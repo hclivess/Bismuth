@@ -419,7 +419,7 @@ def refresh():
     #print timestamp_avg
 
     try:
-        fee = abs(1000 / (float(db_timestamp_last) - float(timestamp_avg))) + len(base64.b64encode(openfield.get())) / 600
+        fee = abs(100 / (float(db_timestamp_last) - float(timestamp_avg))) + len(base64.b64encode(openfield.get())) / 600
         app_log.info("Fee: " + str(fee))
 
     except Exception as e:
