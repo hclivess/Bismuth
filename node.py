@@ -916,8 +916,8 @@ def digest_block(data,peer_ip):
                     for transaction in block_transactions:
                         #print transaction
                         execute_param(c,"INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
-                            transaction[0], transaction[1], transaction[2][:56], transaction[3][:56], '%.8f' % transaction[4], transaction[5],
-                            transaction[6], transaction[7], '%.8f' % transaction[8], '%.8f' % transaction[9], transaction[10],
+                            transaction[0], transaction[1], transaction[2][:56], transaction[3][:56], '%.8f' % float(transaction[4]), transaction[5],
+                            transaction[6], transaction[7], '%.8f' % float(transaction[8]), '%.8f' % float(transaction[9]), transaction[10],
                             transaction[11]))
                         #secure commit for slow nodes
                         commit(conn)
