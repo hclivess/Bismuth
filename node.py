@@ -915,7 +915,7 @@ def digest_block(data, peer_ip):
                                 else:
                                     mining_reward = 0
 
-                                reward = mining_reward + sum(fees_block[:-1])
+                                reward = '%.8f' % mining_reward + sum(fees_block[:-1])
                                 fee = 0
                             else:
                                 reward = 0
