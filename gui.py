@@ -151,7 +151,7 @@ def send():
         done.grid(row=1, column=0, sticky=W + E, padx=15, pady=(5, 5))
 
     openfield_input = base64.b64encode(openfield.get()).strip()
-    keep_input = keep_var.get()
+    keep_input = str(keep_var.get())
 
     if len(recipient_input) != 56:
         top6 = Toplevel()
@@ -163,11 +163,12 @@ def send():
 
         app_log.info("Amount: " + amount_input)
         app_log.info("Recipient: " + recipient_input)
-        app_log.info("OpenField Data: "+openfield_input)
+        app_log.info("Keep Forever: " + keep_input)
+        app_log.info("OpenField Data: "+ openfield_input)
 
         timestamp = str(time.time())
 
-        transaction = (timestamp,address,recipient_input, '%.8f' % float(amount_input),openfield_input)
+        transaction = (timestamp,address,recipient_input, '%.8f' % float(amount_input),keep_input,openfield_input) #this is signed
         #print transaction
 
         h = SHA.new(str(transaction))
@@ -187,6 +188,7 @@ def send():
                 mempool = sqlite3.connect('mempool.db')
                 mempool.text_factory = str
                 m = mempool.cursor()
+
                 m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)",(timestamp, address, recipient_input, '%.8f' % float(amount_input),signature_enc, public_key_hashed, keep_input, openfield_input))
                 mempool.commit()  # Save (commit) the changes
                 mempool.close()

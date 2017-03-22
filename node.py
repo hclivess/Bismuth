@@ -768,7 +768,7 @@ def digest_block(data, peer_ip):
                     h = SHA.new(str((received_timestamp, received_address, received_recipient, received_amount, received_keep,
                                      received_openfield)))
                     if verifier.verify(h, received_signature_dec):
-                        app_log.info("Incoming: The signature is valid")
+                        app_log.info("Incoming: Valid signature")
                     else:
                         app_log.info("Incoming: Invalid signature")
                         block_valid = 0
