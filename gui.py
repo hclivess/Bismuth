@@ -422,7 +422,7 @@ def refresh():
     #print timestamp_avg
 
     try:
-        fee = abs(100 / (float(db_timestamp_last) - float(timestamp_avg))) + len(base64.b64encode(openfield.get())) / 600 + int(keep_var.get())
+        fee = '%.8f' % float(abs(100 / (float(db_timestamp_last) - float(timestamp_avg))) + len(base64.b64encode(openfield.get())) / 600 + int(keep_var.get()))
         app_log.info("Fee: " + str(fee))
 
     except Exception as e:
@@ -457,7 +457,7 @@ def refresh():
 
 #network status
 
-    fees_current_var.set("Current Fee: " + str('%f' % (fee)))
+    fees_current_var.set("Current Fee: " + str(fee))
     balance_var.set("Balance: " + str(round(balance,2)))
     debit_var.set("Spent Total: " + str(round(debit,2)))
     credit_var.set("Received Total: " + str(round(credit,2)))
