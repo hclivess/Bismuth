@@ -898,7 +898,7 @@ def digest_block(data, peer_ip):
                                           (str(db_block_50),))
                             db_timestamp_50 = c.fetchone()[0]
                             fee = '%.8f' % float(abs(100 / (float(db_timestamp) - float(db_timestamp_50))) + len(db_openfield) / 600 + int(db_keep))
-                            fees_block.append(fee)
+                            fees_block.append(float(fee))
                             # app_log.info("Fee: " + str(fee))
 
                         except Exception as e:

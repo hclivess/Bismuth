@@ -97,6 +97,7 @@ def miner(args, address, privatekey_readable, public_key_hashed):
                     #if diff < 4:
                     #    diff = 4
                     # calculate difficulty
+
                     conn.close()
 
                     app_log.info("Mining, " + str(tries) + " cycles passed in thread " + str(args) + ", difficulty: " + str(diff)+ ", combined hashrate: " + str(hashrate) + " KH/s")
