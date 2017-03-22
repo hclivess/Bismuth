@@ -73,30 +73,32 @@ app_log.info("Configuration settings loaded")
 # load config
 version = version_conf
 
+
 def unban(ip):
     global warning_list
     global banlist
-    
+
     warning_list = [x for x in warning_list if x != ip]
     banlist = [x for x in banlist if x != ip]
+
 
 def warning(ip):
     global warning_list
     warning_list.append(ip)
-    app_log.info("Added a warning to "+ str(ip))
+    app_log.info("Added a warning to " + str(ip))
 
     if warning_list.count(ip) >= warning_list_limit_conf:
         banlist.append(ip)
 
-        raise ValueError (str(ip) + " banned")#rework this
+        raise ValueError(str(ip) + " banned")  # rework this
 
 
 def ledger_convert():
     app_log.info("Converting ledger to Hyperblocks")
     depth = 10000
 
-    shutil.copy(ledger_path_conf, ledger_path_conf+'.hyper')
-    conn = sqlite3.connect(ledger_path_conf+'.hyper')
+    shutil.copy(ledger_path_conf, ledger_path_conf + '.hyper')
+    conn = sqlite3.connect(ledger_path_conf + '.hyper')
     conn.text_factory = str
     c = conn.cursor()
 
@@ -108,7 +110,8 @@ def ledger_convert():
     c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
     db_block_height = c.fetchone()[0]
 
-    for row in c.execute("SELECT * FROM transactions WHERE block_height < ? ORDER BY block_height;", (str(int(db_block_height) - depth),)):
+    for row in c.execute("SELECT * FROM transactions WHERE block_height < ? ORDER BY block_height;",
+                         (str(int(db_block_height) - depth),)):
         db_address = row[2]
         db_recipient = row[3]
         addresses.append(db_address.strip())
@@ -117,12 +120,14 @@ def ledger_convert():
     unique_addressess = set(addresses)
 
     for x in set(unique_addressess):
-        c.execute("SELECT sum(amount) FROM transactions WHERE recipient = ? AND block_height < ?;", (x,)+(str(int(db_block_height) - depth),))
+        c.execute("SELECT sum(amount) FROM transactions WHERE recipient = ? AND block_height < ?;",
+                  (x,) + (str(int(db_block_height) - depth),))
         credit = c.fetchone()[0]
         if credit == None:
             credit = 0
 
-        c.execute("SELECT sum(amount),sum(fee),sum(reward) FROM transactions WHERE address = ? AND block_height < ?;", (x,)+(str(int(db_block_height) - depth),))
+        c.execute("SELECT sum(amount),sum(fee),sum(reward) FROM transactions WHERE address = ? AND block_height < ?;",
+                  (x,) + (str(int(db_block_height) - depth),))
         result = c.fetchall()
         debit = result[0][0]
         fees = result[0][1]
@@ -136,22 +141,26 @@ def ledger_convert():
             rewards = 0
 
         end_balance = credit - debit - fees + rewards
-        #app_log.info("Address: "+ str(x))
-        #app_log.info("Balance: " + str(end_balance))
+        # app_log.info("Address: "+ str(x))
+        # app_log.info("Balance: " + str(end_balance))
 
         if end_balance > 0:
             timestamp = str(time.time())
-            c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (db_block_height - depth - 1, timestamp, "Hyperblock", x, str(float(end_balance)), "0", "0", "0", "0", "0", "0", "0"))
+            c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
+            db_block_height - depth - 1, timestamp, "Hyperblock", x, str(float(end_balance)), "0", "0", "0", "0", "0",
+            "0", "0"))
             conn.commit()
 
-    c.execute("DELETE FROM transactions WHERE block_height < ? AND address != 'Hyperblock';", (str(int(db_block_height) - depth),))
+    c.execute("DELETE FROM transactions WHERE block_height < ? AND address != 'Hyperblock';",
+              (str(int(db_block_height) - depth),))
     conn.commit()
 
     c.execute("VACUUM")
     conn.close()
 
     os.remove(ledger_path_conf)
-    os.rename(ledger_path_conf+'.hyper', ledger_path_conf)
+    os.rename(ledger_path_conf + '.hyper', ledger_path_conf)
+
 
 def most_common(lst):
     return max(set(lst), key=lst.count)
@@ -159,6 +168,7 @@ def most_common(lst):
 
 def bin_convert(string):
     return ''.join(format(ord(x), 'b') for x in string)
+
 
 def commit(cursor):
     # secure commit for slow nodes
@@ -172,34 +182,36 @@ def commit(cursor):
             pass
             # secure commit for slow nodes
 
+
 def execute(cursor, what):
     # secure execute for slow nodes
     passed = 0
     while passed == 0:
         try:
-            #print cursor
-            #print what
+            # print cursor
+            # print what
 
             cursor.execute(what)
             passed = 1
         except Exception, e:
-            app_log.info("Retrying database execute due to "+str(e))
+            app_log.info("Retrying database execute due to " + str(e))
             time.sleep(0.1)
             pass
             # secure execute for slow nodes
     return cursor
+
 
 def execute_param(cursor, what, param):
     # secure execute for slow nodes
     passed = 0
     while passed == 0:
         try:
-            #print cursor
-            #print what
-            cursor.execute(what,param)
+            # print cursor
+            # print what
+            cursor.execute(what, param)
             passed = 1
         except Exception, e:
-            app_log.info("Retrying database execute due to "+str(e))
+            app_log.info("Retrying database execute due to " + str(e))
             time.sleep(0.1)
             pass
             # secure execute for slow nodes
@@ -207,18 +219,18 @@ def execute_param(cursor, what, param):
 
 
 def send(sdef, data):
-    sdef.setblocking(0) #needs adjustments in core mechanics
+    sdef.setblocking(0)  # needs adjustments in core mechanics
     sdef.sendall(data)
 
+
 def receive(sdef, slen):
-    sdef.setblocking(0) #needs adjustments in core mechanics
+    sdef.setblocking(0)  # needs adjustments in core mechanics
     ready = select.select([sdef], [], [], 120)
     if ready[0]:
         data = int(sdef.recv(slen))  # receive length
         # print "To receive: "+str(data)
     else:
         raise RuntimeError("Socket timeout")
-
 
     chunks = []
     bytes_recd = 0
@@ -237,9 +249,8 @@ def receive(sdef, slen):
 
     return segments
 
+
 gc.enable()
-
-
 
 global active_pool
 active_pool = []
@@ -281,12 +292,10 @@ def mempool_merge(data):
                 mempool_timestamp = transaction[0]
                 mempool_address = transaction[1][:56]
                 mempool_recipient = transaction[2][:56]
-                mempool_amount = float(transaction[3])
+                mempool_amount = '%.8f' % float(transaction[3])
                 mempool_signature_enc = transaction[4]
                 mempool_public_key_hashed = transaction[5]
                 mempool_openfield = transaction[6]
-
-
 
                 conn = sqlite3.connect(ledger_path_conf)
                 conn.text_factory = str
@@ -297,7 +306,8 @@ def mempool_merge(data):
 
                 acceptable = 1
                 try:
-                    execute_param(m,("SELECT * FROM transactions WHERE signature = ?;"),(mempool_signature_enc,))  # condition 1)
+                    execute_param(m, ("SELECT * FROM transactions WHERE signature = ?;"),
+                                  (mempool_signature_enc,))  # condition 1)
                     dummy1 = m.fetchall()[0]
                     if dummy1 != None:
                         # app_log.info("That transaction is already in our mempool")
@@ -308,7 +318,8 @@ def mempool_merge(data):
 
                 try:
                     # reject transactions which are already in the ledger
-                    execute_param(c,("SELECT * FROM transactions WHERE signature = ?;"),(mempool_signature_enc,)) # condition 2
+                    execute_param(c, ("SELECT * FROM transactions WHERE signature = ?;"),
+                                  (mempool_signature_enc,))  # condition 2
                     dummy2 = c.fetchall()[0]
                     if dummy2 != None:
                         # app_log.info("That transaction is already in our ledger")
@@ -318,14 +329,15 @@ def mempool_merge(data):
                 except:
                     pass
 
-                if (mempool_in == 1) and (ledger_in == 1):  # remove from mempool if it's in both ledger and mempool already
+                if (mempool_in == 1) and (
+                    ledger_in == 1):  # remove from mempool if it's in both ledger and mempool already
                     try:
-                        execute_param(m,("DELETE FROM transactions WHERE signature = ?;"),(mempool_signature_enc,))
+                        execute_param(m, ("DELETE FROM transactions WHERE signature = ?;"), (mempool_signature_enc,))
                         commit(mempool)
                         app_log.info("Transaction deleted from our mempool")
-                    except: #experimental try and except
+                    except:  # experimental try and except
                         app_log.info("Transaction was not present in the pool anymore")
-                        pass #continue to mempool finished message
+                        pass  # continue to mempool finished message
                 if acceptable == 1:
                     # verify signatures and balances
                     # verify balance
@@ -350,21 +362,21 @@ def mempool_merge(data):
                     # app_log.info("Mempool: Incoming block debit: " + str(credit_block))
                     # include the new block
 
-                    execute_param(c,("SELECT sum(amount) FROM transactions WHERE recipient = ?;"),(mempool_address,))
+                    execute_param(c, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (mempool_address,))
                     credit_ledger = c.fetchone()[0]
                     if credit_ledger == None:
                         credit_ledger = 0
                     credit = float(credit_ledger) + float(block_credit)
 
-                    execute_param(c,("SELECT sum(amount) FROM transactions WHERE address = ?;"),(mempool_address,))
+                    execute_param(c, ("SELECT sum(amount) FROM transactions WHERE address = ?;"), (mempool_address,))
                     debit_ledger = c.fetchone()[0]
                     if debit_ledger == None:
                         debit_ledger = 0
                     debit = float(debit_ledger) + float(credit_block)
 
-                    execute_param(c,("SELECT sum(fee) FROM transactions WHERE address = ?;"),(mempool_address,))
+                    execute_param(c, ("SELECT sum(fee) FROM transactions WHERE address = ?;"), (mempool_address,))
                     fees = c.fetchone()[0]
-                    execute_param(c,("SELECT sum(reward) FROM transactions WHERE address = ?;"),(mempool_address,))
+                    execute_param(c, ("SELECT sum(reward) FROM transactions WHERE address = ?;"), (mempool_address,))
                     rewards = c.fetchone()[0]
 
                     if fees == None:
@@ -380,17 +392,21 @@ def mempool_merge(data):
 
 
                     try:
-                        execute(c, ("SELECT block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
+                        execute(c, (
+                        "SELECT block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
                         result = c.fetchall()
                         db_block_height = result[0][0]
                         db_timestamp_last = float(result[0][1])
 
-                        execute_param(c, ("SELECT avg(timestamp) FROM transactions where block_height >= ? and reward != 0;"),(str(db_block_height - 30),))
+                        execute_param(c, (
+                        "SELECT avg(timestamp) FROM transactions where block_height >= ? and reward != 0;"),
+                                      (str(db_block_height - 30),))
                         timestamp_avg = c.fetchall()[0][0]  # select the reward block
 
                         conn.close()
 
-                        fee = abs(100 / (float(db_timestamp_last) - float(timestamp_avg))) + len(mempool_openfield) / 600
+                        fee = abs(100 / (float(db_timestamp_last) - float(timestamp_avg))) + len(
+                            mempool_openfield) / 600
                         # app_log.info("Fee: " + str(fee))
 
                     except Exception as e:
@@ -408,15 +424,15 @@ def mempool_merge(data):
                         app_log.info("Mempool: Cannot afford to pay fees")
                     # verify signatures and balances
                     else:
-                        execute_param(m,"INSERT INTO transactions VALUES (?,?,?,?,?,?,?)", (
+                        execute_param(m, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?)", (
                             mempool_timestamp, mempool_address, mempool_recipient, str(float(mempool_amount)),
                             mempool_signature_enc, mempool_public_key_hashed, mempool_openfield))
                         app_log.info("Mempool updated with a received transaction")
                         commit(mempool)  # Save (commit) the changes
 
-                            # merge mempool
+                        # merge mempool
 
-                            # receive mempool
+                        # receive mempool
 
             app_log.info("Mempool: Finished")
             mempool.close()
@@ -442,7 +458,7 @@ def purge_old_peers():
 
             try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                #s.setblocking(0)
+                # s.setblocking(0)
                 s.connect((HOST, PORT))
                 s.close()
             except:
@@ -465,12 +481,12 @@ def verify():
         conn.text_factory = str
         c = conn.cursor()
         # c.execute("CREATE TABLE IF NOT EXISTS transactions (block_height, address, recipient, amount, signature, public_key)")
-        execute(c,("SELECT Count(*) FROM transactions"))
+        execute(c, ("SELECT Count(*) FROM transactions"))
         db_rows = c.fetchone()[0]
         app_log.info("Total steps: " + str(db_rows))
 
         # verify genesis
-        execute(c,("SELECT recipient FROM transactions ORDER BY block_height ASC LIMIT 1"))
+        execute(c, ("SELECT recipient FROM transactions ORDER BY block_height ASC LIMIT 1"))
         genesis = c.fetchone()[0]
         app_log.info("Genesis: " + genesis)
         if str(
@@ -480,7 +496,7 @@ def verify():
         # verify genesis
 
         invalid = 0
-        for row in execute(c,('SELECT * FROM transactions ORDER BY block_height')):
+        for row in execute(c, ('SELECT * FROM transactions ORDER BY block_height')):
             db_block_height = row[0]
             db_timestamp = row[1]
             db_address = row[2]
@@ -527,7 +543,7 @@ def blocknf(block_hash_delete):
             conn.text_factory = str
             c = conn.cursor()
 
-            execute(c,('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1'))
+            execute(c, ('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1'))
             results = c.fetchone()
             db_block_height = results[0]
             db_timestamp = results[1]
@@ -551,7 +567,7 @@ def blocknf(block_hash_delete):
 
             else:
                 # delete followups
-                execute_param(c,("DELETE FROM transactions WHERE block_height >= ?;"),(str(db_block_height),))
+                execute_param(c, ("DELETE FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
                 commit(conn)
                 conn.close()
 
@@ -604,7 +620,7 @@ def consensus_add(peer_ip, consensus_blockheight):
 
     if max(consensus_blockheight_list) == consensus_blockheight:
         leading_node = peer_ip
-        app_log.info("Leading node is now "+str(leading_node))
+        app_log.info("Leading node is now " + str(leading_node))
 
     return
 
@@ -661,7 +677,7 @@ def manager():
         time.sleep(int(pause_conf))
 
 
-def digest_block(data,peer_ip):
+def digest_block(data, peer_ip):
     global warning_list
     global busy
 
@@ -679,28 +695,29 @@ def digest_block(data,peer_ip):
 
             # remove possible duplicates
 
-            execute(c,("select block_height, count(*) FROM transactions WHERE signature != '0' GROUP by signature HAVING count(*) > 1"))
+            execute(c, (
+            "select block_height, count(*) FROM transactions WHERE signature != '0' GROUP by signature HAVING count(*) > 1"))
             result = c.fetchall()
             for x in result:
-                #print x
+                # print x
                 app_log.info("Removing duplicate: " + str(x[0]))
-                execute_param(c,("DELETE FROM transactions WHERE block_height >= ?;"),(str(x[0]),))
+                execute_param(c, ("DELETE FROM transactions WHERE block_height >= ?;"), (str(x[0]),))
                 commit(conn)
 
             if result:
                 raise ValueError("Skipping new block because duplicates were removed")
             # remove possible duplicates
 
-            block_valid = 1 #init
+            block_valid = 1  # init
 
             # app_log.info("Incoming: Digesting incoming block: " + data)
 
             block_list = ast.literal_eval(data)
-            if not any(isinstance(el, list) for el in block_list): #if it's not a list of lists
+            if not any(isinstance(el, list) for el in block_list):  # if it's not a list of lists
                 new_list = []
                 new_list.append(block_list)
-                block_list = new_list #make it a list of lists
-            #print block_list
+                block_list = new_list  # make it a list of lists
+            # print block_list
 
             # reject block with duplicate transactions
             signature_list = []
@@ -712,10 +729,10 @@ def digest_block(data,peer_ip):
                     signature_list.append(r[4])
 
                     # reject block with transactions which are already in the ledger
-                    execute_param(c,("SELECT block_height FROM transactions WHERE signature = ?;"),(r[4],))
+                    execute_param(c, ("SELECT block_height FROM transactions WHERE signature = ?;"), (r[4],))
                     try:
                         result = c.fetchall()[0]
-                        app_log.info("That transaction is already in our ledger, row "+str(result[0]))
+                        app_log.info("That transaction is already in our ledger, row " + str(result[0]))
                         block_valid = 0
 
                     except:
@@ -734,7 +751,7 @@ def digest_block(data,peer_ip):
                     received_timestamp = transaction[0]
                     received_address = transaction[1][:56]
                     received_recipient = transaction[2][:56]
-                    received_amount = float(transaction[3])
+                    received_amount = '%.8f' % float(transaction[3])
                     received_signature_enc = transaction[4]
                     received_public_key_hashed = transaction[5]
                     received_openfield = transaction[6]
@@ -749,14 +766,16 @@ def digest_block(data,peer_ip):
                     if verifier.verify(h, received_signature_dec):
                         app_log.info("Incoming: The signature is valid")
 
-                    if transaction == transaction_list[-1]:  # recognize the last transaction as the mining reward transaction
+                    if transaction == transaction_list[
+                        -1]:  # recognize the last transaction as the mining reward transaction
                         miner_address = received_address
                         block_timestamp = received_timestamp
 
 
                         # verify signatures
 
-                execute(c,("SELECT block_hash, block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
+                execute(c, (
+                "SELECT block_hash, block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
                 result = c.fetchall()
                 db_block_height = result[0][1]
                 db_block_hash = result[0][0]
@@ -770,7 +789,8 @@ def digest_block(data,peer_ip):
                 # reject blocks older than latest block
 
                 # calculate difficulty
-                execute_param(c,("SELECT avg(timestamp) FROM transactions where block_height >= ? and reward != 0;"),(str(db_block_height - 30),))
+                execute_param(c, ("SELECT avg(timestamp) FROM transactions where block_height >= ? and reward != 0;"),
+                              (str(db_block_height - 30),))
                 timestamp_avg = c.fetchall()[0][0]  # select the reward block
                 # print timestamp_avg
 
@@ -780,6 +800,7 @@ def digest_block(data,peer_ip):
                 diff = int(math.log(1e18 / timestamp_difference))
                 if db_block_height < 50:
                     diff = 33
+
                 # if diff < 4:
                 #    diff = 4
 
@@ -787,15 +808,17 @@ def digest_block(data,peer_ip):
                 # calculate difficulty
 
                 # match difficulty
-                block_hash = hashlib.sha224(str((block_timestamp, transaction_list, db_block_hash))).hexdigest()  # calculate block_hash from the ledger
+                block_hash = hashlib.sha224(str((block_timestamp, transaction_list,
+                                                 db_block_hash))).hexdigest()  # calculate block_hash from the ledger
 
-                if bin_convert(miner_address)[0:diff] in bin_convert(block_hash):  # simplified comparison, no backwards mining
-                    app_log.info("Digest: Difficulty requirement satisfied")
+                if bin_convert(miner_address)[0:diff] in bin_convert(
+                        block_hash):  # simplified comparison, no backwards mining
+                    app_log.info("Digest: Difficulty requirement satisfied for block "+str(block_height_new))
                 else:
                     # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
-                    app_log.info("Digest: Difficulty requirement not satisfied")
+                    app_log.info("Digest: Difficulty requirement not satisfied for block "+str(block_height_new))
                     block_valid = 0
-                #match difficulty
+                # match difficulty
 
                 fees_block = []
 
@@ -834,19 +857,20 @@ def digest_block(data,peer_ip):
                         # app_log.info("Digest: Incoming block debit: " + str(credit_block))
                         # include the new block
 
-                        execute_param(c,("SELECT sum(amount) FROM transactions WHERE recipient = ?;"),(db_address,))
+                        execute_param(c, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (db_address,))
                         credit_ledger = c.fetchone()[0]
                         if credit_ledger == None:
                             credit_ledger = 0
                         credit = float(credit_ledger) + float(block_credit)
 
-                        execute_param(c,("SELECT sum(amount) FROM transactions WHERE address = ?;"),(db_address,))
+                        execute_param(c, ("SELECT sum(amount) FROM transactions WHERE address = ?;"), (db_address,))
                         debit_ledger = c.fetchone()[0]
                         if debit_ledger == None:
                             debit_ledger = 0
                         debit = float(debit_ledger) + float(credit_block)
 
-                        execute_param(c,("SELECT sum(fee),sum(reward) FROM transactions WHERE address = ?;"),(db_address,))
+                        execute_param(c, ("SELECT sum(fee),sum(reward) FROM transactions WHERE address = ?;"),
+                                      (db_address,))
                         result = c.fetchall()[0]
                         fees = result[0]
                         rewards = result[1]
@@ -863,7 +887,8 @@ def digest_block(data,peer_ip):
 
                         db_block_50 = int(db_block_height) - 50
                         try:
-                            execute_param(c,("SELECT timestamp FROM transactions WHERE block_height = ?;"),(str(db_block_50),))
+                            execute_param(c, ("SELECT timestamp FROM transactions WHERE block_height = ?;"),
+                                          (str(db_block_50),))
                             db_timestamp_50 = c.fetchone()[0]
                             fee = abs(100 / (float(db_timestamp) - float(db_timestamp_50))) + len(db_openfield) / 600
                             fees_block.append(fee)
@@ -886,7 +911,7 @@ def digest_block(data,peer_ip):
                             if transaction == transaction_list[-1]:
 
                                 if db_block_height <= 10000000:
-                                    mining_reward = 15 - (float(block_height_new) / float(1000000)) #one zero less
+                                    mining_reward = 15 - (float(block_height_new) / float(1000000))  # one zero less
                                 else:
                                     mining_reward = 0
 
@@ -897,20 +922,22 @@ def digest_block(data,peer_ip):
 
                                 # dont request a fee for mined block so new accounts can mine
 
-                            if (float(balance)) - (float(fee)) < 0:  # removed +float(db_amount) because it is a part of the incoming block
+                            if (float(balance)) - (
+                            float(fee)) < 0:  # removed +float(db_amount) because it is a part of the incoming block
                                 app_log.info("Digest: Cannot afford to pay fees")
                                 block_valid = 0
 
                             else:
                                 # append, but do not insert to ledger before whole block is validated
-                                app_log.info("Digest: Appending transaction back to block with "+str(len(block_transactions))+" transactions in it")
+                                app_log.info("Digest: Appending transaction back to block with " + str(
+                                    len(block_transactions)) + " transactions in it")
                                 block_transactions.append((block_height_new, db_timestamp, db_address, db_recipient,
                                                            str(float(db_amount)), db_signature, db_public_key_hashed,
                                                            block_hash, fee, reward, str(0), db_openfield))
 
-
                         try:
-                            execute_param(m,("DELETE FROM transactions WHERE signature = ?;"),(db_signature,))  # delete tx from mempool now that it is in the ledger
+                            execute_param(m, ("DELETE FROM transactions WHERE signature = ?;"),
+                                          (db_signature,))  # delete tx from mempool now that it is in the ledger
                             commit(mempool)
                             app_log.info("Digest: Removed processed transaction from the mempool")
                         except:
@@ -919,17 +946,20 @@ def digest_block(data,peer_ip):
 
                     # whole block validation
                     for transaction in block_transactions:
-                        #print transaction
-                        execute_param(c,"INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
-                            transaction[0], transaction[1], transaction[2][:56], transaction[3][:56], '%.8f' % float(transaction[4]), transaction[5],
-                            transaction[6], transaction[7], '%.8f' % float(transaction[8]), '%.8f' % float(transaction[9]), transaction[10],
-                            transaction[11]))
-                        #secure commit for slow nodes
+                        # print transaction
+                        execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
+                            transaction[0], transaction[1],
+                            transaction[2], transaction[3],
+                            transaction[4], transaction[5],
+                            transaction[6], transaction[7],
+                            transaction[8], transaction[9],
+                            transaction[10], transaction[11]))
+                        # secure commit for slow nodes
                         commit(conn)
                     app_log.info("Block " + str(transaction[0]) + " valid and saved")
                     del block_transactions[:]
                     unban(peer_ip)
-                    
+
                 else:
                     app_log.info("A part of the block is invalid, rejected")
                     warning(peer_ip)
@@ -994,12 +1024,11 @@ else:
     address_file.close()
 
 # import keys
-#key = RSA.importKey(open('privkey.der').read())
-#private_key_readable = str(key.exportKey())
+# key = RSA.importKey(open('privkey.der').read())
+# private_key_readable = str(key.exportKey())
 public_key_readable = open('pubkey.der').read()
 public_key_hashed = base64.b64encode(public_key_readable)
 address = hashlib.sha224(public_key_readable).hexdigest()
-
 
 app_log.info("Local address: " + str(address))
 
@@ -1011,7 +1040,8 @@ if not os.path.exists('mempool.db'):
     mempool = sqlite3.connect('mempool.db')
     mempool.text_factory = str
     m = mempool.cursor()
-    execute(m,("CREATE TABLE IF NOT EXISTS transactions (timestamp, address, recipient, amount, signature, public_key, openfield)"))
+    execute(m, (
+    "CREATE TABLE IF NOT EXISTS transactions (timestamp, address, recipient, amount, signature, public_key, openfield)"))
     commit(mempool)
     mempool.close()
     app_log.info("Created mempool file")
@@ -1026,9 +1056,10 @@ if rebuild_db_conf == 1:
 if verify_conf == 1:
     verify()
 
-
 ### LOCAL CHECKS FINISHED ###
 app_log.info("Starting up...")
+
+
 class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
     def handle(self):  # server defined here
         global leading_node
@@ -1067,7 +1098,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             try:
                 data = receive(self.request, 10)
 
-                app_log.info("Incoming: Received: " + str(data) + " from " + str(peer_ip))  # will add custom ports later
+                app_log.info(
+                    "Incoming: Received: " + str(data) + " from " + str(peer_ip))  # will add custom ports later
 
                 if data == 'version':
                     data = receive(self.request, 10)
@@ -1091,13 +1123,13 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     mempool = sqlite3.connect('mempool.db')
                     mempool.text_factory = str
                     m = mempool.cursor()
-                    execute(m,('SELECT * FROM transactions'))
+                    execute(m, ('SELECT * FROM transactions'))
                     mempool_txs = m.fetchall()
 
                     # send own
-                    #app_log.info("Incoming: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
+                    # app_log.info("Incoming: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
 
-                    #if len(mempool_txs) > 0: same as the other
+                    # if len(mempool_txs) > 0: same as the other
                     send(self.request, (str(len(str(mempool_txs)))).zfill(10))
                     send(self.request, str(mempool_txs))
                     # send own
@@ -1126,7 +1158,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     try:
                         app_log.info("Testing connectivity to: " + str(peer_ip))
                         peer_test = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                        #peer_test.setblocking(0)
+                        # peer_test.setblocking(0)
                         peer_test.connect((str(peer_ip), int(str(port))))  # double parentheses mean tuple
                         app_log.info("Incoming: Distant peer connectible")
 
@@ -1168,8 +1200,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     segments = receive(self.request, 10)
 
                     # app_log.info("Incoming: Combined segments: " + segments)
-                    #print peer_ip
-                    #print leading_node
+                    # print peer_ip
+                    # print leading_node
                     if peer_ip == leading_node:
                         digest_block(segments, peer_ip)
                         # receive theirs
@@ -1191,7 +1223,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     conn = sqlite3.connect(ledger_path_conf)
                     conn.text_factory = str
                     c = conn.cursor()
-                    execute(c,('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1'))
+                    execute(c, ('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1'))
                     db_block_height = c.fetchone()[0]
                     conn.close()
 
@@ -1217,7 +1249,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         conn = sqlite3.connect(ledger_path_conf)
                         conn.text_factory = str
                         c = conn.cursor()
-                        execute(c,('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
+                        execute(c, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
                         db_block_hash = c.fetchone()[0]  # get latest block_hash
                         conn.close()
 
@@ -1239,13 +1271,13 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         c = conn.cursor()
 
                         try:
-                            execute_param(c,("SELECT block_height FROM transactions WHERE block_hash = ?;"),(data,))
+                            execute_param(c, ("SELECT block_height FROM transactions WHERE block_hash = ?;"), (data,))
                             client_block = c.fetchone()[0]
 
                             app_log.info("Incoming: Client is at block " + str(
                                 client_block))  # now check if we have any newer
 
-                            execute(c,('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
+                            execute(c, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
                             db_block_hash = c.fetchone()[0]  # get latest block_hash
                             if db_block_hash == data:
                                 app_log.info("Incoming: Client has the latest block")
@@ -1253,11 +1285,15 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                 send(self.request, "nonewblk")
 
                             else:
-                                execute_param(c,("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),(str(int(client_block)),)+(str(int(client_block + 100)),))  # select incoming transaction + 1, only columns that need not be verified
+                                execute_param(c, (
+                                "SELECT block_height, timestamp,address,recipient,amount,signature,public_key,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
+                                              (str(int(client_block)),) + (str(int(
+                                                  client_block + 100)),))  # select incoming transaction + 1, only columns that need not be verified
                                 blocks_fetched = c.fetchall()
-                                blocks_send = [[l[1:] for l in group] for _, group in groupby(blocks_fetched, key=itemgetter(0))]
+                                blocks_send = [[l[1:] for l in group] for _, group in
+                                               groupby(blocks_fetched, key=itemgetter(0))]
 
-                                #app_log.info("Incoming: Selected " + str(blocks_send) + " to send")
+                                # app_log.info("Incoming: Selected " + str(blocks_send) + " to send")
 
                                 conn.close()
                                 send(self.request, (str(len("blocksfnd"))).zfill(10))
@@ -1283,8 +1319,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                 elif data == "blocknf":
                     block_hash_delete = receive(self.request, 10)
-                    #print peer_ip
-                    #print leading_node
+                    # print peer_ip
+                    # print leading_node
                     if peer_ip == leading_node:
                         blocknf(block_hash_delete)
                         warning_list.append(peer_ip)
@@ -1331,7 +1367,7 @@ def worker(HOST, PORT):
     try:
         this_client = (HOST + ":" + str(PORT))
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        #s.setblocking(0)
+        # s.setblocking(0)
         s.connect((HOST, PORT))
         app_log.info("Outgoing: Connected to " + this_client)
 
@@ -1381,7 +1417,8 @@ def worker(HOST, PORT):
 
                 # get remote peers into tuples
                 server_peer_tuples = re.findall("'([\d\.]+)', '([\d]+)'", subdata)
-                app_log.info("Received following " + str(len((server_peer_tuples))) + " peers: " + str(server_peer_tuples))
+                app_log.info(
+                    "Received following " + str(len((server_peer_tuples))) + " peers: " + str(server_peer_tuples))
                 # get remote peers into tuples
 
                 # get local peers into tuples
@@ -1398,7 +1435,7 @@ def worker(HOST, PORT):
                         app_log.info("Outgoing: " + str(x) + " is a new peer, saving if connectible")
                         try:
                             s_purge = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                            #s_purge = s.setblocking(0)
+                            # s_purge = s.setblocking(0)
                             s_purge.connect((HOST[x], PORT[x]))  # save a new peer file with only active nodes
 
                             s_purge.close()
@@ -1422,7 +1459,7 @@ def worker(HOST, PORT):
                 conn = sqlite3.connect(ledger_path_conf)
                 conn.text_factory = str
                 c = conn.cursor()
-                execute(c,('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1'))
+                execute(c, ('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1'))
                 db_block_height = c.fetchone()[0]
                 conn.close()
 
@@ -1451,7 +1488,7 @@ def worker(HOST, PORT):
                     conn = sqlite3.connect(ledger_path_conf)
                     conn.text_factory = str
                     c = conn.cursor()
-                    execute(c,('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
+                    execute(c, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
                     db_block_hash = c.fetchone()[0]  # get latest block_hash
                     conn.close()
 
@@ -1489,7 +1526,7 @@ def worker(HOST, PORT):
                         app_log.info("Outgoing: Node is at block " + str(
                             client_block))  # now check if we have any newer
 
-                        execute(c,('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
+                        execute(c, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
                         db_block_hash = c.fetchone()[0]  # get latest block_hash
                         if db_block_hash == data:
                             app_log.info("Outgoing: Node has the latest block")
@@ -1497,12 +1534,16 @@ def worker(HOST, PORT):
                             send(s, "nonewblk")
 
                         else:
-                            execute_param(c,("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"), (str(int(client_block)),)+(str(int(client_block + 100)),))  # select incoming transaction + 1, only columns that need not be verified
+                            execute_param(c, (
+                            "SELECT block_height, timestamp,address,recipient,amount,signature,public_key,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
+                                          (str(int(client_block)),) + (str(int(
+                                              client_block + 100)),))  # select incoming transaction + 1, only columns that need not be verified
                             blocks_fetched = c.fetchall()
-                            blocks_send = [[l[1:] for l in group] for _, group in groupby(blocks_fetched, key=itemgetter(0))]
+                            blocks_send = [[l[1:] for l in group] for _, group in
+                                           groupby(blocks_fetched, key=itemgetter(0))]
                             conn.close()
 
-                            #app_log.info("Outgoing: Selected " + str(blocks_send) + " to send")
+                            # app_log.info("Outgoing: Selected " + str(blocks_send) + " to send")
 
                             send(s, (str(len("blocksfnd"))).zfill(10))
                             send(s, "blocksfnd")
@@ -1521,8 +1562,8 @@ def worker(HOST, PORT):
 
             elif data == "blocknf":
                 block_hash_delete = receive(s, 10)
-                #print peer_ip
-                #print leading_node
+                # print peer_ip
+                # print leading_node
                 if peer_ip == leading_node:
                     blocknf(block_hash_delete)
 
@@ -1538,8 +1579,8 @@ def worker(HOST, PORT):
                 segments = receive(s, 10)
 
                 # app_log.info("Incoming: Combined segments: " + segments)
-                #print peer_ip
-                #print leading_node
+                # print peer_ip
+                # print leading_node
                 if peer_ip == leading_node:
                     digest_block(segments, peer_ip)
                 # receive theirs
@@ -1561,12 +1602,12 @@ def worker(HOST, PORT):
                 mempool = sqlite3.connect('mempool.db')
                 mempool.text_factory = str
                 m = mempool.cursor()
-                execute(m,('SELECT * FROM transactions'))
+                execute(m, ('SELECT * FROM transactions'))
                 mempool_txs = m.fetchall()
 
-                #app_log.info("Outgoing: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
+                # app_log.info("Outgoing: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
 
-                #if len(mempool_txs) > 0: #wont sync mempool until we send something, which is bad
+                # if len(mempool_txs) > 0: #wont sync mempool until we send something, which is bad
                 send(s, (str(len("mempool"))).zfill(10))
                 send(s, "mempool")
 
