@@ -116,7 +116,7 @@ def miner(args, address, privatekey_readable, public_key_hashed):
 
                 for dbdata in result:
                     transaction = (dbdata[0],dbdata[1][:56],dbdata[2][:56],'%.8f' % float(dbdata[3]),dbdata[4],dbdata[5],dbdata[6],dbdata[7]) #create tuple
-                    print transaction
+                    #print transaction
                     block_send.append(transaction) #append tuple to list for each run
                     removal_signature.append(str(dbdata[4])) #for removal after successful mining
 
