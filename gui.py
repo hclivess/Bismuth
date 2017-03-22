@@ -636,7 +636,7 @@ keep.grid(row=4, column=1,sticky=E)
 balance_enumerator = Entry(f3, width=5)
 #address and amount
 
-Label(f3, text="Your latest transactions:", width=20,anchor="w").grid(row=8,sticky=S)
+Label(f3, text="Your Latest Transactions:", width=20,anchor="w").grid(row=8,sticky=S)
 Label(f3, text="", width=20,anchor="w").grid(row=7,sticky=S)
 
 #logo
