@@ -276,7 +276,7 @@ def mempool_merge(data):
                 mempool_timestamp = transaction[0]
                 mempool_address = transaction[1][:56]
                 mempool_recipient = transaction[2][:56]
-                mempool_amount = '%.8f' % float(transaction[3])
+                mempool_amount = float(transaction[3])
                 mempool_signature_enc = transaction[4]
                 mempool_public_key_hashed = transaction[5]
                 mempool_openfield = transaction[6]
@@ -385,7 +385,7 @@ def mempool_merge(data):
 
                         conn.close()
 
-                        fee = abs(1000 / (float(db_timestamp_last) - float(timestamp_avg))) + len(mempool_openfield) / 600
+                        fee = abs(100 / (float(db_timestamp_last) - float(timestamp_avg))) + len(mempool_openfield) / 600
                         # app_log.info("Fee: " + str(fee))
 
                     except Exception as e:
@@ -729,7 +729,7 @@ def digest_block(data,peer_ip):
                     received_timestamp = transaction[0]
                     received_address = transaction[1][:56]
                     received_recipient = transaction[2][:56]
-                    received_amount = '%.8f' % float(transaction[3])
+                    received_amount = float(transaction[3])
                     received_signature_enc = transaction[4]
                     received_public_key_hashed = transaction[5]
                     received_openfield = transaction[6]
@@ -799,7 +799,7 @@ def digest_block(data,peer_ip):
                         db_timestamp = transaction[0]
                         db_address = transaction[1][:56]
                         db_recipient = transaction[2][:56]
-                        db_amount = '%.8f' % float(transaction[3])
+                        db_amount = float(transaction[3])
                         db_signature = transaction[4]
                         db_public_key_hashed = transaction[5]
                         db_openfield = transaction[6]
@@ -860,7 +860,7 @@ def digest_block(data,peer_ip):
                         try:
                             execute_param(c,("SELECT timestamp FROM transactions WHERE block_height = ?;"),(str(db_block_50),))
                             db_timestamp_50 = c.fetchone()[0]
-                            fee = abs(1000 / (float(db_timestamp) - float(db_timestamp_50))) + len(db_openfield) / 600
+                            fee = abs(100 / (float(db_timestamp) - float(db_timestamp_50))) + len(db_openfield) / 600
                             fees_block.append(fee)
                             # app_log.info("Fee: " + str(fee))
 
@@ -916,8 +916,8 @@ def digest_block(data,peer_ip):
                     for transaction in block_transactions:
                         #print transaction
                         execute_param(c,"INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
-                            transaction[0], transaction[1][:56], transaction[2][:56], transaction[3], transaction[4], transaction[5],
-                            transaction[6], transaction[7], transaction[8], transaction[9], transaction[10],
+                            transaction[0], transaction[1], transaction[2][:56], transaction[3][:56], '%.8f' % transaction[4], transaction[5],
+                            transaction[6], transaction[7], '%.8f' % transaction[8], '%.8f' % transaction[9], transaction[10],
                             transaction[11]))
                         #secure commit for slow nodes
                         commit(conn)
@@ -938,7 +938,11 @@ def digest_block(data,peer_ip):
         mempool.close()
         app_log.info("Digesting complete")
         busy = 0
-        return
+
+        if debug_conf == 1:
+            raise  # major debug client
+        else:
+            return
 
 
 def db_maintenance():
