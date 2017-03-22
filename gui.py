@@ -628,7 +628,7 @@ amount = Entry(f3, width=57)
 amount.grid(row=2, column=1,sticky=E)
 openfield = Entry(f3, width=57)
 openfield.grid(row=3, column=1,sticky=E)
-keep = Checkbutton(f3, text="Forever", variable=keep_var)
+keep = Checkbutton(f3, text="Forever", variable=keep_var, command=lambda : refresh())
 keep.grid(row=4, column=1,sticky=E)
 
 balance_enumerator = Entry(f3, width=5)
