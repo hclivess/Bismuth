@@ -935,8 +935,8 @@ def digest_block(data, peer_ip):
                                 app_log.info("Digest: Appending transaction back to block with " + str(
                                     len(block_transactions)) + " transactions in it")
                                 block_transactions.append((block_height_new, db_timestamp, db_address, db_recipient,
-                                                           str(float(db_amount)), db_signature, db_public_key_hashed,
-                                                           block_hash, fee, reward, str(0), db_openfield))
+                                                           db_amount, db_signature, db_public_key_hashed,
+                                                           block_hash, fee, reward, "0", db_openfield))
 
                         try:
                             execute_param(m, ("DELETE FROM transactions WHERE signature = ?;"),
