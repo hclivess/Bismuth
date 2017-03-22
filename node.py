@@ -827,7 +827,7 @@ def digest_block(data, peer_ip):
                         db_timestamp = transaction[0]
                         db_address = transaction[1][:56]
                         db_recipient = transaction[2][:56]
-                        db_amount = float(transaction[3])
+                        db_amount = '%.8f' % float(transaction[3])
                         db_signature = transaction[4]
                         db_public_key_hashed = transaction[5]
                         db_openfield = transaction[6]
@@ -915,7 +915,7 @@ def digest_block(data, peer_ip):
                                 else:
                                     mining_reward = 0
 
-                                reward = '%.8f' % mining_reward + sum(fees_block[:-1])
+                                reward = '%.8f' % float(mining_reward + sum(fees_block[:-1]))
                                 fee = 0
                             else:
                                 reward = 0
