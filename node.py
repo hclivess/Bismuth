@@ -79,12 +79,17 @@ def unban(ip):
     
     warning_list = [x for x in warning_list if x != ip]
     banlist = [x for x in banlist if x != ip]
-    #app_log.info("Unbanned " + str(ip) + ", because it provided a valid block")
 
 def warning(ip):
     global warning_list
     warning_list.append(ip)
     app_log.info("Added a warning to "+ str(ip))
+
+    if warning_list.count(ip) >= warning_list_limit_conf:
+        banlist.append(ip)
+
+        raise ValueError (str(ip) + " banned")#rework this
+
 
 def ledger_convert():
     app_log.info("Converting ledger to Hyperblocks")
@@ -1056,9 +1061,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 raise  # major debug client
             else:
                 return
-
-        if warning_list.count(peer_ip) >= warning_list_limit_conf:
-            banlist.append(peer_ip)
 
         while banned == 0 and capacity == 1:
 
