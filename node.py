@@ -750,6 +750,7 @@ def digest_block(data, peer_ip):
                 # reject block with duplicate transactions
 
                 for transaction in transaction_list:
+                    print transaction
                     # verify signatures
                     received_timestamp = transaction[0]
                     received_address = transaction[1][:56]
@@ -1293,7 +1294,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                             else:
                                 execute_param(c, (
-                                "SELECT block_height, timestamp,address,recipient,amount,signature,public_key,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
+                                "SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
                                               (str(int(client_block)),) + (str(int(
                                                   client_block + 100)),))  # select incoming transaction + 1, only columns that need not be verified
                                 blocks_fetched = c.fetchall()
@@ -1542,7 +1543,7 @@ def worker(HOST, PORT):
 
                         else:
                             execute_param(c, (
-                            "SELECT block_height, timestamp,address,recipient,amount,signature,public_key,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
+                            "SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
                                           (str(int(client_block)),) + (str(int(
                                               client_block + 100)),))  # select incoming transaction + 1, only columns that need not be verified
                             blocks_fetched = c.fetchall()
