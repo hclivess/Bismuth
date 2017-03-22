@@ -30,7 +30,6 @@ class index:
             axis4.append(x[4])  # append amount
             axis8.append(x[8])  # append fee
             axis9.append(x[9])  # append reward
-            axis10.append(x[10])  # append confirmations
 
         plotter = []
 
@@ -114,13 +113,13 @@ class index:
             view.append("<td>" + str(x[7]) + "</td>")
             view.append("<td>" + str(x[8]) + "</td>")
             view.append("<td>" + str(x[9]) + "</td>")
-            view.append("<td>" + str(x[10]) + "</td>")
+            #view.append("<td>" + str(x[10]) + "</td>")
             view.append("<tr>")
             i = i+1
 
         c.close()
 
-        html = "<body><body background="'static/explorer_bg.png'"><center><center><h1>Bismuth Transaction Explorer</h1></center><p><a href='static/ledger.db'>download latest blockchain</a></p>"+ str(''.join(plotter)) +"<table style='width:100%' bgcolor='white'><tr><td>Block</td><td>Timestamp</td><td>From</td><td>To</td><td>Amount</td><td>Block Hash</td><td>Fee</td><td>Reward</td><td>Confirmations</td></tr>" + str(''.join(view)) +"</table></body></html>"
+        html = "<body><body background="'static/explorer_bg.png'"><center><center><h1>Bismuth Transaction Explorer</h1></center><p><a href='static/ledger.db'>download latest blockchain</a></p>"+ str(''.join(plotter)) +"<table style='width:100%' bgcolor='white'><tr><td>Block</td><td>Timestamp</td><td>From</td><td>To</td><td>Amount</td><td>Block Hash</td><td>Fee</td><td>Reward</td></tr>" + str(''.join(view)) +"</table></body></html>"
 
         return html
 
