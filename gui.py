@@ -362,7 +362,7 @@ def table():
         for i in range(table_limit):
             for j in range(4):
 
-                e = Entry(f4, justify=RIGHT)
+                e = Entry(f4, width=22)
                 datasheet_compare = [datasheet[k], datasheet[k-1], datasheet[k-2], datasheet[k-3]]
 
                 if "unconfirmed" in datasheet_compare:
@@ -614,7 +614,7 @@ sync_msg_label.grid(row=8, column=0, sticky=N+E, padx=15)
 keep_var = IntVar()
 
 #address and amount
-gui_address = Entry(f3,width=57)
+gui_address = Entry(f3,width=60)
 gui_address.grid(row=0,column=1)
 gui_address.insert(0,address)
 gui_address.configure(state="readonly")
@@ -624,11 +624,11 @@ Label(f3, text="Recipient:", width=20,anchor="e").grid(row=1)
 Label(f3, text="Amount:", width=20,anchor="e").grid(row=2)
 Label(f3, text="Data:", width=20,anchor="e").grid(row=3)
 
-recipient = Entry(f3, width=57)
+recipient = Entry(f3, width=60)
 recipient.grid(row=1, column=1,sticky=E)
-amount = Entry(f3, width=57)
+amount = Entry(f3, width=60)
 amount.grid(row=2, column=1,sticky=E)
-openfield = Entry(f3, width=57)
+openfield = Entry(f3, width=60)
 openfield.grid(row=3, column=1,sticky=E)
 keep = Checkbutton(f3, text="Forever", variable=keep_var, command=lambda : refresh())
 keep.grid(row=4, column=1,sticky=E)
