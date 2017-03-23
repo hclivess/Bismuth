@@ -8,6 +8,7 @@ import os
 import hashlib
 import time
 import logging
+import socks
 
 from simplecrypt import decrypt
 
@@ -40,12 +41,12 @@ for line in lines:
         port = line.strip('port=')
     if "mining_ip=" in line:
         mining_ip_conf = line.strip("mining_ip=")
-    if "segment_limit=" in line:
-        segment_limit_conf = line.strip('segment_limit=')
     if "mining_threads=" in line:
         mining_threads_conf = line.strip('mining_threads=')
     if "diff_recalc=" in line:
         diff_recalc_conf = line.strip('diff_recalc=')
+    if "tor=" in line:
+        tor_conf = int(line.strip('tor='))
 # load config
 
 def send(sdef, data):
@@ -227,8 +228,9 @@ if __name__ == '__main__':
     connected = 0
     while connected == 0:
         try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.connect((mining_ip_conf, int(port)))  # connect to local node
+            s = socks.socksocket()
+            if tor_conf == 1:
+                s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
             app_log.info("Connected")
             connected = 1
             s.close()
