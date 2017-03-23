@@ -975,17 +975,18 @@ def digest_block(data, peer_ip):
                     # whole block validation
         except Exception, e:
             app_log.info(e)
-            pass
+
+            if debug_conf == 1:
+                raise  # major debug client
+            else:
+                pass
 
         conn.close()
         mempool.close()
         app_log.info("Digesting complete")
         busy = 0
 
-        if debug_conf == 1:
-            raise  # major debug client
-        else:
-            return
+
 
 
 def db_maintenance():
