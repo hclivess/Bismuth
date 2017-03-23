@@ -13,4 +13,4 @@ diff_recalc=200
 ledger_path=static/ledger.db
 hyperblocks=1
 warning_list_limit=50
-tor=1
+tor=0
