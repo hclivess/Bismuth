@@ -10,4 +10,4 @@ script:
   - pyinstaller --uac-admin --onefile --log-level=INFO miner.py --icon=graphics\icon.ico
   - pyinstaller --uac-admin --onefile --log-level=INFO ledger_explorer.py --icon=graphics\icon.ico --hidden-import=ledger_explorer
 notifications:
-  slack: cryptostallion:Mtd8QY1ElBCfM7ijzsyCE7HU
+  slack: cryptobismuth:Mtd8QY1ElBCfM7ijzsyCE7HU
