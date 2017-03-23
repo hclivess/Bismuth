@@ -750,7 +750,7 @@ def digest_block(data, peer_ip):
                 # reject block with duplicate transactions
 
                 for transaction in transaction_list:
-                    print transaction
+                    #print transaction
                     # verify signatures
                     received_timestamp = transaction[0]
                     received_address = transaction[1][:56]
