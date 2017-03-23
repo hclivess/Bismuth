@@ -1,0 +1,159 @@
+[center][color=green][size=30pt][b]Bismuth[/b][/size][/color]
+
+[size=12pt]In a truly free world, there are no limits[/size]
+
+[u][size=15pt]No ICO[/size][/u]
+
+[center][img]https://i.imgur.com/a02997Q.png[/img][/center]
+
+[size=16pt]
+[url=https://cryptobismuth.herokuapp.com/]Slack (chat)[/url]
+[url=http://94.113.207.67:5492/]Live explorer[/url]
+[url=http://94.113.207.67:1212/]Live casino[/url]
+[url=https://github.com/maccaspacca/BismuthTools/releases/]Bismuth tools by maccaspacca[/url]
+[/size]
+
+[img]https://i.imgur.com/02FhJ4q.png[/img][/center]
+
+[center][i]A graphical representation of data abstracted from the banks of every computer in the human system. Unthinkable complexity. Lines of light ranged in the non-space of the mind, clusters and constellations of data. Like city lights, receding...[/i] 
+William Gibson, Neuromancer (New York: Berkley Publishing Group, 1989), pp. 128.[/center]
+
+[b]Download[/b]
+
+[size=12pt][color=teal]Installer or source: https://github.com/hclivess/Bismuth/releases[/size]
+
+[b]Technical details[/b]
+
+[list]
+[li]System: Proof of work (custom implementation)[/li]
+[li]Hashing algorithm: SHA224, base64[/li]
+[li]Signing algorithm: PKCS1_v1_5, base64[/li]
+[li]Block size: ~650 bytes + decentralized app data[/li]
+[li]Compressed block size: ~250 bytes[/li]
+[li]Mining reward: 10 units + fees[/li]
+[li]Difficulty: log(1e18 / timestamp difference over the last 30 blocks average)[/li]
+[li]Difficulty retarget: average of last 30 blocks, every block[/li]
+[li]Total coins: 99,999,980 (unlimited for testnet)[/li] 
+[li]Smallest unit: 0.00000001[/li]
+[li]Confirmations before respending: 0 (user decides)[/li]
+[li][u]Default P2P port:[/u][/li]
+[li]Outgoing: Random[/li]
+[li]Incoming (port forwarded): 2829[/li]
+[li]Plaintext peerlist file[/li]
+[li]Source: https://github.com/hclivess/Bismuth[/li]
+[li]Extreme efficiency: 20% CPU and 20MB RAM on an Intel Atom Compustick[/li]
+[/list]
+
+[b]Dependencies:[/b]
+
+[list]
+[li][color=red][b]For Windows Executable: Microsoft Visual C++ 2010 Redistributable Package (x86)[/b][/color] [url=https://www.microsoft.com/en-us/download/details.aspx?id=5555]https://www.microsoft.com/en-us/download/details.aspx?id=5555[/url][/li]
+[li]python 2.7[/li]
+[li]pycrypto[/li]
+[li]pillow[/li]
+[li]pyqrcode[/li]
+[li]pypng[/li]
+[li]simple-crypt[/li]
+[li]web.py[/li]
+[/list]
+
+[list]
+[b]How to run without the executables:[/b]
+[list][li]Download and install https://www.python.org/ftp/python/2.7.11/python-2.7.11.msi[/li]
+[li]Run "pip install pillow pyqrcode pypng pyinstaller web.py pycrypto simple-crypt"[/li]
+[li]Open node.py, optionally gui.py or giner.py[/li]
+[/list]
+
+[list][b]How to run on Linux[/b]
+[list][li]sudo apt install python-pip[/li]
+[li]sudo pip install pillow pyqrcode pypng pyinstaller web.py pycrypto simple-crypt[/li]
+[li]sudo apt-get install python-tk[/li]
+[li]Open node.py, optionally gui.py or giner.py[/li]
+[/list]
+
+[b]Distribution Proposal[/b]
+
+[list]
+[li][u]Bismuth: No presale, testnet rewards premine, rewards for devs[/u][/li]
+[/list]
+
+[b]Introduction[/b]
+
+My motivation for creating Bismuth is rooted in my desire to help the community. There were several NovaCoin-based projects 
+in the past which I wanted to save by contributing to their code, but the default Bitcoin cryptography, libraries, 
+code segmentation and language do not feel natural to me. So instead of learning the whole Bitcoin codebase, I decided 
+to recreate it in something even non-programmers understand. Something, which makes prototyping super simple and quick 
+and enables decentralized application deployment in hours - Python.
+
+Welcome to Bismuth, a digital distributed self-regulating database system whose primary application is currency, 
+and its first application is mining. It comes with a DAPP out-of-the-box. Bismuth is not based on code of BTC or any of 
+it's derivates, it is only inspired by some ideas laid down by Andreas M. Antonopoulos, Satoshi Nakamoto (BitCoin), 
+Sunny King (Peercoin), NXT and ETH developers.
+
+Bismuth does not draw any code from other repositories, instead it reformulates the cryptocurrency code in its own terms 
+to be easily readable, compatible across all platforms, integrated into business solutions with utmost ease and most 
+importantly open for development to wide public through it's simplicity, while minimizing the security risk for custom 
+code implementations.
+
+[b]Specifications[/b]
+
+Bismuth differs from the mentioned systems in many ways and some concepts are different, in pursuit of improved performance 
+and removal of deliberate, non-technical limitations.
+
+When the network is not used extensively, fees are almost non-existent. The fees are redistributed to miners. The risk 
+of double spending is mitigated through the longest chain rule, and every transaction is checked against balance. 
+Unlike the sophisticated input/output system, Bismuth uses a simple balance addition, subtraction and comparison.
+
+Bismuth introduces a flat file mempool, which means no transactions are lost even when the system is restarted.
+System chosen for databases is the sqlite3, default for every Python installation. It is ready on-the-fly 
+and easily  accessible through third party tools or the blockchain explorer, which is included with Bismuth. 
+Also, sqlite3 will make sidechain, dapp and hyperblock implementation very easy in the future.
+
+There is a central transaction processing core in every node, which handles transaction verification and synchronization
+and makes this system robust and reliable.
+
+Another great feature for third party integration are the socket functions. This makes up for both Bitcoin's RPC and custom 
+APIs through unified and generic features on the fly in any programming language capable of handling  sockets. The format 
+is easily readable to humans.
+
+Author of this paper believes that the main success of Bitcoin is due to mining, but due to social implications 
+and not the technical ones. Mining or Proof of Work corresponds is Bitcoin's first "killer app", because it 
+basically  represents a decentralized lottery. Electrical power is used as input, exchanged for a chance of reward. 
+For this reason, mining is included in Bismuth. Since the block hash includes a signature in it and changing variables 
+like timestamp or amount are used, hash must be different on each minimum time unit. Iterating hashes until a match 
+is found leads to successful mining. A miner is included with Bismuth (miner.py/miner.exe)
+
+[b]Future Development[/b]
+
+Listed by simplest to implement, top to bottom
+
+[s]1. Message signing. The GUI is in place, but not working as of yet.[/s] Done
+
+[s]2. Bismuth's implementation of decentralized data and applications will be handled through technology which goes under the name OpenField. For this purpose, an extra column will be created in the database with arbitrary user data. Then it will be decided whether an external framework will be developed for handling this data or if it happens to be implemented to the core.[/s] Done
+
+3. Compression mechanisms developed for Bismuth will make it even more efficient. Technology coined Extreme Blockchain Compression  (EBC), which uses database references of repeated data, is capable of reducing the database size by more than 60%.
+
+4. Sidechains and hyperblocks will increase scalability thousandfold. Sidechains will be held in separate databases, allowing users to pick which one they would like to work with. This also adds an opportunity to create private blockchains.
+
+5. hyperblocks can be understood as decentralized checkpoints. Based on predefined rules, all nodes will sum up balances once a certain block height occurs. Most entries in the blockchain preceding the checkpoint will become irrelevant and removable. Anonymity greatly increased.
+
+[b]License[/b]
+
+[size=8pt]This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.[/size]
+
+[b][color=red]
+Testnet participation form (no longer needed):
+http://goo.gl/forms/B9jQKM6WczmPEMP73[/color][/b]
+[/list][/list]
