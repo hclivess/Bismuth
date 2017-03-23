@@ -17,6 +17,7 @@ import sys
 import threading
 import time
 import logging
+import socks
 from logging.handlers import RotatingFileHandler
 
 from Crypto import Random
@@ -68,6 +69,8 @@ for line in lines:
         hyperblocks_conf = int(line.strip('hyperblocks='))
     if "warning_list_limit=" in line:
         warning_list_limit_conf = int(line.strip('warning_list_limit='))
+    if "tor=" in line:
+        tor_conf = int(line.strip('tor='))
 
 app_log.info("Configuration settings loaded")
 # load config
@@ -458,7 +461,10 @@ def purge_old_peers():
             # app_log.info(PORT)
 
             try:
-                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s = socks.socksocket()
+                s.settimeout(0.1)
+                if tor_conf == 1:
+                    s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
                 # s.setblocking(0)
                 s.connect((HOST, PORT))
                 s.close()
@@ -1375,7 +1381,9 @@ def worker(HOST, PORT):
     global busy
     try:
         this_client = (HOST + ":" + str(PORT))
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s = socks.socksocket()
+        if tor_conf == 1:
+            s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
         # s.setblocking(0)
         s.connect((HOST, PORT))
         app_log.info("Outgoing: Connected to " + this_client)
