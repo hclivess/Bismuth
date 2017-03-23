@@ -1172,7 +1172,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     try:
                         app_log.info("Testing connectivity to: " + str(peer_ip))
-                        peer_test = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        peer_test = socks.socksocket()
+                        if tor_conf == 1:
+                            peer_test.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
                         # peer_test.setblocking(0)
                         peer_test.connect((str(peer_ip), int(str(port))))  # double parentheses mean tuple
                         app_log.info("Incoming: Distant peer connectible")
@@ -1451,8 +1453,10 @@ def worker(HOST, PORT):
                     if x not in peer_tuples:
                         app_log.info("Outgoing: " + str(x) + " is a new peer, saving if connectible")
                         try:
-                            s_purge = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                            # s_purge = s.setblocking(0)
+                            s_purge = socks.socksocket()
+                            if tor_conf == 1:
+                                s_purge.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+                                # s_purge = s.setblocking(0)
                             s_purge.connect((HOST[x], PORT[x]))  # save a new peer file with only active nodes
 
                             s_purge.close()
@@ -1682,24 +1686,27 @@ class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
 
 if __name__ == "__main__":
     try:
-        # Port 0 means to select an arbitrary unused port
-        HOST, PORT = "0.0.0.0", int(port)
+        if tor_conf == 0:
+            # Port 0 means to select an arbitrary unused port
+            HOST, PORT = "0.0.0.0", int(port)
 
-        server = ThreadedTCPServer((HOST, PORT), ThreadedTCPRequestHandler)
-        ip, port = server.server_address
+            server = ThreadedTCPServer((HOST, PORT), ThreadedTCPRequestHandler)
+            ip, port = server.server_address
 
-        purge_old_peers()
+            purge_old_peers()
 
-        # Start a thread with the server -- that thread will then start one
-        # more thread for each request
+            # Start a thread with the server -- that thread will then start one
+            # more thread for each request
 
-        server_thread = threading.Thread(target=server.serve_forever)
+            server_thread = threading.Thread(target=server.serve_forever)
 
-        # Exit the server thread when the main thread terminates
+            # Exit the server thread when the main thread terminates
 
-        server_thread.daemon = True
-        server_thread.start()
-        app_log.info("Server loop running in thread: " + server_thread.name)
+            server_thread.daemon = True
+            server_thread.start()
+            app_log.info("Server loop running in thread: " + server_thread.name)
+        else:
+            app_log.info("Not starting a local server to conceal identity on Tor network")
 
         # start connection manager
         t_manager = threading.Thread(target=manager())

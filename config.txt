@@ -1,4 +1,4 @@
-port=2829
+port=9050
 genesis=8927be930a50dad85bddd1c59b947b4cd4e2ae55e3d56cb0e094b2b2
 verify=0
 version=testnet7002
@@ -13,3 +13,4 @@ diff_recalc=200
 ledger_path=static/ledger.db
 hyperblocks=1
 warning_list_limit=50
+tor=1
