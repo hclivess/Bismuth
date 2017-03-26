@@ -342,8 +342,24 @@ def mempool_merge(data):
                     except:  # experimental try and except
                         app_log.info("Transaction was not present in the pool anymore")
                         pass  # continue to mempool finished message
-                if acceptable == 1:
+
                     # verify signatures and balances
+
+                # verify signature
+                received_public_key = RSA.importKey(base64.b64decode(mempool_public_key_hashed))  # convert readable key to instance
+                received_signature_dec = base64.b64decode(mempool_signature_enc)
+                verifier = PKCS1_v1_5.new(received_public_key)
+
+                h = SHA.new(str((mempool_timestamp, mempool_address, mempool_recipient, mempool_amount, mempool_keep, mempool_openfield)))
+                if verifier.verify(h, received_signature_dec):
+                    app_log.info("Incoming: Valid signature")
+                else:
+                    app_log.info("Incoming: Invalid signature")
+                    acceptable = 0
+                # verify signature
+
+                if acceptable == 1:
+
                     # verify balance
                     conn = sqlite3.connect(ledger_path_conf)
                     conn.text_factory = str
