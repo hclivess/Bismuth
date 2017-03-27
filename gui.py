@@ -1,25 +1,12 @@
 #icons created using http://www.winterdrache.de/freeware/png2ico/
-import icons
+import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, sqlite3, time, base64, logging, math, keys, icons
 
-import PIL.Image
-import PIL.ImageTk
-import pyqrcode
-import os
 from datetime import datetime
-import hashlib
-import sqlite3
-import time
-import base64
-import logging
 from logging.handlers import RotatingFileHandler
-import math
-
 from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
-
 from simplecrypt import encrypt, decrypt
-
 from Tkinter import *
 
 global key
@@ -498,24 +485,12 @@ password_var_enc = StringVar()
 password_var_con = StringVar()
 password_var_dec = StringVar()
 
-
-
-# import keys
-if not os.path.exists('privkey_encrypted.der'):
-    key = RSA.importKey(open('privkey.der').read())
-    private_key_readable = str(key.exportKey())
-    #public_key = key.publickey()
-    encrypted = 0
-    unlocked = 1
-else:
-    encrypted = 1
-    unlocked = 0
-
-#public_key_readable = str(key.publickey().exportKey())
-public_key_readable = open('pubkey.der').read()
-public_key_hashed = base64.b64encode(public_key_readable)
-address = hashlib.sha224(public_key_readable).hexdigest()
-#private_key_readable = str(key.exportKey())
+private_key_readable = keys.read()[0]
+encrypted = keys.read()[1]
+unlocked = keys.read()[2]
+address = keys.read()[3]
+public_key_readable = keys.read()[4]
+public_key_hashed = keys.read()[5]
 
 #frames
 f2 = Frame(root, height=100, width = 100)
