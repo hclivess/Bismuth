@@ -56,9 +56,9 @@ def miner(args, address, privatekey_readable, public_key_hashed):
 
     while True:
         try:
-            if str(block_timestamp) != str(time.time()): #in case the time has changed
+            if str(block_timestamp) != '%.2f' % time.time(): #in case the time has changed
                 start = time.time()
-                block_timestamp = str(time.time())
+                block_timestamp = '%.2f' % time.time()
                 tries = tries +1
                 # calculate new hash
 

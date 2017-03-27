@@ -262,7 +262,7 @@ def mempool_merge(data):
             block_list = ast.literal_eval(data)
 
             for transaction in block_list:  # set means unique
-                mempool_timestamp = transaction[0]
+                mempool_timestamp = '%.2f' % transaction[0]
                 mempool_address = transaction[1][:56]
                 mempool_recipient = transaction[2][:56]
                 mempool_amount = '%.8f' % float(transaction[3])
@@ -490,7 +490,7 @@ def verify():
         invalid = 0
         for row in execute(c, ('SELECT * FROM transactions ORDER BY block_height')):
             db_block_height = row[0]
-            db_timestamp = row[1]
+            db_timestamp = '%.2f' % float(row[1])
             db_address = row[2]
             db_recipient = row[3]
             db_amount = row[4]
@@ -539,14 +539,14 @@ def blocknf(block_hash_delete):
             execute(c, ('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1'))
             results = c.fetchone()
             db_block_height = results[0]
-            db_timestamp = results[1]
+            #db_timestamp = results[1]
             # db_address = results[2]
             # db_recipient = results[3]
             # db_amount = results[4]
             # db_signature = results[5]
             # db_public_key_hashed = results[6]
             db_block_hash = results[7]
-            db_keep = results[10]
+            #db_keep = results[10]
 
             if db_block_height < 2:
                 app_log.info("Outgoing: Will not roll back this block")
@@ -746,7 +746,7 @@ def digest_block(data, peer_ip):
                 for transaction in transaction_list:
                     #print transaction
                     # verify signatures
-                    received_timestamp = transaction[0]
+                    received_timestamp = '%.2f' % float(transaction[0])
                     received_address = transaction[1][:56]
                     received_recipient = transaction[2][:56]
                     received_amount = '%.8f' % float(transaction[3])
@@ -825,7 +825,7 @@ def digest_block(data, peer_ip):
 
                 if block_valid == 1:
                     for transaction in transaction_list:
-                        db_timestamp = transaction[0]
+                        db_timestamp = '%.2f' % float(transaction[0])
                         db_address = transaction[1][:56]
                         db_recipient = transaction[2][:56]
                         db_amount = '%.8f' % float(transaction[3])
