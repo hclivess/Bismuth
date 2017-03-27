@@ -710,6 +710,8 @@ def digest_block(data, peer_ip):
         busy = 1
 
         try:
+            time_now = str(time.time())
+
             conn = sqlite3.connect(ledger_path_conf)
             conn.text_factory = str
             c = conn.cursor()
@@ -818,7 +820,7 @@ def digest_block(data, peer_ip):
                 # reject blocks older than latest block
 
                 # calculate difficulty
-                execute_param(c, ("SELECT avg(timestamp) FROM transactions where block_height >= ? and reward != 0;"),
+                execute_param(c, ("SELECT avg(timestamp) FROM transactions WHERE block_height >= ? and reward != 0;"),
                               (str(db_block_height - 30),))
                 timestamp_avg = c.fetchall()[0][0]  # select the reward block
                 # print timestamp_avg
@@ -932,7 +934,6 @@ def digest_block(data, peer_ip):
 
                         # decide reward
 
-                        time_now = str(time.time())
                         if float(time_now) + 30 < float(db_timestamp):
                             app_log.info("Digest: Future mining not allowed")
                             block_valid = 0
@@ -986,6 +987,17 @@ def digest_block(data, peer_ip):
                             transaction[10], transaction[11]))
                         # secure commit for slow nodes
                         commit(conn)
+
+                        # dev reward
+
+                        if int(block_height_new) % 100 == 0: #every 100 blocks
+                            if transaction == block_transactions[-1]: #put at the end
+                                execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
+                                    "0", time_now, "Development Reward", genesis_conf,
+                                    reward, "0", "0", "0", "0", "0", "0", str(block_height_new)))
+                                commit(conn)
+                        # dev reward
+
                     app_log.info("Block " + str(transaction[0]) + " valid and saved")
                     del block_transactions[:]
                     unban(peer_ip)
