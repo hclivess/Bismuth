@@ -674,8 +674,6 @@ def digest_block(data, peer_ip):
     global warning_list
     global busy
 
-    #print data
-
     if busy == 0:
         busy = 1
 

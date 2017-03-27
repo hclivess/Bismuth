@@ -154,7 +154,7 @@ def miner(args, address, privatekey_readable, public_key_hashed):
                     submitted = 0
                     while submitted == 0:
                         try:
-                            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                            s = socks.socksocket()
                             s.connect((mining_ip_conf, int(port)))  # connect to local node
                             app_log.info("Connected")
 
@@ -206,6 +206,7 @@ if __name__ == '__main__':
             s = socks.socksocket()
             if tor_conf == 1:
                 s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+            s.connect((mining_ip_conf, int(port)))
             app_log.info("Connected")
             connected = 1
             s.close()
