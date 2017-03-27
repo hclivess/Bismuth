@@ -2,14 +2,25 @@ from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
 
-import base64, socket, pyping, keys
+import base64, hashlib, socket, pyping, os
 
-private_key_readable = keys.read()[0]
-encrypted = keys.read()[1]
-unlocked = keys.read()[2]
-address = keys.read()[3]
-public_key_readable = keys.read()[4]
-public_key_hashed = keys.read()[5]
+
+# import keys
+if not os.path.exists('privkey_encrypted.der'):
+    key = RSA.importKey(open('privkey.der').read())
+    private_key_readable = str(key.exportKey())
+    #public_key = key.publickey()
+    encrypted = 0
+    unlocked = 1
+else:
+    encrypted = 1
+    unlocked = 0
+
+#public_key_readable = str(key.publickey().exportKey())
+public_key_readable = open('pubkey.der').read()
+public_key_hashed = base64.b64encode(public_key_readable)
+address = hashlib.sha224(public_key_readable).hexdigest()
+#import keys
 
 r = pyping.ping('google.com')                # Need to be root or
 r = pyping.ping('google.com', udp = False)    # But it's udp, not real icmp
