@@ -1,35 +1,15 @@
-import sqlite3
-import hashlib
-import base64
-from Crypto.PublicKey import RSA
+import sqlite3, keys, base64
+
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
 import re
 import time
-import os
-from simplecrypt import decrypt
-import getpass
+
 
 def percentage(percent, whole):
   return (percent * whole) / 100.0
 
-# import keys
-if not os.path.exists('privkey_encrypted.der'):
-    password = ""
-    key = RSA.importKey(open('privkey.der').read())
-    private_key_readable = str(key.exportKey())
-    # public_key = key.publickey()
-else:
-    password = getpass.getpass()
-    encrypted_privkey = open('privkey_encrypted.der').read()
-    decrypted_privkey = decrypt(password, base64.b64decode(encrypted_privkey))
-    key = RSA.importKey(decrypted_privkey)  # be able to sign
-    private_key_readable = str(key.exportKey())
-
-public_key_readable = open('pubkey.der').read()
-public_key_hashed = base64.b64encode(public_key_readable)
-address = hashlib.sha224(public_key_readable).hexdigest()
-# import keys
+(key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read()
 
 run = 0
 bet_max = 1000
@@ -45,7 +25,7 @@ while True:
     conn = sqlite3.connect('static/ledger.db')
     conn.text_factory = str
     c = conn.cursor()
-    c.execute("SELECT * FROM transactions WHERE openfield = ? OR openfield = ? and recipient = ? ORDER BY block_height DESC LIMIT 500",(base64.b64encode("odd"),)+(base64.b64encode("even"),)+(address,))
+    c.execute("SELECT * FROM transactions WHERE openfield = ? OR openfield = ? and recipient = ? ORDER BY block_height DESC LIMIT 500",("odd",)+("even",)+(address,))
     result_bets = c.fetchall()
 
     won_count = 0
@@ -60,7 +40,7 @@ while True:
             checked.append(x)
 
             openfield = str(x[11])
-            if base64.b64decode(openfield) == "odd":
+            if openfield == "odd":
                 player = [0, 2, 4, 6, 8]
                 bank = [1, 3, 5, 7, 9]
             else: #if even
@@ -78,7 +58,7 @@ while True:
                 won_count = won_count + 1
 
                 try:
-                    c.execute("SELECT * FROM transactions where openfield = ?;",(base64.b64encode("payout for " + tx_signature),))
+                    c.execute("SELECT * FROM transactions where openfield = ?;",("payout for " + tx_signature,))
                     result_in_ledger = c.fetchone()[0]
                     print "Payout transaction already in the ledger for "+str(tx_signature)
                     paid_count = paid_count + 1
@@ -113,10 +93,11 @@ while True:
             tx_signature = y[5]  # unique
             #print y
 
+
             # create transactions for missing payouts
             timestamp = str(time.time())
             transaction = (timestamp, address, payout_address, str(float(bet_amount*2)-percentage(1,bet_amount)),
-                           base64.b64encode("payout for " + tx_signature))
+                           "payout for " + tx_signature)
             print transaction
 
             h = SHA.new(str(transaction))
@@ -130,13 +111,13 @@ while True:
             m = mempool.cursor()
 
             try:
-                m.execute("SELECT * FROM transactions WHERE openfield = ?;",(base64.b64encode("payout for " + tx_signature),))
+                m.execute("SELECT * FROM transactions WHERE openfield = ?;",("payout for " + tx_signature,))
                 result_in_mempool = m.fetchone()[0]
                 print "Payout transaction already in the mempool"
             except:
                 m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?)", (
                 timestamp, address, payout_address, str(float(bet_amount*2)-percentage(1,bet_amount)), signature_enc, public_key_hashed,
-                base64.b64encode("payout for " + tx_signature)))
+                "payout for " + tx_signature))
                 mempool.commit()  # Save (commit) the changes
                 mempool.close()
                 print "Mempool updated with a payout transaction for "+str(tx_signature)

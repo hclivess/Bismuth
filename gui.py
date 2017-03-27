@@ -139,7 +139,7 @@ def send():
         done = Button(top7, text="Cancel", command=top7.destroy)
         done.grid(row=1, column=0, sticky=W + E, padx=15, pady=(5, 5))
 
-    openfield_input = base64.b64encode(openfield.get()).strip()
+    openfield_input = openfield.get().strip()
     keep_input = str(keep_var.get())
 
     if len(recipient_input) != 56:
@@ -411,7 +411,7 @@ def refresh():
     #print timestamp_avg
 
     try:
-        fee = '%.8f' % float(abs(100 / (float(db_timestamp_last) - float(timestamp_avg))) + len(base64.b64encode(openfield.get())) / 600 + int(keep_var.get()))
+        fee = '%.8f' % float(abs(100 / (float(db_timestamp_last) - float(timestamp_avg))) + len(openfield.get()) / 600 + int(keep_var.get()))
         app_log.info("Fee: " + str(fee))
 
     except Exception as e:

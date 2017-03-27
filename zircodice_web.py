@@ -1,33 +1,6 @@
-import sqlite3
-import web
-import time
-from Crypto.PublicKey import RSA
-from Crypto.Signature import PKCS1_v1_5
-from Crypto.Hash import SHA
-import base64
-import hashlib
-import re
-import os
-from simplecrypt import decrypt
-import getpass
+import sqlite3, web,time, base64, re, keys
 
-# import keys
-if not os.path.exists('privkey_encrypted.der'):
-    password = ""
-    key = RSA.importKey(open('privkey.der').read())
-    private_key_readable = str(key.exportKey())
-    # public_key = key.publickey()
-else:
-    password = getpass.getpass()
-    encrypted_privkey = open('privkey_encrypted.der').read()
-    decrypted_privkey = decrypt(password, base64.b64decode(encrypted_privkey))
-    key = RSA.importKey(decrypted_privkey)  # be able to sign
-    private_key_readable = str(key.exportKey())
-
-public_key_readable = open('pubkey.der').read()
-public_key_hashed = base64.b64encode(public_key_readable)
-address = hashlib.sha224(public_key_readable).hexdigest()
-# import keys
+(key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read() #import keys
 
 urls = (
     '/', 'index'
@@ -45,7 +18,7 @@ class index:
         last_block_height = result[0][0]
         last_timestamp = result[0][1]
 
-        c.execute("SELECT * FROM transactions WHERE openfield = ? OR openfield = ? AND recipient = ? ORDER BY block_height DESC, timestamp DESC LIMIT 100;",(base64.b64encode("odd"),)+(base64.b64encode("even"),)+(address,))
+        c.execute("SELECT * FROM transactions WHERE openfield = ? OR openfield = ? AND recipient = ? ORDER BY block_height DESC, timestamp DESC LIMIT 100;",("odd",)+("even",)+(address,))
         result_bets = c.fetchall()
         view_bets = []
 
@@ -60,10 +33,10 @@ class index:
             betting_signatures.append(x[5]) #sig
             #print openfield
             digit_last = int((re.findall("(\d)", block_hash))[-1])
-            if (digit_last % 2 == 0) and (openfield == base64.b64encode("odd")): #if bets odd and wins
+            if (digit_last % 2 == 0) and (openfield == "odd"): #if bets odd and wins
                 cell_color = "#009900"
                 result = "win"
-            elif (digit_last % 2 != 0) and (openfield == base64.b64encode("even")): #if bets even and wins
+            elif (digit_last % 2 != 0) and (openfield == "even"): #if bets even and wins
                 cell_color = "#009900"
                 result = "win"
             else:
@@ -77,11 +50,11 @@ class index:
             view_bets.append("<td>" + str(x[7]) + "</td>") #block hash
             view_bets.append("<td>" + str(digit_last) + "</td>")
             view_bets.append("<td>" + str(x[4]) + "</td>") #amount
-            view_bets.append("<td>" + str(base64.b64decode(x[11])) + "</td>")
+            view_bets.append("<td>" + str(x[11]) + "</td>")
             view_bets.append("<td>" + result + "</td>")
             view_bets.append("</tr>")
 
-        c.execute('SELECT * FROM transactions WHERE address = ? AND openfield LIKE ? ORDER BY block_height DESC, timestamp DESC LIMIT 100;',(address,)+('%'+(base64.b64encode("payout"))+'%',)) #should work, needs testing
+        c.execute('SELECT * FROM transactions WHERE address = ? AND openfield LIKE ? ORDER BY block_height DESC, timestamp DESC LIMIT 100;',(address,)+('%'+"payout"+'%',)) #should work, needs testing
         result_payouts = c.fetchall()
         #print result_payouts
         view_payouts = []
@@ -92,7 +65,7 @@ class index:
 
         for x in result_payouts:
             #print betting_signatures
-            if x[11].startswith(base64.b64encode("payout")):
+            if x[11].startswith("payout"):
                 view_payouts.append("<tr bgcolor=lightblue>")
                 view_payouts.append("<td>" + str(x[0]) + "</td>") #block height
                 view_payouts.append("<td>" + str(time.strftime("%Y/%m/%d,%H:%M:%S", time.localtime(float(x[1]))))) #time

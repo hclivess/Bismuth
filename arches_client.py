@@ -1,4 +1,4 @@
-import base64, hashlib, socket, pyping, os, getpass, time, psutil, log, sqlite3
+import base64, hashlib, socket, pyping, os, getpass, time, psutil, log, sqlite3, keys
 from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
@@ -6,23 +6,7 @@ from simplecrypt import decrypt
 
 app_log = log.log("arches.log")
 
-# import keys
-if not os.path.exists('privkey_encrypted.der'):
-    password = ""
-    key = RSA.importKey(open('privkey.der').read())
-    private_key_readable = str(key.exportKey())
-    # public_key = key.publickey()
-else:
-    password = getpass.getpass()
-    encrypted_privkey = open('privkey_encrypted.der').read()
-    decrypted_privkey = decrypt(password, base64.b64decode(encrypted_privkey))
-    key = RSA.importKey(decrypted_privkey)  # be able to sign
-    private_key_readable = str(key.exportKey())
-
-public_key_readable = open('pubkey.der').read()
-public_key_hashed = base64.b64encode(public_key_readable)
-address = hashlib.sha224(public_key_readable).hexdigest()
-# import keys
+(key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read()
 
 timestamp = str(time.time())
 
