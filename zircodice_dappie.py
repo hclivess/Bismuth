@@ -53,7 +53,7 @@ while True:
             tx_signature = x[5]  # unique
             digit_last = (re.findall("(\d)", block_hash))[-1]
             # print digit_last
-            if (int(digit_last) in player) and (bet_amount <= bet_max):
+            if (int(digit_last) in player) and (bet_amount <= bet_max) and (bet_amount != 0):
                 # print "player wins"
                 won_count = won_count + 1
 
