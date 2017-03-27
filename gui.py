@@ -1,5 +1,5 @@
 #icons created using http://www.winterdrache.de/freeware/png2ico/
-import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, sqlite3, time, base64, logging, math, icons
+import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, sqlite3, time, base64, math, icons, log
 
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
@@ -12,6 +12,8 @@ from Tkinter import *
 global key
 global encrypted
 global unlocked
+
+app_log = log.log("gui.log")
 
 root = Tk()
 root.wm_title("Bismuth")
@@ -471,15 +473,6 @@ if "posix" not in os.name:
     root.wm_iconbitmap(tempFile)
     ## Delete the tempfile
     #icon
-
-log_formatter = logging.Formatter('%(asctime)s %(levelname)s %(funcName)s(%(lineno)d) %(message)s')
-logFile = 'gui.log'
-my_handler = RotatingFileHandler(logFile, mode='a', maxBytes=5*1024*1024, backupCount=2, encoding=None, delay=0)
-my_handler.setFormatter(log_formatter)
-my_handler.setLevel(logging.INFO)
-app_log = logging.getLogger('root')
-app_log.setLevel(logging.INFO)
-app_log.addHandler(my_handler)
 
 password_var_enc = StringVar()
 password_var_con = StringVar()

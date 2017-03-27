@@ -1,44 +1,14 @@
 # must unify node and client now that connections parameters are function parameters
 from itertools import groupby
 from operator import itemgetter
-import shutil
-import math
-import SocketServer
-import ast
-import base64
-import gc
-import hashlib
-import os
-import re
-import socket
-import select
-import sqlite3
-import sys
-import threading
-import time
-import logging
-import socks
-from logging.handlers import RotatingFileHandler
+import shutil, math, SocketServer, ast, base64, gc, hashlib, os, re, select, sqlite3, sys, threading, time, socks, log
 
 from Crypto import Random
 from Crypto.Hash import SHA
 from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 
-log_formatter = logging.Formatter('%(asctime)s %(levelname)s %(funcName)s(%(lineno)d) %(message)s')
-logFile = 'node.log'
-my_handler = RotatingFileHandler(logFile, mode='a', maxBytes=5 * 1024 * 1024, backupCount=2, encoding=None, delay=0)
-my_handler.setFormatter(log_formatter)
-my_handler.setLevel(logging.INFO)
-app_log = logging.getLogger('root')
-app_log.setLevel(logging.INFO)
-app_log.addHandler(my_handler)
-
-ch = logging.StreamHandler(sys.stdout)
-ch.setLevel(logging.DEBUG)
-formatter = logging.Formatter('%(asctime)s %(funcName)s(%(lineno)d) %(message)s')
-ch.setFormatter(formatter)
-app_log.addHandler(ch)
+app_log = log.log("node.log")
 
 # load config
 global warning_list_limit_conf

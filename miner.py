@@ -1,3 +1,5 @@
+#logging not supported for multithreading
+
 import getpass
 import math
 import base64

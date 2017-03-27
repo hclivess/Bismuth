@@ -1,39 +1,37 @@
 from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
+from simplecrypt import decrypt
 
-import base64, hashlib, socket, pyping, os
-
+import base64, hashlib, socket, pyping, os, getpass, time
 
 # import keys
 if not os.path.exists('privkey_encrypted.der'):
+    password = ""
     key = RSA.importKey(open('privkey.der').read())
     private_key_readable = str(key.exportKey())
-    #public_key = key.publickey()
-    encrypted = 0
-    unlocked = 1
+    # public_key = key.publickey()
 else:
-    encrypted = 1
-    unlocked = 0
+    password = getpass.getpass()
+    encrypted_privkey = open('privkey_encrypted.der').read()
+    decrypted_privkey = decrypt(password, base64.b64decode(encrypted_privkey))
+    key = RSA.importKey(decrypted_privkey)  # be able to sign
+    private_key_readable = str(key.exportKey())
 
-#public_key_readable = str(key.publickey().exportKey())
 public_key_readable = open('pubkey.der').read()
 public_key_hashed = base64.b64encode(public_key_readable)
 address = hashlib.sha224(public_key_readable).hexdigest()
-#import keys
-
-r = pyping.ping('google.com')                # Need to be root or
-r = pyping.ping('google.com', udp = False)    # But it's udp, not real icmp
-r.ret_code
-
-openfield = ((socket.gethostname()), r.destination, r.max_rtt, r.avg_rtt, r.min_rtt, r.destination_ip)
-print openfield
+# import keys
 
 timestamp = str(time.time())
 
+r = pyping.ping('google.com')                # Need to be root or
 
-transaction = (timestamp, address, recipient_input, '%.8f' % float(amount_input), keep_input, openfield_input)  # this is signed
-# print transaction
+openfield = ((socket.gethostname()), r.ret_code, r.destination, r.max_rtt, r.avg_rtt, r.min_rtt, r.destination_ip)
+print openfield
+
+transaction = (timestamp, address, address, '%.8f' % 0, 0, openfield)  # this is signed
+print transaction
 
 h = SHA.new(str(transaction))
 signer = PKCS1_v1_5.new(key)
