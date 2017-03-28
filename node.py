@@ -79,6 +79,8 @@ def ledger_convert():
         end_balance = 0
         addresses = []
 
+        c.execute("UPDATE transactions SET address = 'Hypoblock' WHERE address = 'Hyperblock'")
+
         c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
         db_block_height = c.fetchone()[0]
 
