@@ -67,72 +67,73 @@ def warning(ip):
 
 
 def ledger_convert():
-    app_log.info("Converting ledger to Hyperblocks")
-    depth = 10000
+    try:
+        app_log.info("Converting ledger to Hyperblocks")
+        depth = 10000
 
-    shutil.copy(ledger_path_conf, ledger_path_conf + '.hyper')
-    conn = sqlite3.connect(ledger_path_conf + '.hyper')
-    conn.text_factory = str
-    c = conn.cursor()
+        shutil.copy(ledger_path_conf, ledger_path_conf + '.hyper')
+        conn = sqlite3.connect(ledger_path_conf + '.hyper')
+        conn.text_factory = str
+        c = conn.cursor()
 
-    end_balance = 0
-    addresses = []
+        end_balance = 0
+        addresses = []
 
-    c.execute("UPDATE transactions SET address = 'Hypoblock' WHERE address = 'Hyperblock'")
+        c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
+        db_block_height = c.fetchone()[0]
 
-    c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
-    db_block_height = c.fetchone()[0]
+        for row in c.execute("SELECT * FROM transactions WHERE block_height < ? AND keep = '0' ORDER BY block_height;",
+                             (str(int(db_block_height) - depth),)):
+            db_address = row[2]
+            db_recipient = row[3]
+            addresses.append(db_address.strip())
+            addresses.append(db_recipient.strip())
 
-    for row in c.execute("SELECT * FROM transactions WHERE block_height < ? AND keep = '0' ORDER BY block_height;",
-                         (str(int(db_block_height) - depth),)):
-        db_address = row[2]
-        db_recipient = row[3]
-        addresses.append(db_address.strip())
-        addresses.append(db_recipient.strip())
+        unique_addressess = set(addresses)
 
-    unique_addressess = set(addresses)
+        for x in set(unique_addressess):
+            c.execute("SELECT sum(amount) FROM transactions WHERE recipient = ? AND block_height < ?  AND keep = '0';",
+                      (x,) + (str(int(db_block_height) - depth),))
+            credit = c.fetchone()[0]
+            if credit == None:
+                credit = 0
 
-    for x in set(unique_addressess):
-        c.execute("SELECT sum(amount) FROM transactions WHERE recipient = ? AND block_height < ?  AND keep = '0';",
-                  (x,) + (str(int(db_block_height) - depth),))
-        credit = c.fetchone()[0]
-        if credit == None:
-            credit = 0
+            c.execute("SELECT sum(amount),sum(fee),sum(reward) FROM transactions WHERE address = ? AND block_height < ?  AND keep = '0';",
+                      (x,) + (str(int(db_block_height) - depth),))
+            result = c.fetchall()
+            debit = result[0][0]
+            fees = result[0][1]
+            rewards = result[0][2]
 
-        c.execute("SELECT sum(amount),sum(fee),sum(reward) FROM transactions WHERE address = ? AND block_height < ?  AND keep = '0';",
-                  (x,) + (str(int(db_block_height) - depth),))
-        result = c.fetchall()
-        debit = result[0][0]
-        fees = result[0][1]
-        rewards = result[0][2]
+            if debit == None:
+                debit = 0
+            if fees == None:
+                fees = 0
+            if rewards == None:
+                rewards = 0
 
-        if debit == None:
-            debit = 0
-        if fees == None:
-            fees = 0
-        if rewards == None:
-            rewards = 0
+            end_balance = credit - debit - fees + rewards
+            # app_log.info("Address: "+ str(x))
+            # app_log.info("Balance: " + str(end_balance))
 
-        end_balance = credit - debit - fees + rewards
-        # app_log.info("Address: "+ str(x))
-        # app_log.info("Balance: " + str(end_balance))
+            if end_balance > 0:
+                timestamp = str(time.time())
+                c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
+                db_block_height - depth - 1, timestamp, "Hyperblock", x, str(float(end_balance)), "0", "0", "0", "0", "0",
+                "0", "0"))
+                conn.commit()
 
-        if end_balance > 0:
-            timestamp = str(time.time())
-            c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
-            db_block_height - depth - 1, timestamp, "Hyperblock", x, str(float(end_balance)), "0", "0", "0", "0", "0",
-            "0", "0"))
-            conn.commit()
+        c.execute("DELETE FROM transactions WHERE block_height < ? AND address != 'Hyperblock' AND keep = '0';",
+                  (str(int(db_block_height) - depth),))
+        conn.commit()
 
-    c.execute("DELETE FROM transactions WHERE block_height < ? AND address != 'Hyperblock' AND keep = '0';",
-              (str(int(db_block_height) - depth),))
-    conn.commit()
+        c.execute("VACUUM")
+        conn.close()
 
-    c.execute("VACUUM")
-    conn.close()
-
-    os.remove(ledger_path_conf)
-    os.rename(ledger_path_conf + '.hyper', ledger_path_conf)
+        os.remove(ledger_path_conf)
+        os.rename(ledger_path_conf + '.hyper', ledger_path_conf)
+    except:
+        raise ValueError ("There was an issue converting to Hyperblocks")
 
 
 def most_common(lst):
