@@ -143,7 +143,7 @@ def miner(args, address, privatekey_readable, public_key_hashed):
                 # serialize txs
                 #print bin_convert(address)[0:diff]
                 #print bin_convert(block_hash)
-                if bin_convert(address)[0:diff] in bin_convert(block_hash):
+                if bin_convert(address)[0:diff] in bin_convert(block_timestamp):
                     app_log.info("Miner: Found a good block_hash in "+str(tries)+" cycles in thread " + str(args))
                     tries = 0
 
