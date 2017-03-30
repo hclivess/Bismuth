@@ -762,10 +762,6 @@ def digest_block(data, peer_ip):
                     app_log.info("Block is older than the previous one, will be rejected")
                 # reject blocks older than latest block
 
-                if float(time_now) + 30 < float(db_timestamp_last):
-                    app_log.info("Digest: Future mining not allowed")
-                    block_valid = 0
-
                 # calculate difficulty
                 execute_param(c, ("SELECT avg(timestamp) FROM transactions WHERE block_height >= ? and reward != 0;"),
                               (str(db_block_height - 30),))
@@ -799,6 +795,10 @@ def digest_block(data, peer_ip):
                 # match difficulty
 
                 fees_block = []
+
+                if float(time_now) + 30 < float(transaction[0]):
+                    app_log.info("Digest: Future mining not allowed")
+                    block_valid = 0
 
                 if block_valid == 1:
                     for transaction in transaction_list:
