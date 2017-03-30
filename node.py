@@ -768,7 +768,7 @@ def digest_block(data, sdef, peer_ip):
                 block_height_new = db_block_height + 1
 
                 # reject blocks older than latest block
-                if block_timestamp < db_timestamp_last:
+                if block_timestamp <= db_timestamp_last:
                     block_valid = 0
                     app_log.info("Block is older than the previous one, will be rejected")
                 # reject blocks older than latest block
