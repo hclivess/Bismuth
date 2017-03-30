@@ -745,6 +745,11 @@ def digest_block(data, peer_ip):
                         miner_address = received_address
                         block_timestamp = received_timestamp
 
+                        if float(time_now) + 30 < float(received_timestamp):
+                            app_log.info("Digest: Future mining not allowed, block is "+str((float(received_timestamp) - float(time_now))/60) +" minutes in the future")
+                            print time_now
+                            print received_timestamp
+                            block_valid = 0
 
                         # verify signatures
 
@@ -787,18 +792,17 @@ def digest_block(data, peer_ip):
 
                 if bin_convert(miner_address)[0:diff] in bin_convert(
                         block_hash):  # simplified comparison, no backwards mining
-                    app_log.info("Digest: Difficulty requirement satisfied for block "+str(block_height_new))
+                    app_log.info("Digest: Difficulty requirement satisfied for block "+str(block_height_new))+" from "+(peer_ip)
                 else:
                     # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
-                    app_log.info("Digest: Difficulty requirement not satisfied for block "+str(block_height_new))
+                    app_log.info("Digest: Difficulty requirement not satisfied for block "+str(block_height_new))+" from "+(peer_ip)
                     block_valid = 0
+
+                    print data
+                    print transaction_list
                 # match difficulty
 
                 fees_block = []
-
-                if float(time_now) + 30 < float(transaction[0]):
-                    app_log.info("Digest: Future mining not allowed")
-                    block_valid = 0
 
                 if block_valid == 1:
                     for transaction in transaction_list:
@@ -1061,11 +1065,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             capacity = 0
             self.request.close()
             app_log.info("Free capacity for " + peer_ip + " unavailable, disconnected")
-
-            if debug_conf == 1:
-                raise  # major debug client
-            else:
-                return
+            # if you raise here, you kill the whole server
 
         if peer_ip not in banlist:
             banned = 0
@@ -1073,11 +1073,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             banned = 1
             self.request.close()
             app_log.info("IP " + peer_ip + " banned, disconnected")
-
-            if debug_conf == 1:
-                raise  # major debug client
-            else:
-                return
+            #if you raise here, you kill the whole server
 
         while banned == 0 and capacity == 1:
 
