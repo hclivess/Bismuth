@@ -87,7 +87,6 @@ def miner(args, address, privatekey_readable, public_key_hashed):
                     #if diff < 4:
                     #    diff = 4
                     # calculate difficulty
-
                     conn.close()
 
                     app_log.info("Mining, " + str(tries) + " cycles passed in thread " + str(args) + ", difficulty: " + str(diff)+ ", combined hashrate: " + str(hashrate) + " KH/s")
@@ -143,7 +142,7 @@ def miner(args, address, privatekey_readable, public_key_hashed):
                 # serialize txs
                 #print bin_convert(address)[0:diff]
                 #print bin_convert(block_hash)
-                if bin_convert(address)[0:diff] in bin_convert(block_timestamp):
+                if bin_convert(address)[0:diff] in bin_convert(hashlib.sha224(block_timestamp).hexdigest()):
                     app_log.info("Miner: Found a good block_hash in "+str(tries)+" cycles in thread " + str(args))
                     tries = 0
 
