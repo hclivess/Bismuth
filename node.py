@@ -27,15 +27,17 @@ def unban(ip):
     banlist = [x for x in banlist if x != ip]
 
 
-def warning(ip):
+def warning(sdef, ip):
     global warning_list
+    global warning_list_limit_conf
+
     warning_list.append(ip)
-    app_log.info("Added a warning to " + str(ip))
+    app_log.info("Added a warning to " + str(ip) + " (" + str(warning_list.count(ip)) + "/" + str(warning_list_limit_conf) + ")")
 
     if warning_list.count(ip) >= warning_list_limit_conf:
         banlist.append(ip)
-
-        raise ValueError(str(ip) + " banned")  # rework this
+        sdef.close()
+        app_log.info(str(ip) + " banned")  # rework this
 
 
 def ledger_convert():
@@ -645,7 +647,7 @@ def manager():
         time.sleep(int(pause_conf))
 
 
-def digest_block(data, peer_ip):
+def digest_block(data, sdef, peer_ip):
     global warning_list
     global busy
 
@@ -747,8 +749,8 @@ def digest_block(data, peer_ip):
 
                         if float(time_now) + 30 < float(received_timestamp):
                             app_log.info("Digest: Future mining not allowed, block is "+str((float(received_timestamp) - float(time_now))/60) +" minutes in the future")
-                            print time_now
-                            print received_timestamp
+                            #print time_now
+                            #print received_timestamp
                             block_valid = 0
 
                         # verify signatures
@@ -792,14 +794,14 @@ def digest_block(data, peer_ip):
 
                 if bin_convert(miner_address)[0:diff] in bin_convert(
                         block_hash):  # simplified comparison, no backwards mining
-                    app_log.info("Digest: Difficulty requirement satisfied for block "+str(block_height_new))+" from "+(peer_ip)
+                    app_log.info("Digest: Difficulty requirement satisfied for block "+str(block_height_new)+" from "+(peer_ip))
                 else:
                     # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
-                    app_log.info("Digest: Difficulty requirement not satisfied for block "+str(block_height_new))+" from "+(peer_ip)
+                    app_log.info("Digest: Difficulty requirement not satisfied for block "+str(block_height_new)+" from "+(peer_ip))
                     block_valid = 0
 
-                    print data
-                    print transaction_list
+                    #print data
+                    #print transaction_list
                 # match difficulty
 
                 fees_block = []
@@ -951,7 +953,7 @@ def digest_block(data, peer_ip):
 
                 else:
                     app_log.info("A part of the block is invalid, rejected")
-                    warning(peer_ip)
+                    warning(sdef, peer_ip)
 
                     # whole block validation
         except Exception, e:
@@ -1187,7 +1189,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     # print peer_ip
                     # print leading_node
                     if peer_ip == leading_node:
-                        digest_block(segments, peer_ip)
+                        digest_block(segments, self.request,peer_ip)
                         # receive theirs
 
                     while busy == 1:
@@ -1320,7 +1322,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     # receive theirs
                     segments = receive(self.request, 10)
                     # app_log.info("Incoming: Combined mined segments: " + segments)
-                    digest_block(segments, peer_ip)
+                    digest_block(segments, self.request,peer_ip)
                     # receive theirs
 
                 else:
@@ -1570,7 +1572,7 @@ def worker(HOST, PORT):
                 # print peer_ip
                 # print leading_node
                 if peer_ip == leading_node:
-                    digest_block(segments, peer_ip)
+                    digest_block(segments,s,peer_ip)
                 # receive theirs
 
                 # digest_block(data) goddamn bug
