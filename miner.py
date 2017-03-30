@@ -1,6 +1,6 @@
 #logging not supported for multithreading
 
-import getpass, math, base64, socket, sys, sqlite3, os, hashlib, time, logging, socks, keys
+import math, base64, sys, sqlite3, os, hashlib, time, logging, socks, keys
 
 from simplecrypt import decrypt
 
