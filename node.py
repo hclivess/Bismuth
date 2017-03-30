@@ -1,3 +1,4 @@
+# if you raise in the server thread, the server will die and node will stop
 # must unify node and client now that connections parameters are function parameters
 from itertools import groupby
 from operator import itemgetter
@@ -279,6 +280,9 @@ def mempool_merge(data):
                         ledger_in = 1
                 except:
                     pass
+
+                if float(mempool_timestamp) > time.time() + 30: #dont accept future txs
+                    acceptable = 0
 
                 if (mempool_in == 1) and (
                     ledger_in == 1):  # remove from mempool if it's in both ledger and mempool already
@@ -747,11 +751,11 @@ def digest_block(data, sdef, peer_ip):
                         miner_address = received_address
                         block_timestamp = received_timestamp
 
-                        if float(time_now) + 30 < float(received_timestamp):
-                            app_log.info("Digest: Future mining not allowed, block is "+str((float(received_timestamp) - float(time_now))/60) +" minutes in the future")
-                            #print time_now
-                            #print received_timestamp
-                            block_valid = 0
+                    if float(time_now) + 30 < float(received_timestamp):
+                        app_log.info("Digest: Future transaction not allowed, timestamp "+str((float(received_timestamp) - float(time_now))/60) +" minutes in the future")
+                        #print time_now
+                        #print received_timestamp
+                        block_valid = 0
 
                         # verify signatures
 
