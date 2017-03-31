@@ -360,8 +360,6 @@ def mempool_merge(data):
                     balance = float(credit) - float(debit) - float(fees) + float(rewards)
                     # app_log.info("Mempool: Projected transction address balance: " + str(balance))
 
-
-
                     try:
                         execute(c, (
                         "SELECT block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
@@ -396,7 +394,7 @@ def mempool_merge(data):
                     # verify signatures and balances
                     else:
                         execute_param(m, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (
-                            mempool_timestamp, mempool_address, mempool_recipient, str(float(mempool_amount)),
+                            mempool_timestamp, mempool_address, mempool_recipient, mempool_amount,
                             mempool_signature_enc, mempool_public_key_hashed, mempool_keep, mempool_openfield))
                         app_log.info("Mempool updated with a received transaction")
                         commit(mempool)  # Save (commit) the changes
