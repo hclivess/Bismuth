@@ -637,6 +637,12 @@ def manager():
                     app_log.info("---Starting a client thread " + str(threading.currentThread()) + "---")
                     t.start()
 
+                    while True: #check thread each 10s
+                        if t.is_alive() != True:
+                            t.join()
+                            app_log.info("---Killing dead client thread " + str(threading.currentThread()) + "---")
+                        time.sleep(10)
+
                     # client thread handling
         if len(active_pool) < 3:
             app_log.info("Only " + str(len(active_pool)) + " connections active, resetting the try list")
