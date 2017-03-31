@@ -78,7 +78,6 @@ while True:
                 db_block_hash = result[0][0]
                 db_block_height = result[0][1]
                 timestamp_last_block = float(result[0][2])
-                #print timestamp_last_block
 
                 # calculate difficulty
                 c.execute("SELECT avg(timestamp) FROM transactions where block_height >= ? and reward != 0;",(str(db_block_height - 30),))
@@ -86,7 +85,6 @@ while True:
                 #print timestamp_avg
 
                 timestamp_difference = timestamp_last_block - timestamp_avg
-                #print timestamp_difference
 
                 diff = float(math.log(1e18 / timestamp_difference))
                 if db_block_height < 50:
@@ -97,6 +95,25 @@ while True:
                 conn.close()
                 app_log.info("Mining, " + str(tries) + " cycles passed, difficulty: " + str(diff))
                 diff = int(diff)
+
+            #print "sync this"
+            #print block_timestamp
+            #print block_send  # sync this
+            #print db_block_hash
+            #print (str((block_timestamp,block_send,db_block_hash)))
+
+            #start mining
+            mining_condition = bin_convert(db_block_hash)[0:diff]
+            mining_hash = bin_convert(hashlib.sha224(block_timestamp+db_block_hash).hexdigest())
+
+            if mining_condition in mining_hash:
+
+                app_log.info("Miner: Found a good block_hash in "+str(tries)+" cycles")
+                tries = 0
+
+                #submit mined block to node
+
+                submitted = 0
 
                 #serialize txs
                 mempool = sqlite3.connect("mempool.db")
@@ -130,23 +147,6 @@ while True:
                 block_send.append((block_timestamp,address[:56],address[:56],'%.8f' % float(0),signature_enc,public_key_hashed,"0","reward")) #mining reward tx
                 # claim reward
 
-            #print "sync this"
-            #print block_timestamp
-            #print block_send  # sync this
-            #print db_block_hash
-            #print (str((block_timestamp,block_send,db_block_hash)))
-
-            #start mining
-            mining_condition = bin_convert(db_block_hash)[0:diff]
-            mining_hash = bin_convert(hashlib.sha224(block_timestamp+db_block_hash).hexdigest())
-
-            if mining_condition in mining_hash:
-                app_log.info("Miner: Found a good block_hash in "+str(tries)+" cycles")
-                tries = 0
-
-                #submit mined block to node
-
-                submitted = 0
                 while submitted == 0:
                     try:
                         s = socks.socksocket()

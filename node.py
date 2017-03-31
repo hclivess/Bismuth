@@ -771,8 +771,8 @@ def digest_block(data, sdef, peer_ip):
                 execute(c, (
                 "SELECT block_hash, block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
                 result = c.fetchall()
-                db_block_height = result[0][1]
                 db_block_hash = result[0][0]
+                db_block_height = result[0][1]
                 db_timestamp_last = float(result[0][2])
                 block_height_new = db_block_height + 1
 
@@ -804,7 +804,11 @@ def digest_block(data, sdef, peer_ip):
                 block_hash = hashlib.sha224(str((block_timestamp, transaction_list,
                                                  db_block_hash))).hexdigest()  # calculate block_hash from the ledger
 
-                if bin_convert(db_block_hash)[0:diff] in bin_convert(hashlib.sha224(block_timestamp+db_block_hash).hexdigest()):  # simplified comparison, no backwards mining
+                mining_condition = bin_convert(db_block_hash)[0:diff]
+                mining_hash = bin_convert(hashlib.sha224(block_timestamp+db_block_hash).hexdigest())
+
+
+                if mining_condition in mining_hash:  # simplified comparison, no backwards mining
                     app_log.info("Digest: Difficulty requirement satisfied for block "+str(block_height_new)+" from "+(peer_ip))
                 else:
                     # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
