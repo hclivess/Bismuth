@@ -240,7 +240,7 @@ def mempool_merge(data):
             block_list = ast.literal_eval(data)
 
             for transaction in block_list:  # set means unique
-                mempool_timestamp = '%.2f' % transaction[0]
+                mempool_timestamp = '%.2f' % float(transaction[0])
                 mempool_address = transaction[1][:56]
                 mempool_recipient = transaction[2][:56]
                 mempool_amount = '%.8f' % float(transaction[3])
