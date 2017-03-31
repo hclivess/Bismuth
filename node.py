@@ -219,6 +219,8 @@ global banlist
 banlist = []
 global busy
 busy = 0
+global busy_mempool
+busy_mempool = 0
 global leading_node
 leading_node = '127.0.0.1'
 
@@ -226,191 +228,196 @@ leading_node = '127.0.0.1'
 # port = 2829 now defined by config
 
 def mempool_merge(data):
-    if data == "":
-        app_log.info("Mempool was empty")
-    else:
-        app_log.info("Mempool merging started")
-        # merge mempool
+    global busy
+    if busy == 0:
+        busy = 1
 
-        try:
-            mempool = sqlite3.connect('mempool.db')
-            mempool.text_factory = str
-            m = mempool.cursor()
+        if data == "":
+            app_log.info("Mempool was empty")
+        else:
+            app_log.info("Mempool merging started")
+            # merge mempool
 
-            block_list = ast.literal_eval(data)
+            try:
+                mempool = sqlite3.connect('mempool.db')
+                mempool.text_factory = str
+                m = mempool.cursor()
 
-            for transaction in block_list:  # set means unique
-                mempool_timestamp = '%.2f' % float(transaction[0])
-                mempool_address = transaction[1][:56]
-                mempool_recipient = transaction[2][:56]
-                mempool_amount = '%.8f' % float(transaction[3])
-                mempool_signature_enc = transaction[4]
-                mempool_public_key_hashed = transaction[5]
-                mempool_keep = transaction[6]
-                mempool_openfield = transaction[7]
+                block_list = ast.literal_eval(data)
 
-                conn = sqlite3.connect(ledger_path_conf)
-                conn.text_factory = str
-                c = conn.cursor()
+                for transaction in block_list:  # set means unique
+                    mempool_timestamp = '%.2f' % float(transaction[0])
+                    mempool_address = transaction[1][:56]
+                    mempool_recipient = transaction[2][:56]
+                    mempool_amount = '%.8f' % float(transaction[3])
+                    mempool_signature_enc = transaction[4]
+                    mempool_public_key_hashed = transaction[5]
+                    mempool_keep = transaction[6]
+                    mempool_openfield = transaction[7]
 
-                ledger_in = 0
-                mempool_in = 0
-
-                acceptable = 1
-                try:
-                    execute_param(m, ("SELECT * FROM transactions WHERE signature = ?;"),
-                                  (mempool_signature_enc,))  # condition 1)
-                    dummy1 = m.fetchall()[0]
-                    if dummy1 != None:
-                        # app_log.info("That transaction is already in our mempool")
-                        acceptable = 0
-                        mempool_in = 1
-                except:
-                    pass
-
-                try:
-                    # reject transactions which are already in the ledger
-                    execute_param(c, ("SELECT * FROM transactions WHERE signature = ?;"),
-                                  (mempool_signature_enc,))  # condition 2
-                    dummy2 = c.fetchall()[0]
-                    if dummy2 != None:
-                        # app_log.info("That transaction is already in our ledger")
-                        # reject transactions which are already in the ledger
-                        acceptable = 0
-                        ledger_in = 1
-                except:
-                    pass
-
-                if float(mempool_timestamp) > time.time() + 30: #dont accept future txs
-                    acceptable = 0
-
-                if (mempool_in == 1) and (
-                    ledger_in == 1):  # remove from mempool if it's in both ledger and mempool already
-                    try:
-                        execute_param(m, ("DELETE FROM transactions WHERE signature = ?;"), (mempool_signature_enc,))
-                        commit(mempool)
-                        app_log.info("Transaction deleted from our mempool")
-                    except:  # experimental try and except
-                        app_log.info("Transaction was not present in the pool anymore")
-                        pass  # continue to mempool finished message
-
-                    # verify signatures and balances
-
-                # verify signature
-                received_public_key = RSA.importKey(base64.b64decode(mempool_public_key_hashed))  # convert readable key to instance
-                received_signature_dec = base64.b64decode(mempool_signature_enc)
-                verifier = PKCS1_v1_5.new(received_public_key)
-
-                h = SHA.new(str((mempool_timestamp, mempool_address, mempool_recipient, mempool_amount, mempool_keep, mempool_openfield)))
-                if verifier.verify(h, received_signature_dec):
-                    app_log.info("Incoming: Valid signature")
-                else:
-                    app_log.info("Incoming: Invalid signature")
-                    acceptable = 0
-                # verify signature
-
-                if acceptable == 1:
-
-                    # verify balance
                     conn = sqlite3.connect(ledger_path_conf)
                     conn.text_factory = str
                     c = conn.cursor()
 
-                    # app_log.info("Mempool: Verifying balance")
-                    app_log.info("Mempool: Received address: " + str(mempool_address))
+                    ledger_in = 0
+                    mempool_in = 0
 
-                    # include the new block
-                    block_credit = 0
-                    credit_block = 0
-
-                    for x in block_list:  # quite nasty, care not to overlap variables
-                        if x[2] == mempool_address:
-                            block_credit = float(block_credit) + float(x[3])
-                        if x[1] == mempool_address:
-                            credit_block = float(credit_block) + float(x[3])
-
-                    # app_log.info("Mempool: Incoming block credit: " + str(block_credit))
-                    # app_log.info("Mempool: Incoming block debit: " + str(credit_block))
-                    # include the new block
-
-                    execute_param(c, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (mempool_address,))
-                    credit_ledger = c.fetchone()[0]
-                    if credit_ledger == None:
-                        credit_ledger = 0
-                    credit = float(credit_ledger) + float(block_credit)
-
-                    execute_param(c, ("SELECT sum(amount) FROM transactions WHERE address = ?;"), (mempool_address,))
-                    debit_ledger = c.fetchone()[0]
-                    if debit_ledger == None:
-                        debit_ledger = 0
-                    debit = float(debit_ledger) + float(credit_block)
-
-                    execute_param(c, ("SELECT sum(fee) FROM transactions WHERE address = ?;"), (mempool_address,))
-                    fees = c.fetchone()[0]
-                    execute_param(c, ("SELECT sum(reward) FROM transactions WHERE address = ?;"), (mempool_address,))
-                    rewards = c.fetchone()[0]
-
-                    if fees == None:
-                        fees = 0
-                    if rewards == None:
-                        rewards = 0
-
-                    # app_log.info("Mempool: Total credit: " + str(credit))
-                    # app_log.info("Mempool: Total debit: " + str(debit))
-                    balance = float(credit) - float(debit) - float(fees) + float(rewards)
-                    # app_log.info("Mempool: Projected transction address balance: " + str(balance))
+                    acceptable = 1
+                    try:
+                        execute_param(m, ("SELECT * FROM transactions WHERE signature = ?;"),
+                                      (mempool_signature_enc,))  # condition 1)
+                        dummy1 = m.fetchall()[0]
+                        if dummy1 != None:
+                            app_log.info("That transaction is already in our mempool")
+                            acceptable = 0
+                            mempool_in = 1
+                    except:
+                        pass
 
                     try:
-                        execute(c, (
-                        "SELECT block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
-                        result = c.fetchall()
-                        db_block_height = result[0][0]
-                        db_timestamp_last = float(result[0][1])
+                        # reject transactions which are already in the ledger
+                        execute_param(c, ("SELECT * FROM transactions WHERE signature = ?;"),
+                                      (mempool_signature_enc,))  # condition 2
+                        dummy2 = c.fetchall()[0]
+                        if dummy2 != None:
+                            # app_log.info("That transaction is already in our ledger")
+                            # reject transactions which are already in the ledger
+                            acceptable = 0
+                            ledger_in = 1
+                    except:
+                        pass
 
-                        execute_param(c, (
-                        "SELECT avg(timestamp) FROM transactions where block_height >= ? and reward != 0;"),
-                                      (str(db_block_height - 30),))
-                        timestamp_avg = c.fetchall()[0][0]  # select the reward block
+                    if float(mempool_timestamp) > time.time() + 30: #dont accept future txs
+                        acceptable = 0
 
-                        conn.close()
+                    if (mempool_in == 1) and (
+                        ledger_in == 1):  # remove from mempool if it's in both ledger and mempool already
+                        try:
+                            execute_param(m, ("DELETE FROM transactions WHERE signature = ?;"), (mempool_signature_enc,))
+                            commit(mempool)
+                            app_log.info("Transaction deleted from our mempool")
+                        except:  # experimental try and except
+                            app_log.info("Transaction was not present in the pool anymore")
+                            pass  # continue to mempool finished message
 
-                        fee = '%.8f' % float(abs(100 / (float(db_timestamp_last) - float(timestamp_avg))) + len(
-                            mempool_openfield) / 600 + int(mempool_keep))
-                        # app_log.info("Fee: " + str(fee))
+                        # verify signatures and balances
 
-                    except Exception as e:
-                        fee = 1  # presumably there are less than 50 txs
-                        # app_log.info("Mempool: Fee error: " + str(e))
-                        return
-                    # calculate fee
+                    # verify signature
+                    received_public_key = RSA.importKey(base64.b64decode(mempool_public_key_hashed))  # convert readable key to instance
+                    received_signature_dec = base64.b64decode(mempool_signature_enc)
+                    verifier = PKCS1_v1_5.new(received_public_key)
 
-                    time_now = str(time.time())
-                    if float(time_now) + 30 < float(mempool_timestamp):
-                        app_log.info("Mempool: Future mining not allowed")
-
-                    elif (float(balance)) - (
-                            float(fee)) < 0:  # removed +float(db_amount) because it is a part of the incoming block
-                        app_log.info("Mempool: Cannot afford to pay fees")
-                    # verify signatures and balances
+                    h = SHA.new(str((mempool_timestamp, mempool_address, mempool_recipient, mempool_amount, mempool_keep, mempool_openfield)))
+                    if verifier.verify(h, received_signature_dec):
+                        app_log.info("Incoming: Valid signature")
                     else:
-                        execute_param(m, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (
-                            mempool_timestamp, mempool_address, mempool_recipient, mempool_amount,
-                            mempool_signature_enc, mempool_public_key_hashed, mempool_keep, mempool_openfield))
-                        app_log.info("Mempool updated with a received transaction")
-                        commit(mempool)  # Save (commit) the changes
+                        app_log.info("Incoming: Invalid signature")
+                        acceptable = 0
+                    # verify signature
 
-                        # merge mempool
+                    if acceptable == 1:
 
-                        # receive mempool
+                        # verify balance
+                        conn = sqlite3.connect(ledger_path_conf)
+                        conn.text_factory = str
+                        c = conn.cursor()
 
-            app_log.info("Mempool: Finished")
-            mempool.close()
-        except:
-            app_log.info("Mempool: Error processing")  # will this fix the hang?
-            if debug_conf == 1:
-                raise
-            else:
-                return
+                        # app_log.info("Mempool: Verifying balance")
+                        app_log.info("Mempool: Received address: " + str(mempool_address))
+
+                        # include the new block
+                        block_credit = 0
+                        credit_block = 0
+
+                        for x in block_list:  # quite nasty, care not to overlap variables
+                            if x[2] == mempool_address:
+                                block_credit = float(block_credit) + float(x[3])
+                            if x[1] == mempool_address:
+                                credit_block = float(credit_block) + float(x[3])
+
+                        # app_log.info("Mempool: Incoming block credit: " + str(block_credit))
+                        # app_log.info("Mempool: Incoming block debit: " + str(credit_block))
+                        # include the new block
+
+                        execute_param(c, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (mempool_address,))
+                        credit_ledger = c.fetchone()[0]
+                        if credit_ledger == None:
+                            credit_ledger = 0
+                        credit = float(credit_ledger) + float(block_credit)
+
+                        execute_param(c, ("SELECT sum(amount) FROM transactions WHERE address = ?;"), (mempool_address,))
+                        debit_ledger = c.fetchone()[0]
+                        if debit_ledger == None:
+                            debit_ledger = 0
+                        debit = float(debit_ledger) + float(credit_block)
+
+                        execute_param(c, ("SELECT sum(fee) FROM transactions WHERE address = ?;"), (mempool_address,))
+                        fees = c.fetchone()[0]
+                        execute_param(c, ("SELECT sum(reward) FROM transactions WHERE address = ?;"), (mempool_address,))
+                        rewards = c.fetchone()[0]
+
+                        if fees == None:
+                            fees = 0
+                        if rewards == None:
+                            rewards = 0
+
+                        # app_log.info("Mempool: Total credit: " + str(credit))
+                        # app_log.info("Mempool: Total debit: " + str(debit))
+                        balance = float(credit) - float(debit) - float(fees) + float(rewards)
+                        # app_log.info("Mempool: Projected transction address balance: " + str(balance))
+
+                        try:
+                            execute(c, (
+                            "SELECT block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
+                            result = c.fetchall()
+                            db_block_height = result[0][0]
+                            db_timestamp_last = float(result[0][1])
+
+                            execute_param(c, (
+                            "SELECT avg(timestamp) FROM transactions where block_height >= ? and reward != 0;"),
+                                          (str(db_block_height - 30),))
+                            timestamp_avg = c.fetchall()[0][0]  # select the reward block
+
+                            conn.close()
+
+                            fee = '%.8f' % float(abs(100 / (float(db_timestamp_last) - float(timestamp_avg))) + len(
+                                mempool_openfield) / 600 + int(mempool_keep))
+                            # app_log.info("Fee: " + str(fee))
+
+                        except Exception as e:
+                            fee = 1  # presumably there are less than 50 txs
+                            # app_log.info("Mempool: Fee error: " + str(e))
+                            return
+                        # calculate fee
+
+                        time_now = str(time.time())
+                        if float(time_now) + 30 < float(mempool_timestamp):
+                            app_log.info("Mempool: Future mining not allowed")
+
+                        elif (float(balance)) - (
+                                float(fee)) < 0:  # removed +float(db_amount) because it is a part of the incoming block
+                            app_log.info("Mempool: Cannot afford to pay fees")
+                        # verify signatures and balances
+                        else:
+                            execute_param(m, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (
+                                mempool_timestamp, mempool_address, mempool_recipient, mempool_amount,
+                                mempool_signature_enc, mempool_public_key_hashed, mempool_keep, mempool_openfield))
+                            app_log.info("Mempool updated with a received transaction")
+                            commit(mempool)  # Save (commit) the changes
+
+                            # merge mempool
+
+                            # receive mempool
+
+                app_log.info("Mempool: Finished")
+                mempool.close()
+            except:
+                app_log.info("Mempool: Error processing")  # will this fix the hang?
+                if debug_conf == 1:
+                    raise
+                else:
+                    return
+        busy = 0
 
 
 def purge_old_peers():
