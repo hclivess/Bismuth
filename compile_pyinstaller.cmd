@@ -1,5 +1,7 @@
 del /f /s /q dist 1>nul
 rmdir /s /q dist
+del /f /s /q build 1>nul
+rmdir /s /q build
 
 pyinstaller.exe --uac-admin --noconsole --log-level=INFO gui.py --icon=graphics\icon.ico
 pyinstaller.exe --uac-admin --log-level=INFO miner.py --icon=graphics\icon.ico

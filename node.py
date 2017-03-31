@@ -629,6 +629,10 @@ def manager():
                 PORT = int(tuple[1])
                 # app_log.info(PORT)
 
+                for t in threading.enumerate():
+                    if not t.is_alive():
+                        t.join()
+
                 if threads_count <= threads_limit and str(HOST + ":" + str(PORT)) not in tried and str(
                                         HOST + ":" + str(PORT)) not in active_pool and str(HOST) not in banlist:
                     app_log.info("Will attempt to connect to " + HOST + ":" + str(PORT))
@@ -636,12 +640,6 @@ def manager():
                     t = threading.Thread(target=worker, args=(HOST, PORT))  # threaded connectivity to nodes here
                     app_log.info("---Starting a client thread " + str(threading.currentThread()) + "---")
                     t.start()
-
-                    while True: #check thread each 10s
-                        if t.is_alive() != True:
-                            t.join()
-                            app_log.info("---Killing dead client thread " + str(threading.currentThread()) + "---")
-                        time.sleep(10)
 
                     # client thread handling
         if len(active_pool) < 3:
