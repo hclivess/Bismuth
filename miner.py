@@ -95,7 +95,6 @@ while True:
                 #    diff = 4
                 # calculate difficulty
                 conn.close()
-
                 app_log.info("Mining, " + str(tries) + " cycles passed, difficulty: " + str(diff))
                 diff = int(diff)
 
@@ -138,7 +137,7 @@ while True:
             #print (str((block_timestamp,block_send,db_block_hash)))
 
             #start mining
-            mining_condition = bin_convert(address)[0:diff]
+            mining_condition = bin_convert(db_block_hash)[0:diff]
             mining_hash = bin_convert(hashlib.sha224(block_timestamp+db_block_hash).hexdigest())
 
             if mining_condition in mining_hash:
