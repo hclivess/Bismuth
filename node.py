@@ -268,7 +268,7 @@ def mempool_merge(data):
                                       (mempool_signature_enc,))  # condition 1)
                         dummy1 = m.fetchall()[0]
                         if dummy1 != None:
-                            app_log.info("That transaction is already in our mempool")
+                            #app_log.info("That transaction is already in our mempool")
                             acceptable = 0
                             mempool_in = 1
                     except:
@@ -308,10 +308,7 @@ def mempool_merge(data):
                     verifier = PKCS1_v1_5.new(received_public_key)
 
                     h = SHA.new(str((mempool_timestamp, mempool_address, mempool_recipient, mempool_amount, mempool_keep, mempool_openfield)))
-                    if verifier.verify(h, received_signature_dec):
-                        app_log.info("Incoming: Valid signature")
-                    else:
-                        app_log.info("Incoming: Invalid signature")
+                    if not verifier.verify(h, received_signature_dec):
                         acceptable = 0
                     # verify signature
 
@@ -663,7 +660,10 @@ def manager():
 def digest_block(data, sdef, peer_ip):
     global warning_list
     global busy
+    global busy_mempool
 
+    if busy_mempool == 0:
+        busy_mempool = 1
     if busy == 0:
         busy = 1
 
@@ -805,7 +805,7 @@ def digest_block(data, sdef, peer_ip):
                 block_hash = hashlib.sha224(str((block_timestamp, transaction_list,
                                                  db_block_hash))).hexdigest()  # calculate block_hash from the ledger
 
-                if bin_convert(miner_address)[0:diff] in bin_convert(hashlib.sha224(block_timestamp).hexdigest()):  # simplified comparison, no backwards mining
+                if bin_convert(miner_address)[0:diff] in bin_convert(hashlib.sha224(block_timestamp+db_block_hash).hexdigest()):  # simplified comparison, no backwards mining
                     app_log.info("Digest: Difficulty requirement satisfied for block "+str(block_height_new)+" from "+(peer_ip))
                 else:
                     # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
@@ -980,6 +980,7 @@ def digest_block(data, sdef, peer_ip):
         mempool.close()
         app_log.info("Digesting complete")
         busy = 0
+        busy_mempool = 0
 
 
 
