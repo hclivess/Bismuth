@@ -65,12 +65,11 @@ rndfile = Random.new()
 
 while True:
     try:
-        nonce = hashlib.sha224(rndfile.read(16)).hexdigest()[:32]
-        block_timestamp = '%.2f' % time.time()
         tries = tries +1
         # calculate new hash
 
-        if tries % int(diff_recalc_conf) == 0 or tries == 1:
+        if tries % int(diff_recalc_conf) == 0 or tries == 1: #only do this ever so often
+            block_timestamp = '%.2f' % time.time()
 
             conn = sqlite3.connect("static/ledger.db") #open to select the last tx to create a new hash from
             conn.text_factory = str
@@ -98,22 +97,13 @@ while True:
             app_log.info("Mining, " + str(tries) + " cycles passed, difficulty: " + str(diff))
             diff = int(diff)
 
-        #print "sync this"
-        #print block_timestamp
-        #print block_send  # sync this
-        #print db_block_hash
-        #print (str((block_timestamp,block_send,db_block_hash)))
-
-        #start mining
-
-
-        # serialize txs
-        mempool = sqlite3.connect("mempool.db")
-        mempool.text_factory = str
-        m = mempool.cursor()
-        m.execute("SELECT * FROM transactions ORDER BY timestamp;")
-        result = m.fetchall()  # select all txs from mempool
-        mempool.close()
+            # serialize txs
+            mempool = sqlite3.connect("mempool.db")
+            mempool.text_factory = str
+            m = mempool.cursor()
+            m.execute("SELECT * FROM transactions ORDER BY timestamp;")
+            result = m.fetchall()  # select all txs from mempool
+            mempool.close()
 
         block_send = []
         del block_send[:]  # empty
@@ -127,6 +117,8 @@ while True:
             # print transaction
             block_send.append(transaction)  # append tuple to list for each run
             removal_signature.append(str(dbdata[4]))  # for removal after successful mining
+
+        nonce = hashlib.sha224(rndfile.read(16)).hexdigest()[:32]
 
         # claim reward
         transaction_reward = tuple
@@ -143,7 +135,7 @@ while True:
                            public_key_hashed, "0", nonce))  # mining reward tx
         # claim reward
 
-        block_hash = hashlib.sha224(str(block_send)+db_block_hash).hexdigest()
+        block_hash = hashlib.sha224(str(block_send) + db_block_hash).hexdigest()
         mining_hash = bin_convert(hashlib.sha224(nonce+db_block_hash).hexdigest())
         mining_condition = bin_convert(db_block_hash)[0:diff]
 
