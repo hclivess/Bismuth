@@ -135,7 +135,7 @@ while True:
                            public_key_hashed, "0", nonce))  # mining reward tx
         # claim reward
 
-        block_hash = hashlib.sha224(str(block_send) + db_block_hash).hexdigest()
+        #block_hash = hashlib.sha224(str(block_send) + db_block_hash).hexdigest()
         mining_hash = bin_convert(hashlib.sha224(nonce+db_block_hash).hexdigest())
         mining_condition = bin_convert(db_block_hash)[0:diff]
 
