@@ -757,8 +757,8 @@ def digest_block(data, sdef, peer_ip):
                         block_valid = 0
 
                     if transaction == transaction_list[-1]:  # recognize the last transaction as the mining reward transaction
-                        miner_address = received_address
                         block_timestamp = received_timestamp
+                        nonce = received_openfield
 
                     if float(time_now) + 30 < float(received_timestamp):
                         app_log.info("Digest: Future transaction not allowed, timestamp "+str((float(received_timestamp) - float(time_now))/60) +" minutes in the future")
@@ -805,7 +805,7 @@ def digest_block(data, sdef, peer_ip):
                                                  db_block_hash))).hexdigest()  # calculate block_hash from the ledger
 
                 mining_condition = bin_convert(db_block_hash)[0:diff]
-                mining_hash = bin_convert(hashlib.sha224(block_timestamp+db_block_hash).hexdigest())
+                mining_hash = bin_convert(hashlib.sha224(nonce+db_block_hash).hexdigest())
 
 
                 if mining_condition in mining_hash:  # simplified comparison, no backwards mining
