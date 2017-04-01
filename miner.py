@@ -58,6 +58,7 @@ if not os.path.exists('mempool.db'):
 else:
     app_log.info("Mempool exists")
 
+overclock = 1 #range scan in seconds
 block_timestamp = 0  # init
 tries = 0
 
@@ -183,7 +184,7 @@ while True:
 
             #submit mined block to node
         else:
-            time.sleep(0.1)
+            time.sleep(0.01)
             #break
     except Exception, e:
         print e
