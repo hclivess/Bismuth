@@ -631,9 +631,9 @@ def manager():
                 PORT = int(tuple[1])
                 # app_log.info(PORT)
 
-                for t in threading.enumerate():
-                    if not t.is_alive():
-                        t.join()
+                #for t in threading.enumerate():
+                #    if not t.is_alive():
+                #        t.join()
 
                 if threads_count <= threads_limit and str(HOST + ":" + str(PORT)) not in tried and str(
                                         HOST + ":" + str(PORT)) not in active_pool and str(HOST) not in banlist:
@@ -974,16 +974,16 @@ def digest_block(data, sdef, peer_ip):
         except Exception, e:
             app_log.info(e)
 
+            conn.close()
+            mempool.close()
+            app_log.info("Digesting complete")
+            busy = 0
+            busy_mempool = 0
+
             if debug_conf == 1:
-                raise  # major debug client
+                raise  # major debug client, this effectively prevents code execution after this line for the whole function
             else:
                 pass
-
-        conn.close()
-        mempool.close()
-        app_log.info("Digesting complete")
-        busy = 0
-        busy_mempool = 0
 
 
 
