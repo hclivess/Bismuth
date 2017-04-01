@@ -974,16 +974,16 @@ def digest_block(data, sdef, peer_ip):
         except Exception, e:
             app_log.info(e)
 
-            conn.close()
-            mempool.close()
-            app_log.info("Digesting complete")
-            busy = 0
-            busy_mempool = 0
-
             if debug_conf == 1:
-                raise  # major debug client, this effectively prevents code execution after this line for the whole function
+                raise  # major debug client
             else:
                 pass
+
+    conn.close()
+    mempool.close()
+    app_log.info("Digesting complete")
+    busy = 0
+    busy_mempool = 0
 
 
 
