@@ -105,8 +105,47 @@ while True:
         #print (str((block_timestamp,block_send,db_block_hash)))
 
         #start mining
-        mining_condition = bin_convert(db_block_hash)[0:diff]
+
+
+        # serialize txs
+        mempool = sqlite3.connect("mempool.db")
+        mempool.text_factory = str
+        m = mempool.cursor()
+        m.execute("SELECT * FROM transactions ORDER BY timestamp;")
+        result = m.fetchall()  # select all txs from mempool
+        mempool.close()
+
+        block_send = []
+        del block_send[:]  # empty
+        removal_signature = []
+        del removal_signature[:]  # empty
+
+        for dbdata in result:
+            transaction = (
+            dbdata[0], dbdata[1][:56], dbdata[2][:56], '%.8f' % float(dbdata[3]), dbdata[4], dbdata[5], dbdata[6],
+            dbdata[7])  # create tuple
+            # print transaction
+            block_send.append(transaction)  # append tuple to list for each run
+            removal_signature.append(str(dbdata[4]))  # for removal after successful mining
+
+        # claim reward
+        transaction_reward = tuple
+        transaction_reward = (
+        block_timestamp, address[:56], address[:56], '%.8f' % float(0), "0", nonce)  # only this part is signed!
+        # print transaction_reward
+
+        h = SHA.new(str(transaction_reward))
+        signer = PKCS1_v1_5.new(key)
+        signature = signer.sign(h)
+        signature_enc = base64.b64encode(signature)
+
+        block_send.append((block_timestamp, address[:56], address[:56], '%.8f' % float(0), signature_enc,
+                           public_key_hashed, "0", nonce))  # mining reward tx
+        # claim reward
+
+        block_hash = hashlib.sha224(str(block_send)+db_block_hash).hexdigest()
         mining_hash = bin_convert(hashlib.sha224(nonce+db_block_hash).hexdigest())
+        mining_condition = bin_convert(db_block_hash)[0:diff]
 
         if mining_condition in mining_hash:
 
@@ -116,39 +155,6 @@ while True:
             #submit mined block to node
 
             submitted = 0
-
-            #serialize txs
-            mempool = sqlite3.connect("mempool.db")
-            mempool.text_factory = str
-            m = mempool.cursor()
-            m.execute("SELECT * FROM transactions ORDER BY timestamp;")
-            result = m.fetchall() #select all txs from mempool
-            mempool.close()
-
-            block_send = []
-            del block_send[:] # empty
-            removal_signature = []
-            del removal_signature[:] # empty
-
-            for dbdata in result:
-                transaction = (dbdata[0],dbdata[1][:56],dbdata[2][:56],'%.8f' % float(dbdata[3]),dbdata[4],dbdata[5],dbdata[6],dbdata[7]) #create tuple
-                #print transaction
-                block_send.append(transaction) #append tuple to list for each run
-                removal_signature.append(str(dbdata[4])) #for removal after successful mining
-
-            # claim reward
-            transaction_reward = tuple
-            transaction_reward = (block_timestamp,address[:56],address[:56],'%.8f' % float(0),"0",nonce) #only this part is signed!
-            #print transaction_reward
-
-            h = SHA.new(str(transaction_reward))
-            signer = PKCS1_v1_5.new(key)
-            signature = signer.sign(h)
-            signature_enc = base64.b64encode(signature)
-
-            block_send.append((block_timestamp,address[:56],address[:56],'%.8f' % float(0),signature_enc,public_key_hashed,"0",nonce)) #mining reward tx
-            # claim reward
-
             while submitted == 0:
                 try:
                     s = socks.socksocket()

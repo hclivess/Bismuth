@@ -801,12 +801,9 @@ def digest_block(data, sdef, peer_ip):
                 # calculate difficulty
 
                 # match difficulty
-                block_hash = hashlib.sha224(str((block_timestamp, transaction_list,
-                                                 db_block_hash))).hexdigest()  # calculate block_hash from the ledger
-
-                mining_condition = bin_convert(db_block_hash)[0:diff]
+                block_hash = hashlib.sha224(str(transaction_list) + db_block_hash).hexdigest()
                 mining_hash = bin_convert(hashlib.sha224(nonce+db_block_hash).hexdigest())
-
+                mining_condition = bin_convert(db_block_hash)[0:diff]
 
                 if mining_condition in mining_hash:  # simplified comparison, no backwards mining
                     app_log.info("Digest: Difficulty requirement satisfied for block "+str(block_height_new)+" from "+(peer_ip))
