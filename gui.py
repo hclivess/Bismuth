@@ -599,7 +599,6 @@ sync_msg_label.grid(row=8, column=0, sticky=N+E, padx=15)
 
 keep_var = IntVar()
 encode_var = IntVar()
-encode_var.set(1)
 #encrypt_var = IntVar()
 
 #address and amount
