@@ -122,8 +122,7 @@ while True:
 
         # claim reward
         transaction_reward = tuple
-        transaction_reward = (
-        block_timestamp, address[:56], address[:56], '%.8f' % float(0), "0", nonce)  # only this part is signed!
+        transaction_reward = (block_timestamp, address[:56], address[:56], '%.8f' % float(0), "0", nonce)  # only this part is signed!
         # print transaction_reward
 
         h = SHA.new(str(transaction_reward))
