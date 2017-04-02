@@ -2,7 +2,6 @@
 import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, sqlite3, time, base64, math, icons, log
 
 from datetime import datetime
-from logging.handlers import RotatingFileHandler
 from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
@@ -622,7 +621,7 @@ openfield.grid(row=3, column=1,sticky=E)
 keep = Checkbutton(f3, text="Keep Entry", variable=keep_var, command=lambda : refresh())
 keep.grid(row=4, column=1,sticky=E)
 encode = Checkbutton(f3, text="Base64", variable=encode_var, command=lambda : refresh())
-encode.grid(row=4, column=0,sticky=E)
+encode.grid(row=4, column=1,sticky=E,padx=(0,100))
 
 balance_enumerator = Entry(f3, width=5)
 #address and amount
