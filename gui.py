@@ -49,7 +49,6 @@ def lock_fn(button):
     lock_b.configure(text="Locked", state=DISABLED)
     password_var_dec.set("")
 
-
 def encrypt_fn(destroy_this):
     password = password_var_enc.get()
     password_conf = password_var_con.get()
@@ -139,7 +138,11 @@ def send():
         done = Button(top7, text="Cancel", command=top7.destroy)
         done.grid(row=1, column=0, sticky=W + E, padx=15, pady=(5, 5))
 
-    openfield_input = openfield.get().strip()
+    if encode_var.get() == 1:
+        openfield_input = base64.b64encode(openfield.get().strip())
+    else:
+        openfield_input = openfield.get().strip()
+
     keep_input = str(keep_var.get())
 
     if len(recipient_input) != 56:
@@ -411,7 +414,11 @@ def refresh():
     #print timestamp_avg
 
     try:
-        fee = '%.8f' % float(abs(100 / (float(db_timestamp_last) - float(timestamp_avg))) + len(openfield.get()) / 600 + int(keep_var.get()))
+        if encode_var.get() == 1:
+            openfield_input = base64.b64encode(openfield.get().strip())
+        else:
+            openfield_input = openfield.get().strip()
+        fee = '%.8f' % float(abs(100 / (float(db_timestamp_last) - float(timestamp_avg))) + len(openfield_input) / 600 + int(keep_var.get()))
         app_log.info("Fee: " + str(fee))
 
     except Exception as e:
@@ -592,6 +599,8 @@ sync_msg_label = Label(f5, textvariable=sync_msg_var)
 sync_msg_label.grid(row=8, column=0, sticky=N+E, padx=15)
 
 keep_var = IntVar()
+encode_var = IntVar()
+encode_var.set(1)
 
 #address and amount
 gui_address = Entry(f3,width=60)
@@ -612,6 +621,8 @@ openfield = Entry(f3, width=60)
 openfield.grid(row=3, column=1,sticky=E)
 keep = Checkbutton(f3, text="Keep Entry", variable=keep_var, command=lambda : refresh())
 keep.grid(row=4, column=1,sticky=E)
+encode = Checkbutton(f3, text="Base64", variable=encode_var, command=lambda : refresh())
+encode.grid(row=4, column=0,sticky=E)
 
 balance_enumerator = Entry(f3, width=5)
 #address and amount
