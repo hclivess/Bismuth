@@ -290,7 +290,6 @@ def refresh_auto():
 
 
 def table():
-
     # transaction table
     # data
 
@@ -417,6 +416,7 @@ def refresh():
             openfield_input = base64.b64encode(openfield.get().strip())
         else:
             openfield_input = openfield.get().strip()
+
         fee = '%.8f' % float(abs(100 / (float(db_timestamp_last) - float(timestamp_avg))) + len(openfield_input) / 600 + int(keep_var.get()))
         app_log.info("Fee: " + str(fee))
 
@@ -600,6 +600,7 @@ sync_msg_label.grid(row=8, column=0, sticky=N+E, padx=15)
 keep_var = IntVar()
 encode_var = IntVar()
 encode_var.set(1)
+#encrypt_var = IntVar()
 
 #address and amount
 gui_address = Entry(f3,width=60)
@@ -622,6 +623,8 @@ keep = Checkbutton(f3, text="Keep Entry", variable=keep_var, command=lambda : re
 keep.grid(row=4, column=1,sticky=E)
 encode = Checkbutton(f3, text="Base64", variable=encode_var, command=lambda : refresh())
 encode.grid(row=4, column=1,sticky=E,padx=(0,100))
+#encrypt = Checkbutton(f3, text="Encrypt Data", variable=encrypt_var)
+#encrypt.grid(row=4, column=1,sticky=E,padx=(0,200))
 
 balance_enumerator = Entry(f3, width=5)
 #address and amount
