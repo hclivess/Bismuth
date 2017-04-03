@@ -814,17 +814,23 @@ def digest_block(data, sdef, peer_ip):
                 mining_condition = bin_convert(db_block_hash)[0:diff]
 
                 if mining_condition in mining_hash:  # simplified comparison, no backwards mining
-                    app_log.info("Digest: Difficulty requirement satisfied for block "+str(block_height_new)+" from "+(peer_ip))
+                    error_msg = "Difficulty requirement satisfied for block "+str(block_height_new)+" from "+(peer_ip)
                 else:
                     # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
-                    app_log.info("Digest: Difficulty requirement not satisfied for block "+str(block_height_new)+" from "+(peer_ip))
+                    error_msg = "Difficulty requirement not satisfied for block "+str(block_height_new)+" from "+(peer_ip)
                     block_valid = 0
+
+
 
                     #print data
                     #print transaction_list
                 # match difficulty
 
                 fees_block = []
+
+                if block_valid == 0:
+                    app_log.info("Check 1: A part of the block is invalid, rejected (" + error_msg + ")")
+                    warning(sdef, peer_ip)
 
                 if block_valid == 1:
                     for transaction in transaction_list:
@@ -923,12 +929,12 @@ def digest_block(data, sdef, peer_ip):
                                 # dont request a fee for mined block so new accounts can mine
 
                             if db_amount > balance:
-                                app_log.info("Digest: Sending more than owned")
+                                error_msg = "Sending more than owned"
                                 block_valid = 0
 
                             elif (float(balance)) - (
                             float(fee)) < 0:  # removed +float(db_amount) because it is a part of the incoming block
-                                app_log.info("Digest: Cannot afford to pay fees")
+                                error_msg = "Cannot afford to pay fees"
                                 block_valid = 0
 
                             else:
@@ -949,35 +955,36 @@ def digest_block(data, sdef, peer_ip):
                             pass
 
                     # whole block validation
-                    for transaction in block_transactions:
-                        # print transaction
-                        execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
-                            transaction[0], transaction[1],
-                            transaction[2], transaction[3],
-                            transaction[4], transaction[5],
-                            transaction[6], transaction[7],
-                            transaction[8], transaction[9],
-                            transaction[10], transaction[11]))
-                        # secure commit for slow nodes
-                        commit(conn)
+                    if block_valid == 0:
+                        app_log.info("Check 2: A part of the block is invalid, rejected ("+error_msg+")")
+                        warning(sdef, peer_ip)
+                    if block_valid == 1:
+                        for transaction in block_transactions:
+                            # print transaction
+                            execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
+                                transaction[0], transaction[1],
+                                transaction[2], transaction[3],
+                                transaction[4], transaction[5],
+                                transaction[6], transaction[7],
+                                transaction[8], transaction[9],
+                                transaction[10], transaction[11]))
+                            # secure commit for slow nodes
+                            commit(conn)
 
-                        # dev reward
+                            # dev reward
 
-                        if int(block_height_new) % 100 == 0: #every 100 blocks
-                            if transaction == block_transactions[-1]: #put at the end
-                                execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
-                                    "0", time_now, "Development Reward", genesis_conf,
-                                    reward, "0", "0", "0", "0", "0", "0", str(block_height_new)))
-                                commit(conn)
-                        # dev reward
+                            if int(block_height_new) % 100 == 0: #every 100 blocks
+                                if transaction == block_transactions[-1]: #put at the end
+                                    execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
+                                        "0", time_now, "Development Reward", genesis_conf,
+                                        reward, "0", "0", "0", "0", "0", "0", str(block_height_new)))
+                                    commit(conn)
+                            # dev reward
 
-                    app_log.info("Block " + str(block_height_new) + " valid and saved")
-                    del block_transactions[:]
-                    unban(peer_ip)
+                        app_log.info("Block " + str(block_height_new) + " valid and saved")
+                        del block_transactions[:]
+                        unban(peer_ip)
 
-                else:
-                    app_log.info("A part of the block is invalid, rejected")
-                    warning(sdef, peer_ip)
 
                     # whole block validation
         except Exception, e:
