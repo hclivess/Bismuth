@@ -612,14 +612,15 @@ def consensus_add(peer_ip, consensus_blockheight):
 def consensus_remove(peer_ip):
     global peer_ip_list
     global consensus_blockheight_list
-    if peer_ip in peer_ip_list:
+    try:
         app_log.info(
             "Will remove " + str(peer_ip) + " from consensus pool " + str(peer_ip_list))
         consensus_index = peer_ip_list.index(peer_ip)
         peer_ip_list.remove(peer_ip)
         del consensus_blockheight_list[consensus_index]  # remove ip's opinion
-    else:
+    except:
         app_log.info("IP of " + str(peer_ip) + " not present in the consensus pool")
+        pass
 
 
 def manager():
