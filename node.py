@@ -820,8 +820,6 @@ def digest_block(data, sdef, peer_ip):
                     error_msg = "Difficulty requirement not satisfied for block "+str(block_height_new)+" from "+(peer_ip)
                     block_valid = 0
 
-
-
                     #print data
                     #print transaction_list
                 # match difficulty
