@@ -994,10 +994,15 @@ def digest_block(data, sdef, peer_ip):
             else:
                 pass
 
-    if conn:
+    try:
         conn.close()
-    if mempool:
+    except:
+        pass
+    try:
         mempool.close()
+    except:
+        pass
+
     app_log.info("Digesting complete")
     busy = 0
     busy_mempool = 0
