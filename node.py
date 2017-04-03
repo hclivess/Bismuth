@@ -725,7 +725,7 @@ def digest_block(data, sdef, peer_ip):
                     execute_param(c, ("SELECT block_height FROM transactions WHERE signature = ?;"), (r[4],))
                     try:
                         result = c.fetchall()[0]
-                        app_log.info("That transaction is already in our ledger, row " + str(result[0]))
+                        error_msg = "That transaction is already in our ledger, row " + str(result[0])
                         block_valid = 0
 
                     except:
@@ -733,7 +733,7 @@ def digest_block(data, sdef, peer_ip):
                         # reject block with transactions which are already in the ledger
 
                 if len(signature_list) != len(set(signature_list)):
-                    app_log.info("There are duplicate transactions in this block, rejected")
+                    error_msg = "There are duplicate transactions in this block, rejected"
                     block_valid = 0  # dont really need this one
                 del signature_list[:]
 
@@ -769,7 +769,7 @@ def digest_block(data, sdef, peer_ip):
                         nonce = received_openfield
 
                     if float(time_now) + 30 < float(received_timestamp):
-                        app_log.info("Digest: Future transaction not allowed, timestamp "+str((float(received_timestamp) - float(time_now))/60) +" minutes in the future")
+                        error_msg = "Digest: Future transaction not allowed, timestamp "+str((float(received_timestamp) - float(time_now))/60) +" minutes in the future"
                         #print time_now
                         #print received_timestamp
                         block_valid = 0
@@ -787,7 +787,7 @@ def digest_block(data, sdef, peer_ip):
                 # reject blocks older than latest block
                 if block_timestamp <= db_timestamp_last:
                     block_valid = 0
-                    app_log.info("Block is older than the previous one, will be rejected")
+                    error_msg = "Block is older than the previous one, will be rejected"
                 # reject blocks older than latest block
 
                 # calculate difficulty
@@ -814,7 +814,7 @@ def digest_block(data, sdef, peer_ip):
                 mining_condition = bin_convert(db_block_hash)[0:diff]
 
                 if mining_condition in mining_hash:  # simplified comparison, no backwards mining
-                    error_msg = "Difficulty requirement satisfied for block "+str(block_height_new)+" from "+(peer_ip)
+                    app_log.info("Difficulty requirement satisfied for block "+str(block_height_new)+" from "+(peer_ip))
                 else:
                     # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
                     error_msg = "Difficulty requirement not satisfied for block "+str(block_height_new)+" from "+(peer_ip)

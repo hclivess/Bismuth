@@ -26,12 +26,14 @@ def send(sdef, data):
 def bin_convert(string):
     return ''.join(format(ord(x), 'b') for x in string)
 
-def miner(q):
-    app_log = log.log("miner_"+q+".log")
+def miner(q,privatekey_readable, public_key_hashed, address):
+    from Crypto.PublicKey import RSA
     Random.atfork()
+    key = RSA.importKey(privatekey_readable)
+    app_log = log.log("miner_"+q+".log")
     rndfile = Random.new()
     tries = 0
-    (key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read()
+
     while True:
         try:
             tries = tries +1
@@ -161,6 +163,7 @@ if __name__ == '__main__':
     freeze_support()  # must be this line, dont move ahead
 
     app_log = log.log("miner.log")
+    (key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read()
 
     if not os.path.exists('mempool.db'):
         # create empty mempool
@@ -197,7 +200,7 @@ if __name__ == '__main__':
     instances = range(int(mining_threads_conf))
     print instances
     for q in instances:
-        p = Process(target=miner,args=str(q+1))
+        p = Process(target=miner,args=(str(q+1),private_key_readable, public_key_hashed, address))
         p.start()
         print "thread "+str(p)+ " started"
     for q in instances:
