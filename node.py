@@ -923,7 +923,7 @@ def digest_block(data, sdef, peer_ip):
                                 # dont request a fee for mined block so new accounts can mine
 
                             if db_amount > balance:
-                                app_log.info("Mempool: Sending more than owned")
+                                app_log.info("Digest: Sending more than owned")
                                 block_valid = 0
 
                             elif (float(balance)) - (
