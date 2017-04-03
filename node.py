@@ -397,7 +397,7 @@ def mempool_merge(data):
                         if float(time_now) + 30 < float(mempool_timestamp):
                             app_log.info("Mempool: Future mining not allowed")
 
-                        elif mempool_amount > balance:
+                        elif float(mempool_amount) > float(balance):
                             app_log.info("Mempool: Sending more than owned")
 
                         elif (float(balance)) - (float(fee)) < 0:  # removed +float(db_amount) because it is a part of the incoming block
@@ -926,8 +926,7 @@ def digest_block(data, sdef, peer_ip):
 
                                 # dont request a fee for mined block so new accounts can mine
 
-                            print db_amount, balance
-                            if db_amount > balance:
+                            if float(db_amount) > float(balance):
                                 error_msg = "Sending more than owned"
                                 block_valid = 0
 
