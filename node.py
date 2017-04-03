@@ -971,7 +971,7 @@ def digest_block(data, sdef, peer_ip):
                                 commit(conn)
                         # dev reward
 
-                    app_log.info("Block " + str(transaction[0]) + " valid and saved")
+                    app_log.info("Block " + str(block_height_new) + " valid and saved")
                     del block_transactions[:]
                     unban(peer_ip)
 
