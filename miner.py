@@ -4,7 +4,6 @@ from Crypto.Hash import SHA
 from Crypto import Random
 from multiprocessing import Process, freeze_support
 
-app_log = log.log("miner.log")
 
 # load config
 lines = [line.rstrip('\n') for line in open('config.txt')]
@@ -27,23 +26,8 @@ def send(sdef, data):
 def bin_convert(string):
     return ''.join(format(ord(x), 'b') for x in string)
 
-if not os.path.exists('mempool.db'):
-    # create empty mempool
-    mempool = sqlite3.connect('mempool.db')
-    mempool.text_factory = str
-    m = mempool.cursor()
-    m.execute(
-        "CREATE TABLE IF NOT EXISTS transactions (timestamp, address, recipient, amount, signature, public_key, openfield)")
-    mempool.commit()
-    mempool.close()
-    app_log.info("Core: Created mempool file")
-    # create empty mempool
-else:
-    app_log.info("Mempool exists")
-
-
-
 def miner(q):
+    app_log = log.log("miner_"+q+".log")
     Random.atfork()
     rndfile = Random.new()
     tries = 0
@@ -175,6 +159,22 @@ def miner(q):
 
 if __name__ == '__main__':
     freeze_support()  # must be this line, dont move ahead
+
+    app_log = log.log("miner.log")
+
+    if not os.path.exists('mempool.db'):
+        # create empty mempool
+        mempool = sqlite3.connect('mempool.db')
+        mempool.text_factory = str
+        m = mempool.cursor()
+        m.execute(
+            "CREATE TABLE IF NOT EXISTS transactions (timestamp, address, recipient, amount, signature, public_key, openfield)")
+        mempool.commit()
+        mempool.close()
+        app_log.info("Core: Created mempool file")
+        # create empty mempool
+    else:
+        app_log.info("Mempool exists")
 
     # verify connection
     connected = 0
