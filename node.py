@@ -326,11 +326,17 @@ def mempool_merge(data):
                         block_credit = 0
                         block_debit = 0
 
-                        for x in block_list:  # quite nasty, care not to overlap variables
-                            if x[2] == mempool_address:
-                                block_credit = float(block_credit) + float(x[3])
-                            if x[1] == mempool_address:
-                                block_debit = float(block_debit) + float(x[3])
+                        execute_param(m, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"),
+                                      (mempool_address,))
+                        credit_mempool = c.fetchone()[0]
+                        if credit_mempool == None:
+                            credit_mempool = 0
+
+                        execute_param(m, ("SELECT sum(amount) FROM transactions WHERE address = ?;"),
+                                      (mempool_address,))
+                        debit_mempool = c.fetchone()[0]
+                        if debit_mempool == None:
+                            debit_mempool = 0
 
                         # app_log.info("Mempool: Incoming block credit: " + str(block_credit))
                         # app_log.info("Mempool: Incoming block debit: " + str(block_debit))
@@ -340,13 +346,13 @@ def mempool_merge(data):
                         credit_ledger = c.fetchone()[0]
                         if credit_ledger == None:
                             credit_ledger = 0
-                        credit = float(credit_ledger) + float(block_credit)
+                        credit = float(credit_ledger) + float(credit_mempool)
 
                         execute_param(c, ("SELECT sum(amount) FROM transactions WHERE address = ?;"), (mempool_address,))
                         debit_ledger = c.fetchone()[0]
                         if debit_ledger == None:
                             debit_ledger = 0
-                        debit = float(debit_ledger) + float(block_debit)
+                        debit = float(debit_ledger) + float(debit_mempool)
 
                         execute_param(c, ("SELECT sum(fee) FROM transactions WHERE address = ?;"), (mempool_address,))
                         fees = c.fetchone()[0]
@@ -394,8 +400,7 @@ def mempool_merge(data):
                         elif mempool_amount > balance:
                             app_log.info("Mempool: Sending more than owned")
 
-                        elif (float(balance)) - (
-                                float(fee)) < 0:  # removed +float(db_amount) because it is a part of the incoming block
+                        elif (float(balance)) - (float(fee)) < 0:  # removed +float(db_amount) because it is a part of the incoming block
                             app_log.info("Mempool: Cannot afford to pay fees")
                         # verify signatures and balances
                         else:
