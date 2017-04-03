@@ -173,6 +173,9 @@ def send():
             if float(amount_input) < 0:
                 app_log.info("Client: Signature OK, but cannot use negative amounts")
 
+            elif (amount_input > balance):
+                app_log.info("Mempool: Sending more than owned")
+
             else:
                 app_log.info("Client: The signature is valid, proceeding to save transaction, signature, new txhash and the public key")
 
@@ -375,6 +378,8 @@ def table():
     #refreshables
 
 def refresh():
+    global balance
+
     #print "refresh triggered"
     conn = sqlite3.connect('static/ledger.db')
     conn.text_factory = str
