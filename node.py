@@ -324,16 +324,16 @@ def mempool_merge(data):
 
                         # include the new block
                         block_credit = 0
-                        credit_block = 0
+                        block_debit = 0
 
                         for x in block_list:  # quite nasty, care not to overlap variables
                             if x[2] == mempool_address:
                                 block_credit = float(block_credit) + float(x[3])
                             if x[1] == mempool_address:
-                                credit_block = float(credit_block) + float(x[3])
+                                block_debit = float(block_debit) + float(x[3])
 
                         # app_log.info("Mempool: Incoming block credit: " + str(block_credit))
-                        # app_log.info("Mempool: Incoming block debit: " + str(credit_block))
+                        # app_log.info("Mempool: Incoming block debit: " + str(block_debit))
                         # include the new block
 
                         execute_param(c, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (mempool_address,))
@@ -346,7 +346,7 @@ def mempool_merge(data):
                         debit_ledger = c.fetchone()[0]
                         if debit_ledger == None:
                             debit_ledger = 0
-                        debit = float(debit_ledger) + float(credit_block)
+                        debit = float(debit_ledger) + float(block_debit)
 
                         execute_param(c, ("SELECT sum(fee) FROM transactions WHERE address = ?;"), (mempool_address,))
                         fees = c.fetchone()[0]
@@ -842,16 +842,16 @@ def digest_block(data, sdef, peer_ip):
 
                         # include the new block
                         block_credit = 0
-                        credit_block = 0
+                        block_debit = 0
 
                         for x in transaction_list:  # quite nasty, care not to overlap variables
                             if x[2] == db_address:
                                 block_credit = float(block_credit) + float(x[3])
                             if x[1] == db_address:
-                                credit_block = float(credit_block) + float(x[3])
+                                block_debit = float(block_debit) + float(x[3])
 
                         # app_log.info("Digest: Incoming block credit: " + str(block_credit))
-                        # app_log.info("Digest: Incoming block debit: " + str(credit_block))
+                        # app_log.info("Digest: Incoming block debit: " + str(block_debit))
                         # include the new block
 
                         execute_param(c, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (db_address,))
@@ -864,7 +864,7 @@ def digest_block(data, sdef, peer_ip):
                         debit_ledger = c.fetchone()[0]
                         if debit_ledger == None:
                             debit_ledger = 0
-                        debit = float(debit_ledger) + float(credit_block)
+                        debit = float(debit_ledger) + float(block_debit)
 
                         execute_param(c, ("SELECT sum(fee),sum(reward) FROM transactions WHERE address = ?;"),
                                       (db_address,))
