@@ -926,6 +926,7 @@ def digest_block(data, sdef, peer_ip):
 
                                 # dont request a fee for mined block so new accounts can mine
 
+                            print db_amount, balance
                             if db_amount > balance:
                                 error_msg = "Sending more than owned"
                                 block_valid = 0
@@ -993,8 +994,10 @@ def digest_block(data, sdef, peer_ip):
             else:
                 pass
 
-    conn.close()
-    mempool.close()
+    if conn:
+        conn.close()
+    if mempool:
+        mempool.close()
     app_log.info("Digesting complete")
     busy = 0
     busy_mempool = 0
