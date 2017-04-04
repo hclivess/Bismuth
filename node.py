@@ -706,6 +706,15 @@ def digest_block(data, sdef, peer_ip):
 
             # app_log.info("Incoming: Digesting incoming block: " + data)
 
+            #previous block info, keep as close to start as possible
+            execute(c, ("SELECT block_hash, block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
+            result = c.fetchall()
+            db_block_hash = result[0][0]
+            db_block_height = result[0][1]
+            db_timestamp_last = float(result[0][2])
+            block_height_new = db_block_height + 1
+            # previous block info, keep as close to start as possible
+
             block_list = ast.literal_eval(data)
             if not any(isinstance(el, list) for el in block_list):  # if it's not a list of lists
                 new_list = []
@@ -777,13 +786,7 @@ def digest_block(data, sdef, peer_ip):
 
                         # verify signatures
 
-                execute(c, (
-                "SELECT block_hash, block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
-                result = c.fetchall()
-                db_block_hash = result[0][0]
-                db_block_height = result[0][1]
-                db_timestamp_last = float(result[0][2])
-                block_height_new = db_block_height + 1
+
 
                 # reject blocks older than latest block
                 if block_timestamp <= db_timestamp_last:
