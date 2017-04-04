@@ -684,15 +684,6 @@ def digest_block(data, sdef, peer_ip):
             mempool.text_factory = str
             m = mempool.cursor()
 
-            #previous block info, keep as close to start as possible
-            execute(c, ("SELECT block_hash, block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
-            result = c.fetchall()
-            db_block_hash = result[0][0]
-            db_block_height = result[0][1]
-            db_timestamp_last = float(result[0][2])
-            block_height_new = db_block_height + 1
-            # previous block info, keep as close to start as possible
-
             # remove possible duplicates
 
             execute(c, (
@@ -783,7 +774,15 @@ def digest_block(data, sdef, peer_ip):
 
                         # verify signatures
 
-
+                # previous block info
+                execute(c, (
+                "SELECT block_hash, block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
+                result = c.fetchall()
+                db_block_hash = result[0][0]
+                db_block_height = result[0][1]
+                db_timestamp_last = float(result[0][2])
+                block_height_new = db_block_height + 1
+                # previous block info
 
                 # reject blocks older than latest block
                 if block_timestamp <= db_timestamp_last:
