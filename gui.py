@@ -173,7 +173,7 @@ def send():
             if float(amount_input) < 0:
                 app_log.info("Client: Signature OK, but cannot use negative amounts")
 
-            elif (amount_input > balance):
+            elif (float(amount_input) > float(balance)):
                 app_log.info("Mempool: Sending more than owned")
 
             else:
