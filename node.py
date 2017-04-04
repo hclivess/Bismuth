@@ -228,9 +228,9 @@ leading_node = '127.0.0.1'
 # port = 2829 now defined by config
 
 def mempool_merge(data):
-    global busy
-    if busy == 0:
-        busy = 1
+    global busy_mempool
+    if busy_mempool == 0:
+        busy_mempool = 1
 
         if data == "":
             app_log.info("Mempool was empty")
@@ -422,7 +422,7 @@ def mempool_merge(data):
                     raise
                 else:
                     return
-        busy = 0
+        busy_mempool = 0
 
 
 def purge_old_peers():
@@ -671,11 +671,8 @@ def digest_block(data, sdef, peer_ip):
     global busy
     global busy_mempool
 
-    if busy_mempool == 0:
-        busy_mempool = 1
     if busy == 0:
         busy = 1
-
         try:
             time_now = str(time.time())
 
@@ -686,6 +683,15 @@ def digest_block(data, sdef, peer_ip):
             mempool = sqlite3.connect('mempool.db')
             mempool.text_factory = str
             m = mempool.cursor()
+
+            #previous block info, keep as close to start as possible
+            execute(c, ("SELECT block_hash, block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
+            result = c.fetchall()
+            db_block_hash = result[0][0]
+            db_block_height = result[0][1]
+            db_timestamp_last = float(result[0][2])
+            block_height_new = db_block_height + 1
+            # previous block info, keep as close to start as possible
 
             # remove possible duplicates
 
@@ -705,15 +711,6 @@ def digest_block(data, sdef, peer_ip):
             block_valid = 1  # init
 
             # app_log.info("Incoming: Digesting incoming block: " + data)
-
-            #previous block info, keep as close to start as possible
-            execute(c, ("SELECT block_hash, block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
-            result = c.fetchall()
-            db_block_hash = result[0][0]
-            db_block_height = result[0][1]
-            db_timestamp_last = float(result[0][2])
-            block_height_new = db_block_height + 1
-            # previous block info, keep as close to start as possible
 
             block_list = ast.literal_eval(data)
             if not any(isinstance(el, list) for el in block_list):  # if it's not a list of lists
@@ -997,18 +994,18 @@ def digest_block(data, sdef, peer_ip):
             else:
                 pass
 
-    try:
-        conn.close()
-    except:
-        pass
-    try:
-        mempool.close()
-    except:
-        pass
+        try:
+            conn.close()
+        except:
+            pass
+        try:
+            mempool.close()
+        except:
+            pass
 
-    app_log.info("Digesting complete")
-    busy = 0
-    busy_mempool = 0
+        app_log.info("Digesting complete")
+        busy = 0
+        busy_mempool = 0
 
 
 
