@@ -138,9 +138,9 @@ def send():
         done.grid(row=1, column=0, sticky=W + E, padx=15, pady=(5, 5))
 
     if encode_var.get() == 1:
-        openfield_input = base64.b64encode(openfield.get().strip())
+        openfield_input = str(base64.b64encode(openfield.get("1.0",END)))
     else:
-        openfield_input = openfield.get().strip()
+        openfield_input = str(openfield.get("1.0",END))
 
     keep_input = str(keep_var.get())
 
@@ -158,7 +158,6 @@ def send():
         app_log.info("OpenField Data: "+ openfield_input)
 
         timestamp = str(time.time())
-
         transaction = (timestamp,address,recipient_input, '%.8f' % float(amount_input),keep_input,openfield_input) #this is signed
         #print transaction
 
@@ -177,7 +176,7 @@ def send():
                 app_log.info("Mempool: Sending more than owned")
 
             else:
-                app_log.info("Client: The signature is valid, proceeding to save transaction, signature, new txhash and the public key")
+                app_log.info("Client: The signature is valid, proceeding to save transaction, signature, new txhash and the public key to mempool")
 
                 mempool = sqlite3.connect('mempool.db')
                 mempool.text_factory = str
@@ -418,9 +417,9 @@ def refresh():
 
     try:
         if encode_var.get() == 1:
-            openfield_input = base64.b64encode(openfield.get().strip())
+            openfield_input = str(base64.b64encode(openfield.get("1.0",END)))
         else:
-            openfield_input = openfield.get().strip()
+            openfield_input = str(openfield.get("1.0",END))
 
         fee = '%.8f' % float(abs(100 / (float(db_timestamp_last) - float(timestamp_avg))) + len(openfield_input) / 600 + int(keep_var.get()))
         app_log.info("Fee: " + str(fee))
@@ -510,7 +509,7 @@ address = hashlib.sha224(public_key_readable).hexdigest()
 
 #frames
 f2 = Frame(root, height=100, width = 100)
-f2.grid(row = 0, column = 1, sticky = W+E+S)
+f2.grid(row = 0, column = 1, sticky = W+E+N)
 
 f3 = Frame(root, width = 500)
 f3.grid(row = 0, column = 0, sticky = W+E+N, pady = 10, padx = 10)
@@ -621,7 +620,7 @@ recipient = Entry(f3, width=60)
 recipient.grid(row=1, column=1,sticky=E)
 amount = Entry(f3, width=60)
 amount.grid(row=2, column=1,sticky=E)
-openfield = Entry(f3, width=60)
+openfield = Text(f3, width=60, height=5, font=("TkDefaultFont",8))
 openfield.grid(row=3, column=1,sticky=E)
 keep = Checkbutton(f3, text="Keep Entry", variable=keep_var, command=lambda : refresh())
 keep.grid(row=4, column=1,sticky=E)
@@ -640,7 +639,7 @@ Label(f3, text="", width=20,anchor="w").grid(row=7,sticky=S)
 
 logo_hash_decoded = base64.b64decode(icons.logo_hash)
 logo=PhotoImage(data=logo_hash_decoded)
-image = Label(f2, image=logo).grid(pady=5, padx=50)
+image = Label(f2, image=logo).grid(pady=25, padx=50, sticky=N)
 #logo
 
 refresh_auto()

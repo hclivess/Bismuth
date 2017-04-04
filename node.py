@@ -766,9 +766,9 @@ def digest_block(data, sdef, peer_ip):
                     h = SHA.new(str((received_timestamp, received_address, received_recipient, received_amount, received_keep,
                                      received_openfield)))
                     if verifier.verify(h, received_signature_dec):
-                        app_log.info("Incoming: Valid signature")
+                        app_log.info("Valid signature")
                     else:
-                        app_log.info("Incoming: Invalid signature")
+                        error_msg = "Invalid signature"
                         block_valid = 0
 
                     if transaction == transaction_list[-1]:  # recognize the last transaction as the mining reward transaction
