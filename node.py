@@ -176,7 +176,7 @@ def send(sdef, data):
 
 def receive(sdef, slen):
     sdef.setblocking(0)  # needs adjustments in core mechanics
-    ready = select.select([sdef], [], [], 120)
+    ready = select.select([sdef], [], [], 60)
     if ready[0]:
         data = int(sdef.recv(slen))  # receive length
         # print "To receive: "+str(data)
@@ -186,7 +186,7 @@ def receive(sdef, slen):
     chunks = []
     bytes_recd = 0
     while bytes_recd < data:
-        ready = select.select([sdef], [], [], 240)
+        ready = select.select([sdef], [], [], 120)
         if ready[0]:
             chunk = sdef.recv(min(data - bytes_recd, 2048))
             if chunk == b'':
@@ -640,10 +640,6 @@ def manager():
                 PORT = int(tuple[1])
                 # app_log.info(PORT)
 
-                #for t in threading.enumerate():
-                #    if not t.is_alive():
-                #        t.join()
-
                 if threads_count <= threads_limit and str(HOST + ":" + str(PORT)) not in tried and str(
                                         HOST + ":" + str(PORT)) not in active_pool and str(HOST) not in banlist:
                     app_log.info("Will attempt to connect to " + HOST + ":" + str(PORT))
@@ -651,6 +647,7 @@ def manager():
                     t = threading.Thread(target=worker, args=(HOST, PORT))  # threaded connectivity to nodes here
                     app_log.info("---Starting a client thread " + str(threading.currentThread()) + "---")
                     t.start()
+                    t.join()
 
                     # client thread handling
         if len(active_pool) < 3:
@@ -667,9 +664,7 @@ def manager():
 
 
 def digest_block(data, sdef, peer_ip):
-    global warning_list
     global busy
-    global busy_mempool
 
     if busy == 0:
         busy = 1
@@ -988,6 +983,15 @@ def digest_block(data, sdef, peer_ip):
         except Exception, e:
             app_log.info(e)
 
+            try:
+                conn.close()
+                mempool.close()
+            except:
+                pass
+
+            app_log.info("Digesting complete")
+            busy = 0
+
             if debug_conf == 1:
                 raise  # major debug client
             else:
@@ -995,19 +999,12 @@ def digest_block(data, sdef, peer_ip):
 
         try:
             conn.close()
-        except:
-            pass
-        try:
             mempool.close()
         except:
             pass
 
         app_log.info("Digesting complete")
         busy = 0
-        busy_mempool = 0
-
-
-
 
 def db_maintenance():
     # db maintenance
@@ -1433,7 +1430,6 @@ def worker(HOST, PORT):
             # communication starter
 
             data = receive(s, 10)  # receive data, one and the only root point
-
             # if data:
             #    timer = time.time() #reset timer
 
