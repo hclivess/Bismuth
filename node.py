@@ -649,7 +649,6 @@ def manager():
                     t = threading.Thread(target=worker, args=(HOST, PORT))  # threaded connectivity to nodes here
                     app_log.info("---Starting a client thread " + str(threading.currentThread()) + "---")
                     t.start()
-                    t.join()
 
                     # client thread handling
         if len(active_pool) < 3:
@@ -1677,7 +1676,6 @@ def worker(HOST, PORT):
             if s:
                 s.close()
             # properly end the connection
-
             if debug_conf == 1:
                 raise  # major debug client
             else:
