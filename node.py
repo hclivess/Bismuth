@@ -417,7 +417,9 @@ def mempool_merge(data):
                 app_log.info("Mempool: Finished")
                 mempool.close()
             except:
-                app_log.info("Mempool: Error processing")  # will this fix the hang?
+                app_log.info("Mempool: Error processing")
+                busy_mempool = 0
+
                 if debug_conf == 1:
                     raise
                 else:
