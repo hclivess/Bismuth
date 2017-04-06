@@ -330,7 +330,11 @@ def table():
         datasheet.append(db_recipient)
         db_amount = row[4]
         db_reward = row[9]
-        datasheet.append(float(db_amount)+float(db_reward))
+        if db_reward > 0:
+            symbol = " mined"
+        else:
+            symbol = " transaction"
+        datasheet.append(str(float(db_amount)+float(db_reward))+symbol)
     conn.close()
     # data
 
