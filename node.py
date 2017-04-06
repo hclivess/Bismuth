@@ -176,7 +176,7 @@ def send(sdef, data):
 
 def receive(sdef, slen):
     sdef.setblocking(0)  # needs adjustments in core mechanics
-    ready = select.select([sdef], [], [], 120)
+    ready = select.select([sdef], [], [], 240)
     if ready[0]:
         data = int(sdef.recv(slen))  # receive length
         # print "To receive: "+str(data)
@@ -186,7 +186,7 @@ def receive(sdef, slen):
     chunks = []
     bytes_recd = 0
     while bytes_recd < data:
-        ready = select.select([sdef], [], [], 240)
+        ready = select.select([sdef], [], [], 480)
         if ready[0]:
             chunk = sdef.recv(min(data - bytes_recd, 2048))
             if chunk == b'':
@@ -227,13 +227,13 @@ leading_node = '127.0.0.1'
 
 # port = 2829 now defined by config
 
-def mempool_merge(data):
+def mempool_merge(data,peer_ip):
     global busy_mempool
     if busy_mempool == 0:
         busy_mempool = 1
 
-        if data == "":
-            app_log.info("Mempool was empty")
+        if data == "[]":
+            app_log.info("Mempool from "+peer_ip+" was empty")
         else:
             app_log.info("Mempool merging started")
             # merge mempool
@@ -323,8 +323,8 @@ def mempool_merge(data):
                         app_log.info("Mempool: Received address: " + str(mempool_address))
 
                         # include the new block
-                        block_credit = 0
-                        block_debit = 0
+                        credit_mempool = 0
+                        debit_mempool = 0
 
                         execute_param(m, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"),
                                       (mempool_address,))
@@ -414,7 +414,7 @@ def mempool_merge(data):
 
                             # receive mempool
 
-                app_log.info("Mempool: Finished")
+                app_log.info("Mempool: Finished with "+str(len(block_list))+" received transactions from "+str(peer_ip))
                 mempool.close()
             except:
                 app_log.info("Mempool: Error processing")
@@ -1127,7 +1127,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     # receive theirs
                     segments = receive(self.request, 10)
-                    mempool_merge(segments)
+                    mempool_merge(segments,peer_ip)
                     # receive theirs
 
                     mempool = sqlite3.connect('mempool.db')
@@ -1633,7 +1633,7 @@ def worker(HOST, PORT):
 
                 # receive theirs
                 segments = receive(s, 10)
-                mempool_merge(segments)
+                mempool_merge(segments,peer_ip)
                 # receive theirs
 
                 # receive mempool
