@@ -418,13 +418,13 @@ def mempool_merge(data):
                 mempool.close()
             except:
                 app_log.info("Mempool: Error processing")
-                busy_mempool = 0
 
                 if debug_conf == 1:
                     raise
                 else:
                     return
-        busy_mempool = 0
+            finally:
+                busy_mempool = 0
 
 
 def purge_old_peers():
@@ -984,6 +984,11 @@ def digest_block(data, sdef, peer_ip):
         except Exception, e:
             app_log.info(e)
 
+            if debug_conf == 1:
+                raise  # major debug client
+            else:
+                pass
+        finally:
             try:
                 conn.close()
                 mempool.close()
@@ -992,20 +997,6 @@ def digest_block(data, sdef, peer_ip):
 
             app_log.info("Digesting complete")
             busy = 0
-
-            if debug_conf == 1:
-                raise  # major debug client
-            else:
-                pass
-
-        try:
-            conn.close()
-            mempool.close()
-        except:
-            pass
-
-        app_log.info("Digesting complete")
-        busy = 0
 
 def db_maintenance():
     # db maintenance
