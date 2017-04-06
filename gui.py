@@ -329,7 +329,8 @@ def table():
         db_recipient = row[3]
         datasheet.append(db_recipient)
         db_amount = row[4]
-        datasheet.append(db_amount)
+        db_reward = row[9]
+        datasheet.append(float(db_amount)+float(db_reward))
     conn.close()
     # data
 
