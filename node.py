@@ -236,7 +236,7 @@ def mempool_merge(data,peer_ip):
             app_log.info("Mempool from "+str(peer_ip)+" was empty")
             busy_mempool = 0
         else:
-            app_log.info("Mempool merging started")
+            #app_log.info("Mempool merging started")
             # merge mempool
 
             try:

@@ -157,7 +157,7 @@ def send():
         app_log.info("Keep Forever: " + keep_input)
         app_log.info("OpenField Data: "+ openfield_input)
 
-        timestamp = str(time.time())
+        timestamp = '%.2f' % time.time()
         transaction = (timestamp,address,recipient_input, '%.8f' % float(amount_input),keep_input,openfield_input) #this is signed
         #print transaction
 
