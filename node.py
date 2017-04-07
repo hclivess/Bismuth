@@ -228,7 +228,6 @@ leading_node = '127.0.0.1'
 # port = 2829 now defined by config
 
 def mempool_merge(data,peer_ip):
-    print data
     global busy_mempool
     if busy_mempool == 0:
         busy_mempool = 1
