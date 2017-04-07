@@ -614,7 +614,7 @@ balance_b.grid(row=11, column=0, sticky=W+E+S, pady=2,padx=15)
 sign_b = Button(f5, text="Sign Message", command=sign, height=1, width=10)
 sign_b.grid(row=12, column=0, sticky=W+E+S, pady=2,padx=15)
 
-sign_b = Button(f5, text="Name Registration", command=alias, height=1, width=10)
+sign_b = Button(f5, text="Alias Registration", command=alias, height=1, width=10)
 sign_b.grid(row=12, column=0, sticky=W+E+S, pady=2,padx=15)
 
 quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=10)
