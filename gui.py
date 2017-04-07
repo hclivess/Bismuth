@@ -17,6 +17,59 @@ app_log = log.log("gui.log")
 root = Tk()
 root.wm_title("Bismuth")
 
+def alias():
+    alias_var = StringVar()
+
+    # enter password
+    top8 = Toplevel()
+    top8.title("Enter Desired Name")
+
+    alias_label = Label(top8, text="Input name")
+    alias_label.grid(row=0, column=0, sticky=N+W, padx=15, pady=(5, 0))
+
+    input_alias= Entry(top8, textvariable=alias_var)
+    input_alias.grid(row=1, column=0, sticky=N+E, padx=15, pady=(0, 5))
+
+    dismiss = Button(top8, text="Register", command=lambda:alias_register(alias_var.get()))
+    dismiss.grid(row=2, column=0, sticky=W+E, padx=15, pady=(15, 0))
+
+    dismiss = Button(top8, text="Dismiss", command=top8.destroy)
+    dismiss.grid(row=3, column=0, sticky=W+E, padx=15, pady=(5, 5))
+
+def alias_register(alias_desired):
+    reg_string = "alias="+alias_desired
+
+    mempool = sqlite3.connect('mempool.db')
+    mempool.text_factory = str
+    m = mempool.cursor()
+
+    conn = sqlite3.connect('static/ledger.db')
+    conn.text_factory = str
+    c = conn.cursor()
+
+    m.execute("SELECT timestamp FROM transactions WHERE openfield = ?;", (reg_string,))
+    registered_pending = m.fetchone()
+
+    c.execute("SELECT timestamp FROM transactions WHERE openfield = ?;",(reg_string,))
+    registered_already = c.fetchone()
+
+    if registered_already == None and registered_pending == None:
+        send("0", address, "1", reg_string)
+
+    else:
+        top9 = Toplevel()
+        top9.title("Name already registered")
+
+        registered_label = Label(top9, text="Name already registered")
+        registered_label.grid(row=0, column=0, sticky=N + W, padx=15, pady=(5, 0))
+        dismiss = Button(top9, text="Dismiss", command=top9.destroy)
+        dismiss.grid(row=3, column=0, sticky=W + E, padx=15, pady=(5, 5))
+
+    conn.close()
+    mempool.close()
+
+
+
 def encrypt_get_password():
     # enter password
     top3 = Toplevel()
@@ -111,7 +164,7 @@ def decrypt_fn(destroy_this):
 
     return key
 
-def send():
+def send(amount_input, recipient_input, keep_input, openfield_input):
     try:
         key
     except:
@@ -125,9 +178,6 @@ def send():
 
     app_log.info("Received tx command")
 
-    recipient_input = recipient.get().strip()
-    amount_input = amount.get().strip()
-
     try:
         float(amount_input)
     except:
@@ -138,11 +188,19 @@ def send():
         done.grid(row=1, column=0, sticky=W + E, padx=15, pady=(5, 5))
 
     if encode_var.get() == 1:
-        openfield_input = str(base64.b64encode(openfield.get("1.0",END)))
-    else:
-        openfield_input = str(openfield.get("1.0",END))
+        openfield_input = str(base64.b64encode(openfield_input))
 
-    keep_input = str(keep_var.get())
+    # alias check
+    if alias_cb_var.get() == 1:
+        conn = sqlite3.connect('static/ledger.db')
+        conn.text_factory = str
+        c = conn.cursor()
+        c.execute("SELECT address FROM transactions WHERE openfield = ? ORDER BY timestamp ASC LIMIT 1;",("alias="+recipient_input,)) #asc for first entry
+        recipient_input = c.fetchone()[0]
+        conn.close()
+        app_log.info("Fetched the following alias recipient: "+recipient_input)
+
+    # alias check
 
     if len(recipient_input) != 56:
         top6 = Toplevel()
@@ -465,6 +523,12 @@ def refresh():
 
 #network status
 
+    #aliases
+    c.execute("SELECT openfield FROM transactions WHERE address = ? AND openfield LIKE ?;",(address,)+("alias="+'%',))
+    aliases = c.fetchall()
+    app_log.info("Aliases: "+str(aliases))
+    #aliases
+
     fees_current_var.set("Current Fee: " + '%.8f' % float(fee))
     balance_var.set("Balance: " + '%.8f' % float(balance))
     debit_var.set("Spent Total: " + '%.8f' % float(debit))
@@ -527,7 +591,7 @@ f4 = Frame(root, height=100, width = 100)
 f4.grid(row = 1, column = 0, sticky = W+E+N, pady = 10, padx = 10)
 
 f5 = Frame(root, height=100, width = 100)
-f5.grid(row = 1, column = 1, sticky = W+E+S, pady = 10, padx = 10)
+f5.grid(row = 1, column = 1, sticky = W+E+N, pady = 10, padx = 10)
 
 f6 = Frame(root, height=100, width = 100)
 f6.grid(row = 2, column = 0, sticky = E, pady = 10, padx = 10)
@@ -536,38 +600,41 @@ f6.grid(row = 2, column = 0, sticky = E, pady = 10, padx = 10)
 
 #buttons
 
-send_b = Button(f5, text="Send", command=send, height=1, width=10)
-send_b.grid(row=9, column=0, sticky=W+E+S, pady=(4, 4), padx=15)
+send_b = Button(f5, text="Send", command=lambda:send(amount.get().strip(), recipient.get().strip(), str(keep_var.get()), openfield.get("1.0",END)), height=1, width=10)
+send_b.grid(row=9, column=0, sticky=W+E+S, pady=(45,2), padx=15)
 
 start_b = Button(f5, text="Generate QR Code", command=qr, height=1, width=10)
 if "posix" in os.name:
     start_b.configure(text="QR Disabled",state = DISABLED)
-start_b.grid(row=10, column=0, sticky=W+E+S, pady=4,padx=15)
+start_b.grid(row=10, column=0, sticky=W+E+S, pady=2,padx=15)
 
 balance_b = Button(f5, text="Manual Refresh", command=refresh, height=1, width=10)
-balance_b.grid(row=11, column=0, sticky=W+E+S, pady=4,padx=15)
+balance_b.grid(row=11, column=0, sticky=W+E+S, pady=2,padx=15)
 
 sign_b = Button(f5, text="Sign Message", command=sign, height=1, width=10)
-sign_b.grid(row=12, column=0, sticky=W+E+S, pady=4,padx=15)
+sign_b.grid(row=12, column=0, sticky=W+E+S, pady=2,padx=15)
+
+sign_b = Button(f5, text="Name Registration", command=alias, height=1, width=10)
+sign_b.grid(row=12, column=0, sticky=W+E+S, pady=2,padx=15)
 
 quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=10)
-quit_b.grid(row=13, column=0, sticky=W+E+S, pady=4,padx=15)
+quit_b.grid(row=14, column=0, sticky=W+E+S, pady=0,padx=15)
 
 
 encrypt_b = Button(f6, text="Encrypt", command=encrypt_get_password, height=1, width=10)
 if encrypted == 1:
     encrypt_b.configure(text="Encrypted",state = DISABLED)
-encrypt_b.grid(row=1, column=1, sticky=E, pady=4,padx=5)
+encrypt_b.grid(row=1, column=1, sticky=E+N, pady=0,padx=5)
 
 decrypt_b = Button(f6, text="Unlock", command=decrypt_get_password, height=1, width=10)
 if unlocked == 1:
     decrypt_b.configure(text="Unlocked",state = DISABLED)
-decrypt_b.grid(row=1, column=2, sticky=E, pady=4,padx=5)
+decrypt_b.grid(row=1, column=2, sticky=E+N, pady=0,padx=5)
 
 lock_b = Button(f6, text="Locked", command=lambda:lock_fn(lock_b), height=1, width=10,state=DISABLED)
 if encrypted == 0:
     lock_b.configure(text="Lock",state = DISABLED)
-lock_b.grid(row=1, column=3, sticky=E, pady=4,padx=5)
+lock_b.grid(row=1, column=3, sticky=E+N, pady=0,padx=5)
 
 #buttons
 
@@ -576,7 +643,7 @@ lock_b.grid(row=1, column=3, sticky=E, pady=4,padx=5)
 # update balance label
 balance_var = StringVar()
 balance_msg_label = Label(f5, textvariable=balance_var)
-balance_msg_label.grid(row=0, column=0, sticky=N+E, padx=15, pady=(15, 0))
+balance_msg_label.grid(row=0, column=0, sticky=N+E, padx=15, pady=(0, 0))
 
 debit_var = StringVar()
 spent_msg_label = Label(f5, textvariable=debit_var)
@@ -612,6 +679,7 @@ sync_msg_label.grid(row=8, column=0, sticky=N+E, padx=15)
 
 keep_var = IntVar()
 encode_var = IntVar()
+alias_cb_var = IntVar()
 #encrypt_var = IntVar()
 
 #address and amount
@@ -631,10 +699,12 @@ amount = Entry(f3, width=60)
 amount.grid(row=2, column=1,sticky=E)
 openfield = Text(f3, width=60, height=5, font=("TkDefaultFont",8))
 openfield.grid(row=3, column=1,sticky=E)
+alias_cb = Checkbutton(f3, text="Alias Recipient", variable=alias_cb_var, command=None)
+alias_cb.grid(row=4, column=1,sticky=E)
 keep = Checkbutton(f3, text="Keep Entry", variable=keep_var, command=lambda : refresh())
-keep.grid(row=4, column=1,sticky=E)
+keep.grid(row=4, column=1,sticky=E,padx=(0,100))
 encode = Checkbutton(f3, text="Base64", variable=encode_var, command=lambda : refresh())
-encode.grid(row=4, column=1,sticky=E,padx=(0,100))
+encode.grid(row=4, column=1,sticky=E,padx=(0,200))
 #encrypt = Checkbutton(f3, text="Encrypt Data", variable=encrypt_var)
 #encrypt.grid(row=4, column=1,sticky=E,padx=(0,200))
 
