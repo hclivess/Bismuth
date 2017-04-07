@@ -600,7 +600,7 @@ f6.grid(row = 2, column = 0, sticky = E, pady = 10, padx = 10)
 
 #buttons
 
-send_b = Button(f5, text="Send", command=lambda:send(amount.get().strip(), recipient.get().strip(), str(keep_var.get()), openfield.get("1.0",END)), height=1, width=10)
+send_b = Button(f5, text="Send", command=lambda:send(str(amount.get().strip()), recipient.get().strip(), str(keep_var.get()), str(openfield.get("1.0",END))), height=1, width=10)
 send_b.grid(row=9, column=0, sticky=W+E+S, pady=(45,2), padx=15)
 
 start_b = Button(f5, text="Generate QR Code", command=qr, height=1, width=10)
