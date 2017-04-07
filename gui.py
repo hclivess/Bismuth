@@ -196,7 +196,7 @@ def send(amount_input, recipient_input, keep_input, openfield_input):
         conn = sqlite3.connect('static/ledger.db')
         conn.text_factory = str
         c = conn.cursor()
-        c.execute("SELECT address FROM transactions WHERE openfield = ? ORDER BY timestamp ASC LIMIT 1;",("alias="+recipient_input,)) #asc for first entry
+        c.execute("SELECT address FROM transactions WHERE openfield = ? ORDER BY block_height ASC, timestamp ASC LIMIT 1;",("alias="+recipient_input,)) #asc for first entry
         recipient_input = c.fetchone()[0]
         conn.close()
         app_log.info("Fetched the following alias recipient: "+recipient_input)
