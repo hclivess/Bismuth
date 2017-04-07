@@ -228,12 +228,14 @@ leading_node = '127.0.0.1'
 # port = 2829 now defined by config
 
 def mempool_merge(data,peer_ip):
+    print data
     global busy_mempool
     if busy_mempool == 0:
         busy_mempool = 1
 
         if data == "[]":
-            app_log.info("Mempool from "+peer_ip+" was empty")
+            app_log.info("Mempool from "+str(peer_ip)+" was empty")
+            busy_mempool = 0
         else:
             app_log.info("Mempool merging started")
             # merge mempool
@@ -326,15 +328,13 @@ def mempool_merge(data,peer_ip):
                         credit_mempool = 0
                         debit_mempool = 0
 
-                        execute_param(m, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"),
-                                      (mempool_address,))
-                        credit_mempool = c.fetchone()[0]
+                        execute_param(m, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (mempool_address,))
+                        credit_mempool = m.fetchone()[0]
                         if credit_mempool == None:
                             credit_mempool = 0
 
-                        execute_param(m, ("SELECT sum(amount) FROM transactions WHERE address = ?;"),
-                                      (mempool_address,))
-                        debit_mempool = c.fetchone()[0]
+                        execute_param(m, ("SELECT sum(amount) FROM transactions WHERE address = ?;"), (mempool_address,))
+                        debit_mempool = m.fetchone()[0]
                         if debit_mempool == None:
                             debit_mempool = 0
 
