@@ -30,7 +30,7 @@ def alias():
     input_alias= Entry(top8, textvariable=alias_var)
     input_alias.grid(row=1, column=0, sticky=N+E, padx=15, pady=(0, 5))
 
-    dismiss = Button(top8, text="Register", command=lambda:alias_register(alias_var.get()))
+    dismiss = Button(top8, text="Register", command=lambda:alias_register(alias_var.get().strip()))
     dismiss.grid(row=2, column=0, sticky=W+E, padx=15, pady=(15, 0))
 
     dismiss = Button(top8, text="Dismiss", command=top8.destroy)
@@ -484,9 +484,9 @@ def refresh():
 
     try:
         if encode_var.get() == 1:
-            openfield_input = str(base64.b64encode(openfield.get("1.0",END)))
+            openfield_input = base64.b64encode(str(openfield.get("1.0",END).strip()))
         else:
-            openfield_input = str(openfield.get("1.0",END))
+            openfield_input = str(openfield.get("1.0",END)).strip()
 
         fee = '%.8f' % float(abs(100 / (float(db_timestamp_last) - float(timestamp_avg))) + len(openfield_input) / 600 + int(keep_var.get()))
         app_log.info("Fee: " + str(fee))
@@ -600,7 +600,7 @@ f6.grid(row = 2, column = 0, sticky = E, pady = 10, padx = 10)
 
 #buttons
 
-send_b = Button(f5, text="Send", command=lambda:send(str(amount.get().strip()), recipient.get().strip(), str(keep_var.get()), str(openfield.get("1.0",END))), height=1, width=10)
+send_b = Button(f5, text="Send", command=lambda:send(str(amount.get()).strip(), recipient.get().strip(), str(keep_var.get()).strip(), str(openfield.get("1.0",END)).strip()), height=1, width=10)
 send_b.grid(row=9, column=0, sticky=W+E+S, pady=(45,2), padx=15)
 
 start_b = Button(f5, text="Generate QR Code", command=qr, height=1, width=10)
