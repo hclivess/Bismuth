@@ -295,7 +295,7 @@ def table():
     # transaction table
     # data
 
-    datasheet = ["Time", "From", "To", "Amount"]
+    datasheet = ["Time", "From", "To", "Amount", "Type"]
 
     rows_total = 19
 
@@ -312,13 +312,16 @@ def table():
 
         #mempool_timestamp = row[1]
         #datasheet.append(datetime.fromtimestamp(float(mempool_timestamp)).strftime('%Y-%m-%d %H:%M:%S'))
-        datasheet.append("unconfirmed")
+        datasheet.append("Unconfirmed")
         mempool_address = row[1]
         datasheet.append(mempool_address)
         mempool_recipient = row[2]
         datasheet.append(mempool_recipient)
         mempool_amount = row[3]
         datasheet.append(mempool_amount)
+        symbol = " Transaction"
+        datasheet.append(symbol)
+
     mempool.close()
 
     for row in c.execute("SELECT * FROM transactions WHERE address = ? OR recipient = ? ORDER BY block_height DESC LIMIT ?;",(address,)+(address,)+(rows_total,)):
@@ -330,39 +333,40 @@ def table():
         datasheet.append(db_recipient)
         db_amount = row[4]
         db_reward = row[9]
+        datasheet.append('%.8f' % (float(db_amount) + float(db_reward)))
         if float(db_reward) > 0:
-            symbol = " mined"
+            symbol = " Mined"
         else:
-            symbol = " transaction"
-        datasheet.append(str(float(db_amount)+float(db_reward))+symbol)
+            symbol = " Transaction"
+        datasheet.append(symbol)
     conn.close()
     # data
 
     app_log.info(datasheet)
     app_log.info(len(datasheet))
 
-    if len(datasheet) == 4:
+    if len(datasheet) == 5:
         app_log.info("Looks like a new address")
 
-    elif len(datasheet) < 20 * 4:
+    elif len(datasheet) < 20 * 5:
         app_log.info(len(datasheet))
-        table_limit = len(datasheet) / 4
+        table_limit = len(datasheet) / 5
     else:
         table_limit = 20
 
-    if len(datasheet) > 4:
+    if len(datasheet) > 5:
         k = 0
 
         for child in f4.winfo_children(): #prevent hangup
             child.destroy()
 
         for i in range(table_limit):
-            for j in range(4):
+            for j in range(5):
 
                 e = Entry(f4, width=22)
-                datasheet_compare = [datasheet[k], datasheet[k-1], datasheet[k-2], datasheet[k-3]]
+                datasheet_compare = [datasheet[k], datasheet[k-1], datasheet[k-2], datasheet[k-3], datasheet[k-4]]
 
-                if "unconfirmed" in datasheet_compare:
+                if "Unconfirmed" in datasheet_compare:
                     e.configure(readonlybackground='linen')
                 elif "Time" in datasheet_compare:
                     pass
