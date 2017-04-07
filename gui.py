@@ -54,6 +54,7 @@ def alias_register(alias_desired):
     registered_already = c.fetchone()
 
     if registered_already == None and registered_pending == None:
+        alias_cb_var.set(0)
         send("0", address, "1", reg_string)
 
     else:
