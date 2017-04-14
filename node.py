@@ -880,6 +880,7 @@ def digest_block(data, sdef, peer_ip):
 
                         # app_log.info("Digest: Total credit: " + str(credit))
                         # app_log.info("Digest: Total debit: " + str(debit))
+                        balance_pre = float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards) #without projection
                         balance = float(credit) - float(debit) - float(fees) + float(rewards)
                         # app_log.info("Digest: Projected transction address balance: " + str(balance))
 
@@ -915,7 +916,7 @@ def digest_block(data, sdef, peer_ip):
 
                                 # dont request a fee for mined block so new accounts can mine
 
-                            if float(db_amount) > float(balance):
+                            if float(balance_pre) < float(db_amount):
                                 error_msg = "Sending more than owned"
                                 block_valid = 0
 
