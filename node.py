@@ -922,7 +922,7 @@ def digest_block(data, sdef, peer_ip):
                                 # dont request a fee for mined block so new accounts can mine
 
                             if float(db_amount) > float(balance):
-                                error_msg = "Sending more than owned"
+                                error_msg = "Sending more than owned. Sending:"+str(db_amount)+". Owning "+str(balance)
                                 block_valid = 0
 
                             elif (float(balance)) - (
