@@ -360,6 +360,7 @@ def mempool_merge(data,peer_ip):
                         #app_log.info("Mempool: Total credit: " + str(credit))
                         #app_log.info("Mempool: Total debit: " + str(debit))
                         balance = float(credit) - float(debit) - float(fees) + float(rewards)
+                        balance_pre = float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)
                         # app_log.info("Mempool: Projected transction address balance: " + str(balance))
 
                         try:
@@ -390,7 +391,7 @@ def mempool_merge(data,peer_ip):
                         if float(time_now) + 30 < float(mempool_timestamp):
                             app_log.info("Mempool: Future mining not allowed")
 
-                        elif float(mempool_amount) > float(balance):
+                        elif float(mempool_amount) > float(balance_pre):
                             app_log.info("Mempool: Sending more than owned")
 
                         elif (float(balance)) - (float(fee)) < 0:  # removed +float(db_amount) because it is a part of the incoming block
