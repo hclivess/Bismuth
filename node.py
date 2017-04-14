@@ -324,9 +324,6 @@ def mempool_merge(data,peer_ip):
                         app_log.info("Mempool: Received address: " + str(mempool_address))
 
                         # include the new block
-                        credit_mempool = 0
-                        debit_mempool = 0
-
                         execute_param(m, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (mempool_address,))
                         credit_mempool = m.fetchone()[0]
                         if credit_mempool == None:
@@ -336,9 +333,6 @@ def mempool_merge(data,peer_ip):
                         debit_mempool = m.fetchone()[0]
                         if debit_mempool == None:
                             debit_mempool = 0
-
-                        # app_log.info("Mempool: Incoming block credit: " + str(block_credit))
-                        # app_log.info("Mempool: Incoming block debit: " + str(block_debit))
                         # include the new block
 
                         execute_param(c, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (mempool_address,))
@@ -353,18 +347,18 @@ def mempool_merge(data,peer_ip):
                             debit_ledger = 0
                         debit = float(debit_ledger) + float(debit_mempool)
 
-                        execute_param(c, ("SELECT sum(fee) FROM transactions WHERE address = ?;"), (mempool_address,))
-                        fees = c.fetchone()[0]
-                        execute_param(c, ("SELECT sum(reward) FROM transactions WHERE address = ?;"), (mempool_address,))
-                        rewards = c.fetchone()[0]
+                        execute_param(c, ("SELECT sum(fee),sum(reward) FROM transactions WHERE address = ?;"),(mempool_address,))
+                        result = c.fetchall()[0]
+                        fees = result[0]
+                        rewards = result[1]
 
                         if fees == None:
                             fees = 0
                         if rewards == None:
                             rewards = 0
 
-                        # app_log.info("Mempool: Total credit: " + str(credit))
-                        # app_log.info("Mempool: Total debit: " + str(debit))
+                        #app_log.info("Mempool: Total credit: " + str(credit))
+                        #app_log.info("Mempool: Total debit: " + str(debit))
                         balance = float(credit) - float(debit) - float(fees) + float(rewards)
                         # app_log.info("Mempool: Projected transction address balance: " + str(balance))
 
@@ -922,7 +916,7 @@ def digest_block(data, sdef, peer_ip):
                                 # dont request a fee for mined block so new accounts can mine
 
                             if float(db_amount) > float(balance):
-                                error_msg = "Sending more than owned. Sending:"+str(db_amount)+". Owning "+str(balance)
+                                error_msg = "Sending more than owned"
                                 block_valid = 0
 
                             elif (float(balance)) - (
