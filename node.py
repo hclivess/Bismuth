@@ -388,7 +388,7 @@ def mempool_merge(data,peer_ip):
                         # calculate fee
 
                         time_now = time.time()
-                        if float(time_now) + 30 < float(mempool_timestamp):
+                        if float(mempool_timestamp) > float(time_now) + 30:
                             app_log.info("Mempool: Future transaction not allowed, timestamp {} minutes in the future".format((float(mempool_timestamp) - float(time_now))/60))
 
                         elif float(mempool_amount) > float(balance_pre):
