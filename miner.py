@@ -37,7 +37,7 @@ def execute(cursor, what, app_log):
             cursor.execute(what)
             passed = 1
         except Exception, e:
-            app_log.info("Retrying database execute due to " + str(e))
+            app_log.info("Retrying database execute due to {}".format(e))
             time.sleep(0.1)
             pass
             # secure execute for slow nodes
@@ -53,7 +53,7 @@ def execute_param(cursor, what, param, app_log):
             cursor.execute(what, param)
             passed = 1
         except Exception, e:
-            app_log.info("Retrying database execute due to " + str(e))
+            app_log.info("Retrying database execute due to {}".format(e))
             time.sleep(0.1)
             pass
             # secure execute for slow nodes
@@ -99,7 +99,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 #    diff = 4
                 # calculate difficulty
 
-                app_log.info("Mining, " + str(tries) + " cycles passed in thread " + q + ", difficulty: " + str(diff))
+                app_log.info("Mining, {} cycles passed in thread {}, difficulty: {}".format(tries,q,diff))
                 diff = int(diff)
 
                 # serialize txs
@@ -145,7 +145,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
 
             if mining_condition in mining_hash:
 
-                app_log.info("Thread " + q + " found a good block hash in "+str(tries)+" cycles")
+                app_log.info("Thread {} found a good block hash in {} cycles".format(q,tries))
                 tries = 0
 
                 #submit mined block to node
@@ -179,7 +179,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 m = mempool.cursor()
                 for x in removal_signature:
                     execute_param(m,("DELETE FROM transactions WHERE signature =?;"),(x,), app_log)
-                    app_log.info("Removed a transaction with the following signature from mempool: "+str(x))
+                    app_log.info("Removed a transaction with the following signature from mempool: {}".format(x))
                 mempool.commit()
                 mempool.close()
 
