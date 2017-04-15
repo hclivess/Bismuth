@@ -448,6 +448,14 @@ def refresh():
     global balance
 
     #print "refresh triggered"
+
+    mempool = sqlite3.connect('mempool.db')
+    mempool.text_factory = str
+    m = mempool.cursor()
+    m.execute("SELECT sum(amount) FROM transactions WHERE address = ?;", (address,))
+    debit_mempool = m.fetchone()[0]
+    mempool.close()
+
     conn = sqlite3.connect('static/ledger.db')
     conn.text_factory = str
     c = conn.cursor()
@@ -469,7 +477,7 @@ def refresh():
         rewards = 0
     if credit == None:
         credit = 0
-    balance = credit - debit - fees + rewards
+    balance = credit - debit - fees + rewards - debit_mempool
     app_log.info("Node: Transction address balance: " + str(balance))
 
     # calculate fee - identical to that in node
