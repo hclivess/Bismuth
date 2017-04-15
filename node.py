@@ -359,9 +359,9 @@ def mempool_merge(data,peer_ip):
 
                         #app_log.info("Mempool: Total credit: " + str(credit))
                         #app_log.info("Mempool: Total debit: " + str(debit))
-                        balance = float(credit) - float(debit) - float(fees) + float(rewards)
+                        balance = float(credit) - float(debit) - float(fees) + float(rewards) - float(mempool_amount)
                         balance_pre = float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)
-                        # app_log.info("Mempool: Projected transction address balance: " + str(balance))
+                        #app_log.info("Mempool: Projected transction address balance: " + str(balance))
 
                         try:
                             execute(c, (
