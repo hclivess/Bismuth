@@ -102,18 +102,15 @@ class index:
                 color_cell = "#E8E8E8"
             else:
                 color_cell = "white"
-            view.append("<tr bgcolor ="+color_cell+">")
-            view.append("<td>" + str(x[0]) + "</td>")
-            view.append("<td>" + str(time.strftime("%Y/%m/%d,%H:%M:%S", time.localtime(float(x[1])))))
-            view.append("<td>" + str(x[2]) + "</td>")
-            view.append("<td>" + str(x[3].encode('utf-8')) + "</td>")
-            view.append("<td>" + str(x[4]) + "</td>")
-            #view.append("<td>" + str(x[5]) + "</td>")
-            #view.append("<td>" + str(x[6]) + "</td>")
-            view.append("<td>" + str(x[7]) + "</td>")
-            view.append("<td>" + str(x[8]) + "</td>")
-            view.append("<td>" + str(x[9]) + "</td>")
-            #view.append("<td>" + str(x[10]) + "</td>")
+            view.append("<tr bgcolor ={}>".format(color_cell))
+            view.append("<td>{}</td>".format(x[0]))
+            view.append("<td>{}".format(time.strftime("%Y/%m/%d,%H:%M:%S", time.localtime(float(x[1])))))
+            view.append("<td>{}</td>".format(x[2]))
+            view.append("<td>{}</td>".format(x[3].encode('utf-8')))
+            view.append("<td>{}</td>".format(x[4]))
+            view.append("<td>{}</td>".format(x[7]))
+            view.append("<td>{}</td>".format(x[8]))
+            view.append("<td>{}</td>".format(x[9]))
             view.append("<tr>")
             i = i+1
 

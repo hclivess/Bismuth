@@ -199,7 +199,7 @@ def send(amount_input, recipient_input, keep_input, openfield_input):
         c.execute("SELECT address FROM transactions WHERE openfield = ? ORDER BY block_height ASC, timestamp ASC LIMIT 1;",("alias="+recipient_input,)) #asc for first entry
         recipient_input = c.fetchone()[0]
         conn.close()
-        app_log.info("Fetched the following alias recipient: "+recipient_input)
+        app_log.info("Fetched the following alias recipient: {}".format(recipient_input))
 
     # alias check
 
@@ -211,10 +211,10 @@ def send(amount_input, recipient_input, keep_input, openfield_input):
         done.grid(row=1, column=0, sticky=W + E, padx=15, pady=(5, 5))
     else:
 
-        app_log.info("Amount: " + amount_input)
-        app_log.info("Recipient: " + recipient_input)
-        app_log.info("Keep Forever: " + keep_input)
-        app_log.info("OpenField Data: "+ openfield_input)
+        app_log.info("Amount: {}".format(amount_input))
+        app_log.info("Recipient: {}".format(recipient_input))
+        app_log.info("Keep Forever: {}".format(keep_input))
+        app_log.info("OpenField Data: {}".format(openfield_input))
 
         timestamp = '%.2f' % time.time()
         transaction = (timestamp,address,recipient_input, '%.8f' % float(amount_input),keep_input,openfield_input) #this is signed
@@ -224,7 +224,7 @@ def send(amount_input, recipient_input, keep_input, openfield_input):
         signer = PKCS1_v1_5.new(key)
         signature = signer.sign(h)
         signature_enc = base64.b64encode(signature)
-        app_log.info("Client: Encoded Signature: "+str(signature_enc))
+        app_log.info("Client: Encoded Signature: {}".format(signature_enc))
 
         verifier = PKCS1_v1_5.new(key)
         if verifier.verify(h, signature) == True:
@@ -481,7 +481,7 @@ def refresh():
     if credit == None:
         credit = 0
     balance = credit - debit - fees + rewards - debit_mempool
-    app_log.info("Node: Transction address balance: " + str(balance))
+    app_log.info("Node: Transction address balance: {}".format(balance))
 
     # calculate fee - identical to that in node
     c.execute("SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;") #or it takes the first
@@ -501,11 +501,11 @@ def refresh():
             openfield_input = str(openfield.get("1.0",END)).strip()
 
         fee = '%.8f' % float(abs(100 / (float(db_timestamp_last) - float(timestamp_avg))) + len(openfield_input) / 600 + int(keep_var.get()))
-        app_log.info("Fee: " + str(fee))
+        app_log.info("Fee: {}".format(fee))
 
     except Exception as e:
         fee = 1  # presumably there are less than 50 txs
-        app_log.info("Fee error: " + str(e))
+        app_log.info("Fee error: {}".format(e))
     # calculate fee
 
     # calculate difficulty
@@ -527,7 +527,7 @@ def refresh():
     time_now = str(time.time())
     last_block_ago = float(time_now) - float(db_timestamp_last)
     if last_block_ago > 300:
-        sync_msg = str(int(last_block_ago/60))+"m behind"
+        sync_msg = "{}m behind".format((int(last_block_ago/60)))
         sync_msg_label.config(fg='red')
     else:
         sync_msg = "Up to date"
@@ -541,15 +541,15 @@ def refresh():
     app_log.info("Aliases: "+str(aliases))
     #aliases
 
-    fees_current_var.set("Current Fee: " + '%.8f' % float(fee))
-    balance_var.set("Balance: " + '%.8f' % float(balance))
-    debit_var.set("Spent Total: " + '%.8f' % float(debit))
-    credit_var.set("Received Total: " + '%.8f' % float(credit))
-    fees_var.set("Fees Paid: " + '%.8f' % float(fees))
-    rewards_var.set("Rewards: " + '%.8f' % float(rewards))
-    bl_height_var.set("Block Height: " + str(bl_height))
-    diff_msg_var.set("Mining Difficulty: " + str(round(diff_msg,2)))
-    sync_msg_var.set("Network: " + str(sync_msg))
+    fees_current_var.set("Current Fee: {}".format('%.8f' % float(fee)))
+    balance_var.set("Balance: {}".format('%.8f' % float(balance)))
+    debit_var.set("Spent Total: {}".format('%.8f' % float(debit)))
+    credit_var.set("Received Total: {}".format('%.8f' % float(credit)))
+    fees_var.set("Fees Paid: {}".format('%.8f' % float(fees)))
+    rewards_var.set("Rewards: {}".format('%.8f' % float(rewards)))
+    bl_height_var.set("Block Height: {}".format(bl_height))
+    diff_msg_var.set("Mining Difficulty: {}".format(round(diff_msg,2)))
+    sync_msg_var.set("Network: {}".format(sync_msg))
 
     conn.close()
     table()
