@@ -455,6 +455,8 @@ def refresh():
     m.execute("SELECT sum(amount) FROM transactions WHERE address = ?;", (address,))
     debit_mempool = m.fetchone()[0]
     mempool.close()
+    if debit_mempool == None:
+        debit_mempool = 0
 
     conn = sqlite3.connect('static/ledger.db')
     conn.text_factory = str
@@ -469,6 +471,7 @@ def refresh():
     rewards = c.fetchone()[0]
     c.execute("SELECT MAX(block_height) FROM transactions")
     bl_height = c.fetchone()[0]
+
     if debit == None:
         debit = 0
     if fees == None:
