@@ -815,6 +815,7 @@ def digest_block(data, sdef, peer_ip):
 
                 if block_valid == 0:
                     app_log.info("Check 1: A part of the block is invalid, rejected {}".format(error_msg))
+                    app_log.info("Check 1: Complete rejected block".format(data))
                     warning(sdef, peer_ip)
 
                 if block_valid == 1:
@@ -942,6 +943,7 @@ def digest_block(data, sdef, peer_ip):
                     # whole block validation
                     if block_valid == 0:
                         app_log.info("Check 2: A part of the block is invalid, rejected ({})".format(error_msg))
+                        app_log.info("Check 2: Complete rejected block".format(data))
                         warning(sdef, peer_ip)
                     if block_valid == 1:
                         for transaction in block_transactions:
