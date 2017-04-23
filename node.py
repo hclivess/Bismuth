@@ -33,12 +33,12 @@ def warning(sdef, ip):
     global warning_list_limit_conf
 
     warning_list.append(ip)
-    app_log.info("Added a warning to " + str(ip) + " (" + str(warning_list.count(ip)) + "/" + str(warning_list_limit_conf) + ")")
+    app_log.info("Added a warning to {} ({} / {})".format(ip, warning_list.count(ip),warning_list_limit_conf))
 
     if warning_list.count(ip) >= warning_list_limit_conf:
         banlist.append(ip)
         sdef.close()
-        app_log.info(str(ip) + " banned")  # rework this
+        app_log.info("{} banned".format(ip))  # rework this
 
 
 def ledger_convert():
@@ -145,7 +145,7 @@ def execute(cursor, what):
             cursor.execute(what)
             passed = 1
         except Exception, e:
-            app_log.info("Retrying database execute due to " + str(e))
+            app_log.info("Retrying database execute due to {}".format(e))
             time.sleep(0.1)
             pass
             # secure execute for slow nodes
@@ -233,7 +233,7 @@ def mempool_merge(data,peer_ip):
         busy_mempool = 1
 
         if data == "[]":
-            app_log.info("Mempool from "+str(peer_ip)+" was empty")
+            app_log.info("Mempool from {} was empty".format(peer_ip))
             busy_mempool = 0
         else:
             #app_log.info("Mempool merging started")
@@ -324,9 +324,6 @@ def mempool_merge(data,peer_ip):
                         app_log.info("Mempool: Received address: " + str(mempool_address))
 
                         # include the new block
-                        credit_mempool = 0
-                        debit_mempool = 0
-
                         execute_param(m, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (mempool_address,))
                         credit_mempool = m.fetchone()[0]
                         if credit_mempool == None:
@@ -336,9 +333,6 @@ def mempool_merge(data,peer_ip):
                         debit_mempool = m.fetchone()[0]
                         if debit_mempool == None:
                             debit_mempool = 0
-
-                        # app_log.info("Mempool: Incoming block credit: " + str(block_credit))
-                        # app_log.info("Mempool: Incoming block debit: " + str(block_debit))
                         # include the new block
 
                         execute_param(c, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (mempool_address,))
@@ -353,20 +347,21 @@ def mempool_merge(data,peer_ip):
                             debit_ledger = 0
                         debit = float(debit_ledger) + float(debit_mempool)
 
-                        execute_param(c, ("SELECT sum(fee) FROM transactions WHERE address = ?;"), (mempool_address,))
-                        fees = c.fetchone()[0]
-                        execute_param(c, ("SELECT sum(reward) FROM transactions WHERE address = ?;"), (mempool_address,))
-                        rewards = c.fetchone()[0]
+                        execute_param(c, ("SELECT sum(fee),sum(reward) FROM transactions WHERE address = ?;"),(mempool_address,))
+                        result = c.fetchall()[0]
+                        fees = result[0]
+                        rewards = result[1]
 
                         if fees == None:
                             fees = 0
                         if rewards == None:
                             rewards = 0
 
-                        # app_log.info("Mempool: Total credit: " + str(credit))
-                        # app_log.info("Mempool: Total debit: " + str(debit))
-                        balance = float(credit) - float(debit) - float(fees) + float(rewards)
-                        # app_log.info("Mempool: Projected transction address balance: " + str(balance))
+                        #app_log.info("Mempool: Total credit: " + str(credit))
+                        #app_log.info("Mempool: Total debit: " + str(debit))
+                        balance = float(credit) - float(debit) - float(fees) + float(rewards) - float(mempool_amount)
+                        balance_pre = float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)
+                        #app_log.info("Mempool: Projected transction address balance: " + str(balance))
 
                         try:
                             execute(c, (
@@ -392,11 +387,11 @@ def mempool_merge(data,peer_ip):
                             return
                         # calculate fee
 
-                        time_now = str(time.time())
-                        if float(time_now) + 30 < float(mempool_timestamp):
-                            app_log.info("Mempool: Future mining not allowed")
+                        time_now = time.time()
+                        if float(mempool_timestamp) > float(time_now) + 30:
+                            app_log.info("Mempool: Future transaction not allowed, timestamp {} minutes in the future".format((float(mempool_timestamp) - float(time_now))/60))
 
-                        elif float(mempool_amount) > float(balance):
+                        elif float(mempool_amount) > float(balance_pre):
                             app_log.info("Mempool: Sending more than owned")
 
                         elif (float(balance)) - (float(fee)) < 0:  # removed +float(db_amount) because it is a part of the incoming block
@@ -413,7 +408,7 @@ def mempool_merge(data,peer_ip):
 
                             # receive mempool
 
-                app_log.info("Mempool: Finished with "+str(len(block_list))+" received transactions from "+str(peer_ip))
+                app_log.info("Mempool: Finished with {} received transactions from {}".format(len(block_list),peer_ip))
                 mempool.close()
             except:
                 app_log.info("Mempool: Error processing")
@@ -450,7 +445,7 @@ def purge_old_peers():
                 if purge_conf == 1:
                     # remove from peerlist if not connectible
                     peer_tuples.remove((HOST, str(PORT)))
-                    app_log.info("Removed formerly active peer " + str(HOST) + " " + str(PORT))
+                    app_log.info("Removed formerly active peer {} {}".format(HOST,PORT))
                 pass
 
             output = open("peers.txt", 'w')
@@ -472,9 +467,8 @@ def verify():
         # verify genesis
         execute(c, ("SELECT recipient FROM transactions ORDER BY block_height ASC LIMIT 1"))
         genesis = c.fetchone()[0]
-        app_log.info("Genesis: " + genesis)
-        if str(
-                genesis) != genesis_conf:  # change this line to your genesis address if you want to clone
+        app_log.info("Genesis: {}".format(genesis))
+        if str(genesis) != genesis_conf:  # change this line to your genesis address if you want to clone
             app_log.info("Invalid genesis address")
             sys.exit(1)
         # verify genesis
@@ -500,8 +494,7 @@ def verify():
             if verifier.verify(h, db_signature_dec):
                 pass
             else:
-                app_log.info("The following transaction is invalid:")
-                app_log.info(row)
+                app_log.info("The following transaction is invalid: {}".format(row))
                 invalid = invalid + 1
                 if db_block_height == str(1):
                     app_log.info("Your genesis signature is invalid, someone meddled with the database")
@@ -574,38 +567,38 @@ def consensus_add(peer_ip, consensus_blockheight):
     global consensus_percentage
 
     if peer_ip not in peer_ip_list:
-        app_log.info("Adding " + str(peer_ip) + " to consensus peer list")
+        app_log.info("Adding {} to consensus peer list".format(peer_ip))
         peer_ip_list.append(peer_ip)
-        app_log.info("Assigning " + str(consensus_blockheight) + " to peer block height list")
+        app_log.info("Assigning {} to peer block height list".format(consensus_blockheight))
         consensus_blockheight_list.append(str(int(consensus_blockheight)))
 
     if peer_ip in peer_ip_list:
         consensus_index = peer_ip_list.index(peer_ip)  # get where in this list it is
 
         if consensus_blockheight_list[consensus_index] == (consensus_blockheight):
-            app_log.info("Opinion of " + str(peer_ip) + " hasn't changed")
+            app_log.info("Opinion of {} hasn't changed".format(peer_ip))
 
         else:
             del peer_ip_list[consensus_index]  # remove ip
             del consensus_blockheight_list[consensus_index]  # remove ip's opinion
 
-            app_log.info("Updating " + str(peer_ip) + " in consensus")
+            app_log.info("Updating {} in consensus".format(peer_ip))
             peer_ip_list.append(peer_ip)
             consensus_blockheight_list.append(int(consensus_blockheight))
 
-    app_log.info("Consensus IP list:" + str(peer_ip_list))
-    app_log.info("Consensus opinion list:" + str(consensus_blockheight_list))
+    app_log.info("Consensus IP list: {}".format(peer_ip_list))
+    app_log.info("Consensus opinion list: {}".format(consensus_blockheight_list))
 
     consensus = most_common(consensus_blockheight_list)
 
     consensus_percentage = (float(
         consensus_blockheight_list.count(consensus) / float(len(consensus_blockheight_list)))) * 100
-    app_log.info("Current outgoing connections: " + str(len(active_pool)))
-    app_log.info("Current block consensus: " + str(consensus) + " = " + str(consensus_percentage) + "%")
+    app_log.info("Current outgoing connections: {}".format(len(active_pool)))
+    app_log.info("Current block consensus: {} = {}%".format(consensus,consensus_percentage))
 
     if max(consensus_blockheight_list) == consensus_blockheight:
         leading_node = peer_ip
-        app_log.info("Leading node is now " + str(leading_node))
+        app_log.info("Leading node is now {}".format(leading_node))
 
     return
 
@@ -615,12 +608,12 @@ def consensus_remove(peer_ip):
     global consensus_blockheight_list
     try:
         app_log.info(
-            "Will remove " + str(peer_ip) + " from consensus pool " + str(peer_ip_list))
+            "Will remove {} from consensus pool {}".format(peer_ip,peer_ip_list))
         consensus_index = peer_ip_list.index(peer_ip)
         peer_ip_list.remove(peer_ip)
         del consensus_blockheight_list[consensus_index]  # remove ip's opinion
     except:
-        app_log.info("IP of " + str(peer_ip) + " not present in the consensus pool")
+        app_log.info("IP of {} not present in the consensus pool".format(peer_ip))
         pass
 
 
@@ -643,7 +636,7 @@ def manager():
 
                 if threads_count <= threads_limit and str(HOST + ":" + str(PORT)) not in tried and str(
                                         HOST + ":" + str(PORT)) not in active_pool and str(HOST) not in banlist:
-                    app_log.info("Will attempt to connect to " + HOST + ":" + str(PORT))
+                    app_log.info("Will attempt to connect to {}:{}".format(HOST,PORT))
                     tried.append(HOST + ":" + str(PORT))
                     t = threading.Thread(target=worker, args=(HOST, PORT))  # threaded connectivity to nodes here
                     app_log.info("---Starting a client thread " + str(threading.currentThread()) + "---")
@@ -651,13 +644,13 @@ def manager():
 
                     # client thread handling
         if len(active_pool) < 3:
-            app_log.info("Only " + str(len(active_pool)) + " connections active, resetting the try list")
+            app_log.info("Only {} connections active, resetting the try list".format(len(active_pool)))
             del tried[:]
 
-        app_log.info("Connection manager: Threads at " + str(threads_count) + "/" + str(threads_limit))
-        app_log.info("Tried: " + str(tried))
-        app_log.info("Current active pool: " + str(active_pool))
-        app_log.info("Current connections: " + str(len(active_pool)))
+        app_log.info("Connection manager: Threads at {} / {}".format(threads_count,threads_limit))
+        app_log.info("Tried: {}".format(tried))
+        app_log.info("Current active pool: {}".format(active_pool))
+        app_log.info("Current connections: {}".format(len(active_pool)))
 
         # app_log.info(threading.enumerate() all threads)
         time.sleep(int(pause_conf))
@@ -669,8 +662,6 @@ def digest_block(data, sdef, peer_ip):
     if busy == 0:
         busy = 1
         try:
-            time_now = str(time.time())
-
             conn = sqlite3.connect(ledger_path_conf)
             conn.text_factory = str
             c = conn.cursor()
@@ -686,7 +677,7 @@ def digest_block(data, sdef, peer_ip):
             result = c.fetchall()
             for x in result:
                 # print x
-                app_log.info("Removing duplicate: " + str(x[0]))
+                app_log.info("Removing duplicate: {}".format(x[0]))
                 execute_param(c, ("DELETE FROM transactions WHERE block_height >= ?;"), (str(x[0]),))
                 commit(conn)
 
@@ -718,7 +709,7 @@ def digest_block(data, sdef, peer_ip):
                     execute_param(c, ("SELECT block_height FROM transactions WHERE signature = ?;"), (r[4],))
                     try:
                         result = c.fetchall()[0]
-                        error_msg = "That transaction is already in our ledger, row " + str(result[0])
+                        error_msg = "That transaction is already in our ledger, row {}".format(result[0])
                         block_valid = 0
 
                     except:
@@ -761,8 +752,9 @@ def digest_block(data, sdef, peer_ip):
                         block_timestamp = received_timestamp
                         nonce = received_openfield
 
+                    time_now = time.time()
                     if float(time_now) + 30 < float(received_timestamp):
-                        error_msg = "Digest: Future transaction not allowed, timestamp "+str((float(received_timestamp) - float(time_now))/60) +" minutes in the future"
+                        error_msg = "Digest: Future transaction not allowed, timestamp {} minutes in the future".format((float(received_timestamp) - float(time_now))/60)
                         #print time_now
                         #print received_timestamp
                         block_valid = 0
@@ -800,7 +792,7 @@ def digest_block(data, sdef, peer_ip):
                 # if diff < 4:
                 #    diff = 4
 
-                app_log.info("Calculated difficulty: " + str(diff))
+                app_log.info("Calculated difficulty: {}".format(diff))
                 # calculate difficulty
 
                 # match difficulty
@@ -822,7 +814,8 @@ def digest_block(data, sdef, peer_ip):
                 fees_block = []
 
                 if block_valid == 0:
-                    app_log.info("Check 1: A part of the block is invalid, rejected (" + error_msg + ")")
+                    app_log.info("Check 1: A part of the block is invalid, rejected {}".format(error_msg))
+                    app_log.info("Check 1: Complete rejected block".format(data))
                     warning(sdef, peer_ip)
 
                 if block_valid == 1:
@@ -886,6 +879,7 @@ def digest_block(data, sdef, peer_ip):
 
                         # app_log.info("Digest: Total credit: " + str(credit))
                         # app_log.info("Digest: Total debit: " + str(debit))
+                        balance_pre = float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards) #without projection
                         balance = float(credit) - float(debit) - float(fees) + float(rewards)
                         # app_log.info("Digest: Projected transction address balance: " + str(balance))
 
@@ -921,7 +915,7 @@ def digest_block(data, sdef, peer_ip):
 
                                 # dont request a fee for mined block so new accounts can mine
 
-                            if float(db_amount) > float(balance):
+                            if float(balance_pre) < float(db_amount):
                                 error_msg = "Sending more than owned"
                                 block_valid = 0
 
@@ -932,8 +926,7 @@ def digest_block(data, sdef, peer_ip):
 
                             else:
                                 # append, but do not insert to ledger before whole block is validated
-                                app_log.info("Digest: Appending transaction back to block with " + str(
-                                    len(block_transactions)) + " transactions in it")
+                                app_log.info("Digest: Appending transaction back to block with {} transactions in it".format(len(block_transactions)))
                                 block_transactions.append((block_height_new, db_timestamp, db_address, db_recipient,
                                                            db_amount, db_signature, db_public_key_hashed,
                                                            block_hash, fee, reward, db_keep, db_openfield))
@@ -949,7 +942,8 @@ def digest_block(data, sdef, peer_ip):
 
                     # whole block validation
                     if block_valid == 0:
-                        app_log.info("Check 2: A part of the block is invalid, rejected ("+error_msg+")")
+                        app_log.info("Check 2: A part of the block is invalid, rejected ({})".format(error_msg))
+                        app_log.info("Check 2: Complete rejected block".format(data))
                         warning(sdef, peer_ip)
                     if block_valid == 1:
                         for transaction in block_transactions:
@@ -974,7 +968,7 @@ def digest_block(data, sdef, peer_ip):
                                     commit(conn)
                             # dev reward
 
-                        app_log.info("Block " + str(block_height_new) + " valid and saved")
+                        app_log.info("Block {} valid and saved".format(block_height_new))
                         del block_transactions[:]
                         unban(peer_ip)
 
@@ -1024,9 +1018,9 @@ else:
     address = hashlib.sha224(public_key_hashed).hexdigest()  # hashed public key
     # generate key pair and an address
 
-    app_log.info("Your address: " + str(address))
-    app_log.info("Your private key: " + str(private_key_readable))
-    app_log.info("Your public key: " + str(public_key_hashed))
+    app_log.info("Your address: ".format(address))
+    app_log.info("Your private key: ".format(private_key_readable))
+    app_log.info("Your public key: ".format(public_key_hashed))
 
     pem_file = open("privkey.der", 'a')
     pem_file.write(str(private_key_readable))
@@ -1047,7 +1041,7 @@ public_key_readable = open('pubkey.der').read()
 public_key_hashed = base64.b64encode(public_key_readable)
 address = hashlib.sha224(public_key_readable).hexdigest()
 
-app_log.info("Local address: " + str(address))
+app_log.info("Local address: {}".format(address))
 
 if hyperblocks_conf == 1:
     ledger_convert()
@@ -1091,7 +1085,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         else:
             capacity = 0
             self.request.close()
-            app_log.info("Free capacity for " + peer_ip + " unavailable, disconnected")
+            app_log.info("Free capacity for {} unavailable, disconnected".format(peer_ip))
             # if you raise here, you kill the whole server
 
         if peer_ip not in banlist:
@@ -1099,7 +1093,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         else:
             banned = 1
             self.request.close()
-            app_log.info("IP " + peer_ip + " banned, disconnected")
+            app_log.info("IP {} banned, disconnected".format(peer_ip))
             #if you raise here, you kill the whole server
 
         while banned == 0 and capacity == 1:
@@ -1108,17 +1102,17 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 data = receive(self.request, 10)
 
                 app_log.info(
-                    "Incoming: Received: " + str(data) + " from " + str(peer_ip))  # will add custom ports later
+                    "Incoming: Received: {} from {}".format(data,peer_ip))  # will add custom ports later
 
                 if data == 'version':
                     data = receive(self.request, 10)
                     if version != data:
-                        app_log.info("Protocol version mismatch: " + data + ", should be " + version)
+                        app_log.info("Protocol version mismatch: {}, should be {}".format(data,version))
                         send(self.request, (str(len("notok"))).zfill(10))
                         send(self.request, "notok")
                         return
                     else:
-                        app_log.info("Incoming: Protocol version matched: " + data)
+                        app_log.info("Incoming: Protocol version matched: {}".format(data))
                         send(self.request, (str(len("ok"))).zfill(10))
                         send(self.request, "ok")
 
@@ -1165,7 +1159,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     peer_tuple = ("('" + peer_ip + "', '" + str(port) + "')")
 
                     try:
-                        app_log.info("Testing connectivity to: " + str(peer_ip))
+                        app_log.info("Testing connectivity to: {}".format(peer_ip))
                         peer_test = socks.socksocket()
                         if tor_conf == 1:
                             peer_test.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
@@ -1275,7 +1269,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         data = receive(self.request, 10)  # receive client's last block_hash
                         # send all our followup hashes
 
-                        app_log.info("Incoming: Will seek the following block: " + str(data))
+                        app_log.info("Incoming: Will seek the following block: {}".format(data))
 
                         conn = sqlite3.connect(ledger_path_conf)
                         conn.text_factory = str
@@ -1285,8 +1279,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             execute_param(c, ("SELECT block_height FROM transactions WHERE block_hash = ?;"), (data,))
                             client_block = c.fetchone()[0]
 
-                            app_log.info("Incoming: Client is at block " + str(
-                                client_block))  # now check if we have any newer
+                            app_log.info("Incoming: Client is at block {}".format(client_block))  # now check if we have any newer
 
                             execute(c, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
                             db_block_hash = c.fetchone()[0]  # get latest block_hash
@@ -1299,7 +1292,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                 execute_param(c, (
                                 "SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
                                               (str(int(client_block)),) + (str(int(
-                                                  client_block + 100)),))  # select incoming transaction + 1, only columns that need not be verified
+                                                  client_block + 100)),))  # select incoming transaction + 1
                                 blocks_fetched = c.fetchall()
                                 blocks_send = [[l[1:] for l in group] for _, group in
                                                groupby(blocks_fetched, key=itemgetter(0))]
@@ -1357,8 +1350,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 # app_log.info("Server resting")
 
             except Exception, e:
-                app_log.info("Incoming: Lost connection to " + str(peer_ip))
-                app_log.info("Incoming: " + str(e))
+                app_log.info("Incoming: Lost connection to {}".format(peer_ip))
+                app_log.info("Incoming: {}".format(e))
 
                 # remove from consensus (connection from them)
                 consensus_remove(peer_ip)
@@ -1382,14 +1375,14 @@ def worker(HOST, PORT):
             s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
         # s.setblocking(0)
         s.connect((HOST, PORT))
-        app_log.info("Outgoing: Connected to " + this_client)
+        app_log.info("Outgoing: Connected to {}".format(this_client))
 
         if this_client not in active_pool:
             active_pool.append(this_client)
-            app_log.info("Current active pool: " + str(active_pool))
+            app_log.info("Current active pool: {}".format(active_pool))
 
     except:
-        app_log.info("Could not connect to " + this_client)
+        app_log.info("Could not connect to {}".format(this_client))
         return
 
     first_run = 1
@@ -1429,8 +1422,7 @@ def worker(HOST, PORT):
 
                 # get remote peers into tuples
                 server_peer_tuples = re.findall("'([\d\.]+)', '([\d]+)'", subdata)
-                app_log.info(
-                    "Received following " + str(len((server_peer_tuples))) + " peers: " + str(server_peer_tuples))
+                app_log.info("Received following {} peers: {}".format(len((server_peer_tuples)),server_peer_tuples))
                 # get remote peers into tuples
 
                 # get local peers into tuples
@@ -1444,7 +1436,7 @@ def worker(HOST, PORT):
 
                 for x in server_peer_tuples:
                     if x not in peer_tuples:
-                        app_log.info("Outgoing: " + str(x) + " is a new peer, saving if connectible")
+                        app_log.info("Outgoing: {} is a new peer, saving if connectible".format(x))
                         try:
                             s_purge = socks.socksocket()
                             if tor_conf == 1:
@@ -1461,7 +1453,7 @@ def worker(HOST, PORT):
                             app_log.info("Not connectible")
 
                     else:
-                        app_log.info("Outgoing: " + str(x) + " is not a new peer")
+                        app_log.info("Outgoing: {} is not a new peer".format(x))
 
             elif data == "sync":
                 # sync start
@@ -1477,13 +1469,13 @@ def worker(HOST, PORT):
                 db_block_height = c.fetchone()[0]
                 conn.close()
 
-                app_log.info("Outgoing: Sending block height to compare: " + str(db_block_height))
+                app_log.info("Outgoing: Sending block height to compare: {}".format(db_block_height))
                 # append zeroes to get static length
                 send(s, (str(len(str(db_block_height)))).zfill(10))
                 send(s, str(db_block_height))
 
                 received_block_height = receive(s, 10)  # receive node's block height
-                app_log.info("Outgoing: Node is at block height: " + str(received_block_height))
+                app_log.info("Outgoing: Node is at block height: {}".format(received_block_height))
 
                 if int(received_block_height) < db_block_height:
                     app_log.info("Outgoing: We have a higher, sending")
@@ -1506,7 +1498,7 @@ def worker(HOST, PORT):
                     db_block_hash = c.fetchone()[0]  # get latest block_hash
                     conn.close()
 
-                    app_log.info("Outgoing: block_hash to send: " + str(db_block_hash))
+                    app_log.info("Outgoing: block_hash to send: {}".format(db_block_hash))
                     send(s, (str(len(db_block_hash))).zfill(10))
                     send(s, str(db_block_hash))
 
@@ -1522,7 +1514,7 @@ def worker(HOST, PORT):
                     data = receive(s, 10)  # receive client's last block_hash
 
                     # send all our followup hashes
-                    app_log.info("Outgoing: Will seek the following block: " + str(data))
+                    app_log.info("Outgoing: Will seek the following block: {}".format(data))
 
                     # consensus pool 2 (active connection)
                     consensus_blockheight = int(received_block_height)  # str int to remove leading zeros
@@ -1537,8 +1529,7 @@ def worker(HOST, PORT):
                         execute_param(c, ("SELECT block_height FROM transactions WHERE block_hash = ?;"), (data,))
                         client_block = c.fetchone()[0]
 
-                        app_log.info("Outgoing: Node is at block " + str(
-                            client_block))  # now check if we have any newer
+                        app_log.info("Outgoing: Node is at block {}".format(client_block))  # now check if we have any newer
 
                         execute(c, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
                         db_block_hash = c.fetchone()[0]  # get latest block_hash
@@ -1646,12 +1637,12 @@ def worker(HOST, PORT):
                 send(s, "sendsync")
 
             else:
-                raise ValueError("Unexpected error, received: " + data)
+                raise ValueError("Unexpected error, received: {}".format(data))
 
         except Exception as e:
             # remove from active pool
             if this_client in active_pool:
-                app_log.info("Will remove " + str(this_client) + " from active pool " + str(active_pool))
+                app_log.info("Will remove {} from active pool {}".format(this_client,active_pool))
                 active_pool.remove(this_client)
             # remove from active pool
 
@@ -1659,8 +1650,8 @@ def worker(HOST, PORT):
             consensus_remove(peer_ip)
             # remove from consensus 2
 
-            app_log.info("Connection to " + this_client + " terminated due to " + str(e))
-            app_log.info("---thread " + str(threading.currentThread()) + " ended---")
+            app_log.info("Connection to {} terminated due to {}".format(this_client,e))
+            app_log.info("---thread {} ended---".format(threading.currentThread()))
 
             # properly end the connection
             if s:
@@ -1696,7 +1687,7 @@ if __name__ == "__main__":
 
             server_thread.daemon = True
             server_thread.start()
-            app_log.info("Server loop running in thread: " + server_thread.name)
+            app_log.info("Server loop running in thread: {}".format(server_thread.name))
         else:
             app_log.info("Not starting a local server to conceal identity on Tor network")
 

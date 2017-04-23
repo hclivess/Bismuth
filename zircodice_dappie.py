@@ -60,12 +60,12 @@ while True:
                 try:
                     c.execute("SELECT * FROM transactions where openfield = ?;",("payout for " + tx_signature,))
                     result_in_ledger = c.fetchone()[0]
-                    print "Payout transaction already in the ledger for "+str(tx_signature)
+                    print "Payout transaction already in the ledger for {}".format(tx_signature)
                     paid_count = paid_count + 1
 
                 except Exception as e:
                     #print e
-                    print "Appending tx to the payout list for "+str(tx_signature)
+                    print "Appending tx to the payout list for {}".format(tx_signature)
                     payout_missing.append(x)
                     not_paid_count = not_paid_count + 1
 
@@ -104,7 +104,7 @@ while True:
             signer = PKCS1_v1_5.new(key)
             signature = signer.sign(h)
             signature_enc = base64.b64encode(signature)
-            print("Encoded Signature: " + str(signature_enc))
+            print("Encoded Signature: {}".format(signature_enc))
 
             mempool = sqlite3.connect('mempool.db')
             mempool.text_factory = str
@@ -120,7 +120,7 @@ while True:
                 "payout for " + tx_signature))
                 mempool.commit()  # Save (commit) the changes
                 mempool.close()
-                print "Mempool updated with a payout transaction for "+str(tx_signature)
+                print "Mempool updated with a payout transaction for {}".format(tx_signature)
 
 
                 # create transactions for missing payouts

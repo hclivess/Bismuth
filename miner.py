@@ -26,6 +26,39 @@ def send(sdef, data):
 def bin_convert(string):
     return ''.join(format(ord(x), 'b') for x in string)
 
+def execute(cursor, what, app_log):
+    # secure execute for slow nodes
+    passed = 0
+    while passed == 0:
+        try:
+            # print cursor
+            # print what
+
+            cursor.execute(what)
+            passed = 1
+        except Exception, e:
+            app_log.info("Retrying database execute due to {}".format(e))
+            time.sleep(0.1)
+            pass
+            # secure execute for slow nodes
+    return cursor
+
+def execute_param(cursor, what, param, app_log):
+    # secure execute for slow nodes
+    passed = 0
+    while passed == 0:
+        try:
+            # print cursor
+            # print what
+            cursor.execute(what, param)
+            passed = 1
+        except Exception, e:
+            app_log.info("Retrying database execute due to {}".format(e))
+            time.sleep(0.1)
+            pass
+            # secure execute for slow nodes
+    return cursor
+
 def miner(q,privatekey_readable, public_key_hashed, address):
     from Crypto.PublicKey import RSA
     Random.atfork()
@@ -45,16 +78,17 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 conn = sqlite3.connect("static/ledger.db") #open to select the last tx to create a new hash from
                 conn.text_factory = str
                 c = conn.cursor()
-                c.execute("SELECT block_hash, block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")
+                execute(c ,("SELECT block_hash, block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"), app_log)
                 result = c.fetchall()
                 db_block_hash = result[0][0]
                 db_block_height = result[0][1]
                 timestamp_last_block = float(result[0][2])
 
                 # calculate difficulty
-                c.execute("SELECT avg(timestamp) FROM transactions where block_height >= ? and reward != 0;",(str(db_block_height - 30),))
+                execute_param(c, ("SELECT avg(timestamp) FROM transactions where block_height >= ? and reward != 0;"),(str(db_block_height - 30),), app_log)
                 timestamp_avg = c.fetchall()[0][0]  # select the reward block
                 #print timestamp_avg
+                conn.close()
 
                 timestamp_difference = timestamp_last_block - timestamp_avg
 
@@ -64,15 +98,15 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 #if diff < 4:
                 #    diff = 4
                 # calculate difficulty
-                conn.close()
-                app_log.info("Mining, " + str(tries) + " cycles passed in thread " + q + ", difficulty: " + str(diff))
+
+                app_log.info("Mining, {} cycles passed in thread {}, difficulty: {}".format(tries,q,diff))
                 diff = int(diff)
 
                 # serialize txs
                 mempool = sqlite3.connect("mempool.db")
                 mempool.text_factory = str
                 m = mempool.cursor()
-                m.execute("SELECT * FROM transactions ORDER BY timestamp;")
+                execute(m,("SELECT * FROM transactions ORDER BY timestamp;"), app_log)
                 result = m.fetchall()  # select all txs from mempool
                 mempool.close()
 
@@ -111,7 +145,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
 
             if mining_condition in mining_hash:
 
-                app_log.info("Thread " + q + " found a good block hash in "+str(tries)+" cycles")
+                app_log.info("Thread {} found a good block hash in {} cycles".format(q,tries))
                 tries = 0
 
                 #submit mined block to node
@@ -144,8 +178,8 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 mempool.text_factory = str
                 m = mempool.cursor()
                 for x in removal_signature:
-                    m.execute("DELETE FROM transactions WHERE signature =?;",(x,))
-                    app_log.info("Removed a transaction with the following signature from mempool: "+str(x))
+                    execute_param(m,("DELETE FROM transactions WHERE signature =?;"),(x,), app_log)
+                    app_log.info("Removed a transaction with the following signature from mempool: {}".format(x))
                 mempool.commit()
                 mempool.close()
 
@@ -170,8 +204,7 @@ if __name__ == '__main__':
         mempool = sqlite3.connect('mempool.db')
         mempool.text_factory = str
         m = mempool.cursor()
-        m.execute(
-            "CREATE TABLE IF NOT EXISTS transactions (timestamp, address, recipient, amount, signature, public_key, openfield)")
+        execute(m,("CREATE TABLE IF NOT EXISTS transactions (timestamp, address, recipient, amount, signature, public_key, openfield)"), app_log)
         mempool.commit()
         mempool.close()
         app_log.info("Core: Created mempool file")
