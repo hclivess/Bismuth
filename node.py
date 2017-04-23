@@ -408,7 +408,7 @@ def mempool_merge(data,peer_ip):
 
                             # receive mempool
 
-                app_log.info("Mempool: Finished with {} received transactions from {}".format(block_list,peer_ip))
+                app_log.info("Mempool: Finished with {} received transactions from {}".format(len(block_list),peer_ip))
                 mempool.close()
             except:
                 app_log.info("Mempool: Error processing")
