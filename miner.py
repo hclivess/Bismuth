@@ -18,6 +18,8 @@ for line in lines:
         diff_recalc_conf = line.strip('diff_recalc=')
     if "tor=" in line:
         tor_conf = int(line.strip('tor='))
+    if "miner_sync=" in line:
+        sync_conf = int(line.strip('miner_sync='))
 # load config
 
 def send(sdef, data):
@@ -229,6 +231,26 @@ if __name__ == '__main__':
                 "Miner: Please start your node for the block to be submitted or adjust mining ip in settings.")
             time.sleep(1)
     # verify connection
+
+    # check if blocks are up to date
+    while sync_conf == 1:
+        conn = sqlite3.connect("static/ledger.db")  # open to select the last tx to create a new hash from
+        conn.text_factory = str
+        c = conn.cursor()
+
+        execute(c, ("SELECT timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"), app_log)
+        timestamp_last_block = c.fetchone()[0]
+        time_now = str(time.time())
+        last_block_ago = float(time_now) - float(timestamp_last_block)
+
+        if last_block_ago > 300:
+            app_log.info("Local blockchain is {} minutes behind, waiting for sync to complete".format(int(last_block_ago) / 60))
+            time.sleep(10)
+        else:
+            break
+
+        conn.close()
+    # check if blocks are up to date
 
     instances = range(int(mining_threads_conf))
     print instances

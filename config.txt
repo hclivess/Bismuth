@@ -14,3 +14,4 @@ ledger_path=static/ledger.db
 hyperblocks=1
 warning_list_limit=50
 tor=0
+miner_sync=1
