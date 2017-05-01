@@ -789,6 +789,8 @@ def digest_block(data, sdef, peer_ip):
                 try:
                     diff = int(math.log(1e18 / timestamp_difference))
                 except:
+                    pass
+                finally:
                     if db_block_height < 50:
                         diff = 33
                     # if diff < 4:
@@ -803,10 +805,10 @@ def digest_block(data, sdef, peer_ip):
                 mining_condition = bin_convert(db_block_hash)[0:diff]
 
                 if mining_condition in mining_hash:  # simplified comparison, no backwards mining
-                    app_log.info("Difficulty requirement satisfied for block "+str(block_height_new)+" from "+(peer_ip))
+                    app_log.info("Difficulty requirement satisfied for block {} from {}".format(block_height_new,peer_ip))
                 else:
                     # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
-                    error_msg = "Difficulty requirement not satisfied for block "+str(block_height_new)+" from "+(peer_ip)
+                    error_msg = "Difficulty requirement not satisfied for block {} from {}".format(block_height_new,peer_ip)
                     block_valid = 0
 
                     #print data
@@ -817,7 +819,7 @@ def digest_block(data, sdef, peer_ip):
 
                 if block_valid == 0:
                     app_log.info("Check 1: A part of the block is invalid, rejected {}".format(error_msg))
-                    app_log.info("Check 1: Complete rejected block".format(data))
+                    app_log.info("Check 1: Complete rejected block {}".format(data))
                     warning(sdef, peer_ip)
 
                 if block_valid == 1:
@@ -902,36 +904,34 @@ def digest_block(data, sdef, peer_ip):
 
                         # decide reward
 
+                        if transaction == transaction_list[-1]:
+
+                            if db_block_height <= 10000000:
+                                mining_reward = 15 - (float(block_height_new) / float(1000000))  # one zero less
+                            else:
+                                mining_reward = 0
+
+                            reward = '%.8f' % float(mining_reward + sum(fees_block[:-1]))
+                            fee = 0
                         else:
-                            if transaction == transaction_list[-1]:
+                            reward = 0
 
-                                if db_block_height <= 10000000:
-                                    mining_reward = 15 - (float(block_height_new) / float(1000000))  # one zero less
-                                else:
-                                    mining_reward = 0
+                            # dont request a fee for mined block so new accounts can mine
 
-                                reward = '%.8f' % float(mining_reward + sum(fees_block[:-1]))
-                                fee = 0
-                            else:
-                                reward = 0
+                        if float(balance_pre) < float(db_amount):
+                            error_msg = "Sending more than owned"
+                            block_valid = 0
 
-                                # dont request a fee for mined block so new accounts can mine
+                        elif (float(balance)) - (float(fee)) < 0:  # removed +float(db_amount) because it is a part of the incoming block
+                            error_msg = "Cannot afford to pay fees"
+                            block_valid = 0
 
-                            if float(balance_pre) < float(db_amount):
-                                error_msg = "Sending more than owned"
-                                block_valid = 0
-
-                            elif (float(balance)) - (
-                            float(fee)) < 0:  # removed +float(db_amount) because it is a part of the incoming block
-                                error_msg = "Cannot afford to pay fees"
-                                block_valid = 0
-
-                            else:
-                                # append, but do not insert to ledger before whole block is validated
-                                app_log.info("Digest: Appending transaction back to block with {} transactions in it".format(len(block_transactions)))
-                                block_transactions.append((block_height_new, db_timestamp, db_address, db_recipient,
-                                                           db_amount, db_signature, db_public_key_hashed,
-                                                           block_hash, fee, reward, db_keep, db_openfield))
+                        else:
+                            # append, but do not insert to ledger before whole block is validated
+                            app_log.info("Digest: Appending transaction back to block with {} transactions in it".format(len(block_transactions)))
+                            block_transactions.append((block_height_new, db_timestamp, db_address, db_recipient,
+                                                       db_amount, db_signature, db_public_key_hashed,
+                                                       block_hash, fee, reward, db_keep, db_openfield))
 
                         try:
                             execute_param(m, ("DELETE FROM transactions WHERE signature = ?;"),
@@ -945,11 +945,10 @@ def digest_block(data, sdef, peer_ip):
                     # whole block validation
                     if block_valid == 0:
                         app_log.info("Check 2: A part of the block is invalid, rejected ({})".format(error_msg))
-                        app_log.info("Check 2: Complete rejected block".format(data))
+                        app_log.info("Check 2: Complete rejected block: {}".format(data))
                         warning(sdef, peer_ip)
                     if block_valid == 1:
                         for transaction in block_transactions:
-                            # print transaction
                             execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
                                 transaction[0], transaction[1],
                                 transaction[2], transaction[3],
@@ -961,7 +960,6 @@ def digest_block(data, sdef, peer_ip):
                             commit(conn)
 
                             # dev reward
-
                             if int(block_height_new) % 100 == 0: #every 100 blocks
                                 if transaction == block_transactions[-1]: #put at the end
                                     execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (

@@ -94,9 +94,10 @@ def miner(q,privatekey_readable, public_key_hashed, address):
 
                 try:
                     timestamp_difference = timestamp_last_block - timestamp_avg
-
                     diff = float(math.log(1e18 / timestamp_difference))
                 except:
+                    pass
+                finally:
                     if db_block_height < 50:
                         diff = 33
                     #if diff < 4:
