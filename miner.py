@@ -92,14 +92,16 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 #print timestamp_avg
                 conn.close()
 
-                timestamp_difference = timestamp_last_block - timestamp_avg
+                try:
+                    timestamp_difference = timestamp_last_block - timestamp_avg
 
-                diff = float(math.log(1e18 / timestamp_difference))
-                if db_block_height < 50:
-                    diff = 33
-                #if diff < 4:
-                #    diff = 4
-                # calculate difficulty
+                    diff = float(math.log(1e18 / timestamp_difference))
+                except:
+                    if db_block_height < 50:
+                        diff = 33
+                    #if diff < 4:
+                    #    diff = 4
+                    # calculate difficulty
 
                 app_log.info("Mining, {} cycles passed in thread {}, difficulty: {}".format(tries,q,diff))
                 diff = int(diff)
