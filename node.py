@@ -786,11 +786,13 @@ def digest_block(data, sdef, peer_ip):
                 timestamp_difference = db_timestamp_last - timestamp_avg
                 # print timestamp_difference
 
-                diff = int(math.log(1e18 / timestamp_difference))
-                if db_block_height < 50:
-                    diff = 33
-                # if diff < 4:
-                #    diff = 4
+                try:
+                    diff = int(math.log(1e18 / timestamp_difference))
+                except:
+                    if db_block_height < 50:
+                        diff = 33
+                    # if diff < 4:
+                    #    diff = 4
 
                 app_log.info("Calculated difficulty: {}".format(diff))
                 # calculate difficulty
