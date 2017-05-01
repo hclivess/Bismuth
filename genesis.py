@@ -68,13 +68,13 @@ print "Encoded Signature: " + str(signature_enc)
 block_hash = hashlib.sha224(str((timestamp, transaction))).hexdigest()  # first hash is simplified
 print "Transaction Hash:" + block_hash
 
-if os.path.isfile("ledger.db") is True:
+if os.path.isfile("static/ledger.db") is True:
     print "You are beyond genesis"
 else:
     # transaction processing
     con = None
     try:
-        conn = sqlite3.connect('ledger.db')
+        conn = sqlite3.connect('static/ledger.db')
         c = conn.cursor()
         c.execute("CREATE TABLE transactions (block_height INTEGER, timestamp, address, recipient, amount, signature, public_key, block_hash, fee, reward, keep, openfield)")
         c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", ("1", timestamp, 'genesis', address, '100000000', str(signature_enc), public_key_readable, block_hash, 0, 0, 0, 'genesis'))  # Insert a row of data
