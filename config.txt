@@ -1,5 +1,5 @@
 port=5658
-genesis=731b7187e03178ae4ea1971d39c00eae6c4658bfe032cb701eba3e5b
+genesis=c0e7a955baec6ed2fa42d9a024659d72be0026b6bda6df251ff528c6
 verify=0
 version=mainnnet0001
 thread_limit=100
