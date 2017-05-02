@@ -514,6 +514,8 @@ def refresh():
 
     try:
         diff = (math.log(1e18/timestamp_difference))
+        if db_block_height > 60000:
+            diff = (math.log(1e20 / timestamp_difference))
     except:
         pass
     finally:

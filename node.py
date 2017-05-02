@@ -596,9 +596,9 @@ def consensus_add(peer_ip, consensus_blockheight):
     app_log.info("Current outgoing connections: {}".format(len(active_pool)))
     app_log.info("Current block consensus: {} = {}%".format(consensus,consensus_percentage))
 
-    if max(consensus_blockheight_list) == consensus_blockheight:
-        leading_node = peer_ip
-        app_log.info("Leading node is now {}".format(leading_node))
+    #if max(consensus_blockheight_list) == consensus_blockheight:
+    #    leading_node = peer_ip
+    #    app_log.info("Leading node is now {}".format(leading_node))
 
     return
 
@@ -771,7 +771,7 @@ def digest_block(data, sdef, peer_ip):
                 block_height_new = db_block_height + 1
                 # previous block info
 
-                if db_block_height > 20000: #remove post hf
+                if db_block_height > 60000: #remove IF post hf
                     # reject blocks older than latest block
                     if float(block_timestamp) <= float(db_timestamp_last):
                         block_valid = 0
@@ -789,6 +789,9 @@ def digest_block(data, sdef, peer_ip):
 
                 try:
                     diff = int(math.log(1e18 / timestamp_difference))
+                    if db_block_height > 60000:
+                        diff = int(math.log(1e20 / timestamp_difference))
+
                 except:
                     pass
                 finally:
@@ -1208,7 +1211,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     # app_log.info("Incoming: Combined segments: " + segments)
                     # print peer_ip
                     # print leading_node
-                    if peer_ip == leading_node:
+                    if max(consensus_blockheight_list) == consensus_blockheight:
                         digest_block(segments, self.request,peer_ip)
                         # receive theirs
 
@@ -1326,7 +1329,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     block_hash_delete = receive(self.request, 10)
                     # print peer_ip
                     # print leading_node
-                    if peer_ip == leading_node:
+                    if max(consensus_blockheight_list) == consensus_blockheight:
                         blocknf(block_hash_delete)
                         warning_list.append(peer_ip)
 
@@ -1570,7 +1573,7 @@ def worker(HOST, PORT):
                 block_hash_delete = receive(s, 10)
                 # print peer_ip
                 # print leading_node
-                if peer_ip == leading_node:
+                if max(consensus_blockheight_list) == consensus_blockheight:
                     blocknf(block_hash_delete)
 
                 while busy == 1:
@@ -1587,7 +1590,7 @@ def worker(HOST, PORT):
                 # app_log.info("Incoming: Combined segments: " + segments)
                 # print peer_ip
                 # print leading_node
-                if peer_ip == leading_node:
+                if max(consensus_blockheight_list) == consensus_blockheight:
                     digest_block(segments,s,peer_ip)
                 # receive theirs
 
