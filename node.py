@@ -701,6 +701,7 @@ def digest_block(data, sdef, peer_ip):
             block_transactions = []
 
             for transaction_list in block_list:
+
                 for r in transaction_list:  # sig 4
                     signature_list.append(r[4])
 
@@ -751,78 +752,74 @@ def digest_block(data, sdef, peer_ip):
                         block_timestamp = received_timestamp
                         nonce = received_openfield
 
-                        time_now = time.time()
-                        if float(time_now) + 30 < float(received_timestamp):
-                            error_msg = "Digest: Future transaction not allowed, timestamp {} minutes in the future".format((float(received_timestamp) - float(time_now))/60)
-                            #print time_now
-                            #print received_timestamp
-                            block_valid = 0
+                    time_now = time.time()
+                    if float(time_now) + 30 < float(received_timestamp):
+                        error_msg = "Digest: Future transaction not allowed, timestamp {} minutes in the future".format((float(received_timestamp) - float(time_now))/60)
+                        #print time_now
+                        #print received_timestamp
+                        block_valid = 0
 
                         # verify signatures
 
-                        # previous block info
-                        execute(c, (
-                        "SELECT block_hash, block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
-                        result = c.fetchall()
-                        db_block_hash = result[0][0]
-                        db_block_height = result[0][1]
-                        db_timestamp_last = float(result[0][2])
-                        block_height_new = db_block_height + 1
-                        # previous block info
+                # previous block info
+                execute(c, (
+                "SELECT block_hash, block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
+                result = c.fetchall()
+                db_block_hash = result[0][0]
+                db_block_height = result[0][1]
+                db_timestamp_last = float(result[0][2])
+                block_height_new = db_block_height + 1
+                # previous block info
 
-                        # reject blocks older than latest block REENABLE
-                        #if float(block_timestamp) <= float(db_timestamp_last):
-                        #    block_valid = 0
-                        #    error_msg = "Block is older than the previous one, will be rejected"
-                        # reject blocks older than latest block REENABLE
+                # reject blocks older than latest block
+                if block_timestamp <= db_timestamp_last:
+                    block_valid = 0
+                    error_msg = "Block is older than the previous one, will be rejected"
+                # reject blocks older than latest block
 
-                        # calculate difficulty
-                        execute_param(c, ("SELECT avg(timestamp) FROM transactions WHERE block_height >= ? and reward != 0;"),
-                                      (db_block_height - 30,))
-                        timestamp_avg = c.fetchall()[0][0]  # select the reward block
+                # calculate difficulty
+                execute_param(c, ("SELECT avg(timestamp) FROM transactions WHERE block_height >= ? and reward != 0;"),
+                              (str(db_block_height - 30),))
+                timestamp_avg = c.fetchall()[0][0]  # select the reward block
+                # print timestamp_avg
 
-                        timestamp_difference = db_timestamp_last - timestamp_avg
-                        # print timestamp_difference
+                timestamp_difference = db_timestamp_last - timestamp_avg
+                # print timestamp_difference
 
-                        # calculate difficulty
-                        try:
-                            diff = int(math.log(1e18 / timestamp_difference))
-                        except:
-                            pass
-                        finally:
-                            if db_block_height < 50:
-                                diff = 33
-                            # if diff < 4:
-                            #    diff = 4
+                try:
+                    diff = int(math.log(1e18 / timestamp_difference))
+                except:
+                    pass
+                finally:
+                    if db_block_height < 50:
+                        diff = 33
+                    # if diff < 4:
+                    #    diff = 4
 
-                        diff = 1 #investigation only REENABLE
+                app_log.info("Calculated difficulty: {}".format(diff))
+                # calculate difficulty
 
-                        #app_log.info("Calculated difficulty: {}".format(diff)) REENABLE
-                        # calculate difficulty
+                # match difficulty
+                block_hash = hashlib.sha224(str(transaction_list) + db_block_hash).hexdigest()
+                mining_hash = bin_convert(hashlib.sha224(nonce+db_block_hash).hexdigest())
+                mining_condition = bin_convert(db_block_hash)[0:diff]
 
-                        # match difficulty
-                        block_hash = hashlib.sha224(str(transaction_list) + db_block_hash).hexdigest()
-                        mining_hash = bin_convert(hashlib.sha224(nonce+db_block_hash).hexdigest())
-                        mining_condition = bin_convert(db_block_hash)[0:diff]
+                if mining_condition in mining_hash:  # simplified comparison, no backwards mining
+                    app_log.info("Difficulty requirement satisfied for block {} from {}".format(block_height_new,peer_ip))
+                else:
+                    # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
+                    error_msg = "Difficulty requirement not satisfied for block {} from {}".format(block_height_new,peer_ip)
+                    block_valid = 0
 
-                        if mining_condition in mining_hash:  # simplified comparison, no backwards mining
-                            app_log.info("Difficulty requirement satisfied for block {} from {}".format(block_height_new,peer_ip))
-                        else:
-                            #app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
-                            error_msg = "Difficulty requirement not satisfied for block {} from {}".format(block_height_new,peer_ip)
-                            block_valid = 0
-
-                            print mining_condition
-                            print mining_hash
-                            #print data
-                            #print transaction_list
-                        # match difficulty
+                    #print data
+                    #print transaction_list
+                # match difficulty
 
                 fees_block = []
 
                 if block_valid == 0:
-                    app_log.info("Check 1: A part of the block is invalid, rejected: {}".format(error_msg))
-                    app_log.info("Check 1: Complete rejected block: {}".format(data))
+                    app_log.info("Check 1: A part of the block is invalid, rejected {}".format(error_msg))
+                    app_log.info("Check 1: Complete rejected block {}".format(data))
                     warning(sdef, peer_ip)
 
                 if block_valid == 1:
