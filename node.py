@@ -771,11 +771,12 @@ def digest_block(data, sdef, peer_ip):
                 block_height_new = db_block_height + 1
                 # previous block info
 
-                # reject blocks older than latest block
-                if block_timestamp <= db_timestamp_last:
-                    block_valid = 0
-                    error_msg = "Block is older than the previous one, will be rejected"
-                # reject blocks older than latest block
+                if db_block_height > 20000: #remove post hf
+                    # reject blocks older than latest block
+                    if float(block_timestamp) <= float(db_timestamp_last):
+                        block_valid = 0
+                        error_msg = "Block is older than the previous one, will be rejected"
+                    # reject blocks older than latest block
 
                 # calculate difficulty
                 execute_param(c, ("SELECT avg(timestamp) FROM transactions WHERE block_height >= ? and reward != 0;"),
@@ -818,8 +819,8 @@ def digest_block(data, sdef, peer_ip):
                 fees_block = []
 
                 if block_valid == 0:
-                    app_log.info("Check 1: A part of the block is invalid, rejected {}".format(error_msg))
-                    app_log.info("Check 1: Complete rejected block {}".format(data))
+                    app_log.info("Check 1: A part of the block is invalid, rejected: {}".format(error_msg))
+                    app_log.info("Check 1: Complete rejected block: {}".format(data))
                     warning(sdef, peer_ip)
 
                 if block_valid == 1:
@@ -944,7 +945,7 @@ def digest_block(data, sdef, peer_ip):
 
                     # whole block validation
                     if block_valid == 0:
-                        app_log.info("Check 2: A part of the block is invalid, rejected ({})".format(error_msg))
+                        app_log.info("Check 2: A part of the block is invalid, rejected: {}".format(error_msg))
                         app_log.info("Check 2: Complete rejected block: {}".format(data))
                         warning(sdef, peer_ip)
                     if block_valid == 1:
