@@ -701,7 +701,6 @@ def digest_block(data, sdef, peer_ip):
             block_transactions = []
 
             for transaction_list in block_list:
-
                 for r in transaction_list:  # sig 4
                     signature_list.append(r[4])
 
@@ -781,11 +780,11 @@ def digest_block(data, sdef, peer_ip):
                 execute_param(c, ("SELECT avg(timestamp) FROM transactions WHERE block_height >= ? and reward != 0;"),
                               (str(db_block_height - 30),))
                 timestamp_avg = c.fetchall()[0][0]  # select the reward block
-                # print timestamp_avg
 
                 timestamp_difference = db_timestamp_last - timestamp_avg
                 # print timestamp_difference
 
+                # calculate difficulty
                 try:
                     diff = int(math.log(1e18 / timestamp_difference))
                 except:
@@ -795,7 +794,7 @@ def digest_block(data, sdef, peer_ip):
                         diff = 33
                     # if diff < 4:
                     #    diff = 4
-
+                diff = 1 #temp
                 app_log.info("Calculated difficulty: {}".format(diff))
                 # calculate difficulty
 
