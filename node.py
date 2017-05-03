@@ -1018,9 +1018,8 @@ else:
     address = hashlib.sha224(public_key_hashed).hexdigest()  # hashed public key
     # generate key pair and an address
 
-    app_log.info("Your address: ".format(address))
-    app_log.info("Your private key: ".format(private_key_readable))
-    app_log.info("Your public key: ".format(public_key_hashed))
+    app_log.info("Your address: {}".format(address))
+    app_log.info("Your public key: {}".format(public_key_hashed))
 
     pem_file = open("privkey.der", 'a')
     pem_file.write(str(private_key_readable))
