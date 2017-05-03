@@ -1214,7 +1214,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         #postfork
                         # app_log.info("Incoming: Combined segments: " + segments)
                         # print peer_ip
-                        if max(consensus_blockheight_list) == consensus_blockheight:
+                        if max(consensus_blockheight_list) == consensus_blockheight and busy == 0:
                             send(self.request, (str(len("blockscf"))).zfill(10))
                             send(self.request, "blockscf")
 
@@ -1666,7 +1666,7 @@ def worker(HOST, PORT):
                 if int(db_block_height) > 60000:
                     # app_log.info("Incoming: Combined segments: " + segments)
                     # print peer_ip
-                    if max(consensus_blockheight_list) == consensus_blockheight:
+                    if max(consensus_blockheight_list) == consensus_blockheight and busy == 0:
                         send(s, (str(len("blockscf"))).zfill(10))
                         send(s, "blockscf")
 
