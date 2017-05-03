@@ -177,7 +177,8 @@ def miner(q,privatekey_readable, public_key_hashed, address):
 
                 #submit mined block to node
 
-                check_uptodate(300, app_log)
+                if sync_conf == 1:
+                    check_uptodate(300, app_log)
 
                 submitted = 0
                 while submitted == 0:
