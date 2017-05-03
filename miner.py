@@ -259,8 +259,8 @@ if __name__ == '__main__':
                 "Miner: Please start your node for the block to be submitted or adjust mining ip in settings.")
             time.sleep(1)
     # verify connection
-
-    check_uptodate(15, app_log)
+    if sync_conf == 1:
+        check_uptodate(15, app_log)
 
     instances = range(int(mining_threads_conf))
     print instances

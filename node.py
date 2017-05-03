@@ -957,11 +957,15 @@ def digest_block(data, sdef, peer_ip):
 
                             # dev reward
                             if int(block_height_new) % 100 == 0: #every 100 blocks
-                                if transaction == block_transactions[-1]: #put at the end
-                                    execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
-                                        "0", time_now, "Development Reward", genesis_conf,
-                                        reward, "0", "0", "0", "0", "0", "0", str(block_height_new)))
-                                    commit(conn)
+                                try:
+                                    execute_param(c,("SELECT timestamp FROM transactions WHERE openfield = ?;"), (str(block_height_new),))
+                                    test_dev_reward = c.fetchone()[0]
+                                except:
+                                    if transaction == block_transactions[-1]: #put at the end
+                                        execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
+                                            "0", time_now, "Development Reward", genesis_conf,
+                                            reward, "0", "0", "0", "0", "0", "0", str(block_height_new)))
+                                        commit(conn)
                             # dev reward
 
                         app_log.info("Block {} valid and saved".format(block_height_new))
@@ -1065,7 +1069,6 @@ if verify_conf == 1:
 
 ### LOCAL CHECKS FINISHED ###
 app_log.info("Starting up...")
-
 
 class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
     def handle(self):  # server defined here
