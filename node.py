@@ -1076,7 +1076,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
         peer_ip = self.request.getpeername()[0]
 
-        if threading.active_count() < thread_limit_conf:
+        if threading.active_count() < thread_limit_conf or peer_ip == "127.0.0.1":
             capacity = 1
         else:
             capacity = 0
@@ -1331,11 +1331,27 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     send(self.request, "sync")
 
                 elif data == "block":  # from miner
+                    app_log.info("Outgoing: Received a block from miner")
                     # receive theirs
                     segments = receive(self.request, 10)
                     # app_log.info("Incoming: Combined mined segments: " + segments)
-                    digest_block(segments, self.request,peer_ip)
+
+                    # check if we have the latest block
+                    conn = sqlite3.connect(ledger_path_conf)
+                    conn.text_factory = str
+                    c = conn.cursor()
+                    execute(c, ('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1'))
+                    db_block_height = c.fetchone()[0]
+                    conn.close()
+                    # check if we have the latest block
+
+                    if max(consensus_blockheight_list) == int(db_block_height):
+                        app_log.info("Outgoing: Processing block from miner")
+                        digest_block(segments, self.request,peer_ip)
                     # receive theirs
+                    else:
+                        app_log.info("Outgoing: Miner block was orphaned because node was not synced")
+
 
                 else:
                     raise ValueError("Unexpected error, received: " + str(data))

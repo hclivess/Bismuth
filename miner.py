@@ -248,7 +248,7 @@ if __name__ == '__main__':
         time_now = str(time.time())
         last_block_ago = float(time_now) - float(timestamp_last_block)
 
-        if last_block_ago > 300:
+        if last_block_ago > 30:
             app_log.info("Local blockchain is {} minutes behind, waiting for sync to complete".format(int(last_block_ago) / 60))
             time.sleep(10)
         else:
