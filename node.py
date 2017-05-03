@@ -1198,14 +1198,32 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 elif data == "blocksfnd":
                     app_log.info("Incoming: Client has the block")  # node should start sending txs in this step
 
-                    # receive theirs
-                    segments = receive(self.request, 10)
-
-                    # app_log.info("Incoming: Combined segments: " + segments)
-                    # print peer_ip
-                    if max(consensus_blockheight_list) == consensus_blockheight:
-                        digest_block(segments, self.request,peer_ip)
+                    if db_block_height <= 60000:
+                        #prefork
                         # receive theirs
+                        segments = receive(self.request, 10)
+
+                        # app_log.info("Incoming: Combined segments: " + segments)
+                        # print peer_ip
+                        if max(consensus_blockheight_list) == consensus_blockheight:
+                            digest_block(segments, self.request,peer_ip)
+                            # receive theirs
+                        # prefork
+                    if db_block_height > 60000:
+                        #postfork
+                        # app_log.info("Incoming: Combined segments: " + segments)
+                        # print peer_ip
+                        if max(consensus_blockheight_list) == consensus_blockheight:
+                            send(self.request, (str(len("blockscf"))).zfill(10))
+                            send(self.request, "blockscf")
+
+                            segments = receive(self.request, 10)
+                            digest_block(segments, self.request,peer_ip)
+                            # receive theirs
+                        else:
+                            send(self.request, (str(len("blockrj"))).zfill(10))
+                            send(self.request, "blockrj")
+                        #postfork
 
                     while busy == 1:
                         time.sleep(1)
@@ -1296,11 +1314,28 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                 # app_log.info("Incoming: Selected " + str(blocks_send) + " to send")
 
                                 conn.close()
-                                send(self.request, (str(len("blocksfnd"))).zfill(10))
-                                send(self.request, "blocksfnd")
 
-                                send(self.request, (str(len(str(blocks_send)))).zfill(10))
-                                send(self.request, str(blocks_send))
+                                # prefork
+                                if db_block_height <= 60000:
+                                    send(self.request, (str(len("blocksfnd"))).zfill(10))
+                                    send(self.request, "blocksfnd")
+
+                                    send(self.request, (str(len(str(blocks_send)))).zfill(10))
+                                    send(self.request, str(blocks_send))
+                                # prefork
+
+                                # postfork
+                                if db_block_height > 60000:
+                                    confirmation = receive(self.request, 10)
+                                    if confirmation == "blockscf":
+                                        app_log.info("Incoming: Client confirmed they want to sync from us")
+                                        send(self.request, (str(len(str(blocks_send)))).zfill(10))
+                                        send(self.request, str(blocks_send))
+                                    elif confirmation == "blocksrj":
+                                        app_log.info("Incoming: Client rejected to sync from us because we're dont have the latest block")
+                                        pass
+                                # postfork
+
                                 # send own
 
                         except:
@@ -1562,13 +1597,28 @@ def worker(HOST, PORT):
 
                             # app_log.info("Outgoing: Selected " + str(blocks_send) + " to send")
 
-                            send(s, (str(len("blocksfnd"))).zfill(10))
-                            send(s, "blocksfnd")
 
-                            # send own
-                            send(s, (str(len(str(blocks_send)))).zfill(10))
-                            send(s, str(blocks_send))
-                            # send own
+                            # prefork
+                            if db_block_height <= 60000:
+                                send(s, (str(len("blocksfnd"))).zfill(10))
+                                send(s, "blocksfnd")
+
+                                send(s, (str(len(str(blocks_send)))).zfill(10))
+                                send(s, str(blocks_send))
+                            # prefork
+
+                            # postfork
+                            if db_block_height > 60000:
+                                confirmation = receive(s, 10)
+                                if confirmation == "blockscf":
+                                    app_log.info("Outgoing: Client confirmed they want to sync from us")
+                                    send(s, (str(len(str(blocks_send)))).zfill(10))
+                                    send(s, str(blocks_send))
+                                elif confirmation == "blocksrj":
+                                    app_log.info(
+                                        "Outgoing: Client rejected to sync from us because we're dont have the latest block")
+                                    pass
+                            # postfork
                     except:
                         app_log.info("Outgoing: Block not found")
                         send(s, (str(len("blocknf"))).zfill(10))
@@ -1590,15 +1640,32 @@ def worker(HOST, PORT):
 
             elif data == "blocksfnd":
                 app_log.info("Outgoing: Node has the block")  # node should start sending txs in this step
+                if db_block_height <= 60000:
+                    # prefork
+                    # receive theirs
+                    segments = receive(s, 10)
 
-                # receive theirs
-                segments = receive(s, 10)
+                    # app_log.info("Incoming: Combined segments: " + segments)
+                    # print peer_ip
+                    if max(consensus_blockheight_list) == consensus_blockheight:
+                        digest_block(segments, s, peer_ip)
+                        # receive theirs
+                        # prefork
+                if db_block_height > 60000:
+                    # postfork
+                    # app_log.info("Incoming: Combined segments: " + segments)
+                    # print peer_ip
+                    if max(consensus_blockheight_list) == consensus_blockheight:
+                        send(s, (str(len("blockscf"))).zfill(10))
+                        send(s, "blockscf")
 
-                # app_log.info("Incoming: Combined segments: " + segments)
-                # print peer_ip
-                if max(consensus_blockheight_list) == consensus_blockheight:
-                    digest_block(segments,s,peer_ip)
-                # receive theirs
+                        segments = receive(s, 10)
+                        digest_block(segments, s, peer_ip)
+                        # receive theirs
+                    else:
+                        send(s, (str(len("blockrj"))).zfill(10))
+                        send(s, "blockrj")
+                        # postfork
 
                 while busy == 1:
                     time.sleep(1)
