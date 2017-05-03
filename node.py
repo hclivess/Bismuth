@@ -19,7 +19,6 @@ app_log.info("Configuration settings loaded")
 # load config
 version = version_conf
 
-
 def unban(ip):
     global warning_list
     global banlist
@@ -1345,12 +1344,14 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     conn.close()
                     # check if we have the latest block
 
-                    if max(consensus_blockheight_list) == int(db_block_height):
+                    if len(active_pool) < 5:
+                        app_log.info("Outgoing: Mined block ignored, insufficient connections to the network")
+                    elif int(db_block_height) > int(max(consensus_blockheight_list))-3:
                         app_log.info("Outgoing: Processing block from miner")
                         digest_block(segments, self.request,peer_ip)
                     # receive theirs
                     else:
-                        app_log.info("Outgoing: Miner block was orphaned because node was not synced")
+                        app_log.info("Outgoing: Mined block was orphaned because node was not synced, we are at block {}, should be at least {}".format(db_block_height,int(max(consensus_blockheight_list))-3))
 
 
                 else:
