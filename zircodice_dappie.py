@@ -96,8 +96,7 @@ while True:
 
             # create transactions for missing payouts
             timestamp = str(time.time())
-            transaction = (timestamp, address, payout_address, str(float(bet_amount*2)-percentage(1,bet_amount)),
-                           "payout for " + tx_signature)
+            transaction = (timestamp, address, payout_address, '%.8f' % (float(bet_amount*2)-percentage(1,bet_amount)), "0", "payout for " + tx_signature)
             print transaction
 
             h = SHA.new(str(transaction))
@@ -115,8 +114,8 @@ while True:
                 result_in_mempool = m.fetchone()[0]
                 print "Payout transaction already in the mempool"
             except:
-                m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?)", (
-                timestamp, address, payout_address, str(float(bet_amount*2)-percentage(1,bet_amount)), signature_enc, public_key_hashed,
+                m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (
+                timestamp, address, payout_address, '%.8f' % (float(bet_amount*2)-percentage(1,bet_amount)), signature_enc, public_key_hashed, "0",
                 "payout for " + tx_signature))
                 mempool.commit()  # Save (commit) the changes
                 mempool.close()
