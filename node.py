@@ -1331,7 +1331,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                 elif data == "block":  # from miner
                     app_log.info("Outgoing: Received a block from miner")
-                    # receive theirs
+                    # receive block
                     segments = receive(self.request, 10)
                     # app_log.info("Incoming: Combined mined segments: " + segments)
 
