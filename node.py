@@ -652,6 +652,7 @@ def digest_block(data, sdef, peer_ip):
     global busy
 
     if busy == 0:
+        app_log.info("Digesting started")
         busy = 1
         try:
             conn = sqlite3.connect(ledger_path_conf)
@@ -1221,8 +1222,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             digest_block(segments, self.request,peer_ip)
                             # receive theirs
                         else:
-                            send(self.request, (str(len("blockrj"))).zfill(10))
-                            send(self.request, "blockrj")
+                            send(self.request, (str(len("blocksrj"))).zfill(10))
+                            send(self.request, "blocksrj")
                         #postfork
 
                     while busy == 1:
@@ -1326,7 +1327,11 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                                 # postfork
                                 if db_block_height > 60000:
+                                    send(self.request, (str(len("blocksfnd"))).zfill(10))
+                                    send(self.request, "blocksfnd")
+
                                     confirmation = receive(self.request, 10)
+
                                     if confirmation == "blockscf":
                                         app_log.info("Incoming: Client confirmed they want to sync from us")
                                         send(self.request, (str(len(str(blocks_send)))).zfill(10))
@@ -1599,7 +1604,7 @@ def worker(HOST, PORT):
 
 
                             # prefork
-                            if db_block_height <= 60000:
+                            if int(db_block_height) <= 60000:
                                 send(s, (str(len("blocksfnd"))).zfill(10))
                                 send(s, "blocksfnd")
 
@@ -1608,15 +1613,19 @@ def worker(HOST, PORT):
                             # prefork
 
                             # postfork
-                            if db_block_height > 60000:
+                            if int(db_block_height) > 60000:
+                                send(s, (str(len("blocksfnd"))).zfill(10))
+                                send(s, "blocksfnd")
+
                                 confirmation = receive(s, 10)
+
                                 if confirmation == "blockscf":
                                     app_log.info("Outgoing: Client confirmed they want to sync from us")
                                     send(s, (str(len(str(blocks_send)))).zfill(10))
                                     send(s, str(blocks_send))
+
                                 elif confirmation == "blocksrj":
-                                    app_log.info(
-                                        "Outgoing: Client rejected to sync from us because we're dont have the latest block")
+                                    app_log.info("Outgoing: Client rejected to sync from us because we're dont have the latest block")
                                     pass
                             # postfork
                     except:
@@ -1640,8 +1649,8 @@ def worker(HOST, PORT):
 
             elif data == "blocksfnd":
                 app_log.info("Outgoing: Node has the block")  # node should start sending txs in this step
-                if db_block_height <= 60000:
-                    # prefork
+                # prefork
+                if int(db_block_height) <= 60000:
                     # receive theirs
                     segments = receive(s, 10)
 
@@ -1650,9 +1659,11 @@ def worker(HOST, PORT):
                     if max(consensus_blockheight_list) == consensus_blockheight:
                         digest_block(segments, s, peer_ip)
                         # receive theirs
-                        # prefork
-                if db_block_height > 60000:
-                    # postfork
+                # prefork
+
+
+                # postfork
+                if int(db_block_height) > 60000:
                     # app_log.info("Incoming: Combined segments: " + segments)
                     # print peer_ip
                     if max(consensus_blockheight_list) == consensus_blockheight:
@@ -1663,9 +1674,10 @@ def worker(HOST, PORT):
                         digest_block(segments, s, peer_ip)
                         # receive theirs
                     else:
-                        send(s, (str(len("blockrj"))).zfill(10))
-                        send(s, "blockrj")
-                        # postfork
+                        send(s, (str(len("blocksrj"))).zfill(10))
+                        send(s, "blocksrj")
+                # postfork
+
 
                 while busy == 1:
                     time.sleep(1)
