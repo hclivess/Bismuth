@@ -36,7 +36,7 @@ def check_uptodate(interval, app_log):
 
         if last_block_ago > interval:
             app_log.info("Local blockchain is {} minutes behind ({} seconds), waiting for sync to complete".format(int(last_block_ago) / 60,last_block_ago))
-            time.sleep(10)
+            time.sleep(5)
         else:
             break
         conn.close()
