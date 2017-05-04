@@ -42,7 +42,7 @@ def warning(sdef, ip):
 
 def ledger_convert():
     try:
-        app_log.info("Converting ledger to Hyperblocks")
+        app_log.warning("Converting ledger to Hyperblocks")
         depth = 10000
 
         shutil.copy(ledger_path_conf, ledger_path_conf + '.hyper')
