@@ -9,15 +9,15 @@ from Crypto.Hash import SHA
 from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 
-app_log = log.log("node.log")
-
 # load config
 global warning_list_limit_conf
-(port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf) = options.read()
-
-app_log.info("Configuration settings loaded")
+(port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf) = options.read()
 # load config
+
+app_log = log.log("node.log",debug_level_conf)
 version = version_conf
+
+app_log.warning("Configuration settings loaded")
 
 def unban(ip):
     global warning_list
@@ -590,7 +590,7 @@ def consensus_add(peer_ip, consensus_blockheight):
     consensus_percentage = (float(
         consensus_blockheight_list.count(consensus) / float(len(consensus_blockheight_list)))) * 100
     app_log.info("Current outgoing connections: {}".format(len(active_pool)))
-    app_log.info("Current block consensus: {} = {}%".format(consensus,consensus_percentage))
+    app_log.warning("Current block consensus: {} = {}%".format(consensus,consensus_percentage))
 
     return
 
@@ -811,8 +811,8 @@ def digest_block(data, sdef, peer_ip):
                 fees_block = []
 
                 if block_valid == 0:
-                    app_log.info("Check 1: A part of the block is invalid, rejected: {}".format(error_msg))
-                    app_log.info("Check 1: Complete rejected block: {}".format(data))
+                    app_log.warning("Check 1: A part of the block is invalid, rejected: {}".format(error_msg))
+                    app_log.warning("Check 1: Complete rejected block: {}".format(data))
                     warning(sdef, peer_ip)
 
                 if block_valid == 1:
@@ -969,7 +969,7 @@ def digest_block(data, sdef, peer_ip):
                                         commit(conn)
                             # dev reward
 
-                        app_log.info("Block {} valid and saved".format(block_height_new))
+                        app_log.warning("Block {} valid and saved".format(block_height_new))
                         del block_transactions[:]
                         unban(peer_ip)
 
@@ -1005,9 +1005,9 @@ def db_maintenance():
 
 # key maintenance
 if os.path.isfile("privkey.der") is True:
-    app_log.info("privkey.der found")
+    app_log.warning("privkey.der found")
 elif os.path.isfile("privkey_encrypted.der") is True:
-    app_log.info("privkey_encrypted.der found")
+    app_log.warning("privkey_encrypted.der found")
 else:
     # generate key pair and an address
     random_generator = Random.new().read
@@ -1041,7 +1041,7 @@ public_key_readable = open('pubkey.der').read()
 public_key_hashed = base64.b64encode(public_key_readable)
 address = hashlib.sha224(public_key_readable).hexdigest()
 
-app_log.info("Local address: {}".format(address))
+app_log.warning("Local address: {}".format(address))
 
 if hyperblocks_conf == 1:
     ledger_convert()
@@ -1058,7 +1058,7 @@ if not os.path.exists('mempool.db'):
     app_log.info("Created mempool file")
     # create empty mempool
 else:
-    app_log.info("Mempool exists")
+    app_log.warning("Mempool exists")
 
 if rebuild_db_conf == 1:
     db_maintenance()
@@ -1721,13 +1721,13 @@ if __name__ == "__main__":
 
             server_thread.daemon = True
             server_thread.start()
-            app_log.info("Server loop running in thread: {}".format(server_thread.name))
+            app_log.warning("Server loop running in thread: {}".format(server_thread.name))
         else:
-            app_log.info("Not starting a local server to conceal identity on Tor network")
+            app_log.warning("Not starting a local server to conceal identity on Tor network")
 
         # start connection manager
         t_manager = threading.Thread(target=manager())
-        app_log.info("Starting connection manager")
+        app_log.warning("Starting connection manager")
         t_manager.start()
         # start connection manager
 

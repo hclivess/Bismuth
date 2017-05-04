@@ -28,5 +28,7 @@ def read():
             warning_list_limit_conf = int(line.strip('warning_list_limit='))
         if "tor=" in line:
             tor_conf = int(line.strip('tor='))
+        if "debug_level=" in line:
+            debug_level_conf = line.strip('debug_level=')
 
-    return port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf
+    return port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf

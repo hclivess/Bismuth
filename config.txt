@@ -15,3 +15,4 @@ hyperblocks=0
 warning_list_limit=50
 tor=0
 miner_sync=1
+debug_level=WARNING
