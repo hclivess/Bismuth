@@ -29,5 +29,7 @@ copy config.txt dist\config.txt
 copy ledger_explorer.cmd dist\ledger_explorer.cmd
 
 "C:\Program Files (x86)\Inno Setup 5\iscc" /q "setup.iss"
+del dist\static\ledger.db
+"C:\Program Files (x86)\Inno Setup 5\iscc" /q "setup_no_blockchain.iss"
 pause
 
