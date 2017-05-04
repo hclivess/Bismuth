@@ -432,7 +432,7 @@ def purge_old_peers():
 
             try:
                 s = socks.socksocket()
-                s.settimeout(0.2)
+                s.settimeout(0.3)
                 if tor_conf == 1:
                     s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
                 # s.setblocking(0)
@@ -546,7 +546,7 @@ def blocknf(block_hash_delete):
                 commit(conn)
                 conn.close()
 
-                app_log.info("Outgoing: Node didn't find the block, deleted latest entry")  # PRONE TO ATTACK
+                app_log.warning("Outgoing: Node didn't find the block, deleted latest entry")  # PRONE TO ATTACK
 
 
 
