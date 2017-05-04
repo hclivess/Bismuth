@@ -112,7 +112,6 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 execute_param(c, ("SELECT avg(timestamp) FROM transactions where block_height >= ? and reward != 0;"),(str(db_block_height - 30),), app_log)
                 timestamp_avg = c.fetchall()[0][0]  # select the reward block
                 #print timestamp_avg
-                conn.close()
 
                 try:
                     timestamp_difference = timestamp_last_block - timestamp_avg
@@ -126,6 +125,28 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                     #if diff < 4:
                     #    diff = 4
                     # calculate difficulty
+
+                if db_block_height > 1:
+                    # retarget difficulty
+
+                    execute_param(c, ("SELECT timestamp FROM transactions WHERE block_height >= ? and reward != 0;"),
+                                  (db_block_height,), app_log)
+                    db_block_timestamp = float(c.fetchone()[0])
+                    execute_param(c, ("SELECT timestamp FROM transactions WHERE block_height >= ? and reward != 0;"),
+                                  (db_block_height - 1,), app_log)
+                    db_block_timestamp_last = float(c.fetchone()[0])
+                    conn.close()
+
+                    block_time = db_block_timestamp - db_block_timestamp_last
+
+                    if block_time < 60:
+                        diff_ = diff + int(60/(block_time))
+                    if block_time > 60:
+                        diff_ = diff - int(60/(block_time))
+
+                    print diff
+                    print diff_
+
 
                 app_log.warning("Mining, {} cycles passed in thread {}, difficulty: {}".format(tries,q,diff))
                 diff = int(diff)

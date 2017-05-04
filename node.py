@@ -789,6 +789,35 @@ def digest_block(data, sdef, peer_ip):
                     # if diff < 4:
                     #    diff = 4
 
+                if db_block_height > 1:
+                    # retarget difficulty
+
+                    execute_param(c, ("SELECT timestamp FROM transactions WHERE block_height >= ? and reward != 0;"),
+                                  (db_block_height,))
+                    db_block_timestamp = float(c.fetchone()[0])
+                    execute_param(c, ("SELECT timestamp FROM transactions WHERE block_height >= ? and reward != 0;"),
+                                  (db_block_height - 1,))
+                    db_block_timestamp_last = float(c.fetchone()[0])
+                    block_time = db_block_timestamp - db_block_timestamp_last
+
+                    if block_time < 60:
+                        diff_ = diff + int(60/(block_time))
+                    if block_time > 60:
+                        diff_ = diff - int(60/(block_time))
+
+                    print diff
+                    print diff_
+
+                    #time_now = time.time()
+                    #block_overtime = time_now - db_block_timestamp
+                    #if block_overtime > 60 and block_timestamp == max(consensus_blockheight_list) - 1: #if we are on the block preceding the newest block
+                    #    print block_overtime
+                    #    diff_ = diff_ - int(((int(block_overtime)) - 60) / 10)
+
+                    #print diff_
+
+                    # retarget difficulty
+
                 app_log.info("Calculated difficulty: {}".format(diff))
                 # calculate difficulty
 
@@ -1068,7 +1097,7 @@ if verify_conf == 1:
     verify()
 
 ### LOCAL CHECKS FINISHED ###
-app_log.info("Starting up...")
+app_log.warning("Starting up...")
 
 class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
     def handle(self):  # server defined here
