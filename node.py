@@ -432,7 +432,7 @@ def purge_old_peers():
 
             try:
                 s = socks.socksocket()
-                s.settimeout(0.1)
+                s.settimeout(0.2)
                 if tor_conf == 1:
                     s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
                 # s.setblocking(0)
