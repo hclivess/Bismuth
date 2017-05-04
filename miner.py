@@ -227,7 +227,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
 if __name__ == '__main__':
     freeze_support()  # must be this line, dont move ahead
 
-    app_log = log.log("miner.log")
+    app_log = log.log("miner.log",debug_level_conf)
     (key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read()
 
     if not os.path.exists('mempool.db'):
