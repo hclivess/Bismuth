@@ -842,6 +842,9 @@ def digest_block(data, sdef, peer_ip):
                         # app_log.info("Digest: Received address: " + str(db_address))
 
                         # include the new block
+
+                        #if float(db_amount) > 0: todo: only check balances if user is spending
+
                         block_credit = 0
                         block_debit = 0
 
@@ -885,6 +888,7 @@ def digest_block(data, sdef, peer_ip):
                         # app_log.info("Digest: Projected transction address balance: " + str(balance))
 
                         db_block_50 = int(db_block_height) - 50
+
                         try:
                             execute_param(c, ("SELECT timestamp FROM transactions WHERE block_height = ?;"),
                                           (str(db_block_50),))
@@ -1317,7 +1321,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                 conn.close()
 
                                 # prefork
-                                if db_block_height <= 60000:
+                                if int(received_block_height) <= 60000:
                                     send(self.request, (str(len("blocksfnd"))).zfill(10))
                                     send(self.request, "blocksfnd")
 
@@ -1326,7 +1330,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                 # prefork
 
                                 # postfork
-                                if db_block_height > 60000:
+                                if int(received_block_height) > 60000:
                                     send(self.request, (str(len("blocksfnd"))).zfill(10))
                                     send(self.request, "blocksfnd")
 
@@ -1604,7 +1608,7 @@ def worker(HOST, PORT):
 
 
                             # prefork
-                            if int(db_block_height) <= 60000:
+                            if int(received_block_height) <= 60000:
                                 send(s, (str(len("blocksfnd"))).zfill(10))
                                 send(s, "blocksfnd")
 
@@ -1613,7 +1617,7 @@ def worker(HOST, PORT):
                             # prefork
 
                             # postfork
-                            if int(db_block_height) > 60000:
+                            if int(received_block_height) > 60000:
                                 send(s, (str(len("blocksfnd"))).zfill(10))
                                 send(s, "blocksfnd")
 
