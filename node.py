@@ -957,7 +957,7 @@ def digest_block(data, sdef, peer_ip):
                             commit(conn)
 
                             # dev reward
-                            if int(block_height_new) % 100 == 0: #every 100 blocks
+                            if int(block_height_new) % 10 == 0: #every 10 blocks
                                 try:
                                     execute_param(c,("SELECT timestamp FROM transactions WHERE openfield = ?;"), (str(block_height_new),))
                                     test_dev_reward = c.fetchone()[0]
