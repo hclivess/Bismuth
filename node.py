@@ -764,12 +764,11 @@ def digest_block(data, sdef, peer_ip):
                 block_height_new = db_block_height + 1
                 # previous block info
 
-                if db_block_height > 60000: #remove IF post hf
-                    # reject blocks older than latest block
-                    if float(block_timestamp) <= float(db_timestamp_last):
-                        block_valid = 0
-                        error_msg = "Block is older than the previous one, will be rejected"
-                    # reject blocks older than latest block
+                # reject blocks older than latest block
+                if float(block_timestamp) <= float(db_timestamp_last):
+                    block_valid = 0
+                    error_msg = "Block is older than the previous one, will be rejected"
+                # reject blocks older than latest block
 
                 # calculate difficulty
                 execute_param(c, ("SELECT avg(timestamp) FROM transactions WHERE block_height >= ? and reward != 0;"),
@@ -781,10 +780,7 @@ def digest_block(data, sdef, peer_ip):
                 # print timestamp_difference
 
                 try:
-                    diff = int(math.log(1e18 / timestamp_difference))
-                    if db_block_height > 60000:
-                        diff = int(math.log(1e20 / timestamp_difference))
-
+                    diff = int(math.log(1e20 / timestamp_difference))
                 except:
                     pass
                 finally:
@@ -1203,32 +1199,18 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 elif data == "blocksfnd":
                     app_log.info("Incoming: Client has the block")  # node should start sending txs in this step
 
-                    if db_block_height <= 60000:
-                        #prefork
-                        # receive theirs
+                    # app_log.info("Incoming: Combined segments: " + segments)
+                    # print peer_ip
+                    if max(consensus_blockheight_list) == consensus_blockheight and busy == 0:
+                        send(self.request, (str(len("blockscf"))).zfill(10))
+                        send(self.request, "blockscf")
+
                         segments = receive(self.request, 10)
-
-                        # app_log.info("Incoming: Combined segments: " + segments)
-                        # print peer_ip
-                        if max(consensus_blockheight_list) == consensus_blockheight:
-                            digest_block(segments, self.request,peer_ip)
-                            # receive theirs
-                        # prefork
-                    if db_block_height > 60000:
-                        #postfork
-                        # app_log.info("Incoming: Combined segments: " + segments)
-                        # print peer_ip
-                        if max(consensus_blockheight_list) == consensus_blockheight and busy == 0:
-                            send(self.request, (str(len("blockscf"))).zfill(10))
-                            send(self.request, "blockscf")
-
-                            segments = receive(self.request, 10)
-                            digest_block(segments, self.request,peer_ip)
-                            # receive theirs
-                        else:
-                            send(self.request, (str(len("blocksrj"))).zfill(10))
-                            send(self.request, "blocksrj")
-                        #postfork
+                        digest_block(segments, self.request,peer_ip)
+                        # receive theirs
+                    else:
+                        send(self.request, (str(len("blocksrj"))).zfill(10))
+                        send(self.request, "blocksrj")
 
                     while busy == 1:
                         time.sleep(1)
@@ -1320,30 +1302,18 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                                 conn.close()
 
-                                # prefork
-                                if int(received_block_height) <= 60000:
-                                    send(self.request, (str(len("blocksfnd"))).zfill(10))
-                                    send(self.request, "blocksfnd")
+                                send(self.request, (str(len("blocksfnd"))).zfill(10))
+                                send(self.request, "blocksfnd")
 
+                                confirmation = receive(self.request, 10)
+
+                                if confirmation == "blockscf":
+                                    app_log.info("Incoming: Client confirmed they want to sync from us")
                                     send(self.request, (str(len(str(blocks_send)))).zfill(10))
                                     send(self.request, str(blocks_send))
-                                # prefork
-
-                                # postfork
-                                if int(received_block_height) > 60000:
-                                    send(self.request, (str(len("blocksfnd"))).zfill(10))
-                                    send(self.request, "blocksfnd")
-
-                                    confirmation = receive(self.request, 10)
-
-                                    if confirmation == "blockscf":
-                                        app_log.info("Incoming: Client confirmed they want to sync from us")
-                                        send(self.request, (str(len(str(blocks_send)))).zfill(10))
-                                        send(self.request, str(blocks_send))
-                                    elif confirmation == "blocksrj":
-                                        app_log.info("Incoming: Client rejected to sync from us because we're dont have the latest block")
-                                        pass
-                                # postfork
+                                elif confirmation == "blocksrj":
+                                    app_log.info("Incoming: Client rejected to sync from us because we're dont have the latest block")
+                                    pass
 
                                 # send own
 
@@ -1607,31 +1577,20 @@ def worker(HOST, PORT):
                             # app_log.info("Outgoing: Selected " + str(blocks_send) + " to send")
 
 
-                            # prefork
-                            if int(received_block_height) <= 60000:
-                                send(s, (str(len("blocksfnd"))).zfill(10))
-                                send(s, "blocksfnd")
+                            send(s, (str(len("blocksfnd"))).zfill(10))
+                            send(s, "blocksfnd")
 
+                            confirmation = receive(s, 10)
+
+                            if confirmation == "blockscf":
+                                app_log.info("Outgoing: Client confirmed they want to sync from us")
                                 send(s, (str(len(str(blocks_send)))).zfill(10))
                                 send(s, str(blocks_send))
-                            # prefork
 
-                            # postfork
-                            if int(received_block_height) > 60000:
-                                send(s, (str(len("blocksfnd"))).zfill(10))
-                                send(s, "blocksfnd")
+                            elif confirmation == "blocksrj":
+                                app_log.info("Outgoing: Client rejected to sync from us because we're dont have the latest block")
+                                pass
 
-                                confirmation = receive(s, 10)
-
-                                if confirmation == "blockscf":
-                                    app_log.info("Outgoing: Client confirmed they want to sync from us")
-                                    send(s, (str(len(str(blocks_send)))).zfill(10))
-                                    send(s, str(blocks_send))
-
-                                elif confirmation == "blocksrj":
-                                    app_log.info("Outgoing: Client rejected to sync from us because we're dont have the latest block")
-                                    pass
-                            # postfork
                     except:
                         app_log.info("Outgoing: Block not found")
                         send(s, (str(len("blocknf"))).zfill(10))
@@ -1653,35 +1612,20 @@ def worker(HOST, PORT):
 
             elif data == "blocksfnd":
                 app_log.info("Outgoing: Node has the block")  # node should start sending txs in this step
-                # prefork
-                if int(db_block_height) <= 60000:
-                    # receive theirs
+
+
+                # app_log.info("Incoming: Combined segments: " + segments)
+                # print peer_ip
+                if max(consensus_blockheight_list) == consensus_blockheight and busy == 0:
+                    send(s, (str(len("blockscf"))).zfill(10))
+                    send(s, "blockscf")
+
                     segments = receive(s, 10)
-
-                    # app_log.info("Incoming: Combined segments: " + segments)
-                    # print peer_ip
-                    if max(consensus_blockheight_list) == consensus_blockheight:
-                        digest_block(segments, s, peer_ip)
-                        # receive theirs
-                # prefork
-
-
-                # postfork
-                if int(db_block_height) > 60000:
-                    # app_log.info("Incoming: Combined segments: " + segments)
-                    # print peer_ip
-                    if max(consensus_blockheight_list) == consensus_blockheight and busy == 0:
-                        send(s, (str(len("blockscf"))).zfill(10))
-                        send(s, "blockscf")
-
-                        segments = receive(s, 10)
-                        digest_block(segments, s, peer_ip)
-                        # receive theirs
-                    else:
-                        send(s, (str(len("blocksrj"))).zfill(10))
-                        send(s, "blocksrj")
-                # postfork
-
+                    digest_block(segments, s, peer_ip)
+                    # receive theirs
+                else:
+                    send(s, (str(len("blocksrj"))).zfill(10))
+                    send(s, "blocksrj")
 
                 while busy == 1:
                     time.sleep(1)
