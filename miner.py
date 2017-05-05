@@ -128,9 +128,9 @@ def miner(q,privatekey_readable, public_key_hashed, address):
 
                 # retarget difficulty
                 if timestamp_difference < 30:
-                    diff = diff + int((timestamp_difference)/100)
+                    diff = diff + int((timestamp_difference)/30)
                 if timestamp_difference > 30:
-                    diff = diff - int((timestamp_difference)/100)
+                    diff = diff - int((timestamp_difference)/30)
                 #if diff < 25:
                 #    diff = 25
                 # retarget difficulty
