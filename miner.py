@@ -126,24 +126,14 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                     #    diff = 4
                     # calculate difficulty
 
-                if db_block_height > 65000:
-                    # retarget difficulty
-
-                    execute_param(c, ("SELECT timestamp FROM transactions WHERE block_height >= ? and reward != 0;"),
-                                  (db_block_height,), app_log)
-                    db_block_timestamp = float(c.fetchone()[0])
-                    execute_param(c, ("SELECT timestamp FROM transactions WHERE block_height >= ? and reward != 0;"),
-                                  (db_block_height - 1,), app_log)
-                    db_block_timestamp_last = float(c.fetchone()[0])
-                    conn.close()
-
-                    block_time = db_block_timestamp - db_block_timestamp_last
-
-                    if block_time < 60:
-                        diff = diff + int(10/(block_time))
-                    if block_time > 60:
-                        diff = diff - int(10/(block_time))
-                    # retarget difficulty
+                # retarget difficulty
+                if timestamp_difference < 30:
+                    diff = diff + int((timestamp_difference)/100)
+                if timestamp_difference > 30:
+                    diff = diff - int((timestamp_difference)/100)
+                #if diff < 25:
+                #    diff = 25
+                # retarget difficulty
 
                 app_log.warning("Mining, {} cycles passed in thread {}, difficulty: {}".format(tries,q,diff))
                 diff = int(diff)

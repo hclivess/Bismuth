@@ -796,31 +796,15 @@ def digest_block(data, sdef, peer_ip):
                     # if diff < 4:
                     #    diff = 4
 
-                if db_block_height > 65000:
-                    # retarget difficulty
+                # retarget difficulty
 
-                    execute_param(c, ("SELECT timestamp FROM transactions WHERE block_height >= ? and reward != 0;"),
-                                  (db_block_height,))
-                    db_block_timestamp = float(c.fetchone()[0])
-                    execute_param(c, ("SELECT timestamp FROM transactions WHERE block_height >= ? and reward != 0;"),
-                                  (db_block_height - 1,))
-                    db_block_timestamp_last = float(c.fetchone()[0])
-                    block_time = db_block_timestamp - db_block_timestamp_last
-
-                    if block_time < 60:
-                        diff = diff + int(10/(block_time)) #penalty for every 10s
-                    if block_time > 60:
-                        diff = diff - int(10/(block_time)) #boost for every 10s
-
-                    #time_now = time.time()
-                    #block_overtime = time_now - db_block_timestamp
-                    #if block_overtime > 60 and block_timestamp == max(consensus_blockheight_list) - 1: #if we are on the block preceding the newest block
-                    #    print block_overtime
-                    #    diff_ = diff_ - int(((int(block_overtime)) - 60) / 10)
-
-                    #print diff_
-
-                    # retarget difficulty
+                if timestamp_difference < 30:
+                    diff = diff + int((timestamp_difference) / 100)
+                if timestamp_difference > 30:
+                    diff = diff - int((timestamp_difference) / 100)
+                    # if diff < 25:
+                    #    diff = 25
+                #retarget difficulty
 
                 app_log.info("Calculated difficulty: {}".format(diff))
                 # calculate difficulty
