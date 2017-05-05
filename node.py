@@ -1031,7 +1031,7 @@ def db_maintenance():
     conn = sqlite3.connect("mempool.db")
     execute(conn, "VACUUM")
     conn.close()
-    app_log.info("Database maintenance finished")
+    app_log.warning("Database maintenance finished")
 
 
 # key maintenance
