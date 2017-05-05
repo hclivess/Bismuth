@@ -217,7 +217,7 @@ consensus_blockheight_list = []
 global tried
 tried = []
 global consensus_percentage
-consensus_percentage = 100
+consensus_percentage = ""
 global warning_list
 warning_list = []
 global banlist
@@ -226,6 +226,8 @@ global busy
 busy = 0
 global busy_mempool
 busy_mempool = 0
+global consensus
+consensus = ""
 
 
 # port = 2829 now defined by config
@@ -515,7 +517,7 @@ def verify():
             # verify blockchain
 
 
-def blocknf(block_hash_delete):
+def blocknf(block_hash_delete, peer_ip):
     global busy
     if busy == 0:
         busy = 1
@@ -537,13 +539,13 @@ def blocknf(block_hash_delete):
             #db_keep = results[10]
 
             if db_block_height < 2:
-                app_log.info("Outgoing: Will not roll back this block")
+                app_log.info("Will not roll back this block")
                 conn.close()
 
             elif (db_block_hash != block_hash_delete):
                 # print db_block_hash
                 # print block_hash_delete
-                app_log.info("Outgoing: We moved away from the block to rollback, skipping")
+                app_log.info("We moved away from the block to rollback, skipping")
                 conn.close()
 
             else:
@@ -552,7 +554,7 @@ def blocknf(block_hash_delete):
                 commit(conn)
                 conn.close()
 
-                app_log.warning("Outgoing: Node didn't find the block, rolling back a block")  # PRONE TO ATTACK
+                app_log.warning("Node {} didn't find block {}, rolled back".format(peer_ip,db_block_height))  # PRONE TO ATTACK
 
         except:
             pass
@@ -565,6 +567,7 @@ def consensus_add(peer_ip, consensus_blockheight):
     global peer_ip_list
     global consensus_blockheight_list
     global consensus_percentage
+    global consensus
 
     if peer_ip not in peer_ip_list:
         app_log.info("Adding {} to consensus peer list".format(peer_ip))
@@ -586,16 +589,13 @@ def consensus_add(peer_ip, consensus_blockheight):
             peer_ip_list.append(peer_ip)
             consensus_blockheight_list.append(int(consensus_blockheight))
 
-    app_log.info("Consensus IP list: {}".format(peer_ip_list))
-    app_log.info("Consensus opinion list: {}".format(consensus_blockheight_list))
-
     consensus = most_common(consensus_blockheight_list)
 
     consensus_percentage = (float(
         consensus_blockheight_list.count(consensus) / float(len(consensus_blockheight_list)))) * 100
 
-    app_log.info("Current outgoing connections: {}".format(len(active_pool)))
-    app_log.info("Current block consensus: {} = {}%".format(consensus,consensus_percentage))
+    #app_log.info("Current outgoing connections: {}".format(len(active_pool)))
+    #app_log.info("Current block consensus: {} = {}%".format(consensus,consensus_percentage))
 
     return
 
@@ -642,10 +642,14 @@ def manager():
             app_log.info("Only {} connections active, resetting the try list".format(len(active_pool)))
             del tried[:]
 
-        app_log.warning("Connection manager: Threads at {} / {}".format(threading.active_count(),thread_limit_conf))
-        app_log.warning("Connection manager: Tried: {}".format(tried))
-        app_log.warning("Connection manager: Current active pool: {}".format(active_pool))
+        app_log.info("Connection manager: Threads at {} / {}".format(threading.active_count(),thread_limit_conf))
+        app_log.info("Connection manager: Tried: {}".format(tried))
+        app_log.info("Connection manager: Current active pool: {}".format(active_pool))
         app_log.warning("Connection manager: Current connections: {}".format(len(active_pool)))
+        if consensus:  # once the consensus is filled
+            app_log.warning("Connection manager: Consensus: {} = {}%".format(consensus, consensus_percentage))
+            app_log.info("Connection manager: Consensus IP list: {}".format(peer_ip_list))
+            app_log.info("Connection manager: Consensus opinion list: {}".format(consensus_blockheight_list))
 
         # app_log.info(threading.enumerate() all threads)
         time.sleep(int(pause_conf)*10)
@@ -1002,8 +1006,6 @@ def digest_block(data, sdef, peer_ip):
 
                         del block_transactions[:]
                         unban(peer_ip)
-
-                        global consensus
 
                         # whole block validation
         except Exception, e:
@@ -1366,7 +1368,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     block_hash_delete = receive(self.request, 10)
                     # print peer_ip
                     if max(consensus_blockheight_list) == consensus_blockheight:
-                        blocknf(block_hash_delete)
+                        blocknf(block_hash_delete,peer_ip)
                         warning_list.append(peer_ip)
 
                     while busy == 1:
@@ -1399,7 +1401,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     # receive theirs
                     else:
                         app_log.info("Outgoing: Mined block was orphaned because node was not synced, we are at block {}, should be at least {}".format(db_block_height,int(max(consensus_blockheight_list))-3))
-
 
                 else:
                     raise ValueError("Unexpected error, received: " + str(data))
@@ -1634,7 +1635,7 @@ def worker(HOST, PORT):
                 block_hash_delete = receive(s, 10)
                 # print peer_ip
                 if max(consensus_blockheight_list) == consensus_blockheight:
-                    blocknf(block_hash_delete)
+                    blocknf(block_hash_delete,peer_ip)
 
                 while busy == 1:
                     time.sleep(1)
