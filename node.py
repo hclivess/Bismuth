@@ -785,11 +785,11 @@ def digest_block(data, sdef, peer_ip):
                     pass
                 finally:
                     if db_block_height < 50:
-                        diff = 33
+                        diff = 37
                     # if diff < 4:
                     #    diff = 4
 
-                if db_block_height > 1:
+                if db_block_height > 65000:
                     # retarget difficulty
 
                     execute_param(c, ("SELECT timestamp FROM transactions WHERE block_height >= ? and reward != 0;"),
@@ -801,12 +801,9 @@ def digest_block(data, sdef, peer_ip):
                     block_time = db_block_timestamp - db_block_timestamp_last
 
                     if block_time < 60:
-                        diff_ = diff + int(60/(block_time))
+                        diff = diff + int(10/(block_time)) #penalty for every 10s
                     if block_time > 60:
-                        diff_ = diff - int(60/(block_time))
-
-                    print diff
-                    print diff_
+                        diff = diff - int(10/(block_time)) #boost for every 10s
 
                     #time_now = time.time()
                     #block_overtime = time_now - db_block_timestamp

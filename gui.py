@@ -525,12 +525,29 @@ def refresh():
         pass
     finally:
         if db_block_height < 50:
-            diff = 33
+            diff = 37
         #if diff < 4:
         #    diff = 4
 
         #print("Calculated difficulty: " + str(diff))
         # calculate difficulty
+
+    if db_block_height > 65000:
+        # retarget difficulty
+
+        c.execute("SELECT timestamp FROM transactions WHERE block_height >= ? and reward != 0;",
+                      (db_block_height,))
+        db_block_timestamp = float(c.fetchone()[0])
+        c.execute("SELECT timestamp FROM transactions WHERE block_height >= ? and reward != 0;",
+                      (db_block_height - 1,))
+        db_block_timestamp_last = float(c.fetchone()[0])
+        block_time = db_block_timestamp - db_block_timestamp_last
+
+        if block_time < 60:
+            diff = diff + int(10 / (block_time))  # penalty for every 10s
+        if block_time > 60:
+            diff = diff - int(10 / (block_time))  # boost for every 10s
+        # retarget difficulty
 
     diff_msg = diff
 
