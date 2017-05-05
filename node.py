@@ -617,16 +617,13 @@ def manager():
             peer_tuples = re.findall("'([\d\.]+)', '([\d]+)'", peers)
             # app_log.info(peer_tuples)
 
-            threads_count = threading.active_count()
-            threads_limit = thread_limit_conf
-
             for tuple in peer_tuples:
                 HOST = tuple[0]
                 # app_log.info(HOST)
                 PORT = int(tuple[1])
                 # app_log.info(PORT)
 
-                if threads_count <= threads_limit and str(HOST + ":" + str(PORT)) not in tried and str(
+                if threading.active_count() < thread_limit_conf and str(HOST + ":" + str(PORT)) not in tried and str(
                                         HOST + ":" + str(PORT)) not in active_pool and str(HOST) not in banlist:
                     app_log.info("Will attempt to connect to {}:{}".format(HOST,PORT))
                     tried.append(HOST + ":" + str(PORT))
@@ -640,7 +637,7 @@ def manager():
             app_log.info("Only {} connections active, resetting the try list".format(len(active_pool)))
             del tried[:]
 
-        app_log.info("Connection manager: Threads at {} / {}".format(threads_count,threads_limit))
+        app_log.info("Connection manager: Threads at {} / {}".format(threads_count,thread_limit_conf))
         app_log.info("Tried: {}".format(tried))
         app_log.info("Current active pool: {}".format(active_pool))
         app_log.info("Current connections: {}".format(len(active_pool)))
@@ -839,7 +836,7 @@ def digest_block(data, sdef, peer_ip):
 
                 if block_valid == 0:
                     app_log.warning("Check 1: A part of the block is invalid, rejected: {}".format(error_msg))
-                    app_log.warning("Check 1: Complete rejected block: {}".format(data))
+                    app_log.info("Check 1: Complete rejected block: {}".format(data))
                     warning(sdef, peer_ip)
 
                 if block_valid == 1:
