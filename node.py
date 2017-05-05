@@ -632,6 +632,7 @@ def manager():
                     tried.append(HOST + ":" + str(PORT))
                     t = threading.Thread(target=worker, args=(HOST, PORT))  # threaded connectivity to nodes here
                     app_log.info("---Starting a client thread " + str(threading.currentThread()) + "---")
+                    t.daemon = True
                     t.start()
 
                     # client thread handling
@@ -1754,6 +1755,7 @@ if __name__ == "__main__":
         # start connection manager
         t_manager = threading.Thread(target=manager())
         app_log.warning("Starting connection manager")
+        t_manager.daemon = True
         t_manager.start()
         # start connection manager
 
