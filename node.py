@@ -180,7 +180,10 @@ def receive(sdef, slen):
         data = int(sdef.recv(slen))  # receive length
         # print "To receive: "+str(data)
     else:
-        raise RuntimeError("Socket timeout")
+        if debug_conf == 1:
+            raise RuntimeError("Socket timeout")
+        else:
+            return
 
     chunks = []
     bytes_recd = 0
@@ -193,7 +196,10 @@ def receive(sdef, slen):
             chunks.append(chunk)
             bytes_recd = bytes_recd + len(chunk)
         else:
-            raise RuntimeError("Socket timeout")
+            if debug_conf == 1:
+                raise RuntimeError("Socket timeout")
+            else:
+                return
     segments = b''.join(chunks)
     # print "Received segments: "+str(segments)
 
@@ -589,8 +595,9 @@ def consensus_add(peer_ip, consensus_blockheight):
 
     consensus_percentage = (float(
         consensus_blockheight_list.count(consensus) / float(len(consensus_blockheight_list)))) * 100
-    app_log.warning("Current outgoing connections: {}".format(len(active_pool)))
-    app_log.warning("Current block consensus: {} = {}%".format(consensus,consensus_percentage))
+
+    app_log.info("Current outgoing connections: {}".format(len(active_pool)))
+    app_log.info("Current block consensus: {} = {}%".format(consensus,consensus_percentage))
 
     return
 
@@ -637,7 +644,7 @@ def manager():
             app_log.info("Only {} connections active, resetting the try list".format(len(active_pool)))
             del tried[:]
 
-        app_log.info("Connection manager: Threads at {} / {}".format(threads_count,thread_limit_conf))
+        app_log.info("Connection manager: Threads at {} / {}".format(threading.active_count(),thread_limit_conf))
         app_log.info("Tried: {}".format(tried))
         app_log.info("Current active pool: {}".format(active_pool))
         app_log.info("Current connections: {}".format(len(active_pool)))
