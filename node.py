@@ -552,9 +552,7 @@ def blocknf(block_hash_delete):
                 commit(conn)
                 conn.close()
 
-                app_log.warning("Outgoing: Node didn't find the block, deleted latest entry")  # PRONE TO ATTACK
-
-
+                app_log.warning("Outgoing: Node didn't find the block, rolling back a block")  # PRONE TO ATTACK
 
         except:
             pass
@@ -644,13 +642,13 @@ def manager():
             app_log.info("Only {} connections active, resetting the try list".format(len(active_pool)))
             del tried[:]
 
-        app_log.info("Connection manager: Threads at {} / {}".format(threading.active_count(),thread_limit_conf))
-        app_log.info("Tried: {}".format(tried))
-        app_log.info("Current active pool: {}".format(active_pool))
-        app_log.info("Current connections: {}".format(len(active_pool)))
+        app_log.warning("Connection manager: Threads at {} / {}".format(threading.active_count(),thread_limit_conf))
+        app_log.warning("Connection manager: Tried: {}".format(tried))
+        app_log.warning("Connection manager: Current active pool: {}".format(active_pool))
+        app_log.warning("Connection manager: Current connections: {}".format(len(active_pool)))
 
         # app_log.info(threading.enumerate() all threads)
-        time.sleep(int(pause_conf))
+        time.sleep(int(pause_conf)*10)
 
 
 def digest_block(data, sdef, peer_ip):
@@ -1001,11 +999,13 @@ def digest_block(data, sdef, peer_ip):
                             # dev reward
 
                         app_log.warning("Block {} valid and saved".format(block_height_new))
+
                         del block_transactions[:]
                         unban(peer_ip)
 
+                        global consensus
 
-                    # whole block validation
+                        # whole block validation
         except Exception, e:
             app_log.info(e)
 
