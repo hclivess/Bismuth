@@ -532,14 +532,22 @@ def refresh():
         #print("Calculated difficulty: " + str(diff))
         # calculate difficulty
 
-    # retarget difficulty
-    if timestamp_difference < 30:
-        diff = diff + int((timestamp_difference) / 30)
-    if timestamp_difference > 30:
-        diff = diff - int((timestamp_difference) / 30)
-    # if diff < 25:
-    #    diff = 25
-    # retarget difficulty
+    # retarget
+
+    c.execute("SELECT * FROM transactions WHERE timestamp > ? AND reward != 0",(db_timestamp_last - 60,))
+    blocks_per_minute = len(c.fetchall())
+
+    if blocks_per_minute > 1:  # if more blocks than 1 per minute
+        diff = diff + blocks_per_minute
+
+    # drop diff per minute if over target
+    time_now = time.time()
+    if time_now > db_timestamp_last + 60:
+        diff = diff - (time_now - db_timestamp_last) / 60
+    # drop diff per minute if over target
+    if diff < 35:
+        diff = 35
+    # retarget
 
     diff_msg = diff
 

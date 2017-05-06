@@ -126,16 +126,23 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                     #    diff = 4
                     # calculate difficulty
 
-                # retarget difficulty
-                if timestamp_difference < 30:
-                    diff = diff + int((timestamp_difference)/30)
-                if timestamp_difference > 30:
-                    diff = diff - int((timestamp_difference)/30)
-                #if diff < 25:
-                #    diff = 25
-                # retarget difficulty
+                # retarget
+                execute_param(c, ("SELECT block_height FROM transactions WHERE timestamp > ? AND reward != 0"), (timestamp_last_block-60,), app_log)
+                blocks_per_minute = len(c.fetchall())
 
-                app_log.warning("Mining, {} cycles passed in thread {}, difficulty: {}".format(tries,q,diff))
+                if blocks_per_minute > 1: # if more blocks than 1 per minute
+                    diff = diff + blocks_per_minute
+
+                #drop diff per minute if over target
+                time_now = time.time()
+                if time_now > timestamp_last_block + 60:
+                    diff = diff - (time_now - timestamp_last_block)/60
+                # drop diff per minute if over target
+                if diff < 35:
+                    diff = 35
+                # retarget
+
+                app_log.warning("Mining, {} cycles passed in thread {}, difficulty: {}, {} blocks per minute".format(tries,q,diff,blocks_per_minute))
                 diff = int(diff)
 
                 # serialize txs
