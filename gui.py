@@ -346,7 +346,7 @@ def sign():
     sign_message.grid(row=6, column=0, sticky=W+E, padx=15, pady=(5, 0))
 
     sign_message = Button(top, text="Verify Message", command=verify_this)
-    sign_message.grid(row=7, column=0, sticky=W+E, padx=15, pady=(15, 0))
+    sign_message.grid(row=7, column=0, sticky=W+E, padx=15, pady=(5, 0))
 
     dismiss = Button(top, text="Dismiss", command=top.destroy)
     dismiss.grid(row=8, column=0, sticky=W+E, padx=15, pady=(15, 5))
@@ -639,7 +639,7 @@ sign_b = Button(f5, text="Sign Message", command=sign, height=1, width=10)
 sign_b.grid(row=12, column=0, sticky=W+E+S, pady=2,padx=15)
 
 sign_b = Button(f5, text="Alias Registration", command=alias, height=1, width=10)
-sign_b.grid(row=12, column=0, sticky=W+E+S, pady=2,padx=15)
+sign_b.grid(row=13, column=0, sticky=W+E+S, pady=2,padx=15)
 
 quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=10)
 quit_b.grid(row=14, column=0, sticky=W+E+S, pady=0,padx=15)
