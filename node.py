@@ -248,18 +248,17 @@ def mempool_merge(data,peer_ip):
                 mempool = sqlite3.connect('mempool.db')
                 mempool.text_factory = str
                 m = mempool.cursor()
-
                 block_list = ast.literal_eval(data)
 
                 for transaction in block_list:  # set means unique
                     mempool_timestamp = '%.2f' % float(transaction[0])
-                    mempool_address = transaction[1][:56]
-                    mempool_recipient = transaction[2][:56]
+                    mempool_address = str(transaction[1][:56])
+                    mempool_recipient = str(transaction[2][:56])
                     mempool_amount = '%.8f' % float(transaction[3])
-                    mempool_signature_enc = transaction[4]
-                    mempool_public_key_hashed = transaction[5]
-                    mempool_keep = transaction[6]
-                    mempool_openfield = transaction[7]
+                    mempool_signature_enc = str(transaction[4])
+                    mempool_public_key_hashed = str(transaction[5])
+                    mempool_keep = str(transaction[6])
+                    mempool_openfield = str(transaction[7])
 
                     conn = sqlite3.connect(ledger_path_conf)
                     conn.text_factory = str
@@ -488,7 +487,7 @@ def verify():
             db_signature_enc = row[5]
             db_public_key_hashed = row[6]
             db_public_key = RSA.importKey(base64.b64decode(db_public_key_hashed))
-            db_keep = row[11]
+            db_keep = str(row[11])
             db_openfield = row[12]
 
             db_transaction = (db_timestamp, db_address, db_recipient, str(float(db_amount)), db_keep, db_openfield)
@@ -727,13 +726,13 @@ def digest_block(data, sdef, peer_ip):
                     #print transaction
                     # verify signatures
                     received_timestamp = '%.2f' % float(transaction[0])
-                    received_address = transaction[1][:56]
-                    received_recipient = transaction[2][:56]
+                    received_address = str(transaction[1][:56])
+                    received_recipient = str(transaction[2][:56])
                     received_amount = '%.8f' % float(transaction[3])
-                    received_signature_enc = transaction[4]
-                    received_public_key_hashed = transaction[5]
-                    received_keep = transaction[6]
-                    received_openfield = transaction[7]
+                    received_signature_enc = str(transaction[4])
+                    received_public_key_hashed = str(transaction[5])
+                    received_keep = str(transaction[6])
+                    received_openfield = str(transaction[7])
 
                     received_public_key = RSA.importKey(
                         base64.b64decode(received_public_key_hashed))  # convert readable key to instance
@@ -742,11 +741,12 @@ def digest_block(data, sdef, peer_ip):
 
                     h = SHA.new(str((received_timestamp, received_address, received_recipient, received_amount, received_keep,
                                      received_openfield)))
-                    if verifier.verify(h, received_signature_dec):
-                        app_log.info("Valid signature")
-                    else:
+                    if not verifier.verify(h, received_signature_dec):
                         error_msg = "Invalid signature"
                         block_valid = 0
+                    else:
+                        app_log.info("Valid signature")
+
 
                     if transaction == transaction_list[-1]:  # recognize the last transaction as the mining reward transaction
                         block_timestamp = received_timestamp
@@ -754,7 +754,7 @@ def digest_block(data, sdef, peer_ip):
 
                     time_now = time.time()
                     if float(time_now) + 30 < float(received_timestamp):
-                        error_msg = "Digest: Future transaction not allowed, timestamp {} minutes in the future".format((float(received_timestamp) - float(time_now))/60)
+                        error_msg = "Future transaction not allowed, timestamp {} minutes in the future".format((float(received_timestamp) - float(time_now))/60)
                         #print time_now
                         #print received_timestamp
                         block_valid = 0
@@ -848,7 +848,7 @@ def digest_block(data, sdef, peer_ip):
                         db_amount = '%.8f' % float(transaction[3])
                         db_signature = transaction[4]
                         db_public_key_hashed = transaction[5]
-                        db_keep = transaction[6]
+                        db_keep = str(transaction[6])
                         db_openfield = transaction[7]
 
                         # print "sync this"
