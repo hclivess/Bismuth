@@ -1,3 +1,5 @@
+# never remove the str() conversion in data evaluation or database inserts or you will debug for 14 days as signed types mismatch
+# never change the type of database columns from TEXT to anything else
 # if you raise in the server thread, the server will die and node will stop
 # must unify node and client now that connections parameters are function parameters
 from itertools import groupby
