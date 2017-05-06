@@ -1,8 +1,8 @@
 port=5658
 genesis=4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed
 verify=0
-version=mainnnet0005
-thread_limit=30
+version=mainnnet0006
+thread_limit=70
 mining_ip=127.0.0.1
 rebuild_db=1
 debug=0

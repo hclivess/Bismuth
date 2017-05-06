@@ -127,16 +127,16 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                     # calculate difficulty
 
                 # retarget
-                execute_param(c, ("SELECT block_height FROM transactions WHERE timestamp > ? AND reward != 0"), (timestamp_last_block-60,), app_log)
-                blocks_per_minute = len(c.fetchall())
+                execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (timestamp_last_block-600,), app_log)
+                blocks_per_minute = len(c.fetchall())/10
 
                 if blocks_per_minute > 1: # if more blocks than 1 per minute
                     diff = diff + blocks_per_minute
 
                 #drop diff per minute if over target
-                time_now = time.time()
-                if time_now > timestamp_last_block + 180: #start dropping after 3 minutes
-                    diff = diff - (time_now - timestamp_last_block)/60 #drop 1 diff per minute
+                time_drop = time.time()
+                if time_drop > timestamp_last_block + 180: #start dropping after 3 minutes
+                    diff = diff - (time_drop - timestamp_last_block)/60 #drop 1 diff per minute
                 # drop diff per minute if over target
                 if diff < 35:
                     diff = 35

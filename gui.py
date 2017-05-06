@@ -493,7 +493,7 @@ def refresh():
     # calculate fee - identical to that in node
     c.execute("SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;") #or it takes the first
     result = c.fetchall()
-    db_timestamp_last = result[0][1]
+    db_timestamp_last = float(result[0][1])
     #print db_timestamp_last
     db_block_height = result[0][0]
 
@@ -534,17 +534,17 @@ def refresh():
 
     # retarget
 
-    c.execute("SELECT block_height FROM transactions WHERE timestamp > ? AND reward != 0",(db_timestamp_last - 60,))
-    blocks_per_minute = len(c.fetchall())
-    print blocks_per_minute
+    c.execute("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0",(db_timestamp_last - 600,)) #600=10 min
+
+    blocks_per_minute = len(c.fetchall())/10 #/10=1 min
 
     if blocks_per_minute > 1:  # if more blocks than 1 per minute
         diff = diff + blocks_per_minute
 
     # drop diff per minute if over target
-    time_now = time.time()
-    if time_now > db_timestamp_last + 180: #start dropping after 3 minutes
-        diff = diff - (time_now - db_timestamp_last) / 60 #drop 1 diff per minute
+    time_drop = time.time()
+    if time_drop > db_timestamp_last + 180: #start dropping after 3 minutes
+        diff = diff - (time_drop - db_timestamp_last) / 60 #drop 1 diff per minute
     # drop diff per minute if over target
     if diff < 35:
         diff = 35
