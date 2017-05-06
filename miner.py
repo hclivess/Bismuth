@@ -160,8 +160,8 @@ def miner(q,privatekey_readable, public_key_hashed, address):
 
             for dbdata in result:
                 transaction = (
-                dbdata[0], dbdata[1][:56], dbdata[2][:56], '%.8f' % float(dbdata[3]), dbdata[4], dbdata[5], dbdata[6],
-                dbdata[7])  # create tuple
+                str(dbdata[0]), str(dbdata[1][:56]), str(dbdata[2][:56]), '%.8f' % float(dbdata[3]), str(dbdata[4]), str(dbdata[5]), str(dbdata[6]),
+                str(dbdata[7]))  # create tuple
                 # print transaction
                 block_send.append(transaction)  # append tuple to list for each run
                 removal_signature.append(str(dbdata[4]))  # for removal after successful mining
@@ -170,7 +170,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
 
             # claim reward
             transaction_reward = tuple
-            transaction_reward = (block_timestamp, address[:56], address[:56], '%.8f' % float(0), "0", nonce)  # only this part is signed!
+            transaction_reward = (str(block_timestamp), str(address[:56]), str(address[:56]), '%.8f' % float(0), "0", str(nonce))  # only this part is signed!
             # print transaction_reward
 
             h = SHA.new(str(transaction_reward))
@@ -178,8 +178,8 @@ def miner(q,privatekey_readable, public_key_hashed, address):
             signature = signer.sign(h)
             signature_enc = base64.b64encode(signature)
 
-            block_send.append((block_timestamp, address[:56], address[:56], '%.8f' % float(0), signature_enc,
-                               public_key_hashed, "0", nonce))  # mining reward tx
+            block_send.append((str(block_timestamp), str(address[:56]), str(address[:56]), '%.8f' % float(0), str(signature_enc),
+                               str(public_key_hashed), "0", str(nonce)))  # mining reward tx
             # claim reward
 
             #block_hash = hashlib.sha224(str(block_send) + db_block_hash).hexdigest()

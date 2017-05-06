@@ -403,8 +403,8 @@ def mempool_merge(data,peer_ip):
                         # verify signatures and balances
                         else:
                             execute_param(m, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (
-                                mempool_timestamp, mempool_address, mempool_recipient, mempool_amount,
-                                mempool_signature_enc, mempool_public_key_hashed, mempool_keep, mempool_openfield))
+                                str(mempool_timestamp), str(mempool_address), str(mempool_recipient), str(mempool_amount),
+                                str(mempool_signature_enc), str(mempool_public_key_hashed), str(mempool_keep), str(mempool_openfield)))
                             app_log.info("Mempool updated with a received transaction")
                             commit(mempool)  # Save (commit) the changes
 
@@ -490,7 +490,7 @@ def verify():
             db_keep = str(row[11])
             db_openfield = row[12]
 
-            db_transaction = (db_timestamp, db_address, db_recipient, str(float(db_amount)), db_keep, db_openfield)
+            db_transaction = (str(db_timestamp), str(db_address), str(db_recipient), str(float(db_amount)), str(db_keep), str(db_openfield))
 
             db_signature_dec = base64.b64decode(db_signature_enc)
             verifier = PKCS1_v1_5.new(db_public_key)
@@ -843,13 +843,13 @@ def digest_block(data, sdef, peer_ip):
                 if block_valid == 1:
                     for transaction in transaction_list:
                         db_timestamp = '%.2f' % float(transaction[0])
-                        db_address = transaction[1][:56]
-                        db_recipient = transaction[2][:56]
+                        db_address = str(transaction[1][:56])
+                        db_recipient = str(transaction[2][:56])
                         db_amount = '%.8f' % float(transaction[3])
-                        db_signature = transaction[4]
-                        db_public_key_hashed = transaction[5]
+                        db_signature = str(transaction[4])
+                        db_public_key_hashed = str(transaction[5])
                         db_keep = str(transaction[6])
-                        db_openfield = transaction[7]
+                        db_openfield = str(transaction[7])
 
                         # print "sync this"
                         # print block_timestamp
@@ -973,12 +973,12 @@ def digest_block(data, sdef, peer_ip):
                     if block_valid == 1:
                         for transaction in block_transactions:
                             execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
-                                transaction[0], transaction[1],
-                                transaction[2], transaction[3],
-                                transaction[4], transaction[5],
-                                transaction[6], transaction[7],
-                                transaction[8], transaction[9],
-                                transaction[10], transaction[11]))
+                                str(transaction[0]), str(transaction[1]),
+                                str(transaction[2]), str(transaction[3]),
+                                str(transaction[4]), str(transaction[5]),
+                                str(transaction[6]), str(transaction[7]),
+                                str(transaction[8]), str(transaction[9]),
+                                str(transaction[10]), str(transaction[11])))
                             # secure commit for slow nodes
                             commit(conn)
 
@@ -990,8 +990,8 @@ def digest_block(data, sdef, peer_ip):
                                 except:
                                     if transaction == block_transactions[-1]: #put at the end
                                         execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
-                                            "0", time_now, "Development Reward", genesis_conf,
-                                            reward, "0", "0", "0", "0", "0", "0", str(block_height_new)))
+                                            "0", str(time_now), "Development Reward", str(genesis_conf),
+                                            str(reward), "0", "0", "0", "0", "0", "0", str(block_height_new)))
                                         commit(conn)
                             # dev reward
 

@@ -224,7 +224,7 @@ def send(amount_input, recipient_input, keep_input, openfield_input):
         app_log.warning("OpenField Data: {}".format(openfield_input))
 
         timestamp = '%.2f' % time.time()
-        transaction = (timestamp,address,recipient_input, '%.8f' % float(amount_input),keep_input,openfield_input) #this is signed
+        transaction = (str(timestamp),str(address),str(recipient_input), '%.8f' % float(amount_input),str(keep_input),str(openfield_input)) #this is signed
         #print transaction
 
         h = SHA.new(str(transaction))
@@ -248,7 +248,7 @@ def send(amount_input, recipient_input, keep_input, openfield_input):
                 mempool.text_factory = str
                 m = mempool.cursor()
 
-                m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)",(timestamp, address, recipient_input, '%.8f' % float(amount_input),signature_enc, public_key_hashed, keep_input, openfield_input))
+                m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)",(str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input),str(signature_enc), str(public_key_hashed), str(keep_input), str(openfield_input)))
                 mempool.commit()  # Save (commit) the changes
                 mempool.close()
                 app_log.warning("Client: Mempool updated with a received transaction")
