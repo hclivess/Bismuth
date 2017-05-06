@@ -656,6 +656,7 @@ def manager():
 
 
 def digest_block(data, sdef, peer_ip):
+    error_msg = ""
     global busy
 
     if busy == 0:
@@ -801,17 +802,16 @@ def digest_block(data, sdef, peer_ip):
                 blocks_per_minute = len(c.fetchall())
 
                 if blocks_per_minute > 1: # if more blocks than 1 per minute
-                    diff = diff + blocks_per_minute
+                    diff = diff + blocks_per_minute/3
 
                 #drop diff per minute if over target
-                time_now = time.time()
-                if time_now > db_timestamp_last + 180: #start dropping after 3 minutes
-                    diff = diff - (time_now - db_timestamp_last)/60 #drop 1 diff per minute
+                #time_now = time.time()
+                #if time_now > db_timestamp_last + 180: #start dropping after 3 minutes
+                #    diff = diff - (time_now - db_timestamp_last)/60 #drop 1 diff per minute
                 # drop diff per minute if over target
-                if diff < 35:
-                    diff = 35
+                #if diff < 35:
+                #    diff = 35
                 # retarget
-
                 app_log.info("Calculated difficulty: {}".format(diff))
                 diff = int(diff)
                 # calculate difficulty
@@ -966,6 +966,7 @@ def digest_block(data, sdef, peer_ip):
                     # whole block validation
                     if block_valid == 0:
                         app_log.info("Check 2: A part of the block is invalid, rejected: {}".format(error_msg))
+                        error_msg = ""
                         app_log.info("Check 2: Complete rejected block: {}".format(data))
                         warning(sdef, peer_ip)
                     if block_valid == 1:
