@@ -1374,7 +1374,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     send(self.request, "sync")
 
                 elif data == "block":  # from miner
-                    app_log.info("Outgoing: Received a block from miner")
+                    app_log.warning("Outgoing: Received a block from miner")
                     # receive block
                     segments = receive(self.request, 10)
                     # app_log.info("Incoming: Combined mined segments: " + segments)
@@ -1389,13 +1389,13 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     # check if we have the latest block
 
                     if len(active_pool) < 5:
-                        app_log.info("Outgoing: Mined block ignored, insufficient connections to the network")
+                        app_log.warning("Outgoing: Mined block ignored, insufficient connections to the network")
                     elif int(db_block_height) > int(max(consensus_blockheight_list))-3:
-                        app_log.info("Outgoing: Processing block from miner")
+                        app_log.warning("Outgoing: Processing block from miner")
                         digest_block(segments, self.request,peer_ip)
                     # receive theirs
                     else:
-                        app_log.info("Outgoing: Mined block was orphaned because node was not synced, we are at block {}, should be at least {}".format(db_block_height,int(max(consensus_blockheight_list))-3))
+                        app_log.warning("Outgoing: Mined block was orphaned because node was not synced, we are at block {}, should be at least {}".format(db_block_height,int(max(consensus_blockheight_list))-3))
 
                 else:
                     raise ValueError("Unexpected error, received: " + str(data))
