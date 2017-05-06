@@ -135,8 +135,8 @@ def miner(q,privatekey_readable, public_key_hashed, address):
 
                 #drop diff per minute if over target
                 time_now = time.time()
-                if time_now > timestamp_last_block + 60:
-                    diff = diff - (time_now - timestamp_last_block)/60
+                if time_now > timestamp_last_block + 180: #start dropping after 3 minutes
+                    diff = diff - (time_now - timestamp_last_block)/60 #drop 1 diff per minute
                 # drop diff per minute if over target
                 if diff < 35:
                     diff = 35

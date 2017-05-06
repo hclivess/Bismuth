@@ -542,8 +542,8 @@ def refresh():
 
     # drop diff per minute if over target
     time_now = time.time()
-    if time_now > db_timestamp_last + 60:
-        diff = diff - (time_now - db_timestamp_last) / 60
+    if time_now > db_timestamp_last + 180: #start dropping after 3 minutes
+        diff = diff - (time_now - db_timestamp_last) / 60 #drop 1 diff per minute
     # drop diff per minute if over target
     if diff < 35:
         diff = 35
