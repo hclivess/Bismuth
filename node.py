@@ -385,6 +385,11 @@ def mempool_merge(data,peer_ip):
 
                             fee = '%.8f' % float(abs(100 / (float(db_timestamp_last) - float(timestamp_avg))) + len(
                                 mempool_openfield) / 600 + int(mempool_keep))
+
+                            # hardfork fee
+                            if db_block_height > 1:
+                                fee = '%.8f' % float(0.01 + (float(mempool_amount) * 0.001) + (float(len(mempool_openfield)) / 100000) + (float(mempool_keep) / 10))  # 0.1% + 0.01 dust
+                            # hardfork fee
                             # app_log.info("Fee: " + str(fee))
 
                         except Exception as e:
@@ -928,14 +933,21 @@ def digest_block(data, sdef, peer_ip):
                                           (str(db_block_50),))
                             db_timestamp_50 = c.fetchone()[0]
                             fee = '%.8f' % float(abs(100 / (float(db_timestamp) - float(db_timestamp_50))) + len(db_openfield) / 600 + int(db_keep))
+
+                            # hardfork fee
+                            if db_block_height > 80000:
+                                fee = '%.8f' % float(0.01 + (float(db_amount) * 0.001) + (float(len(db_openfield)) / 100000) + (float(db_keep) / 10))  # 0.1% + 0.01 dust
+                            # hardfork fee
+
                             fees_block.append(float(fee))
                             # app_log.info("Fee: " + str(fee))
 
                         except Exception as e:
-                            fee = 1  # presumably there are less than 50 txs
-                            # app_log.info("Fee error: " + str(e))
+                            fee = 0.01
+                            app_log.info("Fee error: " + str(e))
                             # return #debug
                         # calculate fee
+
 
                         # decide reward
 

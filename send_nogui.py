@@ -43,6 +43,7 @@ if rewards == None:
 if credit == None:
     credit = 0
 balance = credit - debit - fees + rewards - debit_mempool
+print("Transction address: {}".format(address))
 print("Transction address balance: {}".format(balance))
 #get balance
 
@@ -55,7 +56,25 @@ try:
     recipient_input = sys.argv[2]
 except:
     recipient_input = raw_input("Recipient: ")
+try:
+    keep_input = sys.argv[3]
+except:
+    keep_input = 0
+try:
+    openfield_input = sys.argv[4]
+except:
+    openfield_input = ""
 
+# hardfork fee display
+fee = '%.8f' % float(0.01 + (float(amount_input) * 0.001) + (float(len(openfield_input)) / 100000) + (float(keep_input) / 10))  # 0.1% + 0.01 dust
+print "Fee (after block 80000): {}".format(fee)
+
+confirm = raw_input("Confirm (y/n)")
+if confirm != "y":
+    print "Transaction cancelled, user confirmation failed"
+    sys.exit(1)
+
+# hardfork fee display
 
 try:
     float(amount_input)
@@ -71,16 +90,6 @@ elif len(str(recipient_input)) != 56:
     print("Wrong address length")
 
 else:
-
-    try:
-        keep_input = sys.argv[3]
-    except:
-        keep_input = 0
-    try:
-        openfield_input = sys.argv[4]
-    except:
-        openfield_input = ""
-
     timestamp = '%.2f' % time.time()
     transaction = (str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input), str(keep_input), str(openfield_input)) #this is signed
     #print transaction

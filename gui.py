@@ -508,10 +508,16 @@ def refresh():
             openfield_input = str(openfield.get("1.0",END)).strip()
 
         fee = '%.8f' % float(abs(100 / (float(db_timestamp_last) - float(timestamp_avg))) + len(openfield_input) / 600 + int(keep_var.get()))
+
+        # hardfork fee
+        if db_block_height > 80000:
+            fee = '%.8f' % float(0.01 + (float(amount.get()) * 0.001) + (float(len(openfield_input))/100000) + (float(keep_var.get()) / 10))  # 0.1% + 0.01 dust
+        # hardfork fee
+
         app_log.warning("Fee: {}".format(fee))
 
     except Exception as e:
-        fee = 1  # presumably there are less than 50 txs
+        fee = 0.01
         app_log.warning("Fee error: {}".format(e))
     # calculate fee
 
@@ -743,6 +749,7 @@ Label(f3, text="Data:", width=20,anchor="e").grid(row=3)
 recipient = Entry(f3, width=60)
 recipient.grid(row=1, column=1,sticky=E)
 amount = Entry(f3, width=60)
+amount.insert(0, 0)
 amount.grid(row=2, column=1,sticky=E)
 openfield = Text(f3, width=60, height=5, font=("TkDefaultFont",8))
 openfield.grid(row=3, column=1,sticky=E)
