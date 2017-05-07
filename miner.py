@@ -135,8 +135,13 @@ def miner(q,privatekey_readable, public_key_hashed, address):
 
                 #drop diff per minute if over target
                 time_drop = time.time()
+
+                drop_factor = 60 #drop 1 diff per minute
+                if db_block_height > 80000: #hardfork
+                    drop_factor = 120 #drop 0,5 diff per minute #hardfork
+
                 if time_drop > timestamp_last_block + 180: #start dropping after 3 minutes
-                    diff = diff - (time_drop - timestamp_last_block)/60 #drop 1 diff per minute
+                    diff = diff - (time_drop - timestamp_last_block) / drop_factor
                 # drop diff per minute if over target
                 if diff < 35:
                     diff = 35
@@ -184,6 +189,10 @@ def miner(q,privatekey_readable, public_key_hashed, address):
 
             #block_hash = hashlib.sha224(str(block_send) + db_block_hash).hexdigest()
             mining_hash = bin_convert(hashlib.sha224(nonce+db_block_hash).hexdigest())
+
+            if db_block_height > 80000:  # hardfork
+                mining_hash = bin_convert(hashlib.sha224(address + nonce + db_block_hash).hexdigest())  # hardfork
+
             mining_condition = bin_convert(db_block_hash)[0:diff]
 
             if mining_condition in mining_hash:

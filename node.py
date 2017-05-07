@@ -753,6 +753,7 @@ def digest_block(data, sdef, peer_ip):
                     if transaction == transaction_list[-1]:  # recognize the last transaction as the mining reward transaction
                         block_timestamp = received_timestamp
                         nonce = received_openfield
+                        miner_address = address
 
                     time_now = time.time()
                     if float(time_now) + 30 < float(received_timestamp):
@@ -807,8 +808,14 @@ def digest_block(data, sdef, peer_ip):
 
                 #drop diff per minute if over target
                 time_drop = time.time()
+
+                drop_factor = 60  # drop 1 diff per minute
+
+                if db_block_height > 80000:  # hardfork
+                    drop_factor = 120  # drop 0,5 diff per minute #hardfork
+
                 if time_drop > db_timestamp_last + 180: #start dropping after 3 minutes
-                    diff = diff - (time_drop - db_timestamp_last)/60 #drop 1 diff per minute
+                    diff = diff - (time_drop - db_timestamp_last) / drop_factor #drop 0,5 diff per minute
                 # drop diff per minute if over target
                 if diff < 35:
                     diff = 35
@@ -821,6 +828,10 @@ def digest_block(data, sdef, peer_ip):
                 # match difficulty
                 block_hash = hashlib.sha224(str(transaction_list) + db_block_hash).hexdigest()
                 mining_hash = bin_convert(hashlib.sha224(nonce+db_block_hash).hexdigest())
+
+                if db_block_height > 80000: #hardfork
+                    mining_hash = bin_convert(hashlib.sha224(miner_address + nonce + db_block_hash).hexdigest()) #hardfork
+
                 mining_condition = bin_convert(db_block_hash)[0:diff]
 
                 if mining_condition in mining_hash:  # simplified comparison, no backwards mining
