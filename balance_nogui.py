@@ -37,6 +37,7 @@ if credit == None:
     credit = 0
 balance = credit - debit - fees + rewards - debit_mempool
 
+print("Public key address: {}".format(address))
 print("Total fees paid: {}".format(fees))
 print("Total rewards mined: {}".format(rewards))
 print("Total tokens received: {}".format(credit))
