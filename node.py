@@ -1020,7 +1020,7 @@ def digest_block(data, sdef, peer_ip):
                                         commit(conn)
                             # dev reward
 
-                        app_log.warning("Block {} valid and saved".format(block_height_new))
+                        app_log.warning("Block {} valid and saved from {}".format(block_height_new,peer_ip))
 
                         del block_transactions[:]
                         unban(peer_ip)
