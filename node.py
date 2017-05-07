@@ -91,13 +91,13 @@ def ledger_convert():
                 rewards = 0
 
             end_balance = credit - debit - fees + rewards
-            # app_log.info("Address: "+ str(x))
-            # app_log.info("Balance: " + str(end_balance))
+            #app_log.info("Address: "+ str(x))
+            #app_log.info("Balance: " + str(end_balance))
 
             if end_balance > 0:
                 timestamp = str(time.time())
                 c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
-                db_block_height - depth - 1, timestamp, "Hyperblock", x, str(float(end_balance)), "0", "0", "0", "0", "0",
+                db_block_height - depth - 1, timestamp, "Hyperblock", x, '%.8f' % float(end_balance), "0", "0", "0", "0", "0",
                 "0", "0"))
                 conn.commit()
 
