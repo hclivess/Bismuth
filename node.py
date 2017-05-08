@@ -38,8 +38,8 @@ def warning(sdef, ip):
 
     if warning_list.count(ip) >= warning_list_limit_conf:
         banlist.append(ip)
-        sdef.close()
         app_log.info("{} banned".format(ip))  # rework this
+        raise RuntimeError("Client banned")
 
 
 def ledger_convert():
@@ -814,10 +814,7 @@ def digest_block(data, sdef, peer_ip):
                 #drop diff per minute if over target
                 time_drop = time.time()
 
-                drop_factor = 60  # drop 1 diff per minute
-
-                if db_block_height > 80000:  # hardfork
-                    drop_factor = 120  # drop 0,5 diff per minute #hardfork
+                drop_factor = 120  # drop 0,5 diff per minute #hardfork
 
                 if time_drop > db_timestamp_last + 180: #start dropping after 3 minutes
                     diff = diff - (time_drop - db_timestamp_last) / drop_factor #drop 0,5 diff per minute
@@ -831,11 +828,9 @@ def digest_block(data, sdef, peer_ip):
                 # calculate difficulty
 
                 # match difficulty
-                block_hash = hashlib.sha224(str(transaction_list) + db_block_hash).hexdigest()
-                mining_hash = bin_convert(hashlib.sha224(nonce+db_block_hash).hexdigest())
 
-                if db_block_height > 80000: #hardfork
-                    mining_hash = bin_convert(hashlib.sha224(miner_address + nonce + db_block_hash).hexdigest()) #hardfork
+                block_hash = hashlib.sha224(str(transaction_list) + db_block_hash).hexdigest()
+                mining_hash = bin_convert(hashlib.sha224(miner_address + nonce + db_block_hash).hexdigest())
 
                 mining_condition = bin_convert(db_block_hash)[0:diff]
 
@@ -1397,6 +1392,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     send(self.request, "sync")
 
                 elif data == "block":  # from miner
+
                     app_log.warning("Outgoing: Received a block from miner")
                     # receive block
                     segments = receive(self.request, 10)
@@ -1411,7 +1407,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     conn.close()
                     # check if we have the latest block
 
-                    if len(active_pool) < 5:
+                    if len(active_pool) < 3:
                         app_log.warning("Outgoing: Mined block ignored, insufficient connections to the network")
                     elif int(db_block_height) > int(max(consensus_blockheight_list))-3:
                         app_log.warning("Outgoing: Processing block from miner")

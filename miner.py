@@ -4,7 +4,6 @@ from Crypto.Hash import SHA
 from Crypto import Random
 from multiprocessing import Process, freeze_support
 
-
 # load config
 lines = [line.rstrip('\n') for line in open('config.txt')]
 for line in lines:
@@ -188,16 +187,14 @@ def miner(q,privatekey_readable, public_key_hashed, address):
             # claim reward
 
             #block_hash = hashlib.sha224(str(block_send) + db_block_hash).hexdigest()
-            mining_hash = bin_convert(hashlib.sha224(nonce+db_block_hash).hexdigest())
-
-            if db_block_height > 80000:  # hardfork
-                mining_hash = bin_convert(hashlib.sha224(address + nonce + db_block_hash).hexdigest())  # hardfork
+            mining_hash = bin_convert(hashlib.sha224(address + nonce + db_block_hash).hexdigest())  # hardfork
 
             mining_condition = bin_convert(db_block_hash)[0:diff]
 
             if mining_condition in mining_hash:
 
                 app_log.warning("Thread {} found a good block hash in {} cycles".format(q,tries))
+
                 tries = 0
 
                 #submit mined block to node
@@ -218,6 +215,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                         send(s, "block")
                         send(s, (str(len(str(block_send)))).zfill(10))
                         send(s, str(block_send))
+
 
                         submitted = 1
                         app_log.warning("Miner: Block submitted")
