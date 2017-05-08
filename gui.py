@@ -490,7 +490,7 @@ def refresh():
     balance = credit - debit - fees + rewards - debit_mempool
     app_log.warning("Node: Transction address balance: {}".format(balance))
 
-    # calculate fee - identical to that in node
+    # calculate diff
     c.execute("SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;") #or it takes the first
     result = c.fetchall()
     db_timestamp_last = float(result[0][1])
@@ -507,12 +507,8 @@ def refresh():
         else:
             openfield_input = str(openfield.get("1.0",END)).strip()
 
-        fee = '%.8f' % float(abs(100 / (float(db_timestamp_last) - float(timestamp_avg))) + len(openfield_input) / 600 + int(keep_var.get()))
 
-        # hardfork fee
-        if db_block_height > 80000:
-            fee = '%.8f' % float(0.01 + (float(amount.get()) * 0.001) + (float(len(openfield_input))/100000) + (float(keep_var.get()) / 10))  # 0.1% + 0.01 dust
-        # hardfork fee
+        fee = '%.8f' % float(0.01 + (float(amount.get()) * 0.001) + (float(len(openfield_input))/100000) + (float(keep_var.get()) / 10))  # 0.1% + 0.01 dust
 
         app_log.warning("Fee: {}".format(fee))
 
