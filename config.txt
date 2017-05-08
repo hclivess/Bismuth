@@ -13,6 +13,6 @@ mining_threads=6
 diff_recalc=200
 ledger_path=static/ledger.db
 hyperblocks=0
-warning_list_limit=15
+warning_list_limit=25
 tor=0
 miner_sync=0

@@ -758,7 +758,7 @@ def digest_block(data, sdef, peer_ip):
                     if transaction == transaction_list[-1]:  # recognize the last transaction as the mining reward transaction
                         block_timestamp = received_timestamp
                         nonce = received_openfield
-                        miner_address = address
+                        miner_address = received_address
 
                     time_now = time.time()
                     if float(time_now) + 30 < float(received_timestamp):
@@ -795,7 +795,7 @@ def digest_block(data, sdef, peer_ip):
                 # print timestamp_difference
 
                 try:
-                    diff = int(math.log(1e20 / timestamp_difference))
+                    diff = int(math.log(1e21 / timestamp_difference))
                 except:
                     pass
                 finally:
@@ -1407,7 +1407,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     conn.close()
                     # check if we have the latest block
 
-                    if len(active_pool) < 3:
+                    if len(active_pool) < 5:
                         app_log.warning("Outgoing: Mined block ignored, insufficient connections to the network")
                     elif int(db_block_height) > int(max(consensus_blockheight_list))-3:
                         app_log.warning("Outgoing: Processing block from miner")

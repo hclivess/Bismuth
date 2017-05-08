@@ -522,7 +522,7 @@ def refresh():
     #print timestamp_difference
 
     try:
-        diff = (math.log(1e20 / timestamp_difference))
+        diff = (math.log(1e21 / timestamp_difference))
     except:
         pass
     finally:

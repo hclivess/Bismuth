@@ -115,7 +115,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 try:
                     timestamp_difference = timestamp_last_block - timestamp_avg
 
-                    diff = float(math.log(1e20 / timestamp_difference))
+                    diff = float(math.log(1e21 / timestamp_difference))
                 except:
                     pass
                 finally:
