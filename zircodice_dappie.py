@@ -40,7 +40,7 @@ while True:
             checked.append(x)
 
             openfield = str(x[11])
-            if openfield == "odd":
+            if openfield == "even":
                 player = [0, 2, 4, 6, 8]
                 bank = [1, 3, 5, 7, 9]
             else: #if even

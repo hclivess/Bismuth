@@ -33,10 +33,10 @@ class index:
             betting_signatures.append(x[5]) #sig
             #print openfield
             digit_last = int((re.findall("(\d)", block_hash))[-1])
-            if (digit_last % 2 == 0) and (openfield == "odd"): #if bets odd and wins
+            if (digit_last % 2 == 0) and (openfield == "even"): #if bets even and wins
                 cell_color = "#009900"
                 result = "win"
-            elif (digit_last % 2 != 0) and (openfield == "even"): #if bets even and wins
+            elif (digit_last % 2 != 0) and (openfield == "odd"): #if bets odd and wins
                 cell_color = "#009900"
                 result = "win"
             else:

@@ -135,9 +135,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 #drop diff per minute if over target
                 time_drop = time.time()
 
-                drop_factor = 60 #drop 1 diff per minute
-                if db_block_height > 80000: #hardfork
-                    drop_factor = 120 #drop 0,5 diff per minute #hardfork
+                drop_factor = 120 #drop 0,5 diff per minute #hardfork
 
                 if time_drop > timestamp_last_block + 180: #start dropping after 3 minutes
                     diff = diff - (time_drop - timestamp_last_block) / drop_factor
@@ -149,51 +147,54 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 app_log.warning("Mining, {} cycles passed in thread {}, difficulty: {}, {} blocks per minute".format(tries,q,diff,blocks_per_minute))
                 diff = int(diff)
 
+
+            nonce = hashlib.sha224(rndfile.read(16)).hexdigest()[:32]
+
+
+
+            #block_hash = hashlib.sha224(str(block_send) + db_block_hash).hexdigest()
+            mining_hash = bin_convert(hashlib.sha224(address + nonce + db_block_hash).hexdigest())  # hardfork
+            mining_condition = bin_convert(db_block_hash)[0:diff]
+
+            if mining_condition in mining_hash:
+                app_log.warning("Thread {} found a good block hash in {} cycles".format(q,tries))
+
                 # serialize txs
                 mempool = sqlite3.connect("mempool.db")
                 mempool.text_factory = str
                 m = mempool.cursor()
-                execute(m,("SELECT * FROM transactions ORDER BY timestamp;"), app_log)
+                execute(m, ("SELECT * FROM transactions ORDER BY timestamp;"), app_log)
                 result = m.fetchall()  # select all txs from mempool
                 mempool.close()
 
-            block_send = []
-            del block_send[:]  # empty
-            removal_signature = []
-            del removal_signature[:]  # empty
+                #include data
+                block_send = []
+                del block_send[:]  # empty
+                removal_signature = []
+                del removal_signature[:]  # empty
 
-            for dbdata in result:
-                transaction = (
-                str(dbdata[0]), str(dbdata[1][:56]), str(dbdata[2][:56]), '%.8f' % float(dbdata[3]), str(dbdata[4]), str(dbdata[5]), str(dbdata[6]),
-                str(dbdata[7]))  # create tuple
-                # print transaction
-                block_send.append(transaction)  # append tuple to list for each run
-                removal_signature.append(str(dbdata[4]))  # for removal after successful mining
+                for dbdata in result:
+                    transaction = (
+                        str(dbdata[0]), str(dbdata[1][:56]), str(dbdata[2][:56]), '%.8f' % float(dbdata[3]), str(dbdata[4]), str(dbdata[5]), str(dbdata[6]),
+                        str(dbdata[7]))  # create tuple
+                    # print transaction
+                    block_send.append(transaction)  # append tuple to list for each run
+                    removal_signature.append(str(dbdata[4]))  # for removal after successful mining
 
-            nonce = hashlib.sha224(rndfile.read(16)).hexdigest()[:32]
+                # claim reward
+                transaction_reward = tuple
+                transaction_reward = (str(block_timestamp), str(address[:56]), str(address[:56]), '%.8f' % float(0), "0", str(nonce))  # only this part is signed!
+                # print transaction_reward
 
-            # claim reward
-            transaction_reward = tuple
-            transaction_reward = (str(block_timestamp), str(address[:56]), str(address[:56]), '%.8f' % float(0), "0", str(nonce))  # only this part is signed!
-            # print transaction_reward
+                h = SHA.new(str(transaction_reward))
+                signer = PKCS1_v1_5.new(key)
+                signature = signer.sign(h)
+                signature_enc = base64.b64encode(signature)
 
-            h = SHA.new(str(transaction_reward))
-            signer = PKCS1_v1_5.new(key)
-            signature = signer.sign(h)
-            signature_enc = base64.b64encode(signature)
-
-            block_send.append((str(block_timestamp), str(address[:56]), str(address[:56]), '%.8f' % float(0), str(signature_enc),
-                               str(public_key_hashed), "0", str(nonce)))  # mining reward tx
-            # claim reward
-
-            #block_hash = hashlib.sha224(str(block_send) + db_block_hash).hexdigest()
-            mining_hash = bin_convert(hashlib.sha224(address + nonce + db_block_hash).hexdigest())  # hardfork
-
-            mining_condition = bin_convert(db_block_hash)[0:diff]
-
-            if mining_condition in mining_hash:
-
-                app_log.warning("Thread {} found a good block hash in {} cycles".format(q,tries))
+                block_send.append((str(block_timestamp), str(address[:56]), str(address[:56]), '%.8f' % float(0), str(signature_enc),
+                                   str(public_key_hashed), "0", str(nonce)))  # mining reward tx
+                # claim reward
+                # include data
 
                 tries = 0
 
@@ -289,6 +290,7 @@ if __name__ == '__main__':
     print instances
     for q in instances:
         p = Process(target=miner,args=(str(q+1),private_key_readable, public_key_hashed, address))
+        p.daemon = True
         p.start()
         print "thread "+str(p)+ " started"
     for q in instances:
