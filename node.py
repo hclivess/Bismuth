@@ -358,6 +358,8 @@ def mempool_merge(data,peer_ip):
                         fees = result[0]
                         rewards = result[1]
 
+                        conn.close()
+
                         if fees == None:
                             fees = 0
                         if rewards == None:
@@ -369,34 +371,7 @@ def mempool_merge(data,peer_ip):
                         balance_pre = float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)
                         #app_log.info("Mempool: Projected transction address balance: " + str(balance))
 
-                        try:
-                            execute(c, (
-                            "SELECT block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
-                            result = c.fetchall()
-                            db_block_height = result[0][0]
-                            db_timestamp_last = float(result[0][1])
-
-                            execute_param(c, (
-                            "SELECT avg(timestamp) FROM transactions where block_height >= ? and reward != 0;"),
-                                          (str(db_block_height - 30),))
-                            timestamp_avg = c.fetchall()[0][0]  # select the reward block
-
-                            conn.close()
-
-                            fee = '%.8f' % float(abs(100 / (float(db_timestamp_last) - float(timestamp_avg))) + len(
-                                mempool_openfield) / 600 + int(mempool_keep))
-
-                            # hardfork fee
-                            if db_block_height > 1:
-                                fee = '%.8f' % float(0.01 + (float(mempool_amount) * 0.001) + (float(len(mempool_openfield)) / 100000) + (float(mempool_keep) / 10))  # 0.1% + 0.01 dust
-                            # hardfork fee
-                            # app_log.info("Fee: " + str(fee))
-
-                        except Exception as e:
-                            fee = 1  # presumably there are less than 50 txs
-                            # app_log.info("Mempool: Fee error: " + str(e))
-                            return
-                        # calculate fee
+                        fee = '%.8f' % float(0.01 + (float(mempool_amount) * 0.001) + (float(len(mempool_openfield)) / 100000) + (float(mempool_keep) / 10))  # 0.1% + 0.01 dust
 
                         time_now = time.time()
                         if float(mempool_timestamp) > float(time_now) + 30:
@@ -921,27 +896,12 @@ def digest_block(data, sdef, peer_ip):
                         balance = float(credit) - float(debit) - float(fees) + float(rewards)
                         # app_log.info("Digest: Projected transction address balance: " + str(balance))
 
-                        db_block_50 = int(db_block_height) - 50
 
-                        try:
-                            execute_param(c, ("SELECT timestamp FROM transactions WHERE block_height = ?;"),
-                                          (str(db_block_50),))
-                            db_timestamp_50 = c.fetchone()[0]
-                            fee = '%.8f' % float(abs(100 / (float(db_timestamp) - float(db_timestamp_50))) + len(db_openfield) / 600 + int(db_keep))
 
-                            # hardfork fee
-                            if db_block_height > 80000:
-                                fee = '%.8f' % float(0.01 + (float(db_amount) * 0.001) + (float(len(db_openfield)) / 100000) + (float(db_keep) / 10))  # 0.1% + 0.01 dust
-                            # hardfork fee
+                        fee = '%.8f' % float(0.01 + (float(db_amount) * 0.001) + (float(len(db_openfield)) / 100000) + (float(db_keep) / 10))  # 0.1% + 0.01 dust
 
-                            fees_block.append(float(fee))
-                            # app_log.info("Fee: " + str(fee))
-
-                        except Exception as e:
-                            fee = 0.01
-                            app_log.info("Fee error: " + str(e))
-                            # return #debug
-                        # calculate fee
+                        fees_block.append(float(fee))
+                        # app_log.info("Fee: " + str(fee))
 
 
                         # decide reward
