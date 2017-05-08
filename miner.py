@@ -285,7 +285,7 @@ if __name__ == '__main__':
             time.sleep(1)
     # verify connection
     if sync_conf == 1:
-        check_uptodate(15, app_log)
+        check_uptodate(30, app_log)
 
     instances = range(int(mining_threads_conf))
     print instances
