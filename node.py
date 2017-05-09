@@ -38,8 +38,8 @@ def warning(sdef, ip):
 
     if warning_list.count(ip) >= warning_list_limit_conf:
         banlist.append(ip)
-        app_log.info("{} banned".format(ip))  # rework this
-        raise RuntimeError("Client banned")
+        app_log.warning("{} banned".format(ip))  # rework this
+        sdef.close()
 
 
 def ledger_convert():
@@ -798,6 +798,28 @@ def digest_block(data, sdef, peer_ip):
                     diff = 35
                 # retarget
 
+                # hardfork
+                if int(db_block_height) > 90000:
+
+                    # calculate difficulty
+                    execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (db_timestamp_last - 1800,))  # 1800=30 min
+                    blocks_per_30 = len(c.fetchall())
+
+                    diff = blocks_per_30 * 2
+
+                    # drop diff per minute if over target
+                    time_drop = time.time()
+
+                    drop_factor = 120  # drop 0,5 diff per minute #hardfork
+
+                    if time_drop > db_timestamp_last + 120:  # start dropping after 2 minutes
+                        diff = diff - (time_drop - db_timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes)
+                        if diff < 35:
+                            diff = 35
+                            # drop diff per minute if over target
+
+                # hardfork
+
                 app_log.info("Calculated difficulty: {}".format(diff))
                 diff = int(diff)
                 # calculate difficulty
@@ -1097,7 +1119,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         else:
             banned = 1
             self.request.close()
-            app_log.info("IP {} banned, disconnected".format(peer_ip))
+            app_log.warning("IP {} banned, disconnected".format(peer_ip))
             #if you raise here, you kill the whole server
 
         while banned == 0 and capacity == 1:
@@ -1375,6 +1397,35 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     # receive theirs
                     else:
                         app_log.warning("Outgoing: Mined block was orphaned because node was not synced, we are at block {}, should be at least {}".format(db_block_height,int(max(consensus_blockheight_list))-3))
+
+                elif data == "getdiff":
+                    # hardfork
+
+                    execute(c, ("SELECT block_hash, block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
+                    db_timestamp_last = c.fetchone()[0]
+
+                    # calculate difficulty
+                    execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (db_timestamp_last - 1800,))  # 1800=30 min
+                    blocks_per_30 = len(c.fetchall())
+
+                    diff = blocks_per_30 * 2
+
+                    # drop diff per minute if over target
+                    time_drop = time.time()
+
+                    drop_factor = 120  # drop 0,5 diff per minute #hardfork
+
+                    if time_drop > db_timestamp_last + 120:  # start dropping after 2 minutes
+                        diff = diff - (time_drop - db_timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes)
+                        if diff < 35:
+                            diff = 35
+                            # drop diff per minute if over target
+
+                                # hardfork
+
+                    send(self.request, (str(len(diff))).zfill(10))
+                    send(self.request, diff)
+
 
                 else:
                     raise ValueError("Unexpected error, received: " + str(data))

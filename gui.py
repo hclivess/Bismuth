@@ -558,6 +558,30 @@ def refresh():
         diff = 35
     # retarget
 
+    #hardfork
+    if int(db_block_height) > 90000:
+
+        # calculate difficulty
+        c.execute("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0", (db_timestamp_last - 1800,))  # 1800=30 min
+        blocks_per_30 = len(c.fetchall())
+        print blocks_per_30/30
+
+        diff = blocks_per_30*2
+
+        # drop diff per minute if over target
+        time_drop = time.time()
+
+        drop_factor = 120  # drop 0,5 diff per minute #hardfork
+
+        if time_drop > db_timestamp_last + 120:  # start dropping after 2 minutes
+            diff = diff - (time_drop - db_timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes)
+            if diff < 35:
+                diff = 35
+        # drop diff per minute if over target
+
+    # hardfork
+    # retarget
+
     diff_msg = diff
 
 #network status
