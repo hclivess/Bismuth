@@ -150,7 +150,6 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                     # calculate difficulty
                     execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (timestamp_last_block - 1800,), app_log)  # 1800=30 min
                     blocks_per_30 = len(c.fetchall())
-                    print blocks_per_30 / 30
 
                     diff = blocks_per_30 * 2
 
@@ -164,11 +163,11 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                         if diff < 35:
                             diff = 35
                             # drop diff per minute if over target
-
+                    app_log.warning("Mining, {} cycles passed in thread {}, difficulty: {}, {} blocks per minute".format(tries, q, diff, blocks_per_30/30))
+                else:
+                    app_log.warning("Mining, {} cycles passed in thread {}, difficulty: {}, {} blocks per minute".format(tries,q,diff,blocks_per_minute))
                 # hardfork
 
-
-                app_log.warning("Mining, {} cycles passed in thread {}, difficulty: {}, {} blocks per minute".format(tries,q,diff,blocks_per_minute))
                 diff = int(diff)
 
 

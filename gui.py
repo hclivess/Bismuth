@@ -564,7 +564,6 @@ def refresh():
         # calculate difficulty
         c.execute("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0", (db_timestamp_last - 1800,))  # 1800=30 min
         blocks_per_30 = len(c.fetchall())
-        print blocks_per_30/30
 
         diff = blocks_per_30*2
 

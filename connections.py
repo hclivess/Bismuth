@@ -1,7 +1,9 @@
 import select
 
-def send(sdef, data):
+def send(sdef, data, slen):
     sdef.setblocking(0)
+
+    sdef.sendall(str(len(str(data))).zfill(slen))
     sdef.sendall(data)
 
 

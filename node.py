@@ -789,7 +789,7 @@ def digest_block(data, sdef, peer_ip):
                 #drop diff per minute if over target
                 time_drop = time.time()
 
-                drop_factor = 120  # drop 0,5 diff per minute #hardfork
+                drop_factor = 120  # drop 0,5 diff per minute
 
                 if time_drop > db_timestamp_last + 180: #start dropping after 3 minutes
                     diff = diff - (time_drop - db_timestamp_last) / drop_factor #drop 0,5 diff per minute
@@ -1400,14 +1400,19 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                 elif data == "getdiff":
                     # hardfork
+                    conn = sqlite3.connect(ledger_path_conf)
+                    c = conn.cursor()
 
-                    execute(c, ("SELECT block_hash, block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
-                    db_timestamp_last = c.fetchone()[0]
+                    execute(c, ("SELECT timestamp,block_height FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
+                    result = c.fetchall()
+                    print result
+                    db_timestamp_last = float(result[0][0])
 
                     # calculate difficulty
                     execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (db_timestamp_last - 1800,))  # 1800=30 min
                     blocks_per_30 = len(c.fetchall())
 
+                    print blocks_per_30
                     diff = blocks_per_30 * 2
 
                     # drop diff per minute if over target
@@ -1422,9 +1427,11 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             # drop diff per minute if over target
 
                                 # hardfork
+                    conn.close()
 
-                    send(self.request, (str(len(diff))).zfill(10))
-                    send(self.request, diff)
+                    print diff
+                    send(self.request, (str(len(str(diff)))).zfill(10))
+                    send(self.request, str(diff))
 
 
                 else:
