@@ -33,18 +33,6 @@ class index:
 
         plotter = []
 
-        plotter.append('<!doctype html>\n')
-        plotter.append('<html>\n')
-        plotter.append('<link rel = "icon" href = "static/explorer.ico" type = "image/x-icon" / >\n')
-        plotter.append('<head>\n')
-        #plotter.append('<meta http-equiv="refresh" content="60" >')
-        plotter.append('<link rel="stylesheet" type="text/css" href="static/style.css">')
-        plotter.append('<title>Transaction Explorer</title>\n')
-        plotter.append('<script src="static/Chart.js"></script>\n')
-        #plotter.append('<link rel="stylesheet" type="text/css" href="style.css">\n')
-        plotter.append('</head>\n')
-        plotter.append('<body bgcolor = "white">\n')
-
         # define canvas
         plotter.append('<canvas id="canvas" height="150" width="600"></canvas>\n')
         # define canvas
@@ -85,8 +73,8 @@ class index:
         # segment
 
         plotter.append('</script>\n')
-        plotter.append('</body>\n')
-        plotter.append('</html>')
+        #plotter.append('</body>\n')
+        #plotter.append('</html>')
         # redraw chart
 
         conn = sqlite3.connect('static/ledger.db')
@@ -116,9 +104,62 @@ class index:
 
         c.close()
 
-        html = "<body><body background="'static/explorer_bg.png'"><center><center><h1>Bismuth Transaction Explorer</h1></center><p><a href='static/ledger.db'>download latest blockchain</a></p>"+ str(''.join(plotter)) +"<table style='width:100%' bgcolor='white'><tr><td>Block</td><td>Timestamp</td><td>From</td><td>To</td><td>Amount</td><td>Block Hash</td><td>Fee</td><td>Reward</td></tr>" + str(''.join(view)) +"</table></body></html>"
+        html = []
+        html.append('<!doctype html>\n')
+        html.append('<html>\n')
 
-        return html
+
+        html.append('<head>\n')
+        #plotter.append('<meta http-equiv="refresh" content="60" >')
+
+        html.append('<title>Transaction Explorer</title>\n')
+        #html.append('<link rel="stylesheet" type="text/css" href="static/style.css">')
+        html.append('<link rel = "icon" href = "static/explorer.ico" type = "image/x-icon" / >\n')
+        html.append('<script src="static/Chart.js"></script>\n')
+        html.append('<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" >')
+        html.append('<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>')
+        html.append('<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script >')
+
+        html.append('</head>\n')
+        html.append('<body bgcolor = "white">\n')
+        html.append("<body>")
+        html.append("<body background='static/explorer_bg.png'>")
+
+        html.append("<div class ='container-fluid'>")
+        html.append("<div class='row'>")
+        html.append("<center><h1>Bismuth Transaction Explorer</h1></center><p></center>")
+
+        html.append("<div style='padding: 20px;'>")
+        html.append("<center><a href='https://github.com/hclivess/Bismuth/raw/master/static/ledger.db' class='btn btn-info' role='button'>Download Blockchain</a></center>")
+        html.append("</div>")
+
+        html.append("</div>")
+
+        html.append("<div class ='row'>")
+        html.append(''.join(plotter))
+        html.append("</div>")
+
+        html.append("<div class ='row'>")
+        html.append("<table class='table table-responsive'>")
+        html.append("<tr bgcolor='white'>")
+        html.append("<td>Block</td>")
+        html.append("<td>Timestamp</td>")
+        html.append("<td>From</td>")
+        html.append("<td>To</td>")
+        html.append("<td>Amount</td>")
+        html.append("<td>Block Hash</td>")
+        html.append("<td>Fee</td>")
+        html.append("<td>Reward</td>")
+        html.append("</tr>")
+        html.append(''.join(view))
+        html.append("</table>")
+        html.append("</div>")
+        html.append("</div>")
+
+        html.append("</body>")
+        html.append("</html>")
+
+        return ''.join(html)
 
 if __name__ == "__main__":
     app = web.application(urls, globals())
