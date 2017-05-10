@@ -160,10 +160,8 @@ def miner(q,privatekey_readable, public_key_hashed, address):
 
                     if time_drop > timestamp_last_block + 120:  # start dropping after 2 minutes
                         diff = diff - (time_drop - timestamp_last_block) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes)
-                        if diff < 35:
-                            diff = 35
 
-                    if time_drop > timestamp_last_block + 300:  # 5 m lim
+                    if time_drop > timestamp_last_block + 300 or diff < 37:  # 5 m lim
                         diff = 37  # 5 m lim
                             # drop diff per minute if over target
 

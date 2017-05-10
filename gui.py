@@ -577,7 +577,7 @@ def refresh():
             if diff < 35:
                 diff = 35
 
-        if time_drop > db_timestamp_last + 300:  # 5 m lim
+        if time_drop > db_timestamp_last + 300 or diff < 37:  # 5 m lim
             diff = 37  # 5 m lim
         # drop diff per minute if over target
 

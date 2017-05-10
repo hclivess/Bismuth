@@ -1,7 +1,7 @@
 port=5658
 genesis=4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed
 verify=0
-version=mainnnet0007
+version=mainnnet0008
 thread_limit=75
 mining_ip=127.0.0.1
 rebuild_db=0
@@ -15,4 +15,4 @@ ledger_path=static/ledger.db
 hyperblocks=0
 warning_list_limit=50
 tor=0
-miner_sync=1
+miner_sync=0

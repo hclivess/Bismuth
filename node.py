@@ -814,12 +814,11 @@ def digest_block(data, sdef, peer_ip):
 
                     if time_drop > db_timestamp_last + 120:  # start dropping after 2 minutes
                         diff = diff - (time_drop - db_timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes)
-                        if diff < 35:
-                            diff = 35
                             # drop diff per minute if over target
 
-                    if time_drop > db_timestamp_last + 300:  # 5 m lim
+                    if time_drop > db_timestamp_last + 300 or diff < 37:  # 5 m lim
                         diff = 37  # 5 m lim
+
 
                 # hardfork
 
