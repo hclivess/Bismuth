@@ -576,6 +576,9 @@ def refresh():
             diff = diff - (time_drop - db_timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes)
             if diff < 35:
                 diff = 35
+
+        if time_drop > db_timestamp_last + 300:  # 5 m lim
+            diff = 35  # 5 m lim
         # drop diff per minute if over target
 
     # hardfork

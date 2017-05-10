@@ -818,6 +818,9 @@ def digest_block(data, sdef, peer_ip):
                             diff = 35
                             # drop diff per minute if over target
 
+                    if time_drop > db_timestamp_last + 300:  # 5 m lim
+                        diff = 35  # 5 m lim
+
                 # hardfork
 
                 app_log.info("Calculated difficulty: {}".format(diff))
@@ -1427,6 +1430,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             # drop diff per minute if over target
 
                                 # hardfork
+
+                    if time_drop > db_timestamp_last + 300:  # 5 m lim
+                        diff = 35  # 5 m lim
+
                     conn.close()
 
                     print diff

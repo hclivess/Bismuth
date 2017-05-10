@@ -162,7 +162,11 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                         diff = diff - (time_drop - timestamp_last_block) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes)
                         if diff < 35:
                             diff = 35
+
+                    if time_drop > timestamp_last_block + 300:  # 5 m lim
+                        diff = 35  # 5 m lim
                             # drop diff per minute if over target
+
                     app_log.warning("Mining, {} cycles passed in thread {}, difficulty: {}, {} blocks per minute".format(tries, q, diff, blocks_per_30/30))
                 else:
                     app_log.warning("Mining, {} cycles passed in thread {}, difficulty: {}, {} blocks per minute".format(tries,q,diff,blocks_per_minute))
@@ -172,8 +176,6 @@ def miner(q,privatekey_readable, public_key_hashed, address):
 
 
             nonce = hashlib.sha224(rndfile.read(16)).hexdigest()[:32]
-
-
 
             #block_hash = hashlib.sha224(str(block_send) + db_block_hash).hexdigest()
             mining_hash = bin_convert(hashlib.sha224(address + nonce + db_block_hash).hexdigest())  # hardfork
