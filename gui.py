@@ -518,71 +518,25 @@ def refresh():
     # calculate fee
 
     # calculate difficulty
-    timestamp_difference = float(db_timestamp_last) - timestamp_avg
-    #print timestamp_difference
+    c.execute("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0", (db_timestamp_last - 1800,))  # 1800=30 min
+    blocks_per_30 = len(c.fetchall())
 
-    try:
-        diff = (math.log(1e21 / timestamp_difference))
-    except:
-        pass
-    finally:
-        if db_block_height < 50:
-            diff = 37
-        #if diff < 4:
-        #    diff = 4
-
-        #print("Calculated difficulty: " + str(diff))
-        # calculate difficulty
-
-    # retarget
-
-    c.execute("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0",(db_timestamp_last - 600,)) #600=10 min
-
-    blocks_per_minute = len(c.fetchall())/10 #/10=1 min
-
-    if blocks_per_minute > 1:  # if more blocks than 1 per minute
-        diff = diff + blocks_per_minute
+    diff = blocks_per_30*2
 
     # drop diff per minute if over target
     time_drop = time.time()
 
-    drop_factor = 60  # drop 1 diff per minute
+    drop_factor = 120  # drop 0,5 diff per minute #hardfork
 
-    if db_block_height > 80000:  # hardfork
-        drop_factor = 120  # drop 0,5 diff per minute #hardfork
+    if time_drop > db_timestamp_last + 120:  # start dropping after 2 minutes
+        diff = diff - (time_drop - db_timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes)
+        if diff < 35:
+            diff = 35
 
-    if time_drop > db_timestamp_last + 180: #start dropping after 3 minutes
-        diff = diff - (time_drop - db_timestamp_last) / drop_factor
+    if time_drop > db_timestamp_last + 300 or diff < 37:  # 5 m lim
+        diff = 37  # 5 m lim
     # drop diff per minute if over target
-    if diff < 35:
-        diff = 35
-    # retarget
-
-    #hardfork
-    if int(db_block_height) > 90000:
-
-        # calculate difficulty
-        c.execute("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0", (db_timestamp_last - 1800,))  # 1800=30 min
-        blocks_per_30 = len(c.fetchall())
-
-        diff = blocks_per_30*2
-
-        # drop diff per minute if over target
-        time_drop = time.time()
-
-        drop_factor = 120  # drop 0,5 diff per minute #hardfork
-
-        if time_drop > db_timestamp_last + 120:  # start dropping after 2 minutes
-            diff = diff - (time_drop - db_timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes)
-            if diff < 35:
-                diff = 35
-
-        if time_drop > db_timestamp_last + 300 or diff < 37:  # 5 m lim
-            diff = 37  # 5 m lim
-        # drop diff per minute if over target
-
-    # hardfork
-    # retarget
+    # calculate difficulty
 
     diff_msg = diff
 

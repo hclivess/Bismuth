@@ -637,7 +637,7 @@ def manager():
 
 
 def digest_block(data, sdef, peer_ip):
-    global busy
+    global busy, banlist
 
     if busy == 0:
         app_log.info("Digesting started")
@@ -761,66 +761,23 @@ def digest_block(data, sdef, peer_ip):
                 # reject blocks older than latest block
 
                 # calculate difficulty
-                execute_param(c, ("SELECT avg(timestamp) FROM transactions WHERE block_height >= ? and reward != 0;"),
-                              (str(db_block_height - 30),))
-                timestamp_avg = c.fetchall()[0][0]  # select the reward block
-                # print timestamp_avg
+                execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (db_timestamp_last - 1800,))  # 1800=30 min
+                blocks_per_30 = len(c.fetchall())
 
-                timestamp_difference = db_timestamp_last - timestamp_avg
-                # print timestamp_difference
+                diff = blocks_per_30 * 2
 
-                try:
-                    diff = int(math.log(1e21 / timestamp_difference))
-                except:
-                    pass
-                finally:
-                    if db_block_height < 50:
-                        diff = 37
-                    # if diff < 4:
-                    #    diff = 4
-
-                # retarget
-                execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (db_timestamp_last-600,))
-                blocks_per_minute = len(c.fetchall())/10
-
-                if blocks_per_minute > 1: # if more blocks than 1 per minute
-                    diff = diff + blocks_per_minute
-
-                #drop diff per minute if over target
+                # drop diff per minute if over target
                 time_drop = time.time()
 
-                drop_factor = 120  # drop 0,5 diff per minute
+                drop_factor = 120  # drop 0,5 diff per minute #hardfork
 
-                if time_drop > db_timestamp_last + 180: #start dropping after 3 minutes
-                    diff = diff - (time_drop - db_timestamp_last) / drop_factor #drop 0,5 diff per minute
-                # drop diff per minute if over target
-                if diff < 35:
-                    diff = 35
-                # retarget
+                if time_drop > db_timestamp_last + 120:  # start dropping after 2 minutes
+                    diff = diff - (time_drop - db_timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes)
+                        # drop diff per minute if over target
 
-                # hardfork
-                if int(db_block_height) > 90000:
-
-                    # calculate difficulty
-                    execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (db_timestamp_last - 1800,))  # 1800=30 min
-                    blocks_per_30 = len(c.fetchall())
-
-                    diff = blocks_per_30 * 2
-
-                    # drop diff per minute if over target
-                    time_drop = time.time()
-
-                    drop_factor = 120  # drop 0,5 diff per minute #hardfork
-
-                    if time_drop > db_timestamp_last + 120:  # start dropping after 2 minutes
-                        diff = diff - (time_drop - db_timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes)
-                            # drop diff per minute if over target
-
-                    if time_drop > db_timestamp_last + 300 or diff < 37:  # 5 m lim
-                        diff = 37  # 5 m lim
-
-
-                # hardfork
+                if time_drop > db_timestamp_last + 300 or diff < 37:  # 5 m lim
+                    diff = 37  # 5 m lim
+                # calculate difficulty
 
                 app_log.info("Calculated difficulty: {}".format(diff))
                 diff = int(diff)
@@ -845,6 +802,10 @@ def digest_block(data, sdef, peer_ip):
                 # match difficulty
 
                 fees_block = []
+
+                if peer_ip in banlist:
+                    block_valid = 0
+                    error_msg = "Cannot accept blocks form a banned peer"
 
                 if block_valid == 0:
                     app_log.warning("Check 1: A part of the block is invalid, rejected: {}".format(error_msg))
@@ -974,6 +935,7 @@ def digest_block(data, sdef, peer_ip):
                         error_msg = ""
                         app_log.info("Check 2: Complete rejected block: {}".format(data))
                         warning(sdef, peer_ip)
+
                     if block_valid == 1:
                         for transaction in block_transactions:
                             execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
@@ -1401,7 +1363,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         app_log.warning("Outgoing: Mined block was orphaned because node was not synced, we are at block {}, should be at least {}".format(db_block_height,int(max(consensus_blockheight_list))-3))
 
                 elif data == "getdiff":
-                    # hardfork
                     conn = sqlite3.connect(ledger_path_conf)
                     c = conn.cursor()
 
@@ -1424,13 +1385,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     if time_drop > db_timestamp_last + 120:  # start dropping after 2 minutes
                         diff = diff - (time_drop - db_timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes)
-                        if diff < 35:
-                            diff = 35
-                            # drop diff per minute if over target
 
-                                # hardfork
 
-                    if time_drop > db_timestamp_last + 300:  # 5 m lim
+                    if time_drop > db_timestamp_last + 300 or diff < 37:  # 5 m lim
                         diff = 37  # 5 m lim
 
                     conn.close()

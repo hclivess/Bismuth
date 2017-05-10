@@ -101,82 +101,37 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 conn = sqlite3.connect("static/ledger.db") #open to select the last tx to create a new hash from
                 conn.text_factory = str
                 c = conn.cursor()
-                execute(c ,("SELECT block_hash, block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"), app_log)
+                execute(c ,("SELECT block_hash, timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"), app_log)
                 result = c.fetchall()
                 db_block_hash = result[0][0]
-                db_block_height = result[0][1]
-                timestamp_last_block = float(result[0][2])
+                timestamp_last_block = float(result[0][1])
 
                 # calculate difficulty
-                execute_param(c, ("SELECT avg(timestamp) FROM transactions where block_height >= ? and reward != 0;"),(str(db_block_height - 30),), app_log)
-                timestamp_avg = c.fetchall()[0][0]  # select the reward block
-                #print timestamp_avg
+                execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (timestamp_last_block - 1800,), app_log)  # 1800=30 min
+                blocks_per_30 = len(c.fetchall())
 
-                try:
-                    timestamp_difference = timestamp_last_block - timestamp_avg
+                diff = blocks_per_30 * 2
 
-                    diff = float(math.log(1e21 / timestamp_difference))
-                except:
-                    pass
-                finally:
-                    if db_block_height < 50:
-                        diff = 37
-                    #if diff < 4:
-                    #    diff = 4
-                    # calculate difficulty
-
-                # retarget
-                execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (timestamp_last_block-600,), app_log)
-                blocks_per_minute = len(c.fetchall())/10
-
-                if blocks_per_minute > 1: # if more blocks than 1 per minute
-                    diff = diff + blocks_per_minute
-
-                #drop diff per minute if over target
+                # drop diff per minute if over target
                 time_drop = time.time()
 
-                drop_factor = 120 #drop 0,5 diff per minute #hardfork
+                drop_factor = 120  # drop 0,5 diff per minute
 
-                if time_drop > timestamp_last_block + 180: #start dropping after 3 minutes
-                    diff = diff - (time_drop - timestamp_last_block) / drop_factor
-                # drop diff per minute if over target
-                if diff < 35:
-                    diff = 35
-                # retarget
+                if time_drop > timestamp_last_block + 120:  # start dropping after 2 minutes
+                    diff = diff - (time_drop - timestamp_last_block) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes)
 
-                # hardfork
-                if int(db_block_height) > 90000:
+                if time_drop > timestamp_last_block + 300 or diff < 37:  # 5 m lim
+                    diff = 37  # 5 m lim
+                        # drop diff per minute if over target
 
-                    # calculate difficulty
-                    execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (timestamp_last_block - 1800,), app_log)  # 1800=30 min
-                    blocks_per_30 = len(c.fetchall())
+                app_log.warning("Mining, {} cycles passed in thread {}, difficulty: {}, {} blocks per minute".format(tries, q, diff, blocks_per_30/30))
 
-                    diff = blocks_per_30 * 2
-
-                    # drop diff per minute if over target
-                    time_drop = time.time()
-
-                    drop_factor = 120  # drop 0,5 diff per minute #hardfork
-
-                    if time_drop > timestamp_last_block + 120:  # start dropping after 2 minutes
-                        diff = diff - (time_drop - timestamp_last_block) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes)
-
-                    if time_drop > timestamp_last_block + 300 or diff < 37:  # 5 m lim
-                        diff = 37  # 5 m lim
-                            # drop diff per minute if over target
-
-                    app_log.warning("Mining, {} cycles passed in thread {}, difficulty: {}, {} blocks per minute".format(tries, q, diff, blocks_per_30/30))
-                else:
-                    app_log.warning("Mining, {} cycles passed in thread {}, difficulty: {}, {} blocks per minute".format(tries,q,diff,blocks_per_minute))
-                # hardfork
-
-                diff = int(diff)
-
+            diff = int(diff)
 
             nonce = hashlib.sha224(rndfile.read(16)).hexdigest()[:32]
 
             #block_hash = hashlib.sha224(str(block_send) + db_block_hash).hexdigest()
-            mining_hash = bin_convert(hashlib.sha224(address + nonce + db_block_hash).hexdigest())  # hardfork
+            mining_hash = bin_convert(hashlib.sha224(address + nonce + db_block_hash).hexdigest())
             mining_condition = bin_convert(db_block_hash)[0:diff]
 
             if mining_condition in mining_hash:
