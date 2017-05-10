@@ -819,7 +819,7 @@ def digest_block(data, sdef, peer_ip):
                             # drop diff per minute if over target
 
                     if time_drop > db_timestamp_last + 300:  # 5 m lim
-                        diff = 35  # 5 m lim
+                        diff = 37  # 5 m lim
 
                 # hardfork
 
@@ -1432,7 +1432,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                 # hardfork
 
                     if time_drop > db_timestamp_last + 300:  # 5 m lim
-                        diff = 35  # 5 m lim
+                        diff = 37  # 5 m lim
 
                     conn.close()
 

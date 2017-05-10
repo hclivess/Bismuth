@@ -164,7 +164,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                             diff = 35
 
                     if time_drop > timestamp_last_block + 300:  # 5 m lim
-                        diff = 35  # 5 m lim
+                        diff = 37  # 5 m lim
                             # drop diff per minute if over target
 
                     app_log.warning("Mining, {} cycles passed in thread {}, difficulty: {}, {} blocks per minute".format(tries, q, diff, blocks_per_30/30))
