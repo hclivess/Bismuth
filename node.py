@@ -294,6 +294,10 @@ def mempool_merge(data,peer_ip):
                     except:
                         pass
 
+                    if float(mempool_amount) < 0:
+                        acceptable = 0
+                        app_log.info("Negative balance spend attempt")
+
                     if float(mempool_timestamp) > time.time() + 30: #dont accept future txs
                         acceptable = 0
 
@@ -729,6 +733,9 @@ def digest_block(data, sdef, peer_ip):
                     else:
                         app_log.info("Valid signature")
 
+                    if float(received_amount) < 0:
+                        block_valid = 0
+                        error_msg = "Negative balance spend attempt"
 
                     if transaction == transaction_list[-1]:  # recognize the last transaction as the mining reward transaction
                         block_timestamp = received_timestamp
