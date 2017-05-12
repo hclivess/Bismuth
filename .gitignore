@@ -1,3 +1,4 @@
+*.pyc
 .pydevproject
 .idea/
 *.project
@@ -11,3 +12,4 @@ workspace/
 privkey.der
 pubkey.der
 address.txt
+mempool.db

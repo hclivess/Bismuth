@@ -1,0 +1,3 @@
+[submodule "FastBismuth"]
+	path = FastBismuth
+	url = git@github.com:HarryR/FastBismuth.git

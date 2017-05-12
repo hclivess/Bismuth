@@ -1,8 +1,13 @@
-import math, base64, sqlite3, os, hashlib, time, socks, keys, log
+import base64, sqlite3, os, hashlib, time, socks, keys, log
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
 from Crypto import Random
 from multiprocessing import Process, freeze_support
+
+try:
+    from fastminer import fastminer
+except ImportError:
+    fastminer = None
 
 # load config
 lines = [line.rstrip('\n') for line in open('config.txt')]
@@ -89,15 +94,21 @@ def miner(q,privatekey_readable, public_key_hashed, address):
     app_log = log.log("miner_"+q+".log",debug_level_conf)
     rndfile = Random.new()
     tries = 0
+    firstrun = True
+    begin = time.time()
+
+    if fastminer:
+        app_log.warning('Using FastBismuth miner!')
 
     while True:
         try:
-            tries = tries +1
+
             # calculate new hash
 
-            if tries % int(diff_recalc_conf) == 0 or tries == 1: #only do this ever so often
+            if tries % int(diff_recalc_conf) == 0 or firstrun: #only do this ever so often
+                firstrun = False
+                now = time.time()
                 block_timestamp = '%.2f' % time.time()
-
                 conn = sqlite3.connect("static/ledger.db") #open to select the last tx to create a new hash from
                 conn.text_factory = str
                 c = conn.cursor()
@@ -123,12 +134,24 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 if time_drop > timestamp_last_block + 300 or diff < 37:  # 5 m lim
                     diff = 37  # 5 m lim
                         # drop diff per minute if over target
-
-                app_log.warning("Mining, {} cycles passed in thread {}, difficulty: {}, {} blocks per minute".format(tries, q, diff, blocks_per_30/30))
+                cycles_per_second = tries / (now - begin)
+                begin = now
+                tries = 0
+                app_log.warning("Mining, {:.2f} cycles/second {}, difficulty: {}, {:.2f} blocks per minute".format(cycles_per_second, q, diff, blocks_per_30/30))
 
             diff = int(diff)
 
             nonce = hashlib.sha224(rndfile.read(16)).hexdigest()[:32]
+
+            if fastminer:
+                fastminer_cycles = 500000
+                nonce = fastminer(diff, address, db_block_hash, fastminer_cycles, rndfile.read(32))
+                tries += fastminer_cycles
+            else:
+                tries = tries +1
+
+            if nonce is None:
+                nonce = hashlib.sha224(rndfile.read(16)).hexdigest()[:32]
 
             #block_hash = hashlib.sha224(str(block_send) + db_block_hash).hexdigest()
             mining_hash = bin_convert(hashlib.sha224(address + nonce + db_block_hash).hexdigest())
