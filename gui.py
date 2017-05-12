@@ -235,7 +235,7 @@ def send(amount_input, recipient_input, keep_input, openfield_input):
 
         verifier = PKCS1_v1_5.new(key)
         if verifier.verify(h, signature) == True:
-            if float(amount_input) < -99999:
+            if float(amount_input) < 0:
                 app_log.warning("Client: Signature OK, but cannot use negative amounts")
 
             elif (float(amount_input) > float(balance)):
