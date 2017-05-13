@@ -137,7 +137,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 cycles_per_second = tries / (now - begin)
                 begin = now
                 tries = 0
-                app_log.warning("Mining, {:.2f} cycles/second {}, difficulty: {}, {:.2f} blocks per minute".format(cycles_per_second, q, diff, blocks_per_30/30.0))
+                app_log.warning("Thread{} {} @ {:.2f} cycles/second, difficulty: {:.2f}, {:.2f} blocks per minute".format(q, db_block_hash[:10], cycles_per_second, diff, blocks_per_30/30.0))
 
             diff = int(diff)
 
