@@ -5,7 +5,7 @@ from Crypto import Random
 from multiprocessing import Process, freeze_support
 
 try:
-    from fastminer import fastminer
+    import fastminer
 except ImportError:
     fastminer = None
 
@@ -98,7 +98,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
     begin = time.time()
 
     if fastminer:
-        app_log.warning('Using FastBismuth miner!')
+        app_log.warning('Using FastMiner: ' + fastminer.__version__)
 
     while True:
         try:
@@ -145,7 +145,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
 
             if fastminer:
                 fastminer_cycles = 500000
-                nonce = fastminer(diff, address, db_block_hash, fastminer_cycles, rndfile.read(32))
+                nonce = fastminer.bismuth(diff, address, db_block_hash, fastminer_cycles, rndfile.read(32))
                 tries += fastminer_cycles
             else:
                 tries = tries +1
