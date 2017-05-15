@@ -92,7 +92,7 @@ class index:
                 color_cell = "white"
             view.append("<tr bgcolor ={}>".format(color_cell))
             view.append("<td>{}</td>".format(x[0]))
-            view.append("<td>{}".format(time.strftime("%Y/%m/%d,%H:%M:%S", time.localtime(float(x[1])))))
+            view.append("<td>{}".format(time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(x[1])))))
             view.append("<td>{}</td>".format(x[2]))
             view.append("<td>{}</td>".format(x[3].encode('utf-8')))
             view.append("<td>{}</td>".format(x[4]))
