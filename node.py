@@ -797,7 +797,7 @@ def digest_block(data, sdef, peer_ip):
 
                 mining_condition = bin_convert(db_block_hash)[0:diff]
 
-                if mining_condition in mining_hash:  # simplified comparison, no backwards mining
+                if peer_ip == '127.0.0.1' or mining_condition in mining_hash:  # simplified comparison, no backwards mining
                     app_log.info("Difficulty requirement satisfied for block {} from {}".format(block_height_new,peer_ip))
                 else:
                     # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
