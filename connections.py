@@ -4,7 +4,7 @@ def send(sdef, data, slen):
     sdef.setblocking(0)
 
     sdef.sendall(str(len(str(data))).zfill(slen))
-    sdef.sendall(data)
+    sdef.sendall(str(data))
 
 
 def receive(sdef, slen):

@@ -1,10 +1,12 @@
+# it's recommended to only use code from the "release" state, running master blob may have issues
 # never remove the str() conversion in data evaluation or database inserts or you will debug for 14 days as signed types mismatch
 # never change the type of database columns from TEXT to anything else
 # if you raise in the server thread, the server will die and node will stop
 # must unify node and client now that connections parameters are function parameters
+
 from itertools import groupby
 from operator import itemgetter
-import shutil, math, SocketServer, ast, base64, gc, hashlib, os, re, select, sqlite3, sys, threading, time, socks, log, options
+import shutil, SocketServer, ast, base64, gc, hashlib, os, re, sqlite3, sys, threading, time, socks, log, options, connections, random
 
 from Crypto import Random
 from Crypto.Hash import SHA
@@ -169,45 +171,6 @@ def execute_param(cursor, what, param):
             # secure execute for slow nodes
     return cursor
 
-
-def send(sdef, data):
-    sdef.setblocking(0)  # needs adjustments in core mechanics
-    sdef.sendall(data)
-
-
-def receive(sdef, slen):
-    sdef.setblocking(0)  # needs adjustments in core mechanics
-    ready = select.select([sdef], [], [], 240)
-    if ready[0]:
-        data = int(sdef.recv(slen))  # receive length
-        # print "To receive: "+str(data)
-    else:
-        if debug_conf == 1:
-            raise RuntimeError("Socket timeout")
-        else:
-            return
-
-    chunks = []
-    bytes_recd = 0
-    while bytes_recd < data:
-        ready = select.select([sdef], [], [], 480)
-        if ready[0]:
-            chunk = sdef.recv(min(data - bytes_recd, 2048))
-            if chunk == b'':
-                raise RuntimeError("Socket connection broken")
-            chunks.append(chunk)
-            bytes_recd = bytes_recd + len(chunk)
-        else:
-            if debug_conf == 1:
-                raise RuntimeError("Socket timeout")
-            else:
-                return
-    segments = b''.join(chunks)
-    # print "Received segments: "+str(segments)
-
-    return segments
-
-
 gc.enable()
 
 global active_pool
@@ -230,6 +193,8 @@ global busy_mempool
 busy_mempool = 0
 global consensus
 consensus = ""
+global syncing
+syncing = 0
 
 
 # port = 2829 now defined by config
@@ -1096,27 +1061,25 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         while banned == 0 and capacity == 1:
 
             try:
-                data = receive(self.request, 10)
+                data = connections.receive(self.request, 10)
 
                 app_log.info(
                     "Incoming: Received: {} from {}".format(data,peer_ip))  # will add custom ports later
 
                 if data == 'version':
-                    data = receive(self.request, 10)
+                    data = connections.receive(self.request, 10)
                     if version != data:
                         app_log.info("Protocol version mismatch: {}, should be {}".format(data,version))
-                        send(self.request, (str(len("notok"))).zfill(10))
-                        send(self.request, "notok")
+                        connections.send(self.request,"notok",10)
                         return
                     else:
                         app_log.info("Incoming: Protocol version matched: {}".format(data))
-                        send(self.request, (str(len("ok"))).zfill(10))
-                        send(self.request, "ok")
+                        connections.send(self.request,"ok",10)
 
                 elif data == 'mempool':
 
                     # receive theirs
-                    segments = receive(self.request, 10)
+                    segments = connections.receive(self.request, 10)
                     mempool_merge(segments,peer_ip)
                     # receive theirs
 
@@ -1130,19 +1093,15 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     # app_log.info("Incoming: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
 
                     # if len(mempool_txs) > 0: same as the other
-                    send(self.request, (str(len(str(mempool_txs)))).zfill(10))
-                    send(self.request, str(mempool_txs))
+                    connections.send(self.request, mempool_txs, 10)
                     # send own
 
                 elif data == 'hello':
                     with open("peers.txt", "r") as peer_list:
                         peers = peer_list.read()
 
-                        send(self.request, (str(len("peers"))).zfill(10))
-                        send(self.request, "peers")
-
-                        send(self.request, (str(len(peers))).zfill(10))
-                        send(self.request, str(peers))
+                        connections.send(self.request, "peers", 10)
+                        connections.send(self.request, peers, 10)
 
                     peer_list.close()
 
@@ -1183,17 +1142,15 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     # save peer if connectible
 
                     while busy == 1:
-                        time.sleep(pause_conf)
+                        time.sleep(float(pause_conf))
                     app_log.info("Incoming: Sending sync request")
-                    send(self.request, (str(len("sync"))).zfill(10))
-                    send(self.request, "sync")
+                    connections.send(self.request, "sync", 10)
 
                 elif data == "sendsync":
                     while busy == 1:
-                        time.sleep(pause_conf)
+                        time.sleep(float(pause_conf))
 
-                    send(self.request, (str(len("sync"))).zfill(10))
-                    send(self.request, "sync")
+                    connections.send(self.request, "sync", 10)
 
                 elif data == "blocksfnd":
                     app_log.info("Incoming: Client has the block")  # node should start sending txs in this step
@@ -1201,154 +1158,137 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     # app_log.info("Incoming: Combined segments: " + segments)
                     # print peer_ip
                     if max(consensus_blockheight_list) == consensus_blockheight and busy == 0:
-                        send(self.request, (str(len("blockscf"))).zfill(10))
-                        send(self.request, "blockscf")
+                        connections.send(self.request, "blockscf", 10)
 
-                        segments = receive(self.request, 10)
+                        segments = connections.receive(self.request, 10)
                         digest_block(segments, self.request,peer_ip)
                         # receive theirs
                     else:
-                        send(self.request, (str(len("blocksrj"))).zfill(10))
-                        send(self.request, "blocksrj")
+                        connections.send(self.request, "blocksrj", 10)
 
-                    while busy == 1:
-                        time.sleep(pause_conf)
-                    send(self.request, (str(len("sync"))).zfill(10))
-                    send(self.request, "sync")
+                    connections.send(self.request, "sync", 10)
 
                 elif data == "blockheight":
-                    received_block_height = receive(self.request, 10)  # receive client's last block height
-                    app_log.info("Incoming: Received block height: " + received_block_height)
+                    try:
+                        global syncing
+                        while syncing >= 3:
+                            time.sleep(int(pause_conf))
+                        syncing = syncing + 1
 
-                    # consensus pool 1 (connection from them)
-                    consensus_blockheight = int(received_block_height)  # str int to remove leading zeros
-                    consensus_add(peer_ip, consensus_blockheight)
-                    # consensus pool 1 (connection from them)
+                        received_block_height = connections.receive(self.request, 10)  # receive client's last block height
+                        app_log.info("Incoming: Received block height: " + received_block_height)
 
-                    conn = sqlite3.connect(ledger_path_conf)
-                    conn.text_factory = str
-                    c = conn.cursor()
-                    execute(c, ('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1'))
-                    db_block_height = c.fetchone()[0]
-                    conn.close()
+                        # consensus pool 1 (connection from them)
+                        consensus_blockheight = int(received_block_height)  # str int to remove leading zeros
+                        consensus_add(peer_ip, consensus_blockheight)
+                        # consensus pool 1 (connection from them)
 
-                    # append zeroes to get static length
-                    send(self.request, (str(len(str(db_block_height)))).zfill(10))
-                    send(self.request, str(db_block_height))
-                    # send own block height
-
-                    if int(received_block_height) > db_block_height:
-                        app_log.info("Incoming: Client has higher block")
-                        update_me = 1
-
-                    if int(received_block_height) < db_block_height:
-                        app_log.info("Incoming: We have a higher block, hash will be verified")
-                        update_me = 0
-
-                    if int(received_block_height) == db_block_height:
-                        app_log.info("Incoming: We have the same block height, hash will be verified")
-                        update_me = 0
-
-                    # print "Update me:" + str(update_me)
-                    if update_me == 1:
                         conn = sqlite3.connect(ledger_path_conf)
                         conn.text_factory = str
                         c = conn.cursor()
-                        execute(c, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
-                        db_block_hash = c.fetchone()[0]  # get latest block_hash
+                        execute(c, ('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1'))
+                        db_block_height = c.fetchone()[0]
                         conn.close()
 
-                        app_log.info("Incoming: block_hash to send: " + str(db_block_hash))
-                        send(self.request, (str(len(db_block_hash))).zfill(10))
-                        send(self.request, str(db_block_hash))
+                        # append zeroes to get static length
+                        connections.send(self.request, db_block_height, 10)
+                        # send own block height
 
-                        # receive their latest hash
-                        # confirm you know that hash or continue receiving
+                        if int(received_block_height) > db_block_height:
+                            app_log.info("Incoming: Client has higher block")
 
-                    if update_me == 0:  # update them if update_me is 0
-                        data = receive(self.request, 10)  # receive client's last block_hash
-                        # send all our followup hashes
-
-                        app_log.info("Incoming: Will seek the following block: {}".format(data))
-
-                        conn = sqlite3.connect(ledger_path_conf)
-                        conn.text_factory = str
-                        c = conn.cursor()
-
-                        try:
-                            execute_param(c, ("SELECT block_height FROM transactions WHERE block_hash = ?;"), (data,))
-                            client_block = c.fetchone()[0]
-
-                            app_log.info("Incoming: Client is at block {}".format(client_block))  # now check if we have any newer
-
+                            conn = sqlite3.connect(ledger_path_conf)
+                            conn.text_factory = str
+                            c = conn.cursor()
                             execute(c, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
                             db_block_hash = c.fetchone()[0]  # get latest block_hash
-                            if db_block_hash == data:
-                                app_log.info("Incoming: Client has the latest block")
-                                send(self.request, (str(len("nonewblk"))).zfill(10))
-                                send(self.request, "nonewblk")
+                            conn.close()
 
-                            else:
-                                execute_param(c, (
-                                "SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
-                                              (str(int(client_block)),) + (str(int(
-                                                  client_block + 100)),))  # select incoming transaction + 1
-                                blocks_fetched = c.fetchall()
-                                blocks_send = [[l[1:] for l in group] for _, group in
-                                               groupby(blocks_fetched, key=itemgetter(0))]
+                            app_log.info("Incoming: block_hash to send: " + str(db_block_hash))
+                            connections.send(self.request, db_block_hash, 10)
 
-                                # app_log.info("Incoming: Selected " + str(blocks_send) + " to send")
+                            # receive their latest hash
+                            # confirm you know that hash or continue receiving
 
-                                conn.close()
 
-                                send(self.request, (str(len("blocksfnd"))).zfill(10))
-                                send(self.request, "blocksfnd")
+                        if int(received_block_height) <= db_block_height:
+                            app_log.info("Incoming: We have the same or higher block height, hash will be verified")
 
-                                confirmation = receive(self.request, 10)
+                            data = connections.receive(self.request, 10)  # receive client's last block_hash
+                            # send all our followup hashes
 
-                                if confirmation == "blockscf":
-                                    app_log.info("Incoming: Client confirmed they want to sync from us")
-                                    send(self.request, (str(len(str(blocks_send)))).zfill(10))
-                                    send(self.request, str(blocks_send))
-                                elif confirmation == "blocksrj":
-                                    app_log.info("Incoming: Client rejected to sync from us because we're dont have the latest block")
-                                    pass
+                            app_log.info("Incoming: Will seek the following block: {}".format(data))
 
-                                # send own
+                            conn = sqlite3.connect(ledger_path_conf)
+                            conn.text_factory = str
+                            c = conn.cursor()
 
-                        except:
-                            app_log.info("Incoming: Block not found")
-                            send(self.request, (str(len("blocknf"))).zfill(10))
-                            send(self.request, "blocknf")
+                            try:
+                                execute_param(c, ("SELECT block_height FROM transactions WHERE block_hash = ?;"), (data,))
+                                client_block = c.fetchone()[0]
 
-                            send(self.request, (str(len(data))).zfill(10))
-                            send(self.request, data)
+                                app_log.info("Incoming: Client is at block {}".format(client_block))  # now check if we have any newer
+
+                                execute(c, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
+                                db_block_hash = c.fetchone()[0]  # get latest block_hash
+                                if db_block_hash == data:
+                                    app_log.info("Incoming: Client has the latest block")
+                                    connections.send(self.request, "nonewblk", 10)
+
+                                else:
+                                    execute_param(c, (
+                                    "SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
+                                                  (str(int(client_block)),) + (str(int(client_block + 100)),))  # select incoming transaction + 1
+                                    blocks_fetched = c.fetchall()
+                                    blocks_send = [[l[1:] for l in group] for _, group in groupby(blocks_fetched, key=itemgetter(0))]
+
+                                    # app_log.info("Incoming: Selected " + str(blocks_send) + " to send")
+
+                                    conn.close()
+                                    connections.send(self.request, "blocksfnd", 10)
+
+                                    confirmation = connections.receive(self.request, 10)
+
+                                    if confirmation == "blockscf":
+                                        app_log.info("Incoming: Client confirmed they want to sync from us")
+                                        connections.send(self.request, blocks_send, 10)
+
+                                    elif confirmation == "blocksrj":
+                                        app_log.info("Incoming: Client rejected to sync from us because we're dont have the latest block")
+                                        pass
+
+                                    # send own
+
+                            except:
+                                app_log.info("Incoming: Block not found")
+                                connections.send(self.request, "blocknf", 10)
+                                connections.send(self.request, data, 10)
+                    except Exception as e:
+                        app_log.info("Incoming: Sync failed {}".format(e))
+                    finally:
+                        syncing = syncing - 1
 
                 elif data == "nonewblk":
                     # digest_block() #temporary #otherwise passive node will not be able to digest
-
-                    send(self.request, (str(len("sync"))).zfill(10))
-                    send(self.request, "sync")
+                    connections.send(self.request, "sync", 10)
 
                 elif data == "blocknf":
-                    block_hash_delete = receive(self.request, 10)
+                    block_hash_delete = connections.receive(self.request, 10)
                     # print peer_ip
                     if max(consensus_blockheight_list) == consensus_blockheight:
                         blocknf(block_hash_delete,peer_ip)
                         warning_list.append(peer_ip)
-
-                    while busy == 1:
-                        time.sleep(pause_conf)
                     app_log.info("Outgoing: Deletion complete, sending sync request")
 
-                    send(self.request, (str(len("sync"))).zfill(10))
-                    send(self.request, "sync")
+                    while busy == 1:
+                        time.sleep(float(pause_conf))
+                    connections.send(self.request, "sync", 10)
 
                 elif data == "block":  # from miner
 
                     app_log.warning("Outgoing: Received a block from miner")
                     # receive block
-                    segments = receive(self.request, 10)
+                    segments = connections.receive(self.request, 10)
                     # app_log.info("Incoming: Combined mined segments: " + segments)
 
                     # check if we have the latest block
@@ -1400,8 +1340,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     conn.close()
 
                     print diff
-                    send(self.request, (str(len(str(diff)))).zfill(10))
-                    send(self.request, str(diff))
+                    connections.send(self.request, diff, 10)
 
 
                 else:
@@ -1454,13 +1393,10 @@ def worker(HOST, PORT):
             if first_run == 1:
                 first_run = 0
 
-                send(s, (str(len("version"))).zfill(10))
-                send(s, "version")
+                connections.send(s, "version", 10)
+                connections.send(s, version, 10)
 
-                send(s, (str(len(version))).zfill(10))
-                send(s, version)
-
-                data = receive(s, 10)
+                data = connections.receive(s, 10)
 
                 if (data == "ok"):
                     app_log.info("Outgoing: Node protocol version matches our client")
@@ -1468,17 +1404,16 @@ def worker(HOST, PORT):
                     app_log.info("Outgoing: Node protocol version mismatch")
                     return
 
-                send(s, (str(len("hello"))).zfill(10))
-                send(s, "hello")
+                connections.send(s, "hello", 10)
 
             # communication starter
 
-            data = receive(s, 10)  # receive data, one and the only root point
+            data = connections.receive(s, 10)  # receive data, one and the only root point
             # if data:
             #    timer = time.time() #reset timer
 
             if data == "peers":
-                subdata = receive(s, 10)
+                subdata = connections.receive(s, 10)
 
                 # get remote peers into tuples
                 server_peer_tuples = re.findall("'([\d\.]+)', '([\d]+)'", subdata)
@@ -1516,155 +1451,140 @@ def worker(HOST, PORT):
                         app_log.info("Outgoing: {} is not a new peer".format(x))
 
             elif data == "sync":
-                # sync start
+                try:
+                    global syncing
+                    while syncing >= 3:
+                        time.sleep(int(pause_conf))
+                    syncing = syncing + 1
 
-                # send block height, receive block height
-                send(s, (str(len("blockheight"))).zfill(10))
-                send(s, "blockheight")
+                    # sync start
 
-                conn = sqlite3.connect(ledger_path_conf)
-                conn.text_factory = str
-                c = conn.cursor()
-                execute(c, ('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1'))
-                db_block_height = c.fetchone()[0]
-                conn.close()
+                    # send block height, receive block height
+                    connections.send(s, "blockheight", 10)
 
-                app_log.info("Outgoing: Sending block height to compare: {}".format(db_block_height))
-                # append zeroes to get static length
-                send(s, (str(len(str(db_block_height)))).zfill(10))
-                send(s, str(db_block_height))
-
-                received_block_height = receive(s, 10)  # receive node's block height
-                app_log.info("Outgoing: Node is at block height: {}".format(received_block_height))
-
-                if int(received_block_height) < db_block_height:
-                    app_log.info("Outgoing: We have a higher, sending")
-                    update_me = 0
-
-                if int(received_block_height) > db_block_height:
-                    app_log.info("Outgoing: Node has higher block, receiving")
-                    update_me = 1
-
-                if int(received_block_height) == db_block_height:
-                    app_log.info("Outgoing: We have the same block height, hash will be verified")
-                    update_me = 1
-
-                # print "Update me:"+str(update_me)
-                if update_me == 1:
                     conn = sqlite3.connect(ledger_path_conf)
                     conn.text_factory = str
                     c = conn.cursor()
-                    execute(c, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
-                    db_block_hash = c.fetchone()[0]  # get latest block_hash
+                    execute(c, ('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1'))
+                    db_block_height = c.fetchone()[0]
                     conn.close()
 
-                    app_log.info("Outgoing: block_hash to send: {}".format(db_block_hash))
-                    send(s, (str(len(db_block_hash))).zfill(10))
-                    send(s, str(db_block_hash))
+                    app_log.info("Outgoing: Sending block height to compare: {}".format(db_block_height))
+                    # append zeroes to get static length
+                    connections.send(s, db_block_height, 10)
 
-                    # consensus pool 2 (active connection)
-                    consensus_blockheight = int(received_block_height)  # str int to remove leading zeros
-                    consensus_add(peer_ip, consensus_blockheight)
-                    # consensus pool 2 (active connection)
+                    received_block_height = connections.receive(s, 10)  # receive node's block height
+                    app_log.info("Outgoing: Node is at block height: {}".format(received_block_height))
 
-                    # receive their latest hash
-                    # confirm you know that hash or continue receiving
+                    if int(received_block_height) < db_block_height:
+                        app_log.info("Outgoing: We have a higher, sending")
+                        data = connections.receive(s, 10)  # receive client's last block_hash
 
-                if update_me == 0:  # update them if update_me is 0
-                    data = receive(s, 10)  # receive client's last block_hash
+                        # send all our followup hashes
+                        app_log.info("Outgoing: Will seek the following block: {}".format(data))
 
-                    # send all our followup hashes
-                    app_log.info("Outgoing: Will seek the following block: {}".format(data))
+                        # consensus pool 2 (active connection)
+                        consensus_blockheight = int(received_block_height)  # str int to remove leading zeros
+                        consensus_add(peer_ip, consensus_blockheight)
+                        # consensus pool 2 (active connection)
 
-                    # consensus pool 2 (active connection)
-                    consensus_blockheight = int(received_block_height)  # str int to remove leading zeros
-                    consensus_add(peer_ip, consensus_blockheight)
-                    # consensus pool 2 (active connection)
+                        conn = sqlite3.connect(ledger_path_conf)
+                        conn.text_factory = str
+                        c = conn.cursor()
 
-                    conn = sqlite3.connect(ledger_path_conf)
-                    conn.text_factory = str
-                    c = conn.cursor()
+                        try:
+                            execute_param(c, ("SELECT block_height FROM transactions WHERE block_hash = ?;"), (data,))
+                            client_block = c.fetchone()[0]
 
-                    try:
-                        execute_param(c, ("SELECT block_height FROM transactions WHERE block_hash = ?;"), (data,))
-                        client_block = c.fetchone()[0]
+                            app_log.info("Outgoing: Node is at block {}".format(client_block))  # now check if we have any newer
 
-                        app_log.info("Outgoing: Node is at block {}".format(client_block))  # now check if we have any newer
+                            execute(c, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
+                            db_block_hash = c.fetchone()[0]  # get latest block_hash
+                            if db_block_hash == data:
+                                app_log.info("Outgoing: Node has the latest block")
+                                connections.send(s, "nonewblk", 10)
 
+                            else:
+                                execute_param(c, (
+                                    "SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
+                                              (str(int(client_block)),) + (str(int(
+                                                  client_block + 100)),))  # select incoming transaction + 1, only columns that need not be verified
+                                blocks_fetched = c.fetchall()
+                                blocks_send = [[l[1:] for l in group] for _, group in
+                                               groupby(blocks_fetched, key=itemgetter(0))]
+                                conn.close()
+
+                                # app_log.info("Outgoing: Selected " + str(blocks_send) + " to send")
+
+                                connections.send(s, "blocksfnd", 10)
+
+                                confirmation = connections.receive(s, 10)
+
+                                if confirmation == "blockscf":
+                                    app_log.info("Outgoing: Client confirmed they want to sync from us")
+                                    connections.send(s, blocks_send, 10)
+
+                                elif confirmation == "blocksrj":
+                                    app_log.info("Outgoing: Client rejected to sync from us because we're dont have the latest block")
+                                    pass
+
+                        except:
+                            app_log.info("Outgoing: Block not found")
+                            connections.send(s, "blocknf", 10)
+                            connections.send(s, data, 10)
+
+
+                    if int(received_block_height) >= db_block_height:
+                        app_log.info("Outgoing: We have the same or lower block height, hash will be verified")
+
+                        conn = sqlite3.connect(ledger_path_conf)
+                        conn.text_factory = str
+                        c = conn.cursor()
                         execute(c, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
                         db_block_hash = c.fetchone()[0]  # get latest block_hash
-                        if db_block_hash == data:
-                            app_log.info("Outgoing: Node has the latest block")
-                            send(s, (str(len("nonewblk"))).zfill(10))
-                            send(s, "nonewblk")
+                        conn.close()
 
-                        else:
-                            execute_param(c, (
-                            "SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
-                                          (str(int(client_block)),) + (str(int(
-                                              client_block + 100)),))  # select incoming transaction + 1, only columns that need not be verified
-                            blocks_fetched = c.fetchall()
-                            blocks_send = [[l[1:] for l in group] for _, group in
-                                           groupby(blocks_fetched, key=itemgetter(0))]
-                            conn.close()
+                        app_log.info("Outgoing: block_hash to send: {}".format(db_block_hash))
+                        connections.send(s, db_block_hash, 10)
 
-                            # app_log.info("Outgoing: Selected " + str(blocks_send) + " to send")
+                        # consensus pool 2 (active connection)
+                        consensus_blockheight = int(received_block_height)  # str int to remove leading zeros
+                        consensus_add(peer_ip, consensus_blockheight)
+                        # consensus pool 2 (active connection)
 
+                        # receive their latest hash
+                        # confirm you know that hash or continue receiving
 
-                            send(s, (str(len("blocksfnd"))).zfill(10))
-                            send(s, "blocksfnd")
-
-                            confirmation = receive(s, 10)
-
-                            if confirmation == "blockscf":
-                                app_log.info("Outgoing: Client confirmed they want to sync from us")
-                                send(s, (str(len(str(blocks_send)))).zfill(10))
-                                send(s, str(blocks_send))
-
-                            elif confirmation == "blocksrj":
-                                app_log.info("Outgoing: Client rejected to sync from us because we're dont have the latest block")
-                                pass
-
-                    except:
-                        app_log.info("Outgoing: Block not found")
-                        send(s, (str(len("blocknf"))).zfill(10))
-                        send(s, "blocknf")
-
-                        send(s, (str(len(data))).zfill(10))
-                        send(s, data)
+                except Exception as e:
+                    app_log.info("Outgoing: Sync failed {}".format(e))
+                finally:
+                    syncing = syncing - 1
 
             elif data == "blocknf":
-                block_hash_delete = receive(s, 10)
+                block_hash_delete = connections.receive(s, 10)
                 # print peer_ip
                 if max(consensus_blockheight_list) == consensus_blockheight:
                     blocknf(block_hash_delete,peer_ip)
 
                 while busy == 1:
-                    time.sleep(pause_conf)
-                send(s, (str(len("sendsync"))).zfill(10))
-                send(s, "sendsync")
+                    time.sleep(float(pause_conf))
+                connections.send(s, "sendsync", 10)
 
             elif data == "blocksfnd":
                 app_log.info("Outgoing: Node has the block")  # node should start sending txs in this step
 
-
                 # app_log.info("Incoming: Combined segments: " + segments)
                 # print peer_ip
                 if max(consensus_blockheight_list) == consensus_blockheight and busy == 0:
-                    send(s, (str(len("blockscf"))).zfill(10))
-                    send(s, "blockscf")
+                    connections.send(s, "blockscf", 10)
 
-                    segments = receive(s, 10)
+                    segments = connections.receive(s, 10)
                     digest_block(segments, s, peer_ip)
                     # receive theirs
                 else:
-                    send(s, (str(len("blocksrj"))).zfill(10))
-                    send(s, "blocksrj")
+                    connections.send(s, "blocksrj", 10)
 
-                while busy == 1:
-                    time.sleep(pause_conf)
-                send(s, (str(len("sendsync"))).zfill(10))
-                send(s, "sendsync")
+                connections.send(s, "sendsync", 10)
 
                 # block_hash validation end
 
@@ -1681,16 +1601,13 @@ def worker(HOST, PORT):
                 # app_log.info("Outgoing: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
 
                 # if len(mempool_txs) > 0: #wont sync mempool until we send something, which is bad
-                send(s, (str(len("mempool"))).zfill(10))
-                send(s, "mempool")
-
                 # send own
-                send(s, (str(len(str(mempool_txs)))).zfill(10))
-                send(s, str(mempool_txs))
+                connections.send(s, "mempool", 10)
+                connections.send(s, mempool_txs, 10)
                 # send own
 
                 # receive theirs
-                segments = receive(s, 10)
+                segments = connections.receive(s, 10)
                 mempool_merge(segments,peer_ip)
                 # receive theirs
 
@@ -1700,9 +1617,8 @@ def worker(HOST, PORT):
 
                 time.sleep(int(pause_conf))
                 while busy == 1:
-                    time.sleep(pause_conf)
-                send(s, (str(len("sendsync"))).zfill(10))
-                send(s, "sendsync")
+                    time.sleep(float(pause_conf))
+                connections.send(s, "sendsync", 10)
 
             else:
                 raise ValueError("Unexpected error, received: {}".format(data))
