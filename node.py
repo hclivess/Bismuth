@@ -1183,14 +1183,14 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     # save peer if connectible
 
                     while busy == 1:
-                        time.sleep(1)
+                        time.sleep(pause_conf)
                     app_log.info("Incoming: Sending sync request")
                     send(self.request, (str(len("sync"))).zfill(10))
                     send(self.request, "sync")
 
                 elif data == "sendsync":
                     while busy == 1:
-                        time.sleep(1)
+                        time.sleep(pause_conf)
 
                     send(self.request, (str(len("sync"))).zfill(10))
                     send(self.request, "sync")
@@ -1212,7 +1212,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         send(self.request, "blocksrj")
 
                     while busy == 1:
-                        time.sleep(1)
+                        time.sleep(pause_conf)
                     send(self.request, (str(len("sync"))).zfill(10))
                     send(self.request, "sync")
 
@@ -1338,7 +1338,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         warning_list.append(peer_ip)
 
                     while busy == 1:
-                        time.sleep(1)
+                        time.sleep(pause_conf)
                     app_log.info("Outgoing: Deletion complete, sending sync request")
 
                     send(self.request, (str(len("sync"))).zfill(10))
@@ -1640,7 +1640,7 @@ def worker(HOST, PORT):
                     blocknf(block_hash_delete,peer_ip)
 
                 while busy == 1:
-                    time.sleep(1)
+                    time.sleep(pause_conf)
                 send(s, (str(len("sendsync"))).zfill(10))
                 send(s, "sendsync")
 
@@ -1662,7 +1662,7 @@ def worker(HOST, PORT):
                     send(s, "blocksrj")
 
                 while busy == 1:
-                    time.sleep(1)
+                    time.sleep(pause_conf)
                 send(s, (str(len("sendsync"))).zfill(10))
                 send(s, "sendsync")
 
@@ -1700,7 +1700,7 @@ def worker(HOST, PORT):
 
                 time.sleep(int(pause_conf))
                 while busy == 1:
-                    time.sleep(1)
+                    time.sleep(pause_conf)
                 send(s, (str(len("sendsync"))).zfill(10))
                 send(s, "sendsync")
 
