@@ -1,4 +1,4 @@
-import base64, sqlite3, os, hashlib, time, socks, keys, log
+import base64, sqlite3, os, hashlib, time, socks, keys, log, sys
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
 from Crypto import Random
@@ -253,6 +253,14 @@ if __name__ == '__main__':
 
     app_log = log.log("miner.log",debug_level_conf)
     (key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read()
+
+    print 'Number of arguments:', len(sys.argv), 'arguments.'
+    print 'Argument List:', str(sys.argv)
+
+    try:
+        address = sys.argv[1]
+    except:
+        address = address
 
     if not os.path.exists('mempool.db'):
         # create empty mempool
