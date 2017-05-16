@@ -96,7 +96,13 @@ while True:
 
             # create transactions for missing payouts
             timestamp = str(time.time())
-            transaction = (timestamp, address, payout_address, '%.8f' % (float(bet_amount*2)-percentage(1,bet_amount)), "0", "payout for " + tx_signature)
+
+            payout_amount = float(bet_amount * 2) - percentage(1, bet_amount)
+            payout_openfield = "payout for " + tx_signature
+            payout_keep = 0
+            fee = float(0.01 + (float(payout_amount) * 0.001) + (float(len(payout_openfield)) / 100000) + (float(payout_keep) / 10))  # 0.1% + 0.01 dust
+
+            transaction = (str(timestamp), str(address), str(payout_address), str('%.8f' % (payout_amount-fee)), str(payout_keep), str(payout_openfield))
             print transaction
 
             h = SHA.new(str(transaction))

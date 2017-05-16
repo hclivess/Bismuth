@@ -1,4 +1,4 @@
-import sqlite3, web,time, base64, re, keys
+import sqlite3, web,time, re, keys
 
 (key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read() #import keys
 
@@ -88,7 +88,7 @@ class index:
         html.append("<TITLE>ZircoDice</TITLE>")
         html.append("<body><body background="'static/bg.jpg'"><center>")
         html.append("<h1>Welcome to ZircoDice</h1>")
-        html.append("<p>Please send any amount of coins lower than 1000 to the address <strong>"+address+"</strong> and include the word '<strong>even</strong>' or '<strong>odd</strong>' in the OpenField data.<br> You are betting on the last number in the block hash where your bet is included. 0 is considered an odd number.<br>If you win, you will receive 2x your bet. House returns 99% of your win.</p>")
+        html.append("<p>Please send any amount of coins lower than 1000 to the address <strong>"+address+"</strong> and include the word '<strong>even</strong>' or '<strong>odd</strong>' in the OpenField data.<br> You are betting on the last number in the block hash where your bet is included. 0 is considered an odd number.<br>If you win, you will receive 2x your bet. House returns 99% of your win minus fees.</p>")
         html.append("<br>")
         html.append("<h1>Bets</h1>")
         html.append("<table style='width:100%'>"+ str(''.join(view_bets))+"</table>")

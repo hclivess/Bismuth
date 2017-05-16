@@ -420,19 +420,20 @@ def verify():
         c = conn.cursor()
         execute(c, ("SELECT Count(*) FROM transactions"))
         db_rows = c.fetchone()[0]
-        app_log.info("Total steps: " + str(db_rows))
+        app_log.warning("Total steps: {}".format(db_rows))
 
         # verify genesis
         execute(c, ("SELECT recipient FROM transactions ORDER BY block_height ASC LIMIT 1"))
         genesis = c.fetchone()[0]
-        app_log.info("Genesis: {}".format(genesis))
+        app_log.warning("Genesis: {}".format(genesis))
         if str(genesis) != genesis_conf:  # change this line to your genesis address if you want to clone
             app_log.info("Invalid genesis address")
             sys.exit(1)
         # verify genesis
 
         invalid = 0
-        for row in execute(c, ('SELECT * FROM transactions ORDER BY block_height')):
+        for row in execute(c, ('SELECT * FROM transactions WHERE block_height > 0 and ORDER BY block_height')):
+
             db_block_height = row[0]
             db_timestamp = '%.2f' % float(row[1])
             db_address = row[2]
@@ -441,10 +442,10 @@ def verify():
             db_signature_enc = row[5]
             db_public_key_hashed = row[6]
             db_public_key = RSA.importKey(base64.b64decode(db_public_key_hashed))
-            db_keep = str(row[11])
-            db_openfield = row[12]
+            db_keep = str(row[10])
+            db_openfield = row[11]
 
-            db_transaction = (str(db_timestamp), str(db_address), str(db_recipient), str(float(db_amount)), str(db_keep), str(db_openfield))
+            db_transaction = (str(db_timestamp), str(db_address), str(db_recipient), '%.8f' % float(db_amount), str(db_keep), str(db_openfield))
 
             db_signature_dec = base64.b64decode(db_signature_enc)
             verifier = PKCS1_v1_5.new(db_public_key)
@@ -452,14 +453,14 @@ def verify():
             if verifier.verify(h, db_signature_dec):
                 pass
             else:
-                app_log.info("The following transaction is invalid: {}".format(row))
+                app_log.warning("The following transaction is invalid: {}".format(row))
                 invalid = invalid + 1
                 if db_block_height == str(1):
-                    app_log.info("Your genesis signature is invalid, someone meddled with the database")
+                    app_log.warning("Your genesis signature is invalid, someone meddled with the database")
                     sys.exit(1)
 
         if invalid == 0:
-            app_log.info("All transacitons in the local ledger are valid")
+            app_log.warning("All transacitons in the local ledger are valid")
 
     except sqlite3.Error, e:
         app_log.info("Error %s:" % e.args[0])
