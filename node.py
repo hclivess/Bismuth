@@ -384,7 +384,7 @@ def purge_old_peers():
             line = re.sub("[\)\(\:\\n\'\s]", "", line)
             peer_dict[line.split(",")[0]] = line.split(",")[1]
 
-        for key, value in peer_dict.iteritems():
+        for key, value in peer_dict.items():
             HOST = key
             # app_log.info(HOST)
             PORT = int(value)
@@ -402,6 +402,7 @@ def purge_old_peers():
                 if purge_conf == 1:
                     # remove from peerlist if not connectible
                     del peer_dict[key]
+
                     print("Removed formerly active peer {} {}".format(HOST, PORT))
                 pass
 
@@ -1310,20 +1311,78 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     else:
                         app_log.warning("Outgoing: Mined block was orphaned because node was not synced, we are at block {}, should be at least {}".format(db_block_height,int(max(consensus_blockheight_list))-3))
 
+                elif data == "mpinsert":
+                    mempool_insert = connections.receive(self.request,10)
+                    mempool_merge(mempool_insert, peer_ip)
+                    connections.send(self.request,"Mempool insert finished",10)
+
+                elif data == "getbalance":
+                    balance_address = connections.receive(self.request,10) #for which address
+
+                    # verify balance
+                    conn = sqlite3.connect(ledger_path_conf)
+                    conn.text_factory = str
+                    c = conn.cursor()
+
+                    mempool = sqlite3.connect('mempool.db')
+                    mempool.text_factory = str
+                    m = mempool.cursor()
+
+                    # app_log.info("Mempool: Verifying balance")
+                    app_log.info("Mempool: Received address: " + str(balance_address))
+
+                    execute_param(m, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (balance_address,))
+                    credit_mempool = m.fetchone()[0]
+                    if credit_mempool == None:
+                        credit_mempool = 0
+
+                    execute_param(m, ("SELECT sum(amount) FROM transactions WHERE address = ?;"), (balance_address,))
+                    debit_mempool = m.fetchone()[0]
+                    if debit_mempool == None:
+                        debit_mempool = 0
+
+                    execute_param(c, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (balance_address,))
+                    credit_ledger = c.fetchone()[0]
+                    if credit_ledger == None:
+                        credit_ledger = 0
+                    credit = float(credit_ledger) + float(credit_mempool)
+
+                    execute_param(c, ("SELECT sum(fee),sum(reward),sum(amount) FROM transactions WHERE address = ?;"), (balance_address,))
+                    result = c.fetchall()[0]
+                    fees = result[0]
+                    rewards = result[1]
+                    debit_ledger = result[2]
+
+                    debit = float(debit_ledger) + float(debit_mempool)
+
+                    conn.close()
+
+                    if fees == None:
+                        fees = 0
+                    if rewards == None:
+                        rewards = 0
+                    if debit_ledger == None:
+                        debit_ledger = 0
+
+                    balance = float(credit) - float(debit) - float(fees) + float(rewards)
+                    balance_pre = float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)
+                    # app_log.info("Mempool: Projected transction address balance: " + str(balance))
+
+                    connections.send(self.request, balance, 10)  # return balance of the address to the client, including mempool
+                    connections.send(self.request, balance_pre, 10)  # return balance of the address to the client, no mempool
+
                 elif data == "getdiff":
                     conn = sqlite3.connect(ledger_path_conf)
                     c = conn.cursor()
 
                     execute(c, ("SELECT timestamp,block_height FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
                     result = c.fetchall()
-                    print result
                     db_timestamp_last = float(result[0][0])
 
                     # calculate difficulty
                     execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (db_timestamp_last - 1800,))  # 1800=30 min
                     blocks_per_30 = len(c.fetchall())
 
-                    print blocks_per_30
                     diff = blocks_per_30 * 2
 
                     # drop diff per minute if over target
@@ -1340,7 +1399,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     conn.close()
 
-                    print diff
                     connections.send(self.request, diff, 10)
 
 

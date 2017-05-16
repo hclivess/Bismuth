@@ -225,7 +225,6 @@ def send(amount_input, recipient_input, keep_input, openfield_input):
 
         timestamp = '%.2f' % time.time()
         transaction = (str(timestamp),str(address),str(recipient_input), '%.8f' % float(amount_input),str(keep_input),str(openfield_input)) #this is signed
-        #print transaction
 
         h = SHA.new(str(transaction))
         signer = PKCS1_v1_5.new(key)
@@ -248,6 +247,7 @@ def send(amount_input, recipient_input, keep_input, openfield_input):
                 mempool.text_factory = str
                 m = mempool.cursor()
 
+                #print(str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input),str(signature_enc), str(public_key_hashed), str(keep_input), str(openfield_input))
                 m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)",(str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input),str(signature_enc), str(public_key_hashed), str(keep_input), str(openfield_input)))
                 mempool.commit()  # Save (commit) the changes
                 mempool.close()
