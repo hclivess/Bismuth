@@ -15,7 +15,8 @@ from Crypto.Signature import PKCS1_v1_5
 
 # load config
 global warning_list_limit_conf
-(port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf) = options.read()
+(port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed) = options.read()
+
 # load config
 
 app_log = log.log("node.log",debug_level_conf)
@@ -1312,12 +1313,12 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     else:
                         app_log.warning("Outgoing: Mined block was orphaned because node was not synced, we are at block {}, should be at least {}".format(db_block_height,int(max(consensus_blockheight_list))-3))
 
-                elif data == "mpinsert":
+                elif data == "mpinsert" and peer_ip in allowed:
                     mempool_insert = connections.receive(self.request,10)
                     mempool_merge(mempool_insert, peer_ip)
                     connections.send(self.request,"Mempool insert finished",10)
 
-                elif data == "getbalance":
+                elif data == "getbalance" and peer_ip in allowed:
                     balance_address = connections.receive(self.request,10) #for which address
 
                     # verify balance
@@ -1372,7 +1373,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     connections.send(self.request, balance, 10)  # return balance of the address to the client, including mempool
                     connections.send(self.request, balance_pre, 10)  # return balance of the address to the client, no mempool
 
-                elif data == "getdiff":
+                elif data == "getdiff" and peer_ip in allowed:
                     conn = sqlite3.connect(ledger_path_conf)
                     c = conn.cursor()
 
