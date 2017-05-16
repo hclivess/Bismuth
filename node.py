@@ -377,15 +377,17 @@ def mempool_merge(data,peer_ip):
 
 
 def purge_old_peers():
-    with open("peers.txt", "r") as peer_list:
-        peers = peer_list.read()
-        peer_tuples = re.findall("'([\d\.]+)', '([\d]+)'", peers)
-        # app_log.info(peer_tuples)
+    global peer_dict
+    peer_dict = {}
+    with open("peers.txt") as f:
+        for line in f:
+            line = re.sub("[\)\(\:\\n\'\s]", "", line)
+            peer_dict[line.split(",")[0]] = line.split(",")[1]
 
-        for tuple in peer_tuples:
-            HOST = tuple[0]
+        for key, value in peer_dict.iteritems():
+            HOST = key
             # app_log.info(HOST)
-            PORT = int(tuple[1])
+            PORT = int(value)
             # app_log.info(PORT)
 
             try:
@@ -399,14 +401,14 @@ def purge_old_peers():
             except:
                 if purge_conf == 1:
                     # remove from peerlist if not connectible
-                    peer_tuples.remove((HOST, str(PORT)))
-                    app_log.info("Removed formerly active peer {} {}".format(HOST,PORT))
+                    del peer_dict[key]
+                    print("Removed formerly active peer {} {}".format(HOST, PORT))
                 pass
 
-            output = open("peers.txt", 'w')
-            for x in peer_tuples:
-                output.write(str(x) + "\n")
-            output.close()
+    output = open("peers.txt", 'w')
+    for key, value in peer_dict.iteritems():
+        output.write("('" + key + "', '" + value + "')\n")
+    output.close()
 
 
 def verify():
@@ -566,28 +568,27 @@ def consensus_remove(peer_ip):
 
 def manager():
     global banlist
+    global peer_dict
     while True:
-        with open("peers.txt", "r") as peer_list:
-            peers = peer_list.read()
-            peer_tuples = re.findall("'([\d\.]+)', '([\d]+)'", peers)
-            # app_log.info(peer_tuples)
 
-            for tuple in peer_tuples:
-                HOST = tuple[0]
-                # app_log.info(HOST)
-                PORT = int(tuple[1])
-                # app_log.info(PORT)
+        keys = peer_dict.keys()
+        random.shuffle(keys)
 
-                if threading.active_count() < thread_limit_conf and str(HOST + ":" + str(PORT)) not in tried and str(
-                                        HOST + ":" + str(PORT)) not in active_pool and str(HOST) not in banlist:
-                    app_log.info("Will attempt to connect to {}:{}".format(HOST,PORT))
-                    tried.append(HOST + ":" + str(PORT))
-                    t = threading.Thread(target=worker, args=(HOST, PORT))  # threaded connectivity to nodes here
-                    app_log.info("---Starting a client thread " + str(threading.currentThread()) + "---")
-                    t.daemon = True
-                    t.start()
+        for key, value in peer_dict.iteritems():
+            HOST = key
+            # app_log.info(HOST)
+            PORT = int(value)
 
-                    # client thread handling
+            if threading.active_count() < thread_limit_conf and str(HOST + ":" + str(PORT)) not in tried and str(
+                                    HOST + ":" + str(PORT)) not in active_pool and str(HOST) not in banlist:
+                app_log.info("Will attempt to connect to {}:{}".format(HOST,PORT))
+                tried.append(HOST + ":" + str(PORT))
+                t = threading.Thread(target=worker, args=(HOST, PORT))  # threaded connectivity to nodes here
+                app_log.info("---Starting a client thread " + str(threading.currentThread()) + "---")
+                t.daemon = True
+                t.start()
+
+            # client thread handling
         if len(active_pool) < 3:
             app_log.info("Only {} connections active, resetting the try list".format(len(active_pool)))
             del tried[:]
@@ -1176,7 +1177,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         syncing = syncing + 1
 
                         received_block_height = connections.receive(self.request, 10)  # receive client's last block height
-                        app_log.info("Incoming: Received block height: " + received_block_height)
+                        app_log.info("Incoming: Received block height {} from {} ".format(received_block_height, peer_ip))
 
                         # consensus pool 1 (connection from them)
                         consensus_blockheight = int(received_block_height)  # str int to remove leading zeros
