@@ -1313,12 +1313,31 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     else:
                         app_log.warning("Outgoing: Mined block was orphaned because node was not synced, we are at block {}, should be at least {}".format(db_block_height,int(max(consensus_blockheight_list))-3))
 
-                elif data == "mpinsert" and peer_ip in allowed:
+                elif data == "hashlast" and (peer_ip in allowed or "any" in allowed):
+                    conn = sqlite3.connect(ledger_path_conf)
+                    conn.text_factory = str
+                    c = conn.cursor()
+                    execute(c, ("SELECT block_hash FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
+                    hash_last = c.fetchone()[0]
+                    conn.close()
+                    connections.send(self.request, hash_last, 10)
+
+                elif data == "blockget" and (peer_ip in allowed or "any" in allowed):
+                    block_desired = connections.receive(self.request, 10)
+                    conn = sqlite3.connect(ledger_path_conf)
+                    conn.text_factory = str
+                    c = conn.cursor()
+                    execute_param(c, ("SELECT * FROM transactions WHERE block_height = ?;"), (block_desired,))
+                    block_desired_result = c.fetchall()
+                    conn.close()
+                    connections.send(self.request, block_desired_result, 10)
+
+                elif data == "mpinsert" and (peer_ip in allowed or "any" in allowed):
                     mempool_insert = connections.receive(self.request,10)
                     mempool_merge(mempool_insert, peer_ip)
                     connections.send(self.request,"Mempool insert finished",10)
 
-                elif data == "balanceget" and peer_ip in allowed:
+                elif data == "balanceget" and (peer_ip in allowed or "any" in allowed):
                     balance_address = connections.receive(self.request,10) #for which address
 
                     # verify balance
@@ -1373,7 +1392,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     connections.send(self.request, balance, 10)  # return balance of the address to the client, including mempool
                     connections.send(self.request, balance_pre, 10)  # return balance of the address to the client, no mempool
 
-                elif data == "mpget" and peer_ip in allowed:
+                elif data == "mpget" and (peer_ip in allowed or "any" in allowed):
                     mempool = sqlite3.connect('mempool.db')
                     mempool.text_factory = str
                     m = mempool.cursor()
@@ -1388,7 +1407,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     m.close()
 
 
-                elif data == "diffget" and peer_ip in allowed:
+                elif data == "diffget" and (peer_ip in allowed or "any" in allowed):
                     conn = sqlite3.connect(ledger_path_conf)
                     c = conn.cursor()
 

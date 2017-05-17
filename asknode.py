@@ -1,4 +1,4 @@
-import socks, connections
+import socks, connections, ast
 
 s = socks.socksocket()
 s.connect(("127.0.0.1", 5658))
@@ -31,5 +31,20 @@ connections.send(s, "mpget", 10)
 mempool = connections.receive(s, 10)
 print "Current mempool: {}".format(mempool)
 #ask for mempool
+
+#get last hash
+connections.send(s, "hashlast", 10)
+hash_last = connections.receive(s, 10)
+print "Last block hash: {}".format(hash_last)
+#get last hash
+
+#get block
+connections.send(s, "blockget", 10)
+connections.send(s, "14", 10)
+block_get = ast.literal_eval(connections.receive(s, 10))
+print "Requested block: {}".format(block_get)
+print "Requested block number of transactions: {}".format(len(block_get))
+print "Requested block height: {}".format(block_get[0][0])
+#get block
 
 s.close()

@@ -109,20 +109,14 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 firstrun = False
                 now = time.time()
                 block_timestamp = '%.2f' % time.time()
-                conn = sqlite3.connect("static/ledger.db") #open to select the last tx to create a new hash from
-                conn.text_factory = str
-                c = conn.cursor()
-                execute(c ,("SELECT block_hash, timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"), app_log)
-                result = c.fetchall()
-                db_block_hash = result[0][0]
-                timestamp_last_block = float(result[0][1])
 
                 # calculate difficulty
-                execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (timestamp_last_block - 1800,), app_log)  # 1800=30 min
-                blocks_per_30 = len(c.fetchall())
-
                 s = socks.socksocket()
                 s.connect((mining_ip_conf, int(port)))  # connect to local node
+
+                connections.send(s, "hashget", 10)
+                db_block_hash = float(connections.receive(s, 10))
+
                 connections.send(s, "diffget", 10)
                 diff = float(connections.receive(s, 10))
 
