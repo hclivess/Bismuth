@@ -114,8 +114,8 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 s = socks.socksocket()
                 s.connect((mining_ip_conf, int(port)))  # connect to local node
 
-                connections.send(s, "hashget", 10)
-                db_block_hash = float(connections.receive(s, 10))
+                connections.send(s, "hashlast", 10)
+                db_block_hash = connections.receive(s, 10)
 
                 connections.send(s, "diffget", 10)
                 diff = float(connections.receive(s, 10))
