@@ -1318,7 +1318,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     mempool_merge(mempool_insert, peer_ip)
                     connections.send(self.request,"Mempool insert finished",10)
 
-                elif data == "getbalance" and peer_ip in allowed:
+                elif data == "balanceget" and peer_ip in allowed:
                     balance_address = connections.receive(self.request,10) #for which address
 
                     # verify balance
@@ -1373,7 +1373,22 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     connections.send(self.request, balance, 10)  # return balance of the address to the client, including mempool
                     connections.send(self.request, balance_pre, 10)  # return balance of the address to the client, no mempool
 
-                elif data == "getdiff" and peer_ip in allowed:
+                elif data == "mpget" and peer_ip in allowed:
+                    mempool = sqlite3.connect('mempool.db')
+                    mempool.text_factory = str
+                    m = mempool.cursor()
+                    execute(m, ('SELECT * FROM transactions'))
+                    mempool_txs = m.fetchall()
+
+                    # app_log.info("Outgoing: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
+
+                    # if len(mempool_txs) > 0: #wont sync mempool until we send something, which is bad
+                    # send own
+                    connections.send(self.request, mempool_txs, 10)
+                    m.close()
+
+
+                elif data == "diffget" and peer_ip in allowed:
                     conn = sqlite3.connect(ledger_path_conf)
                     c = conn.cursor()
 

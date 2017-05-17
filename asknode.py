@@ -4,13 +4,13 @@ s = socks.socksocket()
 s.connect(("127.0.0.1", 5658))
 
 #check difficulty
-connections.send(s, "getdiff", 10)
+connections.send(s, "diffget", 10)
 diff = connections.receive(s, 10)
 print "Current difficulty: {}".format(diff)
 #check difficulty
 
 #get balance
-connections.send(s, "getbalance", 10)
+connections.send(s, "balanceget", 10)
 connections.send(s, "f1e5133ff3685f70b9291922dd99a891d1ff4d6226fc6404a16729bf", 10)
 balance_ledger = connections.receive(s, 10)
 balance_ledger_mempool = connections.receive(s, 10)
@@ -25,5 +25,11 @@ connections.send(s, transaction, 10)
 confirmation = connections.receive(s, 10)
 print confirmation
 #insert to mempool
+
+#ask for mempool
+connections.send(s, "mpget", 10)
+mempool = connections.receive(s, 10)
+print "Current mempool: {}".format(mempool)
+#ask for mempool
 
 s.close()

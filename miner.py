@@ -1,4 +1,4 @@
-import base64, sqlite3, os, hashlib, time, socks, keys, log, sys
+import base64, sqlite3, hashlib, time, socks, keys, log, sys, connections, ast
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
 from Crypto import Random
@@ -121,23 +121,15 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (timestamp_last_block - 1800,), app_log)  # 1800=30 min
                 blocks_per_30 = len(c.fetchall())
 
-                diff = blocks_per_30 * 2
+                s = socks.socksocket()
+                s.connect((mining_ip_conf, int(port)))  # connect to local node
+                connections.send(s, "diffget", 10)
+                diff = float(connections.receive(s, 10))
 
-                # drop diff per minute if over target
-                time_drop = time.time()
-
-                drop_factor = 120  # drop 0,5 diff per minute
-
-                if time_drop > timestamp_last_block + 120:  # start dropping after 2 minutes
-                    diff = diff - (time_drop - timestamp_last_block) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes)
-
-                if time_drop > timestamp_last_block + 300 or diff < 37:  # 5 m lim
-                    diff = 37  # 5 m lim
-                        # drop diff per minute if over target
                 cycles_per_second = tries / (now - begin) if (now - begin) != 0 else 0
                 begin = now
                 tries = 0
-                app_log.warning("Thread{} {} @ {:.2f} cycles/second, difficulty: {:.2f}, {:.2f} blocks per minute".format(q, db_block_hash[:10], cycles_per_second, diff, blocks_per_30/30.0))
+                app_log.warning("Thread{} {} @ {:.2f} cycles/second, difficulty: {:.2f}".format(q, db_block_hash[:10], cycles_per_second, diff))
 
             diff = int(diff)
 
@@ -161,29 +153,29 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 app_log.warning("Thread {} found a good block hash in {} cycles".format(q,tries))
 
                 # serialize txs
-                mempool = sqlite3.connect("mempool.db")
-                mempool.text_factory = str
-                m = mempool.cursor()
-                execute(m, ("SELECT * FROM transactions ORDER BY timestamp;"), app_log)
-                result = m.fetchall()  # select all txs from mempool
-                mempool.close()
 
-                #include data
                 block_send = []
                 del block_send[:]  # empty
                 removal_signature = []
                 del removal_signature[:]  # empty
 
-                for dbdata in result:
-                    transaction = (
-                        str(dbdata[0]), str(dbdata[1][:56]), str(dbdata[2][:56]), '%.8f' % float(dbdata[3]), str(dbdata[4]), str(dbdata[5]), str(dbdata[6]),
-                        str(dbdata[7]))  # create tuple
-                    # print transaction
-                    block_send.append(transaction)  # append tuple to list for each run
-                    removal_signature.append(str(dbdata[4]))  # for removal after successful mining
+                s = socks.socksocket()
+                s.connect((mining_ip_conf, int(port)))  # connect to local node
+                connections.send(s, "mpget", 10)
+                data = connections.receive(s, 10)
+
+                if data != "[]":
+                    mempool = ast.literal_eval(data)
+
+                    for mpdata in mempool:
+                        transaction = (
+                            str(mpdata[0]), str(mpdata[1][:56]), str(mpdata[2][:56]), '%.8f' % float(mpdata[3]), str(mpdata[4]), str(mpdata[5]), str(mpdata[6]),
+                            str(mpdata[7]))  # create tuple
+                        # print transaction
+                        block_send.append(transaction)  # append tuple to list for each run
+                        removal_signature.append(str(mpdata[4]))  # for removal after successful mining
 
                 # claim reward
-                transaction_reward = tuple
                 transaction_reward = (str(block_timestamp), str(address[:56]), str(address[:56]), '%.8f' % float(0), "0", str(nonce))  # only this part is signed!
                 # print transaction_reward
 
@@ -213,11 +205,8 @@ def miner(q,privatekey_readable, public_key_hashed, address):
 
                         app_log.warning("Miner: Proceeding to submit mined block")
 
-                        send(s, (str(len("block"))).zfill(10))
-                        send(s, "block")
-                        send(s, (str(len(str(block_send)))).zfill(10))
-                        send(s, str(block_send))
-
+                        connections.send(s, "block", 10)
+                        connections.send(s, block_send, 10)
 
                         submitted = 1
                         app_log.warning("Miner: Block submitted")
@@ -226,19 +215,6 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                         print e
                         app_log.warning("Miner: Please start your node for the block to be submitted or adjust mining ip in settings.")
                         time.sleep(1)
-
-                #remove sent from mempool
-
-                mempool = sqlite3.connect("mempool.db")
-                mempool.text_factory = str
-                m = mempool.cursor()
-                for x in removal_signature:
-                    execute_param(m,("DELETE FROM transactions WHERE signature =?;"),(x,), app_log)
-                    app_log.warning("Removed a transaction with the following signature from mempool: {}".format(x))
-                mempool.commit()
-                mempool.close()
-
-                #remove sent from mempool
 
             #submit mined block to node
 
@@ -261,19 +237,6 @@ if __name__ == '__main__':
         address = sys.argv[1]
     except:
         address = address
-
-    if not os.path.exists('mempool.db'):
-        # create empty mempool
-        mempool = sqlite3.connect('mempool.db')
-        mempool.text_factory = str
-        m = mempool.cursor()
-        execute(m,("CREATE TABLE IF NOT EXISTS transactions (timestamp, address, recipient, amount, signature, public_key, openfield)"), app_log)
-        mempool.commit()
-        mempool.close()
-        app_log.warning("Core: Created mempool file")
-        # create empty mempool
-    else:
-        app_log.warning("Mempool exists")
 
     # verify connection
     connected = 0
