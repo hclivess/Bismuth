@@ -581,7 +581,6 @@ def manager():
             HOST = key
             # app_log.info(HOST)
             PORT = int(value)
-
             if threading.active_count() < thread_limit_conf and str(HOST + ":" + str(PORT)) not in tried and str(
                                     HOST + ":" + str(PORT)) not in active_pool and str(HOST) not in banlist:
                 app_log.info("Will attempt to connect to {}:{}".format(HOST,PORT))
@@ -592,7 +591,7 @@ def manager():
                 t.start()
 
             # client thread handling
-        if len(active_pool) < 3:
+        if len(active_pool) < 15:
             app_log.info("Only {} connections active, resetting the try list".format(len(active_pool)))
             del tried[:]
 
