@@ -34,8 +34,9 @@ print "Current mempool: {}".format(mempool)
 
 #get last hash
 connections.send(s, "hashlast", 10)
-hash_last = connections.receive(s, 10)
-print "Last block hash: {}".format(hash_last)
+hash_last = ast.literal_eval(connections.receive(s, 10))
+print "Last block number: {}".format(hash_last[0])
+print "Last block hash: {}".format(hash_last[1])
 #get last hash
 
 #get block

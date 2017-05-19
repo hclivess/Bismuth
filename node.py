@@ -1317,8 +1317,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     conn = sqlite3.connect(ledger_path_conf)
                     conn.text_factory = str
                     c = conn.cursor()
-                    execute(c, ("SELECT block_hash FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
-                    hash_last = c.fetchone()[0]
+                    execute(c, ("SELECT block_height, block_hash FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
+                    hash_last = c.fetchall()[0]
                     conn.close()
                     connections.send(self.request, hash_last, 10)
 

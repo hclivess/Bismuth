@@ -115,7 +115,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 s.connect((mining_ip_conf, int(port)))  # connect to local node
 
                 connections.send(s, "hashlast", 10)
-                db_block_hash = connections.receive(s, 10)
+                db_block_hash = ast.literal_eval(connections.receive(s, 10))[1]
 
                 connections.send(s, "diffget", 10)
                 diff = float(connections.receive(s, 10))
@@ -262,5 +262,4 @@ if __name__ == '__main__':
     for q in instances:
         p.join()
         p.terminate()
-
 
