@@ -1306,7 +1306,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     if len(active_pool) < 5:
                         app_log.warning("Outgoing: Mined block ignored, insufficient connections to the network")
-                    elif int(db_block_height) >= int(max(consensus_blockheight_list))-5:
+                    elif int(db_block_height) >= int(max(consensus_blockheight_list))-3:
                         app_log.warning("Outgoing: Processing block from miner")
                         digest_block(segments, self.request,peer_ip)
                     # receive theirs
