@@ -1287,7 +1287,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         time.sleep(float(pause_conf))
                     connections.send(self.request, "sync", 10)
 
-                elif data == "block":  # from miner
+                elif data == "block" and (peer_ip in allowed or "any" in allowed):  # from miner
 
                     app_log.warning("Outgoing: Received a block from miner")
                     # receive block
