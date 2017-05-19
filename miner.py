@@ -1,4 +1,4 @@
-import base64, sqlite3, hashlib, time, socks, keys, log, sys, connections, ast
+import base64, sqlite3, hashlib, time, socks, keys, log, sys, connections, ast, re
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
 from Crypto import Random
@@ -112,6 +112,8 @@ def miner(q,privatekey_readable, public_key_hashed, address):
 
                 # calculate difficulty
                 s = socks.socksocket()
+                if tor_conf == 1:
+                    s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
                 s.connect((mining_ip_conf, int(port)))  # connect to local node
 
                 connections.send(s, "hashlast", 10)
@@ -154,7 +156,9 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 del removal_signature[:]  # empty
 
                 s = socks.socksocket()
-                s.connect((mining_ip_conf, int(port)))  # connect to local node
+                if tor_conf == 1:
+                    s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+                s.connect((mining_ip_conf, int(port)))  # connect to config.txt node
                 connections.send(s, "mpget", 10)
                 data = connections.receive(s, 10)
 
@@ -190,25 +194,39 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 if sync_conf == 1:
                     check_uptodate(300, app_log)
 
-                submitted = 0
-                while submitted == 0:
-                    try:
-                        s = socks.socksocket()
-                        s.connect((mining_ip_conf, int(port)))  # connect to local node
-                        app_log.warning("Connected")
 
-                        app_log.warning("Miner: Proceeding to submit mined block")
+                # connect to all nodes
+                global peer_dict
+                peer_dict = {}
+                with open("peers.txt") as f:
+                    for line in f:
+                        line = re.sub("[\)\(\:\\n\'\s]", "", line)
+                        peer_dict[line.split(",")[0]] = line.split(",")[1]
 
-                        connections.send(s, "block", 10)
-                        connections.send(s, block_send, 10)
+                    for key, value in peer_dict.items():
+                        peer_ip = key
+                        # app_log.info(HOST)
+                        peer_port = int(value)
+                        # app_log.info(PORT)
+                # connect to all nodes
 
-                        submitted = 1
-                        app_log.warning("Miner: Block submitted")
+                        try:
+                            s = socks.socksocket()
+                            s.settimeout(0.3)
+                            if tor_conf == 1:
+                                s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+                            s.connect((peer_ip, int(peer_port)))  # connect to node in peerlist
+                            app_log.warning("Connected")
 
-                    except Exception, e:
-                        print e
-                        app_log.warning("Miner: Please start your node for the block to be submitted or adjust mining ip in settings.")
-                        time.sleep(1)
+                            app_log.warning("Miner: Proceeding to submit mined block")
+
+                            connections.send(s, "block", 10)
+                            connections.send(s, block_send, 10)
+
+                            app_log.warning("Miner: Block submitted to {}".format(peer_ip))
+                        except Exception, e:
+                            app_log.warning("Miner: Could not submit block to {} because {}".format(peer_ip,e))
+                            pass
 
             #submit mined block to node
 
