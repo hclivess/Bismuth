@@ -591,7 +591,7 @@ def manager():
                 t.start()
 
             # client thread handling
-        if len(active_pool) < len(thread_limit_conf)/3:
+        if len(active_pool) < thread_limit_conf/3:
             app_log.info("Only {} connections active, resetting the try list".format(len(active_pool)))
             del tried[:]
 
