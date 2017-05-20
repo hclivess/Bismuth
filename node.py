@@ -260,6 +260,10 @@ def mempool_merge(data,peer_ip):
                     except:
                         pass
 
+                    if mempool_address != hashlib.sha224(mempool_public_key_hashed).hexdigest():
+                        app_log.info("Attempt to spend from a wrong address")
+                        acceptable = 0
+
                     if float(mempool_amount) < 0:
                         acceptable = 0
                         app_log.info("Negative balance spend attempt")
@@ -704,6 +708,12 @@ def digest_block(data, sdef, peer_ip):
                     if float(received_amount) < 0:
                         block_valid = 0
                         error_msg = "Negative balance spend attempt"
+
+                    if transaction != transaction_list[-1]:  # non-mining txs
+                        if received_address != hashlib.sha224(received_public_key_hashed).hexdigest():
+                            error_msg = "Attempt to spend from a wrong address"
+                            block_valid = 0
+
 
                     if transaction == transaction_list[-1]:  # recognize the last transaction as the mining reward transaction
                         block_timestamp = received_timestamp
