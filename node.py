@@ -227,6 +227,8 @@ def mempool_merge(data,peer_ip):
                     mempool_public_key_hashed = str(transaction[5])
                     mempool_keep = str(transaction[6])
                     mempool_openfield = str(transaction[7])
+                    mempool_public_key = RSA.importKey(base64.b64decode(mempool_public_key_hashed))  # convert readable key to instance
+                    mempool_signature_dec = base64.b64decode(mempool_signature_enc)
 
                     conn = sqlite3.connect(ledger_path_conf)
                     conn.text_factory = str
@@ -260,7 +262,7 @@ def mempool_merge(data,peer_ip):
                     except:
                         pass
 
-                    if mempool_address != hashlib.sha224(mempool_public_key_hashed).hexdigest():
+                    if mempool_address != hashlib.sha224(base64.b64decode(mempool_public_key_hashed)).hexdigest():
                         app_log.info("Attempt to spend from a wrong address")
                         acceptable = 0
 
@@ -284,12 +286,10 @@ def mempool_merge(data,peer_ip):
                         # verify signatures and balances
 
                     # verify signature
-                    received_public_key = RSA.importKey(base64.b64decode(mempool_public_key_hashed))  # convert readable key to instance
-                    received_signature_dec = base64.b64decode(mempool_signature_enc)
-                    verifier = PKCS1_v1_5.new(received_public_key)
+                    verifier = PKCS1_v1_5.new(mempool_public_key)
 
                     h = SHA.new(str((mempool_timestamp, mempool_address, mempool_recipient, mempool_amount, mempool_keep, mempool_openfield)))
-                    if not verifier.verify(h, received_signature_dec):
+                    if not verifier.verify(h, mempool_signature_dec):
                         acceptable = 0
                     # verify signature
 
@@ -710,7 +710,7 @@ def digest_block(data, sdef, peer_ip):
                         error_msg = "Negative balance spend attempt"
 
                     if transaction != transaction_list[-1]:  # non-mining txs
-                        if received_address != hashlib.sha224(received_public_key_hashed).hexdigest():
+                        if received_address != hashlib.sha224(base64.b64decode(received_public_key_hashed)).hexdigest():
                             error_msg = "Attempt to spend from a wrong address"
                             block_valid = 0
 
