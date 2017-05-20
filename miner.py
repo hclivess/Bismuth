@@ -234,7 +234,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
         except Exception, e:
             print e
             time.sleep(0.1)
-            raise
+            pass
 
 if __name__ == '__main__':
     freeze_support()  # must be this line, dont move ahead
