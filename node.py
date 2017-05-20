@@ -878,6 +878,7 @@ def digest_block(data, sdef, peer_ip):
 
                         if transaction == transaction_list[-1]:
 
+                            db_amount = 0 #prevent spending from another address, because mining txs allow delegation
                             if db_block_height <= 10000000:
                                 mining_reward = 15 - (float(block_height_new) / float(1000000))  # one zero less
                             else:
