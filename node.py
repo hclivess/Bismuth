@@ -1289,7 +1289,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                 elif data == "block" and (peer_ip in allowed or "any" in allowed):  # from miner
 
-                    app_log.warning("Outgoing: Received a block from miner")
+                    app_log.warning("Outgoing: Received a block from miner {}".format(peer_ip))
                     # receive block
                     segments = connections.receive(self.request, 10)
                     # app_log.info("Incoming: Combined mined segments: " + segments)
