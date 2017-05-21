@@ -172,6 +172,20 @@ def decrypt_fn(destroy_this):
 
     return key
 
+def send_confirm(amount_input, recipient_input, keep_input, openfield_input):
+    top10 = Toplevel()
+    top10.title("Confirm")
+    fee = '%.8f' % float(0.01 + (float(amount.get()) * 0.001) + (float(len(openfield_input)) / 100000) + (float(keep_var.get()) / 10))  # 0.1% + 0.01 dust
+    confirmation_dialog = Text(top10, width=100)
+    confirmation_dialog.insert(INSERT, ("Amount: {}\nTo: {}\nFee: {}\nKeep Entry: {}\nOpenField:\n\n{}".format(amount_input, recipient_input,fee, keep_input, openfield_input)))
+    confirmation_dialog.grid(row=0, pady=0)
+
+    enter = Button(top10, text="Confirm", command = lambda: send(amount_input, recipient_input, keep_input, openfield_input))
+    enter.grid(row=1, column=0, sticky=W+E, padx=15, pady=(5, 5))
+
+    done = Button(top10, text="Cancel", command=top10.destroy)
+    done.grid(row=2, column=0, sticky=W + E, padx=15, pady=(5, 5))
+
 def send(amount_input, recipient_input, keep_input, openfield_input):
     try:
         key
@@ -629,7 +643,7 @@ f6.grid(row = 2, column = 0, sticky = E, pady = 10, padx = 10)
 
 #buttons
 
-send_b = Button(f5, text="Send", command=lambda:send(str(amount.get()).strip(), recipient.get().strip(), str(keep_var.get()).strip(), str(openfield.get("1.0",END)).strip()), height=1, width=10)
+send_b = Button(f5, text="Send", command=lambda:send_confirm(str(amount.get()).strip(), recipient.get().strip(), str(keep_var.get()).strip(), str(openfield.get("1.0",END)).strip()), height=1, width=10)
 send_b.grid(row=9, column=0, sticky=W+E+S, pady=(45,2), padx=15)
 
 start_b = Button(f5, text="Generate QR Code", command=qr, height=1, width=10)
