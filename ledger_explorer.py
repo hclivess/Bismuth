@@ -131,7 +131,7 @@ class index:
         html.append("<center><h1>Bismuth Transaction Explorer</h1><p></center>")
 
         html.append("<div style='padding: 20px;'>")
-        html.append("<center><a href='https://github.com/hclivess/Bismuth/raw/master/static/ledger.db' class='btn btn-info' role='button'>Download Blockchain</a></center>")
+        html.append("<center><a href='http://bismuth.cz/ledger.db' class='btn btn-info' role='button'>Download Blockchain</a></center>")
         html.append("</div>")
 
         html.append("</div>")
