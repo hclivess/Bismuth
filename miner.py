@@ -203,10 +203,10 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                         line = re.sub("[\)\(\:\\n\'\s]", "", line)
                         peer_dict[line.split(",")[0]] = line.split(",")[1]
 
-                    for key, value in peer_dict.items():
-                        peer_ip = key
+                    for k, v in peer_dict.items():
+                        peer_ip = k
                         # app_log.info(HOST)
-                        peer_port = int(value)
+                        peer_port = int(v)
                         # app_log.info(PORT)
                 # connect to all nodes
 
