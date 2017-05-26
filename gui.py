@@ -180,13 +180,14 @@ def send_confirm(amount_input, recipient_input, keep_input, openfield_input):
     confirmation_dialog.insert(INSERT, ("Amount: {}\nTo: {}\nFee: {}\nKeep Entry: {}\nOpenField:\n\n{}".format(amount_input, recipient_input,fee, keep_input, openfield_input)))
     confirmation_dialog.grid(row=0, pady=0)
 
-    enter = Button(top10, text="Confirm", command = lambda: send(amount_input, recipient_input, keep_input, openfield_input))
+    enter = Button(top10, text="Confirm", command = lambda: send(amount_input, recipient_input, keep_input, openfield_input, top10))
     enter.grid(row=1, column=0, sticky=W+E, padx=15, pady=(5, 5))
 
     done = Button(top10, text="Cancel", command=top10.destroy)
     done.grid(row=2, column=0, sticky=W + E, padx=15, pady=(5, 5))
 
-def send(amount_input, recipient_input, keep_input, openfield_input):
+
+def send(amount_input, recipient_input, keep_input, openfield_input, top10):
     try:
         key
     except:
@@ -270,6 +271,8 @@ def send(amount_input, recipient_input, keep_input, openfield_input):
         else:
             app_log.warning("Client: Invalid signature")
         #enter transaction end
+
+        top10.destroy()
         refresh()
 
 def app_quit():
