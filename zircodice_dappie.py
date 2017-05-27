@@ -102,14 +102,18 @@ while True:
             payout_keep = 0
             fee = float(0.01 + (float(payout_amount) * 0.001) + (float(len(payout_openfield)) / 100000) + (float(payout_keep) / 10))  # 0.1% + 0.01 dust
 
-            transaction = (str(timestamp), str(address), str(payout_address), str('%.8f' % (payout_amount-fee)), str(payout_keep), str(payout_openfield))
+            transaction = (str(timestamp), str(address), str(payout_address), '%.8f' % (payout_amount-fee), str(payout_keep), str(payout_openfield))
             print transaction
 
             h = SHA.new(str(transaction))
             signer = PKCS1_v1_5.new(key)
             signature = signer.sign(h)
             signature_enc = base64.b64encode(signature)
-            print("Encoded Signature: {}".format(signature_enc))
+            #print("Encoded Signature: {}".format(signature_enc))
+
+            verifier = PKCS1_v1_5.new(key)
+            if verifier.verify(h, signature) == True:
+                print("Signature OK")
 
             mempool = sqlite3.connect('mempool.db')
             mempool.text_factory = str
@@ -121,8 +125,8 @@ while True:
                 print "Payout transaction already in the mempool"
             except:
                 m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (
-                timestamp, address, payout_address, '%.8f' % (float(bet_amount*2)-percentage(1,bet_amount)), signature_enc, public_key_hashed, "0",
-                "payout for " + tx_signature))
+                str(timestamp), str(address), str(payout_address), '%.8f' % (float(payout_amount-fee)), str(signature_enc), str(public_key_hashed), "0",
+                str("payout for " + tx_signature)))
                 mempool.commit()  # Save (commit) the changes
                 mempool.close()
                 print "Mempool updated with a payout transaction for {}".format(tx_signature)

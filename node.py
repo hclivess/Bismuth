@@ -262,10 +262,7 @@ def mempool_merge(data,peer_ip):
                     except:
                         pass
 
-
-                    if mempool_address == hashlib.sha224(base64.b64encode(base64.b64decode(mempool_public_key_hashed))).hexdigest(): #pool stuck
-                        print "pool stuck spending (mempool), tx allowed"
-                    elif mempool_address != hashlib.sha224(base64.b64decode(mempool_public_key_hashed)).hexdigest():
+                    if mempool_address != hashlib.sha224(base64.b64decode(mempool_public_key_hashed)).hexdigest():
                         app_log.info("Attempt to spend from a wrong address")
                         acceptable = 0
 
@@ -294,6 +291,7 @@ def mempool_merge(data,peer_ip):
                     h = SHA.new(str((mempool_timestamp, mempool_address, mempool_recipient, mempool_amount, mempool_keep, mempool_openfield)))
                     if not verifier.verify(h, mempool_signature_dec):
                         acceptable = 0
+                        app_log.info("Wrong signature in mempool insert attempt")
                     # verify signature
 
                     if acceptable == 1:
@@ -304,7 +302,7 @@ def mempool_merge(data,peer_ip):
                         c = conn.cursor()
 
                         # app_log.info("Mempool: Verifying balance")
-                        app_log.info("Mempool: Received address: " + str(mempool_address))
+                        app_log.info("Mempool: Received address: {}".format(mempool_address))
 
                         # include the new block
                         execute_param(m, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (mempool_address,))
@@ -713,10 +711,7 @@ def digest_block(data, sdef, peer_ip):
                         error_msg = "Negative balance spend attempt"
 
                     if transaction != transaction_list[-1]:  # non-mining txs
-                        if received_address == hashlib.sha224(base64.b64encode(base64.b64decode(received_public_key_hashed))).hexdigest(): #pool stuck
-                            print "pool stuck spending, tx allowed"
-
-                        elif received_address != hashlib.sha224(base64.b64decode(received_public_key_hashed)).hexdigest():
+                        if received_address != hashlib.sha224(base64.b64decode(received_public_key_hashed)).hexdigest():
                             error_msg = "Attempt to spend from a wrong address"
                             block_valid = 0
 
