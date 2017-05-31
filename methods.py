@@ -29,3 +29,28 @@ def diffget():
     conn.close()
 
     return diff
+
+def block():
+    app_log.warning("Outgoing: Received a block from miner {}".format(peer_ip))
+    # receive block
+    segments = connections.receive(self.request, 10)
+    # app_log.info("Incoming: Combined mined segments: " + segments)
+
+    # check if we have the latest block
+    conn = sqlite3.connect(ledger_path_conf)
+    conn.text_factory = str
+    c = conn.cursor()
+    execute(c, ('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1'))
+    db_block_height = c.fetchone()[0]
+    conn.close()
+    # check if we have the latest block
+
+    if len(active_pool) < 5:
+        app_log.warning("Outgoing: Mined block ignored, insufficient connections to the network")
+    elif int(db_block_height) >= int(max(consensus_blockheight_list)) - 3:
+        app_log.warning("Outgoing: Processing block from miner")
+        digest_block(segments, self.request, peer_ip)
+    # receive theirs
+    else:
+        app_log.warning("Outgoing: Mined block was orphaned because node was not synced, we are at block {}, should be at least {}".format(db_block_height, int(max(consensus_blockheight_list)) - 3))
+

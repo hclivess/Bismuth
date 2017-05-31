@@ -1072,7 +1072,15 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             app_log.warning("IP {} banned, disconnected".format(peer_ip))
             #if you raise here, you kill the whole server
 
+        timeout_operation = 30 #timeout
+        timer_operation = time.time() #start counting
+
         while banned == 0 and capacity == 1:
+
+            if not time.time() <= timer_operation + timeout_operation: #return on timeout
+                app_log.info("Incoming: Operation timeout")
+                warning_list.append(peer_ip) #add warning
+                return
 
             try:
                 data = connections.receive(self.request, 10)
@@ -1451,6 +1459,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 else:
                     raise ValueError("Unexpected error, received: " + str(data))
 
+                timer_operation = time.time() #reset timer
                 time.sleep(0.1)  # prevent cpu overload
                 # app_log.info("Server resting")
 
@@ -1494,6 +1503,13 @@ def worker(HOST, PORT):
     while True:
         peer_ip = s.getpeername()[0]
         try:
+            timeout_operation = 30  # timeout
+            timer_operation = time.time()  # start counting
+            if not time.time() <= timer_operation + timeout_operation:  # return on timeout
+                app_log.info("Outgoing: Operation timeout")
+                warning_list.append(peer_ip) #add warning
+                return
+
             # communication starter
             if first_run == 1:
                 first_run = 0
@@ -1727,6 +1743,10 @@ def worker(HOST, PORT):
 
             else:
                 raise ValueError("Unexpected error, received: {}".format(data))
+
+            timer_operation = time.time()  # reset timer
+
+
 
         except Exception as e:
             # remove from active pool
