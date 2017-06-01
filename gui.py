@@ -1,5 +1,5 @@
 #icons created using http://www.winterdrache.de/freeware/png2ico/
-import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, sqlite3, time, base64, connections, icons, log, socks
+import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, sqlite3, time, base64, connections, icons, log, socks, ast
 
 from datetime import datetime
 from Crypto.PublicKey import RSA
@@ -472,51 +472,36 @@ def refresh():
     global balance
 
     #print "refresh triggered"
+    
+    try:
+        s = socks.socksocket()
+        s.connect(("127.0.0.1", 56058))
+        connections.send(s, "balanceget", 10)
+        connections.send(s, "f1e5133ff3685f70b9291922dd99a891d1ff4d6226fc6404a16729bf", 10)
+        stats_account = ast.literal_eval(connections.receive(s, 10))
+        balance = stats_account[0]
+        credit = stats_account[1]
+        debit = stats_account[2]
+        fees = stats_account[3]
+        rewards = stats_account[4]
 
-    mempool = sqlite3.connect('mempool.db')
-    mempool.text_factory = str
-    m = mempool.cursor()
-    m.execute("SELECT sum(amount) FROM transactions WHERE address = ?;", (address,))
-    debit_mempool = m.fetchone()[0]
-    mempool.close()
-    if debit_mempool == None:
-        debit_mempool = 0
+        app_log.warning("Node: Transction address balance: {}".format(balance))
 
-    conn = sqlite3.connect('static/ledger.db')
-    conn.text_factory = str
-    c = conn.cursor()
-    c.execute("SELECT sum(amount) FROM transactions WHERE recipient = ?;", (address,))
-    credit = c.fetchone()[0]
-    c.execute("SELECT sum(amount) FROM transactions WHERE address = ?;", (address,))
-    debit = c.fetchone()[0]
-    c.execute("SELECT sum(fee) FROM transactions WHERE address = ?;", (address,))
-    fees = c.fetchone()[0]
-    c.execute("SELECT sum(reward) FROM transactions WHERE address = ?;", (address,))
-    rewards = c.fetchone()[0]
-    c.execute("SELECT MAX(block_height) FROM transactions")
-    bl_height = c.fetchone()[0]
 
-    if debit == None:
-        debit = 0
-    if fees == None:
-        fees = 0
-    if rewards == None:
-        rewards = 0
-    if credit == None:
+        connections.send(s, "blocklast", 10)
+        block_get = ast.literal_eval(connections.receive(s, 10))
+        bl_height = block_get[0]
+        db_timestamp_last = block_get[1]
+
+    except:
+        balance = 0
         credit = 0
-    balance = credit - debit - fees + rewards - debit_mempool
-    app_log.warning("Node: Transction address balance: {}".format(balance))
+        debit = 0
+        fees = 0
+        rewards = 0
 
-    # calculate diff
-    c.execute("SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;") #or it takes the first
-    result = c.fetchall()
-    db_timestamp_last = float(result[0][1])
-    #print db_timestamp_last
-    db_block_height = result[0][0]
-
-    c.execute("SELECT avg(timestamp) FROM transactions where block_height >= ? and reward != 0;", (str(db_block_height - 30),))
-    timestamp_avg = c.fetchall()[0][0]  # select the reward block
-    #print timestamp_avg
+        bl_height = 0
+        db_timestamp_last = 0
 
     try:
         if encode_var.get() == 1:
@@ -538,14 +523,12 @@ def refresh():
     # check difficulty
     try:
         s = socks.socksocket()
-        s.connect(("127.0.0.1", 50658))
+        s.connect(("127.0.0.1", 56058))
         connections.send(s, "diffget", 10)
         diff = connections.receive(s, 10)
         print "Current difficulty: {}".format(diff)
     except:
         diff = "?"
-
-
     # check difficulty
 
     diff_msg = diff
@@ -553,7 +536,10 @@ def refresh():
 #network status
     time_now = str(time.time())
     last_block_ago = float(time_now) - float(db_timestamp_last)
-    if last_block_ago > 300:
+    if db_timestamp_last == 0:
+        sync_msg = "Start your node"
+        sync_msg_label.config(fg='blue')
+    elif last_block_ago > 300:
         sync_msg = "{}m behind".format((int(last_block_ago/60)))
         sync_msg_label.config(fg='red')
     else:
@@ -563,9 +549,9 @@ def refresh():
 #network status
 
     #aliases
-    c.execute("SELECT openfield FROM transactions WHERE address = ? AND openfield LIKE ?;",(address,)+("alias="+'%',))
-    aliases = c.fetchall()
-    app_log.warning("Aliases: "+str(aliases))
+    #c.execute("SELECT openfield FROM transactions WHERE address = ? AND openfield LIKE ?;",(address,)+("alias="+'%',))
+    #aliases = c.fetchall()
+    #app_log.warning("Aliases: "+str(aliases))
     #aliases
 
     fees_current_var.set("Current Fee: {}".format('%.8f' % float(fee)))
@@ -578,7 +564,6 @@ def refresh():
     diff_msg_var.set("Mining Difficulty: {}".format(diff_msg))
     sync_msg_var.set("Network: {}".format(sync_msg))
 
-    conn.close()
     table()
     #root.after(1000, refresh)
 

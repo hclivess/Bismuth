@@ -12,10 +12,14 @@ print "Current difficulty: {}".format(diff)
 #get balance
 connections.send(s, "balanceget", 10)
 connections.send(s, "f1e5133ff3685f70b9291922dd99a891d1ff4d6226fc6404a16729bf", 10)
-balance_ledger = connections.receive(s, 10)
-balance_ledger_mempool = connections.receive(s, 10)
-print "Address balance with mempool: {}".format(balance_ledger_mempool)
-print "Address balance without mempool: {}".format(balance_ledger)
+#balance_ledger = connections.receive(s, 10)
+balance_ledger_mempool = ast.literal_eval(connections.receive(s, 10))
+print "Address balance with mempool: {}".format(balance_ledger_mempool[0])
+print "Address credit with mempool: {}".format(balance_ledger_mempool[1])
+print "Address debit with mempool: {}".format(balance_ledger_mempool[2])
+print "Address fees with mempool: {}".format(balance_ledger_mempool[3])
+print "Address rewards with mempool: {}".format(balance_ledger_mempool[4])
+#print "Address balance without mempool: {}".format(balance_ledger)
 #get balance
 
 #insert to mempool
@@ -33,8 +37,9 @@ print "Current mempool: {}".format(mempool)
 #ask for mempool
 
 #get last hash
-connections.send(s, "hashlast", 10)
+connections.send(s, "blocklast", 10)
 hash_last = ast.literal_eval(connections.receive(s, 10))
+
 print "Last block number: {}".format(hash_last[0])
 print "Last block hash: {}".format(hash_last[1])
 #get last hash
@@ -47,5 +52,6 @@ print "Requested block: {}".format(block_get)
 print "Requested block number of transactions: {}".format(len(block_get))
 print "Requested block height: {}".format(block_get[0][0])
 #get block
+
 
 s.close()

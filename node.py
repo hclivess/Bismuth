@@ -1331,14 +1331,14 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     else:
                         app_log.warning("Outgoing: Mined block was orphaned because node was not synced, we are at block {}, should be at least {}".format(db_block_height,int(max(consensus_blockheight_list))-3))
 
-                elif data == "hashlast" and (peer_ip in allowed or "any" in allowed):
+                elif data == "blocklast" and (peer_ip in allowed or "any" in allowed): #only sends the miner part of the block!
                     conn = sqlite3.connect(ledger_path_conf)
                     conn.text_factory = str
                     c = conn.cursor()
-                    execute(c, ("SELECT block_height, block_hash FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
-                    hash_last = c.fetchall()[0]
+                    execute(c, ("SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
+                    block_last = c.fetchall()[0]
                     conn.close()
-                    connections.send(self.request, hash_last, 10)
+                    connections.send(self.request, block_last, 10)
 
                 elif data == "blockget" and (peer_ip in allowed or "any" in allowed):
                     block_desired = connections.receive(self.request, 10)
@@ -1404,11 +1404,11 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         debit_ledger = 0
 
                     balance = float(credit) - float(debit) - float(fees) + float(rewards)
-                    balance_pre = float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)
+                    #balance_pre = float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)
                     # app_log.info("Mempool: Projected transction address balance: " + str(balance))
 
-                    connections.send(self.request, balance, 10)  # return balance of the address to the client, including mempool
-                    connections.send(self.request, balance_pre, 10)  # return balance of the address to the client, no mempool
+                    connections.send(self.request, (balance,credit,debit,fees,rewards), 10)  # return balance of the address to the client, including mempool
+                    #connections.send(self.request, balance_pre, 10)  # return balance of the address to the client, no mempool
 
                 elif data == "mpget" and (peer_ip in allowed or "any" in allowed):
                     mempool = sqlite3.connect('mempool.db')
