@@ -5,9 +5,9 @@ from Crypto import Random
 from multiprocessing import Process, freeze_support
 
 try:
-    import fastminer
+    import quickbismuth
 except ImportError:
-    fastminer = None
+    quickbismuth = None
 
 # load config
 lines = [line.rstrip('\n') for line in open('config.txt')]
@@ -97,8 +97,8 @@ def miner(q,privatekey_readable, public_key_hashed, address):
     firstrun = True
     begin = time.time()
 
-    if fastminer:
-        app_log.warning('Using FastMiner: ' + fastminer.__version__)
+    if quickbismuth:
+        app_log.warning('Using QuickBismuth: ' + quickbismuth.__version__)
 
     while True:
         try:
@@ -131,9 +131,9 @@ def miner(q,privatekey_readable, public_key_hashed, address):
 
             nonce = hashlib.sha224(rndfile.read(16)).hexdigest()[:32]
 
-            if fastminer:
+            if quickbismuth:
                 fastminer_cycles = 500000
-                nonce = fastminer.bismuth(diff, address, db_block_hash, fastminer_cycles, rndfile.read(32))
+                nonce = quickbismuth.bismuth_mine(diff, address, db_block_hash, fastminer_cycles, rndfile.read(32))
                 tries += fastminer_cycles
             else:
                 tries = tries +1

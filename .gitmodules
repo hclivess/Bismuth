@@ -1,3 +1,3 @@
-[submodule "FastBismuth"]
-	path = FastBismuth
-	url = git@github.com:HarryR/FastBismuth.git
+[submodule "QuickBismuth"]
+	path = QuickBismuth
+	url = git@github.com:HarryR/QuickBismuth.git

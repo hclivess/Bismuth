@@ -1,6 +1,10 @@
 import base64, os, getpass, hashlib
-from simplecrypt import decrypt
+try:
+    from simplecrypt import decrypt
+except ImportError:
+    decrypt = None
 from Crypto.PublicKey import RSA
+import sys
 
 def read():
     # import keys
@@ -10,6 +14,9 @@ def read():
         private_key_readable = str(key.exportKey())
         # public_key = key.publickey()
     else:
+        if not decrypt:
+            print("Key decryption not available, install simplecrypt")
+            sys.exit()
         password = getpass.getpass()
         encrypted_privkey = open('privkey_encrypted.der').read()
         decrypted_privkey = decrypt(password, base64.b64decode(encrypted_privkey))
