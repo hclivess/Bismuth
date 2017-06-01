@@ -779,7 +779,7 @@ def digest_block(data, sdef, peer_ip):
                     app_log.info("Difficulty requirement satisfied for block {} from {}".format(block_height_new,peer_ip))
                 else:
                     # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
-                    error_msg = "Difficulty requirement not satisfied for block {} from {}".format(block_height_new,peer_ip)
+                    error_msg = "Difficulty too low for block {} from {}, should be at least {}".format(block_height_new,peer_ip, diff)
                     block_valid = 0
 
                     #print data
@@ -1072,13 +1072,13 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             app_log.warning("IP {} banned, disconnected".format(peer_ip))
             #if you raise here, you kill the whole server
 
-        timeout_operation = 240 #timeout
+        timeout_operation = 60 #timeout
         timer_operation = time.time() #start counting
 
         while banned == 0 and capacity == 1:
 
             if not time.time() <= timer_operation + timeout_operation: #return on timeout
-                app_log.info("Incoming: Operation timeout from {}".format(peer_ip))
+                app_log.warning("Incoming: Operation timeout from {}".format(peer_ip))
                 warning_list.append(peer_ip) #add warning
                 break
 
@@ -1501,14 +1501,14 @@ def worker(HOST, PORT):
 
     first_run = 1
 
-    timeout_operation = 240  # timeout
+    timeout_operation = 60  # timeout
     timer_operation = time.time()  # start counting
 
     while True:
         peer_ip = s.getpeername()[0]
 
         if not time.time() <= timer_operation + timeout_operation:  # return on timeout
-            app_log.info("Outgoing: Operation timeout from {}".format(peer_ip))
+            app_log.warning("Outgoing: Operation timeout from {}".format(peer_ip))
             warning_list.append(peer_ip)  # add warning
             break
         try:

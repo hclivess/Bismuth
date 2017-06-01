@@ -1,5 +1,5 @@
 #icons created using http://www.winterdrache.de/freeware/png2ico/
-import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, sqlite3, time, base64, math, icons, log
+import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, sqlite3, time, base64, connections, icons, log, socks
 
 from datetime import datetime
 from Crypto.PublicKey import RSA
@@ -534,26 +534,19 @@ def refresh():
         app_log.warning("Fee error: {}".format(e))
     # calculate fee
 
-    # calculate difficulty
-    c.execute("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0", (db_timestamp_last - 1800,))  # 1800=30 min
-    blocks_per_30 = len(c.fetchall())
 
-    diff = blocks_per_30*2
+    # check difficulty
+    try:
+        s = socks.socksocket()
+        s.connect(("127.0.0.1", 50658))
+        connections.send(s, "diffget", 10)
+        diff = connections.receive(s, 10)
+        print "Current difficulty: {}".format(diff)
+    except:
+        diff = "?"
 
-    # drop diff per minute if over target
-    time_drop = time.time()
 
-    drop_factor = 120  # drop 0,5 diff per minute #hardfork
-
-    if time_drop > db_timestamp_last + 120:  # start dropping after 2 minutes
-        diff = diff - (time_drop - db_timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes)
-        if diff < 35:
-            diff = 35
-
-    if time_drop > db_timestamp_last + 300 or diff < 37:  # 5 m lim
-        diff = 37  # 5 m lim
-    # drop diff per minute if over target
-    # calculate difficulty
+    # check difficulty
 
     diff_msg = diff
 
@@ -582,7 +575,7 @@ def refresh():
     fees_var.set("Fees Paid: {}".format('%.8f' % float(fees)))
     rewards_var.set("Rewards: {}".format('%.8f' % float(rewards)))
     bl_height_var.set("Block Height: {}".format(bl_height))
-    diff_msg_var.set("Mining Difficulty: {}".format(round(diff_msg,2)))
+    diff_msg_var.set("Mining Difficulty: {}".format(diff_msg))
     sync_msg_var.set("Network: {}".format(sync_msg))
 
     conn.close()
@@ -647,12 +640,15 @@ f6.grid(row = 2, column = 0, sticky = E, pady = 10, padx = 10)
 #buttons
 
 send_b = Button(f5, text="Send", command=lambda:send_confirm(str(amount.get()).strip(), recipient.get().strip(), str(keep_var.get()).strip(), str(openfield.get("1.0",END)).strip()), height=1, width=10)
-send_b.grid(row=9, column=0, sticky=W+E+S, pady=(45,2), padx=15)
+send_b.grid(row=8, column=0, sticky=W+E+S, pady=(45,2), padx=15)
 
 start_b = Button(f5, text="Generate QR Code", command=qr, height=1, width=10)
 if "posix" in os.name:
     start_b.configure(text="QR Disabled",state = DISABLED)
-start_b.grid(row=10, column=0, sticky=W+E+S, pady=2,padx=15)
+start_b.grid(row=9, column=0, sticky=W+E+S, pady=2,padx=15)
+
+message_b = Button(f5, text="Manual Refresh", command=refresh, height=1, width=10)
+message_b.grid(row=10, column=0, sticky=W+E+S, pady=2,padx=15)
 
 balance_b = Button(f5, text="Manual Refresh", command=refresh, height=1, width=10)
 balance_b.grid(row=11, column=0, sticky=W+E+S, pady=2,padx=15)
