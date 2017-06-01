@@ -479,7 +479,7 @@ def refresh():
         s = socks.socksocket()
         s.connect(("127.0.0.1", int(port)))
         connections.send(s, "balanceget", 10)
-        connections.send(s, address, 10)
+        connections.send(s, address, 10) #change address here to view other people's transactions
         stats_account = ast.literal_eval(connections.receive(s, 10))
         balance = stats_account[0]
         credit = stats_account[1]
@@ -637,7 +637,7 @@ start_b.grid(row=9, column=0, sticky=W+E+S, pady=2,padx=15)
 message_b = Button(f5, text="Manual Refresh", command=refresh, height=1, width=10)
 message_b.grid(row=10, column=0, sticky=W+E+S, pady=2,padx=15)
 
-balance_b = Button(f5, text="Manual Refresh", command=refresh, height=1, width=10)
+balance_b = Button(f5, text="Send message", command=None, height=1, width=10)
 balance_b.grid(row=11, column=0, sticky=W+E+S, pady=2,padx=15)
 
 sign_b = Button(f5, text="Sign Message", command=sign, height=1, width=10)
