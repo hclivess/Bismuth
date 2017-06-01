@@ -1072,15 +1072,15 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             app_log.warning("IP {} banned, disconnected".format(peer_ip))
             #if you raise here, you kill the whole server
 
-        timeout_operation = 30 #timeout
+        timeout_operation = 240 #timeout
         timer_operation = time.time() #start counting
 
         while banned == 0 and capacity == 1:
 
             if not time.time() <= timer_operation + timeout_operation: #return on timeout
-                app_log.info("Incoming: Operation timeout")
+                app_log.info("Incoming: Operation timeout from {}".format(peer_ip))
                 warning_list.append(peer_ip) #add warning
-                return
+                break
 
             try:
                 data = connections.receive(self.request, 10)
@@ -1459,7 +1459,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 else:
                     raise ValueError("Unexpected error, received: " + str(data))
 
-                timer_operation = time.time() #reset timer
+                if not time.time() <= timer_operation + timeout_operation:
+                    timer_operation = time.time() #reset timer
                 time.sleep(0.1)  # prevent cpu overload
                 # app_log.info("Server resting")
 
@@ -1500,15 +1501,17 @@ def worker(HOST, PORT):
 
     first_run = 1
 
+    timeout_operation = 240  # timeout
+    timer_operation = time.time()  # start counting
+
     while True:
         peer_ip = s.getpeername()[0]
+
+        if not time.time() <= timer_operation + timeout_operation:  # return on timeout
+            app_log.info("Outgoing: Operation timeout from {}".format(peer_ip))
+            warning_list.append(peer_ip)  # add warning
+            break
         try:
-            timeout_operation = 30  # timeout
-            timer_operation = time.time()  # start counting
-            if not time.time() <= timer_operation + timeout_operation:  # return on timeout
-                app_log.info("Outgoing: Operation timeout")
-                warning_list.append(peer_ip) #add warning
-                return
 
             # communication starter
             if first_run == 1:
@@ -1530,8 +1533,6 @@ def worker(HOST, PORT):
             # communication starter
 
             data = connections.receive(s, 10)  # receive data, one and the only root point
-            # if data:
-            #    timer = time.time() #reset timer
 
             if data == "peers":
                 subdata = connections.receive(s, 10)
@@ -1744,7 +1745,8 @@ def worker(HOST, PORT):
             else:
                 raise ValueError("Unexpected error, received: {}".format(data))
 
-            timer_operation = time.time()  # reset timer
+            if not time.time() <= timer_operation + timeout_operation:
+                timer_operation = time.time()  # reset timer
 
 
 
