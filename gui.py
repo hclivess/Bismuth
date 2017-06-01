@@ -1,7 +1,7 @@
 #icons created using http://www.winterdrache.de/freeware/png2ico/
 import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, sqlite3, time, base64, connections, icons, log, socks, ast, options
 
-(port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed) = options.read()
+(port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf) = options.read()
 
 from datetime import datetime
 from Crypto.PublicKey import RSA
@@ -477,7 +477,7 @@ def refresh():
     
     try:
         s = socks.socksocket()
-        s.connect(("127.0.0.1", int(port)))
+        s.connect((mining_ip_conf, int(port)))
         connections.send(s, "balanceget", 10)
         connections.send(s, address, 10) #change address here to view other people's transactions
         stats_account = ast.literal_eval(connections.receive(s, 10))
@@ -525,7 +525,7 @@ def refresh():
     # check difficulty
     try:
         s = socks.socksocket()
-        s.connect(("127.0.0.1", int(port)))
+        s.connect((mining_ip_conf, int(port)))
         connections.send(s, "diffget", 10)
         diff = connections.receive(s, 10)
         print "Current difficulty: {}".format(diff)
