@@ -554,7 +554,6 @@ def refresh():
         s.connect((mining_ip_conf, int(port)))
         connections.send(s, "diffget", 10)
         diff = connections.receive(s, 10)
-        print "Current difficulty: {}".format(diff)
         s.close()
     except: #get locally
         app_log.warning("Unable to start in light mode, using local db for difficulty calculation")

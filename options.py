@@ -1,5 +1,9 @@
+import os.path as path
 def read():
-    lines = [line.rstrip('\n') for line in open('config.txt')]
+    if not path.exists("config_custom.txt"):
+        lines = [line.rstrip('\n') for line in open('config.txt')]
+    else:
+        lines = [line.rstrip('\n') for line in open('config_custom.txt')]
 
     for line in lines:
         if "port=" in line:
