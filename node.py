@@ -504,7 +504,8 @@ def blocknf(block_hash_delete, peer_ip, conn, c):
 
         except:
             pass
-        busy = 0
+        finally:
+            busy = 0
 
         # delete followups
 
@@ -586,6 +587,8 @@ def manager():
             app_log.info("Only {} connections active, resetting the try list".format(len(active_pool)))
             del tried[:]
 
+        app_log.info("Connection manager: Syncing threads at: {}/3".format(syncing))
+        app_log.info("Connection manager: Database access: {}/1".format(busy))
         app_log.info("Connection manager: Threads at {} / {}".format(threading.active_count(),thread_limit_conf))
         app_log.info("Connection manager: Tried: {}".format(tried))
         app_log.info("Connection manager: Current active pool: {}".format(active_pool))
@@ -603,9 +606,9 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
     global busy, banlist
 
     if busy == 0:
-        app_log.info("Digesting started")
-        busy = 1
+        app_log.info("Digesting started from {}".format(peer_ip))
         try:
+            busy = 1
             # remove possible duplicates
 
             execute(c, (
@@ -939,6 +942,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
             else:
                 pass
 
+        finally:
             app_log.info("Digesting complete")
             busy = 0
 
@@ -1157,7 +1161,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     # app_log.info("Incoming: Combined segments: " + segments)
                     # print peer_ip
-                    if max(consensus_blockheight_list) >= consensus_blockheight + 5 and busy == 0:
+                    if busy == 1:
+                        app_log.info("Skipping sync from {}, syncing already in progress".format(peer_ip))
+
+                    elif max(consensus_blockheight_list) == int(consensus_blockheight):
                         connections.send(self.request, "blockscf", 10)
 
                         segments = connections.receive(self.request, 10)
@@ -1165,7 +1172,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         # receive theirs
                     else:
                         connections.send(self.request, "blocksrj", 10)
-                        app_log.info("Incoming: Distant peer does not have the latest block, sync rejected")
+                        app_log.info("Incoming: Distant peer {} is at {}, should be {}".format(peer_ip,consensus_blockheight_list,max(consensus_blockheight_list)))
 
                     connections.send(self.request, "sync", 10)
 
@@ -1634,7 +1641,10 @@ def worker(HOST, PORT):
 
                 # app_log.info("Incoming: Combined segments: " + segments)
                 # print peer_ip
-                if max(consensus_blockheight_list) <= consensus_blockheight + 5 and busy == 0:
+                if busy == 1:
+                    app_log.info("Skipping sync from {}, syncing already in progress".format(peer_ip))
+
+                elif max(consensus_blockheight_list) == int(consensus_blockheight):
                     connections.send(s, "blockscf", 10)
 
                     segments = connections.receive(s, 10)
@@ -1642,7 +1652,7 @@ def worker(HOST, PORT):
                     # receive theirs
                 else:
                     connections.send(s, "blocksrj", 10)
-                    app_log.info("Incoming: Distant peer does not have the latest block, sync rejected")
+                    app_log.info("Incoming: Distant peer {} is at {}, should be {}".format(peer_ip,consensus_blockheight,max(consensus_blockheight_list)))
 
                 connections.send(s, "sendsync", 10)
 
