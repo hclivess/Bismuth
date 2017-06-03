@@ -116,7 +116,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                     s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
                 s.connect((mining_ip_conf, int(port)))  # connect to local node
 
-                connections.send(s, "hashlast", 10)
+                connections.send(s, "blocklast", 10)
                 db_block_hash = ast.literal_eval(connections.receive(s, 10))[1]
 
                 connections.send(s, "diffget", 10)
