@@ -16,8 +16,19 @@ from Crypto.Signature import PKCS1_v1_5
 # load config
 global warning_list_limit_conf
 (port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf) = options.read()
-
 # load config
+
+def db_c_define():
+    conn = sqlite3.connect(ledger_path_conf)
+    conn.text_factory = str
+    c = conn.cursor()
+    return conn, c
+
+def db_m_define():
+    mempool = sqlite3.connect('mempool.db')
+    mempool.text_factory = str
+    m = mempool.cursor()
+    return mempool, m
 
 app_log = log.log("node.log",debug_level_conf)
 version = version_conf
@@ -51,19 +62,19 @@ def ledger_convert():
         depth = 10000
 
         shutil.copy(ledger_path_conf, ledger_path_conf + '.hyper')
-        conn = sqlite3.connect(ledger_path_conf + '.hyper')
-        conn.text_factory = str
-        c = conn.cursor()
+        hyper = sqlite3.connect(ledger_path_conf + '.hyper')
+        hyper.text_factory = str
+        h = hyper.cursor()
 
         end_balance = 0
         addresses = []
 
-        c.execute("UPDATE transactions SET address = 'Hypoblock' WHERE address = 'Hyperblock'")
+        h.execute("UPDATE transactions SET address = 'Hypoblock' WHERE address = 'Hyperblock'")
 
-        c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
-        db_block_height = c.fetchone()[0]
+        h.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
+        db_block_height = h.fetchone()[0]
 
-        for row in c.execute("SELECT * FROM transactions WHERE block_height < ? AND keep = '0' ORDER BY block_height;",
+        for row in h.execute("SELECT * FROM transactions WHERE block_height < ? AND keep = '0' ORDER BY block_height;",
                              (str(int(db_block_height) - depth),)):
             db_address = row[2]
             db_recipient = row[3]
@@ -73,15 +84,15 @@ def ledger_convert():
         unique_addressess = set(addresses)
 
         for x in set(unique_addressess):
-            c.execute("SELECT sum(amount) FROM transactions WHERE recipient = ? AND block_height < ?  AND keep = '0';",
+            h.execute("SELECT sum(amount) FROM transactions WHERE recipient = ? AND block_height < ?  AND keep = '0';",
                       (x,) + (str(int(db_block_height) - depth),))
-            credit = c.fetchone()[0]
+            credit = h.fetchone()[0]
             if credit == None:
                 credit = 0
 
-            c.execute("SELECT sum(amount),sum(fee),sum(reward) FROM transactions WHERE address = ? AND block_height < ?  AND keep = '0';",
+            h.execute("SELECT sum(amount),sum(fee),sum(reward) FROM transactions WHERE address = ? AND block_height < ?  AND keep = '0';",
                       (x,) + (str(int(db_block_height) - depth),))
-            result = c.fetchall()
+            result = h.fetchall()
             debit = result[0][0]
             fees = result[0][1]
             rewards = result[0][2]
@@ -99,17 +110,17 @@ def ledger_convert():
 
             if end_balance > 0:
                 timestamp = str(time.time())
-                c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
+                h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
                 db_block_height - depth - 1, timestamp, "Hyperblock", x, '%.8f' % float(end_balance), "0", "0", "0", "0", "0",
                 "0", "0"))
-                conn.commit()
+                hyper.commit()
 
-        c.execute("DELETE FROM transactions WHERE block_height < ? AND address != 'Hyperblock' AND keep = '0';",
+        h.execute("DELETE FROM transactions WHERE block_height < ? AND address != 'Hyperblock' AND keep = '0';",
                   (str(int(db_block_height) - depth),))
-        conn.commit()
+        hyper.commit()
 
-        c.execute("VACUUM")
-        conn.close()
+        h.execute("VACUUM")
+        hyper.close()
 
         os.remove(ledger_path_conf)
         os.rename(ledger_path_conf + '.hyper', ledger_path_conf)
@@ -200,7 +211,7 @@ syncing = 0
 
 # port = 2829 now defined by config
 
-def mempool_merge(data,peer_ip):
+def mempool_merge(data,peer_ip, conn, c, mempool, m):
     global busy_mempool
     if busy_mempool == 0:
         busy_mempool = 1
@@ -213,9 +224,6 @@ def mempool_merge(data,peer_ip):
             # merge mempool
 
             try:
-                mempool = sqlite3.connect('mempool.db')
-                mempool.text_factory = str
-                m = mempool.cursor()
                 block_list = ast.literal_eval(data)
 
                 for transaction in block_list:  # set means unique
@@ -229,10 +237,6 @@ def mempool_merge(data,peer_ip):
                     mempool_openfield = str(transaction[7])
                     mempool_public_key = RSA.importKey(base64.b64decode(mempool_public_key_hashed))  # convert readable key to instance
                     mempool_signature_dec = base64.b64decode(mempool_signature_enc)
-
-                    conn = sqlite3.connect(ledger_path_conf)
-                    conn.text_factory = str
-                    c = conn.cursor()
 
                     ledger_in = 0
                     mempool_in = 0
@@ -297,9 +301,7 @@ def mempool_merge(data,peer_ip):
                     if acceptable == 1:
 
                         # verify balance
-                        conn = sqlite3.connect(ledger_path_conf)
-                        conn.text_factory = str
-                        c = conn.cursor()
+
 
                         # app_log.info("Mempool: Verifying balance")
                         app_log.info("Mempool: Received address: {}".format(mempool_address))
@@ -332,8 +334,6 @@ def mempool_merge(data,peer_ip):
                         result = c.fetchall()[0]
                         fees = result[0]
                         rewards = result[1]
-
-                        conn.close()
 
                         if fees == None:
                             fees = 0
@@ -370,7 +370,6 @@ def mempool_merge(data,peer_ip):
                             # receive mempool
 
                 #app_log.info("Mempool: Finished with {} received transactions from {}".format(len(block_list),peer_ip))
-                mempool.close()
             except:
                 app_log.info("Mempool: Error processing")
 
@@ -418,12 +417,9 @@ def purge_old_peers():
     output.close()
 
 
-def verify():
+def verify(c):
     try:
         # verify blockchain
-        conn = sqlite3.connect(ledger_path_conf)
-        conn.text_factory = str
-        c = conn.cursor()
         execute(c, ("SELECT Count(*) FROM transactions"))
         db_rows = c.fetchone()[0]
         app_log.warning("Total steps: {}".format(db_rows))
@@ -471,21 +467,12 @@ def verify():
     except sqlite3.Error, e:
         app_log.info("Error %s:" % e.args[0])
         sys.exit(1)
-    finally:
-        if conn:
-            conn.close()
-            # verify blockchain
 
-
-def blocknf(block_hash_delete, peer_ip):
+def blocknf(block_hash_delete, peer_ip, conn, c):
     global busy
     if busy == 0:
         busy = 1
         try:
-            conn = sqlite3.connect(ledger_path_conf)
-            conn.text_factory = str
-            c = conn.cursor()
-
             execute(c, ('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1'))
             results = c.fetchone()
             db_block_height = results[0]
@@ -500,21 +487,20 @@ def blocknf(block_hash_delete, peer_ip):
 
             if db_block_height < 2:
                 app_log.info("Will not roll back this block")
-                conn.close()
 
             elif (db_block_hash != block_hash_delete):
                 # print db_block_hash
                 # print block_hash_delete
                 app_log.info("We moved away from the block to rollback, skipping")
-                conn.close()
 
             else:
                 # delete followups
                 execute_param(c, ("DELETE FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
                 commit(conn)
-                conn.close()
+
 
                 app_log.warning("Node {} didn't find block {}, rolled back".format(peer_ip,db_block_height))  # PRONE TO ATTACK
+            
 
         except:
             pass
@@ -605,7 +591,7 @@ def manager():
         app_log.info("Connection manager: Current active pool: {}".format(active_pool))
         app_log.warning("Connection manager: Current connections: {}".format(len(active_pool)))
         if consensus:  # once the consensus is filled
-            app_log.warning("Connection manager: Consensus: {} = {}%".format(consensus, consensus_percentage))
+            app_log.warning("Connection manager: Consensus: {} = {}%, we are at block".format(consensus, consensus_percentage))
             app_log.info("Connection manager: Consensus IP list: {}".format(peer_ip_list))
             app_log.info("Connection manager: Consensus opinion list: {}".format(consensus_blockheight_list))
 
@@ -613,21 +599,13 @@ def manager():
         time.sleep(int(pause_conf)*10)
 
 
-def digest_block(data, sdef, peer_ip):
+def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
     global busy, banlist
 
     if busy == 0:
         app_log.info("Digesting started")
         busy = 1
         try:
-            conn = sqlite3.connect(ledger_path_conf)
-            conn.text_factory = str
-            c = conn.cursor()
-
-            mempool = sqlite3.connect('mempool.db')
-            mempool.text_factory = str
-            m = mempool.cursor()
-
             # remove possible duplicates
 
             execute(c, (
@@ -960,26 +938,9 @@ def digest_block(data, sdef, peer_ip):
                 raise  # major debug client
             else:
                 pass
-        finally:
-            try:
-                conn.close()
-                mempool.close()
-            except:
-                pass
 
             app_log.info("Digesting complete")
             busy = 0
-
-def db_maintenance():
-    # db maintenance
-    conn = sqlite3.connect(ledger_path_conf)
-    execute(conn, "VACUUM")
-    conn.close()
-    conn = sqlite3.connect("mempool.db")
-    execute(conn, "VACUUM")
-    conn.close()
-    app_log.warning("Database maintenance finished")
-
 
 # key maintenance
 if os.path.isfile("privkey.der") is True:
@@ -1021,35 +982,43 @@ address = hashlib.sha224(public_key_readable).hexdigest()
 
 app_log.warning("Local address: {}".format(address))
 
-if hyperblocks_conf == 1:
-    ledger_convert()
-
-if not os.path.exists('mempool.db'):
-    # create empty mempool
-    mempool = sqlite3.connect('mempool.db')
-    mempool.text_factory = str
-    m = mempool.cursor()
-    execute(m, (
-    "CREATE TABLE IF NOT EXISTS transactions (timestamp, address, recipient, amount, signature, public_key, keep, openfield)"))
-    commit(mempool)
-    mempool.close()
-    app_log.info("Created mempool file")
-    # create empty mempool
-else:
-    app_log.warning("Mempool exists")
-
-if rebuild_db_conf == 1:
-    db_maintenance()
-# connectivity to self node
-
-if verify_conf == 1:
-    verify()
-
 ### LOCAL CHECKS FINISHED ###
 app_log.warning("Starting up...")
 
 class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
     def handle(self):  # server defined here
+
+        #init
+        def db_maintenance():
+            # db maintenance
+            execute(conn, "VACUUM")
+            execute(mempool, "VACUUM")
+            app_log.warning("Database maintenance finished")
+
+        mempool, m = db_m_define()
+        conn, c = db_c_define()
+
+        if hyperblocks_conf == 1:
+            ledger_convert()
+
+        if rebuild_db_conf == 1:
+            db_maintenance()
+        # connectivity to self node
+
+        if verify_conf == 1:
+            verify(c)
+
+        if not os.path.exists('mempool.db'):
+            # create empty mempool
+            execute(m, (
+                "CREATE TABLE IF NOT EXISTS transactions (timestamp, address, recipient, amount, signature, public_key, keep, openfield)"))
+            commit(mempool)
+            app_log.info("Created mempool file")
+            # create empty mempool
+        else:
+            app_log.warning("Mempool exists")
+        #init
+
         global busy
         global banlist
         global warning_list_limit_conf
@@ -1102,12 +1071,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     # receive theirs
                     segments = connections.receive(self.request, 10)
-                    mempool_merge(segments,peer_ip)
+                    mempool_merge(segments,peer_ip, conn, c, mempool, m)
                     # receive theirs
 
-                    mempool = sqlite3.connect('mempool.db')
-                    mempool.text_factory = str
-                    m = mempool.cursor()
                     execute(m, ('SELECT * FROM transactions'))
                     mempool_txs = m.fetchall()
 
@@ -1183,7 +1149,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         connections.send(self.request, "blockscf", 10)
 
                         segments = connections.receive(self.request, 10)
-                        digest_block(segments, self.request,peer_ip)
+                        digest_block(segments, self.request, peer_ip, conn, c, mempool, m)
                         # receive theirs
                     else:
                         connections.send(self.request, "blocksrj", 10)
@@ -1205,12 +1171,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         consensus_add(peer_ip, consensus_blockheight)
                         # consensus pool 1 (connection from them)
 
-                        conn = sqlite3.connect(ledger_path_conf)
-                        conn.text_factory = str
-                        c = conn.cursor()
+
                         execute(c, ('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1'))
                         db_block_height = c.fetchone()[0]
-                        conn.close()
+                        
 
                         # append zeroes to get static length
                         connections.send(self.request, db_block_height, 10)
@@ -1219,12 +1183,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         if int(received_block_height) > db_block_height:
                             app_log.info("Incoming: Client has higher block")
 
-                            conn = sqlite3.connect(ledger_path_conf)
-                            conn.text_factory = str
-                            c = conn.cursor()
                             execute(c, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
                             db_block_hash = c.fetchone()[0]  # get latest block_hash
-                            conn.close()
 
                             app_log.info("Incoming: block_hash to send: " + str(db_block_hash))
                             connections.send(self.request, db_block_hash, 10)
@@ -1240,10 +1200,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                             # send all our followup hashes
 
                             app_log.info("Incoming: Will seek the following block: {}".format(data))
-
-                            conn = sqlite3.connect(ledger_path_conf)
-                            conn.text_factory = str
-                            c = conn.cursor()
 
                             try:
                                 execute_param(c, ("SELECT block_height FROM transactions WHERE block_hash = ?;"), (data,))
@@ -1266,7 +1222,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                                     # app_log.info("Incoming: Selected " + str(blocks_send) + " to send")
 
-                                    conn.close()
+                                    
                                     connections.send(self.request, "blocksfnd", 10)
 
                                     confirmation = connections.receive(self.request, 10)
@@ -1298,7 +1254,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     block_hash_delete = connections.receive(self.request, 10)
                     # print peer_ip
                     if max(consensus_blockheight_list) == consensus_blockheight:
-                        blocknf(block_hash_delete,peer_ip)
+                        blocknf(block_hash_delete,peer_ip,conn,c)
                         warning_list.append(peer_ip)
                     app_log.info("Outgoing: Deletion complete, sending sync request")
 
@@ -1314,58 +1270,45 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     # app_log.info("Incoming: Combined mined segments: " + segments)
 
                     # check if we have the latest block
-                    conn = sqlite3.connect(ledger_path_conf)
-                    conn.text_factory = str
-                    c = conn.cursor()
+
                     execute(c, ('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1'))
                     db_block_height = c.fetchone()[0]
-                    conn.close()
+                    
                     # check if we have the latest block
 
                     if len(active_pool) < 5:
                         app_log.warning("Outgoing: Mined block ignored, insufficient connections to the network")
                     elif int(db_block_height) >= int(max(consensus_blockheight_list))-3:
                         app_log.warning("Outgoing: Processing block from miner")
-                        digest_block(segments, self.request,peer_ip)
+                        digest_block(segments, self.request,peer_ip, conn, c, mempool, m)
                     # receive theirs
                     else:
                         app_log.warning("Outgoing: Mined block was orphaned because node was not synced, we are at block {}, should be at least {}".format(db_block_height,int(max(consensus_blockheight_list))-3))
 
                 elif data == "blocklast" and (peer_ip in allowed or "any" in allowed): #only sends the miner part of the block!
-                    conn = sqlite3.connect(ledger_path_conf)
-                    conn.text_factory = str
-                    c = conn.cursor()
+
                     execute(c, ("SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
                     block_last = c.fetchall()[0]
-                    conn.close()
+                    
                     connections.send(self.request, block_last, 10)
 
                 elif data == "blockget" and (peer_ip in allowed or "any" in allowed):
                     block_desired = connections.receive(self.request, 10)
-                    conn = sqlite3.connect(ledger_path_conf)
-                    conn.text_factory = str
-                    c = conn.cursor()
+
                     execute_param(c, ("SELECT * FROM transactions WHERE block_height = ?;"), (block_desired,))
                     block_desired_result = c.fetchall()
-                    conn.close()
+                    
                     connections.send(self.request, block_desired_result, 10)
 
                 elif data == "mpinsert" and (peer_ip in allowed or "any" in allowed):
                     mempool_insert = connections.receive(self.request,10)
-                    mempool_merge(mempool_insert, peer_ip)
+                    mempool_merge(mempool_insert, peer_ip, conn, c, mempool, m)
                     connections.send(self.request,"Mempool insert finished",10)
 
                 elif data == "balanceget" and (peer_ip in allowed or "any" in allowed):
                     balance_address = connections.receive(self.request,10) #for which address
 
                     # verify balance
-                    conn = sqlite3.connect(ledger_path_conf)
-                    conn.text_factory = str
-                    c = conn.cursor()
-
-                    mempool = sqlite3.connect('mempool.db')
-                    mempool.text_factory = str
-                    m = mempool.cursor()
 
                     # app_log.info("Mempool: Verifying balance")
                     app_log.info("Mempool: Received address: " + str(balance_address))
@@ -1394,7 +1337,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     debit = float(debit_ledger) + float(debit_mempool)
 
-                    conn.close()
+                    
 
                     if fees == None:
                         fees = 0
@@ -1411,9 +1354,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     #connections.send(self.request, balance_pre, 10)  # return balance of the address to the client, no mempool
 
                 elif data == "mpget" and (peer_ip in allowed or "any" in allowed):
-                    mempool = sqlite3.connect('mempool.db')
-                    mempool.text_factory = str
-                    m = mempool.cursor()
                     execute(m, ('SELECT * FROM transactions'))
                     mempool_txs = m.fetchall()
 
@@ -1422,12 +1362,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     # if len(mempool_txs) > 0: #wont sync mempool until we send something, which is bad
                     # send own
                     connections.send(self.request, mempool_txs, 10)
-                    m.close()
+                    
 
 
                 elif data == "diffget" and (peer_ip in allowed or "any" in allowed):
-                    conn = sqlite3.connect(ledger_path_conf)
-                    c = conn.cursor()
 
                     execute(c, ("SELECT timestamp,block_height FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
                     result = c.fetchall()
@@ -1450,8 +1388,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     if time_drop > db_timestamp_last + 300 or diff < 37:  # 5 m lim
                         diff = 37  # 5 m lim
-
-                    conn.close()
 
                     connections.send(self.request, diff, 10)
 
@@ -1477,10 +1413,13 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     raise  # major debug client
                 else:
                     return
-
+        mempool.close()
+        conn.close()
 
 # client thread
 def worker(HOST, PORT):
+    mempool, m = db_m_define()
+    conn, c = db_c_define()
     global busy
     try:
         this_client = (HOST + ":" + str(PORT))
@@ -1584,12 +1523,8 @@ def worker(HOST, PORT):
                     # send block height, receive block height
                     connections.send(s, "blockheight", 10)
 
-                    conn = sqlite3.connect(ledger_path_conf)
-                    conn.text_factory = str
-                    c = conn.cursor()
                     execute(c, ('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1'))
                     db_block_height = c.fetchone()[0]
-                    conn.close()
 
                     app_log.info("Outgoing: Sending block height to compare: {}".format(db_block_height))
                     # append zeroes to get static length
@@ -1610,9 +1545,7 @@ def worker(HOST, PORT):
                         consensus_add(peer_ip, consensus_blockheight)
                         # consensus pool 2 (active connection)
 
-                        conn = sqlite3.connect(ledger_path_conf)
-                        conn.text_factory = str
-                        c = conn.cursor()
+
 
                         try:
                             execute_param(c, ("SELECT block_height FROM transactions WHERE block_hash = ?;"), (data,))
@@ -1634,7 +1567,7 @@ def worker(HOST, PORT):
                                 blocks_fetched = c.fetchall()
                                 blocks_send = [[l[1:] for l in group] for _, group in
                                                groupby(blocks_fetched, key=itemgetter(0))]
-                                conn.close()
+                                
 
                                 # app_log.info("Outgoing: Selected " + str(blocks_send) + " to send")
 
@@ -1659,12 +1592,10 @@ def worker(HOST, PORT):
                     if int(received_block_height) >= db_block_height:
                         app_log.info("Outgoing: We have the same or lower block height, hash will be verified")
 
-                        conn = sqlite3.connect(ledger_path_conf)
-                        conn.text_factory = str
-                        c = conn.cursor()
+
                         execute(c, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
                         db_block_hash = c.fetchone()[0]  # get latest block_hash
-                        conn.close()
+                        
 
                         app_log.info("Outgoing: block_hash to send: {}".format(db_block_hash))
                         connections.send(s, db_block_hash, 10)
@@ -1686,7 +1617,7 @@ def worker(HOST, PORT):
                 block_hash_delete = connections.receive(s, 10)
                 # print peer_ip
                 if max(consensus_blockheight_list) == consensus_blockheight:
-                    blocknf(block_hash_delete,peer_ip)
+                    blocknf(block_hash_delete,peer_ip,conn,c)
 
                 while busy == 1:
                     time.sleep(float(pause_conf))
@@ -1701,7 +1632,7 @@ def worker(HOST, PORT):
                     connections.send(s, "blockscf", 10)
 
                     segments = connections.receive(s, 10)
-                    digest_block(segments, s, peer_ip)
+                    digest_block(segments, s, peer_ip, conn, c, mempool, m)
                     # receive theirs
                 else:
                     connections.send(s, "blocksrj", 10)
@@ -1714,9 +1645,6 @@ def worker(HOST, PORT):
                 # digest_block() #temporary #otherwise passive node will not be able to digest
 
                 # sand and receive mempool
-                mempool = sqlite3.connect('mempool.db')
-                mempool.text_factory = str
-                m = mempool.cursor()
                 execute(m, ('SELECT * FROM transactions'))
                 mempool_txs = m.fetchall()
 
@@ -1730,7 +1658,7 @@ def worker(HOST, PORT):
 
                 # receive theirs
                 segments = connections.receive(s, 10)
-                mempool_merge(segments,peer_ip)
+                mempool_merge(segments,peer_ip, conn, c, mempool, m)
                 # receive theirs
 
                 # receive mempool
@@ -1773,6 +1701,8 @@ def worker(HOST, PORT):
             else:
                 return
 
+    mempool.close()
+    conn.close()
 
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     pass
