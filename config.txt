@@ -16,4 +16,4 @@ hyperblocks=0
 warning_list_limit=50
 tor=0
 miner_sync=1
-allowed=127.0.0.1,192.168.0.1
+allowed=127.0.0.1,192.168.0.1,any
