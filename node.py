@@ -550,8 +550,8 @@ def consensus_remove(peer_ip):
     global peer_ip_list
     global consensus_blockheight_list
     try:
-        app_log.info(
-            "Will remove {} from consensus pool {}".format(peer_ip,peer_ip_list))
+        app_log.info("Consensus opinion list: {}".format(consensus_blockheight_list))
+        app_log.info("Will remove {} from consensus pool {}".format(peer_ip,peer_ip_list))
         consensus_index = peer_ip_list.index(peer_ip)
         peer_ip_list.remove(peer_ip)
         del consensus_blockheight_list[consensus_index]  # remove ip's opinion
@@ -982,42 +982,47 @@ address = hashlib.sha224(public_key_readable).hexdigest()
 
 app_log.warning("Local address: {}".format(address))
 
+mempool, m = db_m_define()
+conn, c = db_c_define()
+
+# init
+def db_maintenance():
+    # db maintenance
+    execute(conn, "VACUUM")
+    execute(mempool, "VACUUM")
+    app_log.warning("Database maintenance finished")
+
+
+if hyperblocks_conf == 1:
+    ledger_convert()
+
+if rebuild_db_conf == 1:
+    db_maintenance()
+# connectivity to self node
+
+if verify_conf == 1:
+    verify(c)
+
+if not os.path.exists('mempool.db'):
+    # create empty mempool
+    execute(m, (
+        "CREATE TABLE IF NOT EXISTS transactions (timestamp, address, recipient, amount, signature, public_key, keep, openfield)"))
+    commit(mempool)
+    app_log.info("Created mempool file")
+    # create empty mempool
+else:
+    app_log.warning("Mempool exists")
+# init
+
 ### LOCAL CHECKS FINISHED ###
 app_log.warning("Starting up...")
+
 
 class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
     def handle(self):  # server defined here
 
-        #init
-        def db_maintenance():
-            # db maintenance
-            execute(conn, "VACUUM")
-            execute(mempool, "VACUUM")
-            app_log.warning("Database maintenance finished")
-
         mempool, m = db_m_define()
         conn, c = db_c_define()
-
-        if hyperblocks_conf == 1:
-            ledger_convert()
-
-        if rebuild_db_conf == 1:
-            db_maintenance()
-        # connectivity to self node
-
-        if verify_conf == 1:
-            verify(c)
-
-        if not os.path.exists('mempool.db'):
-            # create empty mempool
-            execute(m, (
-                "CREATE TABLE IF NOT EXISTS transactions (timestamp, address, recipient, amount, signature, public_key, keep, openfield)"))
-            commit(mempool)
-            app_log.info("Created mempool file")
-            # create empty mempool
-        else:
-            app_log.warning("Mempool exists")
-        #init
 
         global busy
         global banlist
@@ -1047,9 +1052,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         while banned == 0 and capacity == 1:
 
             if not time.time() <= timer_operation + timeout_operation: #return on timeout
-                app_log.warning("Incoming: Operation timeout from {}".format(peer_ip))
                 warning_list.append(peer_ip) #add warning
-                break
+                raise ValueError("Incoming: Operation timeout from {}".format(peer_ip))
 
             try:
                 data = connections.receive(self.request, 10)
@@ -1138,14 +1142,22 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     while busy == 1:
                         time.sleep(float(pause_conf))
 
-                    connections.send(self.request, "sync", 10)
+                    global syncing
+                    while syncing >= 3:
+                        time.sleep(int(pause_conf))
+
+                    syncing = syncing + 1
+                    try:
+                        connections.send(self.request, "sync", 10)
+                    finally:
+                        syncing = syncing - 1
 
                 elif data == "blocksfnd":
                     app_log.info("Incoming: Client has the block")  # node should start sending txs in this step
 
                     # app_log.info("Incoming: Combined segments: " + segments)
                     # print peer_ip
-                    if max(consensus_blockheight_list) == consensus_blockheight and busy == 0:
+                    if max(consensus_blockheight_list) >= consensus_blockheight + 5 and busy == 0:
                         connections.send(self.request, "blockscf", 10)
 
                         segments = connections.receive(self.request, 10)
@@ -1153,16 +1165,12 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         # receive theirs
                     else:
                         connections.send(self.request, "blocksrj", 10)
+                        app_log.info("Incoming: Distant peer does not have the latest block, sync rejected")
 
                     connections.send(self.request, "sync", 10)
 
                 elif data == "blockheight":
                     try:
-                        global syncing
-                        while syncing >= 3:
-                            time.sleep(int(pause_conf))
-                        syncing = syncing + 1
-
                         received_block_height = connections.receive(self.request, 10)  # receive client's last block height
                         app_log.info("Incoming: Received block height {} from {} ".format(received_block_height, peer_ip))
 
@@ -1243,8 +1251,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                 connections.send(self.request, data, 10)
                     except Exception as e:
                         app_log.info("Incoming: Sync failed {}".format(e))
-                    finally:
-                        syncing = syncing - 1
+
 
                 elif data == "nonewblk":
                     # digest_block() #temporary #otherwise passive node will not be able to digest
@@ -1418,8 +1425,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
 # client thread
 def worker(HOST, PORT):
-    mempool, m = db_m_define()
-    conn, c = db_c_define()
     global busy
     try:
         this_client = (HOST + ":" + str(PORT))
@@ -1447,10 +1452,11 @@ def worker(HOST, PORT):
         peer_ip = s.getpeername()[0]
 
         if not time.time() <= timer_operation + timeout_operation:  # return on timeout
-            app_log.warning("Outgoing: Operation timeout from {}".format(peer_ip))
             warning_list.append(peer_ip)  # add warning
-            break
+            raise ValueError("Outgoing: Operation timeout from {}".format(peer_ip))
         try:
+            mempool, m = db_m_define()
+            conn, c = db_c_define()
 
             # communication starter
             if first_run == 1:
@@ -1517,7 +1523,6 @@ def worker(HOST, PORT):
                     while syncing >= 3:
                         time.sleep(int(pause_conf))
                     syncing = syncing + 1
-
                     # sync start
 
                     # send block height, receive block height
@@ -1610,6 +1615,7 @@ def worker(HOST, PORT):
 
                 except Exception as e:
                     app_log.info("Outgoing: Sync failed {}".format(e))
+
                 finally:
                     syncing = syncing - 1
 
@@ -1628,7 +1634,7 @@ def worker(HOST, PORT):
 
                 # app_log.info("Incoming: Combined segments: " + segments)
                 # print peer_ip
-                if max(consensus_blockheight_list) == consensus_blockheight and busy == 0:
+                if max(consensus_blockheight_list) <= consensus_blockheight + 5 and busy == 0:
                     connections.send(s, "blockscf", 10)
 
                     segments = connections.receive(s, 10)
@@ -1636,6 +1642,7 @@ def worker(HOST, PORT):
                     # receive theirs
                 else:
                     connections.send(s, "blocksrj", 10)
+                    app_log.info("Incoming: Distant peer does not have the latest block, sync rejected")
 
                 connections.send(s, "sendsync", 10)
 
@@ -1701,8 +1708,9 @@ def worker(HOST, PORT):
             else:
                 return
 
-    mempool.close()
-    conn.close()
+        finally:
+            mempool.close()
+            conn.close()
 
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     pass
