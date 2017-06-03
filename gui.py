@@ -3,6 +3,8 @@ import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, sqlite3, time, base64, con
 
 (port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf) = options.read()
 
+#port = 0000
+
 from datetime import datetime
 from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
@@ -13,6 +15,17 @@ from Tkinter import *
 global key
 global encrypted
 global unlocked
+
+#for local evaluation
+conn = sqlite3.connect('static/ledger.db')
+conn.text_factory = str
+global c
+c = conn.cursor()
+
+mempool = sqlite3.connect('mempool.db')
+mempool.text_factory = str
+m = mempool.cursor()
+#for local evaluation
 
 # load config
 lines = [line.rstrip('\n') for line in open('config.txt')]
@@ -48,10 +61,6 @@ def alias():
 def alias_register(alias_desired):
     reg_string = "alias="+alias_desired
 
-    mempool = sqlite3.connect('mempool.db')
-    mempool.text_factory = str
-    m = mempool.cursor()
-
     conn = sqlite3.connect('static/ledger.db')
     conn.text_factory = str
     c = conn.cursor()
@@ -74,10 +83,6 @@ def alias_register(alias_desired):
         registered_label.grid(row=0, column=0, sticky=N + W, padx=15, pady=(5, 0))
         dismiss = Button(top9, text="Dismiss", command=top9.destroy)
         dismiss.grid(row=3, column=0, sticky=W + E, padx=15, pady=(5, 5))
-
-    conn.close()
-    mempool.close()
-
 
 
 def encrypt_get_password():
@@ -217,12 +222,8 @@ def send(amount_input, recipient_input, keep_input, openfield_input, top10):
 
     # alias check
     if alias_cb_var.get() == 1:
-        conn = sqlite3.connect('static/ledger.db')
-        conn.text_factory = str
-        c = conn.cursor()
         c.execute("SELECT address FROM transactions WHERE openfield = ? ORDER BY block_height ASC, timestamp ASC LIMIT 1;",("alias="+recipient_input,)) #asc for first entry
         recipient_input = c.fetchone()[0]
-        conn.close()
         app_log.warning("Fetched the following alias recipient: {}".format(recipient_input))
 
     # alias check
@@ -260,14 +261,9 @@ def send(amount_input, recipient_input, keep_input, openfield_input, top10):
             else:
                 app_log.warning("Client: The signature is valid, proceeding to save transaction, signature, new txhash and the public key to mempool")
 
-                mempool = sqlite3.connect('mempool.db')
-                mempool.text_factory = str
-                m = mempool.cursor()
-
                 #print(str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input),str(signature_enc), str(public_key_hashed), str(keep_input), str(openfield_input))
                 m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)",(str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input),str(signature_enc), str(public_key_hashed), str(keep_input), str(openfield_input)))
                 mempool.commit()  # Save (commit) the changes
-                mempool.close()
                 app_log.warning("Client: Mempool updated with a received transaction")
                 #refresh() experimentally disabled
         else:
@@ -278,6 +274,11 @@ def send(amount_input, recipient_input, keep_input, openfield_input, top10):
         refresh()
 
 def app_quit():
+    if conn:
+        conn.close()
+    if mempool:
+        mempool.close()
+
     app_log.warning("Received quit command")
     root.destroy()
 
@@ -384,14 +385,6 @@ def table():
 
     rows_total = 19
 
-    mempool = sqlite3.connect('mempool.db')
-    mempool.text_factory = str
-    m = mempool.cursor()
-
-    conn = sqlite3.connect('static/ledger.db')
-    conn.text_factory = str
-    c = conn.cursor()
-
     for row in m.execute("SELECT * FROM transactions WHERE address = ? OR recipient = ? ORDER BY timestamp DESC LIMIT 19;",(address,)+(address,)):
         rows_total = rows_total - 1
 
@@ -406,8 +399,6 @@ def table():
         datasheet.append(mempool_amount)
         symbol = " Transaction"
         datasheet.append(symbol)
-
-    mempool.close()
 
     for row in c.execute("SELECT * FROM transactions WHERE address = ? OR recipient = ? ORDER BY block_height DESC LIMIT ?;",(address,)+(address,)+(rows_total,)):
         db_timestamp = row[1]
@@ -424,7 +415,6 @@ def table():
         else:
             symbol = " Transaction"
         datasheet.append(symbol)
-    conn.close()
     # data
 
     app_log.warning(datasheet)
@@ -471,6 +461,8 @@ def table():
     #refreshables
 
 def refresh():
+
+
     global balance
 
     #print "refresh triggered"
@@ -487,7 +479,7 @@ def refresh():
         fees = stats_account[3]
         rewards = stats_account[4]
 
-        app_log.warning("Node: Transction address balance: {}".format(balance))
+        app_log.warning("Transction address balance: {}".format(balance))
 
 
         connections.send(s, "blocklast", 10)
@@ -495,15 +487,49 @@ def refresh():
         bl_height = block_get[0]
         db_timestamp_last = block_get[1]
 
-    except:
-        balance = 0
-        credit = 0
-        debit = 0
-        fees = 0
-        rewards = 0
+        s.close()
 
-        bl_height = 0
-        db_timestamp_last = 0
+    except: #get locally
+        app_log.warning("Unable to start in light mode, using local db for balance calculation")
+        #global balance
+
+        # print "refresh triggered"
+
+        m.execute("SELECT sum(amount) FROM transactions WHERE address = ?;", (address,))
+        debit_mempool = m.fetchone()[0]
+        if debit_mempool == None:
+            debit_mempool = 0
+
+        c.execute("SELECT sum(amount) FROM transactions WHERE recipient = ?;", (address,))
+        credit = c.fetchone()[0]
+        c.execute("SELECT sum(amount) FROM transactions WHERE address = ?;", (address,))
+        debit = c.fetchone()[0]
+        c.execute("SELECT sum(fee) FROM transactions WHERE address = ?;", (address,))
+        fees = c.fetchone()[0]
+        c.execute("SELECT sum(reward) FROM transactions WHERE address = ?;", (address,))
+        rewards = c.fetchone()[0]
+        c.execute("SELECT MAX(block_height) FROM transactions")
+        bl_height = c.fetchone()[0]
+
+        if debit == None:
+            debit = 0
+        if fees == None:
+            fees = 0
+        if rewards == None:
+            rewards = 0
+        if credit == None:
+            credit = 0
+        balance = credit - debit - fees + rewards - debit_mempool
+        app_log.warning("Node: Transction address balance: {}".format(balance))
+
+        # calculate diff
+        c.execute("SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
+        result = c.fetchall()
+        db_timestamp_last = float(result[0][1])
+        # print db_timestamp_last
+        db_block_height = result[0][0]
+        # print timestamp_avg
+
 
     try:
         if encode_var.get() == 1:
@@ -529,19 +555,39 @@ def refresh():
         connections.send(s, "diffget", 10)
         diff = connections.receive(s, 10)
         print "Current difficulty: {}".format(diff)
-    except:
-        diff = "?"
+        s.close()
+    except: #get locally
+        app_log.warning("Unable to start in light mode, using local db for difficulty calculation")
+
+        # calculate difficulty
+        c.execute("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0", (db_timestamp_last - 1800,))  # 1800=30 min
+        blocks_per_30 = len(c.fetchall())
+
+        diff = blocks_per_30 * 2
+
+        # drop diff per minute if over target
+        time_drop = time.time()
+
+        drop_factor = 120  # drop 0,5 diff per minute #hardfork
+
+        if time_drop > db_timestamp_last + 120:  # start dropping after 2 minutes
+            diff = diff - (time_drop - db_timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes)
+            if diff < 35:
+                diff = 35
+
+        if time_drop > db_timestamp_last + 300 or diff < 37:  # 5 m lim
+            diff = 37  # 5 m lim
+            # drop diff per minute if over target
+            # calculate difficulty
     # check difficulty
+
 
     diff_msg = diff
 
 #network status
     time_now = str(time.time())
     last_block_ago = float(time_now) - float(db_timestamp_last)
-    if db_timestamp_last == 0:
-        sync_msg = "Start your node"
-        sync_msg_label.config(fg='blue')
-    elif last_block_ago > 300:
+    if last_block_ago > 300:
         sync_msg = "{}m behind".format((int(last_block_ago/60)))
         sync_msg_label.config(fg='red')
     else:
