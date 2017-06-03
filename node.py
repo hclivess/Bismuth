@@ -591,7 +591,7 @@ def manager():
         app_log.info("Connection manager: Current active pool: {}".format(active_pool))
         app_log.warning("Connection manager: Current connections: {}".format(len(active_pool)))
         if consensus:  # once the consensus is filled
-            app_log.warning("Connection manager: Consensus: {} = {}%, we are at block".format(consensus, consensus_percentage))
+            app_log.warning("Connection manager: Consensus: {} = {}%".format(consensus, consensus_percentage))
             app_log.info("Connection manager: Consensus IP list: {}".format(peer_ip_list))
             app_log.info("Connection manager: Consensus opinion list: {}".format(consensus_blockheight_list))
 
