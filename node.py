@@ -1009,6 +1009,9 @@ if verify_conf == 1:
 
 if not os.path.exists('mempool.db'):
     # create empty mempool
+    mempool = sqlite3.connect('mempool.db')
+    mempool.text_factory = str
+    m = mempool.cursor()
     execute(m, (
         "CREATE TABLE IF NOT EXISTS transactions (timestamp, address, recipient, amount, signature, public_key, keep, openfield)"))
     commit(mempool)
