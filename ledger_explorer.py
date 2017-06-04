@@ -68,7 +68,7 @@ class index:
         plotter.append("label: 'Transaction size',\n")
         plotter.append("hidden: true,\n")
         plotter.append("data: "+ str(map(str, axis10)) +",\n")
-        plotter.append("backgroundColor: 'rgba(255, 153, 0, 0.4)'\n")
+        plotter.append("backgroundColor: 'rgba(300, 50, 0, 0.4)'\n")
         plotter.append("}, {\n")
 
         plotter.append("label: 'Reward',\n")

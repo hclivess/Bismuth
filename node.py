@@ -124,8 +124,8 @@ def ledger_convert():
 
         os.remove(ledger_path_conf)
         os.rename(ledger_path_conf + '.hyper', ledger_path_conf)
-    except:
-        raise ValueError ("There was an issue converting to Hyperblocks")
+    except Exception,e:
+        raise ValueError ("There was an issue converting to Hyperblocks: {}".format(e))
 
 
 def most_common(lst):
@@ -986,6 +986,9 @@ address = hashlib.sha224(public_key_readable).hexdigest()
 
 app_log.warning("Local address: {}".format(address))
 
+if hyperblocks_conf == 1:
+    ledger_convert()
+
 mempool, m = db_m_define()
 conn, c = db_c_define()
 
@@ -995,10 +998,6 @@ def db_maintenance():
     execute(conn, "VACUUM")
     execute(mempool, "VACUUM")
     app_log.warning("Database maintenance finished")
-
-
-if hyperblocks_conf == 1:
-    ledger_convert()
 
 if rebuild_db_conf == 1:
     db_maintenance()
