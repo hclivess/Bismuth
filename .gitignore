@@ -13,3 +13,4 @@ privkey.der
 pubkey.der
 address.txt
 mempool.db
+ledger.db

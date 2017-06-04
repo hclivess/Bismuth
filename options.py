@@ -1,5 +1,9 @@
+import os.path as path
 def read():
-    lines = [line.rstrip('\n') for line in open('config.txt')]
+    if not path.exists("config_custom.txt"):
+        lines = [line.rstrip('\n') for line in open('config.txt')]
+    else:
+        lines = [line.rstrip('\n') for line in open('config_custom.txt')]
 
     for line in lines:
         if "port=" in line:
@@ -32,5 +36,7 @@ def read():
             debug_level_conf = line.strip('debug_level=')
         if "allowed=" in line:
             allowed_conf = line.strip('allowed=')
+        if "mining_ip=" in line:
+            mining_ip_conf = line.strip("mining_ip=")
 
-    return port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed_conf
+    return port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed_conf, mining_ip_conf

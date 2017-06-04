@@ -1,5 +1,9 @@
 #icons created using http://www.winterdrache.de/freeware/png2ico/
-import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, sqlite3, time, base64, math, icons, log
+import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, sqlite3, time, base64, connections, icons, log, socks, ast, options
+
+(port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf) = options.read()
+
+#port = 0000
 
 from datetime import datetime
 from Crypto.PublicKey import RSA
@@ -11,6 +15,17 @@ from Tkinter import *
 global key
 global encrypted
 global unlocked
+
+#for local evaluation
+conn = sqlite3.connect('static/ledger.db')
+conn.text_factory = str
+global c
+c = conn.cursor()
+
+mempool = sqlite3.connect('mempool.db')
+mempool.text_factory = str
+m = mempool.cursor()
+#for local evaluation
 
 # load config
 lines = [line.rstrip('\n') for line in open('config.txt')]
@@ -46,10 +61,6 @@ def alias():
 def alias_register(alias_desired):
     reg_string = "alias="+alias_desired
 
-    mempool = sqlite3.connect('mempool.db')
-    mempool.text_factory = str
-    m = mempool.cursor()
-
     conn = sqlite3.connect('static/ledger.db')
     conn.text_factory = str
     c = conn.cursor()
@@ -62,7 +73,7 @@ def alias_register(alias_desired):
 
     if registered_already == None and registered_pending == None:
         alias_cb_var.set(0)
-        send("0", address, "1", reg_string)
+        send_confirm("0", address, "1", reg_string)
 
     else:
         top9 = Toplevel()
@@ -72,10 +83,6 @@ def alias_register(alias_desired):
         registered_label.grid(row=0, column=0, sticky=N + W, padx=15, pady=(5, 0))
         dismiss = Button(top9, text="Dismiss", command=top9.destroy)
         dismiss.grid(row=3, column=0, sticky=W + E, padx=15, pady=(5, 5))
-
-    conn.close()
-    mempool.close()
-
 
 
 def encrypt_get_password():
@@ -172,7 +179,22 @@ def decrypt_fn(destroy_this):
 
     return key
 
-def send(amount_input, recipient_input, keep_input, openfield_input):
+def send_confirm(amount_input, recipient_input, keep_input, openfield_input):
+    top10 = Toplevel()
+    top10.title("Confirm")
+    fee = '%.8f' % float(0.01 + (float(amount.get()) * 0.001) + (float(len(openfield_input)) / 100000) + (float(keep_var.get()) / 10))  # 0.1% + 0.01 dust
+    confirmation_dialog = Text(top10, width=100)
+    confirmation_dialog.insert(INSERT, ("Amount: {}\nTo: {}\nFee: {}\nKeep Entry: {}\nOpenField:\n\n{}".format(amount_input, recipient_input,fee, keep_input, openfield_input)))
+    confirmation_dialog.grid(row=0, pady=0)
+
+    enter = Button(top10, text="Confirm", command = lambda: send(amount_input, recipient_input, keep_input, openfield_input, top10))
+    enter.grid(row=1, column=0, sticky=W+E, padx=15, pady=(5, 5))
+
+    done = Button(top10, text="Cancel", command=top10.destroy)
+    done.grid(row=2, column=0, sticky=W + E, padx=15, pady=(5, 5))
+
+
+def send(amount_input, recipient_input, keep_input, openfield_input, top10):
     try:
         key
     except:
@@ -200,12 +222,8 @@ def send(amount_input, recipient_input, keep_input, openfield_input):
 
     # alias check
     if alias_cb_var.get() == 1:
-        conn = sqlite3.connect('static/ledger.db')
-        conn.text_factory = str
-        c = conn.cursor()
         c.execute("SELECT address FROM transactions WHERE openfield = ? ORDER BY block_height ASC, timestamp ASC LIMIT 1;",("alias="+recipient_input,)) #asc for first entry
         recipient_input = c.fetchone()[0]
-        conn.close()
         app_log.warning("Fetched the following alias recipient: {}".format(recipient_input))
 
     # alias check
@@ -243,22 +261,24 @@ def send(amount_input, recipient_input, keep_input, openfield_input):
             else:
                 app_log.warning("Client: The signature is valid, proceeding to save transaction, signature, new txhash and the public key to mempool")
 
-                mempool = sqlite3.connect('mempool.db')
-                mempool.text_factory = str
-                m = mempool.cursor()
-
                 #print(str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input),str(signature_enc), str(public_key_hashed), str(keep_input), str(openfield_input))
                 m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)",(str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input),str(signature_enc), str(public_key_hashed), str(keep_input), str(openfield_input)))
                 mempool.commit()  # Save (commit) the changes
-                mempool.close()
                 app_log.warning("Client: Mempool updated with a received transaction")
                 #refresh() experimentally disabled
         else:
             app_log.warning("Client: Invalid signature")
         #enter transaction end
+
+        top10.destroy()
         refresh()
 
 def app_quit():
+    if conn:
+        conn.close()
+    if mempool:
+        mempool.close()
+
     app_log.warning("Received quit command")
     root.destroy()
 
@@ -365,14 +385,6 @@ def table():
 
     rows_total = 19
 
-    mempool = sqlite3.connect('mempool.db')
-    mempool.text_factory = str
-    m = mempool.cursor()
-
-    conn = sqlite3.connect('static/ledger.db')
-    conn.text_factory = str
-    c = conn.cursor()
-
     for row in m.execute("SELECT * FROM transactions WHERE address = ? OR recipient = ? ORDER BY timestamp DESC LIMIT 19;",(address,)+(address,)):
         rows_total = rows_total - 1
 
@@ -387,8 +399,6 @@ def table():
         datasheet.append(mempool_amount)
         symbol = " Transaction"
         datasheet.append(symbol)
-
-    mempool.close()
 
     for row in c.execute("SELECT * FROM transactions WHERE address = ? OR recipient = ? ORDER BY block_height DESC LIMIT ?;",(address,)+(address,)+(rows_total,)):
         db_timestamp = row[1]
@@ -405,7 +415,6 @@ def table():
         else:
             symbol = " Transaction"
         datasheet.append(symbol)
-    conn.close()
     # data
 
     app_log.warning(datasheet)
@@ -452,54 +461,75 @@ def table():
     #refreshables
 
 def refresh():
+
+
     global balance
 
     #print "refresh triggered"
+    
+    try:
+        s = socks.socksocket()
+        s.connect((mining_ip_conf, int(port)))
+        connections.send(s, "balanceget", 10)
+        connections.send(s, address, 10) #change address here to view other people's transactions
+        stats_account = ast.literal_eval(connections.receive(s, 10))
+        balance = stats_account[0]
+        credit = stats_account[1]
+        debit = stats_account[2]
+        fees = stats_account[3]
+        rewards = stats_account[4]
 
-    mempool = sqlite3.connect('mempool.db')
-    mempool.text_factory = str
-    m = mempool.cursor()
-    m.execute("SELECT sum(amount) FROM transactions WHERE address = ?;", (address,))
-    debit_mempool = m.fetchone()[0]
-    mempool.close()
-    if debit_mempool == None:
-        debit_mempool = 0
+        app_log.warning("Transction address balance: {}".format(balance))
 
-    conn = sqlite3.connect('static/ledger.db')
-    conn.text_factory = str
-    c = conn.cursor()
-    c.execute("SELECT sum(amount) FROM transactions WHERE recipient = ?;", (address,))
-    credit = c.fetchone()[0]
-    c.execute("SELECT sum(amount) FROM transactions WHERE address = ?;", (address,))
-    debit = c.fetchone()[0]
-    c.execute("SELECT sum(fee) FROM transactions WHERE address = ?;", (address,))
-    fees = c.fetchone()[0]
-    c.execute("SELECT sum(reward) FROM transactions WHERE address = ?;", (address,))
-    rewards = c.fetchone()[0]
-    c.execute("SELECT MAX(block_height) FROM transactions")
-    bl_height = c.fetchone()[0]
 
-    if debit == None:
-        debit = 0
-    if fees == None:
-        fees = 0
-    if rewards == None:
-        rewards = 0
-    if credit == None:
-        credit = 0
-    balance = credit - debit - fees + rewards - debit_mempool
-    app_log.warning("Node: Transction address balance: {}".format(balance))
+        connections.send(s, "blocklast", 10)
+        block_get = ast.literal_eval(connections.receive(s, 10))
+        bl_height = block_get[0]
+        db_timestamp_last = block_get[1]
 
-    # calculate diff
-    c.execute("SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;") #or it takes the first
-    result = c.fetchall()
-    db_timestamp_last = float(result[0][1])
-    #print db_timestamp_last
-    db_block_height = result[0][0]
+        s.close()
 
-    c.execute("SELECT avg(timestamp) FROM transactions where block_height >= ? and reward != 0;", (str(db_block_height - 30),))
-    timestamp_avg = c.fetchall()[0][0]  # select the reward block
-    #print timestamp_avg
+    except: #get locally
+        app_log.warning("Unable to start in light mode, using local db for balance calculation")
+        #global balance
+
+        # print "refresh triggered"
+
+        m.execute("SELECT sum(amount) FROM transactions WHERE address = ?;", (address,))
+        debit_mempool = m.fetchone()[0]
+        if debit_mempool == None:
+            debit_mempool = 0
+
+        c.execute("SELECT sum(amount) FROM transactions WHERE recipient = ?;", (address,))
+        credit = c.fetchone()[0]
+        c.execute("SELECT sum(amount) FROM transactions WHERE address = ?;", (address,))
+        debit = c.fetchone()[0]
+        c.execute("SELECT sum(fee) FROM transactions WHERE address = ?;", (address,))
+        fees = c.fetchone()[0]
+        c.execute("SELECT sum(reward) FROM transactions WHERE address = ?;", (address,))
+        rewards = c.fetchone()[0]
+        c.execute("SELECT MAX(block_height) FROM transactions")
+        bl_height = c.fetchone()[0]
+
+        if debit == None:
+            debit = 0
+        if fees == None:
+            fees = 0
+        if rewards == None:
+            rewards = 0
+        if credit == None:
+            credit = 0
+        balance = credit - debit - fees + rewards - debit_mempool
+        app_log.warning("Node: Transction address balance: {}".format(balance))
+
+        # calculate diff
+        c.execute("SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
+        result = c.fetchall()
+        db_timestamp_last = float(result[0][1])
+        # print db_timestamp_last
+        db_block_height = result[0][0]
+        # print timestamp_avg
+
 
     try:
         if encode_var.get() == 1:
@@ -517,26 +547,39 @@ def refresh():
         app_log.warning("Fee error: {}".format(e))
     # calculate fee
 
-    # calculate difficulty
-    c.execute("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0", (db_timestamp_last - 1800,))  # 1800=30 min
-    blocks_per_30 = len(c.fetchall())
 
-    diff = blocks_per_30*2
+    # check difficulty
+    try:
+        s = socks.socksocket()
+        s.connect((mining_ip_conf, int(port)))
+        connections.send(s, "diffget", 10)
+        diff = connections.receive(s, 10)
+        s.close()
+    except: #get locally
+        app_log.warning("Unable to start in light mode, using local db for difficulty calculation")
 
-    # drop diff per minute if over target
-    time_drop = time.time()
+        # calculate difficulty
+        c.execute("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0", (db_timestamp_last - 1800,))  # 1800=30 min
+        blocks_per_30 = len(c.fetchall())
 
-    drop_factor = 120  # drop 0,5 diff per minute #hardfork
+        diff = blocks_per_30 * 2
 
-    if time_drop > db_timestamp_last + 120:  # start dropping after 2 minutes
-        diff = diff - (time_drop - db_timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes)
-        if diff < 35:
-            diff = 35
+        # drop diff per minute if over target
+        time_drop = time.time()
 
-    if time_drop > db_timestamp_last + 300 or diff < 37:  # 5 m lim
-        diff = 37  # 5 m lim
-    # drop diff per minute if over target
-    # calculate difficulty
+        drop_factor = 120  # drop 0,5 diff per minute #hardfork
+
+        if time_drop > db_timestamp_last + 120:  # start dropping after 2 minutes
+            diff = diff - (time_drop - db_timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes)
+            if diff < 35:
+                diff = 35
+
+        if time_drop > db_timestamp_last + 300 or diff < 37:  # 5 m lim
+            diff = 37  # 5 m lim
+            # drop diff per minute if over target
+            # calculate difficulty
+    # check difficulty
+
 
     diff_msg = diff
 
@@ -553,9 +596,9 @@ def refresh():
 #network status
 
     #aliases
-    c.execute("SELECT openfield FROM transactions WHERE address = ? AND openfield LIKE ?;",(address,)+("alias="+'%',))
-    aliases = c.fetchall()
-    app_log.warning("Aliases: "+str(aliases))
+    #c.execute("SELECT openfield FROM transactions WHERE address = ? AND openfield LIKE ?;",(address,)+("alias="+'%',))
+    #aliases = c.fetchall()
+    #app_log.warning("Aliases: "+str(aliases))
     #aliases
 
     fees_current_var.set("Current Fee: {}".format('%.8f' % float(fee)))
@@ -565,10 +608,9 @@ def refresh():
     fees_var.set("Fees Paid: {}".format('%.8f' % float(fees)))
     rewards_var.set("Rewards: {}".format('%.8f' % float(rewards)))
     bl_height_var.set("Block Height: {}".format(bl_height))
-    diff_msg_var.set("Mining Difficulty: {}".format(round(diff_msg,2)))
+    diff_msg_var.set("Mining Difficulty: {}".format(diff_msg))
     sync_msg_var.set("Network: {}".format(sync_msg))
 
-    conn.close()
     table()
     #root.after(1000, refresh)
 
@@ -629,15 +671,18 @@ f6.grid(row = 2, column = 0, sticky = E, pady = 10, padx = 10)
 
 #buttons
 
-send_b = Button(f5, text="Send", command=lambda:send(str(amount.get()).strip(), recipient.get().strip(), str(keep_var.get()).strip(), str(openfield.get("1.0",END)).strip()), height=1, width=10)
-send_b.grid(row=9, column=0, sticky=W+E+S, pady=(45,2), padx=15)
+send_b = Button(f5, text="Send", command=lambda:send_confirm(str(amount.get()).strip(), recipient.get().strip(), str(keep_var.get()).strip(), str(openfield.get("1.0",END)).strip()), height=1, width=10)
+send_b.grid(row=8, column=0, sticky=W+E+S, pady=(45,2), padx=15)
 
 start_b = Button(f5, text="Generate QR Code", command=qr, height=1, width=10)
 if "posix" in os.name:
     start_b.configure(text="QR Disabled",state = DISABLED)
-start_b.grid(row=10, column=0, sticky=W+E+S, pady=2,padx=15)
+start_b.grid(row=9, column=0, sticky=W+E+S, pady=2,padx=15)
 
-balance_b = Button(f5, text="Manual Refresh", command=refresh, height=1, width=10)
+message_b = Button(f5, text="Manual Refresh", command=refresh, height=1, width=10)
+message_b.grid(row=10, column=0, sticky=W+E+S, pady=2,padx=15)
+
+balance_b = Button(f5, text="Send message", command=None, height=1, width=10)
 balance_b.grid(row=11, column=0, sticky=W+E+S, pady=2,padx=15)
 
 sign_b = Button(f5, text="Sign Message", command=sign, height=1, width=10)
