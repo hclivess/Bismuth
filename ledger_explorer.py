@@ -30,6 +30,7 @@ class index:
             axis4.append(x[4])  # append amount
             axis8.append(x[8])  # append fee
             axis9.append(x[9])  # append reward
+            axis10.append(len(str(x)))  # tx size
 
         plotter = []
 
@@ -53,17 +54,24 @@ class index:
         plotter.append("data: "+ str(map(str, axis1)) +",\n")
         plotter.append("backgroundColor: 'rgba(153, 255, 51, 0.4)'\n")
         plotter.append("}, {\n")
-        plotter.append("label: 'Spending in time',\n")
+        plotter.append("label: 'Spending',\n")
         plotter.append("hidden: true,\n")
         plotter.append("data: "+ str(map(str, axis4)) +",\n")
         plotter.append("backgroundColor: 'rgba(255, 153, 0, 0.4)'\n")
         plotter.append("}, {\n")
-        plotter.append("label: 'Fee in time',\n")
+        plotter.append("label: 'Fee',\n")
         plotter.append("hidden: true,\n")
         plotter.append("data: "+ str(map(str, axis8)) +",\n")
         plotter.append("backgroundColor: 'rgba(63, 65, 191, 0.4)'\n")
         plotter.append("}, {\n")
-        plotter.append("label: 'Reward in time',\n")
+
+        plotter.append("label: 'Transaction size',\n")
+        plotter.append("hidden: true,\n")
+        plotter.append("data: "+ str(map(str, axis10)) +",\n")
+        plotter.append("backgroundColor: 'rgba(255, 153, 0, 0.4)'\n")
+        plotter.append("}, {\n")
+
+        plotter.append("label: 'Reward',\n")
         plotter.append("hidden: true,\n")
         plotter.append("data: "+ str(map(str, axis9)) +",\n")
         plotter.append("backgroundColor: 'rgba(189, 63, 191, 0.4)'\n")
