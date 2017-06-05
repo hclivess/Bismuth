@@ -1,7 +1,7 @@
 #icons created using http://www.winterdrache.de/freeware/png2ico/
 import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, sqlite3, time, base64, connections, icons, log, socks, ast, options
 
-(port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf) = options.read()
+(port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf) = options.read()
 
 #port = 0000
 
@@ -21,6 +21,11 @@ conn = sqlite3.connect('static/ledger.db')
 conn.text_factory = str
 global c
 c = conn.cursor()
+
+conn2 = sqlite3.connect('static/ledger.db')
+conn2.text_factory = str
+global c2
+c2 = conn.cursor()
 
 mempool = sqlite3.connect('mempool.db')
 mempool.text_factory = str
@@ -303,6 +308,76 @@ def qr():
 
     button = Button(top, text="Dismiss", command=top.destroy)
     button.pack()
+    # popup
+
+
+def msg_dialogue():
+    def msg_send():
+        send_confirm("0",msg_recipient.get(),keep_var.get(),"msg="+msg_body.get())
+
+    def msg_received_get():
+
+        for row in c.execute("SELECT address,openfield,timestamp FROM transactions WHERE recipient = ? AND openfield LIKE ? ORDER BY timestamp DESC;",(address,)+("msg="+'%',)):
+
+            # get alias
+            try:
+                c2.execute("SELECT openfield FROM transactions WHERE openfield LIKE ? AND address = ? ORDER BY block_height ASC, timestamp ASC LIMIT 1;", ("alias="+'%',row[0],))  # asc for first entry
+                msg_address = c2.fetchone()[0]
+            # get alias
+            except:
+                msg_address = row[0]
+
+
+            msg_received.insert(INSERT, ((time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(row[2])))) + " From " + msg_address.replace("alias=", "") + row[1].replace("msg=", ": ")) + "\n")
+
+
+    def msg_sent_get():
+
+        for row in c.execute("SELECT recipient,openfield,timestamp FROM transactions WHERE address = ? AND openfield LIKE ? ORDER BY timestamp DESC;",(address,)+("msg="+'%',)):
+            try:
+                # get alias
+                c2.execute("SELECT openfield FROM transactions WHERE openfield LIKE ? AND address = ? ORDER BY block_height ASC, timestamp ASC LIMIT 1;", ("alias="+'%',row[0],))  # asc for first entry
+                msg_recipient = c2.fetchone()[0]
+                # get alias
+            except:
+                msg_recipient = row[0]
+
+            msg_sent.insert(INSERT, ((time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(row[2])))) + " To " + msg_recipient.replace("alias=", "") + row[1].replace("msg=", ": ")) + "\n")
+
+
+    # popup
+    top11 = Toplevel()
+    top11.title("Messaging")
+    #top.geometry("%dx%d%+d%+d" % (800, 600, 0, 0))
+    #top.grid_propagate(False)
+
+    Label(top11, text="Recipient:", width=20, anchor="e").grid(row=0)
+    msg_recipient = Entry(top11, width=60)
+    msg_recipient.grid(row=0, column=1, sticky=W, padx=15, pady=(5, 5))
+
+    Label(top11, text="Message:", width=20, anchor="e").grid(row=1)
+    msg_body = Entry(top11, width=60)
+    msg_body.grid(row=1, column=1, sticky=W, padx=15, pady=(5, 5))
+
+    Label(top11, text="Received:", width=20, anchor="e").grid(row=2)
+    msg_received = Text(top11, width=100, height=20, font=("TkDefaultFont", 8))
+    msg_received.grid(row=2, column=1,sticky=W, padx=15, pady=(5, 5))
+    msg_received_get()
+
+    Label(top11, text="Sent:", width=20, anchor="e").grid(row=3)
+    msg_sent = Text(top11, width=100, height=20, font=("TkDefaultFont", 8))
+    msg_sent.grid(row=3, column=1,sticky=W, padx=15, pady=(5, 5))
+    msg_sent_get()
+
+    # msg = Message(top, text="hi")
+    # msg.pack()
+
+    msg_send_b = Button(top11, text="Send Message", command=msg_send)
+    msg_send_b.grid(row=6, column=1, sticky=W+E, padx=15, pady=(5, 5))
+
+    dismiss = Button(top11, text="Dismiss", command=top11.destroy)
+    dismiss.grid(row=7, column=1, sticky=W+E, padx=15, pady=(5, 5))
+
     # popup
 
 def sign():
@@ -682,7 +757,7 @@ start_b.grid(row=9, column=0, sticky=W+E+S, pady=2,padx=15)
 message_b = Button(f5, text="Manual Refresh", command=refresh, height=1, width=10)
 message_b.grid(row=10, column=0, sticky=W+E+S, pady=2,padx=15)
 
-balance_b = Button(f5, text="Send message", command=None, height=1, width=10)
+balance_b = Button(f5, text="Messaging", command=msg_dialogue, height=1, width=10)
 balance_b.grid(row=11, column=0, sticky=W+E+S, pady=2,padx=15)
 
 sign_b = Button(f5, text="Sign Message", command=sign, height=1, width=10)

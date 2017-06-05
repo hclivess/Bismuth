@@ -1,4 +1,4 @@
-import base64, sqlite3, hashlib, time, socks, keys, log, sys, connections, ast, re
+import base64, sqlite3, hashlib, time, socks, keys, log, sys, connections, ast, re, options
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
 from Crypto import Random
@@ -10,22 +10,7 @@ except ImportError:
     quickbismuth = None
 
 # load config
-lines = [line.rstrip('\n') for line in open('config.txt')]
-for line in lines:
-    if "port=" in line:
-        port = line.strip('port=')
-    if "mining_ip=" in line:
-        mining_ip_conf = line.strip("mining_ip=")
-    if "mining_threads=" in line:
-        mining_threads_conf = line.strip('mining_threads=')
-    if "diff_recalc=" in line:
-        diff_recalc_conf = line.strip('diff_recalc=')
-    if "tor=" in line:
-        tor_conf = int(line.strip('tor='))
-    if "miner_sync=" in line:
-        sync_conf = int(line.strip('miner_sync='))
-    if "debug_level=" in line:
-        debug_level_conf = line.strip('debug_level=')
+(port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf) = options.read()
 # load config
 
 def check_uptodate(interval, app_log):
