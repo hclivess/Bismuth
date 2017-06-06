@@ -188,6 +188,9 @@ def send_confirm(amount_input, recipient_input, keep_input, openfield_input):
     top10 = Toplevel()
     top10.title("Confirm")
 
+    if encode_var.get() == 1:
+        openfield_input = str(base64.b64encode(openfield_input))
+
     #msg check
     if msg_var.get() == 1:
         openfield_input = "msg="+openfield_input
@@ -227,9 +230,6 @@ def send(amount_input, recipient_input, keep_input, openfield_input, top10):
         Label(top7, text="Amount must be a number", width=20).grid(row=0, pady=0)
         done = Button(top7, text="Cancel", command=top7.destroy)
         done.grid(row=1, column=0, sticky=W + E, padx=15, pady=(5, 5))
-
-    if encode_var.get() == 1:
-        openfield_input = str(base64.b64encode(openfield_input))
 
     # alias check
     if alias_cb_var.get() == 1:
@@ -350,16 +350,6 @@ def msg_dialogue():
     # popup
     top11 = Toplevel()
     top11.title("Messaging")
-    #top.geometry("%dx%d%+d%+d" % (800, 600, 0, 0))
-    #top.grid_propagate(False)
-
-    #Label(top11, text="Recipient:", width=20, anchor="e").grid(row=0)
-    #msg_recipient = Entry(top11, width=60)
-    #msg_recipient.grid(row=0, column=1, sticky=W, padx=15, pady=(5, 5))
-
-    #Label(top11, text="Message:", width=20, anchor="e").grid(row=1)
-    #msg_body = Entry(top11, width=60)
-    #msg_body.grid(row=1, column=1, sticky=W, padx=15, pady=(5, 5))
 
     Label(top11, text="Received:", width=20, anchor="e").grid(row=0)
     msg_received = Text(top11, width=100, height=20, font=("TkDefaultFont", 8))
@@ -370,12 +360,6 @@ def msg_dialogue():
     msg_sent = Text(top11, width=100, height=20, font=("TkDefaultFont", 8))
     msg_sent.grid(row=2, column=1,sticky=W, padx=15, pady=(5, 5))
     msg_sent_get()
-
-    # msg = Message(top, text="hi")
-    # msg.pack()
-
-    #msg_send_b = Button(top11, text="Send Message", command=msg_send)
-    #msg_send_b.grid(row=4, column=1, sticky=W+E, padx=15, pady=(5, 5))
 
     dismiss = Button(top11, text="Dismiss", command=top11.destroy)
     dismiss.grid(row=5, column=1, sticky=W+E, padx=15, pady=(5, 5))
@@ -860,8 +844,6 @@ encode = Checkbutton(f3, text="Base64", variable=encode_var)
 encode.grid(row=4, column=1,sticky=E,padx=(0,200))
 msg = Checkbutton(f3, text="Message", variable=msg_var)
 msg.grid(row=4, column=1,sticky=E,padx=(0,275))
-#encrypt = Checkbutton(f3, text="Encrypt Data", variable=encrypt_var)
-#encrypt.grid(row=4, column=1,sticky=E,padx=(0,200))
 
 balance_enumerator = Entry(f3, width=5)
 #address and amount
