@@ -187,6 +187,12 @@ def decrypt_fn(destroy_this):
 def send_confirm(amount_input, recipient_input, keep_input, openfield_input):
     top10 = Toplevel()
     top10.title("Confirm")
+
+    #msg check
+    if msg_var.get() == 1:
+        openfield_input = "msg="+openfield_input
+    #msg check
+
     fee = '%.8f' % float(0.01 + (float(amount.get()) * 0.001) + (float(len(openfield_input)) / 100000) + (float(keep_var.get()) / 10))  # 0.1% + 0.01 dust
     confirmation_dialog = Text(top10, width=100)
     confirmation_dialog.insert(INSERT, ("Amount: {}\nTo: {}\nFee: {}\nKeep Entry: {}\nOpenField:\n\n{}".format(amount_input, recipient_input,fee, keep_input, openfield_input)))
@@ -230,7 +236,6 @@ def send(amount_input, recipient_input, keep_input, openfield_input, top10):
         c.execute("SELECT address FROM transactions WHERE openfield = ? ORDER BY block_height ASC, timestamp ASC LIMIT 1;",("alias="+recipient_input,)) #asc for first entry
         recipient_input = c.fetchone()[0]
         app_log.warning("Fetched the following alias recipient: {}".format(recipient_input))
-
     # alias check
 
     if len(recipient_input) != 56:
@@ -312,9 +317,6 @@ def qr():
 
 
 def msg_dialogue():
-    def msg_send():
-        send_confirm("0",msg_recipient.get(),keep_var.get(),"msg="+msg_body.get())
-
     def msg_received_get():
 
         for row in c.execute("SELECT address,openfield,timestamp FROM transactions WHERE recipient = ? AND openfield LIKE ? ORDER BY timestamp DESC;",(address,)+("msg="+'%',)):
@@ -351,32 +353,32 @@ def msg_dialogue():
     #top.geometry("%dx%d%+d%+d" % (800, 600, 0, 0))
     #top.grid_propagate(False)
 
-    Label(top11, text="Recipient:", width=20, anchor="e").grid(row=0)
-    msg_recipient = Entry(top11, width=60)
-    msg_recipient.grid(row=0, column=1, sticky=W, padx=15, pady=(5, 5))
+    #Label(top11, text="Recipient:", width=20, anchor="e").grid(row=0)
+    #msg_recipient = Entry(top11, width=60)
+    #msg_recipient.grid(row=0, column=1, sticky=W, padx=15, pady=(5, 5))
 
-    Label(top11, text="Message:", width=20, anchor="e").grid(row=1)
-    msg_body = Entry(top11, width=60)
-    msg_body.grid(row=1, column=1, sticky=W, padx=15, pady=(5, 5))
+    #Label(top11, text="Message:", width=20, anchor="e").grid(row=1)
+    #msg_body = Entry(top11, width=60)
+    #msg_body.grid(row=1, column=1, sticky=W, padx=15, pady=(5, 5))
 
-    Label(top11, text="Received:", width=20, anchor="e").grid(row=2)
+    Label(top11, text="Received:", width=20, anchor="e").grid(row=0)
     msg_received = Text(top11, width=100, height=20, font=("TkDefaultFont", 8))
-    msg_received.grid(row=2, column=1,sticky=W, padx=15, pady=(5, 5))
+    msg_received.grid(row=0, column=1,sticky=W, padx=15, pady=(5, 5))
     msg_received_get()
 
-    Label(top11, text="Sent:", width=20, anchor="e").grid(row=3)
+    Label(top11, text="Sent:", width=20, anchor="e").grid(row=2)
     msg_sent = Text(top11, width=100, height=20, font=("TkDefaultFont", 8))
-    msg_sent.grid(row=3, column=1,sticky=W, padx=15, pady=(5, 5))
+    msg_sent.grid(row=2, column=1,sticky=W, padx=15, pady=(5, 5))
     msg_sent_get()
 
     # msg = Message(top, text="hi")
     # msg.pack()
 
-    msg_send_b = Button(top11, text="Send Message", command=msg_send)
-    msg_send_b.grid(row=6, column=1, sticky=W+E, padx=15, pady=(5, 5))
+    #msg_send_b = Button(top11, text="Send Message", command=msg_send)
+    #msg_send_b.grid(row=4, column=1, sticky=W+E, padx=15, pady=(5, 5))
 
     dismiss = Button(top11, text="Dismiss", command=top11.destroy)
-    dismiss.grid(row=7, column=1, sticky=W+E, padx=15, pady=(5, 5))
+    dismiss.grid(row=5, column=1, sticky=W+E, padx=15, pady=(5, 5))
 
     # popup
 
@@ -676,7 +678,7 @@ def refresh():
     #app_log.warning("Aliases: "+str(aliases))
     #aliases
 
-    fees_current_var.set("Current Fee: {}".format('%.8f' % float(fee)))
+    #fees_current_var.set("Current Fee: {}".format('%.8f' % float(fee)))
     balance_var.set("Balance: {}".format('%.8f' % float(balance)))
     debit_var.set("Spent Total: {}".format('%.8f' % float(debit)))
     credit_var.set("Received Total: {}".format('%.8f' % float(credit)))
@@ -747,27 +749,27 @@ f6.grid(row = 2, column = 0, sticky = E, pady = 10, padx = 10)
 #buttons
 
 send_b = Button(f5, text="Send", command=lambda:send_confirm(str(amount.get()).strip(), recipient.get().strip(), str(keep_var.get()).strip(), str(openfield.get("1.0",END)).strip()), height=1, width=10)
-send_b.grid(row=8, column=0, sticky=W+E+S, pady=(45,2), padx=15)
+send_b.grid(row=7, column=0, sticky=W+E+S, pady=(45,2), padx=15)
 
 start_b = Button(f5, text="Generate QR Code", command=qr, height=1, width=10)
 if "posix" in os.name:
     start_b.configure(text="QR Disabled",state = DISABLED)
-start_b.grid(row=9, column=0, sticky=W+E+S, pady=2,padx=15)
+start_b.grid(row=8, column=0, sticky=W+E+S, pady=2,padx=15)
 
 message_b = Button(f5, text="Manual Refresh", command=refresh, height=1, width=10)
-message_b.grid(row=10, column=0, sticky=W+E+S, pady=2,padx=15)
+message_b.grid(row=9, column=0, sticky=W+E+S, pady=2,padx=15)
 
-balance_b = Button(f5, text="Messaging", command=msg_dialogue, height=1, width=10)
-balance_b.grid(row=11, column=0, sticky=W+E+S, pady=2,padx=15)
+balance_b = Button(f5, text="Messages", command=msg_dialogue, height=1, width=10)
+balance_b.grid(row=10, column=0, sticky=W+E+S, pady=2,padx=15)
 
 sign_b = Button(f5, text="Sign Message", command=sign, height=1, width=10)
-sign_b.grid(row=12, column=0, sticky=W+E+S, pady=2,padx=15)
+sign_b.grid(row=11, column=0, sticky=W+E+S, pady=2,padx=15)
 
 sign_b = Button(f5, text="Alias Registration", command=alias, height=1, width=10)
-sign_b.grid(row=13, column=0, sticky=W+E+S, pady=2,padx=15)
+sign_b.grid(row=12, column=0, sticky=W+E+S, pady=2,padx=15)
 
 quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=10)
-quit_b.grid(row=14, column=0, sticky=W+E+S, pady=0,padx=15)
+quit_b.grid(row=13, column=0, sticky=W+E+S, pady=0,padx=15)
 
 
 encrypt_b = Button(f6, text="Encrypt", command=encrypt_get_password, height=1, width=10)
@@ -810,26 +812,27 @@ rewards_var = StringVar()
 rewards_paid_msg_label = Label(f5, textvariable=rewards_var)
 rewards_paid_msg_label.grid(row=4, column=0, sticky=N+E, padx=15)
 
-fees_current_var = StringVar()
-fees_to_pay_msg_label = Label(f5, textvariable=fees_current_var)
-fees_to_pay_msg_label.grid(row=5, column=0, sticky=N+E, padx=15)
+#fees_current_var = StringVar()
+#fees_to_pay_msg_label = Label(f5, textvariable=fees_current_var)
+#fees_to_pay_msg_label.grid(row=5, column=0, sticky=N+E, padx=15)
 
 bl_height_var = StringVar()
 block_height_label = Label(f5, textvariable=bl_height_var)
-block_height_label.grid(row=6, column=0, sticky=N+E, padx=15)
+block_height_label.grid(row=5, column=0, sticky=N+E, padx=15)
 
 diff_msg_var = StringVar()
 diff_msg_label = Label(f5, textvariable=diff_msg_var)
-diff_msg_label.grid(row=7, column=0, sticky=N+E, padx=15)
+diff_msg_label.grid(row=6, column=0, sticky=N+E, padx=15)
 
 sync_msg_var = StringVar()
 sync_msg_label = Label(f5, textvariable=sync_msg_var)
-sync_msg_label.grid(row=8, column=0, sticky=N+E, padx=15)
+sync_msg_label.grid(row=7, column=0, sticky=N+E, padx=15)
 
 keep_var = IntVar()
 encode_var = IntVar()
 alias_cb_var = IntVar()
 #encrypt_var = IntVar()
+msg_var = IntVar()
 
 #address and amount
 gui_address = Entry(f3,width=60)
@@ -851,10 +854,12 @@ openfield = Text(f3, width=60, height=5, font=("TkDefaultFont",8))
 openfield.grid(row=3, column=1,sticky=E)
 alias_cb = Checkbutton(f3, text="Alias Recipient", variable=alias_cb_var, command=None)
 alias_cb.grid(row=4, column=1,sticky=E)
-keep = Checkbutton(f3, text="Keep Entry", variable=keep_var, command=lambda : refresh())
+keep = Checkbutton(f3, text="Keep Entry", variable=keep_var)
 keep.grid(row=4, column=1,sticky=E,padx=(0,100))
-encode = Checkbutton(f3, text="Base64", variable=encode_var, command=lambda : refresh())
+encode = Checkbutton(f3, text="Base64", variable=encode_var)
 encode.grid(row=4, column=1,sticky=E,padx=(0,200))
+msg = Checkbutton(f3, text="Message", variable=msg_var)
+msg.grid(row=4, column=1,sticky=E,padx=(0,275))
 #encrypt = Checkbutton(f3, text="Encrypt Data", variable=encrypt_var)
 #encrypt.grid(row=4, column=1,sticky=E,padx=(0,200))
 
