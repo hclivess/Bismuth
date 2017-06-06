@@ -52,9 +52,8 @@ def warning(sdef, ip):
 
     if warning_list.count(ip) >= warning_list_limit_conf:
         banlist.append(ip)
-        app_log.warning("{} banned".format(ip))  # rework this
         sdef.close()
-
+        raise ValueError("{} banned".format(ip))  # rework this
 
 def ledger_convert():
     try:
@@ -587,6 +586,7 @@ def manager():
             app_log.info("Only {} connections active, resetting the try list".format(len(active_pool)))
             del tried[:]
 
+        app_log.info("Connection manager: Banlist: {}/3".format(banlist))
         app_log.info("Connection manager: Syncing threads at: {}/3".format(syncing))
         app_log.info("Connection manager: Database access: {}/1".format(busy))
         app_log.info("Connection manager: Threads at {} / {}".format(threading.active_count(),thread_limit_conf))
@@ -1056,12 +1056,12 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         timer_operation = time.time() #start counting
 
         while banned == 0 and capacity == 1:
-
-            if not time.time() <= timer_operation + timeout_operation: #return on timeout
-                warning_list.append(peer_ip) #add warning
-                raise ValueError("Incoming: Operation timeout from {}".format(peer_ip))
-
             try:
+                if not time.time() <= timer_operation + timeout_operation:  # return on timeout
+                    warning_list.append(peer_ip)  # add warning
+
+                    raise ValueError("Incoming: Operation timeout from {}".format(peer_ip))
+
                 data = connections.receive(self.request, 10)
 
                 app_log.info(
@@ -1460,10 +1460,12 @@ def worker(HOST, PORT):
     while True:
         peer_ip = s.getpeername()[0]
 
-        if not time.time() <= timer_operation + timeout_operation:  # return on timeout
-            warning_list.append(peer_ip)  # add warning
-            raise ValueError("Outgoing: Operation timeout from {}".format(peer_ip))
         try:
+            if not time.time() <= timer_operation + timeout_operation:  # return on timeout
+                warning_list.append(peer_ip)  # add warning
+
+                raise ValueError("Outgoing: Operation timeout from {}".format(peer_ip))
+
             mempool, m = db_m_define()
             conn, c = db_c_define()
 
@@ -1528,6 +1530,13 @@ def worker(HOST, PORT):
 
             elif data == "sync":
                 try:
+
+                    global syncing
+
+                    while syncing >= 3:
+                        time.sleep(int(pause_conf))
+
+                    syncing = syncing + 1
                     # sync start
 
                     # send block height, receive block height
@@ -1620,6 +1629,8 @@ def worker(HOST, PORT):
 
                 except Exception as e:
                     app_log.info("Outgoing: Sync failed {}".format(e))
+                finally:
+                    syncing = syncing - 1
 
             elif data == "blocknf":
                 block_hash_delete = connections.receive(s, 10)
