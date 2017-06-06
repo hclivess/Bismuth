@@ -329,8 +329,14 @@ def msg_dialogue():
             except:
                 msg_address = row[0]
 
+            msg_received_digest = row[1].replace("msg=", "")
+            try:
+                if msg_received_digest[-1] == "=":
+                    msg_received_digest = base64.b64decode(msg_received_digest)
+            except:
+                pass
 
-            msg_received.insert(INSERT, ((time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(row[2])))) + " From " + msg_address.replace("alias=", "") + row[1].replace("msg=", ": ")) + "\n")
+            msg_received.insert(INSERT, ((time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(row[2])))) + " From " + msg_address.replace("alias=", "") + ": " + msg_received_digest) + "\n")
 
 
     def msg_sent_get():
@@ -344,7 +350,14 @@ def msg_dialogue():
             except:
                 msg_recipient = row[0]
 
-            msg_sent.insert(INSERT, ((time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(row[2])))) + " To " + msg_recipient.replace("alias=", "") + row[1].replace("msg=", ": ")) + "\n")
+            msg_sent_digest = row[1].replace("msg=", "")
+            try:
+                if msg_sent_digest[-1] == "=":
+                    msg_sent_digest = base64.b64decode(msg_sent_digest)
+            except:
+                pass
+
+            msg_sent.insert(INSERT, ((time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(row[2])))) + " To " + msg_recipient.replace("alias=", "") + ": " + msg_sent_digest) + "\n")
 
 
     # popup
