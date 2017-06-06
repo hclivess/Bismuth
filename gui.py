@@ -338,8 +338,6 @@ def msg_dialogue():
             elif row[1].startswith("msg="):
                 msg_received_digest = row[1][4:]
 
-
-
             msg_received.insert(INSERT, ((time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(row[2])))) + " From " + msg_address.replace("alias=", "") + ": " + msg_received_digest) + "\n")
 
 

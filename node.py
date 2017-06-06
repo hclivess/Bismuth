@@ -1152,8 +1152,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     while syncing >= 3:
                         time.sleep(int(pause_conf))
 
-                    syncing = syncing + 1
                     try:
+                        syncing = syncing + 1
                         connections.send(self.request, "sync", 10)
                     finally:
                         syncing = syncing - 1
@@ -1528,10 +1528,6 @@ def worker(HOST, PORT):
 
             elif data == "sync":
                 try:
-                    global syncing
-                    while syncing >= 3:
-                        time.sleep(int(pause_conf))
-                    syncing = syncing + 1
                     # sync start
 
                     # send block height, receive block height
@@ -1624,9 +1620,6 @@ def worker(HOST, PORT):
 
                 except Exception as e:
                     app_log.info("Outgoing: Sync failed {}".format(e))
-
-                finally:
-                    syncing = syncing - 1
 
             elif data == "blocknf":
                 block_hash_delete = connections.receive(s, 10)
