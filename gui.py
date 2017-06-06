@@ -192,8 +192,11 @@ def send_confirm(amount_input, recipient_input, keep_input, openfield_input):
         openfield_input = str(base64.b64encode(openfield_input))
 
     #msg check
-    if msg_var.get() == 1:
-        openfield_input = "msg="+openfield_input
+    if msg_var.get() == 1 and encode_var.get() == 1:
+        openfield_input = "bmsg="+openfield_input
+    if msg_var.get() == 1 and encode_var.get() == 0:
+        openfield_input = "msg=" + openfield_input
+
     #msg check
 
     fee = '%.8f' % float(0.01 + (float(amount.get()) * 0.001) + (float(len(openfield_input)) / 100000) + (float(keep_var.get()) / 10))  # 0.1% + 0.01 dust
@@ -319,7 +322,7 @@ def qr():
 def msg_dialogue():
     def msg_received_get():
 
-        for row in c.execute("SELECT address,openfield,timestamp FROM transactions WHERE recipient = ? AND openfield LIKE ? ORDER BY timestamp DESC;",(address,)+("msg="+'%',)):
+        for row in c.execute("SELECT address,openfield,timestamp FROM transactions WHERE recipient = ? AND openfield LIKE ? OR openfield LIKE ? ORDER BY timestamp DESC;",(address,)+("msg="+'%',)+("bmsg="+'%',)):
 
             # get alias
             try:
@@ -329,19 +332,20 @@ def msg_dialogue():
             except:
                 msg_address = row[0]
 
-            msg_received_digest = row[1].replace("msg=", "")
-            try:
-                if msg_received_digest[-1] == "=":
-                    msg_received_digest = base64.b64decode(msg_received_digest)
-            except:
-                pass
+            if row[1].startswith("bmsg="):
+                msg_received_digest = row[1][5:]
+                msg_received_digest = base64.b64decode(msg_received_digest)
+            elif row[1].startswith("msg="):
+                msg_received_digest = row[1][4:]
+
+
 
             msg_received.insert(INSERT, ((time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(row[2])))) + " From " + msg_address.replace("alias=", "") + ": " + msg_received_digest) + "\n")
 
 
     def msg_sent_get():
 
-        for row in c.execute("SELECT recipient,openfield,timestamp FROM transactions WHERE address = ? AND openfield LIKE ? ORDER BY timestamp DESC;",(address,)+("msg="+'%',)):
+        for row in c.execute("SELECT recipient,openfield,timestamp FROM transactions WHERE address = ? AND openfield LIKE ? OR openfield LIKE ? ORDER BY timestamp DESC;",(address,)+("msg="+'%',)+("bmsg="+'%',)):
             try:
                 # get alias
                 c2.execute("SELECT openfield FROM transactions WHERE openfield LIKE ? AND address = ? ORDER BY block_height ASC, timestamp ASC LIMIT 1;", ("alias="+'%',row[0],))  # asc for first entry
@@ -350,12 +354,12 @@ def msg_dialogue():
             except:
                 msg_recipient = row[0]
 
-            msg_sent_digest = row[1].replace("msg=", "")
-            try:
-                if msg_sent_digest[-1] == "=":
-                    msg_sent_digest = base64.b64decode(msg_sent_digest)
-            except:
-                pass
+            if row[1].startswith("bmsg="):
+                msg_sent_digest = row[1][5:]
+                msg_sent_digest = base64.b64decode(msg_sent_digest)
+            elif row[1].startswith("msg="):
+                msg_sent_digest = row[1][4:]
+
 
             msg_sent.insert(INSERT, ((time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(row[2])))) + " To " + msg_recipient.replace("alias=", "") + ": " + msg_sent_digest) + "\n")
 
