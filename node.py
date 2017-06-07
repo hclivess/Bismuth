@@ -586,7 +586,7 @@ def manager():
             app_log.info("Only {} connections active, resetting the try list".format(len(active_pool)))
             del tried[:]
 
-        app_log.info("Connection manager: Banlist: {}/3".format(banlist))
+        app_log.info("Connection manager: Banlist: {}".format(banlist))
         app_log.info("Connection manager: Syncing threads at: {}/3".format(syncing))
         app_log.info("Connection manager: Database access: {}/1".format(busy))
         app_log.info("Connection manager: Threads at {} / {}".format(threading.active_count(),thread_limit_conf))

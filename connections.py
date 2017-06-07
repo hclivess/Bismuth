@@ -27,7 +27,7 @@ def receive(sdef, slen):
             chunks.append(chunk)
             bytes_recd = bytes_recd + len(chunk)
         else:
-            raise RuntimeError("Socket timeout")
+             raise RuntimeError("Socket timeout")
 
     segments = b''.join(chunks)
     # print "Received segments: "+str(segments)
