@@ -322,7 +322,7 @@ def qr():
 def msg_dialogue():
     def msg_received_get():
 
-        for row in c.execute("SELECT address,openfield,timestamp FROM transactions WHERE recipient = ? AND openfield LIKE ? OR openfield LIKE ? ORDER BY timestamp DESC;",(address,)+("msg="+'%',)+("bmsg="+'%',)):
+        for row in c.execute("SELECT address,openfield,timestamp FROM transactions WHERE recipient = ? AND (openfield LIKE ? OR openfield LIKE ?) ORDER BY timestamp DESC;",(address,)+("msg="+'%',)+("bmsg="+'%',)):
 
             # get alias
             try:
@@ -343,7 +343,7 @@ def msg_dialogue():
 
     def msg_sent_get():
 
-        for row in c.execute("SELECT recipient,openfield,timestamp FROM transactions WHERE address = ? AND openfield LIKE ? OR openfield LIKE ? ORDER BY timestamp DESC;",(address,)+("msg="+'%',)+("bmsg="+'%',)):
+        for row in c.execute("SELECT recipient,openfield,timestamp FROM transactions WHERE address = ? AND (openfield LIKE ? OR openfield LIKE ?) ORDER BY timestamp DESC;",(address,)+("msg="+'%',)+("bmsg="+'%',)):
             try:
                 # get alias
                 c2.execute("SELECT openfield FROM transactions WHERE openfield LIKE ? AND address = ? ORDER BY block_height ASC, timestamp ASC LIMIT 1;", ("alias="+'%',row[0],))  # asc for first entry
@@ -366,14 +366,16 @@ def msg_dialogue():
     top11 = Toplevel()
     top11.title("Messaging")
 
-    Label(top11, text="Received:", width=20, anchor="e").grid(row=0)
+    Label(top11, text="Received:", width=20).grid(row=0)
+
     msg_received = Text(top11, width=100, height=20, font=("TkDefaultFont", 8))
-    msg_received.grid(row=0, column=0,sticky=W, padx=15, pady=(5, 5))
+    msg_received.grid(row=1, column=0,sticky=W, padx=5, pady=(5, 5))
     msg_received_get()
 
-    Label(top11, text="Sent:", width=20, anchor="e").grid(row=2)
+    Label(top11, text="Sent:", width=20).grid(row=2)
+
     msg_sent = Text(top11, width=100, height=20, font=("TkDefaultFont", 8))
-    msg_sent.grid(row=2, column=0,sticky=W, padx=15, pady=(5, 5))
+    msg_sent.grid(row=3, column=0,sticky=W, padx=5, pady=(5, 5))
     msg_sent_get()
 
     dismiss = Button(top11, text="Dismiss", command=top11.destroy)
