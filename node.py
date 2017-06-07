@@ -1152,11 +1152,8 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     while syncing >= 3:
                         time.sleep(int(pause_conf))
 
-                    try:
-                        syncing = syncing + 1
-                        connections.send(self.request, "sync", 10)
-                    finally:
-                        syncing = syncing - 1
+                    connections.send(self.request, "sync", 10)
+
 
                 elif data == "blocksfnd":
                     app_log.info("Incoming: Client has the block")  # node should start sending txs in this step
