@@ -205,7 +205,7 @@ busy_mempool = 0
 global consensus
 consensus = ""
 global syncing
-syncing = 0
+syncing = []
 
 
 # port = 2829 now defined by config
@@ -587,7 +587,8 @@ def manager():
             del tried[:]
 
         app_log.info("Connection manager: Banlist: {}".format(banlist))
-        app_log.info("Connection manager: Syncing threads at: {}/3".format(syncing))
+        app_log.info("Connection manager: Syncing nodes: {}".format(syncing))
+        app_log.info("Connection manager: Syncing nodes: {}/3".format(len(syncing)))
         app_log.info("Connection manager: Database access: {}/1".format(busy))
         app_log.info("Connection manager: Threads at {} / {}".format(threading.active_count(),thread_limit_conf))
         app_log.info("Connection manager: Tried: {}".format(tried))
@@ -1149,7 +1150,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         time.sleep(float(pause_conf))
 
                     global syncing
-                    while syncing >= 3:
+                    while len(syncing) >= 3:
                         time.sleep(int(pause_conf))
 
                     connections.send(self.request, "sync", 10)
@@ -1530,10 +1531,10 @@ def worker(HOST, PORT):
 
                     global syncing
 
-                    while syncing >= 3:
+                    while len(syncing) >= 3:
                         time.sleep(int(pause_conf))
 
-                    syncing = syncing + 1
+                    syncing.append(peer_ip)
                     # sync start
 
                     # send block height, receive block height
@@ -1627,7 +1628,7 @@ def worker(HOST, PORT):
                 except Exception as e:
                     app_log.info("Outgoing: Sync failed {}".format(e))
                 finally:
-                    syncing = syncing - 1
+                    syncing.remove(peer_ip)
 
             elif data == "blocknf":
                 block_hash_delete = connections.receive(s, 10)
