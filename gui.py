@@ -487,9 +487,14 @@ def table():
         datasheet.append(db_recipient)
         db_amount = row[4]
         db_reward = row[9]
+        db_openfield = row[11]
         datasheet.append('%.8f' % (float(db_amount) + float(db_reward)))
         if float(db_reward) > 0:
             symbol = " Mined"
+        elif db_openfield.startswith("bmsg"):
+            symbol = " b64 Message"
+        elif db_openfield.startswith("msg"):
+            symbol = " Message"
         else:
             symbol = " Transaction"
         datasheet.append(symbol)
