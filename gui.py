@@ -334,7 +334,10 @@ def msg_dialogue():
 
             if row[1].startswith("bmsg="):
                 msg_received_digest = row[1][5:]
-                msg_received_digest = base64.b64decode(msg_received_digest)
+                try:
+                    msg_received_digest = base64.b64decode(msg_received_digest)
+                except:
+                    msg_received_digest = "Could not decode message"
             elif row[1].startswith("msg="):
                 msg_received_digest = row[1][4:]
 
