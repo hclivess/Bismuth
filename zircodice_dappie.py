@@ -85,12 +85,14 @@ while True:
                         print "Database locked, retrying"
                         pass
 
-                    except Exception as e:
+                    except TypeError as e: #not there
                         #print e
                         print "Appending tx to the payout list for {}".format(tx_signature[:8])
                         payout_missing.append(x)
                         not_paid_count = not_paid_count + 1
                         passed = 1
+                    except:
+                        raise
 
             else:
                 # print "bank wins"
@@ -148,7 +150,7 @@ while True:
                 except sqlite3.OperationalError, e:
                     print "Database locked, retrying"
                     pass
-                except:
+                except TypeError: #not there
                     m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (
                     str(timestamp), str(address), str(payout_address), '%.8f' % (float(payout_amount-fee)), str(signature_enc), str(public_key_hashed), "0",
                     str("payout for " + tx_signature[:8])))
@@ -156,6 +158,8 @@ while True:
                     mempool.close()
                     print "Mempool updated with a payout transaction for {}".format(tx_signature[:8])
                     passed = 1
+                except:
+                    raise
 
 
                 # create transactions for missing payouts
