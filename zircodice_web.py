@@ -45,7 +45,7 @@ class index:
 
             view_bets.append("<tr bgcolor="+cell_color+">")
             view_bets.append("<td>{}</td>".format(x[0]))#block height
-            view_bets.append("<td>{}".format(time.strftime("%Y/%m/%d,%H:%M:%S", time.localtime(float(x[1])))))#time
+            view_bets.append("<td>{}".format(time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(x[1])))))#time
             view_bets.append("<td>{}</td>".format(x[2]))#player
             view_bets.append("<td>{}</td>".format(x[7]))#block hash
             view_bets.append("<td>{}</td>".format(digit_last))
@@ -68,7 +68,7 @@ class index:
             if x[11].startswith("payout"):
                 view_payouts.append("<tr bgcolor=lightblue>")
                 view_payouts.append("<td>{}</td>".format(x[0])) #block height
-                view_payouts.append("<td>{}</td>".format(time.strftime("%Y/%m/%d,%H:%M:%S", time.localtime(float(x[1]))))) #time
+                view_payouts.append("<td>{}</td>".format(time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(x[1]))))) #time
                 view_payouts.append("<td>{}</td>".format(x[3]))  #player
                 view_payouts.append("<td>{}</td>".format(x[7])) #block hash
                 view_payouts.append("<td>{}</td>".format(x[4])) #amount
@@ -94,7 +94,7 @@ class index:
         html.append("<table style='width:100%'>"+ str(''.join(view_bets))+"</table>")
         html.append("<h1>Payouts</h1>")
         html.append("<table style='width:100%'>" + str(''.join(view_payouts)) + "</table>")
-        html.append("<p>We are currently at block {} from {} ({} minutes ago)</p>".format(last_block_height,time.strftime("%Y/%m/%d,%H:%M:%S", time.localtime(float(last_timestamp))),int((time.time() - float(last_timestamp))/60)))
+        html.append("<p>We are currently at block {} from {} ({} minutes ago)</p>".format(last_block_height,time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(last_timestamp))),int((time.time() - float(last_timestamp))/60)))
         html.append("</body>")
         html.append("</html>")
 
