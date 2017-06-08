@@ -18,7 +18,7 @@ class index:
         last_block_height = result[0][0]
         last_timestamp = result[0][1]
 
-        c.execute("SELECT * FROM transactions WHERE openfield = ? OR openfield = ? AND recipient = ? ORDER BY block_height DESC, timestamp DESC LIMIT 100;",("odd",)+("even",)+(address,))
+        c.execute("SELECT * FROM transactions WHERE (openfield = ? OR openfield = ?) AND recipient = ? ORDER BY block_height DESC, timestamp DESC LIMIT 100;",("odd",)+("even",)+(address,))
         result_bets = c.fetchall()
         view_bets = []
 

@@ -29,12 +29,19 @@ while True:
     run = run + 1
 
     # confirmations
-    c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
-    block_height_last = c.fetchone()[0]
-    # confirmations
+    passed = 0
+    while passed == 0:
+        try:
+            c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
+            block_height_last = c.fetchone()[0]
+            # confirmations
 
-    c.execute("SELECT * FROM transactions WHERE openfield = ? OR openfield = ? and recipient = ? and block_height <= ? ORDER BY block_height DESC LIMIT 500",("odd",)+("even",)+(address,)+(block_height_last-confirmations,))
-    result_bets = c.fetchall()
+            c.execute("SELECT * FROM transactions WHERE (openfield = ? OR openfield = ?) and recipient = ? and block_height <= ? ORDER BY block_height DESC LIMIT 500",("odd",)+("even",)+(address,)+(block_height_last-confirmations,))
+            result_bets = c.fetchall()
+            passed = 1
+        except sqlite3.OperationalError, e:
+            print "Database locked, retrying"
+            pass
 
     won_count = 0
     lost_count = 0
@@ -65,17 +72,25 @@ while True:
                 # print "player wins"
                 won_count = won_count + 1
 
-                try:
-                    c.execute("SELECT * FROM transactions where openfield = ?;",("payout for " + tx_signature,))
-                    result_in_ledger = c.fetchone()[0]
-                    print "Payout transaction already in the ledger for {}".format(tx_signature)
-                    paid_count = paid_count + 1
+                passed = 0
+                while passed == 0:
+                    try:
+                        c.execute("SELECT * FROM transactions where openfield = ? OR openfield = ?;",("payout for " + tx_signature[:8],("payout for " + tx_signature)))
+                        result_in_ledger = c.fetchone()[0]
+                        print "Payout transaction already in the ledger for {}".format(tx_signature[:8])
+                        paid_count = paid_count + 1
+                        passed = 1
 
-                except Exception as e:
-                    #print e
-                    print "Appending tx to the payout list for {}".format(tx_signature)
-                    payout_missing.append(x)
-                    not_paid_count = not_paid_count + 1
+                    except sqlite3.OperationalError, e:
+                        print "Database locked, retrying"
+                        pass
+
+                    except Exception as e:
+                        #print e
+                        print "Appending tx to the payout list for {}".format(tx_signature[:8])
+                        payout_missing.append(x)
+                        not_paid_count = not_paid_count + 1
+                        passed = 1
 
             else:
                 # print "bank wins"
@@ -86,9 +101,6 @@ while True:
     print "Total client won rounds: " + str(won_count)
     print "Already paid out x times: " + str(paid_count)
     print "Not paid out yet x times: " + str(not_paid_count)
-
-    c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
-    last_block_height = c.fetchone()[0]
 
     for y in payout_missing:
         if y not in processed:
@@ -105,7 +117,7 @@ while True:
             timestamp = str(time.time())
 
             payout_amount = float(bet_amount * 2) - percentage(1, bet_amount)
-            payout_openfield = "payout for " + tx_signature
+            payout_openfield = "payout for " + tx_signature[:8]
             payout_keep = 0
             fee = float(0.01 + (float(payout_amount) * 0.001) + (float(len(payout_openfield)) / 100000) + (float(payout_keep) / 10))  # 0.1% + 0.01 dust
 
@@ -126,17 +138,24 @@ while True:
             mempool.text_factory = str
             m = mempool.cursor()
 
-            try:
-                m.execute("SELECT * FROM transactions WHERE openfield = ?;",("payout for " + tx_signature,))
-                result_in_mempool = m.fetchone()[0]
-                print "Payout transaction already in the mempool"
-            except:
-                m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (
-                str(timestamp), str(address), str(payout_address), '%.8f' % (float(payout_amount-fee)), str(signature_enc), str(public_key_hashed), "0",
-                str("payout for " + tx_signature)))
-                mempool.commit()  # Save (commit) the changes
-                mempool.close()
-                print "Mempool updated with a payout transaction for {}".format(tx_signature)
+            passed = 0
+            while passed == 0:
+                try:
+                    m.execute("SELECT * FROM transactions WHERE openfield = ?;",("payout for " + tx_signature[:8],))
+                    result_in_mempool = m.fetchone()[0]
+                    print "Payout transaction already in the mempool"
+                    passed = 1
+                except sqlite3.OperationalError, e:
+                    print "Database locked, retrying"
+                    pass
+                except:
+                    m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (
+                    str(timestamp), str(address), str(payout_address), '%.8f' % (float(payout_amount-fee)), str(signature_enc), str(public_key_hashed), "0",
+                    str("payout for " + tx_signature[:8])))
+                    mempool.commit()  # Save (commit) the changes
+                    mempool.close()
+                    print "Mempool updated with a payout transaction for {}".format(tx_signature[:8])
+                    passed = 1
 
 
                 # create transactions for missing payouts
