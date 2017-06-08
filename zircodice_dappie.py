@@ -11,10 +11,15 @@ def percentage(percent, whole):
 
 (key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read()
 
+confirmations = 10
 run = 0
-bet_max = 1000
+bet_max = 100
 checked = []
 processed = []
+
+conn = sqlite3.connect('static/ledger.db')
+conn.text_factory = str
+c = conn.cursor()
 
 while True:
     if run % 500 == 0:
@@ -22,10 +27,13 @@ while True:
         del processed[:] #prevent overflow
         run = 0 #reset runs
     run = run + 1
-    conn = sqlite3.connect('static/ledger.db')
-    conn.text_factory = str
-    c = conn.cursor()
-    c.execute("SELECT * FROM transactions WHERE openfield = ? OR openfield = ? and recipient = ? ORDER BY block_height DESC LIMIT 500",("odd",)+("even",)+(address,))
+
+    # confirmations
+    c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
+    block_height_last = c.fetchone()[0]
+    # confirmations
+
+    c.execute("SELECT * FROM transactions WHERE openfield = ? OR openfield = ? and recipient = ? and block_height <= ? ORDER BY block_height DESC LIMIT 500",("odd",)+("even",)+(address,)+(block_height_last-confirmations,))
     result_bets = c.fetchall()
 
     won_count = 0
@@ -81,7 +89,6 @@ while True:
 
     c.execute('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1')
     last_block_height = c.fetchone()[0]
-    conn.close()
 
     for y in payout_missing:
         if y not in processed:
@@ -134,3 +141,4 @@ while True:
 
                 # create transactions for missing payouts
     time.sleep(15)
+conn.close()
