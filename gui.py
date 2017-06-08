@@ -284,7 +284,7 @@ def send(amount_input, recipient_input, keep_input, openfield_input, top10):
         #enter transaction end
 
         top10.destroy()
-        refresh()
+        #refresh() experimentally disabled
 
 def app_quit():
     if conn:
