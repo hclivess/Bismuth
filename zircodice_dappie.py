@@ -11,7 +11,7 @@ def percentage(percent, whole):
 
 (key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read()
 
-confirmations = 10
+confirmations = 5
 run = 0
 bet_max = 100
 checked = []
@@ -75,7 +75,7 @@ while True:
                 passed = 0
                 while passed == 0:
                     try:
-                        c.execute("SELECT * FROM transactions where openfield = ? OR openfield = ?;",("payout for " + tx_signature[:8],("payout for " + tx_signature)))
+                        c.execute("SELECT * FROM transactions where (openfield = ? OR openfield = ?);",("payout for " + tx_signature[:8],("payout for " + tx_signature)))
                         result_in_ledger = c.fetchone()[0]
                         print "Payout transaction already in the ledger for {}".format(tx_signature[:8])
                         paid_count = paid_count + 1
