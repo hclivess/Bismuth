@@ -10,7 +10,7 @@ except ImportError:
     quickbismuth = None
 
 # load config
-(port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf) = options.read()
+(port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_lmit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, mining_pool_conf) = options.read()
 # load config
 
 def check_uptodate(interval, app_log):
@@ -95,6 +95,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 now = time.time()
                 block_timestamp = '%.2f' % time.time()
 
+            if mining_pool_conf == 0:
                 # calculate difficulty
                 s = socks.socksocket()
                 if tor_conf == 1:
@@ -112,7 +113,10 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 tries = 0
                 app_log.warning("Thread{} {} @ {:.2f} cycles/second, difficulty: {:.2f}".format(q, db_block_hash[:10], cycles_per_second, diff))
 
-            diff = int(diff)
+                diff = int(diff)
+
+            else: #if pooled
+                diff = 37
 
             nonce = hashlib.sha224(rndfile.read(16)).hexdigest()[:32]
 
@@ -179,43 +183,59 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 if sync_conf == 1:
                     check_uptodate(300, app_log)
 
+                if mining_pool_conf == 1:
+                    s = socks.socksocket()
+                    s.settimeout(0.3)
+                    if tor_conf == 1:
+                        s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+                    s.connect((peer_ip, int(mining_ip_conf)))  # connect to node in peerlist
+                    app_log.warning("Connected")
 
-                # connect to all nodes
-                global peer_dict
-                peer_dict = {}
-                with open("peers.txt") as f:
-                    for line in f:
-                        line = re.sub("[\)\(\:\\n\'\s]", "", line)
-                        peer_dict[line.split(",")[0]] = line.split(",")[1]
+                    app_log.warning("Miner: Proceeding to submit mined block")
 
-                    for k, v in peer_dict.items():
-                        peer_ip = k
-                        # app_log.info(HOST)
-                        peer_port = int(v)
-                        # app_log.info(PORT)
-                # connect to all nodes
+                    connections.send(s, "block", 10)
+                    connections.send(s, block_send, 10)
 
-                        try:
-                            s = socks.socksocket()
-                            s.settimeout(0.3)
-                            if tor_conf == 1:
-                                s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                            s.connect((peer_ip, int(peer_port)))  # connect to node in peerlist
-                            app_log.warning("Connected")
+                    app_log.warning("Miner: Block submitted to {}".format(peer_ip))
 
-                            app_log.warning("Miner: Proceeding to submit mined block")
+                else:
 
-                            connections.send(s, "block", 10)
-                            connections.send(s, block_send, 10)
+                    # connect to all nodes
+                    global peer_dict
+                    peer_dict = {}
+                    with open("peers.txt") as f:
+                        for line in f:
+                            line = re.sub("[\)\(\:\\n\'\s]", "", line)
+                            peer_dict[line.split(",")[0]] = line.split(",")[1]
 
-                            app_log.warning("Miner: Block submitted to {}".format(peer_ip))
-                        except Exception, e:
-                            app_log.warning("Miner: Could not submit block to {} because {}".format(peer_ip,e))
-                            pass
+                        for k, v in peer_dict.items():
+                            peer_ip = k
+                            # app_log.info(HOST)
+                            peer_port = int(v)
+                            # app_log.info(PORT)
+                    # connect to all nodes
 
-            #submit mined block to node
+                            try:
+                                s = socks.socksocket()
+                                s.settimeout(0.3)
+                                if tor_conf == 1:
+                                    s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+                                s.connect((peer_ip, int(peer_port)))  # connect to node in peerlist
+                                app_log.warning("Connected")
 
-                #break
+                                app_log.warning("Miner: Proceeding to submit mined block")
+
+                                connections.send(s, "block", 10)
+                                connections.send(s, block_send, 10)
+
+                                app_log.warning("Miner: Block submitted to {}".format(peer_ip))
+                            except Exception, e:
+                                app_log.warning("Miner: Could not submit block to {} because {}".format(peer_ip,e))
+                                pass
+
+                #submit mined block to node
+
+                    #break
         except Exception, e:
             print e
             time.sleep(0.1)

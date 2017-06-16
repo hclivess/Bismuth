@@ -15,7 +15,9 @@ from Crypto.Signature import PKCS1_v1_5
 
 # load config
 global warning_list_limit_conf
-(port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf) = options.read()
+(port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, mining_pool_conf) = options.read()
+
+
 # load config
 
 def db_c_define():
@@ -24,16 +26,19 @@ def db_c_define():
     c = conn.cursor()
     return conn, c
 
+
 def db_m_define():
     mempool = sqlite3.connect('mempool.db')
     mempool.text_factory = str
     m = mempool.cursor()
     return mempool, m
 
-app_log = log.log("node.log",debug_level_conf)
+
+app_log = log.log("node.log", debug_level_conf)
 version = version_conf
 
 app_log.warning("Configuration settings loaded")
+
 
 def unban(ip):
     global warning_list
@@ -48,12 +53,13 @@ def warning(sdef, ip):
     global warning_list_limit_conf
 
     warning_list.append(ip)
-    app_log.info("Added a warning to {} ({} / {})".format(ip, warning_list.count(ip),warning_list_limit_conf))
+    app_log.info("Added a warning to {} ({} / {})".format(ip, warning_list.count(ip), warning_list_limit_conf))
 
     if warning_list.count(ip) >= warning_list_limit_conf:
         banlist.append(ip)
         sdef.close()
         raise ValueError("{} banned".format(ip))  # rework this
+
 
 def ledger_convert():
     try:
@@ -104,14 +110,14 @@ def ledger_convert():
                 rewards = 0
 
             end_balance = credit - debit - fees + rewards
-            #app_log.info("Address: "+ str(x))
-            #app_log.info("Balance: " + str(end_balance))
+            # app_log.info("Address: "+ str(x))
+            # app_log.info("Balance: " + str(end_balance))
 
             if end_balance > 0:
                 timestamp = str(time.time())
                 h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
-                db_block_height - depth - 1, timestamp, "Hyperblock", x, '%.8f' % float(end_balance), "0", "0", "0", "0", "0",
-                "0", "0"))
+                    db_block_height - depth - 1, timestamp, "Hyperblock", x, '%.8f' % float(end_balance), "0", "0", "0", "0", "0",
+                    "0", "0"))
                 hyper.commit()
 
         h.execute("DELETE FROM transactions WHERE block_height < ? AND address != 'Hyperblock' AND keep = '0';",
@@ -123,8 +129,8 @@ def ledger_convert():
 
         os.remove(ledger_path_conf)
         os.rename(ledger_path_conf + '.hyper', ledger_path_conf)
-    except Exception,e:
-        raise ValueError ("There was an issue converting to Hyperblocks: {}".format(e))
+    except Exception, e:
+        raise ValueError("There was an issue converting to Hyperblocks: {}".format(e))
 
 
 def most_common(lst):
@@ -182,6 +188,7 @@ def execute_param(cursor, what, param):
             # secure execute for slow nodes
     return cursor
 
+
 gc.enable()
 
 global active_pool
@@ -210,7 +217,7 @@ syncing = []
 
 # port = 2829 now defined by config
 
-def mempool_merge(data,peer_ip, conn, c, mempool, m):
+def mempool_merge(data, peer_ip, conn, c, mempool, m):
     global busy_mempool
     if busy_mempool == 0:
         busy_mempool = 1
@@ -219,7 +226,7 @@ def mempool_merge(data,peer_ip, conn, c, mempool, m):
             app_log.info("Mempool from {} was empty".format(peer_ip))
             busy_mempool = 0
         else:
-            #app_log.info("Mempool merging started")
+            # app_log.info("Mempool merging started")
             # merge mempool
 
             try:
@@ -246,7 +253,7 @@ def mempool_merge(data,peer_ip, conn, c, mempool, m):
                                       (mempool_signature_enc,))  # condition 1)
                         dummy1 = m.fetchall()[0]
                         if dummy1 != None:
-                            #app_log.info("That transaction is already in our mempool")
+                            # app_log.info("That transaction is already in our mempool")
                             acceptable = 0
                             mempool_in = 1
                     except:
@@ -273,11 +280,11 @@ def mempool_merge(data,peer_ip, conn, c, mempool, m):
                         acceptable = 0
                         app_log.info("Negative balance spend attempt")
 
-                    if float(mempool_timestamp) > time.time() + 30: #dont accept future txs
+                    if float(mempool_timestamp) > time.time() + 30:  # dont accept future txs
                         acceptable = 0
 
                     if (mempool_in == 1) and (
-                        ledger_in == 1):  # remove from mempool if it's in both ledger and mempool already
+                                ledger_in == 1):  # remove from mempool if it's in both ledger and mempool already
                         try:
                             execute_param(m, ("DELETE FROM transactions WHERE signature = ?;"), (mempool_signature_enc,))
                             commit(mempool)
@@ -286,7 +293,7 @@ def mempool_merge(data,peer_ip, conn, c, mempool, m):
                             app_log.info("Transaction was not present in the pool anymore")
                             pass  # continue to mempool finished message
 
-                        # verify signatures and balances
+                            # verify signatures and balances
 
                     # verify signature
                     verifier = PKCS1_v1_5.new(mempool_public_key)
@@ -329,7 +336,7 @@ def mempool_merge(data,peer_ip, conn, c, mempool, m):
                             debit_ledger = 0
                         debit = float(debit_ledger) + float(debit_mempool)
 
-                        execute_param(c, ("SELECT sum(fee),sum(reward) FROM transactions WHERE address = ?;"),(mempool_address,))
+                        execute_param(c, ("SELECT sum(fee),sum(reward) FROM transactions WHERE address = ?;"), (mempool_address,))
                         result = c.fetchall()[0]
                         fees = result[0]
                         rewards = result[1]
@@ -339,17 +346,17 @@ def mempool_merge(data,peer_ip, conn, c, mempool, m):
                         if rewards == None:
                             rewards = 0
 
-                        #app_log.info("Mempool: Total credit: " + str(credit))
-                        #app_log.info("Mempool: Total debit: " + str(debit))
+                        # app_log.info("Mempool: Total credit: " + str(credit))
+                        # app_log.info("Mempool: Total debit: " + str(debit))
                         balance = float(credit) - float(debit) - float(fees) + float(rewards) - float(mempool_amount)
                         balance_pre = float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)
-                        #app_log.info("Mempool: Projected transction address balance: " + str(balance))
+                        # app_log.info("Mempool: Projected transction address balance: " + str(balance))
 
                         fee = '%.8f' % float(0.01 + (float(mempool_amount) * 0.001) + (float(len(mempool_openfield)) / 100000) + (float(mempool_keep) / 10))  # 0.1% + 0.01 dust
 
                         time_now = time.time()
                         if float(mempool_timestamp) > float(time_now) + 30:
-                            app_log.info("Mempool: Future transaction not allowed, timestamp {} minutes in the future".format((float(mempool_timestamp) - float(time_now))/60))
+                            app_log.info("Mempool: Future transaction not allowed, timestamp {} minutes in the future".format((float(mempool_timestamp) - float(time_now)) / 60))
 
                         elif float(mempool_amount) > float(balance_pre):
                             app_log.info("Mempool: Sending more than owned")
@@ -368,7 +375,7 @@ def mempool_merge(data,peer_ip, conn, c, mempool, m):
 
                             # receive mempool
 
-                #app_log.info("Mempool: Finished with {} received transactions from {}".format(len(block_list),peer_ip))
+                            # app_log.info("Mempool: Finished with {} received transactions from {}".format(len(block_list),peer_ip))
             except:
                 app_log.info("Mempool: Error processing")
 
@@ -467,6 +474,7 @@ def verify(c):
         app_log.info("Error %s:" % e.args[0])
         sys.exit(1)
 
+
 def blocknf(block_hash_delete, peer_ip, conn, c):
     global busy
     if busy == 0:
@@ -475,14 +483,14 @@ def blocknf(block_hash_delete, peer_ip, conn, c):
             execute(c, ('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1'))
             results = c.fetchone()
             db_block_height = results[0]
-            #db_timestamp = results[1]
+            # db_timestamp = results[1]
             # db_address = results[2]
             # db_recipient = results[3]
             # db_amount = results[4]
             # db_signature = results[5]
             # db_public_key_hashed = results[6]
             db_block_hash = results[7]
-            #db_keep = results[10]
+            # db_keep = results[10]
 
             if db_block_height < 2:
                 app_log.info("Will not roll back this block")
@@ -497,16 +505,15 @@ def blocknf(block_hash_delete, peer_ip, conn, c):
                 execute_param(c, ("DELETE FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
                 commit(conn)
 
+                app_log.warning("Node {} didn't find block {}, rolled back".format(peer_ip, db_block_height))  # PRONE TO ATTACK
 
-                app_log.warning("Node {} didn't find block {}, rolled back".format(peer_ip,db_block_height))  # PRONE TO ATTACK
-            
 
         except:
             pass
         finally:
             busy = 0
 
-        # delete followups
+            # delete followups
 
 
 def consensus_add(peer_ip, consensus_blockheight):
@@ -540,8 +547,8 @@ def consensus_add(peer_ip, consensus_blockheight):
     consensus_percentage = (float(
         consensus_blockheight_list.count(consensus) / float(len(consensus_blockheight_list)))) * 100
 
-    #app_log.info("Current outgoing connections: {}".format(len(active_pool)))
-    #app_log.info("Current block consensus: {} = {}%".format(consensus,consensus_percentage))
+    # app_log.info("Current outgoing connections: {}".format(len(active_pool)))
+    # app_log.info("Current block consensus: {} = {}%".format(consensus,consensus_percentage))
 
     return
 
@@ -551,7 +558,7 @@ def consensus_remove(peer_ip):
     global consensus_blockheight_list
     try:
         app_log.info("Consensus opinion list: {}".format(consensus_blockheight_list))
-        app_log.info("Will remove {} from consensus pool {}".format(peer_ip,peer_ip_list))
+        app_log.info("Will remove {} from consensus pool {}".format(peer_ip, peer_ip_list))
         consensus_index = peer_ip_list.index(peer_ip)
         peer_ip_list.remove(peer_ip)
         del consensus_blockheight_list[consensus_index]  # remove ip's opinion
@@ -574,15 +581,15 @@ def manager():
             PORT = int(value)
             if threading.active_count() < thread_limit_conf and str(HOST + ":" + str(PORT)) not in tried and str(
                                     HOST + ":" + str(PORT)) not in active_pool and str(HOST) not in banlist:
-                app_log.info("Will attempt to connect to {}:{}".format(HOST,PORT))
+                app_log.info("Will attempt to connect to {}:{}".format(HOST, PORT))
                 tried.append(HOST + ":" + str(PORT))
                 t = threading.Thread(target=worker, args=(HOST, PORT))  # threaded connectivity to nodes here
                 app_log.info("---Starting a client thread " + str(threading.currentThread()) + "---")
                 t.daemon = True
                 t.start()
 
-            # client thread handling
-        if len(active_pool) < thread_limit_conf/3:
+                # client thread handling
+        if len(active_pool) < thread_limit_conf / 3:
             app_log.info("Only {} connections active, resetting the try list".format(len(active_pool)))
             del tried[:]
 
@@ -590,7 +597,7 @@ def manager():
         app_log.info("Connection manager: Syncing nodes: {}".format(syncing))
         app_log.info("Connection manager: Syncing nodes: {}/3".format(len(syncing)))
         app_log.info("Connection manager: Database access: {}/1".format(busy))
-        app_log.info("Connection manager: Threads at {} / {}".format(threading.active_count(),thread_limit_conf))
+        app_log.info("Connection manager: Threads at {} / {}".format(threading.active_count(), thread_limit_conf))
         app_log.info("Connection manager: Tried: {}".format(tried))
         app_log.info("Connection manager: Current active pool: {}".format(active_pool))
         app_log.warning("Connection manager: Current connections: {}".format(len(active_pool)))
@@ -600,7 +607,7 @@ def manager():
             app_log.info("Connection manager: Consensus opinion list: {}".format(consensus_blockheight_list))
 
         # app_log.info(threading.enumerate() all threads)
-        time.sleep(int(pause_conf)*10)
+        time.sleep(int(pause_conf) * 10)
 
 
 def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
@@ -613,7 +620,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
             # remove possible duplicates
 
             execute(c, (
-            "select block_height, count(*) FROM transactions WHERE signature != '0' GROUP by signature HAVING count(*) > 1"))
+                "select block_height, count(*) FROM transactions WHERE signature != '0' GROUP by signature HAVING count(*) > 1"))
             result = c.fetchall()
             for x in result:
                 # print x
@@ -664,7 +671,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                 # reject block with duplicate transactions
 
                 for transaction in transaction_list:
-                    #print transaction
+                    # print transaction
                     # verify signatures
                     received_timestamp = '%.2f' % float(transaction[0])
                     received_address = str(transaction[1][:56])
@@ -704,16 +711,16 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
 
                     time_now = time.time()
                     if float(time_now) + 30 < float(received_timestamp):
-                        error_msg = "Future transaction not allowed, timestamp {} minutes in the future".format((float(received_timestamp) - float(time_now))/60)
-                        #print time_now
-                        #print received_timestamp
+                        error_msg = "Future transaction not allowed, timestamp {} minutes in the future".format((float(received_timestamp) - float(time_now)) / 60)
+                        # print time_now
+                        # print received_timestamp
                         block_valid = 0
 
                         # verify signatures
 
                 # previous block info
                 execute(c, (
-                "SELECT block_hash, block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
+                    "SELECT block_hash, block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
                 result = c.fetchall()
                 db_block_hash = result[0][0]
                 db_block_height = result[0][1]
@@ -740,7 +747,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
 
                 if time_drop > db_timestamp_last + 120:  # start dropping after 2 minutes
                     diff = diff - (time_drop - db_timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes)
-                        # drop diff per minute if over target
+                    # drop diff per minute if over target
 
                 if time_drop > db_timestamp_last + 300 or diff < 37:  # 5 m lim
                     diff = 37  # 5 m lim
@@ -758,14 +765,14 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                 mining_condition = bin_convert(db_block_hash)[0:diff]
 
                 if mining_condition in mining_hash:  # simplified comparison, no backwards mining
-                    app_log.info("Difficulty requirement satisfied for block {} from {}".format(block_height_new,peer_ip))
+                    app_log.info("Difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
                 else:
                     # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
-                    error_msg = "Difficulty too low for block {} from {}, should be at least {}".format(block_height_new,peer_ip, diff)
+                    error_msg = "Difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff)
                     block_valid = 0
 
-                    #print data
-                    #print transaction_list
+                    # print data
+                    # print transaction_list
                 # match difficulty
 
                 fees_block = []
@@ -804,7 +811,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
 
                         # include the new block
 
-                        #if float(db_amount) > 0: todo: only check balances if user is spending
+                        # if float(db_amount) > 0: todo: only check balances if user is spending
 
                         block_credit = 0
                         block_debit = 0
@@ -844,7 +851,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
 
                         # app_log.info("Digest: Total credit: " + str(credit))
                         # app_log.info("Digest: Total debit: " + str(debit))
-                        balance_pre = float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards) #without projection
+                        balance_pre = float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)  # without projection
                         balance = float(credit) - float(debit) - float(fees) + float(rewards)
                         # app_log.info("Digest: Projected transction address balance: " + str(balance))
 
@@ -860,7 +867,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
 
                         if transaction == transaction_list[-1]:
 
-                            db_amount = 0 #prevent spending from another address, because mining txs allow delegation
+                            db_amount = 0  # prevent spending from another address, because mining txs allow delegation
                             if db_block_height <= 10000000:
                                 mining_reward = 15 - (float(block_height_new) / float(1000000))  # one zero less
                             else:
@@ -917,19 +924,19 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                             commit(conn)
 
                             # dev reward
-                            if int(block_height_new) % 10 == 0: #every 10 blocks
+                            if int(block_height_new) % 10 == 0:  # every 10 blocks
                                 try:
-                                    execute_param(c,("SELECT timestamp FROM transactions WHERE openfield = ?;"), (str(block_height_new),))
+                                    execute_param(c, ("SELECT timestamp FROM transactions WHERE openfield = ?;"), (str(block_height_new),))
                                     test_dev_reward = c.fetchone()[0]
                                 except:
-                                    if transaction == block_transactions[-1]: #put at the end
+                                    if transaction == block_transactions[-1]:  # put at the end
                                         execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
                                             "0", str(time_now), "Development Reward", str(genesis_conf),
                                             str(reward), "0", "0", "0", "0", "0", "0", str(block_height_new)))
                                         commit(conn)
-                            # dev reward
+                                        # dev reward
 
-                        app_log.warning("Block {} valid and saved from {}".format(block_height_new,peer_ip))
+                        app_log.warning("Block {} valid and saved from {}".format(block_height_new, peer_ip))
 
                         del block_transactions[:]
                         unban(peer_ip)
@@ -946,6 +953,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
         finally:
             app_log.info("Digesting complete")
             busy = 0
+
 
 # key maintenance
 if os.path.isfile("privkey.der") is True:
@@ -1005,6 +1013,7 @@ if hyperblocks_conf == 1:
 mempool, m = db_m_define()
 conn, c = db_c_define()
 
+
 # init
 def db_maintenance():
     # db maintenance
@@ -1012,13 +1021,13 @@ def db_maintenance():
     execute(mempool, "VACUUM")
     app_log.warning("Database maintenance finished")
 
+
 if rebuild_db_conf == 1:
     db_maintenance()
 # connectivity to self node
 
 if verify_conf == 1:
     verify(c)
-
 
 # init
 
@@ -1052,10 +1061,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             banned = 1
             self.request.close()
             app_log.warning("IP {} banned, disconnected".format(peer_ip))
-            #if you raise here, you kill the whole server
+            # if you raise here, you kill the whole server
 
-        timeout_operation = 60 #timeout
-        timer_operation = time.time() #start counting
+        timeout_operation = 60  # timeout
+        timer_operation = time.time()  # start counting
 
         while banned == 0 and capacity == 1:
             try:
@@ -1067,23 +1076,23 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 data = connections.receive(self.request, 10)
 
                 app_log.info(
-                    "Incoming: Received: {} from {}".format(data,peer_ip))  # will add custom ports later
+                    "Incoming: Received: {} from {}".format(data, peer_ip))  # will add custom ports later
 
                 if data == 'version':
                     data = connections.receive(self.request, 10)
                     if version != data:
-                        app_log.info("Protocol version mismatch: {}, should be {}".format(data,version))
-                        connections.send(self.request,"notok",10)
+                        app_log.info("Protocol version mismatch: {}, should be {}".format(data, version))
+                        connections.send(self.request, "notok", 10)
                         return
                     else:
                         app_log.info("Incoming: Protocol version matched: {}".format(data))
-                        connections.send(self.request,"ok",10)
+                        connections.send(self.request, "ok", 10)
 
                 elif data == 'mempool':
 
                     # receive theirs
                     segments = connections.receive(self.request, 10)
-                    mempool_merge(segments,peer_ip, conn, c, mempool, m)
+                    mempool_merge(segments, peer_ip, conn, c, mempool, m)
                     # receive theirs
 
                     execute(m, ('SELECT * FROM transactions'))
@@ -1173,7 +1182,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         # receive theirs
                     else:
                         connections.send(self.request, "blocksrj", 10)
-                        app_log.info("Incoming: Distant peer {} is at {}, should be {}".format(peer_ip,consensus_blockheight_list,max(consensus_blockheight_list)))
+                        app_log.info("Incoming: Distant peer {} is at {}, should be {}".format(peer_ip, consensus_blockheight_list, max(consensus_blockheight_list)))
 
                     connections.send(self.request, "sync", 10)
 
@@ -1190,7 +1199,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                         execute(c, ('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1'))
                         db_block_height = c.fetchone()[0]
-                        
 
                         # append zeroes to get static length
                         connections.send(self.request, db_block_height, 10)
@@ -1207,7 +1215,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                             # receive their latest hash
                             # confirm you know that hash or continue receiving
-
 
                         if int(received_block_height) <= db_block_height:
                             app_log.info("Incoming: We have the same or higher block height, hash will be verified")
@@ -1231,14 +1238,14 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                                 else:
                                     execute_param(c, (
-                                    "SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
+                                        "SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
                                                   (str(int(client_block)),) + (str(int(client_block + 100)),))  # select incoming transaction + 1
                                     blocks_fetched = c.fetchall()
                                     blocks_send = [[l[1:] for l in group] for _, group in groupby(blocks_fetched, key=itemgetter(0))]
 
                                     # app_log.info("Incoming: Selected " + str(blocks_send) + " to send")
 
-                                    
+
                                     connections.send(self.request, "blocksfnd", 10)
 
                                     confirmation = connections.receive(self.request, 10)
@@ -1251,7 +1258,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                         app_log.info("Incoming: Client rejected to sync from us because we're dont have the latest block")
                                         pass
 
-                                    # send own
+                                        # send own
 
                             except:
                                 app_log.info("Incoming: Block not found")
@@ -1269,7 +1276,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     block_hash_delete = connections.receive(self.request, 10)
                     # print peer_ip
                     if max(consensus_blockheight_list) == consensus_blockheight:
-                        blocknf(block_hash_delete,peer_ip,conn,c)
+                        blocknf(block_hash_delete, peer_ip, conn, c)
                         warning_list.append(peer_ip)
                     app_log.info("Outgoing: Deletion complete, sending sync request")
 
@@ -1288,23 +1295,23 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     execute(c, ('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1'))
                     db_block_height = c.fetchone()[0]
-                    
+
                     # check if we have the latest block
 
                     if len(active_pool) < 5:
                         app_log.warning("Outgoing: Mined block ignored, insufficient connections to the network")
-                    elif int(db_block_height) >= int(max(consensus_blockheight_list))-3:
+                    elif int(db_block_height) >= int(max(consensus_blockheight_list)) - 3:
                         app_log.warning("Outgoing: Processing block from miner")
-                        digest_block(segments, self.request,peer_ip, conn, c, mempool, m)
+                        digest_block(segments, self.request, peer_ip, conn, c, mempool, m)
                     # receive theirs
                     else:
-                        app_log.warning("Outgoing: Mined block was orphaned because node was not synced, we are at block {}, should be at least {}".format(db_block_height,int(max(consensus_blockheight_list))-3))
+                        app_log.warning("Outgoing: Mined block was orphaned because node was not synced, we are at block {}, should be at least {}".format(db_block_height, int(max(consensus_blockheight_list)) - 3))
 
-                elif data == "blocklast" and (peer_ip in allowed or "any" in allowed): #only sends the miner part of the block!
+                elif data == "blocklast" and (peer_ip in allowed or "any" in allowed):  # only sends the miner part of the block!
 
                     execute(c, ("SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
                     block_last = c.fetchall()[0]
-                    
+
                     connections.send(self.request, block_last, 10)
 
                 elif data == "blockget" and (peer_ip in allowed or "any" in allowed):
@@ -1312,16 +1319,16 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     execute_param(c, ("SELECT * FROM transactions WHERE block_height = ?;"), (block_desired,))
                     block_desired_result = c.fetchall()
-                    
+
                     connections.send(self.request, block_desired_result, 10)
 
                 elif data == "mpinsert" and (peer_ip in allowed or "any" in allowed):
-                    mempool_insert = connections.receive(self.request,10)
+                    mempool_insert = connections.receive(self.request, 10)
                     mempool_merge(mempool_insert, peer_ip, conn, c, mempool, m)
-                    connections.send(self.request,"Mempool insert finished",10)
+                    connections.send(self.request, "Mempool insert finished", 10)
 
                 elif data == "balanceget" and (peer_ip in allowed or "any" in allowed):
-                    balance_address = connections.receive(self.request,10) #for which address
+                    balance_address = connections.receive(self.request, 10)  # for which address
 
                     # verify balance
 
@@ -1352,8 +1359,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     debit = float(debit_ledger) + float(debit_mempool)
 
-                    
-
                     if fees == None:
                         fees = 0
                     if rewards == None:
@@ -1362,11 +1367,11 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                         debit_ledger = 0
 
                     balance = float(credit) - float(debit) - float(fees) + float(rewards)
-                    #balance_pre = float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)
+                    # balance_pre = float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)
                     # app_log.info("Mempool: Projected transction address balance: " + str(balance))
 
-                    connections.send(self.request, (balance,credit,debit,fees,rewards), 10)  # return balance of the address to the client, including mempool
-                    #connections.send(self.request, balance_pre, 10)  # return balance of the address to the client, no mempool
+                    connections.send(self.request, (balance, credit, debit, fees, rewards), 10)  # return balance of the address to the client, including mempool
+                    # connections.send(self.request, balance_pre, 10)  # return balance of the address to the client, no mempool
 
                 elif data == "mpget" and (peer_ip in allowed or "any" in allowed):
                     execute(m, ('SELECT * FROM transactions'))
@@ -1377,7 +1382,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     # if len(mempool_txs) > 0: #wont sync mempool until we send something, which is bad
                     # send own
                     connections.send(self.request, mempool_txs, 10)
-                    
+
 
 
                 elif data == "diffget" and (peer_ip in allowed or "any" in allowed):
@@ -1400,7 +1405,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     if time_drop > db_timestamp_last + 120:  # start dropping after 2 minutes
                         diff = diff - (time_drop - db_timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes)
 
-
                     if time_drop > db_timestamp_last + 300 or diff < 37:  # 5 m lim
                         diff = 37  # 5 m lim
 
@@ -1411,7 +1415,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     raise ValueError("Unexpected error, received: " + str(data))
 
                 if not time.time() <= timer_operation + timeout_operation:
-                    timer_operation = time.time() #reset timer
+                    timer_operation = time.time()  # reset timer
                 time.sleep(0.1)  # prevent cpu overload
                 # app_log.info("Server resting")
 
@@ -1430,6 +1434,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                     return
         mempool.close()
         conn.close()
+
 
 # client thread
 def worker(HOST, PORT):
@@ -1494,7 +1499,7 @@ def worker(HOST, PORT):
 
                 # get remote peers into tuples
                 server_peer_tuples = re.findall("'([\d\.]+)', '([\d]+)'", subdata)
-                app_log.info("Received following {} peers: {}".format(len((server_peer_tuples)),server_peer_tuples))
+                app_log.info("Received following {} peers: {}".format(len((server_peer_tuples)), server_peer_tuples))
                 # get remote peers into tuples
 
                 # get local peers into tuples
@@ -1585,7 +1590,6 @@ def worker(HOST, PORT):
                                 blocks_fetched = c.fetchall()
                                 blocks_send = [[l[1:] for l in group] for _, group in
                                                groupby(blocks_fetched, key=itemgetter(0))]
-                                
 
                                 # app_log.info("Outgoing: Selected " + str(blocks_send) + " to send")
 
@@ -1606,14 +1610,11 @@ def worker(HOST, PORT):
                             connections.send(s, "blocknf", 10)
                             connections.send(s, data, 10)
 
-
                     if int(received_block_height) >= db_block_height:
                         app_log.info("Outgoing: We have the same or lower block height, hash will be verified")
 
-
                         execute(c, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
                         db_block_hash = c.fetchone()[0]  # get latest block_hash
-                        
 
                         app_log.info("Outgoing: block_hash to send: {}".format(db_block_hash))
                         connections.send(s, db_block_hash, 10)
@@ -1635,7 +1636,7 @@ def worker(HOST, PORT):
                 block_hash_delete = connections.receive(s, 10)
                 # print peer_ip
                 if max(consensus_blockheight_list) == consensus_blockheight:
-                    blocknf(block_hash_delete,peer_ip,conn,c)
+                    blocknf(block_hash_delete, peer_ip, conn, c)
 
                 while busy == 1:
                     time.sleep(float(pause_conf))
@@ -1657,7 +1658,7 @@ def worker(HOST, PORT):
                     # receive theirs
                 else:
                     connections.send(s, "blocksrj", 10)
-                    app_log.info("Incoming: Distant peer {} is at {}, should be {}".format(peer_ip,consensus_blockheight,max(consensus_blockheight_list)))
+                    app_log.info("Incoming: Distant peer {} is at {}, should be {}".format(peer_ip, consensus_blockheight, max(consensus_blockheight_list)))
 
                 connections.send(s, "sendsync", 10)
 
@@ -1680,7 +1681,7 @@ def worker(HOST, PORT):
 
                 # receive theirs
                 segments = connections.receive(s, 10)
-                mempool_merge(segments,peer_ip, conn, c, mempool, m)
+                mempool_merge(segments, peer_ip, conn, c, mempool, m)
                 # receive theirs
 
                 # receive mempool
@@ -1703,7 +1704,7 @@ def worker(HOST, PORT):
         except Exception as e:
             # remove from active pool
             if this_client in active_pool:
-                app_log.info("Will remove {} from active pool {}".format(this_client,active_pool))
+                app_log.info("Will remove {} from active pool {}".format(this_client, active_pool))
                 active_pool.remove(this_client)
             # remove from active pool
 
@@ -1711,7 +1712,7 @@ def worker(HOST, PORT):
             consensus_remove(peer_ip)
             # remove from consensus 2
 
-            app_log.info("Connection to {} terminated due to {}".format(this_client,e))
+            app_log.info("Connection to {} terminated due to {}".format(this_client, e))
             app_log.info("---thread {} ended---".format(threading.currentThread()))
 
             # properly end the connection
@@ -1726,6 +1727,7 @@ def worker(HOST, PORT):
         finally:
             mempool.close()
             conn.close()
+
 
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     pass

@@ -44,5 +44,7 @@ def read():
             mining_threads_conf = line.strip('mining_threads=')
         if "diff_recalc=" in line:
             diff_recalc_conf = line.strip('diff_recalc=')
+        if "mining_pool=" in line:
+            mining_pool_conf = line.strip('mining_pool=')
 
-    return port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed_conf, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf
+    return port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed_conf, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, mining_pool_conf
