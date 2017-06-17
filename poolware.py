@@ -43,7 +43,7 @@ class MyTCPHandler(SocketServer.BaseRequestHandler):
             s = socks.socksocket()
             if tor_conf == 1:
                 s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-            s.connect(("127.0.0.1", 5658))  # connect to local node
+            s.connect(("127.0.0.1", int(port)))  # connect to local node
             # sock
 
             # get last hash

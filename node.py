@@ -483,14 +483,7 @@ def blocknf(block_hash_delete, peer_ip, conn, c):
             execute(c, ('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1'))
             results = c.fetchone()
             db_block_height = results[0]
-            # db_timestamp = results[1]
-            # db_address = results[2]
-            # db_recipient = results[3]
-            # db_amount = results[4]
-            # db_signature = results[5]
-            # db_public_key_hashed = results[6]
             db_block_hash = results[7]
-            # db_keep = results[10]
 
             if db_block_height < 2:
                 app_log.info("Will not roll back this block")
@@ -505,7 +498,7 @@ def blocknf(block_hash_delete, peer_ip, conn, c):
                 execute_param(c, ("DELETE FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
                 commit(conn)
 
-                app_log.warning("Node {} didn't find block {}, rolled back".format(peer_ip, db_block_height))  # PRONE TO ATTACK
+                app_log.warning("Node {} didn't find block {}({}), rolled back".format(peer_ip, db_block_height, db_block_hash))
 
 
         except:
@@ -682,6 +675,10 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                     received_keep = str(transaction[6])
                     received_openfield = str(transaction[7])
 
+                    transaction_list_converted = [] #makes sure all the data are properly converted as in the previous lines
+                    del transaction_list_converted[:]
+                    transaction_list_converted.append((received_timestamp,received_address,received_recipient,received_amount,received_signature_enc,received_public_key_hashed,received_keep,received_openfield))
+
                     received_public_key = RSA.importKey(
                         base64.b64decode(received_public_key_hashed))  # convert readable key to instance
                     received_signature_dec = base64.b64decode(received_signature_enc)
@@ -719,8 +716,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                         # verify signatures
 
                 # previous block info
-                execute(c, (
-                    "SELECT block_hash, block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
+                execute(c, ("SELECT block_hash, block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
                 result = c.fetchall()
                 db_block_hash = result[0][0]
                 db_block_height = result[0][1]
@@ -734,7 +730,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                     error_msg = "Block is older than the previous one, will be rejected"
                 # reject blocks older than latest block
 
-                # calculate difficulty
+                # calculate difficulty - this must be after tx deserialization to prevent problems with float conversions etc
                 execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (db_timestamp_last - 1800,))  # 1800=30 min
                 blocks_per_30 = len(c.fetchall())
 
@@ -759,7 +755,12 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
 
                 # match difficulty
 
-                block_hash = hashlib.sha224(str(transaction_list) + db_block_hash).hexdigest()
+                #app_log.info("Transaction list: {}".format(transaction_list_converted))
+                block_hash = hashlib.sha224(str(transaction_list_converted) + db_block_hash).hexdigest()
+                #app_log.info("Last block hash: {}".format(db_block_hash))
+                app_log.info("Calculated block hash: {}".format(block_hash))
+                #app_log.info("Nonce: {}".format(nonce))
+
                 mining_hash = bin_convert(hashlib.sha224(miner_address + nonce + db_block_hash).hexdigest())
 
                 mining_condition = bin_convert(db_block_hash)[0:diff]
@@ -784,7 +785,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                 if block_valid == 0:
                     app_log.warning("Check 1: A part of the block is invalid, rejected: {}".format(error_msg))
                     error_msg = ""
-                    app_log.info("Check 1: Complete rejected block: {}".format(data))
+                    app_log.info("Check 1: Complete rejected data: {}".format(data))
                     warning(sdef, peer_ip)
 
                 if block_valid == 1:
@@ -1237,11 +1238,10 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                                     connections.send(self.request, "nonewblk", 10)
 
                                 else:
-                                    execute_param(c, (
-                                        "SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
+                                    execute_param(c, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
                                                   (str(int(client_block)),) + (str(int(client_block + 100)),))  # select incoming transaction + 1
                                     blocks_fetched = c.fetchall()
-                                    blocks_send = [[l[1:] for l in group] for _, group in groupby(blocks_fetched, key=itemgetter(0))]
+                                    blocks_send = [[l[1:] for l in group] for _, group in groupby(blocks_fetched, key=itemgetter(0))] #remove block number
 
                                     # app_log.info("Incoming: Selected " + str(blocks_send) + " to send")
 
@@ -1583,13 +1583,10 @@ def worker(HOST, PORT):
                                 connections.send(s, "nonewblk", 10)
 
                             else:
-                                execute_param(c, (
-                                    "SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
-                                              (str(int(client_block)),) + (str(int(
-                                                  client_block + 100)),))  # select incoming transaction + 1, only columns that need not be verified
+                                execute_param(c, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
+                                              (str(int(client_block)),) + (str(int(client_block + 100)),))  # select incoming transaction + 1, only columns that need not be verified
                                 blocks_fetched = c.fetchall()
-                                blocks_send = [[l[1:] for l in group] for _, group in
-                                               groupby(blocks_fetched, key=itemgetter(0))]
+                                blocks_send = [[l[1:] for l in group] for _, group in groupby(blocks_fetched, key=itemgetter(0))] #remove block number
 
                                 # app_log.info("Outgoing: Selected " + str(blocks_send) + " to send")
 

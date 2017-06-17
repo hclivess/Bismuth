@@ -188,7 +188,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                     s.settimeout(0.3)
                     if tor_conf == 1:
                         s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                    s.connect((peer_ip, int(mining_ip_conf)))  # connect to node in peerlist
+                    s.connect(("127.0.0.1", 8525))  # connect to pool
                     app_log.warning("Connected")
 
                     app_log.warning("Miner: Proceeding to submit mined block")
