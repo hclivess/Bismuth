@@ -45,7 +45,7 @@ def read():
         if "diff_recalc=" in line:
             diff_recalc_conf = line.strip('diff_recalc=')
         if "mining_pool=" in line:
-            pool_conf = line.strip('mining_pool=')
+            pool_conf = int(line.strip('mining_pool='))
         if "pool_address=" in line:
             pool_address_conf = line.strip('pool_address=')
 
