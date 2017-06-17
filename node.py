@@ -676,7 +676,6 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                     received_openfield = str(transaction[7])
 
                     transaction_list_converted = [] #makes sure all the data are properly converted as in the previous lines
-                    del transaction_list_converted[:]
                     transaction_list_converted.append((received_timestamp,received_address,received_recipient,received_amount,received_signature_enc,received_public_key_hashed,received_keep,received_openfield))
 
                     received_public_key = RSA.importKey(
@@ -713,6 +712,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                         # print received_timestamp
                         block_valid = 0
 
+                del transaction_list_converted[:]
                         # verify signatures
 
                 # previous block info
@@ -730,7 +730,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                     error_msg = "Block is older than the previous one, will be rejected"
                 # reject blocks older than latest block
 
-                # calculate difficulty - this must be after tx deserialization to prevent problems with float conversions etc
+                # calculate difficulty
                 execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (db_timestamp_last - 1800,))  # 1800=30 min
                 blocks_per_30 = len(c.fetchall())
 
