@@ -663,6 +663,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
 
                 # reject block with duplicate transactions
 
+                transaction_list_converted = []  # makes sure all the data are properly converted as in the previous lines
                 for transaction in transaction_list:
                     # print transaction
                     # verify signatures
@@ -675,8 +676,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                     received_keep = str(transaction[6])
                     received_openfield = str(transaction[7])
 
-                    transaction_list_converted = [] #makes sure all the data are properly converted as in the previous lines
-                    transaction_list_converted.append((received_timestamp,received_address,received_recipient,received_amount,received_signature_enc,received_public_key_hashed,received_keep,received_openfield))
+                    transaction_list_converted.append((received_timestamp, received_address, received_recipient, received_amount, received_signature_enc, received_public_key_hashed, received_keep, received_openfield))
 
                     received_public_key = RSA.importKey(
                         base64.b64decode(received_public_key_hashed))  # convert readable key to instance
@@ -712,7 +712,6 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                         # print received_timestamp
                         block_valid = 0
 
-                del transaction_list_converted[:]
                         # verify signatures
 
                 # previous block info
