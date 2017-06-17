@@ -10,7 +10,7 @@ except ImportError:
     quickbismuth = None
 
 # load config
-(port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_lmit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, mining_pool_conf) = options.read()
+(port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_lmit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address_conf) = options.read()
 # load config
 
 def check_uptodate(interval, app_log):
@@ -95,7 +95,6 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 now = time.time()
                 block_timestamp = '%.2f' % time.time()
 
-            if mining_pool_conf == 0:
                 # calculate difficulty
                 s = socks.socksocket()
                 if tor_conf == 1:
@@ -105,18 +104,19 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 connections.send(s, "blocklast", 10)
                 db_block_hash = ast.literal_eval(connections.receive(s, 10))[1]
 
-                connections.send(s, "diffget", 10)
-                diff = float(connections.receive(s, 10))
-
                 cycles_per_second = tries / (now - begin) if (now - begin) != 0 else 0
                 begin = now
                 tries = 0
-                app_log.warning("Thread{} {} @ {:.2f} cycles/second, difficulty: {:.2f}".format(q, db_block_hash[:10], cycles_per_second, diff))
 
+            if pool_conf == 0:
+                connections.send(s, "diffget", 10)
+                diff = float(connections.receive(s, 10))
                 diff = int(diff)
 
             else: #if pooled
                 diff = 37
+
+            app_log.warning("Thread{} {} @ {:.2f} cycles/second, difficulty: {:.2f}".format(q, db_block_hash[:10], cycles_per_second, diff))
 
             nonce = hashlib.sha224(rndfile.read(16)).hexdigest()[:32]
 
@@ -183,7 +183,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 if sync_conf == 1:
                     check_uptodate(300, app_log)
 
-                if mining_pool_conf == 1:
+                if pool_conf == 1:
                     s = socks.socksocket()
                     s.settimeout(0.3)
                     if tor_conf == 1:
@@ -247,15 +247,19 @@ if __name__ == '__main__':
     app_log = log.log("miner.log",debug_level_conf)
     (key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read()
 
-    print 'Number of arguments:', len(sys.argv), 'arguments.'
-    print 'Argument List:', str(sys.argv)
+    if pool_conf == 1:
+        address = pool_address_conf
 
-    try:
-        address = sys.argv[1]
-    except:
-        address = address
+    #print 'Number of arguments:', len(sys.argv), 'arguments.'
+    #print 'Argument List:', str(sys.argv)
+
+    #try:
+    #    address = sys.argv[1]
+    #except:
+    #    address = address
 
     # verify connection
+
     connected = 0
     while connected == 0:
         try:

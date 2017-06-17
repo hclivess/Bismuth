@@ -1,5 +1,5 @@
 import SocketServer, connections, time, options, log, sqlite3, ast, socks, hashlib
-(port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, mining_pool_conf) = options.read()
+(port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address) = options.read()
 app_log = log.log("pool.log",debug_level_conf)
 
 def diffget():
@@ -22,7 +22,7 @@ class MyTCPHandler(SocketServer.BaseRequestHandler):
         peer_ip = self.request.getpeername()[0]
 
         data = connections.receive(self.request, 10)
-        app_log.info("Incoming: Received: {} from {}".format(data, peer_ip))  # will add custom ports later
+        app_log.info("Received: {} from {}".format(data, peer_ip))  # will add custom ports later
 
         if data == 'diffget':
             diff = diffget()
@@ -66,8 +66,11 @@ class MyTCPHandler(SocketServer.BaseRequestHandler):
 
             else:
                 #save shares
+                pass
 
             s.close()
+
+app_log.warning("Starting up...")
 
 if __name__ == "__main__":
     HOST, PORT = "localhost", 8525
