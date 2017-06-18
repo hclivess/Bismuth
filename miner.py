@@ -108,13 +108,13 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 begin = now
                 tries = 0
 
-            if pool_conf == 0:
-                connections.send(s, "diffget", 10)
-                diff = float(connections.receive(s, 10))
-                diff = int(diff)
+                if pool_conf == 0:
+                    connections.send(s, "diffget", 10)
+                    diff = float(connections.receive(s, 10))
+                    diff = int(diff)
 
-            else: #if pooled
-                diff = 37
+                else: #if pooled
+                    diff = 37
 
             app_log.warning("Thread{} {} @ {:.2f} cycles/second, difficulty: {:.2f}".format(q, db_block_hash[:10], cycles_per_second, diff))
 
