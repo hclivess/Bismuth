@@ -283,6 +283,9 @@ def mempool_merge(data, peer_ip, conn, c, mempool, m):
                     if float(mempool_timestamp) > time.time() + 30:  # dont accept future txs
                         acceptable = 0
 
+                    if float(mempool_timestamp) < time.time() - 86400:  # dont accept old txs
+                        acceptable = 0
+
                     if (mempool_in == 1) and (
                                 ledger_in == 1):  # remove from mempool if it's in both ledger and mempool already
                         try:
@@ -357,6 +360,9 @@ def mempool_merge(data, peer_ip, conn, c, mempool, m):
                         time_now = time.time()
                         if float(mempool_timestamp) > float(time_now) + 30:
                             app_log.info("Mempool: Future transaction not allowed, timestamp {} minutes in the future".format((float(mempool_timestamp) - float(time_now)) / 60))
+
+                        elif float(time_now) - 86400 > float(mempool_timestamp):
+                            app_log.info("Mempool: Transaction older than 24h not allowed.")
 
                         elif float(mempool_amount) > float(balance_pre):
                             app_log.info("Mempool: Sending more than owned")
@@ -708,10 +714,10 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                     time_now = time.time()
                     if float(time_now) + 30 < float(received_timestamp):
                         error_msg = "Future transaction not allowed, timestamp {} minutes in the future".format((float(received_timestamp) - float(time_now)) / 60)
-                        # print time_now
-                        # print received_timestamp
                         block_valid = 0
-
+                    if float(time_now) - 86400 > float(received_timestamp):
+                        error_msg = "Transaction older than 24h not allowed."
+                        block_valid = 0
                         # verify signatures
 
                 # previous block info
