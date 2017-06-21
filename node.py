@@ -669,6 +669,15 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
 
                 # reject block with duplicate transactions
 
+                # previous block info
+                execute(c, ("SELECT block_hash, block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
+                result = c.fetchall()
+                db_block_hash = result[0][0]
+                db_block_height = result[0][1]
+                db_timestamp_last = float(result[0][2])
+                block_height_new = db_block_height + 1
+                # previous block info
+
                 transaction_list_converted = []  # makes sure all the data are properly converted as in the previous lines
                 for transaction in transaction_list:
                     # print transaction
@@ -715,19 +724,10 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                     if float(time_now) + 30 < float(received_timestamp):
                         error_msg = "Future transaction not allowed, timestamp {} minutes in the future".format((float(received_timestamp) - float(time_now)) / 60)
                         block_valid = 0
-                    if float(time_now) - 86400 > float(received_timestamp):
+                    if float(db_timestamp_last) - 86400 > float(received_timestamp):
                         error_msg = "Transaction older than 24h not allowed."
                         block_valid = 0
                         # verify signatures
-
-                # previous block info
-                execute(c, ("SELECT block_hash, block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
-                result = c.fetchall()
-                db_block_hash = result[0][0]
-                db_block_height = result[0][1]
-                db_timestamp_last = float(result[0][2])
-                block_height_new = db_block_height + 1
-                # previous block info
 
                 # reject blocks older than latest block
                 if float(block_timestamp) <= float(db_timestamp_last):
