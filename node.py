@@ -16,14 +16,36 @@ from Crypto.Signature import PKCS1_v1_5
 # load config
 global warning_list_limit_conf
 global ram_done
+global hdd_block
 ram_done = 0
 (port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address, ram_conf) = options.read()
 
 
 # load config
 
+def db_to_drive():
+    global hdd_block
+    app_log.warning("Moving new data to HDD")
+    conn = sqlite3.connect('D:\Bismuth\static\ledger.db')
+    conn.text_factory = str
+    c = conn.cursor()
+
+    old_db = sqlite3.connect('file::memory:?cache=shared', uri=True)
+
+
+
+    old_db.text_factory = str
+    o = old_db.cursor()
+
+    for row in o.execute("SELECT * FROM transactions where block_height > {} ORDER BY block_height ASC".format(hdd_block)):
+        print (row)
+
+        c.execute("INSERT INTO transactions VALUES {}".format(row))
+        conn.commit()
+
+
 def db_c_define():
-    global ram_done
+    global ram_done, hdd_block
     if ram_conf == 1 and ram_done == 0:
         app_log.warning("Moving database to RAM")
         conn = sqlite3.connect('file::memory:?cache=shared',uri=True)
@@ -34,6 +56,9 @@ def db_c_define():
         query = "".join(line for line in old_db.iterdump())
 
         conn.executescript(query)
+
+        c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
+        hdd_block = c.fetchone()[0]
 
         ram_done = 1
         app_log.warning("Moved database to RAM")
@@ -983,6 +1008,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
 
         finally:
             app_log.info("Digesting complete")
+            db_to_drive()
             busy = 0
 
 
