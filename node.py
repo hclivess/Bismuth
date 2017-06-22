@@ -326,7 +326,7 @@ def mempool_merge(data, peer_ip, conn, c, mempool, m):
                     # verify signature
                     verifier = PKCS1_v1_5.new(mempool_public_key)
 
-                    h = SHA.new(str((mempool_timestamp, mempool_address, mempool_recipient, mempool_amount, mempool_keep, mempool_openfield)))
+                    h = SHA.new(str((mempool_timestamp, mempool_address, mempool_recipient, mempool_amount, mempool_keep, mempool_openfield)).encode("utf-8"))
                     if not verifier.verify(h, mempool_signature_dec):
                         acceptable = 0
                         app_log.info("Wrong signature in mempool insert attempt")
@@ -488,7 +488,7 @@ def verify(c):
 
             db_signature_dec = base64.b64decode(db_signature_enc)
             verifier = PKCS1_v1_5.new(db_public_key)
-            h = SHA.new(str(db_transaction))
+            h = SHA.new(str(db_transaction).encode("utf-8"))
             if verifier.verify(h, db_signature_dec):
                 pass
             else:
@@ -723,8 +723,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                     received_signature_dec = base64.b64decode(received_signature_enc)
                     verifier = PKCS1_v1_5.new(received_public_key)
 
-                    h = SHA.new(str((received_timestamp, received_address, received_recipient, received_amount, received_keep,
-                                     received_openfield)).encode("utf-8"))
+                    h = SHA.new(str((received_timestamp, received_address, received_recipient, received_amount, received_keep, received_openfield)).encode("utf-8"))
                     if not verifier.verify(h, received_signature_dec):
                         error_msg = "Invalid signature"
                         block_valid = 0

@@ -257,7 +257,7 @@ def send(amount_input, recipient_input, keep_input, openfield_input, top10):
         timestamp = '%.2f' % time.time()
         transaction = (str(timestamp),str(address),str(recipient_input), '%.8f' % float(amount_input),str(keep_input),str(openfield_input)) #this is signed
 
-        h = SHA.new(str(transaction))
+        h = SHA.new(str(transaction).encode("utf-8"))
         signer = PKCS1_v1_5.new(key)
         signature = signer.sign(h)
         signature_enc = base64.b64encode(signature)
@@ -391,7 +391,7 @@ def sign():
         try:
             received_public_key = RSA.importKey(public_key_gui.get("1.0",END))
             verifier = PKCS1_v1_5.new(received_public_key)
-            h = SHA.new(input_text.get("1.0",END))
+            h = SHA.new(input_text.get("1.0",END).encode("utf-8"))
             received_signature_dec = base64.b64decode(output_signature.get("1.0",END))
 
             if verifier.verify(h, received_signature_dec) == True:
@@ -412,7 +412,7 @@ def sign():
             button.pack()
 
     def sign_this():
-        h = SHA.new(input_text.get("1.0",END))
+        h = SHA.new(input_text.get("1.0",END).encode("utf-8"))
         signer = PKCS1_v1_5.new(key)
         signature = signer.sign(h)
         signature_enc = base64.b64encode(signature)
