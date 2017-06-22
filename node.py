@@ -15,16 +15,40 @@ from Crypto.Signature import PKCS1_v1_5
 
 # load config
 global warning_list_limit_conf
-(port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address) = options.read()
+global ram_done
+ram_done = 0
+(port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address, ram_conf) = options.read()
 
 
 # load config
 
 def db_c_define():
-    conn = sqlite3.connect(ledger_path_conf)
-    conn.text_factory = str
-    c = conn.cursor()
-    return conn, c
+    global ram_done
+    if ram_done == 1:
+        app_log.warning("Connecting to database in RAM")
+        conn = sqlite3.connect(':memory:')  # create a memory database
+        conn.text_factory = str
+        c = conn.cursor()
+        return conn, c
+
+
+    elif ram_conf == 1 and ram_done == 0:
+        app_log.warning("Moving database to RAM")
+        conn = sqlite3.connect(':memory:')  # create a memory database
+        old_db = sqlite3.connect('D:\Bismuth\static\ledger.db')
+        query = "".join(line for line in old_db.iterdump())
+        conn.executescript(query)
+        conn.text_factory = str
+        c = conn.cursor()
+        ram_done = 1
+        return conn, c
+
+    else:
+        app_log.warning("Using flat file database")
+        conn = sqlite3.connect(ledger_path_conf)
+        conn.text_factory = str
+        c = conn.cursor()
+        return conn, c
 
 
 def db_m_define():
@@ -1305,9 +1329,12 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
                     if len(active_pool) < 5:
                         app_log.warning("Outgoing: Mined block ignored, insufficient connections to the network")
-                    elif int(db_block_height) >= int(max(consensus_blockheight_list)) - 3:
+                    elif int(db_block_height) >= int(max(consensus_blockheight_list)) - 3 and busy == 0:
                         app_log.warning("Outgoing: Processing block from miner")
                         digest_block(segments, self.request, peer_ip, conn, c, mempool, m)
+                    elif busy == 1:
+                        app_log.warning("Outgoing: Block from miner skipped because we are digesting already")
+
                     # receive theirs
                     else:
                         app_log.warning("Outgoing: Mined block was orphaned because node was not synced, we are at block {}, should be at least {}".format(db_block_height, int(max(consensus_blockheight_list)) - 3))
