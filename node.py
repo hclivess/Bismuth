@@ -32,8 +32,6 @@ def db_to_drive():
 
     old_db = sqlite3.connect('file::memory:?cache=shared', uri=True)
 
-
-
     old_db.text_factory = str
     o = old_db.cursor()
 
@@ -43,6 +41,8 @@ def db_to_drive():
         c.execute("INSERT INTO transactions VALUES {}".format(row))
         conn.commit()
 
+    c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
+    hdd_block = c.fetchone()[0]
 
 def db_c_define():
     global ram_done, hdd_block
