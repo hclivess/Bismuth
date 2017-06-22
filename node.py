@@ -24,31 +24,32 @@ ram_done = 0
 
 def db_c_define():
     global ram_done
-    if ram_done == 1:
-        app_log.warning("Connecting to database in RAM")
-        conn = sqlite3.connect(':memory:')  # create a memory database
+    if ram_conf == 1 and ram_done == 0:
+        app_log.warning("Moving database to RAM")
+        conn = sqlite3.connect('file::memory:?cache=shared',uri=True)
         conn.text_factory = str
         c = conn.cursor()
-        return conn, c
 
-
-    elif ram_conf == 1 and ram_done == 0:
-        app_log.warning("Moving database to RAM")
-        conn = sqlite3.connect(':memory:')  # create a memory database
         old_db = sqlite3.connect('D:\Bismuth\static\ledger.db')
         query = "".join(line for line in old_db.iterdump())
+
         conn.executescript(query)
+
+        ram_done = 1
+        app_log.warning("Moved database to RAM")
+
+    elif ram_conf == 1 and ram_done == 1:
+        conn = sqlite3.connect('file::memory:?cache=shared',uri=True)
         conn.text_factory = str
         c = conn.cursor()
-        ram_done = 1
-        return conn, c
 
     else:
         app_log.warning("Using flat file database")
         conn = sqlite3.connect(ledger_path_conf)
         conn.text_factory = str
         c = conn.cursor()
-        return conn, c
+
+    return conn, c
 
 
 def db_m_define():
@@ -1562,7 +1563,7 @@ def worker(HOST, PORT):
                             peer_list_file.write(str(x) + "\n")
                             peer_list_file.close()
                         except:
-                            raise #""""""""""""""""""
+                            pass
                             app_log.info("Not connectible")
 
                     else:
