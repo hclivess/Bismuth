@@ -49,7 +49,7 @@ def execute(cursor, what, app_log):
 
             cursor.execute(what)
             passed = 1
-        except Exception, e:
+        except Exception as e:
             app_log.warning("Retrying database execute due to {}".format(e))
             time.sleep(0.1)
             pass
@@ -65,7 +65,7 @@ def execute_param(cursor, what, param, app_log):
             # print what
             cursor.execute(what, param)
             passed = 1
-        except Exception, e:
+        except Exception as e:
             app_log.warning("Retrying database execute due to {}".format(e))
             time.sleep(0.1)
             pass
@@ -229,14 +229,14 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                                 connections.send(s, block_send, 10)
 
                                 app_log.warning("Miner: Block submitted to {}".format(peer_ip))
-                            except Exception, e:
+                            except Exception as e:
                                 app_log.warning("Miner: Could not submit block to {} because {}".format(peer_ip,e))
                                 pass
 
                 #submit mined block to node
 
                     #break
-        except Exception, e:
+        except Exception as e:
             print e
             time.sleep(0.1)
             pass
@@ -270,7 +270,7 @@ if __name__ == '__main__':
             app_log.warning("Connected")
             connected = 1
             s.close()
-        except Exception, e:
+        except Exception as e:
             print e
             app_log.warning(
                 "Miner: Please start your node for the block to be submitted or adjust mining ip in settings.")

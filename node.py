@@ -6,7 +6,7 @@
 
 from itertools import groupby
 from operator import itemgetter
-import shutil, SocketServer, ast, base64, gc, hashlib, os, re, sqlite3, sys, threading, time, socks, log, options, connections, random
+import shutil, socketserver, ast, base64, gc, hashlib, os, re, sqlite3, sys, threading, time, socks, log, options, connections, random
 
 from Crypto import Random
 from Crypto.Hash import SHA
@@ -153,7 +153,7 @@ def ledger_convert():
 
         os.remove(ledger_path_conf)
         os.rename(ledger_path_conf + '.hyper', ledger_path_conf)
-    except Exception, e:
+    except Exception as e:
         raise ValueError("There was an issue converting to Hyperblocks: {}".format(e))
 
 
@@ -188,7 +188,7 @@ def execute(cursor, what):
 
             cursor.execute(what)
             passed = 1
-        except Exception, e:
+        except Exception as e:
             app_log.info("Retrying database execute due to {}".format(e))
             time.sleep(0.1)
             pass
@@ -205,7 +205,7 @@ def execute_param(cursor, what, param):
             # print what
             cursor.execute(what, param)
             passed = 1
-        except Exception, e:
+        except Exception as e:
             app_log.info("Retrying database execute due to " + str(e))
             time.sleep(0.1)
             pass
@@ -500,7 +500,7 @@ def verify(c):
         if invalid == 0:
             app_log.warning("All transacitons in the local ledger are valid")
 
-    except sqlite3.Error, e:
+    except sqlite3.Error as e:
         app_log.info("Error %s:" % e.args[0])
         sys.exit(1)
 
@@ -972,7 +972,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                         unban(peer_ip)
 
                         # whole block validation
-        except Exception, e:
+        except Exception as e:
             app_log.info(e)
 
             if debug_conf == 1:
@@ -1065,7 +1065,7 @@ if verify_conf == 1:
 app_log.warning("Starting up...")
 
 
-class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
+class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
     def handle(self):  # server defined here
 
         mempool, m = db_m_define()
@@ -1451,7 +1451,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
                 time.sleep(0.1)  # prevent cpu overload
                 # app_log.info("Server resting")
 
-            except Exception, e:
+            except Exception as e:
                 app_log.info("Incoming: Lost connection to {}".format(peer_ip))
                 app_log.info("Incoming: {}".format(e))
 
@@ -1758,7 +1758,7 @@ def worker(HOST, PORT):
             conn.close()
 
 
-class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
+class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     pass
 
 
@@ -1797,7 +1797,7 @@ if __name__ == "__main__":
         server.shutdown()
         server.server_close()
 
-    except Exception, e:
+    except Exception as e:
         app_log.info("Node already running?")
         app_log.info(e)
 sys.exit()

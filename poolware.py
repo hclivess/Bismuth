@@ -1,4 +1,4 @@
-import SocketServer, connections, time, options, log, sqlite3, ast, socks, hashlib
+import socketserver, connections, time, options, log, sqlite3, ast, socks, hashlib
 (port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address, ram_conf) = options.read()
 app_log = log.log("pool.log",debug_level_conf)
 
@@ -16,7 +16,7 @@ def diffget():
 def bin_convert(string):
     return ''.join(format(ord(x), 'b') for x in string)
 
-class MyTCPHandler(SocketServer.BaseRequestHandler):
+class MyTCPHandler(socketserver.BaseRequestHandler):
 
     def handle(self):
         peer_ip = self.request.getpeername()[0]
@@ -76,7 +76,7 @@ if __name__ == "__main__":
     HOST, PORT = "localhost", 8525
 
     # Create the server, binding to localhost on port 9999
-    server = SocketServer.TCPServer((HOST, PORT), MyTCPHandler)
+    server = socketserver.TCPServer((HOST, PORT), MyTCPHandler)
 
     # Activate the server; this will keep running until you
     # interrupt the program with Ctrl-C

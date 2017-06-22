@@ -88,7 +88,7 @@ else:
         mempool.close()
 
         print "Genesis created, don't forget to change genesis address in the config file"
-    except sqlite3.Error, e:
+    except sqlite3.Error as e:
         print "Error %s:" % e.args[0]
         sys.exit(1)
     finally:
