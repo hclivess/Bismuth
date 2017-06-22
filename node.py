@@ -724,7 +724,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                     verifier = PKCS1_v1_5.new(received_public_key)
 
                     h = SHA.new(str((received_timestamp, received_address, received_recipient, received_amount, received_keep,
-                                     received_openfield)))
+                                     received_openfield)).encode("utf-8"))
                     if not verifier.verify(h, received_signature_dec):
                         error_msg = "Invalid signature"
                         block_valid = 0
@@ -786,12 +786,12 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                 # match difficulty
 
                 #app_log.info("Transaction list: {}".format(transaction_list_converted))
-                block_hash = hashlib.sha224(str(transaction_list_converted) + db_block_hash).hexdigest()
+                block_hash = hashlib.sha224((str(transaction_list_converted) + db_block_hash).encode("utf-8")).hexdigest()
                 #app_log.info("Last block hash: {}".format(db_block_hash))
                 app_log.info("Calculated block hash: {}".format(block_hash))
                 #app_log.info("Nonce: {}".format(nonce))
 
-                mining_hash = bin_convert(hashlib.sha224(miner_address + nonce + db_block_hash).hexdigest())
+                mining_hash = bin_convert(hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
 
                 mining_condition = bin_convert(db_block_hash)[0:diff]
 
