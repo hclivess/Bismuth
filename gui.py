@@ -10,7 +10,7 @@ from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
 from simplecrypt import encrypt, decrypt
-from Tkinter import *
+from tkinter import *
 
 global key
 global encrypted
@@ -732,9 +732,9 @@ else:
     unlocked = 0
 
 #public_key_readable = str(key.publickey().exportKey())
-public_key_readable = open('pubkey.der').read()
-public_key_hashed = base64.b64encode(public_key_readable)
-address = hashlib.sha224(public_key_readable).hexdigest()
+public_key_readable = open('pubkey.der'.encode('utf-8')).read()
+public_key_hashed = base64.b64encode(public_key_readable.encode('utf-8'))
+address = hashlib.sha224(public_key_readable.encode('utf-8')).hexdigest()
 #private_key_readable = str(key.exportKey())
 
 #frames

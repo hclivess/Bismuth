@@ -246,7 +246,7 @@ def mempool_merge(data, peer_ip, conn, c, mempool, m):
     if busy_mempool == 0:
         busy_mempool = 1
 
-        if data == "[]":
+        if data.decode('utf-8') == "[]":
             app_log.info("Mempool from {} was empty".format(peer_ip))
             busy_mempool = 0
         else:
@@ -448,7 +448,7 @@ def purge_old_peers():
                 pass
 
     output = open("peers.txt", 'w')
-    for key, value in peer_dict.iteritems():
+    for key, value in peer_dict.items():
         output.write("('" + key + "', '" + value + "')\n")
     output.close()
 
@@ -596,9 +596,9 @@ def manager():
     while True:
 
         keys = peer_dict.keys()
-        random.shuffle(keys)
+        #random.shuffle(keys)
 
-        for key, value in peer_dict.iteritems():
+        for key, value in peer_dict.items():
             HOST = key
             # app_log.info(HOST)
             PORT = int(value)
@@ -1019,9 +1019,9 @@ else:
 # import keys
 # key = RSA.importKey(open('privkey.der').read())
 # private_key_readable = str(key.exportKey())
-public_key_readable = open('pubkey.der').read()
-public_key_hashed = base64.b64encode(public_key_readable)
-address = hashlib.sha224(public_key_readable).hexdigest()
+public_key_readable = open('pubkey.der'.encode('utf-8')).read()
+public_key_hashed = base64.b64encode(public_key_readable.encode('utf-8'))
+address = hashlib.sha224(public_key_readable.encode('utf-8')).hexdigest()
 
 app_log.warning("Local address: {}".format(address))
 
@@ -1108,7 +1108,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 app_log.info(
                     "Incoming: Received: {} from {}".format(data, peer_ip))  # will add custom ports later
 
-                if data == 'version':
+                if data.decode('utf-8') == 'version':
                     data = connections.receive(self.request, 10)
                     if version != data:
                         app_log.info("Protocol version mismatch: {}, should be {}".format(data, version))
@@ -1118,7 +1118,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         app_log.info("Incoming: Protocol version matched: {}".format(data))
                         connections.send(self.request, "ok", 10)
 
-                elif data == 'mempool':
+                elif data.decode('utf-8') == 'mempool':
 
                     # receive theirs
                     segments = connections.receive(self.request, 10)
@@ -1135,7 +1135,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     connections.send(self.request, mempool_txs, 10)
                     # send own
 
-                elif data == 'hello':
+                elif data.decode('utf-8') == 'hello':
                     with open("peers.txt", "r") as peer_list:
                         peers = peer_list.read()
 
@@ -1185,7 +1185,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     app_log.info("Incoming: Sending sync request")
                     connections.send(self.request, "sync", 10)
 
-                elif data == "sendsync":
+                elif data.decode('utf-8') == "sendsync":
                     while busy == 1:
                         time.sleep(float(pause_conf))
 
@@ -1196,7 +1196,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     connections.send(self.request, "sync", 10)
 
 
-                elif data == "blocksfnd":
+                elif data.decode('utf-8') == "blocksfnd":
                     app_log.info("Incoming: Client has the block")  # node should start sending txs in this step
 
                     # app_log.info("Incoming: Combined segments: " + segments)
@@ -1216,7 +1216,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                     connections.send(self.request, "sync", 10)
 
-                elif data == "blockheight":
+                elif data.decode('utf-8') == "blockheight":
                     try:
                         received_block_height = connections.receive(self.request, 10)  # receive client's last block height
                         app_log.info("Incoming: Received block height {} from {} ".format(received_block_height, peer_ip))
@@ -1297,11 +1297,11 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         app_log.info("Incoming: Sync failed {}".format(e))
 
 
-                elif data == "nonewblk":
+                elif data.decode('utf-8') == "nonewblk":
                     # digest_block() #temporary #otherwise passive node will not be able to digest
                     connections.send(self.request, "sync", 10)
 
-                elif data == "blocknf":
+                elif data.decode('utf-8') == "blocknf":
                     block_hash_delete = connections.receive(self.request, 10)
                     # print peer_ip
                     if max(consensus_blockheight_list) == consensus_blockheight:
@@ -1313,7 +1313,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         time.sleep(float(pause_conf))
                     connections.send(self.request, "sync", 10)
 
-                elif data == "block" and (peer_ip in allowed or "any" in allowed):  # from miner
+                elif data.decode('utf-8') == "block" and (peer_ip in allowed or "any" in allowed):  # from miner
 
                     app_log.warning("Outgoing: Received a block from miner {}".format(peer_ip))
                     # receive block
@@ -1339,14 +1339,14 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     else:
                         app_log.warning("Outgoing: Mined block was orphaned because node was not synced, we are at block {}, should be at least {}".format(db_block_height, int(max(consensus_blockheight_list)) - 3))
 
-                elif data == "blocklast" and (peer_ip in allowed or "any" in allowed):  # only sends the miner part of the block!
+                elif data.decode('utf-8') == "blocklast" and (peer_ip in allowed or "any" in allowed):  # only sends the miner part of the block!
 
                     execute(c, ("SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
                     block_last = c.fetchall()[0]
 
                     connections.send(self.request, block_last, 10)
 
-                elif data == "blockget" and (peer_ip in allowed or "any" in allowed):
+                elif data.decode('utf-8') == "blockget" and (peer_ip in allowed or "any" in allowed):
                     block_desired = connections.receive(self.request, 10)
 
                     execute_param(c, ("SELECT * FROM transactions WHERE block_height = ?;"), (block_desired,))
@@ -1354,12 +1354,12 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                     connections.send(self.request, block_desired_result, 10)
 
-                elif data == "mpinsert" and (peer_ip in allowed or "any" in allowed):
+                elif data.decode('utf-8') == "mpinsert" and (peer_ip in allowed or "any" in allowed):
                     mempool_insert = connections.receive(self.request, 10)
                     mempool_merge(mempool_insert, peer_ip, conn, c, mempool, m)
                     connections.send(self.request, "Mempool insert finished", 10)
 
-                elif data == "balanceget" and (peer_ip in allowed or "any" in allowed):
+                elif data.decode('utf-8') == "balanceget" and (peer_ip in allowed or "any" in allowed):
                     balance_address = connections.receive(self.request, 10)  # for which address
 
                     # verify balance
@@ -1405,7 +1405,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     connections.send(self.request, (balance, credit, debit, fees, rewards), 10)  # return balance of the address to the client, including mempool
                     # connections.send(self.request, balance_pre, 10)  # return balance of the address to the client, no mempool
 
-                elif data == "mpget" and (peer_ip in allowed or "any" in allowed):
+                elif data.decode('utf-8') == "mpget" and (peer_ip in allowed or "any" in allowed):
                     execute(m, ('SELECT * FROM transactions'))
                     mempool_txs = m.fetchall()
 
@@ -1417,7 +1417,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
 
 
-                elif data == "diffget" and (peer_ip in allowed or "any" in allowed):
+                elif data.decode('utf-8') == "diffget" and (peer_ip in allowed or "any" in allowed):
 
                     execute(c, ("SELECT timestamp,block_height FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
                     result = c.fetchall()
@@ -1514,7 +1514,7 @@ def worker(HOST, PORT):
 
                 data = connections.receive(s, 10)
 
-                if (data == "ok"):
+                if (data.decode('utf-8') == "ok"):
                     app_log.info("Outgoing: Node protocol version matches our client")
                 else:
                     app_log.info("Outgoing: Node protocol version mismatch")
@@ -1526,7 +1526,7 @@ def worker(HOST, PORT):
 
             data = connections.receive(s, 10)  # receive data, one and the only root point
 
-            if data == "peers":
+            if data.decode('utf-8') == "peers":
                 subdata = connections.receive(s, 10)
 
                 # get remote peers into tuples
@@ -1564,7 +1564,7 @@ def worker(HOST, PORT):
                     else:
                         app_log.info("Outgoing: {} is not a new peer".format(x))
 
-            elif data == "sync":
+            elif data.decode('utf-8') == "sync":
                 try:
 
                     global syncing
@@ -1661,7 +1661,7 @@ def worker(HOST, PORT):
                 finally:
                     syncing.remove(peer_ip)
 
-            elif data == "blocknf":
+            elif data.decode('utf-8') == "blocknf":
                 block_hash_delete = connections.receive(s, 10)
                 # print peer_ip
                 if max(consensus_blockheight_list) == consensus_blockheight:
@@ -1671,7 +1671,7 @@ def worker(HOST, PORT):
                     time.sleep(float(pause_conf))
                 connections.send(s, "sendsync", 10)
 
-            elif data == "blocksfnd":
+            elif data.decode('utf-8') == "blocksfnd":
                 app_log.info("Outgoing: Node has the block")  # node should start sending txs in this step
 
                 # app_log.info("Incoming: Combined segments: " + segments)
@@ -1693,7 +1693,7 @@ def worker(HOST, PORT):
 
                 # block_hash validation end
 
-            elif data == "nonewblk":
+            elif data.decode('utf-8') == "nonewblk":
                 # digest_block() #temporary #otherwise passive node will not be able to digest
 
                 # sand and receive mempool
