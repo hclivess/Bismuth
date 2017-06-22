@@ -46,32 +46,33 @@ def hello():
     plotter.append("var canvas = new Chart(ctx, {\n")
     plotter.append("type: 'line',\n")
     plotter.append("data: {\n")
-    plotter.append("labels: " + str(map(str, axis0)) + ",\n")
+    plotter.append("labels: " + str(list(map(str, axis0))) + ",\n")
     plotter.append("datasets: [{\n")
     plotter.append("label: 'Timestamp progression',\n")
-    plotter.append("data: " + str(map(str, axis1)) + ",\n")
+    plotter.append("data: " + str(list(map(str, axis1))) + ",\n")
     plotter.append("backgroundColor: 'rgba(153, 255, 51, 0.4)'\n")
     plotter.append("}, {\n")
     plotter.append("label: 'Spending',\n")
     plotter.append("hidden: true,\n")
-    plotter.append("data: " + str(map(str, axis4)) + ",\n")
+    plotter.append("data: " + str(list(map(str, axis4))) + ",\n")
     plotter.append("backgroundColor: 'rgba(255, 153, 0, 0.4)'\n")
     plotter.append("}, {\n")
     plotter.append("label: 'Fee',\n")
     plotter.append("hidden: true,\n")
-    plotter.append("data: " + str(map(str, axis8)) + ",\n")
+    plotter.append("data: " + str(list(map(str, axis8))) + ",\n")
     plotter.append("backgroundColor: 'rgba(63, 65, 191, 0.4)'\n")
     plotter.append("}, {\n")
 
+
     plotter.append("label: 'Transaction size',\n")
     plotter.append("hidden: true,\n")
-    plotter.append("data: " + str(map(str, axis10)) + ",\n")
+    plotter.append("data: " + str(list(map(str, axis10))) + ",\n")
     plotter.append("backgroundColor: 'rgba(300, 50, 0, 0.4)'\n")
     plotter.append("}, {\n")
 
     plotter.append("label: 'Reward',\n")
     plotter.append("hidden: true,\n")
-    plotter.append("data: " + str(map(str, axis9)) + ",\n")
+    plotter.append("data: " + str(list(map(str, axis9))) + ",\n")
     plotter.append("backgroundColor: 'rgba(189, 63, 191, 0.4)'\n")
     plotter.append("}]\n")
     plotter.append("}\n")
@@ -120,8 +121,8 @@ def hello():
     html.append('<title>Transaction Explorer</title>\n')
     # html.append('<link rel="stylesheet" type="text/css" href="static/style.css">')
     html.append('<link rel = "icon" href = "static/explorer.ico" type = "image/x-icon" / >\n')
-    html.append('<script src="static/Chart.js"></script>\n')
     html.append('<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" >')
+    html.append('<script src="static/Chart.js"></script>\n')
     html.append('<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>')
     html.append('<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script >')
 
@@ -168,7 +169,7 @@ def hello():
 
     return ''.join(html)
 
-run(host='localhost', port=8080, debug=True)
+run(host='localhost', port=5492, debug=True)
 
 urls = (
     '/', 'index'
