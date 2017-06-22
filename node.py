@@ -1554,14 +1554,15 @@ def worker(HOST, PORT):
                             if tor_conf == 1:
                                 s_purge.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
                                 # s_purge = s.setblocking(0)
-                            s_purge.connect((HOST[x], PORT[x]))  # save a new peer file with only active nodes
 
+                            s_purge.connect((x[0], x[1]))  # save a new peer file with only active nodes
                             s_purge.close()
 
                             peer_list_file = open("peers.txt", 'a')
                             peer_list_file.write(str(x) + "\n")
                             peer_list_file.close()
                         except:
+                            raise #""""""""""""""""""
                             app_log.info("Not connectible")
 
                     else:
