@@ -14,7 +14,7 @@ from Crypto.Hash import SHA
 from Crypto import Random
 
 if os.path.isfile("privkey.der") is True:
-    print "privkey.der found"
+    print ("privkey.der found")
 elif os.path.isfile("privkey_encrypted.der") is True:
     print("privkey_encrypted.der found")
 
@@ -26,12 +26,12 @@ else:
 
     private_key_readable = str(key.exportKey())
     public_key_readable = str(key.publickey().exportKey())
-    address = hashlib.sha224(public_key_readable).hexdigest()  # hashed public key
+    address = hashlib.sha224(public_key_readable.encode("utf-8")).hexdigest()  # hashed public key
     # generate key pair and an address
 
-    print "Your address: " + str(address)
-    print "Your private key:\n " + str(private_key_readable)
-    print "Your public key:\n " + str(public_key_readable)
+    print ("Your address: " + str(address))
+    print ("Your private key:\n " + str(private_key_readable))
+    print ("Your public key:\n " + str(public_key_readable))
 
     pem_file = open("privkey.der", 'a')
     pem_file.write(str(private_key_readable))
@@ -50,11 +50,11 @@ key = RSA.importKey(open('privkey.der').read())
 public_key = key.publickey()
 private_key_readable = str(key.exportKey())
 public_key_readable = str(key.publickey().exportKey())
-address = hashlib.sha224(public_key_readable).hexdigest()
+address = hashlib.sha224(public_key_readable.encode("utf-8")).hexdigest()
 
-print "Your address: " + str(address)
-print "Your private key:\n " + str(private_key_readable)
-print "Your public key:\n " + str(public_key_readable)
+print ("Your address: " + str(address))
+print ("Your private key:\n " + str(private_key_readable))
+print ("Your public key:\n " + str(public_key_readable))
 public_key_hashed = base64.b64encode(public_key_readable)
 # import keys
 
@@ -66,11 +66,11 @@ signer = PKCS1_v1_5.new(key)
 signature = signer.sign(h)
 signature_enc = base64.b64encode(signature)
 print "Encoded Signature: " + str(signature_enc)
-block_hash = hashlib.sha224(str((timestamp, transaction))).hexdigest()  # first hash is simplified
-print "Transaction Hash:" + block_hash
+block_hash = hashlib.sha224(str((timestamp, transaction)).encode("utf-8")).hexdigest()  # first hash is simplified
+print ("Transaction Hash:" + block_hash)
 
 if os.path.isfile("static/ledger.db") is True:
-    print "You are beyond genesis"
+    print ("You are beyond genesis")
 else:
     # transaction processing
     con = None
@@ -87,9 +87,9 @@ else:
         mempool.commit()
         mempool.close()
 
-        print "Genesis created, don't forget to change genesis address in the config file"
+        print ("Genesis created, don't forget to change genesis address in the config file")
     except sqlite3.Error as e:
-        print "Error %s:" % e.args[0]
+        print ("Error %s:" % e.args[0])
         sys.exit(1)
     finally:
         if conn:

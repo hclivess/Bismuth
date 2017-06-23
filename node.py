@@ -1025,7 +1025,7 @@ else:
 
     private_key_readable = str(key.exportKey())
     public_key_hashed = str(key.publickey().exportKey())
-    address = hashlib.sha224(public_key_hashed).hexdigest()  # hashed public key
+    address = hashlib.sha224(public_key_hashed.encode("utf-8")).hexdigest()  # hashed public key
     # generate key pair and an address
 
     app_log.info("Your address: {}".format(address))
