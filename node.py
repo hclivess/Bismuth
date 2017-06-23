@@ -1582,7 +1582,7 @@ def worker(HOST, PORT):
                                 s_purge.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
                                 # s_purge = s.setblocking(0)
 
-                            s_purge.connect((x[0], x[1]))  # save a new peer file with only active nodes
+                            s_purge.connect((x[0], int(x[1])))  # save a new peer file with only active nodes
                             s_purge.close()
 
                             peer_list_file = open("peers.txt", 'a')
