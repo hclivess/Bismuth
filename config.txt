@@ -19,4 +19,4 @@ miner_sync=1
 allowed=127.0.0.1,192.168.0.1,any
 mining_pool=0
 pool_address=4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed
-ram=0
+ram=1

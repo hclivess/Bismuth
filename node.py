@@ -27,6 +27,7 @@ ram_done = 0
 
 def db_to_drive():
     global hdd_block
+
     app_log.warning("Moving new data to HDD")
     conn = sqlite3.connect('D:\Bismuth\static\ledger.db')
     conn.text_factory = str
@@ -1018,7 +1019,9 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
 
         finally:
             app_log.info("Digesting complete")
-            db_to_drive()
+            global ram_conf
+            if ram_conf == 1:
+                db_to_drive()
             busy = 0
 
 
