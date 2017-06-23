@@ -15,6 +15,8 @@ from Crypto.Signature import PKCS1_v1_5
 
 # load config
 global warning_list_limit_conf
+global peersync
+peersync = 0
 global ram_done
 global hdd_block
 ram_done = 0
@@ -47,31 +49,40 @@ def db_to_drive():
 def db_c_define():
     global ram_done, hdd_block
     if ram_conf == 1 and ram_done == 0:
-        app_log.warning("Moving database to RAM")
-        conn = sqlite3.connect('file::memory:?cache=shared',uri=True)
-        conn.text_factory = str
-        c = conn.cursor()
+        try:
+            app_log.warning("Moving database to RAM")
+            conn = sqlite3.connect('file::memory:?cache=shared',uri=True)
+            conn.text_factory = str
+            c = conn.cursor()
 
-        old_db = sqlite3.connect('D:\Bismuth\static\ledger.db')
-        query = "".join(line for line in old_db.iterdump())
+            old_db = sqlite3.connect('D:\Bismuth\static\ledger.db')
+            query = "".join(line for line in old_db.iterdump())
 
-        conn.executescript(query)
+            conn.executescript(query)
 
-        c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
-        hdd_block = c.fetchone()[0]
+            c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
+            hdd_block = c.fetchone()[0]
 
-        ram_done = 1
-        app_log.warning("Moved database to RAM")
+            ram_done = 1
+            app_log.warning("Moved database to RAM")
+        except Exception as e:
+            app_log.info(e)
 
     elif ram_conf == 1 and ram_done == 1:
-        conn = sqlite3.connect('file::memory:?cache=shared',uri=True)
-        conn.text_factory = str
-        c = conn.cursor()
+        try:
+            conn = sqlite3.connect('file::memory:?cache=shared',uri=True)
+            conn.text_factory = str
+            c = conn.cursor()
+        except Exception as e:
+            app_log.info(e)
 
     else:
-        conn = sqlite3.connect(ledger_path_conf)
-        conn.text_factory = str
-        c = conn.cursor()
+        try:
+            conn = sqlite3.connect(ledger_path_conf)
+            conn.text_factory = str
+            c = conn.cursor()
+        except Exception as e:
+            app_log.info(e)
 
     return conn, c
 
@@ -1162,49 +1173,53 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # send own
 
                 elif data == 'hello':
-                    with open("peers.txt", "r") as peer_list:
-                        peers = peer_list.read()
+                    global peersync
+                    if peersync == 0:
+                        peersync = 1
+                        with open("peers.txt", "r") as peer_list:
+                            peers = peer_list.read()
 
-                        connections.send(self.request, "peers", 10)
-                        connections.send(self.request, peers, 10)
+                            connections.send(self.request, "peers", 10)
+                            connections.send(self.request, peers, 10)
 
-                    peer_list.close()
+                        peer_list.close()
 
-                    # save peer if connectible
-                    peer_file = open("peers.txt", 'r')
-                    peer_tuples = []
-                    for line in peer_file:
-                        extension = re.findall("'([\d\.]+)', '([\d]+)'", line)
-                        peer_tuples.extend(extension)
-                    peer_file.close()
-                    peer_tuple = ("('" + peer_ip + "', '" + str(port) + "')")
+                        # save peer if connectible
+                        peer_file = open("peers.txt", 'r')
+                        peer_tuples = []
+                        for line in peer_file:
+                            extension = re.findall("'([\d\.]+)', '([\d]+)'", line)
+                            peer_tuples.extend(extension)
+                        peer_file.close()
+                        peer_tuple = ("('" + peer_ip + "', '" + str(port) + "')")
 
-                    try:
-                        app_log.info("Testing connectivity to: {}".format(peer_ip))
-                        peer_test = socks.socksocket()
-                        if tor_conf == 1:
-                            peer_test.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                        # peer_test.setblocking(0)
-                        peer_test.connect((str(peer_ip), int(str(port))))  # double parentheses mean tuple
-                        app_log.info("Incoming: Distant peer connectible")
+                        try:
+                            app_log.info("Testing connectivity to: {}".format(peer_ip))
+                            peer_test = socks.socksocket()
+                            if tor_conf == 1:
+                                peer_test.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+                            # peer_test.setblocking(0)
+                            peer_test.connect((str(peer_ip), int(str(port))))  # double parentheses mean tuple
+                            app_log.info("Incoming: Distant peer connectible")
 
-                        # properly end the connection
-                        peer_test.close()
-                        # properly end the connection
-                        if peer_tuple not in str(peer_tuples):  # stringing tuple is a nasty way
-                            peer_list_file = open("peers.txt", 'a')
-                            peer_list_file.write((peer_tuple) + "\n")
-                            app_log.info("Incoming: Distant peer saved to peer list")
-                            peer_list_file.close()
-                        else:
-                            app_log.info("Distant peer already in peer list")
-                    except:
-                        app_log.info("Incoming: Distant peer not connectible")
-                        pass
+                            # properly end the connection
+                            peer_test.close()
+                            # properly end the connection
+                            if peer_tuple not in str(peer_tuples):  # stringing tuple is a nasty way
+                                peer_list_file = open("peers.txt", 'a')
+                                peer_list_file.write((peer_tuple) + "\n")
+                                app_log.info("Incoming: Distant peer saved to peer list")
+                                peer_list_file.close()
+                            else:
+                                app_log.info("Distant peer already in peer list")
+                        except:
+                            app_log.info("Incoming: Distant peer not connectible")
+                            pass
+                    peersync = 0
 
-                        # raise #test only
+                            # raise #test only
 
-                    # save peer if connectible
+                        # save peer if connectible
 
                     while busy == 1:
                         time.sleep(float(pause_conf))
@@ -1558,10 +1573,10 @@ def worker(HOST, PORT):
             if data == "peers":
                 subdata = connections.receive(s, 10)
 
-                # get remote peers into tuples
+                # get remote peers into tuples (actually list)
                 server_peer_tuples = re.findall("'([\d\.]+)', '([\d]+)'", subdata)
                 app_log.info("Received following {} peers: {}".format(len((server_peer_tuples)), server_peer_tuples))
-                # get remote peers into tuples
+                # get remote peers into tuples (actually list)
 
                 # get local peers into tuples
                 peer_file = open("peers.txt", 'r')
@@ -1585,7 +1600,7 @@ def worker(HOST, PORT):
                             s_purge.close()
 
                             peer_list_file = open("peers.txt", 'a')
-                            peer_list_file.write(str(x) + "\n")
+                            peer_list_file.write("('"+x[0]+"', '"+x[1]+"')\n")
                             peer_list_file.close()
                         except:
                             pass

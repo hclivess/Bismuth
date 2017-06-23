@@ -290,7 +290,4 @@ if __name__ == '__main__':
         p.daemon = True
         p.start()
         print ("thread "+str(p)+ " started")
-    for q in instances:
-        p.join()
-        p.terminate()
 
