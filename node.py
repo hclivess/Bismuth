@@ -1020,7 +1020,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
         finally:
             app_log.info("Digesting complete")
             global ram_conf
-            if ram_conf == 1:
+            if ram_conf == 1 and block_valid == 1:
                 db_to_drive()
             busy = 0
 
