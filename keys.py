@@ -24,8 +24,8 @@ def read():
         private_key_readable = str(key.exportKey())
 
     public_key_readable = open('pubkey.der').read()
-    public_key_hashed = base64.b64encode(public_key_readable)
-    address = hashlib.sha224(public_key_readable).hexdigest()
+    public_key_hashed = base64.b64encode(public_key_readable.encode("utf-8"))
+    address = hashlib.sha224(public_key_readable.encode("utf-8")).hexdigest()
     # import keys
 
     return key, private_key_readable, public_key_readable, public_key_hashed, address
