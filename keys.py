@@ -11,7 +11,7 @@ def read():
     if not os.path.exists('privkey_encrypted.der'):
         password = ""
         key = RSA.importKey(open('privkey.der').read())
-        private_key_readable = str(key.exportKey())
+        private_key_readable = key.exportKey().decode("utf-8")
         # public_key = key.publickey()
     else:
         if not decrypt:
@@ -21,7 +21,7 @@ def read():
         encrypted_privkey = open('privkey_encrypted.der').read()
         decrypted_privkey = decrypt(password, base64.b64decode(encrypted_privkey))
         key = RSA.importKey(decrypted_privkey)  # be able to sign
-        private_key_readable = str(key.exportKey())
+        private_key_readable = key.exportKey().decode("utf-8")
 
     public_key_readable = open('pubkey.der').read()
     public_key_hashed = base64.b64encode(public_key_readable.encode("utf-8"))

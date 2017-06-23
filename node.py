@@ -69,7 +69,6 @@ def db_c_define():
         c = conn.cursor()
 
     else:
-        app_log.warning("Using flat file database")
         conn = sqlite3.connect(ledger_path_conf)
         conn.text_factory = str
         c = conn.cursor()
@@ -1023,20 +1022,20 @@ else:
     key = RSA.generate(1024, random_generator)
     public_key = key.publickey()
 
-    private_key_readable = str(key.exportKey())
-    public_key_hashed = str(key.publickey().exportKey())
-    address = hashlib.sha224(public_key_hashed.encode("utf-8")).hexdigest()  # hashed public key
+    private_key_readable = key.exportKey().decode("utf-8")
+    public_key_readable = key.exportKey().decode("utf-8")
+    address = hashlib.sha224(public_key_readable.encode("utf-8")).hexdigest()  # hashed public key
     # generate key pair and an address
 
     app_log.info("Your address: {}".format(address))
-    app_log.info("Your public key: {}".format(public_key_hashed))
+    app_log.info("Your public key: {}".format(public_key_readable))
 
     pem_file = open("privkey.der", 'a')
     pem_file.write(str(private_key_readable))
     pem_file.close()
 
     pem_file = open("pubkey.der", 'a')
-    pem_file.write(str(public_key_hashed))
+    pem_file.write(str(public_key_readable))
     pem_file.close()
 
     address_file = open("address.txt", 'a')

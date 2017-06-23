@@ -10,7 +10,7 @@ except ImportError:
     quickbismuth = None
 
 # load config
-(port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_lmit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address_conf) = options.read()
+(port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address, ram_conf) = options.read()
 # load config
 
 def check_uptodate(interval, app_log):
@@ -237,7 +237,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
 
                     #break
         except Exception as e:
-            print e
+            print (e)
             time.sleep(0.1)
             pass
 
@@ -245,7 +245,10 @@ if __name__ == '__main__':
     freeze_support()  # must be this line, dont move ahead
 
     app_log = log.log("miner.log",debug_level_conf)
+
     (key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read()
+    #print(private_key_readable.encode("utf-8"))
+
 
     if pool_conf == 1:
         address = pool_address_conf
@@ -271,7 +274,7 @@ if __name__ == '__main__':
             connected = 1
             s.close()
         except Exception as e:
-            print e
+            print (e)
             app_log.warning(
                 "Miner: Please start your node for the block to be submitted or adjust mining ip in settings.")
             time.sleep(1)
@@ -280,12 +283,13 @@ if __name__ == '__main__':
         check_uptodate(120, app_log)
 
     instances = range(int(mining_threads_conf))
-    print instances
+    print (instances)
     for q in instances:
+
         p = Process(target=miner,args=(str(q+1),private_key_readable, public_key_hashed, address))
         p.daemon = True
         p.start()
-        print "thread "+str(p)+ " started"
+        print ("thread "+str(p)+ " started")
     for q in instances:
         p.join()
         p.terminate()
