@@ -170,7 +170,3 @@ def hello():
     return ''.join(html)
 
 run(host='localhost', port=5492, debug=True)
-
-urls = (
-    '/', 'index'
-)
