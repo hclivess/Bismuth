@@ -578,40 +578,44 @@ def blocknf(block_hash_delete, peer_ip, conn, c):
 
 
 def consensus_add(peer_ip, consensus_blockheight):
-    global peer_ip_list
-    global consensus_blockheight_list
-    global consensus_percentage
-    global consensus
+    try:
+        global peer_ip_list
+        global consensus_blockheight_list
+        global consensus_percentage
+        global consensus
 
-    if peer_ip not in peer_ip_list:
-        app_log.info("Adding {} to consensus peer list".format(peer_ip))
-        peer_ip_list.append(peer_ip)
-        app_log.info("Assigning {} to peer block height list".format(consensus_blockheight))
-        consensus_blockheight_list.append(str(int(consensus_blockheight)))
-
-    if peer_ip in peer_ip_list:
-        consensus_index = peer_ip_list.index(peer_ip)  # get where in this list it is
-
-        if consensus_blockheight_list[consensus_index] == (consensus_blockheight):
-            app_log.info("Opinion of {} hasn't changed".format(peer_ip))
-
-        else:
-            del peer_ip_list[consensus_index]  # remove ip
-            del consensus_blockheight_list[consensus_index]  # remove ip's opinion
-
-            app_log.info("Updating {} in consensus".format(peer_ip))
+        if peer_ip not in peer_ip_list:
+            app_log.info("Adding {} to consensus peer list".format(peer_ip))
             peer_ip_list.append(peer_ip)
-            consensus_blockheight_list.append(int(consensus_blockheight))
+            app_log.info("Assigning {} to peer block height list".format(consensus_blockheight))
+            consensus_blockheight_list.append(str(int(consensus_blockheight)))
 
-    consensus = most_common(consensus_blockheight_list)
+        if peer_ip in peer_ip_list:
+            consensus_index = peer_ip_list.index(peer_ip)  # get where in this list it is
 
-    consensus_percentage = (float(
-        consensus_blockheight_list.count(consensus) / float(len(consensus_blockheight_list)))) * 100
+            if consensus_blockheight_list[consensus_index] == (consensus_blockheight):
+                app_log.info("Opinion of {} hasn't changed".format(peer_ip))
 
-    # app_log.info("Current outgoing connections: {}".format(len(active_pool)))
-    # app_log.info("Current block consensus: {} = {}%".format(consensus,consensus_percentage))
+            else:
+                del peer_ip_list[consensus_index]  # remove ip
+                del consensus_blockheight_list[consensus_index]  # remove ip's opinion
 
-    return
+                app_log.info("Updating {} in consensus".format(peer_ip))
+                peer_ip_list.append(peer_ip)
+                consensus_blockheight_list.append(int(consensus_blockheight))
+
+        consensus = most_common(consensus_blockheight_list)
+
+        consensus_percentage = (float(
+            consensus_blockheight_list.count(consensus) / float(len(consensus_blockheight_list)))) * 100
+
+        # app_log.info("Current outgoing connections: {}".format(len(active_pool)))
+        # app_log.info("Current block consensus: {} = {}%".format(consensus,consensus_percentage))
+
+        return
+    except Exception as e:
+        app_log.info(e)
+        raise
 
 
 def consensus_remove(peer_ip):
@@ -1541,7 +1545,6 @@ def worker(HOST, PORT):
 
     while True:
         peer_ip = s.getpeername()[0]
-        #peer_ip = "dummy"
 
         try:
             if not time.time() <= timer_operation + timeout_operation:  # return on timeout
@@ -1562,9 +1565,9 @@ def worker(HOST, PORT):
                 data = connections.receive(s, 10)
 
                 if (data == "ok"):
-                    app_log.info("Outgoing: Node protocol version matches our client")
+                    app_log.info("Outgoing: Node protocol version of {} matches our client".format(peer_ip))
                 else:
-                    app_log.info("Outgoing: Node protocol version mismatch")
+                    app_log.info("Outgoing: Node protocol version of {} mismatch".format(peer_ip))
                     return
 
                 connections.send(s, "hello", 10)
