@@ -169,4 +169,4 @@ def hello():
 
     return ''.join(html)
 
-run(host='localhost', port=5492, debug=True)
+run(host='0.0.0.0', port=5492, debug=True)

@@ -101,4 +101,4 @@ def hello():
 
     return str(''.join(html))
 
-run(host='localhost', port=1212, debug=True)
+run(host='0.0.0.0', port=1212, debug=True)
