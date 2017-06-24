@@ -20,7 +20,9 @@ peersync = 0
 global ram_done
 global hdd_block
 ram_done = 0
+
 (port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address, ram_conf) = options.read()
+
 
 
 # load config
@@ -48,28 +50,9 @@ def db_to_drive():
     hdd_block = c.fetchone()[0]
 
 def db_c_define():
-    global ram_done, hdd_block
-    if ram_conf == 1 and ram_done == 0:
-        try:
-            app_log.warning("Moving database to RAM")
-            conn = sqlite3.connect('file::memory:?cache=shared',uri=True)
-            conn.text_factory = str
-            c = conn.cursor()
+    global hdd_block
 
-            old_db = sqlite3.connect('D:\Bismuth\static\ledger.db')
-            query = "".join(line for line in old_db.iterdump())
-
-            conn.executescript(query)
-
-            c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
-            hdd_block = c.fetchone()[0]
-
-            ram_done = 1
-            app_log.warning("Moved database to RAM")
-        except Exception as e:
-            app_log.info(e)
-
-    elif ram_conf == 1 and ram_done == 1:
+    if ram_conf == 1:
         try:
             conn = sqlite3.connect('file::memory:?cache=shared',uri=True)
             conn.text_factory = str
@@ -94,12 +77,29 @@ def db_m_define():
     m = mempool.cursor()
     return mempool, m
 
-
 app_log = log.log("node.log", debug_level_conf)
 version = version_conf
 
 app_log.warning("Configuration settings loaded")
 
+if ram_conf == 1:
+    try:
+        app_log.warning("Moving database to RAM")
+        conn = sqlite3.connect('file::memory:?cache=shared', uri=True)
+        conn.text_factory = str
+        c = conn.cursor()
+
+        old_db = sqlite3.connect('D:\Bismuth\static\ledger.db')
+        query = "".join(line for line in old_db.iterdump())
+
+        conn.executescript(query)
+
+        c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
+        hdd_block = c.fetchone()[0]
+
+        app_log.warning("Moved database to RAM")
+    except Exception as e:
+        app_log.info(e)
 
 def unban(ip):
     global warning_list

@@ -131,7 +131,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 nonce = hashlib.sha224(rndfile.read(16)).hexdigest()[:32]
 
             #block_hash = hashlib.sha224(str(block_send) + db_block_hash).hexdigest()
-            mining_hash = bin_convert(hashlib.sha224(address + nonce + db_block_hash).hexdigest())
+            mining_hash = bin_convert(hashlib.sha224((address + nonce + db_block_hash).encode("utf-8")).hexdigest())
             mining_condition = bin_convert(db_block_hash)[0:diff]
 
             if mining_condition in mining_hash:
@@ -239,7 +239,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
         except Exception as e:
             print (e)
             time.sleep(0.1)
-            pass
+            raise
 
 if __name__ == '__main__':
     freeze_support()  # must be this line, dont move ahead
@@ -287,7 +287,6 @@ if __name__ == '__main__':
     for q in instances:
 
         p = Process(target=miner,args=(str(q+1),private_key_readable, public_key_hashed, address))
-        p.daemon = True
+        #p.daemon = True
         p.start()
         print ("thread "+str(p)+ " started")
-
