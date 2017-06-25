@@ -31,9 +31,9 @@ def db_to_drive():
     global hdd_block
 
     app_log.warning("Moving new data to HDD")
-    conn = sqlite3.connect(ledger_path_conf)
-    conn.text_factory = str
-    c = conn.cursor()
+    hdd = sqlite3.connect(ledger_path_conf)
+    hdd.text_factory = str
+    h = hdd.cursor()
 
     old_db = sqlite3.connect('file::memory:?cache=shared', uri=True)
 
@@ -43,11 +43,11 @@ def db_to_drive():
     for row in o.execute("SELECT * FROM transactions where block_height > {} ORDER BY block_height ASC".format(hdd_block)):
         print (row)
 
-        c.execute("INSERT INTO transactions VALUES {}".format(row))
-        conn.commit()
+        h.execute("INSERT INTO transactions VALUES {}".format(row))
+        hdd.commit()
 
-    c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
-    hdd_block = c.fetchone()[0]
+    h.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
+    hdd_block = h.fetchone()[0]
 
 def db_c_define():
     global hdd_block
@@ -567,6 +567,15 @@ def blocknf(block_hash_delete, peer_ip, conn, c):
                 commit(conn)
 
                 app_log.warning("Node {} didn't find block {}({}), rolled back".format(peer_ip, db_block_height, db_block_hash))
+
+                if ram_conf == 1:
+                    #roll back hdd too
+                    hdd = sqlite3.connect(ledger_path_conf)
+                    hdd.text_factory = str
+                    h = hdd.cursor()
+                    execute_param(h, ("DELETE FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
+                    commit(hdd)
+                    # roll back hdd too
 
 
         except:
