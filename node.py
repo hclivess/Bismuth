@@ -46,6 +46,7 @@ def db_to_drive():
 
     h.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
     hdd_block = h.fetchone()[0]
+    hdd.close()
 
 def db_c_define():
     global hdd_block
@@ -542,7 +543,7 @@ def verify(c):
 
 
 def blocknf(block_hash_delete, peer_ip, conn, c):
-    global busy
+    global busy, hdd_block
     if busy == 0:
         busy = 1
         try:
@@ -573,6 +574,8 @@ def blocknf(block_hash_delete, peer_ip, conn, c):
                     h = hdd.cursor()
                     execute_param(h, ("DELETE FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
                     commit(hdd)
+                    hdd.close()
+                    hdd_block = int(db_block_height)-1
                     # roll back hdd too
 
 
