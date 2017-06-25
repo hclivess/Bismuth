@@ -3,8 +3,8 @@ import select
 def send(sdef, data, slen):
     sdef.setblocking(0)
 
-    sdef.sendall(str(len(str(data))).zfill(slen))
-    sdef.sendall(str(data))
+    sdef.sendall(str(len(str(data))).encode("utf-8").zfill(slen))
+    sdef.sendall(str(data).encode("utf-8"))
 
 
 def receive(sdef, slen):
@@ -27,9 +27,9 @@ def receive(sdef, slen):
             chunks.append(chunk)
             bytes_recd = bytes_recd + len(chunk)
         else:
-            raise RuntimeError("Socket timeout")
+             raise RuntimeError("Socket timeout")
 
-    segments = b''.join(chunks)
+    segments = b''.join(chunks).decode("utf-8")
     # print "Received segments: "+str(segments)
 
     return segments

@@ -1,4 +1,4 @@
-import base64, sqlite3, hashlib, time, socks, keys, log, sys, connections, ast, re
+import base64, sqlite3, hashlib, time, socks, keys, log, sys, connections, ast, re, options
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
 from Crypto import Random
@@ -10,22 +10,7 @@ except ImportError:
     quickbismuth = None
 
 # load config
-lines = [line.rstrip('\n') for line in open('config.txt')]
-for line in lines:
-    if "port=" in line:
-        port = line.strip('port=')
-    if "mining_ip=" in line:
-        mining_ip_conf = line.strip("mining_ip=")
-    if "mining_threads=" in line:
-        mining_threads_conf = line.strip('mining_threads=')
-    if "diff_recalc=" in line:
-        diff_recalc_conf = line.strip('diff_recalc=')
-    if "tor=" in line:
-        tor_conf = int(line.strip('tor='))
-    if "miner_sync=" in line:
-        sync_conf = int(line.strip('miner_sync='))
-    if "debug_level=" in line:
-        debug_level_conf = line.strip('debug_level=')
+(port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address, ram_conf) = options.read()
 # load config
 
 def check_uptodate(interval, app_log):
@@ -64,7 +49,7 @@ def execute(cursor, what, app_log):
 
             cursor.execute(what)
             passed = 1
-        except Exception, e:
+        except Exception as e:
             app_log.warning("Retrying database execute due to {}".format(e))
             time.sleep(0.1)
             pass
@@ -80,7 +65,7 @@ def execute_param(cursor, what, param, app_log):
             # print what
             cursor.execute(what, param)
             passed = 1
-        except Exception, e:
+        except Exception as e:
             app_log.warning("Retrying database execute due to {}".format(e))
             time.sleep(0.1)
             pass
@@ -119,15 +104,19 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 connections.send(s, "blocklast", 10)
                 db_block_hash = ast.literal_eval(connections.receive(s, 10))[1]
 
-                connections.send(s, "diffget", 10)
-                diff = float(connections.receive(s, 10))
-
                 cycles_per_second = tries / (now - begin) if (now - begin) != 0 else 0
                 begin = now
                 tries = 0
-                app_log.warning("Thread{} {} @ {:.2f} cycles/second, difficulty: {:.2f}".format(q, db_block_hash[:10], cycles_per_second, diff))
 
-            diff = int(diff)
+                if pool_conf == 0:
+                    connections.send(s, "diffget", 10)
+                    diff = float(connections.receive(s, 10))
+                    diff = int(diff)
+
+                else: #if pooled
+                    diff = 37
+
+            app_log.warning("Thread{} {} @ {:.2f} cycles/second, difficulty: {:.2f}".format(q, db_block_hash[:10], cycles_per_second, diff))
 
             nonce = hashlib.sha224(rndfile.read(16)).hexdigest()[:32]
 
@@ -142,7 +131,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 nonce = hashlib.sha224(rndfile.read(16)).hexdigest()[:32]
 
             #block_hash = hashlib.sha224(str(block_send) + db_block_hash).hexdigest()
-            mining_hash = bin_convert(hashlib.sha224(address + nonce + db_block_hash).hexdigest())
+            mining_hash = bin_convert(hashlib.sha224((address + nonce + db_block_hash).encode("utf-8")).hexdigest())
             mining_condition = bin_convert(db_block_hash)[0:diff]
 
             if mining_condition in mining_hash:
@@ -194,63 +183,86 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 if sync_conf == 1:
                     check_uptodate(300, app_log)
 
+                if pool_conf == 1:
+                    s = socks.socksocket()
+                    s.settimeout(0.3)
+                    if tor_conf == 1:
+                        s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+                    s.connect(("127.0.0.1", 8525))  # connect to pool
+                    app_log.warning("Connected")
 
-                # connect to all nodes
-                global peer_dict
-                peer_dict = {}
-                with open("peers.txt") as f:
-                    for line in f:
-                        line = re.sub("[\)\(\:\\n\'\s]", "", line)
-                        peer_dict[line.split(",")[0]] = line.split(",")[1]
+                    app_log.warning("Miner: Proceeding to submit mined block")
 
-                    for k, v in peer_dict.items():
-                        peer_ip = k
-                        # app_log.info(HOST)
-                        peer_port = int(v)
-                        # app_log.info(PORT)
-                # connect to all nodes
+                    connections.send(s, "block", 10)
+                    connections.send(s, block_send, 10)
 
-                        try:
-                            s = socks.socksocket()
-                            s.settimeout(0.3)
-                            if tor_conf == 1:
-                                s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                            s.connect((peer_ip, int(peer_port)))  # connect to node in peerlist
-                            app_log.warning("Connected")
+                    app_log.warning("Miner: Block submitted to {}".format(peer_ip))
 
-                            app_log.warning("Miner: Proceeding to submit mined block")
+                else:
 
-                            connections.send(s, "block", 10)
-                            connections.send(s, block_send, 10)
+                    # connect to all nodes
+                    global peer_dict
+                    peer_dict = {}
+                    with open("peers.txt") as f:
+                        for line in f:
+                            line = re.sub("[\)\(\:\\n\'\s]", "", line)
+                            peer_dict[line.split(",")[0]] = line.split(",")[1]
 
-                            app_log.warning("Miner: Block submitted to {}".format(peer_ip))
-                        except Exception, e:
-                            app_log.warning("Miner: Could not submit block to {} because {}".format(peer_ip,e))
-                            pass
+                        for k, v in peer_dict.items():
+                            peer_ip = k
+                            # app_log.info(HOST)
+                            peer_port = int(v)
+                            # app_log.info(PORT)
+                    # connect to all nodes
 
-            #submit mined block to node
+                            try:
+                                s = socks.socksocket()
+                                s.settimeout(0.3)
+                                if tor_conf == 1:
+                                    s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+                                s.connect((peer_ip, int(peer_port)))  # connect to node in peerlist
+                                app_log.warning("Connected")
 
-                #break
-        except Exception, e:
-            print e
+                                app_log.warning("Miner: Proceeding to submit mined block")
+
+                                connections.send(s, "block", 10)
+                                connections.send(s, block_send, 10)
+
+                                app_log.warning("Miner: Block submitted to {}".format(peer_ip))
+                            except Exception as e:
+                                app_log.warning("Miner: Could not submit block to {} because {}".format(peer_ip,e))
+                                pass
+
+                #submit mined block to node
+
+                    #break
+        except Exception as e:
+            print (e)
             time.sleep(0.1)
-            pass
+            raise
 
 if __name__ == '__main__':
     freeze_support()  # must be this line, dont move ahead
 
     app_log = log.log("miner.log",debug_level_conf)
+
     (key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read()
+    #print(private_key_readable.encode("utf-8"))
 
-    print 'Number of arguments:', len(sys.argv), 'arguments.'
-    print 'Argument List:', str(sys.argv)
 
-    try:
-        address = sys.argv[1]
-    except:
-        address = address
+    if pool_conf == 1:
+        address = pool_address_conf
+
+    #print 'Number of arguments:', len(sys.argv), 'arguments.'
+    #print 'Argument List:', str(sys.argv)
+
+    #try:
+    #    address = sys.argv[1]
+    #except:
+    #    address = address
 
     # verify connection
+
     connected = 0
     while connected == 0:
         try:
@@ -261,8 +273,8 @@ if __name__ == '__main__':
             app_log.warning("Connected")
             connected = 1
             s.close()
-        except Exception, e:
-            print e
+        except Exception as e:
+            print (e)
             app_log.warning(
                 "Miner: Please start your node for the block to be submitted or adjust mining ip in settings.")
             time.sleep(1)
@@ -271,13 +283,10 @@ if __name__ == '__main__':
         check_uptodate(120, app_log)
 
     instances = range(int(mining_threads_conf))
-    print instances
+    print (instances)
     for q in instances:
-        p = Process(target=miner,args=(str(q+1),private_key_readable, public_key_hashed, address))
-        p.daemon = True
-        p.start()
-        print "thread "+str(p)+ " started"
-    for q in instances:
-        p.join()
-        p.terminate()
 
+        p = Process(target=miner,args=(str(q+1),private_key_readable, public_key_hashed, address))
+        #p.daemon = True
+        p.start()
+        print ("thread "+str(p)+ " started")

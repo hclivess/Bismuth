@@ -38,5 +38,18 @@ def read():
             allowed_conf = line.strip('allowed=')
         if "mining_ip=" in line:
             mining_ip_conf = line.strip("mining_ip=")
+        if "miner_sync=" in line:
+            sync_conf = int(line.strip('miner_sync='))
+        if "mining_threads=" in line:
+            mining_threads_conf = line.strip('mining_threads=')
+        if "diff_recalc=" in line:
+            diff_recalc_conf = line.strip('diff_recalc=')
+        if "mining_pool=" in line:
+            pool_conf = int(line.strip('mining_pool='))
+        if "pool_address=" in line:
+            pool_address_conf = line.strip('pool_address=')
+        if "ram=" in line:
+            ram_conf = int(line.strip('ram='))
 
-    return port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed_conf, mining_ip_conf
+
+    return port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed_conf, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address_conf, ram_conf

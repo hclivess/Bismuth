@@ -7,8 +7,8 @@ import base64, time, sqlite3, keys, sys
 
 (key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read()
 
-print 'Number of arguments:', len(sys.argv), 'arguments.'
-print 'Argument List:', str(sys.argv)
+print ('Number of arguments:', len(sys.argv), 'arguments.')
+print ('Argument List:', str(sys.argv))
 
 #get balance
 mempool = sqlite3.connect('mempool.db')
@@ -50,12 +50,12 @@ print("Transction address balance: {}".format(balance))
 try:
     amount_input = sys.argv[1]
 except:
-    amount_input = raw_input("Amount: ")
+    amount_input = input("Amount: ")
 
 try:
     recipient_input = sys.argv[2]
 except:
-    recipient_input = raw_input("Recipient: ")
+    recipient_input = input("Recipient: ")
 try:
     keep_input = sys.argv[3]
 except:
@@ -67,11 +67,11 @@ except:
 
 # hardfork fee display
 fee = '%.8f' % float(0.01 + (float(amount_input) * 0.001) + (float(len(openfield_input)) / 100000) + (float(keep_input) / 10))  # 0.1% + 0.01 dust
-print "Fee (after block 80000): {}".format(fee)
+print ("Fee: {}".format(fee))
 
-confirm = raw_input("Confirm (y/n)")
+confirm = input("Confirm (y/n)")
 if confirm != "y":
-    print "Transaction cancelled, user confirmation failed"
+    print ("Transaction cancelled, user confirmation failed")
     sys.exit(1)
 
 # hardfork fee display
@@ -94,7 +94,7 @@ else:
     transaction = (str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input), str(keep_input), str(openfield_input)) #this is signed
     #print transaction
 
-    h = SHA.new(str(transaction))
+    h = SHA.new(str(transaction).encode("utf-8"))
     signer = PKCS1_v1_5.new(key)
     signature = signer.sign(h)
     signature_enc = base64.b64encode(signature)
@@ -115,7 +115,7 @@ else:
             mempool.text_factory = str
             m = mempool.cursor()
 
-            m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)",(str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input),str(signature_enc), str(public_key_hashed), str(keep_input), str(openfield_input)))
+            m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)",(str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input),str(signature_enc.decode("utf-8")), str(public_key_hashed.decode("utf-8")), str(keep_input), str(openfield_input)))
             mempool.commit()  # Save (commit) the changes
             mempool.close()
             print("Mempool updated with a received transaction")

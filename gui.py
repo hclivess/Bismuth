@@ -1,7 +1,7 @@
 #icons created using http://www.winterdrache.de/freeware/png2ico/
 import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, sqlite3, time, base64, connections, icons, log, socks, ast, options
 
-(port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf) = options.read()
+(port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address, ram_conf) = options.read()
 
 #port = 0000
 
@@ -10,7 +10,7 @@ from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
 from simplecrypt import encrypt, decrypt
-from Tkinter import *
+from tkinter import *
 
 global key
 global encrypted
@@ -21,6 +21,11 @@ conn = sqlite3.connect('static/ledger.db')
 conn.text_factory = str
 global c
 c = conn.cursor()
+
+conn2 = sqlite3.connect('static/ledger.db')
+conn2.text_factory = str
+global c2
+c2 = conn.cursor()
 
 mempool = sqlite3.connect('mempool.db')
 mempool.text_factory = str
@@ -182,6 +187,18 @@ def decrypt_fn(destroy_this):
 def send_confirm(amount_input, recipient_input, keep_input, openfield_input):
     top10 = Toplevel()
     top10.title("Confirm")
+
+    if encode_var.get() == 1:
+        openfield_input = str(base64.b64encode(openfield_input))
+
+    #msg check
+    if msg_var.get() == 1 and encode_var.get() == 1:
+        openfield_input = "bmsg="+openfield_input
+    if msg_var.get() == 1 and encode_var.get() == 0:
+        openfield_input = "msg=" + openfield_input
+
+    #msg check
+
     fee = '%.8f' % float(0.01 + (float(amount.get()) * 0.001) + (float(len(openfield_input)) / 100000) + (float(keep_var.get()) / 10))  # 0.1% + 0.01 dust
     confirmation_dialog = Text(top10, width=100)
     confirmation_dialog.insert(INSERT, ("Amount: {}\nTo: {}\nFee: {}\nKeep Entry: {}\nOpenField:\n\n{}".format(amount_input, recipient_input,fee, keep_input, openfield_input)))
@@ -217,15 +234,11 @@ def send(amount_input, recipient_input, keep_input, openfield_input, top10):
         done = Button(top7, text="Cancel", command=top7.destroy)
         done.grid(row=1, column=0, sticky=W + E, padx=15, pady=(5, 5))
 
-    if encode_var.get() == 1:
-        openfield_input = str(base64.b64encode(openfield_input))
-
     # alias check
     if alias_cb_var.get() == 1:
         c.execute("SELECT address FROM transactions WHERE openfield = ? ORDER BY block_height ASC, timestamp ASC LIMIT 1;",("alias="+recipient_input,)) #asc for first entry
         recipient_input = c.fetchone()[0]
         app_log.warning("Fetched the following alias recipient: {}".format(recipient_input))
-
     # alias check
 
     if len(recipient_input) != 56:
@@ -244,7 +257,7 @@ def send(amount_input, recipient_input, keep_input, openfield_input, top10):
         timestamp = '%.2f' % time.time()
         transaction = (str(timestamp),str(address),str(recipient_input), '%.8f' % float(amount_input),str(keep_input),str(openfield_input)) #this is signed
 
-        h = SHA.new(str(transaction))
+        h = SHA.new(str(transaction).encode("utf-8"))
         signer = PKCS1_v1_5.new(key)
         signature = signer.sign(h)
         signature_enc = base64.b64encode(signature)
@@ -262,7 +275,7 @@ def send(amount_input, recipient_input, keep_input, openfield_input, top10):
                 app_log.warning("Client: The signature is valid, proceeding to save transaction, signature, new txhash and the public key to mempool")
 
                 #print(str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input),str(signature_enc), str(public_key_hashed), str(keep_input), str(openfield_input))
-                m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)",(str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input),str(signature_enc), str(public_key_hashed), str(keep_input), str(openfield_input)))
+                m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)",(str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input),str(signature_enc.decode("utf-8")), str(public_key_hashed.decode("utf-8")), str(keep_input), str(openfield_input)))
                 mempool.commit()  # Save (commit) the changes
                 app_log.warning("Client: Mempool updated with a received transaction")
                 #refresh() experimentally disabled
@@ -271,7 +284,7 @@ def send(amount_input, recipient_input, keep_input, openfield_input, top10):
         #enter transaction end
 
         top10.destroy()
-        refresh()
+        #refresh() experimentally disabled
 
 def app_quit():
     if conn:
@@ -305,12 +318,80 @@ def qr():
     button.pack()
     # popup
 
+
+def msg_dialogue():
+    def msg_received_get():
+
+        for row in c.execute("SELECT address,openfield,timestamp FROM transactions WHERE recipient = ? AND (openfield LIKE ? OR openfield LIKE ?) ORDER BY timestamp DESC;",(address,)+("msg="+'%',)+("bmsg="+'%',)):
+
+            # get alias
+            try:
+                c2.execute("SELECT openfield FROM transactions WHERE openfield LIKE ? AND address = ? ORDER BY block_height ASC, timestamp ASC LIMIT 1;", ("alias="+'%',row[0],))  # asc for first entry
+                msg_address = c2.fetchone()[0]
+            # get alias
+            except:
+                msg_address = row[0]
+
+            if row[1].startswith("bmsg="):
+                msg_received_digest = row[1][5:]
+                try:
+                    msg_received_digest = base64.b64decode(msg_received_digest)
+                except:
+                    msg_received_digest = "Could not decode message"
+            elif row[1].startswith("msg="):
+                msg_received_digest = row[1][4:]
+
+            msg_received.insert(INSERT, ((time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(row[2])))) + " From " + msg_address.replace("alias=", "") + ": " + msg_received_digest) + "\n")
+
+
+    def msg_sent_get():
+
+        for row in c.execute("SELECT recipient,openfield,timestamp FROM transactions WHERE address = ? AND (openfield LIKE ? OR openfield LIKE ?) ORDER BY timestamp DESC;",(address,)+("msg="+'%',)+("bmsg="+'%',)):
+            try:
+                # get alias
+                c2.execute("SELECT openfield FROM transactions WHERE openfield LIKE ? AND address = ? ORDER BY block_height ASC, timestamp ASC LIMIT 1;", ("alias="+'%',row[0],))  # asc for first entry
+                msg_recipient = c2.fetchone()[0]
+                # get alias
+            except:
+                msg_recipient = row[0]
+
+            if row[1].startswith("bmsg="):
+                msg_sent_digest = row[1][5:]
+                msg_sent_digest = base64.b64decode(msg_sent_digest)
+            elif row[1].startswith("msg="):
+                msg_sent_digest = row[1][4:]
+
+
+            msg_sent.insert(INSERT, ((time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(row[2])))) + " To " + msg_recipient.replace("alias=", "") + ": " + msg_sent_digest) + "\n")
+
+
+    # popup
+    top11 = Toplevel()
+    top11.title("Messaging")
+
+    Label(top11, text="Received:", width=20).grid(row=0)
+
+    msg_received = Text(top11, width=100, height=20, font=("TkDefaultFont", 8))
+    msg_received.grid(row=1, column=0,sticky=W, padx=5, pady=(5, 5))
+    msg_received_get()
+
+    Label(top11, text="Sent:", width=20).grid(row=2)
+
+    msg_sent = Text(top11, width=100, height=20, font=("TkDefaultFont", 8))
+    msg_sent.grid(row=3, column=0,sticky=W, padx=5, pady=(5, 5))
+    msg_sent_get()
+
+    dismiss = Button(top11, text="Dismiss", command=top11.destroy)
+    dismiss.grid(row=5, column=0, sticky=W+E, padx=15, pady=(5, 5))
+
+    # popup
+
 def sign():
     def verify_this():
         try:
             received_public_key = RSA.importKey(public_key_gui.get("1.0",END))
             verifier = PKCS1_v1_5.new(received_public_key)
-            h = SHA.new(input_text.get("1.0",END))
+            h = SHA.new(input_text.get("1.0",END).encode("utf-8"))
             received_signature_dec = base64.b64decode(output_signature.get("1.0",END))
 
             if verifier.verify(h, received_signature_dec) == True:
@@ -331,7 +412,7 @@ def sign():
             button.pack()
 
     def sign_this():
-        h = SHA.new(input_text.get("1.0",END))
+        h = SHA.new(input_text.get("1.0",END).encode("utf-8"))
         signer = PKCS1_v1_5.new(key)
         signature = signer.sign(h)
         signature_enc = base64.b64encode(signature)
@@ -409,9 +490,14 @@ def table():
         datasheet.append(db_recipient)
         db_amount = row[4]
         db_reward = row[9]
+        db_openfield = row[11]
         datasheet.append('%.8f' % (float(db_amount) + float(db_reward)))
         if float(db_reward) > 0:
             symbol = " Mined"
+        elif db_openfield.startswith("bmsg"):
+            symbol = " b64 Message"
+        elif db_openfield.startswith("msg"):
+            symbol = " Message"
         else:
             symbol = " Transaction"
         datasheet.append(symbol)
@@ -601,7 +687,7 @@ def refresh():
     #app_log.warning("Aliases: "+str(aliases))
     #aliases
 
-    fees_current_var.set("Current Fee: {}".format('%.8f' % float(fee)))
+    #fees_current_var.set("Current Fee: {}".format('%.8f' % float(fee)))
     balance_var.set("Balance: {}".format('%.8f' % float(balance)))
     debit_var.set("Spent Total: {}".format('%.8f' % float(debit)))
     credit_var.set("Received Total: {}".format('%.8f' % float(credit)))
@@ -646,9 +732,9 @@ else:
     unlocked = 0
 
 #public_key_readable = str(key.publickey().exportKey())
-public_key_readable = open('pubkey.der').read()
-public_key_hashed = base64.b64encode(public_key_readable)
-address = hashlib.sha224(public_key_readable).hexdigest()
+public_key_readable = open('pubkey.der'.encode('utf-8')).read()
+public_key_hashed = base64.b64encode(public_key_readable.encode('utf-8'))
+address = hashlib.sha224(public_key_readable.encode('utf-8')).hexdigest()
 #private_key_readable = str(key.exportKey())
 
 #frames
@@ -672,27 +758,27 @@ f6.grid(row = 2, column = 0, sticky = E, pady = 10, padx = 10)
 #buttons
 
 send_b = Button(f5, text="Send", command=lambda:send_confirm(str(amount.get()).strip(), recipient.get().strip(), str(keep_var.get()).strip(), str(openfield.get("1.0",END)).strip()), height=1, width=10)
-send_b.grid(row=8, column=0, sticky=W+E+S, pady=(45,2), padx=15)
+send_b.grid(row=7, column=0, sticky=W+E+S, pady=(45,2), padx=15)
 
 start_b = Button(f5, text="Generate QR Code", command=qr, height=1, width=10)
 if "posix" in os.name:
     start_b.configure(text="QR Disabled",state = DISABLED)
-start_b.grid(row=9, column=0, sticky=W+E+S, pady=2,padx=15)
+start_b.grid(row=8, column=0, sticky=W+E+S, pady=2,padx=15)
 
 message_b = Button(f5, text="Manual Refresh", command=refresh, height=1, width=10)
-message_b.grid(row=10, column=0, sticky=W+E+S, pady=2,padx=15)
+message_b.grid(row=9, column=0, sticky=W+E+S, pady=2,padx=15)
 
-balance_b = Button(f5, text="Send message", command=None, height=1, width=10)
-balance_b.grid(row=11, column=0, sticky=W+E+S, pady=2,padx=15)
+balance_b = Button(f5, text="Messages", command=msg_dialogue, height=1, width=10)
+balance_b.grid(row=10, column=0, sticky=W+E+S, pady=2,padx=15)
 
 sign_b = Button(f5, text="Sign Message", command=sign, height=1, width=10)
-sign_b.grid(row=12, column=0, sticky=W+E+S, pady=2,padx=15)
+sign_b.grid(row=11, column=0, sticky=W+E+S, pady=2,padx=15)
 
 sign_b = Button(f5, text="Alias Registration", command=alias, height=1, width=10)
-sign_b.grid(row=13, column=0, sticky=W+E+S, pady=2,padx=15)
+sign_b.grid(row=12, column=0, sticky=W+E+S, pady=2,padx=15)
 
 quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=10)
-quit_b.grid(row=14, column=0, sticky=W+E+S, pady=0,padx=15)
+quit_b.grid(row=13, column=0, sticky=W+E+S, pady=0,padx=15)
 
 
 encrypt_b = Button(f6, text="Encrypt", command=encrypt_get_password, height=1, width=10)
@@ -735,26 +821,27 @@ rewards_var = StringVar()
 rewards_paid_msg_label = Label(f5, textvariable=rewards_var)
 rewards_paid_msg_label.grid(row=4, column=0, sticky=N+E, padx=15)
 
-fees_current_var = StringVar()
-fees_to_pay_msg_label = Label(f5, textvariable=fees_current_var)
-fees_to_pay_msg_label.grid(row=5, column=0, sticky=N+E, padx=15)
+#fees_current_var = StringVar()
+#fees_to_pay_msg_label = Label(f5, textvariable=fees_current_var)
+#fees_to_pay_msg_label.grid(row=5, column=0, sticky=N+E, padx=15)
 
 bl_height_var = StringVar()
 block_height_label = Label(f5, textvariable=bl_height_var)
-block_height_label.grid(row=6, column=0, sticky=N+E, padx=15)
+block_height_label.grid(row=5, column=0, sticky=N+E, padx=15)
 
 diff_msg_var = StringVar()
 diff_msg_label = Label(f5, textvariable=diff_msg_var)
-diff_msg_label.grid(row=7, column=0, sticky=N+E, padx=15)
+diff_msg_label.grid(row=6, column=0, sticky=N+E, padx=15)
 
 sync_msg_var = StringVar()
 sync_msg_label = Label(f5, textvariable=sync_msg_var)
-sync_msg_label.grid(row=8, column=0, sticky=N+E, padx=15)
+sync_msg_label.grid(row=7, column=0, sticky=N+E, padx=15)
 
 keep_var = IntVar()
 encode_var = IntVar()
 alias_cb_var = IntVar()
 #encrypt_var = IntVar()
+msg_var = IntVar()
 
 #address and amount
 gui_address = Entry(f3,width=60)
@@ -776,12 +863,12 @@ openfield = Text(f3, width=60, height=5, font=("TkDefaultFont",8))
 openfield.grid(row=3, column=1,sticky=E)
 alias_cb = Checkbutton(f3, text="Alias Recipient", variable=alias_cb_var, command=None)
 alias_cb.grid(row=4, column=1,sticky=E)
-keep = Checkbutton(f3, text="Keep Entry", variable=keep_var, command=lambda : refresh())
+keep = Checkbutton(f3, text="Keep Entry", variable=keep_var)
 keep.grid(row=4, column=1,sticky=E,padx=(0,100))
-encode = Checkbutton(f3, text="Base64", variable=encode_var, command=lambda : refresh())
+encode = Checkbutton(f3, text="Base64", variable=encode_var)
 encode.grid(row=4, column=1,sticky=E,padx=(0,200))
-#encrypt = Checkbutton(f3, text="Encrypt Data", variable=encrypt_var)
-#encrypt.grid(row=4, column=1,sticky=E,padx=(0,200))
+msg = Checkbutton(f3, text="Message", variable=msg_var)
+msg.grid(row=4, column=1,sticky=E,padx=(0,275))
 
 balance_enumerator = Entry(f3, width=5)
 #address and amount

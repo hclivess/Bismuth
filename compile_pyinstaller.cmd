@@ -1,35 +1,41 @@
-del /f /s /q dist 1>nul
-rmdir /s /q dist
-del /f /s /q build 1>nul
-rmdir /s /q build
+d:
+cd D:\Bismuth
 
-pyinstaller.exe --uac-admin --noconsole --log-level=INFO gui.py --icon=graphics\icon.ico
-pyinstaller.exe --uac-admin --log-level=INFO miner.py --icon=graphics\icon.ico
-pyinstaller.exe --uac-admin --log-level=INFO ledger_explorer.py --icon=graphics\icon.ico --hidden-import=ledger_explorer
-pyinstaller.exe --uac-admin --log-level=INFO zircodice_dappie.py --icon=graphics\icon.ico
-pyinstaller.exe --uac-admin --log-level=INFO zircodice_web.py --icon=graphics\icon.ico --hidden-import=zircodice_web
-pyinstaller.exe --uac-admin --log-level=INFO node.py --icon=graphics\icon.ico
+SET var=%cd%
+ECHO %var%
 
-robocopy dist\gui dist\ /move /E
-rmdir /s /q dist\gui
-robocopy dist\miner dist\ /move /E
-rmdir /s /q dist\miner
-robocopy dist\ledger_explorer dist\ /move /E
-rmdir /s /q dist\ledger_explorer
-robocopy dist\zircodice_dappie dist\ /move /E
-rmdir /s /q dist\zircodice_dappie
-robocopy dist\zircodice_web dist\ /move /E
-rmdir /s /q dist\zircodice_web
-robocopy dist\node dist\ /move /E
+del /f /s /q %var%\dist 1>nul
+rmdir /s /q %var%\dist
+del /f /s /q %var%\build 1>nul
+rmdir /s /q %var%\build
+
+pyinstaller.exe --uac-admin --log-level=INFO %var%\miner.py --icon=%var%\graphics\icon.ico
+pyinstaller.exe --uac-admin --noconsole --log-level=INFO %var%\gui.py --icon=%var%\graphics\icon.ico
+pyinstaller.exe --uac-admin --log-level=INFO %var%\ledger_explorer.py --icon=%var%\graphics\icon.ico --hidden-import=ledger_explorer
+pyinstaller.exe --uac-admin --log-level=INFO %var%\zircodice_dappie.py --icon=%var%\graphics\icon.ico
+pyinstaller.exe --uac-admin --log-level=INFO %var%\zircodice_web.py --icon=%var%\graphics\icon.ico --hidden-import=zircodice_web
+pyinstaller.exe --uac-admin --log-level=INFO %var%\node.py --icon=%var%\graphics\icon.ico
+
+robocopy %var%\dist\gui %var%\dist\ /move /E
+rmdir /s /q %var%\dist\gui
+robocopy %var%\dist\miner %var%\dist\ /move /E
+rmdir /s /q %var%\dist\miner
+robocopy %var%\dist\ledger_explorer %var%\dist\ /move /E
+rmdir /s /q %var%\dist\ledger_explorer
+robocopy %var%\dist\zircodice_dappie %var%\dist\ /move /E
+rmdir /s /q %var%\dist\zircodice_dappie
+robocopy %var%\dist\zircodice_web %var%\dist\ /move /E
+rmdir /s /q %var%\dist\zircodice_web
+robocopy %var%\dist\node %var%\dist\ /move /E
 rmdir /s /q dist\node
 
-robocopy static dist\static
-copy peers.txt dist\peers.txt
-copy config.txt dist\config.txt
-copy ledger_explorer.cmd dist\ledger_explorer.cmd
+robocopy %var%\static %var%\dist\static
+copy %var%\peers.txt %var%\dist\peers.txt
+copy %var%\config.txt %var%\dist\config.txt
+copy %var%\ledger_explorer.cmd %var%\dist\ledger_explorer.cmd
 
-"C:\Program Files (x86)\Inno Setup 5\iscc" /q "setup.iss"
-del dist\static\ledger.db
-"C:\Program Files (x86)\Inno Setup 5\iscc" /q "setup_no_blockchain.iss"
+"C:\Program Files (x86)\Inno Setup 5\iscc" /q "%var%\setup.iss"
+del %var%\dist\static\ledger.db
+"C:\Program Files (x86)\Inno Setup 5\iscc" /q "%var%\setup_no_blockchain.iss"
 pause
 
