@@ -31,7 +31,7 @@ def db_to_drive():
     global hdd_block
 
     app_log.warning("Moving new data to HDD")
-    conn = sqlite3.connect('D:\Bismuth\static\ledger.db')
+    conn = sqlite3.connect(ledger_path_conf)
     conn.text_factory = str
     c = conn.cursor()
 
@@ -89,7 +89,7 @@ if ram_conf == 1:
         conn.text_factory = str
         c = conn.cursor()
 
-        old_db = sqlite3.connect('D:\Bismuth\static\ledger.db')
+        old_db = sqlite3.connect(ledger_path_conf)
         query = "".join(line for line in old_db.iterdump())
 
         conn.executescript(query)
