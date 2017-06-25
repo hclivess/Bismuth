@@ -686,30 +686,14 @@ def manager():
 
 
 def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
-    global busy, banlist
+    global busy, banlist, hdd_block
 
     if busy == 0:
+        block_valid = 1  # init
+
         app_log.info("Digesting started from {}".format(peer_ip))
         try:
             busy = 1
-            # remove possible duplicates
-
-            execute(c, (
-                "select block_height, count(*) FROM transactions WHERE signature != '0' GROUP by signature HAVING count(*) > 1"))
-            result = c.fetchall()
-            for x in result:
-                # print x
-                app_log.info("Removing duplicate: {}".format(x[0]))
-                execute_param(c, ("DELETE FROM transactions WHERE block_height >= ?;"), (str(x[0]),))
-                commit(conn)
-
-            if result:
-                raise ValueError("Skipping new block because duplicates were removed")
-            # remove possible duplicates
-
-            block_valid = 1  # init
-
-            # app_log.info("Incoming: Digesting incoming block: " + data)
 
             block_list = ast.literal_eval(data)
             if not any(isinstance(el, list) for el in block_list):  # if it's not a list of lists
