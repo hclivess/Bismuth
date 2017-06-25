@@ -41,10 +41,8 @@ def db_to_drive():
     o = old_db.cursor()
 
     for row in o.execute("SELECT * FROM transactions where block_height > {} ORDER BY block_height ASC".format(hdd_block)):
-        print (row)
-
         h.execute("INSERT INTO transactions VALUES {}".format(row))
-        hdd.commit()
+        commit(hdd)
 
     h.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
     hdd_block = h.fetchone()[0]
