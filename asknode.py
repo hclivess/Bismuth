@@ -12,7 +12,7 @@ print ("Current difficulty: {}".format(diff))
 
 #get balance
 connections.send(s, "balanceget", 10)
-connections.send(s, "f1e5133ff3685f70b9291922dd99a891d1ff4d6226fc6404a16729bf", 10)
+connections.send(s, "7d5c2999f9a2e44c23e7b2b73b4c0edae308e9d39482bf44da481edc", 10)
 #balance_ledger = connections.receive(s, 10)
 balance_ledger_mempool = ast.literal_eval(connections.receive(s, 10))
 print ("Address balance with mempool: {}".format(balance_ledger_mempool[0]))

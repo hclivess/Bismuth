@@ -128,14 +128,12 @@ def ledger_convert():
         unique_addressess = set(addresses)
 
         for x in set(unique_addressess):
-            h.execute("SELECT sum(amount) FROM transactions WHERE recipient = ? AND block_height < ?  AND keep = '0';",
-                      (x,) + (str(int(db_block_height) - depth),))
+            h.execute("SELECT sum(amount) FROM transactions WHERE recipient = ? AND block_height < ?  AND keep = '0';", (x,) + (str(int(db_block_height) - depth),))
             credit = h.fetchone()[0]
             if credit == None:
                 credit = 0
 
-            h.execute("SELECT sum(amount),sum(fee),sum(reward) FROM transactions WHERE address = ? AND block_height < ?  AND keep = '0';",
-                      (x,) + (str(int(db_block_height) - depth),))
+            h.execute("SELECT sum(amount),sum(fee),sum(reward) FROM transactions WHERE address = ? AND block_height < ?  AND keep = '0';", (x,) + (str(int(db_block_height) - depth),))
             result = h.fetchall()
             debit = result[0][0]
             if debit == None:
@@ -150,8 +148,8 @@ def ledger_convert():
                 rewards = 0
 
             end_balance = credit - debit - fees + rewards
-            # app_log.info("Address: "+ str(x))
-            # app_log.info("Balance: " + str(end_balance))
+            app_log.info("Address: "+ str(x))
+            app_log.info("Balance: " + str(end_balance))
 
             if end_balance > 0:
                 timestamp = str(time.time())
@@ -160,8 +158,7 @@ def ledger_convert():
                     "0", "0"))
                 hyper.commit()
 
-        h.execute("DELETE FROM transactions WHERE block_height < ? AND address != 'Hyperblock' AND keep = '0';",
-                  (str(int(db_block_height) - depth),))
+        h.execute("DELETE FROM transactions WHERE block_height < ? AND address != 'Hyperblock' AND keep = '0';", (str(int(db_block_height) - depth),))
         hyper.commit()
 
         h.execute("VACUUM")
@@ -743,6 +740,10 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                         block_valid = 0
                     else:
                         app_log.info("Valid signature")
+
+                    if received_keep != "1" or received_keep != "0":
+                        block_valid = 0
+                        error_msg = "Wrong keep value"
 
                     if float(received_amount) < 0:
                         block_valid = 0
