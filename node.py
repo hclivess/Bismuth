@@ -148,15 +148,15 @@ def ledger_convert():
                 rewards = 0
 
             end_balance = credit - debit - fees + rewards
-            app_log.info("Address: "+ str(x))
-            app_log.info("Credit: " + str(credit))
-            app_log.info("Debit: " + str(debit))
-            app_log.info("Fees: " + str(fees))
-            app_log.info("Rewards: " + str(rewards))
-            app_log.info("Balance: " + str(end_balance))
+            #app_log.info("Address: "+ str(x))
+            #app_log.info("Credit: " + str(credit))
+            #app_log.info("Debit: " + str(debit))
+            #app_log.info("Fees: " + str(fees))
+            #app_log.info("Rewards: " + str(rewards))
+            #app_log.info("Balance: " + str(end_balance))
 
             # test for keep positivity
-            h.execute("SELECT block_height from transactions where recipient = ?", (x,))
+            h.execute("SELECT block_height FROM transactions WHERE address OR recipient = ?", (x,))
             keep_is = 1
             try:
                 h.fetchone()[0]
