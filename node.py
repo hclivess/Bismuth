@@ -23,8 +23,6 @@ ram_done = 0
 
 (port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address, ram_conf) = options.read()
 
-
-
 # load config
 
 def db_to_drive():
@@ -80,25 +78,6 @@ app_log = log.log("node.log", debug_level_conf)
 version = version_conf
 
 app_log.warning("Configuration settings loaded")
-
-if ram_conf == 1:
-    try:
-        app_log.warning("Moving database to RAM")
-        conn = sqlite3.connect('file::memory:?cache=shared', uri=True)
-        conn.text_factory = str
-        c = conn.cursor()
-
-        old_db = sqlite3.connect(ledger_path_conf)
-        query = "".join(line for line in old_db.iterdump())
-
-        conn.executescript(query)
-
-        c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
-        hdd_block = c.fetchone()[0]
-
-        app_log.warning("Moved database to RAM")
-    except Exception as e:
-        app_log.info(e)
 
 def unban(ip):
     global warning_list
@@ -1077,6 +1056,25 @@ else:
 
 if hyperblocks_conf == 1:
     ledger_convert()
+
+if ram_conf == 1:
+    try:
+        app_log.warning("Moving database to RAM")
+        conn = sqlite3.connect('file::memory:?cache=shared', uri=True)
+        conn.text_factory = str
+        c = conn.cursor()
+
+        old_db = sqlite3.connect(ledger_path_conf)
+        query = "".join(line for line in old_db.iterdump())
+
+        conn.executescript(query)
+
+        c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
+        hdd_block = c.fetchone()[0]
+
+        app_log.warning("Moved database to RAM")
+    except Exception as e:
+        app_log.info(e)
 
 mempool, m = db_m_define()
 conn, c = db_c_define()
