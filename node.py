@@ -118,7 +118,7 @@ def ledger_convert():
         h.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
         db_block_height = h.fetchone()[0]
 
-        for row in h.execute("SELECT * FROM transactions WHERE block_height < ? AND keep = '0' ORDER BY block_height;",
+        for row in h.execute("SELECT * FROM transactions WHERE (block_height < ? AND keep = '0') ORDER BY block_height;",
                              (str(int(db_block_height) - depth),)):
             db_address = row[2]
             db_recipient = row[3]
@@ -128,12 +128,12 @@ def ledger_convert():
         unique_addressess = set(addresses)
 
         for x in set(unique_addressess):
-            h.execute("SELECT sum(amount) FROM transactions WHERE recipient = ? AND block_height < ?  AND keep = '0';", (x,) + (str(int(db_block_height) - depth),))
+            h.execute("SELECT sum(amount) FROM transactions WHERE (recipient = ? AND block_height < ?  AND keep = '0');", (x,) + (str(int(db_block_height) - depth),))
             credit = h.fetchone()[0]
             if credit == None:
                 credit = 0
 
-            h.execute("SELECT sum(amount),sum(fee),sum(reward) FROM transactions WHERE address = ? AND block_height < ?  AND keep = '0';", (x,) + (str(int(db_block_height) - depth),))
+            h.execute("SELECT sum(amount),sum(fee),sum(reward) FROM transactions WHERE (address = ? AND block_height < ? AND keep = '0');", (x,) + (str(int(db_block_height) - depth),))
             result = h.fetchall()
             debit = result[0][0]
             if debit == None:
@@ -155,7 +155,16 @@ def ledger_convert():
             app_log.info("Rewards: " + str(rewards))
             app_log.info("Balance: " + str(end_balance))
 
-            if end_balance > 0:
+            # test for keep positivity
+            h.execute("SELECT block_height from transactions where recipient = ?", (x,))
+            keep_is = 1
+            try:
+                h.fetchone()[0]
+            except:
+                keep_is = 0
+            # test for keep positivity
+
+            if end_balance > 0 or keep_is == 1:
                 timestamp = str(time.time())
                 h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
                     db_block_height - depth - 1, timestamp, "Hyperblock", x, '%.8f' % float(end_balance), "0", "0", "0", "0", "0",
