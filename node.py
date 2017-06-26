@@ -322,8 +322,8 @@ def mempool_merge(data, peer_ip, conn, c, mempool, m):
                     except:
                         pass
 
-                    if mempool_keep != "1" or mempool_keep != "0":
-                        app_log.info = ("Wrong keep value")
+                    if mempool_keep != "1" and mempool_keep != "0":
+                        app_log.info = ("Wrong keep value {}".format(mempool_keep))
                         acceptable = 0
 
                     if mempool_address != hashlib.sha224(base64.b64decode(mempool_public_key_hashed)).hexdigest():
@@ -758,9 +758,10 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                     else:
                         app_log.info("Valid signature")
 
-                    if received_keep != "1" or received_keep != "0":
+                    if received_keep != "1" and received_keep != "0":
                         block_valid = 0
-                        error_msg = "Wrong keep value"
+                        #print (type(received_keep))
+                        error_msg = "Wrong keep value {}".format(received_keep)
 
                     if float(received_amount) < 0:
                         block_valid = 0
