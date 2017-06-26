@@ -115,7 +115,7 @@ else:
             mempool.text_factory = str
             m = mempool.cursor()
 
-            m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)",(str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input),str(signature_enc.decode("utf-8")), str(public_key_hashed.decode("utf-8")), str(keep_input), str(openfield_input)))
+            m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)",(str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input),str(signature_enc.decode("utf-8")), str(public_key_hashed), str(keep_input), str(openfield_input)))
             mempool.commit()  # Save (commit) the changes
             mempool.close()
             print("Mempool updated with a received transaction")

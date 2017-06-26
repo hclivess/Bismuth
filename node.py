@@ -149,6 +149,10 @@ def ledger_convert():
 
             end_balance = credit - debit - fees + rewards
             app_log.info("Address: "+ str(x))
+            app_log.info("Credit: " + str(credit))
+            app_log.info("Debit: " + str(debit))
+            app_log.info("Fees: " + str(fees))
+            app_log.info("Rewards: " + str(rewards))
             app_log.info("Balance: " + str(end_balance))
 
             if end_balance > 0:
