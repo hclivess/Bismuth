@@ -309,6 +309,10 @@ def mempool_merge(data, peer_ip, conn, c, mempool, m):
                     except:
                         pass
 
+                    if mempool_keep != "1" or mempool_keep != "0":
+                        app_log.info = ("Wrong keep value")
+                        acceptable = 0
+
                     if mempool_address != hashlib.sha224(base64.b64decode(mempool_public_key_hashed)).hexdigest():
                         app_log.info("Attempt to spend from a wrong address")
                         acceptable = 0
