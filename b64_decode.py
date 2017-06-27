@@ -1,0 +1,7 @@
+import base64, hashlib
+decode = "LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUlHZk1BMEdDU3FHU0liM0RRRUJBUVVBQTRHTkFEQ0JpUUtCZ1FER2FxZ0FSNk5sNjN0c3FZWW1VV3pmbEJ1QgpvRnR5VG9mNTVpaGdVWmdMSHF0SHB2VkVzdnh1Sk1ORkExYVZkUk1oUnhVTWVmK2wvc2V0VDJUaDZkREg2ZXU2CnY4bGF3YjI3ZG12elBlZ2F3M1oxNE5IcG9Oaml6WVl3MVgxK2EwZE84NDhiZ1AwbGc2RVdiNUNKWXJNYmxIOTcKdlV6TFQvNDFJNUZoYzEyc0VRSURBUUFCCi0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLQ=="
+pubkey = (base64.b64decode(decode).decode("utf-8"))
+print(pubkey)
+
+address = hashlib.sha224(pubkey.encode("utf-8")).hexdigest()  # hashed public key
+print(address)

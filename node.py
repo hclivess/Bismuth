@@ -1033,7 +1033,7 @@ else:
     public_key = key.publickey()
 
     private_key_readable = key.exportKey().decode("utf-8")
-    public_key_readable = key.exportKey().decode("utf-8")
+    public_key_readable = key.publickey().exportKey().decode("utf-8")
     address = hashlib.sha224(public_key_readable.encode("utf-8")).hexdigest()  # hashed public key
     # generate key pair and an address
 

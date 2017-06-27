@@ -1,15 +1,16 @@
 from Crypto.PublicKey import RSA
-import hashlib, base64
+import hashlib
 
-key = RSA.importKey(open('privkey.der').read())
+key = RSA.importKey(open('privkey.der'.encode("utf-8")).read())
+
 public_key = key.publickey()
-private_key_readable = str(key.exportKey())
-public_key_readable = str(key.publickey().exportKey())
-address = hashlib.sha224(base64.b64encode(public_key_readable)).hexdigest()
+private_key_readable = key.exportKey().decode("utf-8")
+public_key_readable = key.publickey().exportKey().decode("utf-8")
+address = hashlib.sha224(public_key_readable.encode("utf-8")).hexdigest()  # hashed public key
 
-print private_key_readable
-print public_key_readable
-print address
+print (private_key_readable)
+print (public_key_readable)
+print (address)
 
 
 
