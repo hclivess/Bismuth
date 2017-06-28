@@ -97,7 +97,7 @@ def warning(sdef, ip):
     if warning_list.count(ip) >= warning_list_limit_conf:
         banlist.append(ip)
         sdef.close()
-        raise ValueError("{} banned".format(ip))  # rework this
+        app_log.info("{} banned".format(ip))  # rework this
 
 
 def ledger_convert():

@@ -55,28 +55,22 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             db_block_hash = blocklast[7]
             # get last hash
 
-
-            print (nonce)
-            print (pool_address)
-            print (db_block_hash)
-
             mining_hash = bin_convert(hashlib.sha224((pool_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
             mining_condition = bin_convert(db_block_hash)[0:diff]
 
             if mining_condition in mining_hash:
-                app_log.info("Difficulty requirement satisfied")
+                app_log.info("Difficulty requirement satisfied for mining")
                 app_log.warning("Sending block to node {}".format(peer_ip))
 
                 connections.send(s, "block", 10)
                 connections.send(s, block_send, 10)
 
-            else:
-                mining_condition = bin_convert(db_block_hash)[0:20]
 
-                if mining_condition in mining_hash:
-                    app_log.info("Difficulty requirement satisfied for saving shares")
-                else:
-                    app_log.info("Difficulty requirement not satisfied for anything")
+            mining_condition = bin_convert(db_block_hash)[0:37] #floor set by pool
+            if mining_condition in mining_hash:
+                app_log.info("Difficulty requirement satisfied for saving shares")
+            else:
+                app_log.info("Difficulty requirement not satisfied for anything")
 
             s.close()
 
