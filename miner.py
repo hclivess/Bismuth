@@ -116,7 +116,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 else: #if pooled
                     diff = 37
 
-            app_log.warning("Thread{} {} @ {:.2f} cycles/second, difficulty: {:.2f}".format(q, db_block_hash[:10], cycles_per_second, diff))
+            #app_log.warning("Thread{} {} @ {:.2f} cycles/second, difficulty: {:.2f}".format(q, db_block_hash[:10], cycles_per_second, diff))
 
             nonce = hashlib.sha224(rndfile.read(16)).hexdigest()[:32]
 
@@ -166,7 +166,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 transaction_reward = (str(block_timestamp), str(address[:56]), str(address[:56]), '%.8f' % float(0), "0", str(nonce))  # only this part is signed!
                 # print transaction_reward
 
-                h = SHA.new(str(transaction_reward))
+                h = SHA.new(str(transaction_reward).encode("utf-8"))
                 signer = PKCS1_v1_5.new(key)
                 signature = signer.sign(h)
                 signature_enc = base64.b64encode(signature)
@@ -196,7 +196,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                     connections.send(s, "block", 10)
                     connections.send(s, block_send, 10)
 
-                    app_log.warning("Miner: Block submitted to {}".format(peer_ip))
+                    app_log.warning("Miner: Block submitted to pool")
 
                 else:
 
@@ -251,7 +251,7 @@ if __name__ == '__main__':
 
 
     if pool_conf == 1:
-        address = pool_address_conf
+        address = pool_address
 
     #print 'Number of arguments:', len(sys.argv), 'arguments.'
     #print 'Argument List:', str(sys.argv)
