@@ -198,7 +198,7 @@ def commit(cursor):
         try:
             cursor.commit()
             passed = 1
-        except:
+        except Exception as e:
             app_log.info("Retrying database execute due to " + str(e))
             time.sleep(random.random())
             pass
@@ -426,8 +426,7 @@ def mempool_merge(data, peer_ip, conn, c, mempool, m):
                             app_log.info("Mempool: Cannot afford to pay fees")
                         # verify signatures and balances
                         else:
-                            execute_param(m, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (
-                                str(mempool_timestamp), str(mempool_address), str(mempool_recipient), str(mempool_amount),
+                            execute_param(m, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (str(mempool_timestamp), str(mempool_address), str(mempool_recipient), str(mempool_amount),
                                 str(mempool_signature_enc), str(mempool_public_key_hashed), str(mempool_keep), str(mempool_openfield)))
                             app_log.info("Mempool updated with a received transaction")
                             commit(mempool)  # Save (commit) the changes

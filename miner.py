@@ -83,6 +83,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
     begin = time.time()
 
     if pool_conf == 1:
+        self_address = address
         address = pool_address
 
     if quickbismuth:
@@ -117,7 +118,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                     diff = int(diff)
 
                 else: #if pooled
-                    diff = 20
+                    diff = 37
 
             #app_log.warning("Thread{} {} @ {:.2f} cycles/second, difficulty: {:.2f}".format(q, db_block_hash[:10], cycles_per_second, diff))
 
@@ -197,6 +198,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                     app_log.warning("Miner: Proceeding to submit mined block to pool")
 
                     connections.send(s, "block", 10)
+                    connections.send(s, self_address, 10)
                     connections.send(s, block_send, 10)
 
                     app_log.warning("Miner: Block submitted to pool")
