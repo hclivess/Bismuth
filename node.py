@@ -200,6 +200,7 @@ def commit(cursor):
             passed = 1
         except:
             app_log.info("Retrying database execute due to " + str(e))
+            time.sleep(random.random())
             pass
             # secure commit for slow nodes
 
@@ -216,7 +217,7 @@ def execute(cursor, what):
             passed = 1
         except Exception as e:
             app_log.info("Retrying database execute due to {}".format(e))
-            time.sleep(0.1)
+            time.sleep(random.random())
             pass
             # secure execute for slow nodes
     return cursor
