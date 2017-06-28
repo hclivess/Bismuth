@@ -116,24 +116,24 @@ while True:
 
 
             # create transactions for missing payouts
-            timestamp = str(time.time())
+            timestamp = '%.2f' % time.time()
 
             payout_amount = float(bet_amount * 2) - percentage(1, bet_amount)
             payout_openfield = "payout for " + tx_signature[:8]
             payout_keep = 0
             fee = float(0.01 + (float(payout_amount) * 0.001) + (float(len(payout_openfield)) / 100000) + (float(payout_keep) / 10))  # 0.1% + 0.01 dust
 
-            transaction = (str(timestamp), str(address), str(payout_address), '%.8f' % (payout_amount-fee), str(payout_keep), str(payout_openfield))
-            print (transaction)
+            transaction = (str(timestamp), str(address), str(payout_address), '%.8f' % float(payout_amount-fee), str(payout_keep), str(payout_openfield))  # this is signed
+            print(transaction)
 
             h = SHA.new(str(transaction).encode("utf-8"))
             signer = PKCS1_v1_5.new(key)
             signature = signer.sign(h)
             signature_enc = base64.b64encode(signature)
-            #print("Encoded Signature: {}".format(signature_enc))
+            print("Encoded Signature: {}".format(signature_enc))
 
             verifier = PKCS1_v1_5.new(key)
-            if verifier.verify(h, signature) == True:
+            if verifier.verify(h, base64.b64decode(signature_enc)) == True:
                 print("Signature OK")
 
             mempool = sqlite3.connect('mempool.db')
@@ -151,8 +151,7 @@ while True:
                     print ("Database locked, retrying")
                     pass
                 except TypeError: #not there
-                    m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (
-                    str(timestamp), str(address), str(payout_address), '%.8f' % (float(payout_amount-fee)), str(signature_enc.decode("utf-8")), str(public_key_hashed), "0",
+                    m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (str(timestamp), str(address), str(payout_address), '%.8f' % (float(payout_amount-fee)), str(signature_enc.decode("utf-8")), str(public_key_hashed), "0",
                     str("payout for " + tx_signature[:8])))
                     mempool.commit()  # Save (commit) the changes
                     mempool.close()

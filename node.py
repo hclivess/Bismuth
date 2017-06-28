@@ -359,7 +359,7 @@ def mempool_merge(data, peer_ip, conn, c, mempool, m):
                     h = SHA.new(str((mempool_timestamp, mempool_address, mempool_recipient, mempool_amount, mempool_keep, mempool_openfield)).encode("utf-8"))
                     if not verifier.verify(h, mempool_signature_dec):
                         acceptable = 0
-                        app_log.info("Wrong signature in mempool insert attempt")
+                        app_log.info("Wrong signature in mempool insert attempt: {}".format(transaction))
                     # verify signature
 
                     if acceptable == 1:

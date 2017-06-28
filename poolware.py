@@ -66,6 +66,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 
             else:
                 #save shares
+                print ("saved shares for {}".format(peer_ip))
                 pass
 
             s.close()
