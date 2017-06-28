@@ -82,6 +82,9 @@ def miner(q,privatekey_readable, public_key_hashed, address):
     firstrun = True
     begin = time.time()
 
+    if pool_conf == 1:
+        address = pool_address
+
     if quickbismuth:
         app_log.warning('Using QuickBismuth: ' + quickbismuth.__version__)
 
@@ -102,7 +105,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 s.connect((mining_ip_conf, int(port)))  # connect to local node
 
                 connections.send(s, "blocklast", 10)
-                db_block_hash = ast.literal_eval(connections.receive(s, 10))[1]
+                db_block_hash = ast.literal_eval(connections.receive(s, 10))[7]
 
                 cycles_per_second = tries / (now - begin) if (now - begin) != 0 else 0
                 begin = now
@@ -114,7 +117,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                     diff = int(diff)
 
                 else: #if pooled
-                    diff = 37
+                    diff = 20
 
             #app_log.warning("Thread{} {} @ {:.2f} cycles/second, difficulty: {:.2f}".format(q, db_block_hash[:10], cycles_per_second, diff))
 
@@ -171,9 +174,9 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 signature = signer.sign(h)
                 signature_enc = base64.b64encode(signature)
 
-                block_send.append((str(block_timestamp), str(address[:56]), str(address[:56]), '%.8f' % float(0), str(signature_enc),
-                                   str(public_key_hashed), "0", str(nonce)))  # mining reward tx
-                # claim reward
+                block_send.append((str(block_timestamp), str(address[:56]), str(address[:56]), '%.8f' % float(0), str(signature_enc.decode("utf-8")), str(public_key_hashed), "0", str(nonce)))  # mining reward tx
+                app_log.warning("Block to send: {}".format(block_send))
+                #  claim reward
                 # include data
 
                 tries = 0
@@ -191,7 +194,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                     s.connect(("127.0.0.1", 8525))  # connect to pool
                     app_log.warning("Connected")
 
-                    app_log.warning("Miner: Proceeding to submit mined block")
+                    app_log.warning("Miner: Proceeding to submit mined block to pool")
 
                     connections.send(s, "block", 10)
                     connections.send(s, block_send, 10)
@@ -248,10 +251,6 @@ if __name__ == '__main__':
 
     (key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read()
     #print(private_key_readable.encode("utf-8"))
-
-
-    if pool_conf == 1:
-        address = pool_address
 
     #print 'Number of arguments:', len(sys.argv), 'arguments.'
     #print 'Argument List:', str(sys.argv)

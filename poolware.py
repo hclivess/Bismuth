@@ -33,7 +33,9 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 
             app_log.warning("Received a block from miner {}".format(peer_ip))
             # receive block
-            block_send = connections.receive(self.request, 10)
+            block_send = ast.literal_eval(connections.receive(self.request, 10))
+            print (block_send)
+            nonce = (block_send[-1][7])
 
             # check difficulty
             diff = int(diffget())
@@ -49,13 +51,16 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 
             # get last hash
             connections.send(s, "blocklast", 10)
-            hash_last = ast.literal_eval(connections.receive(s, 10))
-            miner_address = hash_last[2]
-            nonce = hash_last[11]
-            db_block_hash = hash_last[7]
+            blocklast = ast.literal_eval(connections.receive(s, 10))
+            db_block_hash = blocklast[7]
             # get last hash
 
-            mining_hash = bin_convert(hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
+
+            print (nonce)
+            print (pool_address)
+            print (db_block_hash)
+
+            mining_hash = bin_convert(hashlib.sha224((pool_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
             mining_condition = bin_convert(db_block_hash)[0:diff]
 
             if mining_condition in mining_hash:
@@ -66,7 +71,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                 connections.send(s, block_send, 10)
 
             else:
-                mining_condition = bin_convert(db_block_hash)[0:37]
+                mining_condition = bin_convert(db_block_hash)[0:20]
 
                 if mining_condition in mining_hash:
                     app_log.info("Difficulty requirement satisfied for saving shares")
