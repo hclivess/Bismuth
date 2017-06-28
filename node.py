@@ -448,6 +448,8 @@ def mempool_merge(data, peer_ip, conn, c, mempool, m):
 
 
 def purge_old_peers():
+    drop_peer_dict = []
+
     global peer_dict
     peer_dict = {}
     with open("peers.txt") as f:
@@ -472,14 +474,14 @@ def purge_old_peers():
             except:
                 if purge_conf == 1:
                     # remove from peerlist if not connectible
-                    del peer_dict[key]
-
+                    drop_peer_dict.append(key)
                     print("Removed formerly active peer {} {}".format(HOST, PORT))
                 pass
 
     output = open("peers.txt", 'w')
     for key, value in peer_dict.items():
-        output.write("('" + key + "', '" + value + "')\n")
+        if key not in drop_peer_dict:
+            output.write("('" + key + "', '" + value + "')\n")
     output.close()
 
 
@@ -1862,4 +1864,5 @@ if __name__ == "__main__":
     except Exception as e:
         app_log.info("Node already running?")
         app_log.info(e)
+        raise
 sys.exit()

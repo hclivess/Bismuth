@@ -144,7 +144,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 app_log.warning("Starting up...")
 
 if __name__ == "__main__":
-    HOST, PORT = "localhost", 8525
+    HOST, PORT = "0.0.0.0", 8525
 
     # Create the server, binding to localhost on port 9999
     server = socketserver.TCPServer((HOST, PORT), MyTCPHandler)
