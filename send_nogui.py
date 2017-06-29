@@ -98,7 +98,7 @@ else:
     signer = PKCS1_v1_5.new(key)
     signature = signer.sign(h)
     signature_enc = base64.b64encode(signature)
-    print("Encoded Signature: {}".format(signature_enc))
+    print("Encoded Signature: {}".format(signature_enc.decode("utf-8")))
 
     verifier = PKCS1_v1_5.new(key)
     if verifier.verify(h, signature) == True:
