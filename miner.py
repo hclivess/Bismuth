@@ -188,20 +188,26 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                     check_uptodate(300, app_log)
 
                 if pool_conf == 1:
-                    s = socks.socksocket()
-                    s.settimeout(0.3)
-                    if tor_conf == 1:
-                        s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                    s.connect((mining_ip_conf, 8525))  # connect to pool
-                    app_log.warning("Connected")
+                    try:
+                        s = socks.socksocket()
+                        s.settimeout(0.3)
+                        if tor_conf == 1:
+                            s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+                        s.connect((mining_ip_conf, 8525))  # connect to pool
+                        app_log.warning("Connected")
 
-                    app_log.warning("Miner: Proceeding to submit mined block to pool")
+                        app_log.warning("Miner: Proceeding to submit mined block to pool")
 
-                    connections.send(s, "block", 10)
-                    connections.send(s, self_address, 10)
-                    connections.send(s, block_send, 10)
+                        connections.send(s, "block", 10)
+                        connections.send(s, self_address, 10)
+                        connections.send(s, block_send, 10)
 
-                    app_log.warning("Miner: Block submitted to pool")
+                        app_log.warning("Miner: Block submitted to pool")
+
+                    except Exception as e:
+                        app_log.warning("Miner: Could not submit block to pool because {}".format(peer_ip, e))
+                        pass
+
 
                 else:
 
@@ -252,17 +258,6 @@ if __name__ == '__main__':
     app_log = log.log("miner.log",debug_level_conf)
 
     (key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read()
-    #print(private_key_readable.encode("utf-8"))
-
-    #print 'Number of arguments:', len(sys.argv), 'arguments.'
-    #print 'Argument List:', str(sys.argv)
-
-    #try:
-    #    address = sys.argv[1]
-    #except:
-    #    address = address
-
-    # verify connection
 
     connected = 0
     while connected == 0:
