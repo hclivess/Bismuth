@@ -103,7 +103,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 s = socks.socksocket()
                 if tor_conf == 1:
                     s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                s.connect((mining_ip_conf, int(port)))  # connect to local node
+                s.connect(("127.0.0.1", int(port)))  # connect to local node
 
                 connections.send(s, "blocklast", 10)
                 db_block_hash = ast.literal_eval(connections.receive(s, 10))[7]
@@ -151,7 +151,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 s = socks.socksocket()
                 if tor_conf == 1:
                     s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                s.connect((mining_ip_conf, int(port)))  # connect to config.txt node
+                s.connect(("127.0.0.1", int(port)))  # connect to config.txt node
                 connections.send(s, "mpget", 10)
                 data = connections.receive(s, 10)
 
@@ -270,14 +270,13 @@ if __name__ == '__main__':
             s = socks.socksocket()
             if tor_conf == 1:
                 s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-            s.connect((mining_ip_conf, int(port)))
+            s.connect(("127.0.0.1", int(port)))
             app_log.warning("Connected")
             connected = 1
             s.close()
         except Exception as e:
             print (e)
-            app_log.warning(
-                "Miner: Please start your node for the block to be submitted or adjust mining ip in settings.")
+            app_log.warning("Miner: Please start your node for the block to be submitted or adjust mining ip in settings.")
             time.sleep(1)
     # verify connection
     if sync_conf == 1:

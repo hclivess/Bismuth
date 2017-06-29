@@ -89,9 +89,11 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             s.connect(("127.0.0.1", int(port)))  # connect to local node,
             # sock
 
-            app_log.warning("Received a block from miner {}".format(peer_ip))
+
             # receive block
             miner_address = connections.receive(self.request, 10)
+            app_log.warning("Received a block from miner {} ({})".format(peer_ip,miner_address))
+
             block_send = ast.literal_eval(connections.receive(self.request, 10))
             nonce = (block_send[-1][7])
 
