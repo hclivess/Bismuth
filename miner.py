@@ -205,7 +205,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                         app_log.warning("Miner: Block submitted to pool")
 
                     except Exception as e:
-                        app_log.warning("Miner: Could not submit block to pool because {}".format(peer_ip, e))
+                        app_log.warning("Miner: Could not submit block to pool")
                         pass
 
 

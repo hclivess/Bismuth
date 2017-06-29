@@ -127,7 +127,6 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                 connections.send(s, "block", 10)
                 connections.send(s, block_send, 10)
 
-
             mining_condition = bin_convert(db_block_hash)[0:37] #floor set by pool
             if mining_condition in mining_hash:
                 app_log.warning("Difficulty requirement satisfied for saving shares")
