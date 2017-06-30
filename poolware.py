@@ -63,7 +63,7 @@ if not os.path.exists('shares.db'):
     shares.text_factory = str
     s = shares.cursor()
     execute(s, ("CREATE TABLE IF NOT EXISTS shares (address, shares, timestamp)"))
-    app_log.warning("Created mempool file")
+    app_log.warning("Created shares file")
     s.close()
     # create empty mempool
 

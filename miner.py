@@ -112,14 +112,15 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 begin = now
                 tries = 0
 
+                connections.send(s, "diffget", 10)
+                diff = float(connections.receive(s, 10))
+                diff = int(diff)
+
                 if pool_conf == 0:
-                    connections.send(s, "diffget", 10)
-                    diff = float(connections.receive(s, 10))
                     diff = int(diff)
 
+
                 else: #if pooled
-                    connections.send(s, "diffget", 10)
-                    diff_req = float(connections.receive(s, 10))
                     diff_req = int(diff)
 
                     diff = 50
