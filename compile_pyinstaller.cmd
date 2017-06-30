@@ -1,3 +1,5 @@
+set __COMPAT_LAYER=Win7
+
 d:
 cd D:\Bismuth
 

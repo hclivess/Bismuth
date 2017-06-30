@@ -83,10 +83,10 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         if data == "block":  # from miner to node
 
             # sock
-            s = socks.socksocket()
+            s1 = socks.socksocket()
             if tor_conf == 1:
-                s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-            s.connect(("127.0.0.1", int(port)))  # connect to local node,
+                s1.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+            s1.connect(("127.0.0.1", int(port)))  # connect to local node,
             # sock
 
 
@@ -103,15 +103,15 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 
             # check difficulty
             app_log.warning("Asking node for difficulty")
-            diff = int(diffget(s))
+            diff = int(diffget(s1))
             app_log.warning("Calculated difficulty: {}".format(diff))
             # check difficulty
 
             app_log.warning("Asking node for last block")
 
             # get last block
-            connections.send(s, "blocklast", 10)
-            blocklast = ast.literal_eval(connections.receive(s, 10))
+            connections.send(s1, "blocklast", 10)
+            blocklast = ast.literal_eval(connections.receive(s1, 10))
             db_block_hash = blocklast[7]
             # get last block
 
@@ -124,10 +124,44 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                 app_log.warning("Difficulty requirement satisfied for mining")
                 app_log.warning("Sending block to node {}".format(peer_ip))
 
-                connections.send(s, "block", 10)
-                connections.send(s, block_send, 10)
+                global peer_dict
+                peer_dict = {}
+                with open("peers.txt") as f:
+                    for line in f:
+                        line = re.sub("[\)\(\:\\n\'\s]", "", line)
+                        peer_dict[line.split(",")[0]] = line.split(",")[1]
 
-            mining_condition = bin_convert(db_block_hash)[0:37] #floor set by pool
+                    for k, v in peer_dict.items():
+                        peer_ip = k
+                        # app_log.info(HOST)
+                        peer_port = int(v)
+                        # app_log.info(PORT)
+                        # connect to all nodes
+
+                        try:
+                            s = socks.socksocket()
+                            s.settimeout(0.3)
+                            if tor_conf == 1:
+                                s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+                            s.connect((peer_ip, int(peer_port)))  # connect to node in peerlist
+                            app_log.warning("Connected")
+
+                            app_log.warning("Miner: Proceeding to submit mined block")
+
+                            connections.send(s, "block", 10)
+                            connections.send(s, block_send, 10)
+
+                            app_log.warning("Miner: Block submitted to {}".format(peer_ip))
+                        except Exception as e:
+                            app_log.warning("Miner: Could not submit block to {} because {}".format(peer_ip, e))
+                            pass
+
+            if diff < 50:
+                diff_shares = diff
+            else:
+                diff_shares = 50
+
+            mining_condition = bin_convert(db_block_hash)[0:diff_shares] #floor set by pool
             if mining_condition in mining_hash:
                 app_log.warning("Difficulty requirement satisfied for saving shares")
                 timestamp = '%.2f' % time.time()
@@ -143,7 +177,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             else:
                 app_log.warning("Difficulty requirement not satisfied for anything")
 
-            s.close()
+            s1.close()
 
 app_log.warning("Starting up...")
 

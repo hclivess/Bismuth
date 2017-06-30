@@ -118,7 +118,14 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                     diff = int(diff)
 
                 else: #if pooled
-                    diff = 37
+                    connections.send(s, "diffget", 10)
+                    diff_req = float(connections.receive(s, 10))
+                    diff_req = int(diff)
+
+                    diff = 50
+                    if diff_req < diff:
+                        diff = diff_req
+
 
                 app_log.warning("Thread{} {} @ {:.2f} cycles/second, difficulty: {:.2f}".format(q, db_block_hash[:10], cycles_per_second, diff))
 

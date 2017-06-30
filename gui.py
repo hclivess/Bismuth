@@ -131,9 +131,10 @@ def encrypt_fn(destroy_this):
 
     if password == password_conf:
 
+
         ciphertext = encrypt(password, private_key_readable)
 
-        pem_file = open("privkey_encrypted.der", 'a')
+        pem_file = open("privkey_encrypted.der", 'wb')
         pem_file.write(base64.b64encode(ciphertext))
         pem_file.close()
 
@@ -172,11 +173,10 @@ def decrypt_fn(destroy_this):
     global key
     try:
         password = password_var_dec.get()
-        encrypted_privkey = open('privkey_encrypted.der').read()
+        encrypted_privkey = open('privkey_encrypted.der', 'rb').read()
         decrypted_privkey = decrypt(password, base64.b64decode(encrypted_privkey))
 
         key = RSA.importKey(decrypted_privkey)  # be able to sign
-        # private_key_readable = str(key.exportKey())
         # print key
         decrypt_b.configure(text="Unlocked", state=DISABLED)
         lock_b.configure(text="Lock", state=NORMAL)
@@ -726,7 +726,7 @@ password_var_dec = StringVar()
 # import keys
 if not os.path.exists('privkey_encrypted.der'):
     key = RSA.importKey(open('privkey.der').read())
-    private_key_readable = str(key.exportKey())
+    private_key_readable = key.exportKey().decode("utf-8")
     # public_key = key.publickey()
     encrypted = 0
     unlocked = 1
@@ -738,7 +738,6 @@ else:
 public_key_readable = open('pubkey.der'.encode('utf-8')).read()
 public_key_hashed = base64.b64encode(public_key_readable.encode('utf-8'))
 address = hashlib.sha224(public_key_readable.encode('utf-8')).hexdigest()
-# private_key_readable = str(key.exportKey())
 
 # frames
 f2 = Frame(root, height=100, width=100)
