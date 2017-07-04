@@ -995,10 +995,19 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                                     test_dev_reward = c.fetchone()[0]
                                 except:
                                     if transaction == block_transactions[-1]:  # put at the end
-                                        execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
-                                            "0", str(time_now), "Development Reward", str(genesis_conf),
-                                            str(reward), "0", "0", "0", "0", "0", "0", str(block_height_new)))
+                                        execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", ("0", str(time_now), "Development Reward", str(genesis_conf), str(reward), "0", "0", "0", "0", "0", "0", str(block_height_new)))
                                         commit(conn)
+
+                                        # also save to hdd
+                                        app_log.warning("Saving reward to HDD")
+                                        hdd = sqlite3.connect(ledger_path_conf)
+                                        hdd.text_factory = str
+                                        h = hdd.cursor()
+                                        execute_param(h, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", ("0", str(time_now), "Development Reward", str(genesis_conf), str(reward), "0", "0", "0", "0", "0", "0", str(block_height_new)))
+                                        commit(hdd)
+                                        hdd.close()
+                                        # also save to hdd
+
                                         # dev reward
 
                         app_log.warning("Block {} valid and saved from {}".format(block_height_new, peer_ip))
