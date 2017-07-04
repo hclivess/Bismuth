@@ -97,6 +97,8 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             block_send = ast.literal_eval(connections.receive(self.request, 10))
             nonce = (block_send[-1][7])
 
+            app_log.warning("Combined mined segments: {}".format(block_send))
+
             #print(nonce)
             #print(block_send)
             #print(miner_address)
