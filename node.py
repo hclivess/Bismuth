@@ -998,15 +998,16 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                                         execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", ("0", str(time_now), "Development Reward", str(genesis_conf), str(reward), "0", "0", "0", "0", "0", "0", str(block_height_new)))
                                         commit(conn)
 
-                                        # also save to hdd
-                                        app_log.warning("Saving reward to HDD")
-                                        hdd = sqlite3.connect(ledger_path_conf)
-                                        hdd.text_factory = str
-                                        h = hdd.cursor()
-                                        execute_param(h, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", ("0", str(time_now), "Development Reward", str(genesis_conf), str(reward), "0", "0", "0", "0", "0", "0", str(block_height_new)))
-                                        commit(hdd)
-                                        hdd.close()
-                                        # also save to hdd
+                                        if ram_conf == 1:
+                                            # also save to hdd
+                                            app_log.warning("Saving reward to HDD")
+                                            hdd = sqlite3.connect(ledger_path_conf)
+                                            hdd.text_factory = str
+                                            h = hdd.cursor()
+                                            execute_param(h, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", ("0", str(time_now), "Development Reward", str(genesis_conf), str(reward), "0", "0", "0", "0", "0", "0", str(block_height_new)))
+                                            commit(hdd)
+                                            hdd.close()
+                                            # also save to hdd
 
                                         # dev reward
 
