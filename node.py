@@ -216,7 +216,7 @@ def execute(cursor, what):
             cursor.execute(what)
             passed = 1
         except Exception as e:
-            app_log.info("Retrying database execute due to {}".format(e))
+            app_log.warning("Retrying database execute due to {}".format(e))
             time.sleep(random.random())
             pass
             # secure execute for slow nodes
@@ -233,7 +233,7 @@ def execute_param(cursor, what, param):
             cursor.execute(what, param)
             passed = 1
         except Exception as e:
-            app_log.info("Retrying database execute due to " + str(e))
+            app_log.warning("Retrying database execute due to " + str(e))
             time.sleep(0.1)
             pass
             # secure execute for slow nodes
@@ -681,7 +681,7 @@ def manager():
 
 
 def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
-    global busy, banlist, hdd_block
+    global busy, banlist, hdd_block, ram_conf
 
     if busy == 0:
         block_valid = 1  # init
@@ -1027,7 +1027,6 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
 
         finally:
             app_log.info("Digesting complete")
-            global ram_conf
             if ram_conf == 1 and block_valid == 1:
                 db_to_drive()
             busy = 0
