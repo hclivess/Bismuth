@@ -663,6 +663,7 @@ def manager():
             app_log.info("Only {} connections active, resetting the try list and banlist".format(len(active_pool)))
             del tried[:]
             del banlist[:]
+            del warning_list[:]
 
         app_log.info("Connection manager: Banlist: {}".format(banlist))
         app_log.info("Connection manager: Syncing nodes: {}".format(syncing))
