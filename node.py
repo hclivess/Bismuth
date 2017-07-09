@@ -1620,7 +1620,7 @@ def worker(HOST, PORT):
                             app_log.info("Outgoing: {} is a new peer, saving if connectible".format(x))
                             try:
                                 s_purge = socks.socksocket()
-                                s_purge.settimeout(0.1)
+                                s_purge.settimeout(0.2)
                                 if tor_conf == 1:
                                     s_purge.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
                                     # s_purge = s.setblocking(0)
