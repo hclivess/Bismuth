@@ -673,8 +673,8 @@ def manager():
         app_log.warning("Connection manager: Current connections: {}".format(len(active_pool)))
         if consensus:  # once the consensus is filled
             app_log.warning("Connection manager: Consensus: {} = {}%".format(consensus, consensus_percentage))
-            app_log.info("Connection manager: Consensus IP list: {}".format(peer_ip_list))
-            app_log.info("Connection manager: Consensus opinion list: {}".format(consensus_blockheight_list))
+            app_log.warning("Connection manager: Consensus IP list: {}".format(peer_ip_list))
+            app_log.warning("Connection manager: Consensus opinion list: {}".format(consensus_blockheight_list))
 
         # app_log.info(threading.enumerate() all threads)
         time.sleep(int(pause_conf) * 10)
@@ -1202,53 +1202,49 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # send own
 
                 elif data == 'hello':
-                    global peersync
-                    if peersync == 0:
-                        peersync = 1
-                        with open("peers.txt", "r") as peer_list:
-                            peers = peer_list.read()
+                    with open("peers.txt", "r") as peer_list:
+                        peers = peer_list.read()
 
-                            connections.send(self.request, "peers", 10)
-                            connections.send(self.request, peers, 10)
+                        connections.send(self.request, "peers", 10)
+                        connections.send(self.request, peers, 10)
 
-                        peer_list.close()
+                    peer_list.close()
 
-                        # save peer if connectible
-                        peer_file = open("peers.txt", 'r')
-                        peer_tuples = []
-                        for line in peer_file:
-                            extension = re.findall("'([\d\.]+)', '([\d]+)'", line)
-                            peer_tuples.extend(extension)
-                        peer_file.close()
-                        peer_tuple = ("('" + peer_ip + "', '" + str(port) + "')")
+                    # save peer if connectible
+                    peer_file = open("peers.txt", 'r')
+                    peer_tuples = []
+                    for line in peer_file:
+                        extension = re.findall("'([\d\.]+)', '([\d]+)'", line)
+                        peer_tuples.extend(extension)
+                    peer_file.close()
+                    peer_tuple = ("('" + peer_ip + "', '" + str(port) + "')")
 
-                        try:
-                            app_log.info("Testing connectivity to: {}".format(peer_ip))
-                            peer_test = socks.socksocket()
-                            if tor_conf == 1:
-                                peer_test.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                            # peer_test.setblocking(0)
-                            peer_test.connect((str(peer_ip), int(str(port))))  # double parentheses mean tuple
-                            app_log.info("Incoming: Distant peer connectible")
+                    try:
+                        app_log.info("Testing connectivity to: {}".format(peer_ip))
+                        peer_test = socks.socksocket()
+                        if tor_conf == 1:
+                            peer_test.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+                        # peer_test.setblocking(0)
+                        peer_test.connect((str(peer_ip), int(str(port))))  # double parentheses mean tuple
+                        app_log.info("Incoming: Distant peer connectible")
 
-                            # properly end the connection
-                            peer_test.close()
-                            # properly end the connection
-                            if peer_tuple not in str(peer_tuples):  # stringing tuple is a nasty way
-                                peer_list_file = open("peers.txt", 'a')
-                                peer_list_file.write((peer_tuple) + "\n")
-                                app_log.info("Incoming: Distant peer saved to peer list")
-                                peer_list_file.close()
-                            else:
-                                app_log.info("Distant peer already in peer list")
-                        except:
-                            app_log.info("Incoming: Distant peer not connectible")
-                            pass
-                    peersync = 0
+                        # properly end the connection
+                        peer_test.close()
+                        # properly end the connection
+                        if peer_tuple not in str(peer_tuples):  # stringing tuple is a nasty way
+                            peer_list_file = open("peers.txt", 'a')
+                            peer_list_file.write((peer_tuple) + "\n")
+                            app_log.info("Incoming: Distant peer saved to peer list")
+                            peer_list_file.close()
+                        else:
+                            app_log.info("Distant peer already in peer list")
+                    except:
+                        app_log.info("Incoming: Distant peer not connectible")
+                        pass
 
-                            # raise #test only
+                        # raise #test only
 
-                        # save peer if connectible
+                    # save peer if connectible
 
                     while busy == 1:
                         time.sleep(float(pause_conf))
@@ -1572,7 +1568,8 @@ def worker(HOST, PORT):
             if not time.time() <= timer_operation + timeout_operation:  # return on timeout
                 warning_list.append(peer_ip)  # add warning
 
-                raise ValueError("Outgoing: Operation timeout from {}".format(peer_ip))
+                app_log.info("Outgoing: Operation timeout from {}".format(peer_ip))
+                return
 
             mempool, m = db_m_define()
             conn, c = db_c_define()
@@ -1600,42 +1597,49 @@ def worker(HOST, PORT):
 
             if data == "peers":
                 subdata = connections.receive(s, 10)
+                global peersync
+                if peersync == 0:
+                    peersync = 1
 
-                # get remote peers into tuples (actually list)
-                server_peer_tuples = re.findall("'([\d\.]+)', '([\d]+)'", subdata)
-                app_log.info("Received following {} peers: {}".format(len((server_peer_tuples)), server_peer_tuples))
-                # get remote peers into tuples (actually list)
+                    # get remote peers into tuples (actually list)
+                    server_peer_tuples = re.findall("'([\d\.]+)', '([\d]+)'", subdata)
+                    app_log.info("Received following {} peers: {}".format(len((server_peer_tuples)), server_peer_tuples))
+                    # get remote peers into tuples (actually list)
 
-                # get local peers into tuples
-                peer_file = open("peers.txt", 'r')
-                peer_tuples = []
-                for line in peer_file:
-                    extension = re.findall("'([\d\.]+)', '([\d]+)'", line)
-                    peer_tuples.extend(extension)
-                peer_file.close()
-                # get local peers into tuples
+                    # get local peers into tuples
+                    peer_file = open("peers.txt", 'r')
+                    peer_tuples = []
+                    for line in peer_file:
+                        extension = re.findall("'([\d\.]+)', '([\d]+)'", line)
+                        peer_tuples.extend(extension)
+                    peer_file.close()
+                    # get local peers into tuples
 
-                for x in server_peer_tuples:
-                    if x not in peer_tuples:
-                        app_log.info("Outgoing: {} is a new peer, saving if connectible".format(x))
-                        try:
-                            s_purge = socks.socksocket()
-                            if tor_conf == 1:
-                                s_purge.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                                # s_purge = s.setblocking(0)
+                    for x in set(server_peer_tuples): #set removes duplicates
+                        if x not in peer_tuples:
+                            app_log.info("Outgoing: {} is a new peer, saving if connectible".format(x))
+                            try:
+                                s_purge = socks.socksocket()
+                                s_purge.settimeout(0.1)
+                                if tor_conf == 1:
+                                    s_purge.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+                                    # s_purge = s.setblocking(0)
 
-                            s_purge.connect((x[0], int(x[1])))  # save a new peer file with only active nodes
-                            s_purge.close()
+                                s_purge.connect((x[0], int(x[1])))  # save a new peer file with only active nodes
+                                s_purge.close()
 
-                            peer_list_file = open("peers.txt", 'a')
-                            peer_list_file.write("('"+x[0]+"', '"+x[1]+"')\n")
-                            peer_list_file.close()
-                        except:
-                            pass
-                            app_log.info("Not connectible")
+                                peer_list_file = open("peers.txt", 'a')
+                                peer_list_file.write("('"+x[0]+"', '"+x[1]+"')\n")
+                                peer_list_file.close()
+                            except:
+                                pass
+                                app_log.info("Not connectible")
 
-                    else:
-                        app_log.info("Outgoing: {} is not a new peer".format(x))
+                        else:
+                            app_log.info("Outgoing: {} is not a new peer".format(x))
+                else:
+                    app_log.info("Outgoing: Peer sync occupied")
+                peersync = 0
 
             elif data == "sync":
                 try:
@@ -1796,7 +1800,8 @@ def worker(HOST, PORT):
                 connections.send(s, "sendsync", 10)
 
             else:
-                raise ValueError("Unexpected error, received: {}".format(data))
+                app_log.info("Unexpected error, received: {}".format(data))
+                return
 
             if not time.time() <= timer_operation + timeout_operation:
                 timer_operation = time.time()  # reset timer
