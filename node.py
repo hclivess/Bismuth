@@ -660,8 +660,9 @@ def manager():
 
                 # client thread handling
         if len(active_pool) < thread_limit_conf / 3:
-            app_log.info("Only {} connections active, resetting the try list".format(len(active_pool)))
+            app_log.info("Only {} connections active, resetting the try list and banlist".format(len(active_pool)))
             del tried[:]
+            del banlist[:]
 
         app_log.info("Connection manager: Banlist: {}".format(banlist))
         app_log.info("Connection manager: Syncing nodes: {}".format(syncing))
