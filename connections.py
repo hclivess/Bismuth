@@ -1,4 +1,5 @@
 import select
+from twisted.internet import reactor, protocol
 
 def send(sdef, data, slen):
     sdef.setblocking(0)
