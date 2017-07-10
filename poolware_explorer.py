@@ -72,7 +72,10 @@ def hello():
 
     view.append("</table>")
 
-    block_threshold = min(output_timestamps)
+    try:
+        block_threshold = min(output_timestamps)
+    except:
+        block_threshold = time.time()
 
     print(address, block_threshold)
 
