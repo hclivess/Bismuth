@@ -678,7 +678,7 @@ def manager():
             app_log.warning("Connection manager: Consensus opinion list: {}".format(consensus_blockheight_list))
 
         #last block
-        c.execute("SELECT timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
+        execute(c, "SELECT timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
         last_block_ago = float(c.fetchone()[0])
         app_log.warning("Connection manager: Last block was generated {} minutes ago".format('%.2f' % ((time.time() - last_block_ago) / 60)))
         # last block
