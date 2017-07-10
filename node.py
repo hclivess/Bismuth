@@ -29,11 +29,11 @@ def db_to_drive():
     global hdd_block
 
     app_log.warning("Moving new data to HDD")
-    hdd = sqlite3.connect(ledger_path_conf)
+    hdd = sqlite3.connect(ledger_path_conf,timeout=1)
     hdd.text_factory = str
     h = hdd.cursor()
 
-    old_db = sqlite3.connect('file::memory:?cache=shared', uri=True)
+    old_db = sqlite3.connect('file::memory:?cache=shared', uri=True,timeout=1)
 
     old_db.text_factory = str
     o = old_db.cursor()
@@ -51,7 +51,7 @@ def db_c_define():
 
     if ram_conf == 1:
         try:
-            conn = sqlite3.connect('file::memory:?cache=shared',uri=True)
+            conn = sqlite3.connect('file::memory:?cache=shared',uri=True,timeout=1)
             conn.text_factory = str
             c = conn.cursor()
         except Exception as e:
@@ -59,7 +59,7 @@ def db_c_define():
 
     else:
         try:
-            conn = sqlite3.connect(ledger_path_conf)
+            conn = sqlite3.connect(ledger_path_conf,timeout=1)
             conn.text_factory = str
             c = conn.cursor()
         except Exception as e:
@@ -69,7 +69,7 @@ def db_c_define():
 
 
 def db_m_define():
-    mempool = sqlite3.connect('mempool.db')
+    mempool = sqlite3.connect('mempool.db',timeout=1)
     mempool.text_factory = str
     m = mempool.cursor()
     return mempool, m
@@ -564,7 +564,7 @@ def blocknf(block_hash_delete, peer_ip, conn, c):
 
                 if ram_conf == 1:
                     #roll back hdd too
-                    hdd = sqlite3.connect(ledger_path_conf)
+                    hdd = sqlite3.connect(ledger_path_conf,timeout=1)
                     hdd.text_factory = str
                     h = hdd.cursor()
                     execute_param(h, ("DELETE FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
@@ -1008,7 +1008,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                                         if ram_conf == 1:
                                             # also save to hdd
                                             app_log.warning("Saving reward to HDD")
-                                            hdd = sqlite3.connect(ledger_path_conf)
+                                            hdd = sqlite3.connect(ledger_path_conf,timeout=1)
                                             hdd.text_factory = str
                                             h = hdd.cursor()
                                             execute_param(h, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", ("0", str(time_now), "Development Reward", str(genesis_conf), str(reward), "0", "0", "0", "0", "0", "0", str(block_height_new)))
@@ -1081,7 +1081,7 @@ app_log.warning("Local address: {}".format(address))
 
 if not os.path.exists('mempool.db'):
     # create empty mempool
-    mempool = sqlite3.connect('mempool.db')
+    mempool = sqlite3.connect('mempool.db',timeout=1)
     mempool.text_factory = str
     m = mempool.cursor()
     execute(m, ("CREATE TABLE IF NOT EXISTS transactions (timestamp, address, recipient, amount, signature, public_key, keep, openfield)"))
@@ -1097,11 +1097,11 @@ if hyperblocks_conf == 1:
 if ram_conf == 1:
     try:
         app_log.warning("Moving database to RAM")
-        conn = sqlite3.connect('file::memory:?cache=shared', uri=True)
+        conn = sqlite3.connect('file::memory:?cache=shared', uri=True,timeout=1)
         conn.text_factory = str
         c = conn.cursor()
 
-        old_db = sqlite3.connect(ledger_path_conf)
+        old_db = sqlite3.connect(ledger_path_conf,timeout=1)
         query = "".join(line for line in old_db.iterdump())
 
         conn.executescript(query)
