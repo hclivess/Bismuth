@@ -63,7 +63,7 @@ if not os.path.exists('shares.db'):
     shares = sqlite3.connect('shares.db')
     shares.text_factory = str
     s = shares.cursor()
-    execute(s, ("CREATE TABLE IF NOT EXISTS shares (address, shares, timestamp)"))
+    execute(s, ("CREATE TABLE IF NOT EXISTS shares (address, shares, timestamp, paid)"))
     app_log.warning("Created shares file")
     s.close()
     # create empty mempool
@@ -173,7 +173,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                 shares.text_factory = str
                 s = shares.cursor()
 
-                s.execute("INSERT INTO shares VALUES (?,?,?)", (str(miner_address), str(1), timestamp))
+                s.execute("INSERT INTO shares VALUES (?,?,?,?)", (str(miner_address), str(1), timestamp, "0"))
                 shares.commit()
                 s.close()
 
