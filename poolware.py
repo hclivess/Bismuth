@@ -119,7 +119,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 
             app_log.warning("Last Hash: {}".format(db_block_hash))
 
-            mining_hash = bin_convert(hashlib.sha224((pool_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
+            mining_hash = bin_convert(hashlib.sha224((address + nonce + db_block_hash).encode("utf-8")).hexdigest())
             mining_condition = bin_convert(db_block_hash)[0:diff]
 
             if mining_condition in mining_hash:

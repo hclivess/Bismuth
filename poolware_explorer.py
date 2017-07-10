@@ -32,11 +32,11 @@ def hello():
     output_shares = []
     output_timestamps = []
     view = []
-    view.append("Welcome to the opensource public Bismuth tool ran by the developer")
+    view.append("Welcome to the opensource public Bismuth pool ran by the developer")
     view.append("<br>Config details in your config.txt:")
     view.append("<br>mining_ip=94.113.207.67")
     view.append("<br>mining_pool=1")
-    view.append("<br>pool_address=4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed<br><br><br>")
+    view.append("<br>pool_address={}<br><br><br>".format(address))
 
     view.append('<head>\n')
     view.append('<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" >')
@@ -76,8 +76,6 @@ def hello():
         block_threshold = min(output_timestamps)
     except:
         block_threshold = time.time()
-
-    print(address, block_threshold)
 
     view.append("<table class='table table-responsive'>")
     view.append("<th>Last blocks mined by this pool</th>")
