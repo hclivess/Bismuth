@@ -81,9 +81,11 @@ def hello():
 
     view.append("<table class='table table-responsive'>")
     view.append("<th>Last blocks mined by this pool</th>")
+    view.append("<th>Reward</th>")
     view.append("<tr>")
-    for row in c.execute("SELECT block_height FROM transactions WHERE address = ? AND CAST(timestamp AS INTEGER) >= ? AND reward != 0", (address,)+(block_threshold,)):
+    for row in c.execute("SELECT * FROM transactions WHERE address = ? AND CAST(timestamp AS INTEGER) >= ? AND reward != 0", (address,)+(block_threshold,)):
         view.append("<td>{}</td>".format(row[0]))
+        view.append("<td>{}</td>".format(row[9]))
         view.append("<tr>")
     view.append("</table>")
 
