@@ -649,8 +649,7 @@ def manager():
             HOST = key
             # app_log.info(HOST)
             PORT = int(value)
-            if threading.active_count() < thread_limit_conf and str(HOST + ":" + str(PORT)) not in tried and str(
-                                    HOST + ":" + str(PORT)) not in active_pool and str(HOST) not in banlist:
+            if threading.active_count() < thread_limit_conf and str(HOST + ":" + str(PORT)) not in tried and str(HOST + ":" + str(PORT)) not in active_pool and str(HOST) not in banlist:
                 app_log.info("Will attempt to connect to {}:{}".format(HOST, PORT))
                 tried.append(HOST + ":" + str(PORT))
                 t = threading.Thread(target=worker, args=(HOST, PORT))  # threaded connectivity to nodes here
@@ -677,6 +676,12 @@ def manager():
             app_log.warning("Connection manager: Consensus: {} = {}%".format(consensus, consensus_percentage))
             app_log.warning("Connection manager: Consensus IP list: {}".format(peer_ip_list))
             app_log.warning("Connection manager: Consensus opinion list: {}".format(consensus_blockheight_list))
+
+        #last block
+        c.execute("SELECT timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
+        last_block_ago = float(c.fetchone()[0])
+        app_log.warning("Connection manager: Last block was generated {} minutes ago".format('%.2f' % ((time.time() - last_block_ago) / 60)))
+        # last block
 
         # app_log.info(threading.enumerate() all threads)
         time.sleep(int(pause_conf) * 10)
