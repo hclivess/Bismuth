@@ -1563,37 +1563,35 @@ def worker(HOST, PORT):
         s.connect((HOST, PORT))
         app_log.info("Outgoing: Connected to {}".format(this_client))
         peer_ip = s.getpeername()[0]
-    except:
-        app_log.info("Could not connect to {}".format(this_client))
-        return
 
-    # communication starter
+        # communication starter
 
-    connections.send(s, "version", 10)
-    connections.send(s, version, 10)
+        connections.send(s, "version", 10)
+        connections.send(s, version, 10)
 
-    data = connections.receive(s, 10)
+        data = connections.receive(s, 10)
 
-    if (data == "ok"):
-        app_log.info("Outgoing: Node protocol version of {} matches our client".format(peer_ip))
-    else:
-        raise ValueError("Outgoing: Node protocol version of {} mismatch".format(peer_ip))
+        if (data == "ok"):
+            app_log.info("Outgoing: Node protocol version of {} matches our client".format(peer_ip))
+        else:
+            raise ValueError("Outgoing: Node protocol version of {} mismatch".format(peer_ip))
 
-    connections.send(s, "hello", 10)
+        connections.send(s, "hello", 10)
 
-    # communication starter
+        # communication starter
 
-    if this_client not in active_pool:
-        active_pool.append(this_client)
-        app_log.info("Current active pool: {}".format(active_pool))
-
+    except Exception as e:
+        app_log.info("Could not connect to {} because {}".format(this_client,e))
+        return #can return here, because no lists are affected yet
 
     while True:
         try:
+            if this_client not in active_pool:
+                active_pool.append(this_client)
+                app_log.info("Current active pool: {}".format(active_pool))
+
             mempool, m = db_m_define()
             conn, c = db_c_define()
-
-
 
             data = connections.receive(s, 10)  # receive data, one and the only root point
 
