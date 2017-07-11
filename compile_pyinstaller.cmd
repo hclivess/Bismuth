@@ -36,8 +36,6 @@ copy %var%\peers.txt %var%\dist\peers.txt
 copy %var%\config.txt %var%\dist\config.txt
 copy %var%\ledger_explorer.cmd %var%\dist\ledger_explorer.cmd
 
-robocopy python35.dll %var%\dist\ /move /E
-
 "C:\Program Files (x86)\Inno Setup 5\iscc" /q "%var%\setup.iss"
 del %var%\dist\static\ledger.db
 "C:\Program Files (x86)\Inno Setup 5\iscc" /q "%var%\setup_no_blockchain.iss"
