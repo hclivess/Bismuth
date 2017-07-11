@@ -583,6 +583,7 @@ def blocknf(block_hash_delete, peer_ip, conn, c):
 
 
 def consensus_add(peer_ip, consensus_blockheight):
+
     try:
         global peer_ip_list
         global consensus_blockheight_list
@@ -1256,6 +1257,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     while busy == 1:
                         time.sleep(float(pause_conf))
                     app_log.info("Incoming: Sending sync request")
+
                     connections.send(self.request, "sync", 10)
 
                 elif data == "sendsync":
@@ -1544,7 +1546,13 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
 
 # client thread
+# if you "return" from the function, the exception code will node be executed and client thread will hand
 def worker(HOST, PORT):
+    global busy
+
+    timeout_operation = 60  # timeout
+    timer_operation = time.time()  # start counting
+
     global busy
     try:
         this_client = (HOST + ":" + str(PORT))
@@ -1554,51 +1562,38 @@ def worker(HOST, PORT):
         # s.setblocking(0)
         s.connect((HOST, PORT))
         app_log.info("Outgoing: Connected to {}".format(this_client))
-
-        if this_client not in active_pool:
-            active_pool.append(this_client)
-            app_log.info("Current active pool: {}".format(active_pool))
-
+        peer_ip = s.getpeername()[0]
     except:
         app_log.info("Could not connect to {}".format(this_client))
         return
 
-    first_run = 1
+    # communication starter
 
-    timeout_operation = 60  # timeout
-    timer_operation = time.time()  # start counting
+    connections.send(s, "version", 10)
+    connections.send(s, version, 10)
+
+    data = connections.receive(s, 10)
+
+    if (data == "ok"):
+        app_log.info("Outgoing: Node protocol version of {} matches our client".format(peer_ip))
+    else:
+        raise ValueError("Outgoing: Node protocol version of {} mismatch".format(peer_ip))
+
+    connections.send(s, "hello", 10)
+
+    # communication starter
+
+    if this_client not in active_pool:
+        active_pool.append(this_client)
+        app_log.info("Current active pool: {}".format(active_pool))
+
 
     while True:
-        peer_ip = s.getpeername()[0]
-
         try:
-            if not time.time() <= timer_operation + timeout_operation:  # return on timeout
-                warning_list.append(peer_ip)  # add warning
-
-                app_log.info("Outgoing: Operation timeout from {}".format(peer_ip))
-                return
-
             mempool, m = db_m_define()
             conn, c = db_c_define()
 
-            # communication starter
-            if first_run == 1:
-                first_run = 0
 
-                connections.send(s, "version", 10)
-                connections.send(s, version, 10)
-
-                data = connections.receive(s, 10)
-
-                if (data == "ok"):
-                    app_log.info("Outgoing: Node protocol version of {} matches our client".format(peer_ip))
-                else:
-                    app_log.info("Outgoing: Node protocol version of {} mismatch".format(peer_ip))
-                    return
-
-                connections.send(s, "hello", 10)
-
-            # communication starter
 
             data = connections.receive(s, 10)  # receive data, one and the only root point
 
@@ -1649,6 +1644,10 @@ def worker(HOST, PORT):
                 peersync = 0
 
             elif data == "sync":
+
+                if not time.time() <= timer_operation + timeout_operation:
+                    timer_operation = time.time()  # reset timer
+
                 try:
 
                     global syncing
@@ -1804,14 +1803,12 @@ def worker(HOST, PORT):
                 time.sleep(int(pause_conf))
                 while busy == 1:
                     time.sleep(float(pause_conf))
+
                 connections.send(s, "sendsync", 10)
 
             else:
-                app_log.info("Unexpected error, received: {}".format(data))
-                return
+                raise ValueError("Unexpected error, received: {}".format(data))
 
-            if not time.time() <= timer_operation + timeout_operation:
-                timer_operation = time.time()  # reset timer
 
 
 
@@ -1823,7 +1820,10 @@ def worker(HOST, PORT):
             # remove from active pool
 
             # remove from consensus 2
-            consensus_remove(peer_ip)
+            try:
+                consensus_remove(peer_ip)
+            except:
+                pass
             # remove from consensus 2
 
             app_log.info("Connection to {} terminated due to {}".format(this_client, e))
@@ -1836,11 +1836,18 @@ def worker(HOST, PORT):
             if debug_conf == 1:
                 raise  # major debug client
             else:
+                app_log.info("Ending thread, because {}".format(e))
                 return
 
         finally:
-            mempool.close()
-            conn.close()
+            try:
+                mempool.close()
+            except:
+                pass
+            try:
+                conn.close()
+            except:
+                pass
 
 
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
