@@ -161,7 +161,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                     diff_real = int(diff)
 
                     diff_pool = diff_real
-                    diff = 35
+                    diff = 50
 
                     if diff > diff_pool:
                         diff = diff_pool
