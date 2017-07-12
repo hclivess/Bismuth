@@ -13,7 +13,7 @@ except ImportError:
 (port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address, ram_conf) = options.read()
 # load config
 
-def nodes_block_submit(block_send):
+def nodes_block_submit(block_send, app_log):
     # connect to all nodes
     global peer_dict
     peer_dict = {}
@@ -235,7 +235,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 if pool_conf == 1:
 
                     if diff_req <= diff:
-                        nodes_block_submit(block_send)
+                        nodes_block_submit(block_send, app_log)
 
 
                     try:
@@ -261,7 +261,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
 
                 else:
 
-                    nodes_block_submit(block_send)
+                    nodes_block_submit(block_send, app_log)
                     #break
         except Exception as e:
             print (e)
