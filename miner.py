@@ -37,14 +37,14 @@ def nodes_block_submit(block_send, app_log):
                 s.connect((peer_ip, int(peer_port)))  # connect to node in peerlist
                 app_log.warning("Connected")
 
-                app_log.warning("Miner: Proceeding to submit mined block")
+                app_log.warning("Miner: Proceeding to submit mined block to node")
 
                 connections.send(s, "block", 10)
                 connections.send(s, block_send, 10)
 
-                app_log.warning("Miner: Block submitted to {}".format(peer_ip))
+                app_log.warning("Miner: Block submitted to node {}".format(peer_ip))
             except Exception as e:
-                app_log.warning("Miner: Could not submit block to {} because {}".format(peer_ip, e))
+                app_log.warning("Miner: Could not submit block to node {} because {}".format(peer_ip, e))
                 pass
 
                 # submit mined block to node
@@ -152,22 +152,23 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 connections.send(s, "diffget", 10)
                 diff = float(connections.receive(s, 10))
                 diff = int(diff)
-                diff_real = diff
 
                 if pool_conf == 0:
                     diff = int(diff)
 
 
                 else: #if pooled
-                    diff_pool = int(diff)
+                    diff_real = int(diff)
 
-                    diff = 50
-                    if diff_pool < diff:
+                    diff_pool = diff_real
+                    diff = 35
+
+                    if diff > diff_pool:
                         diff = diff_pool
 
 
 
-                app_log.warning("Thread{} {} @ {:.2f} cycles/second, difficulty: {:.2f}".format(q, db_block_hash[:10], cycles_per_second, diff))
+                app_log.warning("Thread{} {} @ {:.2f} cycles/second, difficulty: {:.2f}({:.2f})".format(q, db_block_hash[:10], cycles_per_second, diff, diff_real))
 
             nonce = hashlib.sha224(rndfile.read(16)).hexdigest()[:32]
 
@@ -235,10 +236,10 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                     check_uptodate(300, app_log)
 
                 if pool_conf == 1:
-
-                    if diff_real <= diff:
+                    mining_condition = bin_convert(db_block_hash)[0:diff_real]
+                    if mining_condition in mining_hash:
+                        app_log.warning("Miner: Submitting block to all nodes, because it satisfies real difficulty too")
                         nodes_block_submit(block_send, app_log)
-
 
                     try:
                         s = socks.socksocket()
@@ -261,10 +262,10 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                         pass
 
 
-                else:
-
+                if pool_conf == 0:
                     nodes_block_submit(block_send, app_log)
-                    #break
+
+
         except Exception as e:
             print (e)
             time.sleep(0.1)
