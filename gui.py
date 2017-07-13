@@ -562,7 +562,7 @@ def refresh():
 
     try:
         s = socks.socksocket()
-        s.connect((mining_ip_conf, int(port)))
+        s.connect(("127.0.0.1", int(port)))
         connections.send(s, "balanceget", 10)
         connections.send(s, address, 10)  # change address here to view other people's transactions
         stats_account = ast.literal_eval(connections.receive(s, 10))
@@ -641,7 +641,7 @@ def refresh():
     # check difficulty
     try:
         s = socks.socksocket()
-        s.connect((mining_ip_conf, int(port)))
+        s.connect(("127.0.0.1", int(port)))
         connections.send(s, "diffget", 10)
         diff = connections.receive(s, 10)
         s.close()
