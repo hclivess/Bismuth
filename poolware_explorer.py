@@ -64,7 +64,7 @@ def hello():
 
             s.execute("SELECT timestamp FROM shares WHERE address = ? ORDER BY timestamp ASC LIMIT 1", (x,))
             shares_timestamp = s.fetchone()[0]
-            output_timestamps.append(shares_timestamp)
+            output_timestamps.append(float(shares_timestamp))
 
             color_cell = "white"
 
