@@ -40,6 +40,7 @@ def hello():
         view.append("<br>pool_address={}<br><br><br>".format(address))
 
         view.append('<head>\n')
+        view.append('<link rel = "icon" href = "static/explorer.ico" type = "image/x-icon" />')
         view.append('<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" >')
         view.append('<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script >')
         view.append('<title>Bismuth Pool</title>')
@@ -57,6 +58,8 @@ def hello():
         for x in addresses:
             s.execute("SELECT sum(shares) FROM shares WHERE address = ? AND paid != 1", (x,))
             shares_sum = s.fetchone()[0]
+            if shares_sum == None:
+                shares_sum = 0
             output_shares.append(shares_sum)
 
             s.execute("SELECT timestamp FROM shares WHERE address = ? ORDER BY timestamp ASC LIMIT 1", (x,))
@@ -157,7 +160,7 @@ def hello():
 
     except Exception as e:
         print(e)
-        raise
+        pass
 
 
 run(host='0.0.0.0', port=9080, debug=True)
