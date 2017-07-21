@@ -42,11 +42,13 @@ def hello():
         view.append('<head>\n')
         view.append('<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" >')
         view.append('<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script >')
+        view.append('<title>Bismuth Pool</title>')
         view.append('</head>\n')
 
         view.append('<body bgcolor = "white">\n')
         view.append("<body>")
 
+        view.append("<h3>Share statistics</h3>")
         view.append("<table class='table table-responsive'>")
         view.append("<th>Address</th>")
         view.append("<th>Number of shares</th>")
@@ -110,6 +112,7 @@ def hello():
         view.append("</table>")
 
         # payout view
+        view.append("<h3>Pending payouts</h3>")
         view.append("<table class='table table-responsive'>")
         view.append("<th>Address</th>")
         view.append("<th>Bismuth reward</th>")
@@ -127,6 +130,23 @@ def hello():
             view.append("<tr>")
         # payout view
         view.append("</table>")
+
+        # history view
+        view.append("<table class='table table-responsive'>")
+        view.append("<h3>Previous payouts</h3>")
+        view.append("<th>Address</th>")
+        view.append("<th>Bismuth reward</th>")
+        view.append("<th>Block height</th>")
+        view.append("<th>Time</th>")
+        view.append("<tr>")
+        for row in c.execute("SELECT * FROM transactions WHERE address = ? and openfield = ?", (address,) + ("pool",)):
+            view.append("<td>{}</td>".format(row[3]))
+            view.append("<td>{}</td>".format(row[4]))
+            view.append("<td>{}</td>".format(row[0]))
+            view.append("<td>{}</td>".format(time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(row[1])))))
+            view.append("<tr>")
+
+        # history view
 
         view.append("</body>")
 
