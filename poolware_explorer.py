@@ -89,9 +89,6 @@ def hello():
         block_threshold = time.time()
 
     view.append("<table class='table table-responsive'>")
-    view.append("<th>Last blocks mined by this pool</th>")
-    view.append("<th>Reward</th>")
-    view.append("<tr>")
     reward_list = []
     for row in c.execute("SELECT * FROM transactions WHERE address = ? AND CAST(timestamp AS INTEGER) >= ? AND reward != 0", (address,)+(block_threshold,)):
         view.append("<td>{}</td>".format(row[0]))
@@ -114,7 +111,7 @@ def hello():
     view.append("<td>{}</td>".format(reward_per_share))
     view.append("<tr>")
 
-    view.append("<th>Reward Total</th>")
+    view.append("<th>Mined rewards for this round</th>")
     view.append("<td>{}</td>".format(reward_total))
     view.append("<tr>")
 
