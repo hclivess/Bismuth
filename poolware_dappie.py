@@ -40,6 +40,10 @@ def payout():
 
         s.execute("SELECT sum(shares) FROM shares WHERE address = ? AND paid != 1", (x,))
         shares_sum = s.fetchone()[0]
+
+        if shares_sum == None:
+            shares_sum = 0
+
         output_shares.append(shares_sum)
     print(output_shares)
     # get shares for address
@@ -56,10 +60,8 @@ def payout():
 
     reward_total = sum(reward_list)
     #get eligible blocks
-    try:
-        shares_total = sum(output_shares)
-    except:
-        shares_total = 0
+
+    shares_total = sum(output_shares)
 
     try:
         reward_per_share = reward_total / shares_total
