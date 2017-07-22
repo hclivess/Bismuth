@@ -35,13 +35,13 @@ def hello():
         #print openfield
         digit_last = int((re.findall("(\d)", block_hash))[-1])
         if (digit_last % 2 == 0) and (openfield == "even"): #if bets even and wins
-            cell_color = "#9b111e"
+            cell_color = "#49b675"
             result = "win"
         elif (digit_last % 2 != 0) and (openfield == "odd"): #if bets odd and wins
-            cell_color = "#9b111e"
+            cell_color = "#49b675"
             result = "win"
         else:
-            cell_color = "#49b675"
+            cell_color = "#9b111e"
             result = "loss"
 
         view_bets.append("<tr bgcolor="+cell_color+">")
