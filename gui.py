@@ -698,7 +698,7 @@ def refresh():
     fees_var.set("Fees Paid: {}".format('%.8f' % float(fees)))
     rewards_var.set("Rewards: {}".format('%.8f' % float(rewards)))
     bl_height_var.set("Block Height: {}".format(bl_height))
-    diff_msg_var.set("Mining Difficulty: {}".format(diff_msg))
+    diff_msg_var.set("Mining Difficulty: {}".format('%.8f' % float(diff_msg)))
     sync_msg_var.set("Network: {}".format(sync_msg))
 
     table()
