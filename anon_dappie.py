@@ -72,10 +72,11 @@ m = mempool.cursor()
 
 while True:
     for row in c.execute("SELECT * FROM transactions WHERE recipient = ? and openfield LIKE ?", (address,)+("anon"+'%',)):
+        anon_sender = row[2]
         anon_recipient = row[11].split(":")[1]
         anon_amount = float(row[4])
         identifier = row[5][:8] #only save locally
-        print (anon_recipient, anon_amount, identifier)
+        print (anon_sender, anon_recipient, anon_amount, identifier)
 
         randomize(float(anon_amount),anon_recipient,identifier)
 
