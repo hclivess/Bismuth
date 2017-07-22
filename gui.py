@@ -206,6 +206,18 @@ def send_confirm(amount_input, recipient_input, keep_input, openfield_input):
 
     # msg check
 
+    # enc check
+    if enc_var.get() == 1:
+        #get recipient's public key
+        c.execute("SELECT public_key FROM transactions WHERE address = ?",(recipient_input,))
+        target_public_key_hashed = c.fetchone()[0]
+        print (target_public_key_hashed)
+
+        target_public_key = RSA.importKey(base64.b64decode(target_public_key_hashed))
+        #public_key = key.publickey()
+        openfield_input = target_public_key.encrypt(openfield_input.encode("utf-8"), 32)
+    # enc check
+
     fee = '%.8f' % float(0.01 + (float(amount.get()) * 0.001) + (float(len(openfield_input)) / 100000) + (float(keep_var.get()) / 10))  # 0.1% + 0.01 dust
     confirmation_dialog = Text(top10, width=100)
     confirmation_dialog.insert(INSERT, ("Amount: {}\nTo: {}\nFee: {}\nKeep Entry: {}\nOpenField:\n\n{}".format(amount_input, recipient_input, fee, keep_input, openfield_input)))
@@ -843,6 +855,7 @@ encode_var = IntVar()
 alias_cb_var = IntVar()
 # encrypt_var = IntVar()
 msg_var = IntVar()
+enc_var = IntVar()
 
 # address and amount
 gui_address = Entry(f3, width=60)
@@ -862,14 +875,21 @@ amount.insert(0, 0)
 amount.grid(row=2, column=1, sticky=E)
 openfield = Text(f3, width=60, height=5, font=("TkDefaultFont", 8))
 openfield.grid(row=3, column=1, sticky=E)
-alias_cb = Checkbutton(f3, text="Alias Recipient", variable=alias_cb_var, command=None)
+
+alias_cb = Checkbutton(f3, text="Alias", variable=alias_cb_var, command=None)
 alias_cb.grid(row=4, column=1, sticky=E)
+
 keep = Checkbutton(f3, text="Keep Entry", variable=keep_var)
-keep.grid(row=4, column=1, sticky=E, padx=(0, 100))
+keep.grid(row=4, column=1, sticky=E, padx=(0, 90))
+
 encode = Checkbutton(f3, text="Base64", variable=encode_var)
-encode.grid(row=4, column=1, sticky=E, padx=(0, 200))
+encode.grid(row=4, column=1, sticky=E, padx=(0, 170))
+
 msg = Checkbutton(f3, text="Message", variable=msg_var)
-msg.grid(row=4, column=1, sticky=E, padx=(0, 275))
+msg.grid(row=4, column=1, sticky=E, padx=(0, 230))
+
+msg = Checkbutton(f3, text="Encrypt", variable=enc_var)
+msg.grid(row=4, column=1, sticky=E, padx=(0, 300))
 
 balance_enumerator = Entry(f3, width=5)
 # address and amount
