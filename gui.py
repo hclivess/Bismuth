@@ -211,11 +211,10 @@ def send_confirm(amount_input, recipient_input, keep_input, openfield_input):
         #get recipient's public key
         c.execute("SELECT public_key FROM transactions WHERE address = ?",(recipient_input,))
         target_public_key_hashed = c.fetchone()[0]
-        print (target_public_key_hashed)
 
         target_public_key = RSA.importKey(base64.b64decode(target_public_key_hashed))
         #public_key = key.publickey()
-        openfield_input = target_public_key.encrypt(openfield_input.encode("utf-8"), 32)
+        openfield_input = "enc=" + str(target_public_key.encrypt(openfield_input.encode("utf-8"), 32))
     # enc check
 
     fee = '%.8f' % float(0.01 + (float(amount.get()) * 0.001) + (float(len(openfield_input)) / 100000) + (float(keep_var.get()) / 10))  # 0.1% + 0.01 dust
