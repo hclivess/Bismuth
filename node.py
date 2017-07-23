@@ -694,8 +694,6 @@ def manager():
 def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
     global busy, banlist, hdd_block, ram_conf
 
-    print (data)
-
     if busy == 0:
         block_valid = 1  # init
 
@@ -748,7 +746,6 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
 
                 transaction_list_converted = []  # makes sure all the data are properly converted as in the previous lines
                 for transaction in transaction_list:
-                    print (transaction)
                     # verify signatures
                     received_timestamp = '%.2f' % float(transaction[0])
                     received_address = str(transaction[1][:56])
