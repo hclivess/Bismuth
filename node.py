@@ -6,7 +6,7 @@
 
 from itertools import groupby
 from operator import itemgetter
-import shutil, socketserver, ast, base64, gc, hashlib, os, re, sqlite3, sys, threading, time, socks, log, options, connections, random
+import shutil, socketserver, ast, base64, gc, hashlib, os, re, sqlite3, sys, threading, time, socks, log, options, connections, random, codecs
 
 from Crypto import Random
 from Crypto.Hash import SHA
@@ -706,7 +706,6 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                 new_list = []
                 new_list.append(block_list)
                 block_list = new_list  # make it a list of lists
-            # print block_list
 
             # reject block with duplicate transactions
             signature_list = []
@@ -765,6 +764,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                     h = SHA.new(str((received_timestamp, received_address, received_recipient, received_amount, received_keep, received_openfield)).encode("utf-8"))
                     if not verifier.verify(h, received_signature_dec):
                         error_msg = "Invalid signature"
+                        #print(received_timestamp +"\n"+ received_address +"\n"+ received_recipient +"\n"+ received_amount +"\n"+ received_keep +"\n"+ received_openfield)
                         block_valid = 0
                     else:
                         app_log.info("Valid signature")
@@ -1349,6 +1349,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                     execute_param(c, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
                                                   (str(int(client_block)),) + (str(int(client_block + 100)),))  # select incoming transaction + 1
                                     blocks_fetched = c.fetchall()
+
                                     blocks_send = [[l[1:] for l in group] for _, group in groupby(blocks_fetched, key=itemgetter(0))] #remove block number
 
                                     # app_log.info("Incoming: Selected " + str(blocks_send) + " to send")
@@ -1360,7 +1361,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                                     if confirmation == "blockscf":
                                         app_log.info("Incoming: Client confirmed they want to sync from us")
-                                        connections.send(self.request, blocks_send, 10)
+                                        connections.send(self.request, codecs.getdecoder("unicode_escape")(str(blocks_send))[0], 10)
 
                                     elif confirmation == "blocksrj":
                                         app_log.info("Incoming: Client rejected to sync from us because we're dont have the latest block")
@@ -1703,6 +1704,7 @@ def worker(HOST, PORT):
                                 execute_param(c, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
                                               (str(int(client_block)),) + (str(int(client_block + 100)),))  # select incoming transaction + 1, only columns that need not be verified
                                 blocks_fetched = c.fetchall()
+
                                 blocks_send = [[l[1:] for l in group] for _, group in groupby(blocks_fetched, key=itemgetter(0))] #remove block number
 
                                 # app_log.info("Outgoing: Selected " + str(blocks_send) + " to send")
@@ -1713,7 +1715,7 @@ def worker(HOST, PORT):
 
                                 if confirmation == "blockscf":
                                     app_log.info("Outgoing: Client confirmed they want to sync from us")
-                                    connections.send(s, blocks_send, 10)
+                                    connections.send(s, codecs.getdecoder("unicode_escape")(str(blocks_send))[0], 10)
 
                                 elif confirmation == "blocksrj":
                                     app_log.info("Outgoing: Client rejected to sync from us because we're dont have the latest block")
