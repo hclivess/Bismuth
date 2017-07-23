@@ -884,7 +884,7 @@ openfield = Text(f3, width=60, height=5, font=("Tahoma", 8))
 openfield.grid(row=3, column=1, sticky=W)
 
 alias_cb = Checkbutton(f3, text="Alias", variable=alias_cb_var, command=None)
-alias_cb.grid(row=4, column=1, sticky=W)
+alias_cb.grid(row=4, column=1, sticky=E)
 
 keep = Checkbutton(f3, text="Keep Entry", variable=keep_var)
 keep.grid(row=4, column=1, sticky=E, padx=(0, 90))
