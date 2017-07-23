@@ -1,9 +1,11 @@
 import socketserver, connections, time, options, log, sqlite3, ast, socks, hashlib, os, random, re, keys, base64
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
+
 (port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address, ram_conf) = options.read()
-(key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read() #import keys
-app_log = log.log("pool.log",debug_level_conf)
+(key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read()  # import keys
+app_log = log.log("pool.log", debug_level_conf)
+
 
 def payout():
     shares = sqlite3.connect('shares.db')
@@ -14,7 +16,7 @@ def payout():
     conn.text_factory = str
     c = conn.cursor()
 
-    #get unique addresses
+    # get unique addresses
     addresses = []
     for row in s.execute("SELECT * FROM shares"):
         shares_address = row[0]
@@ -23,8 +25,8 @@ def payout():
 
         if shares_address not in addresses:
             addresses.append(shares_address)
-    print (addresses)
-    #get unique addresses
+    print(addresses)
+    # get unique addresses
 
 
     # get shares for address
@@ -53,13 +55,13 @@ def payout():
     except:
         block_threshold = time.time()
 
-    #get eligible blocks
+    # get eligible blocks
     reward_list = []
     for row in c.execute("SELECT * FROM transactions WHERE address = ? AND CAST(timestamp AS INTEGER) >= ? AND reward != 0", (address,) + (block_threshold,)):
         reward_list.append(float(row[9]))
 
     reward_total = sum(reward_list)
-    #get eligible blocks
+    # get eligible blocks
 
     shares_total = sum(output_shares)
 
@@ -79,13 +81,12 @@ def payout():
             claim = 0
         print(claim)
 
-
         if claim >= payout_threshold:
             payout_passed = 1
             openfield = "pool"
             keep = 0
             fee = float('%.8f' % float(0.01 + (float(claim) * 0.001) + (float(len(openfield)) / 100000) + (float(keep) / 10)))  # 0.1% + 0.01 dust
-            #make payout
+            # make payout
 
             timestamp = '%.2f' % time.time()
             transaction = (str(timestamp), str(address), str(recipient), '%.8f' % float(claim - fee), str(keep), str(openfield))  # this is signed
@@ -110,7 +111,7 @@ def payout():
                 mempool.close()
                 print("Mempool updated with a received transaction")
 
-            s.execute("UPDATE shares SET paid = 1 WHERE address = ?",(recipient,))
+            s.execute("UPDATE shares SET paid = 1 WHERE address = ?", (recipient,))
             shares.commit()
 
     if payout_passed == 1:
@@ -118,10 +119,8 @@ def payout():
         shares.commit()
 
     # calculate payouts
-    #payout
+    # payout
     s.close()
-
-
 
 
 def commit(cursor):
@@ -136,6 +135,7 @@ def commit(cursor):
             time.sleep(random.random())
             pass
             # secure commit for slow nodes
+
 
 def execute(cursor, what):
     # secure execute for slow nodes
@@ -171,10 +171,12 @@ def execute_param(cursor, what, param):
             # secure execute for slow nodes
     return cursor
 
+
 def diffget(s):
     connections.send(s, "diffget", 10)
     diff = float(connections.receive(s, 10))
     return diff
+
 
 def bin_convert(string):
     return ''.join(format(ord(x), 'b') for x in string)
@@ -192,15 +194,15 @@ if not os.path.exists('shares.db'):
     s.close()
     # create empty mempool
 
-class MyTCPHandler(socketserver.BaseRequestHandler):
 
+class MyTCPHandler(socketserver.BaseRequestHandler):
     def handle(self):
         peer_ip = self.request.getpeername()[0]
 
         data = connections.receive(self.request, 10)
         app_log.warning("Received: {} from {}".format(data, peer_ip))  # will add custom ports later
 
-        #if data == 'diffget':
+        # if data == 'diffget':
         #    diff = diffget()
         #    connections.send(self.request, diff, 10)
 
@@ -217,16 +219,16 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 
             # receive block
             miner_address = connections.receive(self.request, 10)
-            app_log.warning("Received a block from miner {} ({})".format(peer_ip,miner_address))
+            app_log.warning("Received a block from miner {} ({})".format(peer_ip, miner_address))
 
             block_send = ast.literal_eval(connections.receive(self.request, 10))
             nonce = (block_send[-1][7])
 
             app_log.warning("Combined mined segments: {}".format(block_send))
 
-            #print(nonce)
-            #print(block_send)
-            #print(miner_address)
+            # print(nonce)
+            # print(block_send)
+            # print(miner_address)
 
             # check difficulty
             app_log.warning("Asking node for difficulty")
@@ -243,7 +245,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             # get last block
 
             app_log.warning("Last Hash: {}".format(db_block_hash))
-            """
+
             mining_hash = bin_convert(hashlib.sha224((address + nonce + db_block_hash).encode("utf-8")).hexdigest())
             mining_condition = bin_convert(db_block_hash)[0:diff]
 
@@ -282,13 +284,13 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                         except Exception as e:
                             app_log.warning("Miner: Could not submit block to {} because {}".format(peer_ip, e))
                             pass
-                        """
+
             if diff < 50:
                 diff_shares = diff
             else:
                 diff_shares = 50
 
-            mining_condition = bin_convert(db_block_hash)[0:diff_shares] #floor set by pool
+            mining_condition = bin_convert(db_block_hash)[0:diff_shares]  # floor set by pool
             if mining_condition in mining_hash:
                 app_log.warning("Difficulty requirement satisfied for saving shares")
                 timestamp = '%.2f' % time.time()
@@ -305,6 +307,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                 app_log.warning("Difficulty requirement not satisfied for anything")
 
             s1.close()
+
 
 app_log.warning("Starting up...")
 

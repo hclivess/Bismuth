@@ -196,15 +196,15 @@ def send_confirm(amount_input, recipient_input, keep_input, openfield_input):
     top10.title("Confirm")
 
     # encr check
+    if encrypt_var.get() == 1:
+        #get recipient's public key
+        c.execute("SELECT public_key FROM transactions WHERE address = ? and reward = 0",(recipient_input,))
+        target_public_key_hashed = c.fetchone()[0]
 
-    #get recipient's public key
-    c.execute("SELECT public_key FROM transactions WHERE address = ? and reward = 0",(recipient_input,))
-    target_public_key_hashed = c.fetchone()[0]
-
-    target_public_key = RSA.importKey(base64.b64decode(target_public_key_hashed).decode("utf-8"))
+        target_public_key = RSA.importKey(base64.b64decode(target_public_key_hashed).decode("utf-8"))
 
 
-    openfield_input = str(target_public_key.encrypt(openfield_input.encode("utf-8"), 32))
+        openfield_input = str(target_public_key.encrypt(openfield_input.encode("utf-8"), 32))
     # encr check
 
     # msg check

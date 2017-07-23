@@ -20,6 +20,8 @@ peersync = 0
 global ram_done
 global hdd_block
 ram_done = 0
+global test
+test = 0
 
 (port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address, ram_conf) = options.read()
 
@@ -39,7 +41,7 @@ def db_to_drive():
     o = old_db.cursor()
 
     for row in o.execute("SELECT * FROM transactions where block_height > {} ORDER BY block_height ASC".format(hdd_block)):
-        h.execute("INSERT INTO transactions VALUES {}".format(row))
+        h.execute("INSERT INTO transactions VALUES ?",(row))
         commit(hdd)
 
     h.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
@@ -281,6 +283,8 @@ def mempool_merge(data, peer_ip, conn, c, mempool, m):
 
             try:
                 block_list = ast.literal_eval(data)
+
+
 
                 for transaction in block_list:  # set means unique
                     mempool_timestamp = '%.2f' % float(transaction[0])
@@ -690,6 +694,8 @@ def manager():
 def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
     global busy, banlist, hdd_block, ram_conf
 
+    print (data)
+
     if busy == 0:
         block_valid = 1  # init
 
@@ -742,7 +748,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
 
                 transaction_list_converted = []  # makes sure all the data are properly converted as in the previous lines
                 for transaction in transaction_list:
-                    # print transaction
+                    print (transaction)
                     # verify signatures
                     received_timestamp = '%.2f' % float(transaction[0])
                     received_address = str(transaction[1][:56])
@@ -821,6 +827,8 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
 
                 app_log.info("Calculated difficulty: {}".format(diff))
                 diff = int(diff)
+                if test == 1:
+                    diff = 20
                 # calculate difficulty
 
                 # match difficulty
@@ -1194,6 +1202,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                     # receive theirs
                     segments = connections.receive(self.request, 10)
+
                     mempool_merge(segments, peer_ip, conn, c, mempool, m)
                     # receive theirs
 
@@ -1400,7 +1409,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                     # check if we have the latest block
 
-                    if len(active_pool) < 5:
+                    if len(active_pool) < 0:
                         app_log.warning("Outgoing: Mined block ignored, insufficient connections to the network")
                     elif int(db_block_height) >= int(max(consensus_blockheight_list)) - 3 and busy == 0:
                         app_log.warning("Outgoing: Processing block from miner")
