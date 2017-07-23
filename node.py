@@ -1409,7 +1409,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                     # check if we have the latest block
 
-                    if len(active_pool) < 0:
+                    if len(active_pool) < 5:
                         app_log.warning("Outgoing: Mined block ignored, insufficient connections to the network")
                     elif int(db_block_height) >= int(max(consensus_blockheight_list)) - 3 and busy == 0:
                         app_log.warning("Outgoing: Processing block from miner")
