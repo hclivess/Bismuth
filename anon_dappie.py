@@ -88,7 +88,7 @@ while True:
             print (row)
             anon_recipient_encrypted = (row[11].lstrip("enc="))
             print(anon_recipient_encrypted)
-            anon_recipient = key.decrypt(ast.literal_eval(anon_recipient_encrypted)).decode("utf-8")
+            anon_recipient = key.decrypt(ast.literal_eval(anon_recipient_encrypted)).decode("utf-8").split(":")[1]
             print(anon_recipient)
 
             if len(anon_recipient) == 56:
@@ -104,3 +104,7 @@ while True:
             print("issue occured")
 
     time.sleep(15)
+
+
+
+
