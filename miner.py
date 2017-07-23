@@ -11,6 +11,8 @@ except ImportError:
 
 # load config
 (port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address, ram_conf) = options.read()
+
+
 # load config
 
 def nodes_block_submit(block_send, app_log):
@@ -53,7 +55,7 @@ def nodes_block_submit(block_send, app_log):
 def check_uptodate(interval, app_log):
     # check if blocks are up to date
     while sync_conf == 1:
-        conn = sqlite3.connect("static/ledger.db")  # open to select the last tx to create a new hash from
+        conn = sqlite3.connect(ledger_path_conf)  # open to select the last tx to create a new hash from
         conn.text_factory = str
         c = conn.cursor()
 
@@ -63,18 +65,21 @@ def check_uptodate(interval, app_log):
         last_block_ago = float(time_now) - float(timestamp_last_block)
 
         if last_block_ago > interval:
-            app_log.warning("Local blockchain is {} minutes behind ({} seconds), waiting for sync to complete".format(int(last_block_ago) / 60,last_block_ago))
+            app_log.warning("Local blockchain is {} minutes behind ({} seconds), waiting for sync to complete".format(int(last_block_ago) / 60, last_block_ago))
             time.sleep(5)
         else:
             break
         conn.close()
-    # check if blocks are up to date
+        # check if blocks are up to date
+
 
 def send(sdef, data):
     sdef.sendall(data)
 
+
 def bin_convert(string):
     return ''.join(format(ord(x), 'b') for x in string)
+
 
 def execute(cursor, what, app_log):
     # secure execute for slow nodes
@@ -93,6 +98,7 @@ def execute(cursor, what, app_log):
             # secure execute for slow nodes
     return cursor
 
+
 def execute_param(cursor, what, param, app_log):
     # secure execute for slow nodes
     passed = 0
@@ -109,17 +115,26 @@ def execute_param(cursor, what, param, app_log):
             # secure execute for slow nodes
     return cursor
 
-def miner(q,privatekey_readable, public_key_hashed, address):
+
+def miner(q, privatekey_readable, public_key_hashed, address):
     from Crypto.PublicKey import RSA
     Random.atfork()
     key = RSA.importKey(privatekey_readable)
-    app_log = log.log("miner_"+q+".log",debug_level_conf)
+    app_log = log.log("miner_" + q + ".log", debug_level_conf)
     rndfile = Random.new()
     tries = 0
     firstrun = True
     begin = time.time()
 
     if pool_conf == 1:
+        conn = sqlite3.connect(ledger_path_conf)  # open to select the last tx to create a new hash from
+        conn.text_factory = str
+        c = conn.cursor()
+
+        execute_param(c, ("SELECT public_key FROM transactions WHERE address = ? and reward = 0"), (pool_address,), app_log)
+        public_key_hashed = c.fetchone()[0]
+        conn.close()
+
         self_address = address
         address = pool_address
 
@@ -131,7 +146,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
 
             # calculate new hash
 
-            if tries % int(diff_recalc_conf) == 0 or firstrun: #only do this ever so often
+            if tries % int(diff_recalc_conf) == 0 or firstrun:  # only do this ever so often
                 firstrun = False
                 now = time.time()
                 block_timestamp = '%.2f' % time.time()
@@ -158,14 +173,12 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                     diff = int(diff)
 
 
-                else: #if pooled
+                else:  # if pooled
                     diff_pool = diff_real
                     diff = 50
 
                     if diff > diff_pool:
                         diff = diff_pool
-
-
 
                 app_log.warning("Thread{} {} @ {:.2f} cycles/second, difficulty: {:.2f}({:.2f})".format(q, db_block_hash[:10], cycles_per_second, diff, diff_real))
 
@@ -176,17 +189,17 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                 nonce = quickbismuth.bismuth_mine(diff, address, db_block_hash, fastminer_cycles, rndfile.read(32))
                 tries += fastminer_cycles
             else:
-                tries = tries +1
+                tries = tries + 1
 
             if nonce is None:
                 nonce = hashlib.sha224(rndfile.read(16)).hexdigest()[:32]
 
-            #block_hash = hashlib.sha224(str(block_send) + db_block_hash).hexdigest()
+            # block_hash = hashlib.sha224(str(block_send) + db_block_hash).hexdigest()
             mining_hash = bin_convert(hashlib.sha224((address + nonce + db_block_hash).encode("utf-8")).hexdigest())
             mining_condition = bin_convert(db_block_hash)[0:diff]
 
             if mining_condition in mining_hash:
-                app_log.warning("Thread {} found a good block hash in {} cycles".format(q,tries))
+                app_log.warning("Thread {} found a good block hash in {} cycles".format(q, tries))
 
                 # serialize txs
 
@@ -229,7 +242,7 @@ def miner(q,privatekey_readable, public_key_hashed, address):
 
                 tries = 0
 
-                #submit mined block to node
+                # submit mined block to node
 
                 if sync_conf == 1:
                     check_uptodate(300, app_log)
@@ -260,20 +273,20 @@ def miner(q,privatekey_readable, public_key_hashed, address):
                         app_log.warning("Miner: Could not submit block to pool")
                         pass
 
-
                 if pool_conf == 0:
                     nodes_block_submit(block_send, app_log)
 
 
         except Exception as e:
-            print (e)
+            print(e)
             time.sleep(0.1)
             raise
+
 
 if __name__ == '__main__':
     freeze_support()  # must be this line, dont move ahead
 
-    app_log = log.log("miner.log",debug_level_conf)
+    app_log = log.log("miner.log", debug_level_conf)
 
     (key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read()
 
@@ -288,7 +301,7 @@ if __name__ == '__main__':
             connected = 1
             s.close()
         except Exception as e:
-            print (e)
+            print(e)
             app_log.warning("Miner: Please start your node for the block to be submitted or adjust mining ip in settings.")
             time.sleep(1)
     # verify connection
@@ -296,10 +309,9 @@ if __name__ == '__main__':
         check_uptodate(120, app_log)
 
     instances = range(int(mining_threads_conf))
-    print (instances)
+    print(instances)
     for q in instances:
-
-        p = Process(target=miner,args=(str(q+1),private_key_readable, public_key_hashed, address))
-        #p.daemon = True
+        p = Process(target=miner, args=(str(q + 1), private_key_readable, public_key_hashed, address))
+        # p.daemon = True
         p.start()
-        print ("thread "+str(p)+ " started")
+        print("thread " + str(p) + " started")

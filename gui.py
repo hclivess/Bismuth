@@ -195,8 +195,22 @@ def send_confirm(amount_input, recipient_input, keep_input, openfield_input):
     top10 = Toplevel()
     top10.title("Confirm")
 
+    # encr check
+
+    #get recipient's public key
+    c.execute("SELECT public_key FROM transactions WHERE address = ? and reward = 0",(recipient_input,))
+    target_public_key_hashed = c.fetchone()[0]
+
+    target_public_key = RSA.importKey(base64.b64decode(target_public_key_hashed).decode("utf-8"))
+
+
+    openfield_input = str(target_public_key.encrypt(openfield_input.encode("utf-8"), 32))
+    # encr check
+
+    # msg check
+
     if encode_var.get() == 1:
-        openfield_input = str(base64.b64encode(openfield_input))
+        openfield_input = base64.b64encode(openfield_input.encode("utf-8")).decode("utf-8")
 
     # msg check
     if msg_var.get() == 1 and encode_var.get() == 1:
@@ -204,19 +218,12 @@ def send_confirm(amount_input, recipient_input, keep_input, openfield_input):
     if msg_var.get() == 1 and encode_var.get() == 0:
         openfield_input = "msg=" + openfield_input
 
-    # msg check
 
-    # enc check
     if encrypt_var.get() == 1:
-        #get recipient's public key
-        c.execute("SELECT public_key FROM transactions WHERE address = ?",(recipient_input,))
-        target_public_key_hashed = c.fetchone()[0]
+        openfield_input = "enc=" + str(openfield_input)
 
-        target_public_key = RSA.importKey(base64.b64decode(target_public_key_hashed))
-        openfield_input = "enc=" + str(target_public_key.encrypt(openfield_input.encode("utf-8"), 32))
-        openfield_input = openfield_input.replace("'", '"') #tkinter hack
 
-    # enc check
+
 
     fee = '%.8f' % float(0.01 + (float(amount.get()) * 0.001) + (float(len(openfield_input)) / 100000) + (float(keep_var.get()) / 10))  # 0.1% + 0.01 dust
     confirmation_dialog = Text(top10, width=100)
