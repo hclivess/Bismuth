@@ -866,7 +866,7 @@ encrypt_var = IntVar()
 
 # address and amount
 gui_address = Entry(f3, width=60)
-gui_address.grid(row=0, column=1)
+gui_address.grid(row=0, column=1, sticky=W)
 gui_address.insert(0, address)
 gui_address.configure(state="readonly")
 
@@ -876,15 +876,15 @@ Label(f3, text="Amount:", width=20, anchor="e").grid(row=2)
 Label(f3, text="Data:", width=20, anchor="e").grid(row=3)
 
 recipient = Entry(f3, width=60)
-recipient.grid(row=1, column=1, sticky=E)
+recipient.grid(row=1, column=1, sticky=W)
 amount = Entry(f3, width=60)
 amount.insert(0, 0)
-amount.grid(row=2, column=1, sticky=E)
+amount.grid(row=2, column=1, sticky=W)
 openfield = Text(f3, width=60, height=5, font=("Tahoma", 8))
-openfield.grid(row=3, column=1, sticky=E)
+openfield.grid(row=3, column=1, sticky=W)
 
 alias_cb = Checkbutton(f3, text="Alias", variable=alias_cb_var, command=None)
-alias_cb.grid(row=4, column=1, sticky=E)
+alias_cb.grid(row=4, column=1, sticky=W)
 
 keep = Checkbutton(f3, text="Keep Entry", variable=keep_var)
 keep.grid(row=4, column=1, sticky=E, padx=(0, 90))
