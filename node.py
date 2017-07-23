@@ -815,8 +815,8 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                     diff = diff - (time_drop - db_timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes)
                     # drop diff per minute if over target
 
-                if time_drop > db_timestamp_last + 300 or diff < 50:  # 5 m lim
-                    diff = 50  # 5 m lim
+                if time_drop > db_timestamp_last + 300 or diff < 37:  # 5 m lim
+                    diff = 37  # 5 m lim
                 # calculate difficulty
 
                 app_log.info("Calculated difficulty: {}".format(diff))
@@ -1512,8 +1512,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if time_drop > db_timestamp_last + 120:  # start dropping after 2 minutes
                         diff = diff - (time_drop - db_timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes)
 
-                    if time_drop > db_timestamp_last + 300 or diff < 50:  # 5 m lim
-                        diff = 50  # 5 m lim
+                    if time_drop > db_timestamp_last + 300 or diff < 37:  # 5 m lim
+                        diff = 37  # 5 m lim
 
                     connections.send(self.request, diff, 10)
 
