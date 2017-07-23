@@ -166,7 +166,6 @@ def miner(q, privatekey_readable, public_key_hashed, address):
 
                 connections.send(s, "diffget", 10)
                 diff = float(connections.receive(s, 10))
-                diff = 20
                 diff = int(diff)
                 diff_real = int(diff)
 
@@ -286,7 +285,7 @@ def miner(q, privatekey_readable, public_key_hashed, address):
         except Exception as e:
             print(e)
             time.sleep(0.1)
-            raise
+            pass
 
 
 if __name__ == '__main__':
