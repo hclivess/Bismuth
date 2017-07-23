@@ -680,11 +680,11 @@ def refresh():
 
         if time_drop > db_timestamp_last + 120:  # start dropping after 2 minutes
             diff = diff - (time_drop - db_timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes)
-            if diff < 35:
-                diff = 35
+            if diff < 50:
+                diff = 50
 
-        if time_drop > db_timestamp_last + 300 or diff < 37:  # 5 m lim
-            diff = 37  # 5 m lim
+        if time_drop > db_timestamp_last + 300 or diff < 50:  # 5 m lim
+            diff = 50  # 5 m lim
             # drop diff per minute if over target
             # calculate difficulty
     # check difficulty
