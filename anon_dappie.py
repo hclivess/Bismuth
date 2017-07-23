@@ -17,20 +17,20 @@ def randomize(anon_amount, anon_recipient, identifier, anon_sender):
 
 def anonymize(tx_count, per_tx, remainder, anon_recipient, identifier, anon_sender):
     # return remainder to source!
-    print(tx_count, per_tx, remainder, identifier)
     a.execute("SELECT * FROM transactions WHERE openfield = ?", (identifier,))
     try:
         exists = a.fetchall()[0]
-    except:#if payout didn't happen yet
 
+    except:#if payout didn't happen yet
+        print(tx_count, per_tx, remainder, identifier)
         for tx in range(tx_count):
             #construct tx
             openfield = "mixer"
             keep = 0
-            fee = float('%.8f' % float(0.01 + (float(anon_amount) * 0.001) + (float(len(openfield)) / 100000) + (float(keep) / 10)))  # 0.1% + 0.01 dust
+            fee = float('%.8f' % float(0.01 + (float(per_tx) * 0.001) + (float(len(openfield)) / 100000) + (float(keep) / 10)))  # 0.1% + 0.01 dust
 
             timestamp = '%.2f' % time.time()
-            transaction = (str(timestamp), str(address), str(anon_recipient), '%.8f' % float(anon_amount - fee), str(keep), str(openfield))  # this is signed
+            transaction = (str(timestamp), str(address), str(anon_recipient), '%.8f' % float(per_tx - fee), str(keep), str(openfield))  # this is signed
             # print transaction
 
             h = SHA.new(str(transaction).encode("utf-8"))
@@ -44,9 +44,9 @@ def anonymize(tx_count, per_tx, remainder, anon_recipient, identifier, anon_send
                 print("The signature is valid, proceeding to save transaction to mempool")
             #construct tx
 
-            a.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (str(timestamp), str(address), str(anon_recipient), '%.8f' % float(anon_amount - fee), str(signature_enc.decode("utf-8")), str(public_key_hashed), str(keep), str(identifier)))
+            a.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (str(timestamp), str(address), str(anon_recipient), '%.8f' % float(per_tx - fee), str(signature_enc.decode("utf-8")), str(public_key_hashed), str(keep), str(identifier)))
             anon.commit()
-            m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (str(timestamp), str(address), str(anon_recipient), '%.8f' % float(anon_amount - fee), str(signature_enc.decode("utf-8")), str(public_key_hashed), str(keep), str(openfield)))
+            m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (str(timestamp), str(address), str(anon_recipient), '%.8f' % float(per_tx - fee), str(signature_enc.decode("utf-8")), str(public_key_hashed), str(keep), str(openfield)))
             mempool.commit()
 
 
@@ -54,7 +54,7 @@ def anonymize(tx_count, per_tx, remainder, anon_recipient, identifier, anon_send
         keep = 0
         fee = float('%.8f' % float(0.01 + (float(remainder) * 0.001) + (float(len(openfield)) / 100000) + (float(keep) / 10)))  # 0.1% + 0.01 dust
         timestamp = '%.2f' % time.time()
-        transaction = (str(timestamp), str(address), str(anon_recipient), '%.8f' % float(remainder - fee), str(keep), str(openfield))  # this is signed
+        transaction = (str(timestamp), str(address), str(anon_sender), '%.8f' % float(remainder - fee), str(keep), str(openfield))  # this is signed
         m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (str(timestamp), str(address), str(anon_sender), '%.8f' % float(remainder - fee), str(signature_enc.decode("utf-8")), str(public_key_hashed), str(keep), str(openfield)))
         mempool.commit()
     return
@@ -85,23 +85,23 @@ while True:
         anon_sender = row[2]
 
         try:
-            print (row)
+            #print (row)
             anon_recipient_encrypted = (row[11].lstrip("enc="))
-            print(anon_recipient_encrypted)
+            #print(anon_recipient_encrypted)
             anon_recipient = key.decrypt(ast.literal_eval(anon_recipient_encrypted)).decode("utf-8").split(":")[1]
-            print(anon_recipient)
+            #print(anon_recipient)
 
             if len(anon_recipient) == 56:
                 anon_amount = float(row[4])
                 identifier = row[5][:8] #only save locally
-                print (anon_sender, anon_recipient, anon_amount, identifier)
+                #print (anon_sender, anon_recipient, anon_amount, identifier)
 
                 randomize(float(anon_amount), anon_recipient, identifier, anon_sender)
             else:
                 print ("Wrong target address length")
         except Exception as e:
             print (e)
-            print("issue occured")
+            #print("issue occured")
 
     time.sleep(15)
 
