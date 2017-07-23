@@ -5,24 +5,25 @@ from Crypto.Hash import SHA
 (key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read() #import keys
 app_log = log.log("anon.log",debug_level_conf)
 
-def randomize(anon_amount, anon_recipient, identifier):
+def randomize(anon_amount, anon_recipient, identifier, anon_sender):
     divider = int(random.uniform(2, 4))
     per_tx = int(anon_amount/divider) #how much per tx
     tx_count = int(anon_amount/per_tx) #how many txs
     remainder = anon_amount - per_tx*tx_count #remainder
-    print(divider, tx_count, per_tx, remainder, identifier)
+    print(divider, tx_count, per_tx, remainder, identifier, anon_sender)
 
-    anonymize(tx_count, per_tx, remainder, anon_recipient, identifier)
+    anonymize(tx_count, per_tx, remainder, anon_recipient, identifier, anon_sender)
     return
 
-def anonymize(tx_count, per_tx, remainder, anon_recipient, identifier):
+def anonymize(tx_count, per_tx, remainder, anon_recipient, identifier, anon_sender):
     # return remainder to source!
     print(tx_count, per_tx, remainder, identifier)
-    for tx in range(tx_count):
-        a.execute("SELECT * FROM transactions WHERE openfield = ?", (identifier,))
-        try:
-            exists = a.fetchall()[0]
-        except: #if payout didn't happen yet
+    a.execute("SELECT * FROM transactions WHERE openfield = ?", (identifier,))
+    try:
+        exists = a.fetchall()[0]
+    except:#if payout didn't happen yet
+
+        for tx in range(tx_count):
             #construct tx
             openfield = "mixer"
             keep = 0
@@ -47,6 +48,15 @@ def anonymize(tx_count, per_tx, remainder, anon_recipient, identifier):
             anon.commit()
             m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (str(timestamp), str(address), str(anon_recipient), '%.8f' % float(anon_amount - fee), str(signature_enc.decode("utf-8")), str(public_key_hashed), str(keep), str(openfield)))
             mempool.commit()
+
+
+        openfield = "mixer"
+        keep = 0
+        fee = float('%.8f' % float(0.01 + (float(remainder) * 0.001) + (float(len(openfield)) / 100000) + (float(keep) / 10)))  # 0.1% + 0.01 dust
+        timestamp = '%.2f' % time.time()
+        transaction = (str(timestamp), str(address), str(anon_recipient), '%.8f' % float(remainder - fee), str(keep), str(openfield))  # this is signed
+        m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (str(timestamp), str(address), str(anon_sender), '%.8f' % float(remainder - fee), str(signature_enc.decode("utf-8")), str(public_key_hashed), str(keep), str(openfield)))
+        mempool.commit()
     return
 
 if not os.path.exists('anon.db'):
@@ -71,17 +81,26 @@ mempool.text_factory = str
 m = mempool.cursor()
 
 while True:
-    for row in c.execute("SELECT * FROM transactions WHERE recipient = ? and openfield LIKE ?", (address,)+("anon"+'%',)):
+    for row in c.execute("SELECT * FROM transactions WHERE recipient = ? and openfield LIKE ?", (address,)+("enc="+'%',)):
         anon_sender = row[2]
-        anon_recipient = row[11].split(":")[1]
-        anon_amount = float(row[4])
-        identifier = row[5][:8] #only save locally
-        print (anon_sender, anon_recipient, anon_amount, identifier)
 
-        randomize(float(anon_amount),anon_recipient,identifier)
+        try:
+            print (row)
+            anon_recipient_encrypted = (row[11].lstrip("enc="))
+            print(anon_recipient_encrypted)
+            anon_recipient = key.decrypt(ast.literal_eval(anon_recipient_encrypted)).decode("utf-8")
+            print(anon_recipient)
+
+            if len(anon_recipient) == 56:
+                anon_amount = float(row[4])
+                identifier = row[5][:8] #only save locally
+                print (anon_sender, anon_recipient, anon_amount, identifier)
+
+                randomize(float(anon_amount), anon_recipient, identifier, anon_sender)
+            else:
+                print ("Wrong target address length")
+        except Exception as e:
+            print (e)
+            print("issue occured")
 
     time.sleep(15)
-
-
-
-
