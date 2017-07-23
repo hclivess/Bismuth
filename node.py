@@ -41,7 +41,7 @@ def db_to_drive():
     o = old_db.cursor()
 
     for row in o.execute("SELECT * FROM transactions where block_height > {} ORDER BY block_height ASC".format(hdd_block)):
-        h.execute("INSERT INTO transactions VALUES ?",(row))
+        h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10], row[11]))
         commit(hdd)
 
     h.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
