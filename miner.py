@@ -166,6 +166,7 @@ def miner(q, privatekey_readable, public_key_hashed, address):
 
                 connections.send(s, "diffget", 10)
                 diff = float(connections.receive(s, 10))
+                diff = 20
                 diff = int(diff)
                 diff_real = int(diff)
 
@@ -236,7 +237,7 @@ def miner(q, privatekey_readable, public_key_hashed, address):
                 signature_enc = base64.b64encode(signature)
 
                 if signer.verify(h, signature) == True:
-                    app_log.info("Signature valid")
+                    app_log.warning("Signature valid")
 
                     block_send.append((str(block_timestamp), str(address[:56]), str(address[:56]), '%.8f' % float(0), str(signature_enc.decode("utf-8")), str(public_key_hashed), "0", str(nonce)))  # mining reward tx
                     app_log.warning("Block to send: {}".format(block_send))
@@ -279,7 +280,7 @@ def miner(q, privatekey_readable, public_key_hashed, address):
                     if pool_conf == 0:
                         nodes_block_submit(block_send, app_log)
                 else:
-                    app_log.info("Invalid signature")
+                    app_log.warning("Invalid signature")
 
 
         except Exception as e:
