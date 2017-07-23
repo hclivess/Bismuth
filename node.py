@@ -22,6 +22,7 @@ global hdd_block
 ram_done = 0
 
 (port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address, ram_conf) = options.read()
+
 # load config
 
 def db_to_drive():
@@ -165,8 +166,7 @@ def ledger_convert():
 
             if end_balance > 0 or keep_is == 1:
                 timestamp = str(time.time())
-                h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
-                    db_block_height - depth - 1, timestamp, "Hyperblock", x, '%.8f' % float(end_balance), "0", "0", "0", "0", "0",
+                h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (db_block_height - depth - 1, timestamp, "Hyperblock", x, '%.8f' % float(end_balance), "0", "0", "0", "0", "0",
                     "0", "0"))
                 hyper.commit()
 
@@ -755,8 +755,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
 
                     transaction_list_converted.append((received_timestamp, received_address, received_recipient, received_amount, received_signature_enc, received_public_key_hashed, received_keep, received_openfield))
 
-                    received_public_key = RSA.importKey(
-                        base64.b64decode(received_public_key_hashed))  # convert readable key to instance
+                    received_public_key = RSA.importKey(base64.b64decode(received_public_key_hashed))  # convert readable key to instance
                     received_signature_dec = base64.b64decode(received_signature_enc)
                     verifier = PKCS1_v1_5.new(received_public_key)
 
