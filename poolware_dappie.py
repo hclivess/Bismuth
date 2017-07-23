@@ -243,7 +243,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             # get last block
 
             app_log.warning("Last Hash: {}".format(db_block_hash))
-
+            """
             mining_hash = bin_convert(hashlib.sha224((address + nonce + db_block_hash).encode("utf-8")).hexdigest())
             mining_condition = bin_convert(db_block_hash)[0:diff]
 
@@ -282,7 +282,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                         except Exception as e:
                             app_log.warning("Miner: Could not submit block to {} because {}".format(peer_ip, e))
                             pass
-
+                        """
             if diff < 50:
                 diff_shares = diff
             else:
