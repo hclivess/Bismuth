@@ -207,14 +207,15 @@ def send_confirm(amount_input, recipient_input, keep_input, openfield_input):
     # msg check
 
     # enc check
-    if enc_var.get() == 1:
+    if encrypt_var.get() == 1:
         #get recipient's public key
         c.execute("SELECT public_key FROM transactions WHERE address = ?",(recipient_input,))
         target_public_key_hashed = c.fetchone()[0]
 
         target_public_key = RSA.importKey(base64.b64decode(target_public_key_hashed))
-        #public_key = key.publickey()
         openfield_input = "enc=" + str(target_public_key.encrypt(openfield_input.encode("utf-8"), 32))
+        openfield_input = openfield_input.replace("'", '"') #tkinter hack
+
     # enc check
 
     fee = '%.8f' % float(0.01 + (float(amount.get()) * 0.001) + (float(len(openfield_input)) / 100000) + (float(keep_var.get()) / 10))  # 0.1% + 0.01 dust
@@ -279,7 +280,7 @@ def send(amount_input, recipient_input, keep_input, openfield_input, top10):
         signer = PKCS1_v1_5.new(key)
         signature = signer.sign(h)
         signature_enc = base64.b64encode(signature)
-        app_log.warning("Client: Encoded Signature: {}".format(signature_enc))
+        app_log.warning("Client: Encoded Signature: {}".format(signature_enc.decode("utf-8")))
 
         verifier = PKCS1_v1_5.new(key)
         if verifier.verify(h, signature) == True:
@@ -388,13 +389,13 @@ def msg_dialogue():
 
     Label(top11, text="Received:", width=20).grid(row=0)
 
-    msg_received = Text(top11, width=100, height=20, font=("TkDefaultFont", 8))
+    msg_received = Text(top11, width=100, height=20, font=("Tahoma", 8))
     msg_received.grid(row=1, column=0, sticky=W, padx=5, pady=(5, 5))
     msg_received_get()
 
     Label(top11, text="Sent:", width=20).grid(row=2)
 
-    msg_sent = Text(top11, width=100, height=20, font=("TkDefaultFont", 8))
+    msg_sent = Text(top11, width=100, height=20, font=("Tahoma", 8))
     msg_sent.grid(row=3, column=0, sticky=W, padx=5, pady=(5, 5))
     msg_sent_get()
 
@@ -770,7 +771,7 @@ f6.grid(row=2, column=0, sticky=E, pady=10, padx=10)
 
 # buttons
 
-send_b = Button(f5, text="Send", command=lambda: send_confirm(str(amount.get()).strip(), recipient.get().strip(), str(keep_var.get()).strip(), str(openfield.get("1.0", END)).strip()), height=1, width=10)
+send_b = Button(f5, text="Send", command=lambda: send_confirm(str(amount.get()).strip(), recipient.get().strip(), str(keep_var.get()).strip(), (openfield.get("1.0", END)).strip()), height=1, width=10)
 send_b.grid(row=7, column=0, sticky=W + E + S, pady=(45, 2), padx=15)
 
 start_b = Button(f5, text="Generate QR Code", command=qr, height=1, width=10)
@@ -854,7 +855,7 @@ encode_var = IntVar()
 alias_cb_var = IntVar()
 # encrypt_var = IntVar()
 msg_var = IntVar()
-enc_var = IntVar()
+encrypt_var = IntVar()
 
 # address and amount
 gui_address = Entry(f3, width=60)
@@ -872,7 +873,7 @@ recipient.grid(row=1, column=1, sticky=E)
 amount = Entry(f3, width=60)
 amount.insert(0, 0)
 amount.grid(row=2, column=1, sticky=E)
-openfield = Text(f3, width=60, height=5, font=("TkDefaultFont", 8))
+openfield = Text(f3, width=60, height=5, font=("Tahoma", 8))
 openfield.grid(row=3, column=1, sticky=E)
 
 alias_cb = Checkbutton(f3, text="Alias", variable=alias_cb_var, command=None)
@@ -887,7 +888,7 @@ encode.grid(row=4, column=1, sticky=E, padx=(0, 170))
 msg = Checkbutton(f3, text="Message", variable=msg_var)
 msg.grid(row=4, column=1, sticky=E, padx=(0, 230))
 
-msg = Checkbutton(f3, text="Encrypt", variable=enc_var)
+msg = Checkbutton(f3, text="Encrypt", variable=encrypt_var)
 msg.grid(row=4, column=1, sticky=E, padx=(0, 300))
 
 balance_enumerator = Entry(f3, width=5)
