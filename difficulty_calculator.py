@@ -1,0 +1,36 @@
+import sqlite3, hashlib
+
+conn = sqlite3.connect('static/ledger.db')
+c = conn.cursor()
+
+c.execute("select * from transactions where reward != 0 and block_height != 0 order by block_height asc")
+result = c.fetchall()
+
+def bin_convert(string):
+    return ''.join(format(ord(x), 'b') for x in string)
+
+
+db_block_hash = "init"
+for x in result:
+    miner_address = x[2]
+    nonce = x[11]
+
+    diff_broke = 0
+    diff = 37
+
+    while diff_broke == 0:
+
+        mining_hash = bin_convert(hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
+        mining_condition = bin_convert(db_block_hash)[0:diff]
+        if mining_condition in mining_hash:
+            diff_result = diff
+            diff = diff + 1
+        else:
+            diff_broke = 1
+
+    try:
+        print (x[0],diff_result)
+    except:
+        pass
+
+    db_block_hash = x[7] #current for next run as previous
