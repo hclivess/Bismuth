@@ -17,7 +17,7 @@ for x in result:
     nonce = x[11]
 
     diff_broke = 0
-    diff = 30
+    diff = 0
 
     while diff_broke == 0:
 
@@ -31,7 +31,7 @@ for x in result:
     try:
 
 
-        f.write(str(x[0]) + " " + str(diff_result))
+        f.write(str(x[0]) + " " + str(diff_result) + "\n")
         print (x[0],diff_result)
 
     except:

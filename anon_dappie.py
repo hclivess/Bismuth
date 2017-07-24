@@ -80,7 +80,7 @@ mempool.text_factory = str
 m = mempool.cursor()
 
 while True:
-    for row in c.execute("SELECT * FROM transactions WHERE recipient = ? and openfield LIKE ?", (address,)+("enc="+'%',)):
+    for row in c.execute("SELECT * FROM transactions WHERE recipient = ? and openfield LIKE ? LIMIT 500", (address,)+("enc="+'%',)):
         anon_sender = row[2]
 
         try:
