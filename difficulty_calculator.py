@@ -1,5 +1,6 @@
 import sqlite3, hashlib
 
+f = open('difficulty.log', 'w')
 conn = sqlite3.connect('static/ledger.db')
 c = conn.cursor()
 
@@ -9,14 +10,14 @@ result = c.fetchall()
 def bin_convert(string):
     return ''.join(format(ord(x), 'b') for x in string)
 
-
 db_block_hash = "init"
+
 for x in result:
     miner_address = x[2]
     nonce = x[11]
 
     diff_broke = 0
-    diff = 37
+    diff = 30
 
     while diff_broke == 0:
 
@@ -27,10 +28,15 @@ for x in result:
             diff = diff + 1
         else:
             diff_broke = 1
-
     try:
+
+
+        f.write(str((x[0],diff_result)))
         print (x[0],diff_result)
+
     except:
         pass
 
     db_block_hash = x[7] #current for next run as previous
+
+f.close()
