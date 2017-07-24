@@ -5,8 +5,7 @@ from Crypto.Hash import SHA
 (key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read() #import keys
 app_log = log.log("anon.log",debug_level_conf)
 
-def randomize(anon_amount, anon_recipient, identifier, anon_sender):
-    divider = int(random.uniform(2, 4))
+def randomize(divider, anon_amount, anon_recipient, identifier, anon_sender):
     per_tx = int(anon_amount/divider) #how much per tx
     tx_count = int(anon_amount/per_tx) #how many txs
     remainder = anon_amount - per_tx*tx_count #remainder
@@ -88,15 +87,16 @@ while True:
             #print (row)
             anon_recipient_encrypted = (row[11].lstrip("enc="))
             #print(anon_recipient_encrypted)
-            anon_recipient = key.decrypt(ast.literal_eval(anon_recipient_encrypted)).decode("utf-8").split(":")[1]
+            anon_recipient = key.decrypt(ast.literal_eval(anon_recipient_encrypted)).decode("utf-8").split(":")[2]
             #print(anon_recipient)
+            divider = row[11].split(":")[1]
 
             if len(anon_recipient) == 56:
                 anon_amount = float(row[4])
                 identifier = row[5][:8] #only save locally
                 #print (anon_sender, anon_recipient, anon_amount, identifier)
 
-                randomize(float(anon_amount), anon_recipient, identifier, anon_sender)
+                randomize(divider, float(anon_amount), anon_recipient, identifier, anon_sender)
             else:
                 print ("Wrong target address length")
         except Exception as e:

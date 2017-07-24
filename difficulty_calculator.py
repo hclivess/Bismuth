@@ -31,7 +31,7 @@ for x in result:
     try:
 
 
-        f.write(str((x[0],diff_result)))
+        f.write(str(x[0]) + " " + str(diff_result))
         print (x[0],diff_result)
 
     except:
