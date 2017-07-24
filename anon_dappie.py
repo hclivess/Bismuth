@@ -89,7 +89,7 @@ while True:
             #print(anon_recipient_encrypted)
             anon_recipient = key.decrypt(ast.literal_eval(anon_recipient_encrypted)).decode("utf-8").split(":")[2]
             #print(anon_recipient)
-            divider = row[11].split(":")[1]
+            divider = int(key.decrypt(ast.literal_eval(anon_recipient_encrypted)).decode("utf-8").split(":")[1])
 
             if len(anon_recipient) == 56:
                 anon_amount = float(row[4])
