@@ -52,7 +52,6 @@ def payout():
     try:
         block_threshold = min(output_timestamps)
     except:
-        raise
         block_threshold = time.time()
     print(block_threshold)
 
