@@ -284,8 +284,6 @@ def mempool_merge(data, peer_ip, conn, c, mempool, m):
             try:
                 block_list = ast.literal_eval(data)
 
-
-
                 for transaction in block_list:  # set means unique
                     mempool_timestamp = '%.2f' % float(transaction[0])
                     mempool_address = str(transaction[1][:56])

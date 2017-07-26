@@ -24,6 +24,10 @@ def read():
         private_key_readable = key.exportKey().decode("utf-8")
 
     public_key_readable = open('pubkey.der').read()
+
+    if (len(public_key_readable)) != 271:
+        raise ValueError("Invalid public key length")
+
     public_key_hashed = base64.b64encode(public_key_readable.encode("utf-8")).decode("utf-8")
     address = hashlib.sha224(public_key_readable.encode("utf-8")).hexdigest()
     # import keys
