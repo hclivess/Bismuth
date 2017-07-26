@@ -73,10 +73,6 @@ def check_uptodate(interval, app_log):
         # check if blocks are up to date
 
 
-def send(sdef, data):
-    sdef.sendall(data)
-
-
 def bin_convert(string):
     return ''.join(format(ord(x), 'b') for x in string)
 

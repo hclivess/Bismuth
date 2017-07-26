@@ -693,6 +693,7 @@ def manager():
 def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
     global busy, banlist, hdd_block, ram_conf
 
+
     if busy == 0:
         block_valid = 1  # init
 
@@ -705,6 +706,9 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                 new_list = []
                 new_list.append(block_list)
                 block_list = new_list  # make it a list of lists
+
+            print(data)
+            print(block_list)
 
             # reject block with duplicate transactions
             signature_list = []
@@ -823,8 +827,8 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
 
                 app_log.info("Calculated difficulty: {}".format(diff))
                 diff = int(diff)
-                if test == 1:
-                    diff = 20
+                #if test == 1:
+                #    diff = 20
                 # calculate difficulty
 
                 # match difficulty
