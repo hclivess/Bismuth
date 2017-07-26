@@ -48,17 +48,16 @@ def anonymize(tx_count, per_tx, remainder, anon_recipient, identifier, anon_send
             m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (str(timestamp), str(address), str(anon_recipient), '%.8f' % float(per_tx - fee), str(signature_enc.decode("utf-8")), str(public_key_hashed), str(keep), str(openfield)))
             mempool.commit()
 
-        #remainder
+
+        if remainder-fee > 0:
+        openfield = "mixer"
+        keep = 0
         fee = float('%.8f' % float(0.01 + (float(remainder) * 0.001) + (float(len(openfield)) / 100000) + (float(keep) / 10)))  # 0.1% + 0.01 dust
-        if (remainder-fee) > 0:
-            openfield = "mixer"
-            keep = 0
-            timestamp = '%.2f' % time.time()
-            transaction = (str(timestamp), str(address), str(anon_sender), '%.8f' % float(remainder - fee), str(keep), str(openfield))  # this is signed
+        timestamp = '%.2f' % time.time()
+        transaction = (str(timestamp), str(address), str(anon_sender), '%.8f' % float(remainder - fee), str(keep), str(openfield))  # this is signed
+        if remainder - fee > 0:
             m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (str(timestamp), str(address), str(anon_sender), '%.8f' % float(remainder - fee), str(signature_enc.decode("utf-8")), str(public_key_hashed), str(keep), str(openfield)))
             mempool.commit()
-        #remainder
-
     return
 
 if not os.path.exists('anon.db'):
