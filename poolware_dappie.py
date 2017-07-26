@@ -182,9 +182,6 @@ def diffget(s):
 def bin_convert(string):
     return ''.join(format(ord(x), 'b') for x in string)
 
-
-payout()
-
 if not os.path.exists('shares.db'):
     # create empty mempool
     shares = sqlite3.connect('shares.db')
@@ -194,6 +191,9 @@ if not os.path.exists('shares.db'):
     app_log.warning("Created shares file")
     s.close()
     # create empty mempool
+
+payout()
+
 
 class MyTCPHandler(socketserver.BaseRequestHandler):
 

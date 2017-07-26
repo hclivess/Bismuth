@@ -5,7 +5,7 @@ def send(sdef, data, slen):
 
     sdef.sendall(str(len(str(pickle.dumps(data)))).encode("utf-8").zfill(slen))
     sdef.sendall(str(pickle.dumps(data)).encode("utf-8"))
-    print(pickle.dumps(data))
+    #print(pickle.dumps(data))
 
 def receive(sdef, slen):
     sdef.setblocking(0)

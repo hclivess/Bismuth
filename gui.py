@@ -224,10 +224,10 @@ def send_confirm(amount_input, recipient_input, keep_input, openfield_input):
 
 
 
-
     fee = '%.8f' % float(0.01 + (float(amount.get()) * 0.001) + (float(len(openfield_input)) / 100000) + (float(keep_var.get()) / 10))  # 0.1% + 0.01 dust
     confirmation_dialog = Text(top10, width=100)
     confirmation_dialog.insert(INSERT, ("Amount: {}\nTo: {}\nFee: {}\nKeep Entry: {}\nOpenField:\n\n{}".format(amount_input, recipient_input, fee, keep_input, openfield_input)))
+
     confirmation_dialog.grid(row=0, pady=0)
 
     enter = Button(top10, text="Confirm", command=lambda: send(amount_input, recipient_input, keep_input, openfield_input, top10))
@@ -584,7 +584,7 @@ def refresh():
         s.connect(("127.0.0.1", int(port)))
         connections.send(s, "balanceget", 10)
         connections.send(s, address, 10)  # change address here to view other people's transactions
-        stats_account = ast.literal_eval(connections.receive(s, 10))
+        stats_account = connections.receive(s, 10)
         balance = stats_account[0]
         credit = stats_account[1]
         debit = stats_account[2]
@@ -594,7 +594,7 @@ def refresh():
         app_log.warning("Transction address balance: {}".format(balance))
 
         connections.send(s, "blocklast", 10)
-        block_get = ast.literal_eval(connections.receive(s, 10))
+        block_get = connections.receive(s, 10)
         bl_height = block_get[0]
         db_timestamp_last = block_get[1]
 

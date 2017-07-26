@@ -21,7 +21,7 @@ global ram_done
 global hdd_block
 ram_done = 0
 global test
-test = 0
+test = 1
 
 (port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address, ram_conf) = options.read()
 
@@ -1406,17 +1406,20 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                     # check if we have the latest block
 
-                    if len(active_pool) < 5:
-                        app_log.warning("Outgoing: Mined block ignored, insufficient connections to the network")
-                    elif int(db_block_height) >= int(max(consensus_blockheight_list)) - 3 and busy == 0:
-                        app_log.warning("Outgoing: Processing block from miner")
-                        digest_block(segments, self.request, peer_ip, conn, c, mempool, m)
-                    elif busy == 1:
-                        app_log.warning("Outgoing: Block from miner skipped because we are digesting already")
+                    if test == 0:
+                        if len(active_pool) < 5:
+                            app_log.warning("Outgoing: Mined block ignored, insufficient connections to the network")
+                        elif int(db_block_height) >= int(max(consensus_blockheight_list)) - 3 and busy == 0:
+                            app_log.warning("Outgoing: Processing block from miner")
+                            digest_block(segments, self.request, peer_ip, conn, c, mempool, m)
+                        elif busy == 1:
+                            app_log.warning("Outgoing: Block from miner skipped because we are digesting already")
 
-                    # receive theirs
+                        # receive theirs
+                        else:
+                            app_log.warning("Outgoing: Mined block was orphaned because node was not synced, we are at block {}, should be at least {}".format(db_block_height, int(max(consensus_blockheight_list)) - 3))
                     else:
-                        app_log.warning("Outgoing: Mined block was orphaned because node was not synced, we are at block {}, should be at least {}".format(db_block_height, int(max(consensus_blockheight_list)) - 3))
+                        digest_block(segments, self.request, peer_ip, conn, c, mempool, m)
 
                 elif data == "blocklast" and (peer_ip in allowed or "any" in allowed):  # only sends the miner part of the block!
 

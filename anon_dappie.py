@@ -84,12 +84,12 @@ while True:
         anon_sender = row[2]
 
         try:
-            #print (row)
-            anon_recipient_encrypted = (row[11].lstrip("enc="))
-            #print(anon_recipient_encrypted)
-            anon_recipient = key.decrypt(ast.literal_eval(anon_recipient_encrypted)).decode("utf-8").split(":")[2]
-            #print(anon_recipient)
-            divider = int(key.decrypt(ast.literal_eval(anon_recipient_encrypted)).decode("utf-8").split(":")[1])
+            print (row)
+            anon_recipient_encrypted = ast.literal_eval((row[11].lstrip("enc=")))
+            print(anon_recipient_encrypted)
+            anon_recipient = key.decrypt(anon_recipient_encrypted).decode("utf-8").split("::")[2]
+            print(anon_recipient)
+            divider = int(key.decrypt(anon_recipient_encrypted).decode("utf-8").split("::")[1])
 
             if len(anon_recipient) == 56:
                 anon_amount = float(row[4])
