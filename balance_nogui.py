@@ -1,8 +1,6 @@
-import sqlite3, base64, hashlib
+import sqlite3, keys
 
-public_key_readable = open('pubkey.der').read()
-public_key_hashed = base64.b64encode(public_key_readable.encode("utf-8"))
-address = hashlib.sha224(public_key_readable.encode("utf-8")).hexdigest()
+(key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read()
 
 mempool = sqlite3.connect('mempool.db')
 mempool.text_factory = str
