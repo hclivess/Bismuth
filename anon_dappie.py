@@ -48,14 +48,17 @@ def anonymize(tx_count, per_tx, remainder, anon_recipient, identifier, anon_send
             m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (str(timestamp), str(address), str(anon_recipient), '%.8f' % float(per_tx - fee), str(signature_enc.decode("utf-8")), str(public_key_hashed), str(keep), str(openfield)))
             mempool.commit()
 
-
-        openfield = "mixer"
-        keep = 0
+        #remainder
         fee = float('%.8f' % float(0.01 + (float(remainder) * 0.001) + (float(len(openfield)) / 100000) + (float(keep) / 10)))  # 0.1% + 0.01 dust
-        timestamp = '%.2f' % time.time()
-        transaction = (str(timestamp), str(address), str(anon_sender), '%.8f' % float(remainder - fee), str(keep), str(openfield))  # this is signed
-        m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (str(timestamp), str(address), str(anon_sender), '%.8f' % float(remainder - fee), str(signature_enc.decode("utf-8")), str(public_key_hashed), str(keep), str(openfield)))
-        mempool.commit()
+        if (remainder-fee) > 0:
+            openfield = "mixer"
+            keep = 0
+            timestamp = '%.2f' % time.time()
+            transaction = (str(timestamp), str(address), str(anon_sender), '%.8f' % float(remainder - fee), str(keep), str(openfield))  # this is signed
+            m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (str(timestamp), str(address), str(anon_sender), '%.8f' % float(remainder - fee), str(signature_enc.decode("utf-8")), str(public_key_hashed), str(keep), str(openfield)))
+            mempool.commit()
+        #remainder
+
     return
 
 if not os.path.exists('anon.db'):
@@ -87,9 +90,9 @@ while True:
             print (row)
             anon_recipient_encrypted = ast.literal_eval((row[11].lstrip("enc=")))
             print(anon_recipient_encrypted)
-            anon_recipient = key.decrypt(anon_recipient_encrypted).decode("utf-8").split("::")[2]
+            anon_recipient = key.decrypt(anon_recipient_encrypted).decode("utf-8").split(":")[2]
             print(anon_recipient)
-            divider = int(key.decrypt(anon_recipient_encrypted).decode("utf-8").split("::")[1])
+            divider = int(key.decrypt(anon_recipient_encrypted).decode("utf-8").split(":")[1])
 
             if len(anon_recipient) == 56:
                 anon_amount = float(row[4])
