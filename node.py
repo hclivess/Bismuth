@@ -563,6 +563,7 @@ def blocknf(block_hash_delete, peer_ip, conn, c):
                 commit(conn)
 
                 app_log.warning("Node {} didn't find block {}({}), rolled back".format(peer_ip, db_block_height, db_block_hash))
+                warning_list.append(peer_ip)
 
                 if ram_conf == 1:
                     #roll back hdd too
