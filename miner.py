@@ -158,7 +158,7 @@ def miner(q, privatekey_readable, public_key_hashed, address):
                 s.connect(("127.0.0.1", int(port)))  # connect to local node
 
                 connections.send(s, "blocklast", 10)
-                db_block_hash = ast.literal_eval(connections.receive(s, 10))[7]
+                db_block_hash = connections.receive(s, 10)[7]
 
                 cycles_per_second = tries / (now - begin) if (now - begin) != 0 else 0
                 begin = now
@@ -216,7 +216,7 @@ def miner(q, privatekey_readable, public_key_hashed, address):
                 data = connections.receive(s, 10)
 
                 if data != "[]":
-                    mempool = ast.literal_eval(data)
+                    mempool = data
 
                     for mpdata in mempool:
                         transaction = (
