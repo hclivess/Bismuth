@@ -679,7 +679,7 @@ def refresh():
         drop_factor = 120  # drop 0,5 diff per minute #hardfork
 
         if time_drop > db_timestamp_last + 360:  # start dropping after 3 minutes
-            diff = diff - (time_drop - db_timestamp_last) / drop_factor * 4  # drop 2 diff per minute (4 per 2 minutes)
+            diff = diff - (time_drop - db_timestamp_last) / (drop_factor * 4)  # drop 2 diff per minute (4 per 2 minutes)
 
         elif time_drop > db_timestamp_last + 180:  # start dropping after 2 minutes
             diff = diff - (time_drop - db_timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes)
