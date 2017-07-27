@@ -1082,6 +1082,10 @@ else:
 # key = RSA.importKey(open('privkey.der').read())
 # private_key_readable = str(key.exportKey())
 public_key_readable = open('pubkey.der'.encode('utf-8')).read()
+
+if (len(public_key_readable)) != 271:
+    raise ValueError ("Invalid public key length")
+
 public_key_hashed = base64.b64encode(public_key_readable.encode('utf-8'))
 address = hashlib.sha224(public_key_readable.encode('utf-8')).hexdigest()
 
