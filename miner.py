@@ -4,11 +4,6 @@ from Crypto.Hash import SHA
 from Crypto import Random
 from multiprocessing import Process, freeze_support
 
-try:
-    import quickbismuth
-except ImportError:
-    quickbismuth = None
-
 # load config
 (port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address, ram_conf) = options.read()
 
@@ -128,9 +123,6 @@ def miner(q, privatekey_readable, public_key_hashed, address):
         self_address = address
         address = pool_address
 
-    if quickbismuth:
-        app_log.warning('Using QuickBismuth: ' + quickbismuth.__version__)
-
     while True:
         try:
 
@@ -174,12 +166,7 @@ def miner(q, privatekey_readable, public_key_hashed, address):
 
             nonce = hashlib.sha224(rndfile.read(16)).hexdigest()[:32]
 
-            if quickbismuth:
-                fastminer_cycles = 500000
-                nonce = quickbismuth.bismuth_mine(diff, address, db_block_hash, fastminer_cycles, rndfile.read(32))
-                tries += fastminer_cycles
-            else:
-                tries = tries + 1
+            tries = tries + 1
 
             if nonce is None:
                 nonce = hashlib.sha224(rndfile.read(16)).hexdigest()[:32]
