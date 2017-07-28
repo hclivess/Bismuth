@@ -33,4 +33,4 @@ def receive(sdef, slen):
     # print "Received segments: "+str(segments)
 
 
-    return pickle.loads(ast.literal_eval(segments))
+    return pickle.loads(ast.literal_eval(segments)) #pickled objects can always be eval'd
