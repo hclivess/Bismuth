@@ -920,6 +920,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
 
                         execute_param(c, ("SELECT sum(fee),sum(reward) FROM transactions WHERE address = ?;"),
                                       (db_address,))
+
                         result = c.fetchall()[0]
                         fees = result[0]
                         rewards = result[1]

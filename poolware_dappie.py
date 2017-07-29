@@ -186,7 +186,8 @@ if not os.path.exists('shares.db'):
     shares = sqlite3.connect('shares.db')
     shares.text_factory = str
     s = shares.cursor()
-    execute(s, ("CREATE TABLE IF NOT EXISTS shares (address, shares, timestamp, paid)"))
+    execute(s, "CREATE TABLE IF NOT EXISTS shares (address, shares, timestamp, paid)")
+    execute(s, "CREATE TABLE IF NOT EXISTS hashes (hash)") #for used hash storage
     app_log.warning("Created shares file")
     s.close()
     # create empty mempool
@@ -221,7 +222,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             miner_address = connections.receive(self.request, 10)
             app_log.warning("Received a block from miner {} ({})".format(peer_ip,miner_address))
 
-            block_send = ast.literal_eval(connections.receive(self.request, 10))
+            block_send = connections.receive(self.request, 10)
             nonce = (block_send[-1][7])
 
             app_log.warning("Combined mined segments: {}".format(block_send))
@@ -240,7 +241,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 
             # get last block
             connections.send(s1, "blocklast", 10)
-            blocklast = ast.literal_eval(connections.receive(s1, 10))
+            blocklast = connections.receive(s1, 10)
             db_block_hash = blocklast[7]
             # get last block
 
@@ -290,22 +291,36 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             else:
                 diff_shares = 50
 
-            mining_condition = bin_convert(db_block_hash)[0:diff_shares] #floor set by pool
-            if mining_condition in mining_hash:
-                app_log.warning("Difficulty requirement satisfied for saving shares")
-                timestamp = '%.2f' % time.time()
+            shares = sqlite3.connect('shares.db')
+            shares.text_factory = str
+            s = shares.cursor()
 
-                shares = sqlite3.connect('shares.db')
-                shares.text_factory = str
-                s = shares.cursor()
+            # protect against used share resubmission
+            execute_param(s, ("SELECT hash FROM hashes WHERE hash = ?"), (mining_hash,))
 
-                s.execute("INSERT INTO shares VALUES (?,?,?,?)", (str(miner_address), str(1), timestamp, "0"))
-                shares.commit()
-                s.close()
+            try:
+                result = s.fetchone()[0]
+                app_log.warning("Miner trying to reuse a share, ignored")
+            except:
+                print("not there")
 
-            else:
-                app_log.warning("Difficulty requirement not satisfied for anything")
+                # protect against used share resubmission
+                mining_condition = bin_convert(db_block_hash)[0:diff_shares] #floor set by pool
+                if mining_condition in mining_hash:
+                    app_log.warning("Difficulty requirement satisfied for saving shares")
 
+                    execute_param(s, ("INSERT INTO hashes VALUES (?)"), (mining_hash,))
+                    commit(shares)
+
+                    timestamp = '%.2f' % time.time()
+
+                    s.execute("INSERT INTO shares VALUES (?,?,?,?)", (str(miner_address), str(1), timestamp, "0"))
+                    shares.commit()
+
+                else:
+                    app_log.warning("Difficulty requirement not satisfied for anything")
+
+            s.close()
             s1.close()
 
 app_log.warning("Starting up...")
