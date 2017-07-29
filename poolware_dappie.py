@@ -187,7 +187,7 @@ if not os.path.exists('shares.db'):
     shares.text_factory = str
     s = shares.cursor()
     execute(s, "CREATE TABLE IF NOT EXISTS shares (address, shares, timestamp, paid)")
-    execute(s, "CREATE TABLE IF NOT EXISTS hashes (hash)") #for used hash storage
+    execute(s, "CREATE TABLE IF NOT EXISTS nonces (nonce)") #for used hash storage
     app_log.warning("Created shares file")
     s.close()
     # create empty mempool
@@ -296,20 +296,18 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             s = shares.cursor()
 
             # protect against used share resubmission
-            execute_param(s, ("SELECT hash FROM hashes WHERE hash = ?"), (mining_hash,))
+            execute_param(s, ("SELECT nonce FROM nonces WHERE nonce = ?"), (nonce,))
 
             try:
                 result = s.fetchone()[0]
                 app_log.warning("Miner trying to reuse a share, ignored")
             except:
-                print("not there")
-
                 # protect against used share resubmission
                 mining_condition = bin_convert(db_block_hash)[0:diff_shares] #floor set by pool
                 if mining_condition in mining_hash:
                     app_log.warning("Difficulty requirement satisfied for saving shares")
 
-                    execute_param(s, ("INSERT INTO hashes VALUES (?)"), (mining_hash,))
+                    execute_param(s, ("INSERT INTO nonces VALUES (?)"), (nonce,))
                     commit(shares)
 
                     timestamp = '%.2f' % time.time()
