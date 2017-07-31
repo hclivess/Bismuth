@@ -812,12 +812,11 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
 
                 # drop diff per minute if over target
                 time_now = time.time()
-                minutes_passed = (time_now - 180) / 60 #count in 3 passed minutes
 
                 drop_factor = 120  # drop 0,5 diff per minute
 
                 if time_now > db_timestamp_last + 180:  # start dropping after 3 minutes
-                    diff = diff - minutes_passed - (time_now - db_timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes)
+                    diff = diff - (time_now - db_timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes)
                     # drop diff per minute if over target
 
                 if diff < 37:  # 5 m lim
