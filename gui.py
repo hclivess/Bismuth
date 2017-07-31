@@ -674,12 +674,13 @@ def refresh():
         diff = blocks_per_30 * 2
 
         # drop diff per minute if over target
-        time_drop = time.time()
+        time_now = time.time()
+        minutes_passed = (time_now - 180) / 60  # count in 3 passed minutes
 
         drop_factor = 120  # drop 0,5 diff per minute #hardfork
 
-        if time_drop > db_timestamp_last + 180:  # start dropping after 3 minutes
-            diff = diff - (time_drop - db_timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes)
+        if time_now > db_timestamp_last + 180:  # start dropping after 3 minutes
+            diff = diff - minutes_passed - (time_now - db_timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes); minus minutes passed since the drop started
 
         if diff < 37:
             diff = 37
