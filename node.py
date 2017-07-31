@@ -1098,8 +1098,22 @@ if not os.path.exists('mempool.db'):
     commit(mempool)
     app_log.info("Created mempool file")
     # create empty mempool
-else:
-    app_log.warning("Mempool exists")
+
+#check if mempool needs recreating
+mempool = sqlite3.connect('mempool.db', timeout=1)
+mempool.text_factory = str
+m = mempool.cursor()
+m.execute("PRAGMA table_info('shares')")
+if len(m.fetchall()) != 8:
+    mempool.close()
+    os.remove("mempool.db")
+    mempool = sqlite3.connect('mempool.db', timeout=1)
+    mempool.text_factory = str
+    m = mempool.cursor()
+    execute(m, ("CREATE TABLE IF NOT EXISTS transactions (timestamp, address, recipient, amount, signature, public_key, keep, openfield)"))
+    commit(mempool)
+    app_log.info("Recreated mempool file")
+#check if mempool needs recreating
 
 if hyperblocks_conf == 1:
     ledger_convert()
