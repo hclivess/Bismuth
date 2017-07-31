@@ -27,9 +27,16 @@ conn2.text_factory = str
 global c2
 c2 = conn.cursor()
 
-mempool = sqlite3.connect('mempool.db')
-mempool.text_factory = str
-m = mempool.cursor()
+if not os.path.exists('mempool.db'):
+    # create empty mempool
+    mempool = sqlite3.connect('mempool.db',timeout=1)
+    mempool.text_factory = str
+    m = mempool.cursor()
+    execute(m, ("CREATE TABLE IF NOT EXISTS transactions (timestamp, address, recipient, amount, signature, public_key, keep, openfield)"))
+    commit(mempool)
+    app_log.info("Created mempool file")
+    # create empty mempool
+
 # for local evaluation
 
 # load config
