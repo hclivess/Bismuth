@@ -32,8 +32,4 @@ def receive(sdef, slen):
     segments = b''.join(chunks).decode("utf-8")
     # print "Received segments: "+str(segments)
 
-    try:
-        return pickle.loads(ast.literal_eval(segments)) #pickled objects can always be eval'd
-    except Exception as e:
-        print(segments)
-        print(e)
+    return pickle.loads(ast.literal_eval(segments)) #pickled objects can always be eval'd
