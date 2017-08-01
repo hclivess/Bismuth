@@ -1,10 +1,10 @@
-import select, pickle,ast
+import select, picklemagic, ast
 
 def send(sdef, data, slen):
     sdef.setblocking(0)
 
-    sdef.sendall(str(len(str(pickle.dumps(data)))).encode("utf-8").zfill(slen))
-    sdef.sendall(str(pickle.dumps(data)).encode("utf-8"))
+    sdef.sendall(str(len(str(picklemagic.safe_dumps(data)))).encode("utf-8").zfill(slen))
+    sdef.sendall(str(picklemagic.safe_dumps(data)).encode("utf-8"))
     #print(pickle.dumps(data))
 
 def receive(sdef, slen):
@@ -32,4 +32,4 @@ def receive(sdef, slen):
     segments = b''.join(chunks).decode("utf-8")
     # print "Received segments: "+str(segments)
 
-    return pickle.loads(ast.literal_eval(segments)) #pickled objects can always be eval'd
+    return picklemagic.safe_loads(ast.literal_eval(segments))
