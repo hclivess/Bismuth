@@ -189,7 +189,7 @@ def most_common(lst):
 
 
 def bin_convert(string):
-    return ''.join(format(ord(x), 'b') for x in string)
+    return ''.join(format(ord(x), '8b').replace(' ', '0') for x in string)
 
 
 def commit(cursor):

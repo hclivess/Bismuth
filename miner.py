@@ -69,7 +69,7 @@ def check_uptodate(interval, app_log):
 
 
 def bin_convert(string):
-    return ''.join(format(ord(x), 'b') for x in string)
+    return ''.join(format(ord(x), '8b').replace(' ', '0') for x in string)
 
 
 def execute(cursor, what, app_log):
