@@ -21,7 +21,7 @@ global ram_done
 global hdd_block
 ram_done = 0
 global test
-test = 0
+test = 1
 
 (port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address, ram_conf) = options.read()
 
@@ -819,8 +819,8 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                     diff = diff - (time_now - db_timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes)
                     # drop diff per minute if over target
 
-                if diff < 37:  # 5 m lim
-                    diff = 37  # 5 m lim
+                if diff < 37:
+                    diff = 37
                 # calculate difficulty
 
                 app_log.info("Calculated difficulty: {}".format(diff))
@@ -1542,6 +1542,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                     if time_now > db_timestamp_last + 180:  # start dropping after 3 minutes
                         diff = diff - (time_now - db_timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes); minus minutes passed since the drop started
+
+                    if diff < 37:
+                        diff = 37
 
                     connections.send(self.request, diff, 10)
 
