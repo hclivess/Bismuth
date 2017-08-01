@@ -1537,10 +1537,10 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # drop diff per minute if over target
                     time_drop = time.time()
 
-                    drop_factor = 120  # drop 0,5 diff per minute #hardfork
+                    time_now = 120  # drop 0,5 diff per minute #hardfork
 
-                    if time_drop > db_timestamp_last + 120:  # start dropping after 2 minutes
-                        diff = diff - (time_drop - db_timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes)
+                    if time_now > db_timestamp_last + 180:  # start dropping after 3 minutes
+                        diff = diff - (time_now - db_timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes); minus minutes passed since the drop started
 
                     connections.send(self.request, diff, 10)
 
