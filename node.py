@@ -1542,9 +1542,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if time_drop > db_timestamp_last + 120:  # start dropping after 2 minutes
                         diff = diff - (time_drop - db_timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes)
 
-                    if time_drop > db_timestamp_last + 300 or diff < 37:  # 5 m lim
-                        diff = 37  # 5 m lim
-
                     connections.send(self.request, diff, 10)
 
 
