@@ -16,10 +16,6 @@ global key
 global encrypted
 global unlocked
 
-mempool = sqlite3.connect('mempool.db', timeout=1)
-mempool.text_factory = str
-m = mempool.cursor()
-
 # for local evaluation
 conn = sqlite3.connect('static/ledger.db')
 conn.text_factory = str
@@ -40,9 +36,12 @@ if not os.path.exists('mempool.db'):
     commit(mempool)
     app_log.info("Created mempool file")
     # create empty mempool
+else:
+    mempool = sqlite3.connect('mempool.db', timeout=1)
+    mempool.text_factory = str
+    m = mempool.cursor()
 
 # for local evaluation
-
 # load config
 lines = [line.rstrip('\n') for line in open('config.txt')]
 for line in lines:
