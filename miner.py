@@ -142,7 +142,7 @@ def miner(q, privatekey_readable, public_key_hashed, address):
 
             # calculate new hash
             nonces = 0
-            nonces_limit = 25000
+            nonces_limit = diff_recalc_conf
 
 
             if nonces % int(diff_recalc_conf) == 0 or firstrun:  # only do this ever so often
@@ -180,21 +180,24 @@ def miner(q, privatekey_readable, public_key_hashed, address):
 
                 mining_condition = bin_convert(db_block_hash)[0:diff]
 
-            tries = tries + 1
 
             # block_hash = hashlib.sha224(str(block_send) + db_block_hash).hexdigest()
 
-            while nonces < nonces_limit:
 
-                now = time.time()
-                cycles_per_second = tries / (now - begin) if (now - begin) != 0 else 0
-                begin = now
-                
+            while nonces < nonces_limit:
+                start = time.time()
+
                 nonce = hashlib.sha224(rndfile.read(8)).hexdigest()[:16]
                 mining_hash = bin_convert(hashlib.sha224((address + nonce + db_block_hash).encode("utf-8")).hexdigest())
-                if nonces % int(diff_recalc_conf) == 0: #limit output
-                    print("Thread{} {} @ {:.2f} cycles/second, difficulty: {}({}), nonce iteration: {}".format(q, db_block_hash[:10], cycles_per_second, diff, diff_real, nonces))
+                if nonces % 2500 == 0: #limit output
+                    end = time.time()
+                    try:
+                        cycles_per_second = 1/(end - start)
+                        print("Thread{} {} @ {:.2f} cycles/second, difficulty: {}({}), nonce iteration: {}".format(q, db_block_hash[:10], cycles_per_second, diff, diff_real, nonces))
+                    except:
+                        pass
                 nonces = nonces + 1
+                tries = tries + 1
 
                 if mining_condition in mining_hash:
                     tries = 0
