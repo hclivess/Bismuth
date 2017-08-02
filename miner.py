@@ -190,9 +190,10 @@ def miner(q, privatekey_readable, public_key_hashed, address):
                 cycles_per_second = tries / (now - begin) if (now - begin) != 0 else 0
                 begin = now
                 
-                nonce = hashlib.sha224(rndfile.read(16)).hexdigest()[:32]
+                nonce = hashlib.sha224(rndfile.read(8)).hexdigest()[:16]
                 mining_hash = bin_convert(hashlib.sha224((address + nonce + db_block_hash).encode("utf-8")).hexdigest())
-                print("Thread{} {} @ {:.2f} cycles/second, difficulty: {}({}), nonce iteration: {}".format(q, db_block_hash[:10], cycles_per_second, diff, diff_real, nonces))
+                if nonces % int(diff_recalc_conf) == 0: #limit output
+                    print("Thread{} {} @ {:.2f} cycles/second, difficulty: {}({}), nonce iteration: {}".format(q, db_block_hash[:10], cycles_per_second, diff, diff_real, nonces))
                 nonces = nonces + 1
 
                 if mining_condition in mining_hash:
