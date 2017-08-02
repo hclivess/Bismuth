@@ -24,6 +24,7 @@ global test
 test = 0
 
 db_lock = threading.Lock()
+mem_lock = threading.Lock()
 
 (port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, pool_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address, ram_conf, pool_percentage_conf, node_ip_conf) = options.read()
 
@@ -259,8 +260,6 @@ global warning_list
 warning_list = []
 global banlist
 banlist = []
-global busy_mempool
-busy_mempool = 0
 global consensus
 consensus = ""
 global syncing
@@ -270,13 +269,10 @@ syncing = []
 # port = 2829 now defined by config
 
 def mempool_merge(data, peer_ip, conn, c, mempool, m):
-    global busy_mempool
-    if busy_mempool == 0:
-        busy_mempool = 1
-
+    if mem_lock.locked() == False:
         if data == "[]":
             app_log.info("Mempool from {} was empty".format(peer_ip))
-            busy_mempool = 0
+            mem_lock.release()
         else:
             # app_log.info("Mempool merging started")
             # merge mempool
@@ -446,7 +442,7 @@ def mempool_merge(data, peer_ip, conn, c, mempool, m):
                 else:
                     return
             finally:
-                busy_mempool = 0
+                mem_lock.release()
 
 
 def purge_old_peers():
@@ -540,11 +536,10 @@ def verify(c):
 
 
 def blocknf(block_hash_delete, peer_ip, conn, c):
-    global busy, hdd_block
+    global hdd_block
 
     if db_lock.locked() == False:
         db_lock.acquire()
-        busy = 1
         try:
             execute(c, ('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1'))
             results = c.fetchone()
@@ -582,7 +577,6 @@ def blocknf(block_hash_delete, peer_ip, conn, c):
         except:
             pass
         finally:
-            busy = 0
             db_lock.release()
 
             # delete followups
@@ -1203,8 +1197,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                 data = connections.receive(self.request, 10)
 
-                app_log.info(
-                    "Incoming: Received: {} from {}".format(data, peer_ip))  # will add custom ports later
+                app_log.info("Incoming: Received: {} from {}".format(data, peer_ip))  # will add custom ports later
 
                 if data == 'version':
                     data = connections.receive(self.request, 10)
@@ -1279,14 +1272,14 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                     # save peer if connectible
 
-                    while busy == 1:
+                    while db_lock.locked() == True:
                         time.sleep(float(pause_conf))
                     app_log.info("Incoming: Sending sync request")
 
                     connections.send(self.request, "sync", 10)
 
                 elif data == "sendsync":
-                    while busy == 1:
+                    while db_lock.locked() == True:
                         time.sleep(float(pause_conf))
 
                     global syncing
@@ -1301,7 +1294,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                     # app_log.info("Incoming: Combined segments: " + segments)
                     # print peer_ip
-                    if busy == 1:
+                    if db_lock.locked() == True:
                         app_log.info("Skipping sync from {}, syncing already in progress".format(peer_ip))
 
                     elif max(consensus_blockheight_list) == int(consensus_blockheight):
@@ -1410,7 +1403,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         warning_list.append(peer_ip)
                     app_log.info("Outgoing: Deletion complete, sending sync request")
 
-                    while busy == 1:
+                    while db_lock.locked() == True:
                         time.sleep(float(pause_conf))
                     connections.send(self.request, "sync", 10)
 
@@ -1431,10 +1424,10 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if test == 0:
                         if len(active_pool) < 5:
                             app_log.warning("Outgoing: Mined block ignored, insufficient connections to the network")
-                        elif int(db_block_height) >= int(max(consensus_blockheight_list)) - 3 and lock.locked() == False:
+                        elif int(db_block_height) >= int(max(consensus_blockheight_list)) - 3 and db_lock.locked() == False:
                             app_log.warning("Outgoing: Processing block from miner")
                             digest_block(segments, self.request, peer_ip, conn, c, mempool, m)
-                        elif busy == 1:
+                        elif db_lock.locked() == True:
                             app_log.warning("Outgoing: Block from miner skipped because we are digesting already")
 
                         # receive theirs
@@ -1578,12 +1571,10 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 # client thread
 # if you "return" from the function, the exception code will node be executed and client thread will hand
 def worker(HOST, PORT):
-    global busy
 
     timeout_operation = 60  # timeout
     timer_operation = time.time()  # start counting
 
-    global busy
     try:
         this_client = (HOST + ":" + str(PORT))
         s = socks.socksocket()
@@ -1779,7 +1770,7 @@ def worker(HOST, PORT):
                 if max(consensus_blockheight_list) == consensus_blockheight:
                     blocknf(block_hash_delete, peer_ip, conn, c)
 
-                while busy == 1:
+                while db_lock.locked() == True:
                     time.sleep(float(pause_conf))
                 connections.send(s, "sendsync", 10)
 
@@ -1788,7 +1779,7 @@ def worker(HOST, PORT):
 
                 # app_log.info("Incoming: Combined segments: " + segments)
                 # print peer_ip
-                if busy == 1:
+                if db_lock.locked() == True:
                     app_log.info("Skipping sync from {}, syncing already in progress".format(peer_ip))
 
                 elif max(consensus_blockheight_list) == int(consensus_blockheight):
@@ -1830,7 +1821,7 @@ def worker(HOST, PORT):
                 app_log.info("Outgoing: We seem to be at the latest block. Paused before recheck")
 
                 time.sleep(int(pause_conf))
-                while busy == 1:
+                while db_lock.locked() == True:
                     time.sleep(float(pause_conf))
 
                 connections.send(s, "sendsync", 10)
