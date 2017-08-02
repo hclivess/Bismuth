@@ -277,7 +277,7 @@ def miner(q, privatekey_readable, public_key_hashed, address):
         except Exception as e:
             print(e)
             time.sleep(0.1)
-            raise
+            pass
 
 
 if __name__ == '__main__':
