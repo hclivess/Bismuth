@@ -163,6 +163,8 @@ def miner(q, privatekey_readable, public_key_hashed, address):
 
                 connections.send(s_node, "diffget", 10)
                 diff = float(connections.receive(s_node, 10))
+                s_node.close()
+
                 diff = int(diff)
                 diff_real = int(diff)
 
@@ -206,6 +208,7 @@ def miner(q, privatekey_readable, public_key_hashed, address):
                 s_node.connect((node_ip_conf, int(port)))  # connect to config.txt node
                 connections.send(s_node, "mpget", 10)
                 data = connections.receive(s_node, 10)
+                s_node.close()
 
                 if data != "[]":
                     mempool = data
@@ -261,6 +264,7 @@ def miner(q, privatekey_readable, public_key_hashed, address):
                             connections.send(s_pool, "block", 10)
                             connections.send(s_pool, self_address, 10)
                             connections.send(s_pool, block_send, 10)
+                            s_pool.close()
 
                             app_log.warning("Miner: Block submitted to pool")
 
