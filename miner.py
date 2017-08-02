@@ -107,6 +107,7 @@ def execute_param(cursor, what, param, app_log):
             # secure execute for slow nodes
     return cursor
 
+
 def miner(q, privatekey_readable, public_key_hashed, address):
     from Crypto.PublicKey import RSA
     Random.atfork()
@@ -116,6 +117,26 @@ def miner(q, privatekey_readable, public_key_hashed, address):
     tries = 0
     firstrun = True
     begin = time.time()
+
+    if pool_conf == 1:
+        #do not use pools public key to sign, signature will be invalid
+
+        self_address = address
+        address = pool_address
+
+        #ask for diff percentage
+        s_pool = socks.socksocket()
+        s_pool.settimeout(0.3)
+        if tor_conf == 1:
+            s_pool.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+        s_pool.connect((pool_ip_conf, 8525))  # connect to pool
+        app_log.warning("Connected")
+
+        app_log.warning("Miner: Asking pool for the difficulty percentage requirement")
+        connections.send(s_pool, "diffp", 100)
+        pool_diff_percentage = int(connections.receive(s_pool, 100))
+        s_pool.close()
+        #ask for diff percentage
 
     while True:
         try:
@@ -283,26 +304,6 @@ if __name__ == '__main__':
     # verify connection
     if sync_conf == 1:
         check_uptodate(120, app_log)
-
-    if pool_conf == 1:
-        # do not use pools public key to sign, signature will be invalid
-
-        self_address = address
-        address = pool_address
-
-        # ask for diff percentage
-        s_pool = socks.socksocket()
-        s_pool.settimeout(0.3)
-        if tor_conf == 1:
-            s_pool.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-        s_pool.connect((pool_ip_conf, 8525))  # connect to pool
-        app_log.warning("Connected")
-
-        app_log.warning("Miner: Asking pool for the difficulty percentage requirement")
-        connections.send(s_pool, "diffp", 100)
-        pool_diff_percentage = int(connections.receive(s_pool, 100))
-        s_pool.close()
-        # ask for diff percentage
 
     instances = range(int(mining_threads_conf))
     print(instances)
