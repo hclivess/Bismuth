@@ -1,4 +1,4 @@
-import base64, sqlite3, hashlib, time, socks, keys, log, sys, connections, ast, re, options
+import base64, sqlite3, hashlib, time, socks, keys, sys, connections, ast, re, options
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
 from Crypto import Random
