@@ -11,7 +11,7 @@ from multiprocessing import Process, freeze_support
 def percentage(percent, whole):
     return int((percent * whole) / 100)
 
-def nodes_block_submit(block_send, app_log):
+def nodes_block_submit(block_send):
     # connect to all nodes
     global peer_dict
     peer_dict = {}
@@ -33,35 +33,35 @@ def nodes_block_submit(block_send, app_log):
                 if tor_conf == 1:
                     s_peer.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
                 s_peer.connect((peer_ip, int(peer_port)))  # connect to node in peerlist
-                app_log.warning("Connected")
+                print("Connected")
 
-                app_log.warning("Miner: Proceeding to submit mined block to node")
+                print("Miner: Proceeding to submit mined block to node")
 
                 connections.send(s_peer, "block", 10)
                 connections.send(s_peer, block_send, 10)
 
-                app_log.warning("Miner: Block submitted to node {}".format(peer_ip))
+                print("Miner: Block submitted to node {}".format(peer_ip))
             except Exception as e:
-                app_log.warning("Miner: Could not submit block to node {} because {}".format(peer_ip, e))
+                print("Miner: Could not submit block to node {} because {}".format(peer_ip, e))
                 pass
 
                 # submit mined block to node
 
 
-def check_uptodate(interval, app_log):
+def check_uptodate(interval):
     # check if blocks are up to date
     while sync_conf == 1:
         conn = sqlite3.connect(ledger_path_conf)  # open to select the last tx to create a new hash from
         conn.text_factory = str
         c = conn.cursor()
 
-        execute(c, ("SELECT timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"), app_log)
+        execute(c, ("SELECT timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
         timestamp_last_block = c.fetchone()[0]
         time_now = str(time.time())
         last_block_ago = float(time_now) - float(timestamp_last_block)
 
         if last_block_ago > interval:
-            app_log.warning("Local blockchain is {} minutes behind ({} seconds), waiting for sync to complete".format(int(last_block_ago) / 60, last_block_ago))
+            print("Local blockchain is {} minutes behind ({} seconds), waiting for sync to complete".format(int(last_block_ago) / 60, last_block_ago))
             time.sleep(5)
         else:
             break
@@ -73,7 +73,7 @@ def bin_convert(string):
     return ''.join(format(ord(x), '8b').replace(' ', '0') for x in string)
 
 
-def execute(cursor, what, app_log):
+def execute(cursor, what):
     # secure execute for slow nodes
     passed = 0
     while passed == 0:
@@ -84,14 +84,14 @@ def execute(cursor, what, app_log):
             cursor.execute(what)
             passed = 1
         except Exception as e:
-            app_log.warning("Retrying database execute due to {}".format(e))
+            print("Retrying database execute due to {}".format(e))
             time.sleep(0.1)
             pass
             # secure execute for slow nodes
     return cursor
 
 
-def execute_param(cursor, what, param, app_log):
+def execute_param(cursor, what, param):
     # secure execute for slow nodes
     passed = 0
     while passed == 0:
@@ -101,7 +101,7 @@ def execute_param(cursor, what, param, app_log):
             cursor.execute(what, param)
             passed = 1
         except Exception as e:
-            app_log.warning("Retrying database execute due to {}".format(e))
+            print("Retrying database execute due to {}".format(e))
             time.sleep(0.1)
             pass
             # secure execute for slow nodes
@@ -112,7 +112,6 @@ def miner(q, privatekey_readable, public_key_hashed, address):
     from Crypto.PublicKey import RSA
     Random.atfork()
     key = RSA.importKey(privatekey_readable)
-    app_log = log.log("miner_" + q + ".log", debug_level_conf)
     rndfile = Random.new()
     tries = 0
     firstrun = True
@@ -130,9 +129,9 @@ def miner(q, privatekey_readable, public_key_hashed, address):
         if tor_conf == 1:
             s_pool.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
         s_pool.connect((pool_ip_conf, 8525))  # connect to pool
-        app_log.warning("Connected")
+        print("Connected")
 
-        app_log.warning("Miner: Asking pool for the difficulty percentage requirement")
+        print("Miner: Asking pool for the difficulty percentage requirement")
         connections.send(s_pool, "diffp", 100)
         pool_diff_percentage = int(connections.receive(s_pool, 100))
         s_pool.close()
@@ -142,11 +141,12 @@ def miner(q, privatekey_readable, public_key_hashed, address):
         try:
 
             # calculate new hash
+            nonces = 0
+            nonces_limit = 25000
 
-            if tries % int(diff_recalc_conf) == 0 or firstrun:  # only do this ever so often
+
+            if nonces % int(diff_recalc_conf) == 0 or firstrun:  # only do this ever so often
                 firstrun = False
-                now = time.time()
-                block_timestamp = '%.2f' % time.time()
 
                 # calculate difficulty
                 s_node = socks.socksocket()
@@ -156,10 +156,6 @@ def miner(q, privatekey_readable, public_key_hashed, address):
 
                 connections.send(s_node, "blocklast", 10)
                 db_block_hash = connections.receive(s_node, 10)[7]
-
-                cycles_per_second = tries / (now - begin) if (now - begin) != 0 else 0
-                begin = now
-                tries = 0
 
                 connections.send(s_node, "diffget", 10)
                 diff = float(connections.receive(s_node, 10))
@@ -182,103 +178,112 @@ def miner(q, privatekey_readable, public_key_hashed, address):
                     if diff < 37:
                         diff = 37
 
-                app_log.warning("Thread{} {} @ {:.2f} cycles/second, difficulty: {}({})".format(q, db_block_hash[:10], cycles_per_second, diff, diff_real))
-
-            nonce = hashlib.sha224(rndfile.read(16)).hexdigest()[:32]
+                mining_condition = bin_convert(db_block_hash)[0:diff]
 
             tries = tries + 1
 
-            if nonce is None:
-                nonce = hashlib.sha224(rndfile.read(16)).hexdigest()[:32]
-
             # block_hash = hashlib.sha224(str(block_send) + db_block_hash).hexdigest()
-            mining_hash = bin_convert(hashlib.sha224((address + nonce + db_block_hash).encode("utf-8")).hexdigest())
-            mining_condition = bin_convert(db_block_hash)[0:diff]
 
-            if mining_condition in mining_hash:
-                app_log.warning("Thread {} found a good block hash in {} cycles".format(q, tries))
+            while nonces < nonces_limit:
 
-                # serialize txs
+                now = time.time()
+                cycles_per_second = tries / (now - begin) if (now - begin) != 0 else 0
+                begin = now
+                
+                nonce = hashlib.sha224(rndfile.read(16)).hexdigest()[:32]
+                mining_hash = bin_convert(hashlib.sha224((address + nonce + db_block_hash).encode("utf-8")).hexdigest())
+                print("Thread{} {} @ {:.2f} cycles/second, difficulty: {}({}), nonce iteration: {}".format(q, db_block_hash[:10], cycles_per_second, diff, diff_real, nonces))
+                nonces = nonces + 1
 
-                block_send = []
-                del block_send[:]  # empty
-                removal_signature = []
-                del removal_signature[:]  # empty
-
-                s_node = socks.socksocket()
-                if tor_conf == 1:
-                    s_node.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                s_node.connect((node_ip_conf, int(port)))  # connect to config.txt node
-                connections.send(s_node, "mpget", 10)
-                data = connections.receive(s_node, 10)
-                s_node.close()
-
-                if data != "[]":
-                    mempool = data
-
-                    for mpdata in mempool:
-                        transaction = (
-                            str(mpdata[0]), str(mpdata[1][:56]), str(mpdata[2][:56]), '%.8f' % float(mpdata[3]), str(mpdata[4]), str(mpdata[5]), str(mpdata[6]),
-                            str(mpdata[7]))  # create tuple
-                        # print transaction
-                        block_send.append(transaction)  # append tuple to list for each run
-                        removal_signature.append(str(mpdata[4]))  # for removal after successful mining
-
-                # claim reward
-                transaction_reward = (str(block_timestamp), str(address[:56]), str(address[:56]), '%.8f' % float(0), "0", str(nonce))  # only this part is signed!
-                # print transaction_reward
-
-                h = SHA.new(str(transaction_reward).encode("utf-8"))
-                signer = PKCS1_v1_5.new(key)
-                signature = signer.sign(h)
-                signature_enc = base64.b64encode(signature)
-
-                if signer.verify(h, signature) == True:
-                    app_log.warning("Signature valid")
-
-                    block_send.append((str(block_timestamp), str(address[:56]), str(address[:56]), '%.8f' % float(0), str(signature_enc.decode("utf-8")), str(public_key_hashed), "0", str(nonce)))  # mining reward tx
-                    app_log.warning("Block to send: {}".format(block_send))
-                    #  claim reward
-                    # include data
-
+                if mining_condition in mining_hash:
                     tries = 0
+                    nonces = 0
 
-                    # submit mined block to node
 
-                    if sync_conf == 1:
-                        check_uptodate(300, app_log)
+                    print("Thread {} found a good block hash in {} cycles".format(q, tries))
 
-                    if pool_conf == 1:
-                        mining_condition = bin_convert(db_block_hash)[0:diff_real]
-                        if mining_condition in mining_hash:
-                            app_log.warning("Miner: Submitting block to all nodes, because it satisfies real difficulty too")
-                            nodes_block_submit(block_send, app_log)
+                    # serialize txs
 
-                        try:
-                            s_pool = socks.socksocket()
-                            s_pool.settimeout(0.3)
-                            if tor_conf == 1:
-                                s_pool.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                            s_pool.connect((pool_ip_conf, 8525))  # connect to pool
-                            app_log.warning("Connected")
+                    block_send = []
+                    del block_send[:]  # empty
+                    removal_signature = []
+                    del removal_signature[:]  # empty
 
-                            app_log.warning("Miner: Proceeding to submit mined block to pool")
+                    s_node = socks.socksocket()
+                    if tor_conf == 1:
+                        s_node.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+                    s_node.connect((node_ip_conf, int(port)))  # connect to config.txt node
+                    connections.send(s_node, "mpget", 10)
+                    data = connections.receive(s_node, 10)
+                    s_node.close()
 
-                            connections.send(s_pool, "block", 10)
-                            connections.send(s_pool, self_address, 10)
-                            connections.send(s_pool, block_send, 10)
-                            s_pool.close()
+                    if data != "[]":
+                        mempool = data
 
-                            app_log.warning("Miner: Block submitted to pool")
+                        for mpdata in mempool:
+                            transaction = (
+                                str(mpdata[0]), str(mpdata[1][:56]), str(mpdata[2][:56]), '%.8f' % float(mpdata[3]), str(mpdata[4]), str(mpdata[5]), str(mpdata[6]),
+                                str(mpdata[7]))  # create tuple
+                            # print transaction
+                            block_send.append(transaction)  # append tuple to list for each run
+                            removal_signature.append(str(mpdata[4]))  # for removal after successful mining
 
-                        except Exception as e:
-                            app_log.warning("Miner: Could not submit block to pool")
-                            pass
+                    # claim reward
+                    block_timestamp = '%.2f' % time.time()
+                    transaction_reward = (str(block_timestamp), str(address[:56]), str(address[:56]), '%.8f' % float(0), "0", str(nonce))  # only this part is signed!
+                    # print transaction_reward
 
-                    if pool_conf == 0:
-                        nodes_block_submit(block_send, app_log)
-                else:
-                    app_log.warning("Invalid signature")
+                    h = SHA.new(str(transaction_reward).encode("utf-8"))
+                    signer = PKCS1_v1_5.new(key)
+                    signature = signer.sign(h)
+                    signature_enc = base64.b64encode(signature)
+
+                    if signer.verify(h, signature) == True:
+                        print("Signature valid")
+
+                        block_send.append((str(block_timestamp), str(address[:56]), str(address[:56]), '%.8f' % float(0), str(signature_enc.decode("utf-8")), str(public_key_hashed), "0", str(nonce)))  # mining reward tx
+                        print("Block to send: {}".format(block_send))
+                        #  claim reward
+                        # include data
+
+                        tries = 0
+
+                        # submit mined block to node
+
+                        if sync_conf == 1:
+                            check_uptodate(300)
+
+                        if pool_conf == 1:
+                            mining_condition = bin_convert(db_block_hash)[0:diff_real]
+                            if mining_condition in mining_hash:
+                                print("Miner: Submitting block to all nodes, because it satisfies real difficulty too")
+                                nodes_block_submit(block_send)
+
+                            try:
+                                s_pool = socks.socksocket()
+                                s_pool.settimeout(0.3)
+                                if tor_conf == 1:
+                                    s_pool.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+                                s_pool.connect((pool_ip_conf, 8525))  # connect to pool
+                                print("Connected")
+
+                                print("Miner: Proceeding to submit mined block to pool")
+
+                                connections.send(s_pool, "block", 10)
+                                connections.send(s_pool, self_address, 10)
+                                connections.send(s_pool, block_send, 10)
+                                s_pool.close()
+
+                                print("Miner: Block submitted to pool")
+
+                            except Exception as e:
+                                print("Miner: Could not submit block to pool")
+                                pass
+
+                        if pool_conf == 0:
+                            nodes_block_submit(block_send)
+                    else:
+                        print("Invalid signature")
 
 
         except Exception as e:
@@ -292,9 +297,7 @@ def miner(q, privatekey_readable, public_key_hashed, address):
 
 if __name__ == '__main__':
     freeze_support()  # must be this line, dont move ahead
-
-    app_log = log.log("miner.log", debug_level_conf)
-
+    
     (key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read()
 
     connected = 0
@@ -304,16 +307,16 @@ if __name__ == '__main__':
             if tor_conf == 1:
                 s_node.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
             s_node.connect((node_ip_conf, int(port)))
-            app_log.warning("Connected")
+            print("Connected")
             connected = 1
             s_node.close()
         except Exception as e:
             print(e)
-            app_log.warning("Miner: Please start your node for the block to be submitted or adjust mining ip in settings.")
+            print("Miner: Please start your node for the block to be submitted or adjust mining ip in settings.")
             time.sleep(1)
     # verify connection
     if sync_conf == 1:
-        check_uptodate(120, app_log)
+        check_uptodate(120)
 
     instances = range(int(mining_threads_conf))
     print(instances)

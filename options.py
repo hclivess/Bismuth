@@ -43,7 +43,7 @@ def read():
         if "mining_threads=" in line:
             mining_threads_conf = line.lstrip('mining_threads=')
         if "diff_recalc=" in line:
-            diff_recalc_conf = line.lstrip('diff_recalc=')
+            diff_recalc_conf = int(line.lstrip('diff_recalc='))
         if "mining_pool=" in line:
             pool_conf = int(line.lstrip('mining_pool='))
         if "pool_address=" in line:
