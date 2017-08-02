@@ -286,10 +286,10 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                             app_log.warning("Miner: Could not submit block to {} because {}".format(peer_ip, e))
                             pass
 
-            if diff < 50:
+            if diff < diff_percentage:
                 diff_shares = diff
             else:
-                diff_shares = 50
+                diff_shares = diff_percentage
 
             shares = sqlite3.connect('shares.db')
             shares.text_factory = str

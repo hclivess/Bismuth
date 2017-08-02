@@ -7,7 +7,6 @@ from multiprocessing import Process, freeze_support
 # load config
 (port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, pool_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address, ram_conf, pool_percentage_conf, node_ip_conf) = options.read()
 
-
 # load config
 def percentage(percent, whole):
     return int((percent * whole) / 100)
@@ -108,7 +107,6 @@ def execute_param(cursor, what, param, app_log):
             # secure execute for slow nodes
     return cursor
 
-
 def miner(q, privatekey_readable, public_key_hashed, address):
     from Crypto.PublicKey import RSA
     Random.atfork()
@@ -118,26 +116,6 @@ def miner(q, privatekey_readable, public_key_hashed, address):
     tries = 0
     firstrun = True
     begin = time.time()
-
-    if pool_conf == 1:
-        #do not use pools public key to sign, signature will be invalid
-
-        self_address = address
-        address = pool_address
-
-        #ask for diff percentage
-        s_pool = socks.socksocket()
-        s_pool.settimeout(0.3)
-        if tor_conf == 1:
-            s_pool.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-        s_pool.connect((pool_ip_conf, 8525))  # connect to pool
-        app_log.warning("Connected")
-
-        app_log.warning("Miner: Asking pool for the difficulty percentage requirement")
-        connections.send(s_pool, "diffp", 100)
-        pool_diff_percentage = connections.receive(s_pool, 100)
-        s_pool.close()
-        #ask for diff percentage
 
     while True:
         try:
@@ -173,7 +151,7 @@ def miner(q, privatekey_readable, public_key_hashed, address):
 
                 else:  # if pooled
                     diff_pool = diff_real
-                    diff = percentage(int(pool_diff_percentage), int(diff_real))
+                    diff = percentage(pool_diff_percentage, diff_real)
 
                     if diff > diff_pool:
                         diff = diff_pool
@@ -305,6 +283,26 @@ if __name__ == '__main__':
     # verify connection
     if sync_conf == 1:
         check_uptodate(120, app_log)
+
+    if pool_conf == 1:
+        # do not use pools public key to sign, signature will be invalid
+
+        self_address = address
+        address = pool_address
+
+        # ask for diff percentage
+        s_pool = socks.socksocket()
+        s_pool.settimeout(0.3)
+        if tor_conf == 1:
+            s_pool.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+        s_pool.connect((pool_ip_conf, 8525))  # connect to pool
+        app_log.warning("Connected")
+
+        app_log.warning("Miner: Asking pool for the difficulty percentage requirement")
+        connections.send(s_pool, "diffp", 100)
+        pool_diff_percentage = int(connections.receive(s_pool, 100))
+        s_pool.close()
+        # ask for diff percentage
 
     instances = range(int(mining_threads_conf))
     print(instances)

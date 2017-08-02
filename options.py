@@ -51,7 +51,7 @@ def read():
         if "ram=" in line:
             ram_conf = int(line.lstrip('ram='))
         if "pool_percentage=" in line:
-            pool_percentage_conf = line.lstrip('pool_percentage=')
+            pool_percentage_conf = int(line.lstrip('pool_percentage='))
         if "node_ip=" in line:
             node_ip_conf = line.lstrip('node_ip=')
 
