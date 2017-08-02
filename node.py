@@ -272,7 +272,6 @@ def mempool_merge(data, peer_ip, conn, c, mempool, m):
     if mem_lock.locked() == False:
         if data == "[]":
             app_log.info("Mempool from {} was empty".format(peer_ip))
-            mem_lock.release()
         else:
             # app_log.info("Mempool merging started")
             # merge mempool
