@@ -23,6 +23,8 @@ ram_done = 0
 global test
 test = 0
 
+lock = threading.Lock()
+
 (port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, pool_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address, ram_conf, pool_percentage_conf, node_ip_conf) = options.read()
 
 # load config
@@ -541,7 +543,9 @@ def verify(c):
 
 def blocknf(block_hash_delete, peer_ip, conn, c):
     global busy, hdd_block
+
     if busy == 0:
+        lock.acquire()
         busy = 1
         try:
             execute(c, ('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1'))
@@ -581,6 +585,7 @@ def blocknf(block_hash_delete, peer_ip, conn, c):
             pass
         finally:
             busy = 0
+            lock.release()
 
             # delete followups
 
@@ -696,6 +701,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
 
 
     if busy == 0:
+        lock.acquire()
         block_valid = 1  # init
 
         app_log.info("Digesting started from {}".format(peer_ip))
@@ -1043,6 +1049,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
             if ram_conf == 1 and block_valid == 1:
                 db_to_drive()
             busy = 0
+            lock.release()
 
 
 # key maintenance
