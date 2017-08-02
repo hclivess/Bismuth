@@ -16,6 +16,9 @@ def hello():
 
     html = []
     for row in c.execute("SELECT * FROM transactions WHERE openfield LIKE ? LIMIT 500", ("html=" + '%',)):
+        html.append("Block: ")
+        html.append(str(row[0]))
+        html.append("<br>")
         html.append(row[11].lstrip("html="))
 
     return str(''.join(html))
