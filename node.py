@@ -23,7 +23,7 @@ ram_done = 0
 global test
 test = 0
 
-lock = threading.Lock()
+db_lock = threading.Lock()
 
 (port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, pool_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address, ram_conf, pool_percentage_conf, node_ip_conf) = options.read()
 
@@ -259,8 +259,6 @@ global warning_list
 warning_list = []
 global banlist
 banlist = []
-global busy
-busy = 0
 global busy_mempool
 busy_mempool = 0
 global consensus
@@ -544,8 +542,8 @@ def verify(c):
 def blocknf(block_hash_delete, peer_ip, conn, c):
     global busy, hdd_block
 
-    if busy == 0:
-        lock.acquire()
+    if db_lock.locked() == False:
+        db_lock.acquire()
         busy = 1
         try:
             execute(c, ('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1'))
@@ -585,7 +583,7 @@ def blocknf(block_hash_delete, peer_ip, conn, c):
             pass
         finally:
             busy = 0
-            lock.release()
+            db_lock.release()
 
             # delete followups
 
@@ -676,7 +674,7 @@ def manager():
         app_log.info("Connection manager: Banlist: {}".format(banlist))
         app_log.info("Connection manager: Syncing nodes: {}".format(syncing))
         app_log.info("Connection manager: Syncing nodes: {}/3".format(len(syncing)))
-        app_log.info("Connection manager: Database access: {}/1".format(busy))
+        app_log.info("Connection manager: Database locked: {}".format(db_lock.locked()))
         app_log.info("Connection manager: Threads at {} / {}".format(threading.active_count(), thread_limit_conf))
         app_log.info("Connection manager: Tried: {}".format(tried))
         app_log.info("Connection manager: Current active pool: {}".format(active_pool))
@@ -697,17 +695,15 @@ def manager():
 
 
 def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
-    global busy, banlist, hdd_block, ram_conf
+    global banlist, hdd_block, ram_conf
 
 
-    if busy == 0:
-        lock.acquire()
+    if db_lock.locked() == False:
+        db_lock.acquire()
         block_valid = 1  # init
 
         app_log.info("Digesting started from {}".format(peer_ip))
         try:
-            busy = 1
-
             block_list = data
             if not any(isinstance(el, list) for el in block_list):  # if it's not a list of lists
                 new_list = []
@@ -1048,8 +1044,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
             app_log.info("Digesting complete")
             if ram_conf == 1 and block_valid == 1:
                 db_to_drive()
-            busy = 0
-            lock.release()
+            db_lock.release()
 
 
 # key maintenance
@@ -1175,7 +1170,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         mempool, m = db_m_define()
         conn, c = db_c_define()
 
-        global busy
         global banlist
         global warning_list_limit_conf
 
@@ -1437,7 +1431,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if test == 0:
                         if len(active_pool) < 5:
                             app_log.warning("Outgoing: Mined block ignored, insufficient connections to the network")
-                        elif int(db_block_height) >= int(max(consensus_blockheight_list)) - 3 and busy == 0:
+                        elif int(db_block_height) >= int(max(consensus_blockheight_list)) - 3 and lock.locked() == False:
                             app_log.warning("Outgoing: Processing block from miner")
                             digest_block(segments, self.request, peer_ip, conn, c, mempool, m)
                         elif busy == 1:
