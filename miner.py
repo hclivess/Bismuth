@@ -9,6 +9,8 @@ from multiprocessing import Process, freeze_support
 
 
 # load config
+def percentage(percent, whole):
+    return (percent * whole) / 100.0
 
 def nodes_block_submit(block_send, app_log):
     # connect to all nodes
@@ -123,6 +125,20 @@ def miner(q, privatekey_readable, public_key_hashed, address):
         self_address = address
         address = pool_address
 
+        #ask for diff percentage
+        s_pool = socks.socksocket()
+        s_pool.settimeout(0.3)
+        if tor_conf == 1:
+            s_pool.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+        s_pool.connect((mining_ip_conf, 8525))  # connect to pool
+        app_log.warning("Connected")
+
+        app_log.warning("Miner: Asking pool for the difficulty percentage requirement")
+        connections.send(s_pool, "diffp", 100)
+        pool_diff_percentage = connections.receive(s_pool, 100)
+        s_pool.close()
+        #ask for diff percentage
+
     while True:
         try:
 
@@ -157,7 +173,7 @@ def miner(q, privatekey_readable, public_key_hashed, address):
 
                 else:  # if pooled
                     diff_pool = diff_real
-                    diff = 50
+                    diff = int(percentage(pool_diff_percentage, diff_real))
 
                     if diff > diff_pool:
                         diff = diff_pool
