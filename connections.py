@@ -12,7 +12,7 @@ def receive(sdef, slen):
     ready = select.select([sdef], [], [], 60)
     if ready[0]:
         data = int(sdef.recv(slen))  # receive length
-        # print "To receive: "+str(data)
+        #print ("To receive: {}".format(data))
     else:
         raise RuntimeError("Socket timeout")
 
@@ -30,6 +30,6 @@ def receive(sdef, slen):
              raise RuntimeError("Socket timeout")
 
     segments = b''.join(chunks).decode("utf-8")
-    # print "Received segments: "+str(segments)
+    #print ("Received segments: {}".format(segments))
 
     return picklemagic.safe_loads(ast.literal_eval(segments))
