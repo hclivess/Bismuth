@@ -23,7 +23,7 @@ def payout():
 
         if shares_address not in addresses:
             addresses.append(shares_address)
-    print (addresses)
+    app_log.warning("Addresses: ".format(address))
     #get unique addresses
 
 
@@ -46,14 +46,14 @@ def payout():
 
         output_shares.append(shares_sum)
 
-    print(output_shares)
+    app_log.warning("Output shares: {}".format(output_shares))
     # get shares for address
 
     try:
         block_threshold = min(output_timestamps)
     except:
         block_threshold = time.time()
-    print(block_threshold)
+    app_log.warning("Payout block threshold: {}".format(block_threshold))
 
     #get eligible blocks
     reward_list = []
@@ -74,13 +74,12 @@ def payout():
     payout_threshold = 1
     payout_passed = 0
     for recipient, y in zip(addresses, output_shares):
-        print(recipient)
+        app_log.warning("Potential share recipient: {}".format(recipient))
         try:
             claim = float('%.8f' % (y * reward_per_share))
         except:
             claim = 0
-        print(claim)
-
+        app_log.warning("Potential token claim: {}".format(claim))
 
         if claim >= payout_threshold:
             payout_passed = 1
@@ -97,7 +96,7 @@ def payout():
             signer = PKCS1_v1_5.new(key)
             signature = signer.sign(h)
             signature_enc = base64.b64encode(signature)
-            print("Encoded Signature: {}".format(signature_enc.decode("utf-8")))
+            app_log.warning("Encoded Signature: {}".format(signature_enc.decode("utf-8")))
 
             verifier = PKCS1_v1_5.new(key)
             if verifier.verify(h, signature) == True:

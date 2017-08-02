@@ -28,17 +28,17 @@ def nodes_block_submit(block_send, app_log):
             # connect to all nodes
 
             try:
-                s = socks.socksocket()
-                s.settimeout(0.3)
+                s_peer = socks.socksocket()
+                s_peer.settimeout(0.3)
                 if tor_conf == 1:
-                    s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                s.connect((peer_ip, int(peer_port)))  # connect to node in peerlist
+                    s_peer.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+                s_peer.connect((peer_ip, int(peer_port)))  # connect to node in peerlist
                 app_log.warning("Connected")
 
                 app_log.warning("Miner: Proceeding to submit mined block to node")
 
-                connections.send(s, "block", 10)
-                connections.send(s, block_send, 10)
+                connections.send(s_peer, "block", 10)
+                connections.send(s_peer, block_send, 10)
 
                 app_log.warning("Miner: Block submitted to node {}".format(peer_ip))
             except Exception as e:
@@ -149,20 +149,20 @@ def miner(q, privatekey_readable, public_key_hashed, address):
                 block_timestamp = '%.2f' % time.time()
 
                 # calculate difficulty
-                s = socks.socksocket()
+                s_node = socks.socksocket()
                 if tor_conf == 1:
-                    s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                s.connect((node_ip_conf, int(port)))  # connect to local node
+                    s_node.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+                s_node.connect((node_ip_conf, int(port)))  # connect to local node
 
-                connections.send(s, "blocklast", 10)
-                db_block_hash = connections.receive(s, 10)[7]
+                connections.send(s_node, "blocklast", 10)
+                db_block_hash = connections.receive(s_node, 10)[7]
 
                 cycles_per_second = tries / (now - begin) if (now - begin) != 0 else 0
                 begin = now
                 tries = 0
 
-                connections.send(s, "diffget", 10)
-                diff = float(connections.receive(s, 10))
+                connections.send(s_node, "diffget", 10)
+                diff = float(connections.receive(s_node, 10))
                 diff = int(diff)
                 diff_real = int(diff)
 
@@ -200,12 +200,12 @@ def miner(q, privatekey_readable, public_key_hashed, address):
                 removal_signature = []
                 del removal_signature[:]  # empty
 
-                s = socks.socksocket()
+                s_node = socks.socksocket()
                 if tor_conf == 1:
-                    s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                s.connect((node_ip_conf, int(port)))  # connect to config.txt node
-                connections.send(s, "mpget", 10)
-                data = connections.receive(s, 10)
+                    s_node.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+                s_node.connect((node_ip_conf, int(port)))  # connect to config.txt node
+                connections.send(s_node, "mpget", 10)
+                data = connections.receive(s_node, 10)
 
                 if data != "[]":
                     mempool = data
@@ -249,18 +249,18 @@ def miner(q, privatekey_readable, public_key_hashed, address):
                             nodes_block_submit(block_send, app_log)
 
                         try:
-                            s = socks.socksocket()
-                            s.settimeout(0.3)
+                            s_pool = socks.socksocket()
+                            s_pool.settimeout(0.3)
                             if tor_conf == 1:
-                                s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                            s.connect((pool_ip_conf, 8525))  # connect to pool
+                                s_pool.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+                            s_pool.connect((pool_ip_conf, 8525))  # connect to pool
                             app_log.warning("Connected")
 
                             app_log.warning("Miner: Proceeding to submit mined block to pool")
 
-                            connections.send(s, "block", 10)
-                            connections.send(s, self_address, 10)
-                            connections.send(s, block_send, 10)
+                            connections.send(s_pool, "block", 10)
+                            connections.send(s_pool, self_address, 10)
+                            connections.send(s_pool, block_send, 10)
 
                             app_log.warning("Miner: Block submitted to pool")
 
@@ -277,7 +277,10 @@ def miner(q, privatekey_readable, public_key_hashed, address):
         except Exception as e:
             print(e)
             time.sleep(0.1)
-            pass
+            if debug_conf == 1:
+                raise
+            else:
+                pass
 
 
 if __name__ == '__main__':
@@ -290,13 +293,13 @@ if __name__ == '__main__':
     connected = 0
     while connected == 0:
         try:
-            s = socks.socksocket()
+            s_node = socks.socksocket()
             if tor_conf == 1:
-                s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-            s.connect((node_ip_conf, int(port)))
+                s_node.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+            s_node.connect((node_ip_conf, int(port)))
             app_log.warning("Connected")
             connected = 1
-            s.close()
+            s_node.close()
         except Exception as e:
             print(e)
             app_log.warning("Miner: Please start your node for the block to be submitted or adjust mining ip in settings.")
