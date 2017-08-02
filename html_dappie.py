@@ -26,6 +26,7 @@ def hello():
         html.append(str(row[2]))
         html.append("<br>")
         html.append("Content: ")
+        html.append("<br>")
         html.append(row[11].lstrip("html="))
 
     return str(''.join(html))
