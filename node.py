@@ -1103,7 +1103,7 @@ if not os.path.exists('mempool.db'):
 mempool = sqlite3.connect('mempool.db', timeout=1)
 mempool.text_factory = str
 m = mempool.cursor()
-m.execute("PRAGMA table_info('shares')")
+m.execute("PRAGMA table_info('transactions')")
 if len(m.fetchall()) != 8:
     mempool.close()
     os.remove("mempool.db")
