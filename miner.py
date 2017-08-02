@@ -179,6 +179,9 @@ def miner(q, privatekey_readable, public_key_hashed, address):
                     if diff > diff_pool:
                         diff = diff_pool
 
+                    if diff < 37:
+                        diff = 37
+
                 app_log.warning("Thread{} {} @ {:.2f} cycles/second, difficulty: {}({})".format(q, db_block_hash[:10], cycles_per_second, diff, diff_real))
 
             nonce = hashlib.sha224(rndfile.read(16)).hexdigest()[:32]
