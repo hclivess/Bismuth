@@ -5,7 +5,7 @@ from Crypto import Random
 from multiprocessing import Process, freeze_support
 
 # load config
-(port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address, ram_conf, pool_percentage_conf) = options.read()
+(port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, pool_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address, ram_conf, pool_percentage_conf, node_ip_conf) = options.read()
 
 
 # load config
@@ -130,7 +130,7 @@ def miner(q, privatekey_readable, public_key_hashed, address):
         s_pool.settimeout(0.3)
         if tor_conf == 1:
             s_pool.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-        s_pool.connect((mining_ip_conf, 8525))  # connect to pool
+        s_pool.connect((pool_ip_conf, 8525))  # connect to pool
         app_log.warning("Connected")
 
         app_log.warning("Miner: Asking pool for the difficulty percentage requirement")
@@ -153,7 +153,7 @@ def miner(q, privatekey_readable, public_key_hashed, address):
                 s = socks.socksocket()
                 if tor_conf == 1:
                     s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                s.connect(("127.0.0.1", int(port)))  # connect to local node
+                s.connect((node_ip_conf, int(port)))  # connect to local node
 
                 connections.send(s, "blocklast", 10)
                 db_block_hash = connections.receive(s, 10)[7]
@@ -204,7 +204,7 @@ def miner(q, privatekey_readable, public_key_hashed, address):
                 s = socks.socksocket()
                 if tor_conf == 1:
                     s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                s.connect(("127.0.0.1", int(port)))  # connect to config.txt node
+                s.connect((node_ip_conf, int(port)))  # connect to config.txt node
                 connections.send(s, "mpget", 10)
                 data = connections.receive(s, 10)
 
@@ -254,7 +254,7 @@ def miner(q, privatekey_readable, public_key_hashed, address):
                             s.settimeout(0.3)
                             if tor_conf == 1:
                                 s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                            s.connect((mining_ip_conf, 8525))  # connect to pool
+                            s.connect((pool_ip_conf, 8525))  # connect to pool
                             app_log.warning("Connected")
 
                             app_log.warning("Miner: Proceeding to submit mined block to pool")
@@ -294,7 +294,7 @@ if __name__ == '__main__':
             s = socks.socksocket()
             if tor_conf == 1:
                 s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-            s.connect(("127.0.0.1", int(port)))
+            s.connect((node_ip_conf, int(port)))
             app_log.warning("Connected")
             connected = 1
             s.close()

@@ -36,8 +36,8 @@ def read():
             debug_level_conf = line.lstrip('debug_level=')
         if "allowed=" in line:
             allowed_conf = line.lstrip('allowed=')
-        if "mining_ip=" in line:
-            mining_ip_conf = line.lstrip("mining_ip=")
+        if "pool_ip=" in line:
+            pool_ip_conf = line.lstrip("pool_ip=")
         if "miner_sync=" in line:
             sync_conf = int(line.lstrip('miner_sync='))
         if "mining_threads=" in line:
@@ -52,5 +52,7 @@ def read():
             ram_conf = int(line.lstrip('ram='))
         if "pool_percentage=" in line:
             pool_percentage_conf = line.lstrip('pool_percentage=')
+        if "node_ip=" in line:
+            node_ip_conf = line.lstrip('node_ip=')
 
-    return port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed_conf, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address_conf, ram_conf, pool_percentage_conf
+    return port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed_conf, pool_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address_conf, ram_conf, pool_percentage_conf, node_ip_conf
