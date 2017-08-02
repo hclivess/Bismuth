@@ -5,12 +5,12 @@ from Crypto import Random
 from multiprocessing import Process, freeze_support
 
 # load config
-(port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address, ram_conf) = options.read()
+(port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address, ram_conf, pool_percentage_conf) = options.read()
 
 
 # load config
 def percentage(percent, whole):
-    return (percent * whole) / 100.0
+    return int((percent * whole) / 100)
 
 def nodes_block_submit(block_send, app_log):
     # connect to all nodes
@@ -173,12 +173,12 @@ def miner(q, privatekey_readable, public_key_hashed, address):
 
                 else:  # if pooled
                     diff_pool = diff_real
-                    diff = int(percentage(pool_diff_percentage, diff_real))
+                    diff = percentage(int(pool_diff_percentage), int(diff_real))
 
                     if diff > diff_pool:
                         diff = diff_pool
 
-                app_log.warning("Thread{} {} @ {:.2f} cycles/second, difficulty: {:.2f}({:.2f})".format(q, db_block_hash[:10], cycles_per_second, diff, diff_real))
+                app_log.warning("Thread{} {} @ {:.2f} cycles/second, difficulty: {}({})".format(q, db_block_hash[:10], cycles_per_second, diff, diff_real))
 
             nonce = hashlib.sha224(rndfile.read(16)).hexdigest()[:32]
 
@@ -278,7 +278,7 @@ def miner(q, privatekey_readable, public_key_hashed, address):
         except Exception as e:
             print(e)
             time.sleep(0.1)
-            pass
+            raise
 
 
 if __name__ == '__main__':

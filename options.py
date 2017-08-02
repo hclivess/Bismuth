@@ -50,6 +50,7 @@ def read():
             pool_address_conf = line.lstrip('pool_address=')
         if "ram=" in line:
             ram_conf = int(line.lstrip('ram='))
+        if "pool_percentage=" in line:
+            pool_percentage_conf = line.lstrip('pool_percentage=')
 
-
-    return port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed_conf, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address_conf, ram_conf
+    return port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed_conf, mining_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address_conf, ram_conf, pool_percentage_conf
