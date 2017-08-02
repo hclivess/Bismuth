@@ -19,6 +19,13 @@ def hello():
         html.append("Block: ")
         html.append(str(row[0]))
         html.append("<br>")
+        html.append("Time: ")
+        html.append(time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(row[1]))))
+        html.append("<br>")
+        html.append("From: ")
+        html.append(str(row[2]))
+        html.append("<br>")
+        html.append("Content: ")
         html.append(row[11].lstrip("html="))
 
     return str(''.join(html))
