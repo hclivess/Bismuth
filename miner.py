@@ -142,67 +142,59 @@ def miner(q, privatekey_readable, public_key_hashed, address):
 
             # calculate new hash
             nonces = 0
-            nonces_limit = diff_recalc_conf
+            # calculate difficulty
+            s_node = socks.socksocket()
+            if tor_conf == 1:
+                s_node.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+            s_node.connect((node_ip_conf, int(port)))  # connect to local node
 
+            connections.send(s_node, "blocklast", 10)
+            db_block_hash = connections.receive(s_node, 10)[7]
 
-            if nonces % int(diff_recalc_conf) == 0 or firstrun:  # only do this ever so often
-                firstrun = False
+            connections.send(s_node, "diffget", 10)
+            diff = float(connections.receive(s_node, 10))
+            s_node.close()
 
-                # calculate difficulty
-                s_node = socks.socksocket()
-                if tor_conf == 1:
-                    s_node.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                s_node.connect((node_ip_conf, int(port)))  # connect to local node
+            diff = int(diff)
+            diff_real = int(diff)
 
-                connections.send(s_node, "blocklast", 10)
-                db_block_hash = connections.receive(s_node, 10)[7]
-
-                connections.send(s_node, "diffget", 10)
-                diff = float(connections.receive(s_node, 10))
-                s_node.close()
-
+            if pool_conf == 0:
                 diff = int(diff)
-                diff_real = int(diff)
-
-                if pool_conf == 0:
-                    diff = int(diff)
 
 
-                else:  # if pooled
-                    diff_pool = diff_real
-                    diff = percentage(pool_diff_percentage, diff_real)
+            else:  # if pooled
+                diff_pool = diff_real
+                diff = percentage(pool_diff_percentage, diff_real)
 
-                    if diff > diff_pool:
-                        diff = diff_pool
+                if diff > diff_pool:
+                    diff = diff_pool
 
-                    if diff < 37:
-                        diff = 37
+                if diff < 37:
+                    diff = 37
 
-                mining_condition = bin_convert(db_block_hash)[0:diff]
+            mining_condition = bin_convert(db_block_hash)[0:diff]
 
 
             # block_hash = hashlib.sha224(str(block_send) + db_block_hash).hexdigest()
 
 
-            while nonces < nonces_limit:
+            while tries < diff_recalc_conf:
                 start = time.time()
 
-                nonce = hashlib.sha224(rndfile.read(8)).hexdigest()[:16]
+                nonce = hashlib.sha224(rndfile.read(16)).hexdigest()[:32]
                 mining_hash = bin_convert(hashlib.sha224((address + nonce + db_block_hash).encode("utf-8")).hexdigest())
-                if nonces % 2500 == 0: #limit output
-                    end = time.time()
+
+                end = time.time()
+                if tries % 2500 == 0: #limit output
                     try:
                         cycles_per_second = 1/(end - start)
-                        print("Thread{} {} @ {:.2f} cycles/second, difficulty: {}({}), nonce iteration: {}".format(q, db_block_hash[:10], cycles_per_second, diff, diff_real, nonces))
+                        print("Thread{} {} @ {:.2f} cycles/second, difficulty: {}({}), iteration: {}".format(q, db_block_hash[:10], cycles_per_second, diff, diff_real, tries))
                     except:
                         pass
-                nonces = nonces + 1
                 tries = tries + 1
 
                 if mining_condition in mining_hash:
                     tries = 0
-                    nonces = 0
-
 
                     print("Thread {} found a good block hash in {} cycles".format(q, tries))
 
@@ -288,7 +280,7 @@ def miner(q, privatekey_readable, public_key_hashed, address):
                             nodes_block_submit(block_send)
                     else:
                         print("Invalid signature")
-
+            tries = 0
 
         except Exception as e:
             print(e)
