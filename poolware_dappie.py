@@ -173,8 +173,8 @@ def execute_param(cursor, what, param):
     return cursor
 
 def diffget(s):
-    connections.send(s, "diffget", 100)
-    diff = float(connections.receive(s, 100))
+    connections.send(s, "diffget", 10)
+    diff = float(connections.receive(s, 10))
     return diff
 
 def bin_convert(string):
@@ -201,11 +201,11 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
     def handle(self):
         peer_ip = self.request.getpeername()[0]
 
-        data = connections.receive(self.request, 100)
+        data = connections.receive(self.request, 10)
         app_log.warning("Received: {} from {}".format(data, peer_ip))  # will add custom ports later
 
         if data == 'diffp':
-            connections.send(self.request, diff_percentage, 100)
+            connections.send(self.request, diff_percentage, 10)
 
         if data == "block":  # from miner to node
 
@@ -218,10 +218,10 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 
 
             # receive block
-            miner_address = connections.receive(self.request, 100)
+            miner_address = connections.receive(self.request, 10)
             app_log.warning("Received a block from miner {} ({})".format(peer_ip,miner_address))
 
-            block_send = connections.receive(self.request, 100)
+            block_send = connections.receive(self.request, 10)
             nonce = (block_send[-1][7])
 
             app_log.warning("Combined mined segments: {}".format(block_send))
@@ -239,8 +239,8 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             app_log.warning("Asking node for last block")
 
             # get last block
-            connections.send(s1, "blocklast", 100)
-            blocklast = connections.receive(s1, 100)
+            connections.send(s1, "blocklast", 10)
+            blocklast = connections.receive(s1, 10)
             db_block_hash = blocklast[7]
             # get last block
 
@@ -277,8 +277,8 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 
                             app_log.warning("Miner: Proceeding to submit mined block")
 
-                            connections.send(s, "block", 100)
-                            connections.send(s, block_send, 100)
+                            connections.send(s, "block", 10)
+                            connections.send(s, block_send, 10)
 
                             app_log.warning("Miner: Block submitted to {}".format(peer_ip))
                         except Exception as e:
