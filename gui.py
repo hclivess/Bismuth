@@ -360,7 +360,7 @@ def qr():
 def msg_dialogue():
     def msg_received_get():
 
-        for row in c.execute("SELECT address,openfield,timestamp FROM transactions WHERE recipient = ? AND (openfield LIKE ? OR openfield LIKE ?) ORDER BY timestamp DESC;", (address,) + ("msg=" + '%',) + ("bmsg=" + '%',)):
+        for row in c.execute("SELECT address,openfield,timestamp FROM transactions WHERE recipient = ? AND (openfield LIKE ? OR openfield LIKE ? OR openfield LIKE ?) ORDER BY timestamp DESC;", (address,) + ("msg=" + '%',) + ("bmsg=" + '%',) + ("enc=msg=" + '%',)):
 
             # get alias
             try:
@@ -370,20 +370,38 @@ def msg_dialogue():
             except:
                 msg_address = row[0]
 
-            if row[1].startswith("bmsg="):
-                msg_received_digest = row[1][5:]
+
+            if row[1].startswith("enc=msg="):
+                msg_received_digest = row[1].lstrip("enc=msg=")
+                try:
+                    msg_received_digest = key.decrypt(ast.literal_eval(base64.b64decode(msg_received_digest).decode("utf-8"))).decode("utf-8")
+                except:
+                    msg_received_digest = "Could not decrypt message"
+
+            elif row[1].startswith("enc=bmsg="):
+                msg_received_digest = row[1].lstrip("enc=bmsg=")
+                try:
+                    msg_received_digest = key.decrypt(ast.literal_eval(msg_received_digest)).decode("utf-8")
+                except:
+                    msg_received_digest = "Could not decrypt message"
+
+            elif row[1].startswith("bmsg="):
+                msg_received_digest = row[1].lstrip("bmsg=")
                 try:
                     msg_received_digest = base64.b64decode(msg_received_digest).decode("utf-8")
                 except:
                     msg_received_digest = "Could not decode message"
             elif row[1].startswith("msg="):
-                msg_received_digest = row[1][4:]
+                msg_received_digest = row[1].lstrip("msg=")
+
+
+
 
             msg_received.insert(INSERT, ((time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(row[2])))) + " From " + msg_address.replace("alias=", "") + ": " + msg_received_digest) + "\n")
 
     def msg_sent_get():
 
-        for row in c.execute("SELECT recipient,openfield,timestamp FROM transactions WHERE address = ? AND (openfield LIKE ? OR openfield LIKE ?) ORDER BY timestamp DESC;", (address,) + ("msg=" + '%',) + ("bmsg=" + '%',)):
+        for row in c.execute("SELECT recipient,openfield,timestamp FROM transactions WHERE address = ? AND (openfield LIKE ? OR openfield LIKE ? OR openfield LIKE ?) ORDER BY timestamp DESC;", (address,) + ("msg=" + '%',) + ("bmsg=" + '%',) + ("enc=msg=" + '%',)):
             try:
                 # get alias
                 c2.execute("SELECT openfield FROM transactions WHERE openfield LIKE ? AND address = ? ORDER BY block_height ASC, timestamp ASC LIMIT 1;", ("alias=" + '%', row[0],))  # asc for first entry
@@ -392,11 +410,32 @@ def msg_dialogue():
             except:
                 msg_recipient = row[0]
 
-            if row[1].startswith("bmsg="):
-                msg_sent_digest = row[1][5:]
-                msg_sent_digest = base64.b64decode(msg_sent_digest).decode("utf-8")
+            if row[1].startswith("enc=msg="):
+                msg_sent_digest = row[1].lstrip("enc=msg=")
+                try:
+                    msg_sent_digest = key.decrypt(ast.literal_eval(msg_sent_digest)).decode("utf-8")
+                except:
+                    msg_sent_digest = "Could not decrypt message"
+
+            elif row[1].startswith("enc=bmsg="):
+                msg_sent_digest = row[1].lstrip("enc=bmsg=")
+                try:
+                    msg_sent_digest = key.decrypt(ast.literal_eval(base64.b64decode(msg_sent_digest).decode("utf-8"))).decode("utf-8")
+                except:
+                    msg_sent_digest = "Could not decrypt message"
+
+            elif row[1].startswith("bmsg="):
+                msg_sent_digest = row[1].lstrip("bmsg=")
+                try:
+                    msg_sent_digest = base64.b64decode(msg_sent_digest).decode("utf-8")
+                except:
+                    msg_received_digest = "Could not decode message"
+
             elif row[1].startswith("msg="):
-                msg_sent_digest = row[1][4:]
+                msg_sent_digest = row[1].lstrip("msg=")
+
+
+
 
             msg_sent.insert(INSERT, ((time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(row[2])))) + " To " + msg_recipient.replace("alias=", "") + ": " + msg_sent_digest) + "\n")
 

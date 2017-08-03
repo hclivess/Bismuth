@@ -1516,8 +1516,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # send own
                     connections.send(self.request, mempool_txs, 10)
 
-
-
                 elif data == "diffget" and (peer_ip in allowed or "any" in allowed):
 
                     execute(c, ("SELECT timestamp,block_height FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
