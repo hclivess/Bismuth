@@ -1011,7 +1011,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
 
                                         if ram_conf == 1:
                                             # also save to hdd
-                                            app_log.warning("Saving reward to HDD")
+                                            app_log.info("Saving reward to HDD")
                                             hdd = sqlite3.connect(ledger_path_conf,timeout=1)
                                             hdd.text_factory = str
                                             h = hdd.cursor()
