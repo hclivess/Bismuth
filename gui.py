@@ -360,7 +360,7 @@ def qr():
 def msg_dialogue():
     def msg_received_get():
 
-        for row in c.execute("SELECT address,openfield,timestamp FROM transactions WHERE recipient = ? AND (openfield LIKE ? OR openfield LIKE ? OR openfield LIKE ?) ORDER BY timestamp DESC;", (address,) + ("msg=" + '%',) + ("bmsg=" + '%',) + ("enc=msg=" + '%',)):
+        for row in c.execute("SELECT address,openfield,timestamp FROM transactions WHERE recipient = ? AND (openfield LIKE ? OR openfield LIKE ? OR openfield LIKE ? OR openfield LIKE ?) ORDER BY timestamp DESC;", (address,) + ("msg=" + '%',) + ("bmsg=" + '%',) + ("enc=msg=" + '%',) + ("enc=bmsg=" + '%',)):
 
             # get alias
             try:
@@ -374,13 +374,14 @@ def msg_dialogue():
             if row[1].startswith("enc=msg="):
                 msg_received_digest = row[1].lstrip("enc=msg=")
                 try:
-                    msg_received_digest = key.decrypt(ast.literal_eval(base64.b64decode(msg_received_digest).decode("utf-8"))).decode("utf-8")
+                    msg_received_digest = key.decrypt(ast.literal_eval(msg_received_digest)).decode("utf-8")
                 except:
                     msg_received_digest = "Could not decrypt message"
 
             elif row[1].startswith("enc=bmsg="):
                 msg_received_digest = row[1].lstrip("enc=bmsg=")
                 try:
+                    msg_received_digest = base64.b64decode(msg_received_digest).decode("utf-8")
                     msg_received_digest = key.decrypt(ast.literal_eval(msg_received_digest)).decode("utf-8")
                 except:
                     msg_received_digest = "Could not decrypt message"
@@ -401,7 +402,7 @@ def msg_dialogue():
 
     def msg_sent_get():
 
-        for row in c.execute("SELECT recipient,openfield,timestamp FROM transactions WHERE address = ? AND (openfield LIKE ? OR openfield LIKE ? OR openfield LIKE ?) ORDER BY timestamp DESC;", (address,) + ("msg=" + '%',) + ("bmsg=" + '%',) + ("enc=msg=" + '%',)):
+        for row in c.execute("SELECT recipient,openfield,timestamp FROM transactions WHERE address = ? AND (openfield LIKE ? OR openfield LIKE ? OR openfield LIKE ? OR openfield LIKE ?) ORDER BY timestamp DESC;", (address,) + ("msg=" + '%',) + ("bmsg=" + '%',) + ("enc=msg=" + '%',) + ("enc=bmsg=" + '%',)):
             try:
                 # get alias
                 c2.execute("SELECT openfield FROM transactions WHERE openfield LIKE ? AND address = ? ORDER BY block_height ASC, timestamp ASC LIMIT 1;", ("alias=" + '%', row[0],))  # asc for first entry
@@ -420,7 +421,8 @@ def msg_dialogue():
             elif row[1].startswith("enc=bmsg="):
                 msg_sent_digest = row[1].lstrip("enc=bmsg=")
                 try:
-                    msg_sent_digest = key.decrypt(ast.literal_eval(base64.b64decode(msg_sent_digest).decode("utf-8"))).decode("utf-8")
+                    msg_sent_digest = base64.b64decode(msg_sent_digest).decode("utf-8")
+                    msg_sent_digest = key.decrypt(ast.literal_eval(msg_sent_digest)).decode("utf-8")
                 except:
                     msg_sent_digest = "Could not decrypt message"
 
@@ -433,9 +435,6 @@ def msg_dialogue():
 
             elif row[1].startswith("msg="):
                 msg_sent_digest = row[1].lstrip("msg=")
-
-
-
 
             msg_sent.insert(INSERT, ((time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(row[2])))) + " To " + msg_recipient.replace("alias=", "") + ": " + msg_sent_digest) + "\n")
 
