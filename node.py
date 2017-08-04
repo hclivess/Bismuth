@@ -1561,7 +1561,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                     #insert to mempool, where everything will be verified
                     mempool_data = [((remote_tx_timestamp, remote_tx_address, remote_tx_recipient, '%.8f' % float(remote_tx_amount), remote_signature_enc, remote_tx_pubkey_hashed, remote_tx_keep, remote_tx_openfield))]
-                    print(mempool_data)
 
                     mempool_merge(mempool_data, peer_ip, conn, c, mempool, m)
                     #wipe variables
