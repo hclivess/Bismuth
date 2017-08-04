@@ -131,9 +131,10 @@ def miner(q, privatekey_readable, public_key_hashed, address):
         s_pool.connect((pool_ip_conf, 8525))  # connect to pool
         print("Connected")
 
-        print("Miner: Asking pool for the difficulty percentage requirement")
+        print("Miner: Asking pool for share qualification difficulty requirement")
         connections.send(s_pool, "diffp", 10)
         pool_diff_percentage = int(connections.receive(s_pool, 10))
+        print("Miner: Received pool for share qualification difficulty requirement: {}%".format(pool_diff_percentage))
         s_pool.close()
         #ask for diff percentage
 

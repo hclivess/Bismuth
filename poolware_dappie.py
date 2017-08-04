@@ -293,7 +293,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 
             diff_percentage = percentage(diff_percent_number, diff)
 
-            if diff < diff_percent_number_result:
+            if diff < diff_percentage:
                 diff_shares = diff
             else:
                 diff_shares = diff_percentage
