@@ -2,6 +2,7 @@
 # never remove the str() conversion in data evaluation or database inserts or you will debug for 14 days as signed types mismatch
 # never change the type of database columns from TEXT to anything else
 # if you raise in the server thread, the server will die and node will stop
+# never use codecs, they are bugged and do not provide proper serialization
 # must unify node and client now that connections parameters are function parameters
 
 from itertools import groupby
@@ -281,10 +282,6 @@ def mempool_merge(data, peer_ip, conn, c, mempool, m):
 
             try:
                 block_list = data
-                if not any(isinstance(el, list) for el in block_list):  # if it's not a list of lists
-                    new_list = []
-                    new_list.append(block_list)
-                    block_list = new_list  # make it a list of lists
 
                 for transaction in block_list:  # set means unique
                     mempool_timestamp = '%.2f' % float(transaction[0])
@@ -1549,7 +1546,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     remote_tx_pubkey = tx_remote_key.publickey().exportKey().decode("utf-8")
 
                     remote_tx_pubkey_hashed = base64.b64encode(remote_tx_pubkey.encode('utf-8')).decode("utf-8")
-                    print(remote_tx_pubkey_hashed)
 
                     remote_tx_address = hashlib.sha224(remote_tx_pubkey.encode("utf-8")).hexdigest()
                     # derive remaining data
@@ -1564,7 +1560,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # construct tx
 
                     #insert to mempool, where everything will be verified
-                    mempool_data = [remote_tx_timestamp, remote_tx_address, remote_tx_recipient, '%.8f' % float(remote_tx_amount), remote_signature_enc, remote_tx_pubkey_hashed, remote_tx_keep, remote_tx_openfield]
+                    mempool_data = [((remote_tx_timestamp, remote_tx_address, remote_tx_recipient, '%.8f' % float(remote_tx_amount), remote_signature_enc, remote_tx_pubkey_hashed, remote_tx_keep, remote_tx_openfield))]
+                    print(mempool_data)
 
                     mempool_merge(mempool_data, peer_ip, conn, c, mempool, m)
                     #wipe variables
