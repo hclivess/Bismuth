@@ -6,7 +6,7 @@
 
 from itertools import groupby
 from operator import itemgetter
-import shutil, socketserver, ast, base64, gc, hashlib, os, re, sqlite3, sys, threading, time, socks, log, options, connections, random, codecs
+import shutil, socketserver, ast, base64, gc, hashlib, os, re, sqlite3, sys, threading, time, socks, log, options, connections, random, codecs, keys
 
 from Crypto import Random
 from Crypto.Hash import SHA
@@ -645,8 +645,8 @@ def manager():
     global peer_dict
     while True:
 
-        keys = peer_dict.keys()
-        #random.shuffle(keys)
+        dict_keys = peer_dict.keys()
+        #random.shuffle(dict_keys)
 
         for key, value in peer_dict.items():
             HOST = key
@@ -1515,6 +1515,13 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # if len(mempool_txs) > 0: #wont sync mempool until we send something, which is bad
                     # send own
                     connections.send(self.request, mempool_txs, 10)
+
+                elif data == "keygen" and (peer_ip in allowed or "any" in allowed):
+                    (gen_private_key_readable, gen_public_key_readable, gen_address) = keys.generate()
+                    print (gen_private_key_readable, gen_public_key_readable, gen_address)
+                    connections.send(self.request, (gen_private_key_readable, gen_public_key_readable, gen_address), 10)
+
+
 
                 elif data == "diffget" and (peer_ip in allowed or "any" in allowed):
 

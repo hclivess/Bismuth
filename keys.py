@@ -1,10 +1,23 @@
 import base64, os, getpass, hashlib
+from Crypto import Random
+
 try:
     from simplecrypt import decrypt
 except ImportError:
     decrypt = None
 from Crypto.PublicKey import RSA
 import sys
+
+def generate():
+    # generate key pair and an address
+    random_generator = Random.new().read
+    key = RSA.generate(1024, random_generator)
+    public_key = key.publickey()
+
+    private_key_readable = key.exportKey().decode("utf-8")
+    public_key_readable = key.publickey().exportKey().decode("utf-8")
+    address = hashlib.sha224(public_key_readable.encode("utf-8")).hexdigest()  # hashed public key
+    return private_key_readable, public_key_readable, address
 
 def read():
     # import keys

@@ -14,7 +14,7 @@ print ("Current difficulty: {}".format(diff))
 connections.send(s, "balanceget", 10)
 connections.send(s, "7d5c2999f9a2e44c23e7b2b73b4c0edae308e9d39482bf44da481edc", 10)
 #balance_ledger = connections.receive(s, 10)
-balance_ledger_mempool = ast.literal_eval(connections.receive(s, 10))
+balance_ledger_mempool = connections.receive(s, 10)
 print ("Address balance with mempool: {}".format(balance_ledger_mempool[0]))
 print ("Address credit with mempool: {}".format(balance_ledger_mempool[1]))
 print ("Address debit with mempool: {}".format(balance_ledger_mempool[2]))
@@ -39,20 +39,30 @@ print ("Current mempool: {}".format(mempool))
 
 #get last hash
 connections.send(s, "blocklast", 10)
-hash_last = ast.literal_eval(connections.receive(s, 10))
+hash_last = connections.receive(s, 10)
 
 print ("Last block number: {}".format(hash_last[0]))
 print ("Last block hash: {}".format(hash_last[1]))
 #get last hash
 
+#generate address
+connections.send(s, "keygen", 10)
+keys_generated = connections.receive(s, 10)
+
+print ("Private key: {}".format(keys_generated[0]))
+print ("Public key: {}".format(keys_generated[1]))
+print ("Address: {}".format(keys_generated[2]))
+#generate address
+
 #get block
 connections.send(s, "blockget", 10)
 connections.send(s, "14", 10)
-block_get = ast.literal_eval(connections.receive(s, 10))
+block_get = connections.receive(s, 10)
 print ("Requested block: {}".format(block_get))
 print ("Requested block number of transactions: {}".format(len(block_get)))
 print ("Requested block height: {}".format(block_get[0][0]))
 #get block
+
 
 
 s.close()
