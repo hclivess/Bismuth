@@ -1518,10 +1518,24 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                 elif data == "keygen" and (peer_ip in allowed or "any" in allowed):
                     (gen_private_key_readable, gen_public_key_readable, gen_address) = keys.generate()
-                    print (gen_private_key_readable, gen_public_key_readable, gen_address)
                     connections.send(self.request, (gen_private_key_readable, gen_public_key_readable, gen_address), 10)
+                    (gen_private_key_readable, gen_public_key_readable, gen_address) = (None, None, None)
 
+                elif data == "addlist" and (peer_ip in allowed or "any" in allowed):
+                    address_tx_list = connections.receive(self.request, 10)
+                    execute_param(c, ("SELECT * FROM transactions WHERE (address = ? OR recipient = ?)"), (address_tx_list,) + (address_tx_list,))
+                    result = c.fetchall()
+                    connections.send(self.request, result, 10)
 
+                #less importent methods
+                elif data == "addvalidate" and (peer_ip in allowed or "any" in allowed):
+                    pass
+
+                elif data == "statusget" and (peer_ip in allowed or "any" in allowed):
+                    pass
+
+                elif data == "connget" and (peer_ip in allowed or "any" in allowed):
+                    pass
 
                 elif data == "diffget" and (peer_ip in allowed or "any" in allowed):
 

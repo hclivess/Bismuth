@@ -63,6 +63,13 @@ print ("Requested block number of transactions: {}".format(len(block_get)))
 print ("Requested block height: {}".format(block_get[0][0]))
 #get block
 
-
+#get all txs for an address
+connections.send(s, "addlist", 10)
+connections.send(s, "c2221e97878e2f21fb2b5f5ff2b6fb3eb9de14bb53592e58443bde34", 10)
+address_tx_list = connections.receive(s, 10)
+print("All transactions for requested address:")
+for row in address_tx_list:
+    print (row)
+#get all txs for an address
 
 s.close()
