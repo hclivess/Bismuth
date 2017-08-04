@@ -1,4 +1,4 @@
-import socks, connections, ast
+import socks, connections, time
 
 s = socks.socksocket()
 s.connect(("127.0.0.1", 5658))
@@ -24,6 +24,7 @@ print ("Address rewards with mempool: {}".format(balance_ledger_mempool[4]))
 #get balance
 
 #insert to mempool
+#DIRECT INSERT, NO REMOTE TX CONSTRUCTION
 #connections.send(s, "mpinsert", 10)
 #transaction = "('1494941203.13', '4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed', '4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed', '1.00000000', 'AnCAkXrBhqgKItLrbrho3+KNro5GuQNB7zcYlhxMELbiTIOcHZpv/oUazqwDvybp6xKxLWMYt2rmmGPmZ49Q3WG4ikIPkFgYY6XV9Uq+ZsnwjJNTKTwXfj++M/kGle7omUVCsi7PDeijz0HlORRySOM/G0rBnObUahMSvlGnCyo=', 'LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUlHZk1BMEdDU3FHU0liM0RRRUJBUVVBQTRHTkFEQ0JpUUtCZ1FES3ZMVGJEeDg1YTF1Z2IvNnhNTWhWT3E2VQoyR2VZVDgrSXEyejlGd0lNUjQwbDJ0dEdxTks3dmFyTmNjRkxJdThLbjRvZ0RRczNXU1dRQ3hOa2haaC9GcXpGCllZYTMvSXRQUGZ6clhxZ2Fqd0Q4cTRadDRZbWp0OCsyQmtJbVBqakZOa3VUUUl6Mkl1M3lGcU9JeExkak13N24KVVZ1OXRGUGlVa0QwVm5EUExRSURBUUFCCi0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLQ==', '0', '')"
 #connections.send(s, transaction, 10)
@@ -46,6 +47,7 @@ print ("Last block hash: {}".format(hash_last[1]))
 #get last hash
 
 #generate address
+#RECEIVES PRIVATE KEY FROM NODE
 connections.send(s, "keygen", 10)
 keys_generated = connections.receive(s, 10)
 
@@ -71,5 +73,20 @@ print("All transactions for requested address:")
 for row in address_tx_list:
     print (row)
 #get all txs for an address
+
+#generate transaction
+#SENDS PRIVATE KEY TO NODE
+#uses keys and address of previous "keygen" example
+connections.send(s, "txsend", 10)
+
+remote_tx_timestamp = '%.2f' % time.time()
+remote_tx_privkey = keys_generated[0] #node will dump pubkey+address from this
+remote_tx_recipient = keys_generated[2] #send to self
+remote_tx_amount = "5"
+remote_tx_keep = "0"
+remote_tx_openfield = ""
+
+connections.send(s, (remote_tx_timestamp, remote_tx_privkey, remote_tx_recipient, remote_tx_amount, remote_tx_keep, remote_tx_openfield), 10)
+#generate transaction
 
 s.close()

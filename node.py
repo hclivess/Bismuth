@@ -272,15 +272,19 @@ def mempool_merge(data, peer_ip, conn, c, mempool, m):
     if mem_lock.locked() == False:
         mem_lock.acquire()
 
-        if data == "[]":
+        if not data:
             app_log.info("Mempool from {} was empty".format(peer_ip))
             mem_lock.release()
         else:
-            # app_log.info("Mempool merging started")
+            app_log.info("Mempool merging started")
             # merge mempool
 
             try:
                 block_list = data
+                if not any(isinstance(el, list) for el in block_list):  # if it's not a list of lists
+                    new_list = []
+                    new_list.append(block_list)
+                    block_list = new_list  # make it a list of lists
 
                 for transaction in block_list:  # set means unique
                     mempool_timestamp = '%.2f' % float(transaction[0])
@@ -291,6 +295,7 @@ def mempool_merge(data, peer_ip, conn, c, mempool, m):
                     mempool_public_key_hashed = str(transaction[5])
                     mempool_keep = str(transaction[6])
                     mempool_openfield = str(transaction[7])
+
                     mempool_public_key = RSA.importKey(base64.b64decode(mempool_public_key_hashed))  # convert readable key to instance
                     mempool_signature_dec = base64.b64decode(mempool_signature_enc)
 
@@ -1526,6 +1531,44 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     execute_param(c, ("SELECT * FROM transactions WHERE (address = ? OR recipient = ?)"), (address_tx_list,) + (address_tx_list,))
                     result = c.fetchall()
                     connections.send(self.request, result, 10)
+
+                elif data == "txsend" and (peer_ip in allowed or "any" in allowed):
+                    tx_remote = connections.receive(self.request, 10)
+
+                    # receive data necessary for remote tx construction
+                    remote_tx_timestamp = tx_remote[0]
+                    remote_tx_privkey = tx_remote[1]
+                    remote_tx_recipient = tx_remote[2]
+                    remote_tx_amount = tx_remote[3]
+                    remote_tx_keep = tx_remote[4]
+                    remote_tx_openfield = tx_remote[5]
+                    # receive data necessary for remote tx construction
+
+                    # derive remaining data
+                    tx_remote_key = RSA.importKey(remote_tx_privkey)
+                    remote_tx_pubkey = tx_remote_key.publickey().exportKey().decode("utf-8")
+
+                    remote_tx_pubkey_hashed = base64.b64encode(remote_tx_pubkey.encode('utf-8')).decode("utf-8")
+                    print(remote_tx_pubkey_hashed)
+
+                    remote_tx_address = hashlib.sha224(remote_tx_pubkey.encode("utf-8")).hexdigest()
+                    # derive remaining data
+
+                    # construct tx
+                    remote_tx = (str(remote_tx_timestamp), str(remote_tx_address), str(remote_tx_recipient), '%.8f' % float(remote_tx_amount), str(remote_tx_keep), str(remote_tx_openfield))  # this is signed
+
+                    remote_h = SHA.new(str(remote_tx).encode("utf-8"))
+                    remote_signer = PKCS1_v1_5.new(tx_remote_key)
+                    remote_signature = remote_signer.sign(remote_h)
+                    remote_signature_enc = base64.b64encode(remote_signature).decode("utf-8")
+                    # construct tx
+
+                    #insert to mempool, where everything will be verified
+                    mempool_data = [remote_tx_timestamp, remote_tx_address, remote_tx_recipient, '%.8f' % float(remote_tx_amount), remote_signature_enc, remote_tx_pubkey_hashed, remote_tx_keep, remote_tx_openfield]
+
+                    mempool_merge(mempool_data, peer_ip, conn, c, mempool, m)
+                    #wipe variables
+                    (tx_remote, remote_tx_privkey, tx_remote_key) = (None, None, None)
 
                 #less importent methods
                 elif data == "addvalidate" and (peer_ip in allowed or "any" in allowed):
