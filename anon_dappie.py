@@ -49,13 +49,12 @@ def anonymize(tx_count, per_tx, remainder, anon_recipient, identifier, anon_send
             mempool.commit()
 
 
-        if remainder-fee > 0:
-        openfield = "mixer"
-        keep = 0
-        fee = float('%.8f' % float(0.01 + (float(remainder) * 0.001) + (float(len(openfield)) / 100000) + (float(keep) / 10)))  # 0.1% + 0.01 dust
-        timestamp = '%.2f' % time.time()
-        transaction = (str(timestamp), str(address), str(anon_sender), '%.8f' % float(remainder - fee), str(keep), str(openfield))  # this is signed
         if remainder - fee > 0:
+            openfield = "mixer"
+            keep = 0
+            fee = float('%.8f' % float(0.01 + (float(remainder) * 0.001) + (float(len(openfield)) / 100000) + (float(keep) / 10)))  # 0.1% + 0.01 dust
+            timestamp = '%.2f' % time.time()
+            transaction = (str(timestamp), str(address), str(anon_sender), '%.8f' % float(remainder - fee), str(keep), str(openfield))  # this is signed
             m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (str(timestamp), str(address), str(anon_sender), '%.8f' % float(remainder - fee), str(signature_enc.decode("utf-8")), str(public_key_hashed), str(keep), str(openfield)))
             mempool.commit()
     return
@@ -86,6 +85,7 @@ while True:
         anon_sender = row[2]
 
         try:
+            #format: anon:number_of_txs:target_address
             print (row)
             anon_recipient_encrypted = ast.literal_eval((row[11].lstrip("enc=")))
             print(anon_recipient_encrypted)
