@@ -132,8 +132,8 @@ def miner(q, privatekey_readable, public_key_hashed, address):
         print("Connected")
 
         print("Miner: Asking pool for the difficulty percentage requirement")
-        connections.send(s_pool, "diffp", 100)
-        pool_diff_percentage = int(connections.receive(s_pool, 100))
+        connections.send(s_pool, "diffp", 10)
+        pool_diff_percentage = int(connections.receive(s_pool, 10))
         s_pool.close()
         #ask for diff percentage
 
