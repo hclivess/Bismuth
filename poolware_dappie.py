@@ -196,7 +196,7 @@ if not os.path.exists('shares.db'):
 
 payout()
 
-diff_percentage = pool_percentage_conf
+diff_percent_number = pool_percentage_conf
 app_log.warning("Pool difficulty configured at {}%".format(pool_percentage_conf))
 
 class MyTCPHandler(socketserver.BaseRequestHandler):
@@ -208,7 +208,8 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         app_log.warning("Received: {} from {}".format(data, peer_ip))  # will add custom ports later
 
         if data == 'diffp':
-            connections.send(self.request, diff_percentage, 10)
+            app_log.warning("Sending the share qualification difficulty requirement: {}%".format(diff_percent_number))
+            connections.send(self.request, diff_percent_number, 10)
 
         if data == "block":  # from miner to node
 
