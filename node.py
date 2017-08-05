@@ -23,6 +23,7 @@ global hdd_block
 ram_done = 0
 global test
 test = 0
+global diff_previous
 
 db_lock = threading.Lock()
 mem_lock = threading.Lock()
@@ -693,7 +694,7 @@ def manager():
 
 
 def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
-    global banlist, hdd_block, ram_conf
+    global banlist, hdd_block, ram_conf, diff_previous
 
 
     if db_lock.locked() == False:
@@ -804,6 +805,37 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                     error_msg = "Block is older than the previous one, will be rejected"
                 # reject blocks older than latest block
 
+
+                # previous diff calc
+                try:
+                    diff_previous
+                except:
+                    execute(c, ("SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1")) #last block
+                    result = c.fetchall()[0]
+                    print(result)
+                    diff_broke = 0
+
+                    miner_address_previous = result[2]
+                    db_block_hash_previous = result[7]
+                    nonce_previous = result[11]
+                    diff_iterator = 0
+
+                    while diff_broke == 0:
+
+                        mining_hash_previous = bin_convert(hashlib.sha224((miner_address_previous + nonce_previous + db_block_hash_previous).encode("utf-8")).hexdigest())
+                        mining_condition_previous = bin_convert(db_block_hash_previous)[0:diff_iterator]
+                        if mining_condition_previous in mining_hash_previous:
+                            diff_previous = diff_iterator
+                            diff_iterator = diff_iterator + 1
+                        else:
+                            diff_broke = 1
+                    pass
+
+                print("PREVIOUS DIFF:"+str(diff_previous))
+                #previous diff calc
+
+                    #calculate previous diff
+
                 # calculate difficulty
                 execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (db_timestamp_last - 1800,))  # 1800=30 min
                 blocks_per_30 = len(c.fetchall())
@@ -825,9 +857,9 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
 
                 app_log.info("Calculated difficulty: {}".format(diff))
                 diff = int(diff)
-                #if test == 1:
-                #    diff = 20
-                # calculate difficulty
+
+                diff_previous = diff #set for next block
+
 
                 # match difficulty
 
