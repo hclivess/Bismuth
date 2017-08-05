@@ -256,23 +256,23 @@ def diff_block_previous(c):
     db_block_hash = c.fetchone()[0]
 
     diff_broke = 0
-    diff_previous_block = 0
+    diff_block_previous = 0
 
     while diff_broke == 0:
         mining_hash = bin_convert(hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
-        mining_condition = bin_convert(db_block_hash)[0:diff_previous_block]
+        mining_condition = bin_convert(db_block_hash)[0:diff_block_previous]
         if mining_condition in mining_hash:
-            diff_result = diff_previous_block
-            diff_previous_block = diff_previous_block + 1
+            diff_result = diff_block_previous
+            diff_block_previous = diff_block_previous + 1
         else:
             diff_broke = 1
 
-    return(diff_previous_block)
+    return(diff_block_previous)
 
 gc.enable()
 
-global active_pool
-active_pool = []
+global connection_pool
+connection_pool = []
 global peer_ip_list
 peer_ip_list = []
 global consensus_blockheight_list
@@ -643,7 +643,7 @@ def consensus_add(peer_ip, consensus_blockheight):
         consensus_percentage = (float(
             consensus_blockheight_list.count(consensus) / float(len(consensus_blockheight_list)))) * 100
 
-        # app_log.info("Current outgoing connections: {}".format(len(active_pool)))
+        # app_log.info("Current outgoing connections: {}".format(len(connection_pool)))
         # app_log.info("Current block consensus: {} = {}%".format(consensus,consensus_percentage))
 
         return
@@ -678,7 +678,7 @@ def manager():
             HOST = key
             # app_log.info(HOST)
             PORT = int(value)
-            if threading.active_count() < thread_limit_conf and str(HOST + ":" + str(PORT)) not in tried and str(HOST + ":" + str(PORT)) not in active_pool and str(HOST) not in banlist:
+            if threading.active_count() < thread_limit_conf and str(HOST + ":" + str(PORT)) not in tried and str(HOST + ":" + str(PORT)) not in connection_pool and str(HOST) not in banlist:
                 app_log.info("Will attempt to connect to {}:{}".format(HOST, PORT))
                 tried.append(HOST + ":" + str(PORT))
                 t = threading.Thread(target=worker, args=(HOST, PORT))  # threaded connectivity to nodes here
@@ -687,8 +687,8 @@ def manager():
                 t.start()
 
                 # client thread handling
-        if len(active_pool) < thread_limit_conf / 3:
-            app_log.info("Only {} connections active, resetting the try list and banlist".format(len(active_pool)))
+        if len(connection_pool) < thread_limit_conf / 3:
+            app_log.info("Only {} connections active, resetting the try list and banlist".format(len(connection_pool)))
             del tried[:]
             del banlist[:]
             del warning_list[:]
@@ -699,8 +699,8 @@ def manager():
         app_log.info("Connection manager: Database locked: {}".format(db_lock.locked()))
         app_log.info("Connection manager: Threads at {} / {}".format(threading.active_count(), thread_limit_conf))
         app_log.info("Connection manager: Tried: {}".format(tried))
-        app_log.info("Connection manager: Current active pool: {}".format(active_pool))
-        app_log.warning("Connection manager: Current connections: {}".format(len(active_pool)))
+        app_log.info("Connection manager: List of outgoing connections: {}".format(connection_pool))
+        app_log.warning("Connection manager: Number of outgoing connections: {}".format(len(connection_pool)))
         if consensus:  # once the consensus is filled
             app_log.warning("Connection manager: Consensus: {} = {}%".format(consensus, consensus_percentage))
             app_log.warning("Connection manager: Consensus IP list: {}".format(peer_ip_list))
@@ -1049,6 +1049,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                                         # dev reward
 
                         app_log.warning("Block {} valid and saved from {}".format(block_height_new, peer_ip))
+                        app_log.info("Previous block difficulty: {}".format(diff_block_previous(c)))
 
                         del block_transactions[:]
                         unban(peer_ip)
@@ -1192,12 +1193,11 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         mempool, m = db_m_define()
         conn, c = db_c_define()
 
-        print(diff_block_previous(c))
-
         global banlist
         global warning_list_limit_conf
 
         peer_ip = self.request.getpeername()[0]
+
 
         if threading.active_count() < thread_limit_conf or peer_ip == "127.0.0.1":
             capacity = 1
@@ -1452,7 +1452,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # check if we have the latest block
 
                     if test == 0:
-                        if len(active_pool) < 5:
+                        if len(connection_pool) < 5:
                             app_log.warning("Outgoing: Mined block ignored, insufficient connections to the network")
                         elif int(db_block_height) >= int(max(consensus_blockheight_list)) - 3 and db_lock.locked() == False:
                             app_log.warning("Outgoing: Processing block from miner")
@@ -1693,9 +1693,9 @@ def worker(HOST, PORT):
 
     while True:
         try:
-            if this_client not in active_pool:
-                active_pool.append(this_client)
-                app_log.info("Current active pool: {}".format(active_pool))
+            if this_client not in connection_pool:
+                connection_pool.append(this_client)
+                app_log.info("Current active pool: {}".format(connection_pool))
 
             mempool, m = db_m_define()
             conn, c = db_c_define()
@@ -1920,9 +1920,9 @@ def worker(HOST, PORT):
 
         except Exception as e:
             # remove from active pool
-            if this_client in active_pool:
-                app_log.info("Will remove {} from active pool {}".format(this_client, active_pool))
-                active_pool.remove(this_client)
+            if this_client in connection_pool:
+                app_log.info("Will remove {} from active pool {}".format(this_client, connection_pool))
+                connection_pool.remove(this_client)
             # remove from active pool
 
             # remove from consensus 2
