@@ -274,7 +274,7 @@ def difficulty(c):
     time_now = time.time()
 
     if time_now > timestamp_last + 180:  # start dropping after 3 minutes
-        difficulty = difficulty - (time_now - db_timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes); minus minutes passed since the drop started
+        difficulty = difficulty - (time_now - 180 - db_timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes); minus minutes passed since the drop started
 
     if difficulty < 37:
         difficulty = 37
