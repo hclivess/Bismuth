@@ -33,7 +33,7 @@ def hello():
 
     view.append("Welcome to the opensource public Bismuth pool ran by the developer")
     view.append("<br>Config details in your config.txt:")
-    view.append("<br>mining_ip=94.113.207.67")
+    view.append("<br>pool_ip=94.113.207.67")
     view.append("<br>mining_pool=1")
     view.append("<br>pool_address={}<br><br><br>".format(address))
 

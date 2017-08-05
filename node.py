@@ -1058,7 +1058,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                                         # dev reward
 
                         app_log.warning("Block {} valid and saved from {}".format(block_height_new, peer_ip))
-                        app_log.warning("New difficulty: {}".format(difficulty(c)))
+                        app_log.warning("Proposed dev difficulty: {}".format(difficulty(c)))
 
                         del block_transactions[:]
                         unban(peer_ip)
