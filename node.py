@@ -23,7 +23,6 @@ global hdd_block
 ram_done = 0
 global test
 test = 0
-global diff_previous
 
 db_lock = threading.Lock()
 mem_lock = threading.Lock()
@@ -245,6 +244,30 @@ def execute_param(cursor, what, param):
             # secure execute for slow nodes
     return cursor
 
+def diff_block_previous(c):
+    execute(c,"SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1")
+    result = c.fetchall()[0]
+    miner_address = result[2]
+    nonce = result[11]
+    timestamp_last = result[1]
+
+
+    execute(c,"SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 2 OFFSET 1")
+    db_block_hash = c.fetchone()[0]
+
+    diff_broke = 0
+    diff_previous_block = 0
+
+    while diff_broke == 0:
+        mining_hash = bin_convert(hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
+        mining_condition = bin_convert(db_block_hash)[0:diff_previous_block]
+        if mining_condition in mining_hash:
+            diff_result = diff_previous_block
+            diff_previous_block = diff_previous_block + 1
+        else:
+            diff_broke = 1
+
+    return(diff_previous_block)
 
 gc.enable()
 
@@ -694,7 +717,7 @@ def manager():
 
 
 def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
-    global banlist, hdd_block, ram_conf, diff_previous
+    global banlist, hdd_block, ram_conf
 
 
     if db_lock.locked() == False:
@@ -805,37 +828,6 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                     error_msg = "Block is older than the previous one, will be rejected"
                 # reject blocks older than latest block
 
-
-                # previous diff calc
-                try:
-                    diff_previous
-                except:
-                    execute(c, ("SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1")) #last block
-                    result = c.fetchall()[0]
-                    print(result)
-                    diff_broke = 0
-
-                    miner_address_previous = result[2]
-                    db_block_hash_previous = result[7]
-                    nonce_previous = result[11]
-                    diff_iterator = 0
-
-                    while diff_broke == 0:
-
-                        mining_hash_previous = bin_convert(hashlib.sha224((miner_address_previous + nonce_previous + db_block_hash_previous).encode("utf-8")).hexdigest())
-                        mining_condition_previous = bin_convert(db_block_hash_previous)[0:diff_iterator]
-                        if mining_condition_previous in mining_hash_previous:
-                            diff_previous = diff_iterator
-                            diff_iterator = diff_iterator + 1
-                        else:
-                            diff_broke = 1
-                    pass
-
-                print("PREVIOUS DIFF:"+str(diff_previous))
-                #previous diff calc
-
-                    #calculate previous diff
-
                 # calculate difficulty
                 execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (db_timestamp_last - 1800,))  # 1800=30 min
                 blocks_per_30 = len(c.fetchall())
@@ -857,9 +849,9 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
 
                 app_log.info("Calculated difficulty: {}".format(diff))
                 diff = int(diff)
-
-                diff_previous = diff #set for next block
-
+                #if test == 1:
+                #    diff = 20
+                # calculate difficulty
 
                 # match difficulty
 
@@ -1199,6 +1191,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
         mempool, m = db_m_define()
         conn, c = db_c_define()
+
+        print(diff_block_previous(c))
 
         global banlist
         global warning_list_limit_conf
