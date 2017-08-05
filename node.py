@@ -7,7 +7,7 @@
 
 from itertools import groupby
 from operator import itemgetter
-import shutil, socketserver, ast, base64, gc, hashlib, os, re, sqlite3, sys, threading, time, socks, log, options, connections, random, codecs, keys
+import shutil, socketserver, ast, base64, gc, hashlib, os, re, sqlite3, sys, threading, time, socks, log, options, connections, random, codecs, keys, math
 
 from Crypto import Random
 from Crypto.Hash import SHA
@@ -244,15 +244,17 @@ def execute_param(cursor, what, param):
             # secure execute for slow nodes
     return cursor
 
-def diff_block_previous(c):
+def difficulty(c):
     execute(c,"SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1")
     result = c.fetchall()[0]
     miner_address = result[2]
     nonce = result[11]
-    timestamp_last = result[1]
+    timestamp_last = float(result[1])
 
+    execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (timestamp_last - 1800,))  # 1800=30 min
+    blocks_per_30 = len(c.fetchall())
 
-    execute(c,"SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 2 OFFSET 1")
+    execute(c,"SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 2 OFFSET 1") #offset, select the block before the last one
     db_block_hash = c.fetchone()[0]
 
     diff_broke = 0
@@ -267,7 +269,17 @@ def diff_block_previous(c):
         else:
             diff_broke = 1
 
-    return(diff_block_previous)
+    difficulty = diff_block_previous + (diff_block_previous * math.log(blocks_per_30 / 30))
+
+    time_now = time.time()
+
+    if time_now > timestamp_last + 180:  # start dropping after 3 minutes
+        difficulty = difficulty - (time_now - db_timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes); minus minutes passed since the drop started
+
+    if difficulty < 37:
+        difficulty = 37
+
+    return difficulty
 
 gc.enable()
 
@@ -993,13 +1005,10 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                         else:
                             # append, but do not insert to ledger before whole block is validated
                             app_log.info("Digest: Appending transaction back to block with {} transactions in it".format(len(block_transactions)))
-                            block_transactions.append((block_height_new, db_timestamp, db_address, db_recipient,
-                                                       db_amount, db_signature, db_public_key_hashed,
-                                                       block_hash, fee, reward, db_keep, db_openfield))
+                            block_transactions.append((block_height_new, db_timestamp, db_address, db_recipient, db_amount, db_signature, db_public_key_hashed, block_hash, fee, reward, db_keep, db_openfield))
 
                         try:
-                            execute_param(m, ("DELETE FROM transactions WHERE signature = ?;"),
-                                          (db_signature,))  # delete tx from mempool now that it is in the ledger
+                            execute_param(m, ("DELETE FROM transactions WHERE signature = ?;"),(db_signature,))  # delete tx from mempool now that it is in the ledger
                             commit(mempool)
                             app_log.info("Digest: Removed processed transaction from the mempool")
                         except:
@@ -1049,7 +1058,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                                         # dev reward
 
                         app_log.warning("Block {} valid and saved from {}".format(block_height_new, peer_ip))
-                        app_log.info("Previous block difficulty: {}".format(diff_block_previous(c)))
+                        app_log.warning("New difficulty: {}".format(difficulty(c)))
 
                         del block_transactions[:]
                         unban(peer_ip)
