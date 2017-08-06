@@ -28,7 +28,7 @@ def hello():
         html.append("Content: ")
         html.append("<br>")
         html.append(row[11].lstrip("html="))
-
+        html.append("<br>")
     return str(''.join(html))
 
 run(host='0.0.0.0', port=4585, debug=True)
