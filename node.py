@@ -268,23 +268,23 @@ def difficulty(c):
             diff_broke = 1
 
     try:
-        log = math.log(blocks_per_30 / 30)
+        log = math.log2(blocks_per_30 / 30)
     except:
         log = 1
 
-    difficulty = diff_block_previous + log #increase diff by a little
+    difficulty = diff_block_previous + log #increase/decrease diff by a little
 
     time_now = time.time()
 
     drop_factor = 12  # drop 5 diff per minute (60/x)
 
-    if time_now > timestamp_last + 300:  # start dropping after 5 minutes
-        difficulty = difficulty - (time_now - 300 - timestamp_last) / drop_factor  # drop 5 diff per minute
+    if time_now > timestamp_last + 1800:  # start dropping after 30 minutes
+        difficulty = difficulty - (time_now - 1800 - timestamp_last) / drop_factor  # drop 5 diff per minute
 
-    if difficulty < 37:
-        difficulty = 37
+    if difficulty < 45:
+        difficulty = 45
 
-    return difficulty
+    return int(difficulty)
 
 gc.enable()
 
@@ -849,28 +849,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                 execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (db_timestamp_last - 1800,))  # 1800=30 min
                 blocks_per_30 = len(c.fetchall())
 
-                diff = blocks_per_30 * 2
-
-                # drop diff per minute if over target
-                time_now = time.time()
-
-                drop_factor = 120  # drop 0,5 diff per minute
-
-                if time_now > db_timestamp_last + 180:  # start dropping after 3 minutes
-                    diff = diff - (time_now - db_timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes)
-                    # drop diff per minute if over target
-
-                if diff < 37:
-                    diff = 37
-                # calculate difficulty
-
-                app_log.info("Calculated difficulty: {}".format(diff))
-                diff = int(diff)
-                #if test == 1:
-                #    diff = 20
-                # calculate difficulty
-
-                # match difficulty
+                diff = difficulty(c)
 
                 #app_log.info("Transaction list: {}".format(transaction_list_converted))
                 block_hash = hashlib.sha224((str(transaction_list_converted) + db_block_hash).encode("utf-8")).hexdigest()
@@ -1063,7 +1042,6 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                                         # dev reward
 
                         app_log.warning("Block {} valid and saved from {}".format(block_height_new, peer_ip))
-                        app_log.warning("Proposed dev difficulty: {}".format(difficulty(c)))
 
                         del block_transactions[:]
                         unban(peer_ip)
@@ -1618,27 +1596,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                 elif data == "diffget" and (peer_ip in allowed or "any" in allowed):
 
-                    execute(c, ("SELECT timestamp,block_height FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
-                    result = c.fetchall()
-                    db_timestamp_last = float(result[0][0])
-
-                    # calculate difficulty
-                    execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (db_timestamp_last - 1800,))  # 1800=30 min
-                    blocks_per_30 = len(c.fetchall())
-
-                    diff = blocks_per_30 * 2
-
-                    # drop diff per minute if over target
-                    time_now = time.time()
-
-                    drop_factor = 120  # drop 0,5 diff per minute #hardfork
-
-
-                    if time_now > db_timestamp_last + 180:  # start dropping after 3 minutes
-                        diff = diff - (time_now - db_timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes); minus minutes passed since the drop started
-
-                    if diff < 37:
-                        diff = 37
+                    diff = difficulty(c)
 
                     connections.send(self.request, diff, 10)
 

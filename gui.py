@@ -55,6 +55,89 @@ root = Tk()
 root.wm_title("Bismuth")
 
 
+
+def execute(cursor, what):
+    # secure execute for slow nodes
+    passed = 0
+    while passed == 0:
+        try:
+            # print cursor
+            # print what
+
+            cursor.execute(what)
+            passed = 1
+        except Exception as e:
+            app_log.warning("Retrying database execute due to {}".format(e))
+            time.sleep(random.random())
+            pass
+            # secure execute for slow nodes
+    return cursor
+
+
+def execute_param(cursor, what, param):
+    # secure execute for slow nodes
+    passed = 0
+    while passed == 0:
+        try:
+            # print cursor
+            # print what
+            cursor.execute(what, param)
+            passed = 1
+        except Exception as e:
+            app_log.warning("Retrying database execute due to " + str(e))
+            time.sleep(0.1)
+            pass
+            # secure execute for slow nodes
+    return cursor
+
+def bin_convert(string):
+    return ''.join(format(ord(x), '8b').replace(' ', '0') for x in string)
+
+def difficulty(c):
+    execute(c,"SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1")
+    result = c.fetchall()[0]
+    miner_address = result[2]
+    nonce = result[11]
+    timestamp_last = float(result[1])
+
+    execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (timestamp_last - 1800,))  # 1800=30 min
+    blocks_per_30 = len(c.fetchall())
+
+    execute(c,"SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 2 OFFSET 1") #offset, select the block before the last one
+    db_block_hash = c.fetchone()[0]
+
+    diff_broke = 0
+    diff_block_previous = 0
+
+    while diff_broke == 0:
+        mining_hash = bin_convert(hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
+        mining_condition = bin_convert(db_block_hash)[0:diff_block_previous]
+        if mining_condition in mining_hash:
+            diff_result = diff_block_previous
+            diff_block_previous = diff_block_previous + 1
+        else:
+            diff_broke = 1
+
+    try:
+        log = math.log2(blocks_per_30 / 30)
+    except:
+        log = 1
+
+    difficulty = diff_block_previous + log #increase/decrease diff by a little
+
+    time_now = time.time()
+
+    drop_factor = 12  # drop 5 diff per minute (60/x)
+
+    if time_now > timestamp_last + 1800:  # start dropping after 30 minutes
+        difficulty = difficulty - (time_now - 1800 - timestamp_last) / drop_factor  # drop 5 diff per minute
+
+    if difficulty < 45:
+        difficulty = 45
+
+    return int(difficulty)
+
+
 def alias():
     alias_var = StringVar()
 
@@ -714,25 +797,7 @@ def refresh():
         s.close()
     except:  # get locally
         app_log.warning("Unable to start in light mode, using local db for difficulty calculation")
-
-        # calculate difficulty
-        c.execute("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0", (db_timestamp_last - 1800,))  # 1800=30 min
-        blocks_per_30 = len(c.fetchall())
-
-        diff = blocks_per_30 * 2
-
-        # drop diff per minute if over target
-        time_now = time.time()
-
-        drop_factor = 120  # drop 0,5 diff per minute #hardfork
-
-        if time_now > db_timestamp_last + 180:  # start dropping after 3 minutes
-            diff = diff - (time_now - db_timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes); minus minutes passed since the drop started
-
-        if diff < 37:
-            diff = 37
-            # drop diff per minute if over target
-            # calculate difficulty
+        diff = difficulty(c)
     # check difficulty
 
 
@@ -763,7 +828,7 @@ def refresh():
     fees_var.set("Fees Paid: {}".format('%.8f' % float(fees)))
     rewards_var.set("Rewards: {}".format('%.8f' % float(rewards)))
     bl_height_var.set("Block Height: {}".format(bl_height))
-    diff_msg_var.set("Mining Difficulty: {}".format('%.8f' % float(diff_msg)))
+    diff_msg_var.set("Mining Difficulty: {}".format(diff_msg))
     sync_msg_var.set("Network: {}".format(sync_msg))
 
     table()
