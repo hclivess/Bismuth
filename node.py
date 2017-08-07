@@ -101,7 +101,7 @@ def warning(sdef, ip):
     if warning_list.count(ip) >= warning_list_limit_conf:
         banlist.append(ip)
         sdef.close()
-        app_log.info("{} banned".format(ip))  # rework this
+        app_log.warning("{} banned".format(ip))  # rework this
 
 
 def ledger_convert():
@@ -1206,6 +1206,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
             banned = 1
             self.request.close()
             app_log.warning("IP {} banned, disconnected".format(peer_ip))
+
             # if you raise here, you kill the whole server
 
         timeout_operation = 60  # timeout
@@ -1665,7 +1666,15 @@ def worker(HOST, PORT):
         app_log.info("Could not connect to {} because {}".format(this_client,e))
         return #can return here, because no lists are affected yet
 
-    while True:
+    banned = 0
+    if peer_ip not in banlist:
+        banned = 0
+    else:
+        banned = 1
+        s.close()
+        app_log.warning("IP {} banned, disconnected".format(peer_ip))
+
+    while banned == 0:
         try:
             if this_client not in connection_pool:
                 connection_pool.append(this_client)
