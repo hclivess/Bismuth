@@ -16,16 +16,13 @@ from Crypto.Signature import PKCS1_v1_5
 
 # load config
 global warning_list_limit_conf
-global peersync
-peersync = 0
-global ram_done
 global hdd_block
-ram_done = 0
 global test
 test = 0
 
 db_lock = threading.Lock()
 mem_lock = threading.Lock()
+peersync_lock = threading.Lock()
 
 (port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, pool_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address, ram_conf, pool_percentage_conf, node_ip_conf) = options.read()
 
@@ -1721,9 +1718,9 @@ def worker(HOST, PORT):
 
             if data == "peers":
                 subdata = connections.receive(s, 10)
-                global peersync
-                if peersync == 0:
-                    peersync = 1
+
+                if peersync_lock == False:
+                    peersync_lock.acquire()
 
                     # get remote peers into tuples (actually list)
                     server_peer_tuples = re.findall("'([\d\.]+)', '([\d]+)'", subdata)
@@ -1763,7 +1760,7 @@ def worker(HOST, PORT):
                             app_log.info("Outgoing: {} is not a new peer".format(x))
                 else:
                     app_log.info("Outgoing: Peer sync occupied")
-                peersync = 0
+                peersync_lock.release()
 
             elif data == "sync":
 
