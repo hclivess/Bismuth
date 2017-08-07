@@ -284,7 +284,7 @@ def difficulty(c):
     if difficulty < 45:
         difficulty = 45
 
-    #difficulty = 37 old compat
+    #difficulty = 37 #old compat
     return int(difficulty)
 
 gc.enable()
