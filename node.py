@@ -272,10 +272,7 @@ def difficulty(c):
     except:
         log = 1
 
-    if log > 0:
-        difficulty = diff_block_previous + (diff_block_previous + log) #increase diff by a little
-    else:
-        difficulty = diff_block_previous + (diff_block_previous + log) #lower diff by a little
+    difficulty = diff_block_previous + log) #increase diff by a little
 
     time_now = time.time()
 
