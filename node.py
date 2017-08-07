@@ -269,13 +269,16 @@ def difficulty(c):
         else:
             diff_broke = 1
 
-    difficulty = diff_block_previous + (diff_block_previous * math.log(blocks_per_30 / 30))
+    log = math.log(blocks_per_30 / 30)
+    if log > 0:
+        difficulty = diff_block_previous + (diff_block_previous * log) #lower diff by a little
+    else:
+        difficulty = diff_block_previous + (diff_block_previous + log) #increase diff by a lot
 
     time_now = time.time()
 
-    drop_factor = 120
-    if time_now > timestamp_last + 180:  # start dropping after 3 minutes
-        difficulty = difficulty - (time_now - 180 - timestamp_last) / drop_factor  # drop 0,5 diff per minute (1 per 2 minutes); minus minutes passed since the drop started
+    if time_now > timestamp_last + 180:  # instadrop after 3 minutes
+        difficulty = 37
 
     if difficulty < 37:
         difficulty = 37
