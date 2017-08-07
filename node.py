@@ -267,7 +267,11 @@ def difficulty(c):
         else:
             diff_broke = 1
 
-    log = math.log(blocks_per_30 / 30)
+    try:
+        log = math.log(blocks_per_30 / 30)
+    except:
+        log = 1
+
     if log > 0:
         difficulty = diff_block_previous + (diff_block_previous * log) #increase diff by a lot
     else:
