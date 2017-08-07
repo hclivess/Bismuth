@@ -280,7 +280,7 @@ def difficulty(c):
     drop_factor = 12  # drop 5 diff per minute (60/x)
 
     if time_now > timestamp_last + 300:  # start dropping after 5 minutes
-        diff = diff - (time_now - 300 - timestamp_last) / drop_factor  # drop 5 diff per minute
+        difficulty = difficulty - (time_now - 300 - timestamp_last) / drop_factor  # drop 5 diff per minute
 
     if difficulty < 37:
         difficulty = 37
