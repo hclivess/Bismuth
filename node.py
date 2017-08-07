@@ -1644,6 +1644,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                 else:
                     raise ValueError("Unexpected error, received: " + str(data))
+                    warning_list.append(peer_ip)
 
                 if not time.time() <= timer_operation + timeout_operation:
                     timer_operation = time.time()  # reset timer
@@ -1927,6 +1928,7 @@ def worker(HOST, PORT):
 
             else:
                 raise ValueError("Unexpected error, received: {}".format(data))
+                warning_list.append(peer_ip)
 
 
 
