@@ -271,9 +271,9 @@ def difficulty(c):
 
     log = math.log(blocks_per_30 / 30)
     if log > 0:
-        difficulty = diff_block_previous + (diff_block_previous * log) #lower diff by a little
+        difficulty = diff_block_previous + (diff_block_previous * log) #increase diff by a lot
     else:
-        difficulty = diff_block_previous + (diff_block_previous + log) #increase diff by a lot
+        difficulty = diff_block_previous + (diff_block_previous + log) #lower diff by a little
 
     time_now = time.time()
 
