@@ -51,6 +51,7 @@ def db_to_drive():
     h.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
     hdd_block = h.fetchone()[0]
     hdd.close()
+    app_log.warning("Ledger updated successfully")
 
 def db_c_define():
     global hdd_block
