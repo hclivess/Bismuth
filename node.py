@@ -273,7 +273,7 @@ def difficulty(c):
         log = 1
 
     if log > 0:
-        difficulty = diff_block_previous + (diff_block_previous * log) #increase diff by a lot
+        difficulty = diff_block_previous + (diff_block_previous + log) #increase diff by a little
     else:
         difficulty = diff_block_previous + (diff_block_previous + log) #lower diff by a little
 
@@ -1762,9 +1762,10 @@ def worker(HOST, PORT):
 
                         else:
                             app_log.info("Outgoing: {} is not a new peer".format(x))
+                    peersync_lock.release()
                 else:
                     app_log.info("Outgoing: Peer sync occupied")
-                peersync_lock.release()
+
 
             elif data == "sync":
 
