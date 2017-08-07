@@ -276,10 +276,10 @@ def difficulty(c):
 
     time_now = time.time()
 
-    drop_factor = 12  # drop 5 diff per minute (60/x)
+    drop_factor = 60  # drop 1 diff per minute (60/x)
 
-    if time_now > timestamp_last + 1800:  # start dropping after 30 minutes
-        difficulty = difficulty - (time_now - 1800 - timestamp_last) / drop_factor  # drop 5 diff per minute
+    if time_now > timestamp_last + 300:  # start dropping after 5 minutes
+        difficulty = difficulty - (time_now - 300 - timestamp_last) / drop_factor  # drop 1 diff per minute
 
     if difficulty < 45:
         difficulty = 45
@@ -606,7 +606,6 @@ def blocknf(block_hash_delete, peer_ip, conn, c):
                 commit(conn)
 
                 app_log.warning("Node {} didn't find block {}({}), rolled back".format(peer_ip, db_block_height, db_block_hash))
-                warning_list.append(peer_ip)
 
                 if ram_conf == 1:
                     #roll back hdd too
@@ -1215,7 +1214,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         while banned == 0 and capacity == 1:
             try:
                 if not time.time() <= timer_operation + timeout_operation:  # return on timeout
-                    warning_list.append(peer_ip)  # add warning
+                    warning(self.request, peer_ip)  # add warning
 
                     raise ValueError("Incoming: Operation timeout from {}".format(peer_ip))
 
@@ -1424,7 +1423,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # print peer_ip
                     if max(consensus_blockheight_list) == consensus_blockheight:
                         blocknf(block_hash_delete, peer_ip, conn, c)
-                        warning_list.append(peer_ip)
+                        warning(self.request,peer_ip)
                     app_log.info("Outgoing: Deletion complete, sending sync request")
 
                     while db_lock.locked() == True:
@@ -1839,6 +1838,7 @@ def worker(HOST, PORT):
                 # print peer_ip
                 if max(consensus_blockheight_list) == consensus_blockheight:
                     blocknf(block_hash_delete, peer_ip, conn, c)
+                    warning(s, peer_ip)
 
                 while db_lock.locked() == True:
                     time.sleep(float(pause_conf))
