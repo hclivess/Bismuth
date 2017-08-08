@@ -13,6 +13,7 @@ Compression=lzma2
 SolidCompression=yes
 OutputBaseFilename=Bismuth_installer
 SetupIconFile=graphics\icon.ico
+DisableDirPage=no
 
 WizardImageFile=graphics\left.bmp
 WizardSmallImageFile=graphics\mini.bmp
