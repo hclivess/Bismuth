@@ -498,8 +498,11 @@ def purge_old_peers():
     peer_dict = {}
     with open("peers.txt") as f:
         for line in f:
-            line = re.sub("[\)\(\:\\n\'\s]", "", line)
-            peer_dict[line.split(",")[0]] = line.split(",")[1]
+            try:
+                line = re.sub("[\)\(\:\\n\'\s]", "", line)
+                peer_dict[line.split(",")[0]] = line.split(",")[1]
+            except Exception as e:
+                app_log.warning("Skipping peerlist entry because of wrong format: {}".format(line))
 
         for key, value in peer_dict.items():
             HOST = key
