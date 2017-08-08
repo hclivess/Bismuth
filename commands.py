@@ -1,12 +1,22 @@
 import socks, connections, time, sys
 
-print ('Number of arguments:', len(sys.argv), 'arguments.')
-print ('Argument List:', str(sys.argv))
+#print ('Number of arguments:', len(sys.argv), 'arguments.')
+#print ('Argument List:', str(sys.argv))
 
 try:
     command = sys.argv[1]
 except:
-    command = "diffget"
+    pass
+
+try:
+    arg1 = sys.argv[2]
+except:
+    pass
+
+try:
+    arg2 = sys.argv[3]
+except:
+    pass
 
 
 s = socks.socksocket()
@@ -70,10 +80,10 @@ def keygen(socket):
     print ("Address: {}".format(keys_generated[2]))
     #generate address
 
-def blockget(socket):
+def blockget(socket, arg1):
     #get block
     connections.send(s, "blockget", 10)
-    connections.send(s, "14", 10)
+    connections.send(s, arg1, 10)
     block_get = connections.receive(s, 10)
     print ("Requested block: {}".format(block_get))
     print ("Requested block number of transactions: {}".format(len(block_get)))
@@ -90,15 +100,15 @@ def addlist(socket):
         print (row)
     #get all txs for an address
 
-def txsend(socket, privkey, recipient):
+def txsend(socket, arg1, arg2):
     #generate transaction
     #SENDS PRIVATE KEY TO NODE
     #uses keys and address of previous "keygen" example
     connections.send(s, "txsend", 10)
 
     remote_tx_timestamp = '%.2f' % time.time()
-    remote_tx_privkey = privkey #node will dump pubkey+address from this
-    remote_tx_recipient = recipient #send to self
+    remote_tx_privkey = arg1 #node will dump pubkey+address from this
+    remote_tx_recipient = arg2 #send to self
     remote_tx_amount = "5"
     remote_tx_keep = "0"
     remote_tx_openfield = ""
@@ -124,12 +134,12 @@ elif command == "keygen":
     keygen(s)
 
 elif command == "blockget":
-    blockget(s)
+    blockget(s, arg1)
 
 elif command == "addlist":
     addlist(s)
 
 elif command == "txsend":
-    txsend(s)
+    txsend(s, arg1, arg2)
 
 s.close()
