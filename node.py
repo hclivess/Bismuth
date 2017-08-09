@@ -49,6 +49,7 @@ def db_to_drive():
         h.execute("INSERT INTO misc VALUES (?,?)", (row[0], row[1]))
         commit(hdd)
 
+
     h.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
     hdd_block = h.fetchone()[0]
     hdd.close()
@@ -259,6 +260,7 @@ def difficulty(c):
 
 
     #previous diff
+
     execute(c,"SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 2 OFFSET 1") #offset, select the block before the last one
     db_block_hash = c.fetchone()[0]
 
@@ -275,9 +277,10 @@ def difficulty(c):
             diff_broke = 1
     #previous diff
 
+
     # new hf
-    execute_param(c,("SELECT difficulty FROM misc WHERE block_height = ? LIMIT 1"),(block_height,))
-    diff_block_previous = float(c.fetchone()[0])
+    #execute(c,("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
+    #diff_block_previous = float(c.fetchone()[0])
     # new hf
 
 
@@ -1028,6 +1031,12 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                         warning(sdef, peer_ip)
 
                     if block_valid == 1:
+
+                        # save diff
+                        execute_param(c, "INSERT INTO misc VALUES (?, ?)", (block_height_new, diff))
+                        commit(conn)
+                        # save diff
+
                         for transaction in block_transactions:
                             execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
                                 str(transaction[0]), str(transaction[1]),
@@ -1038,12 +1047,6 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                                 str(transaction[10]), str(transaction[11])))
                             # secure commit for slow nodes
                             commit(conn)
-
-
-                            # save diff
-                            execute_param(c, "INSERT INTO misc VALUES (?, ?)", (block_height_new, diff))
-                            commit(conn)
-                            # save diff
 
                             # dev reward
                             if int(block_height_new) % 10 == 0:  # every 10 blocks
