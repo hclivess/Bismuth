@@ -18,7 +18,7 @@ from Crypto.Signature import PKCS1_v1_5
 global warning_list_limit_conf
 global hdd_block
 global test
-test = 0
+test = 1
 
 db_lock = threading.Lock()
 mem_lock = threading.Lock()
@@ -297,34 +297,36 @@ def difficulty(c):
     #difficulty = 37 #old compat
 
     if block_height > 235000:
-        # new hf
+
+        execute(c, "SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1")
+        result = c.fetchall()[0]
+        block_height = result[0]
+        miner_address = result[2]
+        nonce = result[11]
+        timestamp_last = float(result[1])
+
+        execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (timestamp_last - 1800,))  # 1800=30 min
+        blocks_per_30 = len(c.fetchall())
+
         execute(c,("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
-        diff_block_previous = float(c.fetchone()[0])
-        # new hf
+
+        try:
+            diff_block_previous = float(c.fetchone()[0])
+        except:
+            diff_block_previous = 45
 
         try:
             log = math.log2(blocks_per_30 / 30)
+
         except:
             log = 0
 
         difficulty = diff_block_previous + log #increase/decrease diff by a little
-
-        time_now = time.time()
-        if time_now > timestamp_last + 180:  # pick a lower diff after 3 minutes
-            execute(c, ("SELECT difficulty FROM misc ORDER BY block_height ASC LIMIT 60")) #select last 60 diffs
-            diff_lowest_60 = float(c.fetchone()[0])
-            if difficulty > diff_lowest_60:
-                difficulty = diff_lowest_60
-
+        print(difficulty)
         if difficulty < 45:
             difficulty = 45
 
-            # and pick the lowest one
-
-
-
-
-
+           # and pick the lowest one
 
     return float(difficulty)
 
@@ -649,6 +651,9 @@ def blocknf(block_hash_delete, peer_ip, conn, c):
                 execute_param(c, ("DELETE FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
                 commit(conn)
 
+                execute_param(c, ("DELETE FROM misc WHERE block_height >= ?;"), (str(db_block_height),))
+                commit(conn)
+
                 app_log.warning("Node {} didn't find block {}({}), rolled back".format(peer_ip, db_block_height, db_block_hash))
 
                 if ram_conf == 1:
@@ -908,9 +913,26 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                 mining_hash = bin_convert(hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
 
                 mining_condition = bin_convert(db_block_hash)[0:int(diff)]
-
                 if mining_condition in mining_hash:  # simplified comparison, no backwards mining
                     app_log.info("Difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
+
+                elif time_now > db_timestamp_last + 180 and db_block_height > 235000: #simplify after merging fork
+                    app_log.info("Sufficient time has passed, selecting a lower difficulty from previous")
+                    execute(c, ("SELECT difficulty FROM misc ORDER BY block_height ASC LIMIT 30"))  # select last 30 diffs
+                    diff_lowest_30 = float(c.fetchone()[0])
+                    if diff > diff_lowest_30:
+                        diff = diff_lowest_30
+
+                    mining_condition = bin_convert(db_block_hash)[0:int(diff)]
+                    if mining_condition in mining_hash:  # simplified comparison, no backwards mining
+                        app_log.info("Difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
+
+                    else:
+                        # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
+                        error_msg = "Difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff)
+                        block_valid = 0
+
+
                 else:
                     # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
                     error_msg = "Difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff)
