@@ -249,6 +249,7 @@ def execute_param(cursor, what, param):
 def difficulty(c):
     execute(c,"SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1")
     result = c.fetchall()[0]
+    block_height = result[0]
     miner_address = result[2]
     nonce = result[11]
     timestamp_last = float(result[1])
@@ -256,6 +257,8 @@ def difficulty(c):
     execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (timestamp_last - 1800,))  # 1800=30 min
     blocks_per_30 = len(c.fetchall())
 
+
+    #previous diff
     execute(c,"SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 2 OFFSET 1") #offset, select the block before the last one
     db_block_hash = c.fetchone()[0]
 
@@ -270,6 +273,13 @@ def difficulty(c):
             diff_block_previous = diff_block_previous + 1
         else:
             diff_broke = 1
+    #previous diff
+
+    # new hf
+    execute_param(c,("SELECT difficulty FROM misc WHERE block_height = ? LIMIT 1"),(block_height,))
+    diff_block_previous = float(c.fetchone()[0])
+    # new hf
+
 
     try:
         log = math.log2(blocks_per_30 / 30)
