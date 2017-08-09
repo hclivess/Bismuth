@@ -258,7 +258,6 @@ def difficulty(c):
     execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (timestamp_last - 1800,))  # 1800=30 min
     blocks_per_30 = len(c.fetchall())
 
-
     #previous diff
 
     execute(c,"SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 2 OFFSET 1") #offset, select the block before the last one
@@ -276,13 +275,6 @@ def difficulty(c):
         else:
             diff_broke = 1
     #previous diff
-
-
-    if block_height > 235000:
-        # new hf
-        execute(c,("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
-        diff_block_previous = float(c.fetchone()[0])
-        # new hf
 
 
     try:
@@ -303,6 +295,37 @@ def difficulty(c):
         difficulty = 45
 
     #difficulty = 37 #old compat
+
+    if block_height > 235000:
+        # new hf
+        execute(c,("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
+        diff_block_previous = float(c.fetchone()[0])
+        # new hf
+
+        try:
+            log = math.log2(blocks_per_30 / 30)
+        except:
+            log = 0
+
+        difficulty = diff_block_previous + log #increase/decrease diff by a little
+
+        time_now = time.time()
+        if time_now > timestamp_last + 180:  # pick a lower diff after 3 minutes
+            execute(c, ("SELECT difficulty FROM misc ORDER BY block_height ASC LIMIT 60")) #select last 60 diffs
+            diff_lowest_60 = float(c.fetchone()[0])
+            if difficulty > diff_lowest_60:
+                difficulty = diff_lowest_60
+
+        if difficulty < 45:
+            difficulty = 45
+
+            # and pick the lowest one
+
+
+
+
+
+
     return float(difficulty)
 
 gc.enable()
