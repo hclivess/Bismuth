@@ -307,9 +307,9 @@ def difficulty(c):
 
         execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (timestamp_last - 1800,))  # 1800=30 min
         blocks_per_30 = len(c.fetchall())
+        app_log.warning("Blocks per 30 minutes: {}".format(blocks_per_30))
 
         execute(c,("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
-
         try:
             diff_block_previous = float(c.fetchone()[0])
         except:
@@ -317,16 +317,15 @@ def difficulty(c):
 
         try:
             log = math.log2(blocks_per_30 / 30)
-
         except:
             log = 0
+        app_log.warning("Difficulty retargeting: {}".format(log))
 
         difficulty = diff_block_previous + log #increase/decrease diff by a little
-        print(difficulty)
         if difficulty < 45:
             difficulty = 45
 
-           # and pick the lowest one
+        app_log.warning("Difficulty: {}".format(difficulty))
 
     return float(difficulty)
 
@@ -923,13 +922,15 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                     if diff > diff_lowest_30:
                         diff = diff_lowest_30
 
+                    app_log.info("Readjusted difficulty: {}".format(diff))
+
                     mining_condition = bin_convert(db_block_hash)[0:int(diff)]
                     if mining_condition in mining_hash:  # simplified comparison, no backwards mining
-                        app_log.info("Difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
+                        app_log.info("Readjusted difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
 
                     else:
                         # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
-                        error_msg = "Difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff)
+                        error_msg = "Readjusted difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff)
                         block_valid = 0
 
 
