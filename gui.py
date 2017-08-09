@@ -103,20 +103,8 @@ def difficulty(c):
     execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (timestamp_last - 1800,))  # 1800=30 min
     blocks_per_30 = len(c.fetchall())
 
-    execute(c,"SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 2 OFFSET 1") #offset, select the block before the last one
-    db_block_hash = c.fetchone()[0]
-
-    diff_broke = 0
-    diff_block_previous = 0
-
-    while diff_broke == 0:
-        mining_hash = bin_convert(hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
-        mining_condition = bin_convert(db_block_hash)[0:diff_block_previous]
-        if mining_condition in mining_hash:
-            diff_result = diff_block_previous
-            diff_block_previous = diff_block_previous + 1
-        else:
-            diff_broke = 1
+    execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
+    diff_block_previous = float(c.fetchone()[0])
 
     try:
         log = math.log2(blocks_per_30 / 30)
