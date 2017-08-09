@@ -278,10 +278,11 @@ def difficulty(c):
     #previous diff
 
 
-    # new hf
-    #execute(c,("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
-    #diff_block_previous = float(c.fetchone()[0])
-    # new hf
+    if block_height > 235000:
+        # new hf
+        execute(c,("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
+        diff_block_previous = float(c.fetchone()[0])
+        # new hf
 
 
     try:
