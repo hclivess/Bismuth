@@ -41,8 +41,12 @@ def db_to_drive():
     old_db.text_factory = str
     o = old_db.cursor()
 
-    for row in o.execute("SELECT * FROM transactions where block_height > {} ORDER BY block_height ASC".format(hdd_block)):
+    for row in execute_param(o, ("SELECT * FROM transactions WHERE block_height > ? ORDER BY block_height ASC"),(hdd_block,)):
         h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10], row[11]))
+        commit(hdd)
+
+    for row in execute_param(o, ("SELECT * FROM misc WHERE block_height > ? ORDER BY block_height ASC"),(hdd_block,)):
+        h.execute("INSERT INTO misc VALUES (?,?)", (row[0], row[1]))
         commit(hdd)
 
     h.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
@@ -285,7 +289,7 @@ def difficulty(c):
         difficulty = 45
 
     #difficulty = 37 #old compat
-    return int(difficulty)
+    return float(difficulty)
 
 gc.enable()
 
@@ -617,6 +621,10 @@ def blocknf(block_hash_delete, peer_ip, conn, c):
                     h = hdd.cursor()
                     execute_param(h, ("DELETE FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
                     commit(hdd)
+
+                    execute_param(h, ("DELETE FROM misc WHERE block_height >= ?;"), (str(db_block_height),))
+                    commit(hdd)
+
                     hdd.close()
                     hdd_block = int(db_block_height)-1
                     # roll back hdd too
@@ -862,7 +870,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
 
                 mining_hash = bin_convert(hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
 
-                mining_condition = bin_convert(db_block_hash)[0:diff]
+                mining_condition = bin_convert(db_block_hash)[0:int(diff)]
 
                 if mining_condition in mining_hash:  # simplified comparison, no backwards mining
                     app_log.info("Difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
@@ -1020,6 +1028,12 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                                 str(transaction[10]), str(transaction[11])))
                             # secure commit for slow nodes
                             commit(conn)
+
+
+                            # save diff
+                            execute_param(c, "INSERT INTO misc VALUES (?, ?)", (block_height_new, diff))
+                            commit(conn)
+                            # save diff
 
                             # dev reward
                             if int(block_height_new) % 10 == 0:  # every 10 blocks
