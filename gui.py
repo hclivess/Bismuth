@@ -54,8 +54,6 @@ app_log = log.log("gui.log", debug_level_conf)
 root = Tk()
 root.wm_title("Bismuth")
 
-
-
 def execute(cursor, what):
     # secure execute for slow nodes
     passed = 0
