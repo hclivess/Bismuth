@@ -322,12 +322,31 @@ def difficulty(c):
         app_log.warning("Difficulty retargeting: {}".format(log))
 
         difficulty = diff_block_previous + log #increase/decrease diff by a little
+
+        time_now = time.time()
+        if time_now > timestamp_last + 180 and block_height > 235000:  # simplify after merging fork
+            app_log.info("Sufficient time has passed, selecting a lower difficulty from previous")
+            execute(c, ("SELECT difficulty FROM misc ORDER BY block_height ASC LIMIT 30"))  # select last 30 diffs
+            diff_lowest_30 = float(c.fetchone()[0])
+            if difficulty > diff_lowest_30:
+                difficulty2 = diff_lowest_30
+        else:
+            difficulty2 = difficulty
+
+
+        return (float(difficulty), float(difficulty2))
+
+
+
         if difficulty < 45:
             difficulty = 45
 
         app_log.warning("Difficulty: {}".format(difficulty))
 
-    return float(difficulty)
+        return float(difficulty, difficulty2)
+
+    else:
+        return float(difficulty)
 
 gc.enable()
 
@@ -911,32 +930,26 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
 
                 mining_hash = bin_convert(hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
 
-                mining_condition = bin_convert(db_block_hash)[0:int(diff)]
+                mining_condition = bin_convert(db_block_hash)[0:int(diff[0])]
                 if mining_condition in mining_hash:  # simplified comparison, no backwards mining
                     app_log.info("Difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
+                    diff = diff[0]
 
                 elif time_now > db_timestamp_last + 180 and db_block_height > 235000: #simplify after merging fork
-                    app_log.info("Sufficient time has passed, selecting a lower difficulty from previous")
-                    execute(c, ("SELECT difficulty FROM misc ORDER BY block_height ASC LIMIT 30"))  # select last 30 diffs
-                    diff_lowest_30 = float(c.fetchone()[0])
-                    if diff > diff_lowest_30:
-                        diff = diff_lowest_30
 
-                    app_log.info("Readjusted difficulty: {}".format(diff))
-
-                    mining_condition = bin_convert(db_block_hash)[0:int(diff)]
+                    mining_condition = bin_convert(db_block_hash)[0:int(diff[1])]
                     if mining_condition in mining_hash:  # simplified comparison, no backwards mining
                         app_log.info("Readjusted difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
-
+                        diff = diff[1]
                     else:
                         # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
-                        error_msg = "Readjusted difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff)
+                        error_msg = "Readjusted difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[0])
                         block_valid = 0
 
 
                 else:
                     # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
-                    error_msg = "Difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff)
+                    error_msg = "Difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[1])
                     block_valid = 0
 
                     # print data

@@ -92,30 +92,49 @@ def bin_convert(string):
     return ''.join(format(ord(x), '8b').replace(' ', '0') for x in string)
 
 def difficulty(c):
-    # new hf
-    execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
-    diff_block_previous = float(c.fetchone()[0])
-    # new hf
+    execute(c, "SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1")
+    result = c.fetchall()[0]
+    block_height = result[0]
+    miner_address = result[2]
+    nonce = result[11]
+    timestamp_last = float(result[1])
+
+    execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (timestamp_last - 1800,))  # 1800=30 min
+    blocks_per_30 = len(c.fetchall())
+    app_log.warning("Blocks per 30 minutes: {}".format(blocks_per_30))
+
+    execute(c,("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
+    try:
+        diff_block_previous = float(c.fetchone()[0])
+    except:
+        diff_block_previous = 45
 
     try:
         log = math.log2(blocks_per_30 / 30)
     except:
         log = 0
+    app_log.warning("Difficulty retargeting: {}".format(log))
 
-    difficulty = diff_block_previous + log  # increase/decrease diff by a little
+    difficulty = diff_block_previous + log #increase/decrease diff by a little
 
     time_now = time.time()
-    if time_now > timestamp_last + 180:  # pick a lower diff after 3 minutes
-        execute(c, ("SELECT difficulty FROM misc ORDER BY block_height ASC LIMIT 60"))  # select last 60 diffs
-        diff_lowest_60 = float(c.fetchone()[0])
-        if difficulty > diff_lowest_60:
-            difficulty = diff_lowest_60
+    if time_now > timestamp_last + 180 and block_height > 235000:  # simplify after merging fork
+        app_log.info("Sufficient time has passed, selecting a lower difficulty from previous")
+        execute(c, ("SELECT difficulty FROM misc ORDER BY block_height ASC LIMIT 30"))  # select last 30 diffs
+        diff_lowest_30 = float(c.fetchone()[0])
+        if difficulty > diff_lowest_30:
+            difficulty2 = diff_lowest_30
+    else:
+        difficulty2 = difficulty
+
+
 
     if difficulty < 45:
         difficulty = 45
 
-    return int(difficulty)
+    app_log.warning("Difficulty: {}".format(difficulty))
 
+    return (float(difficulty))
 
 def alias():
     alias_var = StringVar()
