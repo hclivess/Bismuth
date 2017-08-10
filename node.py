@@ -922,35 +922,54 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
 
                 diff = difficulty(c)
 
-                #app_log.info("Transaction list: {}".format(transaction_list_converted))
-                block_hash = hashlib.sha224((str(transaction_list_converted) + db_block_hash).encode("utf-8")).hexdigest()
-                #app_log.info("Last block hash: {}".format(db_block_hash))
-                app_log.info("Calculated block hash: {}".format(block_hash))
-                #app_log.info("Nonce: {}".format(nonce))
+                if block_height_new > 235000:
+                    #app_log.info("Transaction list: {}".format(transaction_list_converted))
+                    block_hash = hashlib.sha224((str(transaction_list_converted) + db_block_hash).encode("utf-8")).hexdigest()
+                    #app_log.info("Last block hash: {}".format(db_block_hash))
+                    app_log.info("Calculated block hash: {}".format(block_hash))
+                    #app_log.info("Nonce: {}".format(nonce))
 
-                mining_hash = bin_convert(hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
+                    mining_hash = bin_convert(hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
 
-                mining_condition = bin_convert(db_block_hash)[0:int(diff[0])]
-                if mining_condition in mining_hash:  # simplified comparison, no backwards mining
-                    app_log.info("Difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
-                    diff = diff[0]
-
-                elif time_now > db_timestamp_last + 180 and db_block_height > 235000: #simplify after merging fork
-
-                    mining_condition = bin_convert(db_block_hash)[0:int(diff[1])]
+                    mining_condition = bin_convert(db_block_hash)[0:int(diff[0])]
                     if mining_condition in mining_hash:  # simplified comparison, no backwards mining
-                        app_log.info("Readjusted difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
-                        diff = diff[1]
+                        app_log.info("Difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
+                        diff = diff[0]
+
+                    elif time_now > db_timestamp_last + 180 and db_block_height > 235000: #simplify after merging fork
+
+                        mining_condition = bin_convert(db_block_hash)[0:int(diff[1])]
+                        if mining_condition in mining_hash:  # simplified comparison, no backwards mining
+                            app_log.info("Readjusted difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
+                            diff = diff[1]
+                        else:
+                            # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
+                            error_msg = "Readjusted difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[0])
+                            block_valid = 0
+
+
                     else:
                         # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
-                        error_msg = "Readjusted difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[0])
+                        error_msg = "Difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[1])
                         block_valid = 0
 
-
                 else:
-                    # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
-                    error_msg = "Difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[1])
-                    block_valid = 0
+                    # app_log.info("Transaction list: {}".format(transaction_list_converted))
+                    block_hash = hashlib.sha224((str(transaction_list_converted) + db_block_hash).encode("utf-8")).hexdigest()
+                    # app_log.info("Last block hash: {}".format(db_block_hash))
+                    app_log.info("Calculated block hash: {}".format(block_hash))
+                    # app_log.info("Nonce: {}".format(nonce))
+
+                    mining_hash = bin_convert(hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
+
+                    mining_condition = bin_convert(db_block_hash)[0:int(diff)]
+                    if mining_condition in mining_hash:  # simplified comparison, no backwards mining
+                        app_log.info("Difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
+
+                    else:
+                        # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
+                        error_msg = "Difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff)
+                        block_valid = 0
 
                     # print data
                     # print transaction_list

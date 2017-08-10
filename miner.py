@@ -150,13 +150,34 @@ def miner(q, privatekey_readable, public_key_hashed, address):
             s_node.connect((node_ip_conf, int(port)))  # connect to local node
 
             connections.send(s_node, "blocklast", 10)
-            db_block_hash = connections.receive(s_node, 10)[7]
+            blocklast = connections.receive(s_node, 10)
+            db_block_hash = blocklast[7]
+            db_block_hieght = blocklast[0]
+            db_timestamp = blocklast[1]
 
             connections.send(s_node, "diffget", 10)
             diff = float(connections.receive(s_node, 10))
             s_node.close()
 
-            diff = int(diff)
+
+            if db_block_hieght > 235000:
+                diff = int(diff[0])
+
+                time_now = time.time()
+                if time_now > db_timestamp + 180:
+                    diff = int(diff[1])
+
+
+
+
+            else:
+                diff = int(diff)
+
+
+
+
+
+
             diff_real = int(diff)
 
             if pool_conf == 0:
