@@ -333,13 +333,14 @@ def difficulty(c):
         else:
             difficulty2 = difficulty
 
+        if difficulty < 45:
+            difficulty = 45
 
         return (float(difficulty), float(difficulty2))
 
 
 
-        if difficulty < 45:
-            difficulty = 45
+
 
         app_log.warning("Difficulty: {}".format(difficulty))
 
@@ -806,7 +807,6 @@ def manager():
 
 def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
     global banlist, hdd_block, ram_conf
-
 
     if db_lock.locked() == False:
         db_lock.acquire()

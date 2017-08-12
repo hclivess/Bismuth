@@ -29,10 +29,10 @@ def diffget(socket):
     print ("Current difficulty: {}".format(diff))
     #check difficulty
 
-def balanceget(socket):
+def balanceget(socket, arg1):
     #get balance
     connections.send(s, "balanceget", 10)
-    connections.send(s, "7d5c2999f9a2e44c23e7b2b73b4c0edae308e9d39482bf44da481edc", 10)
+    connections.send(s, arg1, 10)
     #balance_ledger = connections.receive(s, 10)
     balance_ledger_mempool = connections.receive(s, 10)
     print ("Address balance with mempool: {}".format(balance_ledger_mempool[0]))
@@ -122,7 +122,7 @@ if command == "diffget":
     diffget(s)
 
 elif command == "balanceget":
-    balanceget(s)
+    balanceget(s, arg1)
 
 elif command == "mpget":
     mpget(s)
