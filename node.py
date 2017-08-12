@@ -333,18 +333,13 @@ def difficulty(c):
         else:
             difficulty2 = difficulty
 
+
         if difficulty < 45:
             difficulty = 45
 
-        return (float(difficulty), float(difficulty2))
-
-
-
-
-
         app_log.warning("Difficulty: {}".format(difficulty))
 
-        return float(difficulty, difficulty2)
+        return (float(difficulty), float(difficulty2))
 
     else:
         return float(difficulty)
