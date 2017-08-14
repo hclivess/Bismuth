@@ -339,6 +339,11 @@ def difficulty(c):
 
         app_log.warning("Difficulty: {}".format(difficulty))
 
+        try:
+            difficulty2
+        except:
+            difficulty2 = difficulty
+
         return (float(difficulty), float(difficulty2))
 
     else:
