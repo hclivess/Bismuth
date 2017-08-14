@@ -296,7 +296,7 @@ def difficulty(c):
 
     #difficulty = 37 #old compat
 
-    if block_height > 235000:
+    if block_height > 234999:
 
         execute(c, "SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1")
         result = c.fetchall()[0]
@@ -333,9 +333,9 @@ def difficulty(c):
         else:
             difficulty2 = difficulty
 
-
         if difficulty < 45:
             difficulty = 45
+            difficulty2 = 45
 
         app_log.warning("Difficulty: {}".format(difficulty))
 
@@ -926,6 +926,8 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
 
                     mining_hash = bin_convert(hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
 
+                    print (diff)
+                    print (type(diff[0]))
                     mining_condition = bin_convert(db_block_hash)[0:int(diff[0])]
                     if mining_condition in mining_hash:  # simplified comparison, no backwards mining
                         app_log.info("Difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
@@ -1519,7 +1521,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
 
                 elif data == "nonewblk":
-                    # digest_block() #temporary #otherwise passive node will not be able to digest
                     connections.send(self.request, "sync", 10)
 
                 elif data == "blocknf":
@@ -1589,7 +1590,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # verify balance
 
                     # app_log.info("Mempool: Verifying balance")
-                    app_log.info("Mempool: Received address: " + str(balance_address))
+                    #app_log.info("Mempool: Received address: " + str(balance_address))
 
                     execute_param(m, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (balance_address,))
                     credit_mempool = m.fetchone()[0]
@@ -1884,6 +1885,7 @@ def worker(HOST, PORT):
 
                             execute(c, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
                             db_block_hash = c.fetchone()[0]  # get latest block_hash
+
                             if db_block_hash == data:
                                 app_log.info("Outgoing: Node has the latest block")
                                 connections.send(s, "nonewblk", 10)
