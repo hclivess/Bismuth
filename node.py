@@ -248,106 +248,47 @@ def execute_param(cursor, what, param):
     return cursor
 
 def difficulty(c):
-    execute(c,"SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1")
+    execute(c, "SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1")
     result = c.fetchall()[0]
     block_height = result[0]
-    miner_address = result[2]
-    nonce = result[11]
     timestamp_last = float(result[1])
 
     execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (timestamp_last - 1800,))  # 1800=30 min
     blocks_per_30 = len(c.fetchall())
+    app_log.warning("Blocks per 30 minutes: {}".format(blocks_per_30))
 
-    #previous diff
-
-    execute(c,"SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 2 OFFSET 1") #offset, select the block before the last one
-    db_block_hash = c.fetchone()[0]
-
-    diff_broke = 0
-    diff_block_previous = 0
-
-    while diff_broke == 0:
-        mining_hash = bin_convert(hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
-        mining_condition = bin_convert(db_block_hash)[0:diff_block_previous]
-        if mining_condition in mining_hash:
-            diff_result = diff_block_previous
-            diff_block_previous = diff_block_previous + 1
-        else:
-            diff_broke = 1
-    #previous diff
-
+    execute(c,("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
+    try:
+        diff_block_previous = float(c.fetchone()[0])
+    except:
+        diff_block_previous = 45
 
     try:
         log = math.log2(blocks_per_30 / 30)
     except:
-        log = 1
+        log = 0
+    app_log.warning("Difficulty retargeting: {}".format(log))
 
     difficulty = diff_block_previous + log #increase/decrease diff by a little
 
     time_now = time.time()
 
-    drop_factor = 60  # drop 1 diff per minute (60/x)
-
-    if time_now > timestamp_last + 300:  # start dropping after 5 minutes
-        difficulty = difficulty - (time_now - 300 - timestamp_last) / drop_factor  # drop 1 diff per minute
+    if time_now > timestamp_last + 180:  # simplify after merging fork
+        app_log.info("Sufficient time has passed, selecting a lower difficulty from previous")
+        execute(c, ("SELECT difficulty FROM misc ORDER BY block_height ASC LIMIT 30"))  # select last 30 diffs
+        diff_lowest_30 = float(c.fetchone()[0])
+        if difficulty > diff_lowest_30:
+            difficulty2 = diff_lowest_30
+    else:
+        difficulty2 = difficulty
 
     if difficulty < 45:
         difficulty = 45
+        difficulty2 = 45
 
-    #difficulty = 37 #old compat
+    app_log.warning("Difficulty: {}".format(difficulty))
 
-    if block_height > 234999:
-
-        execute(c, "SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1")
-        result = c.fetchall()[0]
-        block_height = result[0]
-        miner_address = result[2]
-        nonce = result[11]
-        timestamp_last = float(result[1])
-
-        execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (timestamp_last - 1800,))  # 1800=30 min
-        blocks_per_30 = len(c.fetchall())
-        app_log.warning("Blocks per 30 minutes: {}".format(blocks_per_30))
-
-        execute(c,("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
-        try:
-            diff_block_previous = float(c.fetchone()[0])
-        except:
-            diff_block_previous = 45
-
-        try:
-            log = math.log2(blocks_per_30 / 30)
-        except:
-            log = 0
-        app_log.warning("Difficulty retargeting: {}".format(log))
-
-        difficulty = diff_block_previous + log #increase/decrease diff by a little
-
-        time_now = time.time()
-        if time_now > timestamp_last + 180 and block_height > 235000:  # simplify after merging fork
-            app_log.info("Sufficient time has passed, selecting a lower difficulty from previous")
-            execute(c, ("SELECT difficulty FROM misc ORDER BY block_height ASC LIMIT 30"))  # select last 30 diffs
-            diff_lowest_30 = float(c.fetchone()[0])
-            if difficulty > diff_lowest_30:
-                difficulty2 = diff_lowest_30
-        else:
-            difficulty2 = difficulty
-
-        if difficulty < 45:
-            difficulty = 45
-            difficulty2 = 45
-
-        app_log.warning("Difficulty: {}".format(difficulty))
-
-        try:
-            difficulty2
-        except:
-            difficulty2 = difficulty
-
-        return (float(difficulty), float(difficulty2))
-
-    else:
-        return float(difficulty)
+    return (float(difficulty), float(difficulty2))
 
 gc.enable()
 
@@ -922,56 +863,36 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
 
                 diff = difficulty(c)
 
-                if block_height_new > 235000:
-                    #app_log.info("Transaction list: {}".format(transaction_list_converted))
-                    block_hash = hashlib.sha224((str(transaction_list_converted) + db_block_hash).encode("utf-8")).hexdigest()
-                    #app_log.info("Last block hash: {}".format(db_block_hash))
-                    app_log.info("Calculated block hash: {}".format(block_hash))
-                    #app_log.info("Nonce: {}".format(nonce))
 
-                    mining_hash = bin_convert(hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
+                #app_log.info("Transaction list: {}".format(transaction_list_converted))
+                block_hash = hashlib.sha224((str(transaction_list_converted) + db_block_hash).encode("utf-8")).hexdigest()
+                #app_log.info("Last block hash: {}".format(db_block_hash))
+                app_log.info("Calculated block hash: {}".format(block_hash))
+                #app_log.info("Nonce: {}".format(nonce))
 
-                    print (diff)
-                    print (type(diff[0]))
-                    mining_condition = bin_convert(db_block_hash)[0:int(diff[0])]
+                mining_hash = bin_convert(hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
+
+                mining_condition = bin_convert(db_block_hash)[0:int(diff[0])]
+                if mining_condition in mining_hash:  # simplified comparison, no backwards mining
+                    app_log.info("Difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
+                    diff = diff[0]
+
+                elif time_now > db_timestamp_last + 180: #simplify after merging fork
+
+                    mining_condition = bin_convert(db_block_hash)[0:int(diff[1])]
                     if mining_condition in mining_hash:  # simplified comparison, no backwards mining
-                        app_log.info("Difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
-                        diff = diff[0]
-
-                    elif time_now > db_timestamp_last + 180 and db_block_height > 235000: #simplify after merging fork
-
-                        mining_condition = bin_convert(db_block_hash)[0:int(diff[1])]
-                        if mining_condition in mining_hash:  # simplified comparison, no backwards mining
-                            app_log.info("Readjusted difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
-                            diff = diff[1]
-                        else:
-                            # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
-                            error_msg = "Readjusted difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[1])
-                            block_valid = 0
-
-
+                        app_log.info("Readjusted difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
+                        diff = diff[1]
                     else:
                         # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
-                        error_msg = "Difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[0])
+                        error_msg = "Readjusted difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[1])
                         block_valid = 0
+
 
                 else:
-                    # app_log.info("Transaction list: {}".format(transaction_list_converted))
-                    block_hash = hashlib.sha224((str(transaction_list_converted) + db_block_hash).encode("utf-8")).hexdigest()
-                    # app_log.info("Last block hash: {}".format(db_block_hash))
-                    app_log.info("Calculated block hash: {}".format(block_hash))
-                    # app_log.info("Nonce: {}".format(nonce))
-
-                    mining_hash = bin_convert(hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
-
-                    mining_condition = bin_convert(db_block_hash)[0:int(diff)]
-                    if mining_condition in mining_hash:  # simplified comparison, no backwards mining
-                        app_log.info("Difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
-
-                    else:
-                        # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
-                        error_msg = "Difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff)
-                        block_valid = 0
+                    # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
+                    error_msg = "Difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[0])
+                    block_valid = 0
 
                     # print data
                     # print transaction_list
