@@ -250,7 +250,6 @@ def execute_param(cursor, what, param):
 def difficulty(c):
     execute(c, "SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1")
     result = c.fetchall()[0]
-    block_height = result[0]
     timestamp_last = float(result[1])
 
     execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (timestamp_last - 1800,))  # 1800=30 min
@@ -272,23 +271,20 @@ def difficulty(c):
     difficulty = diff_block_previous + log #increase/decrease diff by a little
 
     time_now = time.time()
-
-    if time_now > timestamp_last + 180:  # simplify after merging fork
+    if time_now > timestamp_last + 180:
         app_log.warning("Sufficient time has passed, selecting a lower difficulty from previous")
         execute(c, ("SELECT difficulty FROM misc ORDER BY block_height ASC LIMIT 30"))  # select last 30 diffs
         diff_lowest_30 = float(c.fetchone()[0])
-        if difficulty > diff_lowest_30:
-            difficulty2 = diff_lowest_30
+        difficulty2 = diff_lowest_30
     else:
         difficulty2 = difficulty
 
-    if difficulty < 45:
+    if difficulty or difficulty2 < 45:
         difficulty = 45
         difficulty2 = 45
 
     app_log.warning("Difficulty: {}".format(difficulty))
 
-    print (float(difficulty), float(difficulty2))
     return (float(difficulty), float(difficulty2))
 
 gc.enable()
