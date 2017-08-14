@@ -177,7 +177,7 @@ def execute_param(cursor, what, param):
 
 def diffget(s):
     connections.send(s, "diffget", 10)
-    diff = float(connections.receive(s, 10))
+    diff = float(connections.receive(s, 10)[1])
     return diff
 
 def bin_convert(string):
@@ -289,9 +289,9 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                             app_log.warning("Pool: Could not submit block to {} because {}".format(peer_ip, e))
                             pass
 
-            app_log.warning("Pool: Current difficulty: Pool: {} Real: {}".format(diff_percent_number,diff))
-
             diff_percentage = percentage(diff_percent_number, diff)
+
+            app_log.warning("Pool: Current difficulty: Pool: {} Real: {}".format(diff_percentage,diff))
 
             if diff < diff_percentage:
                 diff_shares = diff

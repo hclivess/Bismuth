@@ -274,7 +274,7 @@ def difficulty(c):
     time_now = time.time()
 
     if time_now > timestamp_last + 180:  # simplify after merging fork
-        app_log.info("Sufficient time has passed, selecting a lower difficulty from previous")
+        app_log.warning("Sufficient time has passed, selecting a lower difficulty from previous")
         execute(c, ("SELECT difficulty FROM misc ORDER BY block_height ASC LIMIT 30"))  # select last 30 diffs
         diff_lowest_30 = float(c.fetchone()[0])
         if difficulty > diff_lowest_30:
@@ -288,6 +288,7 @@ def difficulty(c):
 
     app_log.warning("Difficulty: {}".format(difficulty))
 
+    print (float(difficulty), float(difficulty2))
     return (float(difficulty), float(difficulty2))
 
 gc.enable()
@@ -1627,11 +1628,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     pass
 
                 elif data == "diffget" and (peer_ip in allowed or "any" in allowed):
-
                     diff = difficulty(c)
-
                     connections.send(self.request, diff, 10)
-
 
                 else:
                     raise ValueError("Unexpected error, received: " + str(data))
