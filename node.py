@@ -254,6 +254,7 @@ def difficulty(c):
     block_height = int(result[0])
 
     if block_height >= 238000:
+        print ("proposal activated")
         execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (timestamp_last - 86400,))  # 86400=24h
         blocks_per_1440 = len(c.fetchall())
         app_log.warning("Blocks per day: {}".format(blocks_per_1440))
@@ -281,7 +282,7 @@ def difficulty(c):
         else:
             difficulty2 = difficulty
 
-        if difficulty or difficulty2 < 45:
+        if difficulty < 45 or difficulty2 < 45:
             difficulty = 45
             difficulty2 = 45
 
@@ -317,7 +318,7 @@ def difficulty(c):
         else:
             difficulty2 = difficulty
 
-        if difficulty or difficulty2 < 45:
+        if difficulty < 45 or difficulty2 < 45:
             difficulty = 45
             difficulty2 = 45
 
