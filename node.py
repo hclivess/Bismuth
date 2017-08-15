@@ -266,7 +266,7 @@ def difficulty(c):
     try:
         log = math.log2(blocks_per_1440 / 1440)
     except:
-        log = 0
+        log = math.log2(0.5 / 1440)
     app_log.info("Difficulty retargeting: {}".format(log))
 
     difficulty = diff_block_previous + log  # increase/decrease diff by a little
