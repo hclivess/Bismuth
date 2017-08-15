@@ -853,8 +853,6 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                 # reject blocks older than latest block
 
                 # calculate difficulty
-                execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (db_timestamp_last - 1800,))  # 1800=30 min
-                blocks_per_30 = len(c.fetchall())
 
                 diff = difficulty(c)
 
