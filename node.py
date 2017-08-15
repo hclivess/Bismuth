@@ -274,8 +274,8 @@ def difficulty(c):
     difficulty = diff_block_previous + log  # increase/decrease diff by a little
 
     time_now = time.time()
-    if time_now > timestamp_last + 180: #if 3 minutes have passed
-        difficulty2 = percentage(90,diff_block_previous)
+    if time_now > timestamp_last + 300: #if 5 minutes have passed
+        difficulty2 = percentage(95,diff_block_previous)
     else:
         difficulty2 = difficulty
 
@@ -871,7 +871,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                     app_log.info("Difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
                     diff = diff[0]
 
-                elif time_now > db_timestamp_last + 180: #simplify after merging fork
+                elif time_now > db_timestamp_last + 300: #simplify after merging fork
 
                     mining_condition = bin_convert(db_block_hash)[0:int(diff[1])]
                     if mining_condition in mining_hash:  # simplified comparison, no backwards mining

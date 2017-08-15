@@ -54,6 +54,9 @@ app_log = log.log("gui.log", debug_level_conf)
 root = Tk()
 root.wm_title("Bismuth")
 
+def percentage(percent, whole):
+    return int((percent * whole) / 100)
+
 def execute(cursor, what):
     # secure execute for slow nodes
     passed = 0
@@ -116,8 +119,8 @@ def difficulty(c):
     difficulty = diff_block_previous + log  # increase/decrease diff by a little
 
     time_now = time.time()
-    if time_now > timestamp_last + 180:  # if 3 minutes have passed
-        difficulty2 = diff_block_previous
+    if time_now > timestamp_last + 300: #if 5 minutes have passed
+        difficulty2 = percentage(95,diff_block_previous)
     else:
         difficulty2 = difficulty
 
