@@ -274,12 +274,13 @@ def difficulty(c):
     difficulty = diff_block_previous + log  # increase/decrease diff by a little
 
     time_now = time.time()
-    if time_now > timestamp_last + 300: #if 5 minutes have passed
-        difficulty2 = percentage(97,difficulty)
+    if time_now > timestamp_last + 1200: #if 20 minutes have passed
+        difficulty2 = percentage(91,difficulty)
     elif time_now > timestamp_last + 600: #if 10 minutes have passed
         difficulty2 = percentage(94,difficulty)
-    elif time_now > timestamp_last + 1200: #if 20 minutes have passed
-        difficulty2 = percentage(91,difficulty)
+    elif time_now > timestamp_last + 300: #if 5 minutes have passed
+        difficulty2 = percentage(97,difficulty)
+
     else:
         difficulty2 = difficulty
 
