@@ -276,9 +276,9 @@ def difficulty(c):
         time_now = time.time()
         if time_now > timestamp_last + 180: #if 3 minutes have passed
             app_log.warning("Sufficient time has passed, selecting a lower difficulty from previous")
-            execute(c, ("SELECT difficulty FROM misc ORDER BY block_height ASC LIMIT 30"))  # select last 30 diffs
-            diff_lowest_30 = float(c.fetchone()[0])
-            difficulty2 = diff_lowest_30
+            execute(c, ("SELECT difficulty FROM misc ORDER BY block_height ASC LIMIT 1"))  # select last diff
+            diff_last = float(c.fetchone()[0])
+            difficulty2 = diff_last
         else:
             difficulty2 = difficulty
 
