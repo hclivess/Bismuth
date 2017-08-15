@@ -120,7 +120,7 @@ def difficulty(c):
 
     time_now = time.time()
     if time_now > timestamp_last + 300: #if 5 minutes have passed
-        difficulty2 = percentage(95,diff_block_previous)
+        difficulty2 = percentage(97,diff_block_previous)
     else:
         difficulty2 = difficulty
 
