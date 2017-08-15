@@ -27,6 +27,8 @@ peersync_lock = threading.Lock()
 (port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, pool_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address, ram_conf, pool_percentage_conf, node_ip_conf) = options.read()
 
 # load config
+def percentage(percent, whole):
+    return int((percent * whole) / 100)
 
 def db_to_drive():
     global hdd_block
@@ -273,7 +275,7 @@ def difficulty(c):
 
     time_now = time.time()
     if time_now > timestamp_last + 180: #if 3 minutes have passed
-        difficulty2 = diff_block_previous
+        difficulty2 = percentage(90,diff_block_previous)
     else:
         difficulty2 = difficulty
 
