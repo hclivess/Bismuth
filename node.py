@@ -253,78 +253,37 @@ def difficulty(c):
     timestamp_last = float(result[1])
     block_height = int(result[0])
 
-    if block_height >= 238000:
-        print ("proposal activated")
-        execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (timestamp_last - 86400,))  # 86400=24h
-        blocks_per_1440 = len(c.fetchall())
-        app_log.warning("Blocks per day: {}".format(blocks_per_1440))
+    execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (timestamp_last - 86400,))  # 86400=24h
+    blocks_per_1440 = len(c.fetchall())
+    app_log.warning("Blocks per day: {}".format(blocks_per_1440))
 
-        execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
-        try:
-            diff_block_previous = float(c.fetchone()[0])
-        except:
-            diff_block_previous = 45
+    execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
+    try:
+        diff_block_previous = float(c.fetchone()[0])
+    except:
+        diff_block_previous = 45
 
-        try:
-            log = math.log2(blocks_per_1440 / 1440)
-        except:
-            log = 0
-        app_log.warning("Difficulty retargeting: {}".format(log))
+    try:
+        log = math.log2(blocks_per_1440 / 1440)
+    except:
+        log = 0
+    app_log.info("Difficulty retargeting: {}".format(log))
 
-        difficulty = diff_block_previous + log  # increase/decrease diff by a little
+    difficulty = diff_block_previous + log  # increase/decrease diff by a little
 
-        time_now = time.time()
-        if time_now > timestamp_last + 180: #if 3 minutes have passed
-            app_log.warning("Sufficient time has passed, selecting a lower difficulty from previous")
-            execute(c, ("SELECT difficulty FROM misc ORDER BY block_height ASC LIMIT 1"))  # select last diff
-            diff_last = float(c.fetchone()[0])
-            difficulty2 = diff_last
-        else:
-            difficulty2 = difficulty
-
-        if difficulty < 45 or difficulty2 < 45:
-            difficulty = 45
-            difficulty2 = 45
-
-        app_log.warning("Difficulty: {}".format(difficulty))
-
-        return (float(difficulty), float(difficulty2))
-
+    time_now = time.time()
+    if time_now > timestamp_last + 180: #if 3 minutes have passed
+        difficulty2 = diff_block_previous
     else:
-        execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (timestamp_last - 1800,))  # 1800=30 min
-        blocks_per_30 = len(c.fetchall())
-        app_log.warning("Blocks per 30 minutes: {}".format(blocks_per_30))
+        difficulty2 = difficulty
 
-        execute(c,("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
-        try:
-            diff_block_previous = float(c.fetchone()[0])
-        except:
-            diff_block_previous = 45
+    if difficulty < 45 or difficulty2 < 45:
+        difficulty = 45
+        difficulty2 = 45
 
-        try:
-            log = math.log2(blocks_per_30 / 30)
-        except:
-            log = 0
-        app_log.warning("Difficulty retargeting: {}".format(log))
+    app_log.warning("Difficulty: {}".format(difficulty))
 
-        difficulty = diff_block_previous + log #increase/decrease diff by a little
-
-        time_now = time.time()
-        if time_now > timestamp_last + 180:
-            app_log.warning("Sufficient time has passed, selecting a lower difficulty from previous")
-            execute(c, ("SELECT difficulty FROM misc ORDER BY block_height ASC LIMIT 30"))  # select last 30 diffs
-            diff_lowest_30 = float(c.fetchone()[0])
-            difficulty2 = diff_lowest_30
-        else:
-            difficulty2 = difficulty
-
-        if difficulty < 45 or difficulty2 < 45:
-            difficulty = 45
-            difficulty2 = 45
-
-        app_log.warning("Difficulty: {}".format(difficulty))
-
-        return (float(difficulty), float(difficulty2))
+    return (float(difficulty), float(difficulty2))
 
 gc.enable()
 
