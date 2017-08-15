@@ -283,7 +283,7 @@ def difficulty(c):
         difficulty = 45
         difficulty2 = 45
 
-    app_log.warning("Difficulty: {}".format(difficulty))
+    app_log.warning("Difficulty: {}".format(difficulty2))
 
     return (float(difficulty), float(difficulty2))
 
