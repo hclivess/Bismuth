@@ -917,7 +917,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                     mining_condition = bin_convert(db_block_hash)[0:int(diff[1])]
                     if mining_condition in mining_hash:  # simplified comparison, no backwards mining
                         app_log.info("Readjusted difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
-                        diff = diff[0] #still save diff 0
+                        diff = diff[1]
                     else:
                         # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
                         error_msg = "Readjusted difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[1])
