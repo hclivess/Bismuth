@@ -28,7 +28,7 @@ peersync_lock = threading.Lock()
 
 # load config
 def percentage(percent, whole):
-    return int((percent * whole) / 100)
+    return float((percent * whole) / 100)
 
 def db_to_drive():
     global hdd_block

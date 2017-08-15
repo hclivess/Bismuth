@@ -55,7 +55,7 @@ root = Tk()
 root.wm_title("Bismuth")
 
 def percentage(percent, whole):
-    return int((percent * whole) / 100)
+    return float((percent * whole) / 100)
 
 def execute(cursor, what):
     # secure execute for slow nodes
