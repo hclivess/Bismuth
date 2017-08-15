@@ -94,47 +94,40 @@ def bin_convert(string):
 def difficulty(c):
     execute(c, "SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1")
     result = c.fetchall()[0]
-    block_height = result[0]
-    miner_address = result[2]
-    nonce = result[11]
     timestamp_last = float(result[1])
+    block_height = int(result[0])
 
-    execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (timestamp_last - 1800,))  # 1800=30 min
-    blocks_per_30 = len(c.fetchall())
-    app_log.warning("Blocks per 30 minutes: {}".format(blocks_per_30))
+    execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (timestamp_last - 86400,))  # 86400=24h
+    blocks_per_1440 = len(c.fetchall())
+    app_log.warning("Blocks per day: {}".format(blocks_per_1440))
 
-    execute(c,("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
+    execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
     try:
         diff_block_previous = float(c.fetchone()[0])
     except:
         diff_block_previous = 45
 
     try:
-        log = math.log2(blocks_per_30 / 30)
+        log = math.log2(blocks_per_1440 / 1440)
     except:
-        log = 0
-    app_log.warning("Difficulty retargeting: {}".format(log))
+        log = math.log2(0.5 / 1440)
+    app_log.info("Difficulty retargeting: {}".format(log))
 
-    difficulty = diff_block_previous + log #increase/decrease diff by a little
+    difficulty = diff_block_previous + log  # increase/decrease diff by a little
 
     time_now = time.time()
-    if time_now > timestamp_last + 180 and block_height > 235000:  # simplify after merging fork
-        app_log.info("Sufficient time has passed, selecting a lower difficulty from previous")
-        execute(c, ("SELECT difficulty FROM misc ORDER BY block_height ASC LIMIT 30"))  # select last 30 diffs
-        diff_lowest_30 = float(c.fetchone()[0])
-        if difficulty > diff_lowest_30:
-            difficulty2 = diff_lowest_30
+    if time_now > timestamp_last + 180:  # if 3 minutes have passed
+        difficulty2 = diff_block_previous
     else:
         difficulty2 = difficulty
 
-
-
-    if difficulty < 45:
+    if difficulty < 45 or difficulty2 < 45:
         difficulty = 45
+        difficulty2 = 45
 
     app_log.warning("Difficulty: {}".format(difficulty))
 
-    return (float(difficulty))
+    return (float(difficulty), float(difficulty2))
 
 def alias():
     alias_var = StringVar()
@@ -796,10 +789,11 @@ def refresh():
     except:  # get locally
         app_log.warning("Unable to start in light mode, using local db for difficulty calculation")
         diff = difficulty(c)
+
     # check difficulty
 
 
-    diff_msg = diff
+    diff_msg = diff[1]
 
     # network status
     time_now = str(time.time())
