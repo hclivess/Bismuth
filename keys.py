@@ -22,7 +22,7 @@ def generate():
 def read():
     # import keys
     if not os.path.exists('privkey_encrypted.der'):
-        password = ""
+        # password = "" # Not used here
         key = RSA.importKey(open('privkey.der').read())
         private_key_readable = key.exportKey().decode("utf-8")
         # public_key = key.publickey()
