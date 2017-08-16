@@ -199,54 +199,40 @@ def most_common(lst):
 
 def bin_convert(string):
     return ''.join(format(ord(x), '8b').replace(' ', '0') for x in string)
-
-
+            
 def commit(cursor):
-    # secure commit for slow nodes
-    passed = 0
-    while passed == 0:
+    """Secure commit for slow nodes"""
+    while True:
         try:
             cursor.commit()
-            passed = 1
+            break
         except Exception as e:
             app_log.info("Retrying database execute due to " + str(e))
             time.sleep(random.random())
-            pass
-            # secure commit for slow nodes
+            pass # I suggest removing this. "pass" is a null operation. Nothing happens when it's executed.
 
-
-def execute(cursor, what):
-    # secure execute for slow nodes
-    passed = 0
-    while passed == 0:
+def execute(cursor, query)
+    """Secure execute for slow nodes"""
+    while True:
         try:
-            # print cursor
-            # print what
-
-            cursor.execute(what)
-            passed = 1
+            cursor.execute(query)
+            break
         except Exception as e:
             app_log.warning("Retrying database execute due to {}".format(e))
             time.sleep(random.random())
-            pass
-            # secure execute for slow nodes
+            pass # I suggest removing this. "pass" is a null operation. Nothing happens when it's executed.
     return cursor
 
-
-def execute_param(cursor, what, param):
-    # secure execute for slow nodes
-    passed = 0
-    while passed == 0:
+def execute_param(cursor, query, param)
+    """Secure execute w/ param for slow nodes"""
+    while True:
         try:
-            # print cursor
-            # print what
-            cursor.execute(what, param)
-            passed = 1
+            cursor.execute(query, param)
+            break
         except Exception as e:
             app_log.warning("Retrying database execute due to " + str(e))
             time.sleep(0.1)
-            pass
-            # secure execute for slow nodes
+            pass # I suggest removing this. "pass" is a null operation. Nothing happens when it's executed.
     return cursor
 
 def difficulty(c):
