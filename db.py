@@ -1,35 +1,26 @@
 import time
 
-def execute(cursor, what):
-    # secure execute for slow nodes
-    passed = 0
-    while passed == 0:
+def execute(cursor, query):
+    """Secure execute for slow nodes"""
+    while True:
         try:
-            # print cursor
-            # print what
-
-            cursor.execute(what)
-            passed = 1
+            cursor.execute(query)
+            break
         except Exception as e:
             print("Retrying database execute due to {}".format(e))
             time.sleep(0.1)
-            pass
-            # secure execute for slow nodes
+            pass # As suggested in another PR, I suggest removing this
     return cursor
 
 
-def execute_param(cursor, what, param):
-    # secure execute for slow nodes
-    passed = 0
-    while passed == 0:
+def execute_param(cursor, query, param):
+    """Secure execute w/ param for slow nodes"""
+    while True:
         try:
-            # print cursor
-            # print what
-            cursor.execute(what, param)
-            passed = 1
+            cursor.execute(query, param)
+            break
         except Exception as e:
             print("Retrying database execute due to " + str(e))
             time.sleep(0.1)
-            pass
-            # secure execute for slow nodes
+            pass # As mentioned above, I suggest removing this
     return cursor
