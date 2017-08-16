@@ -25,13 +25,13 @@ rewards = c.fetchone()[0]
 c.execute("SELECT MAX(block_height) FROM transactions")
 bl_height = c.fetchone()[0]
 
-if not debit:
+if debit is None:
     debit = 0
-if not fees:
+if fees is None:
     fees = 0
-if not rewards:
+if rewards is None:
     rewards = 0
-if not credit:
+if credit is None:
     credit = 0
 balance = credit - debit - fees + rewards - debit_mempool
 
