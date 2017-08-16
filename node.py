@@ -223,7 +223,7 @@ def execute(cursor, query)
             pass # I suggest removing this. "pass" is a null operation. Nothing happens when it's executed.
     return cursor
 
-def execute_param(cursor, query, param)
+def execute_param(cursor, query, param):
     """Secure execute w/ param for slow nodes"""
     while True:
         try:
