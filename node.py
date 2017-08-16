@@ -211,7 +211,7 @@ def commit(cursor):
             time.sleep(random.random())
             pass # I suggest removing this. "pass" is a null operation. Nothing happens when it's executed.
 
-def execute(cursor, query)
+def execute(cursor, query):
     """Secure execute for slow nodes"""
     while True:
         try:
