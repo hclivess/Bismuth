@@ -7,7 +7,7 @@
 
 from itertools import groupby
 from operator import itemgetter
-import shutil, socketserver, ast, base64, gc, hashlib, os, re, sqlite3, sys, threading, time, socks, log, options, connections, random, codecs, keys, math
+import shutil, socketserver, base64, gc, hashlib, os, re, sqlite3, sys, threading, time, socks, log, options, connections, random, keys, math, requests
 
 from Crypto import Random
 from Crypto.Hash import SHA
@@ -29,6 +29,13 @@ peersync_lock = threading.Lock()
 # load config
 def percentage(percent, whole):
     return float((percent * whole) / 100)
+
+def download_file(url, filename):
+    r = requests.get(url, stream=True)
+    with open(filename, 'wb') as f:
+        shutil.copyfileobj(r.raw, f)
+
+    return filename
 
 def db_to_drive():
     global hdd_block
@@ -1123,6 +1130,14 @@ public_key_hashed = base64.b64encode(public_key_readable.encode('utf-8'))
 address = hashlib.sha224(public_key_readable.encode('utf-8')).hexdigest()
 
 app_log.warning("Local address: {}".format(address))
+
+if not os.path.exists('ledger.db'):
+    app_log.warning("Ledger file not found, bootstrapping from the website")
+    try:
+        download_file("http://bismuth.cz/ledger.db", ledger_path_conf)
+    except:
+        app_log.warning("Something went wrong during bootstrapping, aborted")
+        raise
 
 if not os.path.exists('mempool.db'):
     # create empty mempool
