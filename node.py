@@ -301,6 +301,7 @@ syncing = []
 def mempool_merge(data, peer_ip, c, mempool, m):
 
     while db_lock.locked() == True: #prevent transactions which are just being digested from being added to mempool, it's ok if digesting starts first, because it will delete the txs
+        app_log.warning("Waiting for block digestion to finish before merging mempool")
         time.sleep(0.1)
 
     if mem_lock.locked() == False:
