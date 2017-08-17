@@ -310,7 +310,7 @@ def mempool_merge(data, peer_ip, c, mempool, m):
             app_log.info("Mempool merging started")
 
             while db_lock.locked() == True:  # prevent transactions which are just being digested from being added to mempool, it's ok if digesting starts first, because it will delete the txs and mempool will check for them in the ledger
-                app_log.warning("Waiting for block digestion to finish before merging mempool")
+                app_log.info("Waiting for block digestion to finish before merging mempool")
                 time.sleep(0.1)
 
             # merge mempool
