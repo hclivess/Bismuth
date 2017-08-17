@@ -1,0 +1,9 @@
+pillow
+pyqrcode
+pypng
+pyinstaller
+bottle
+pycrypto
+simple-crypt
+win_inet_pton
+PySocks
