@@ -270,7 +270,7 @@ def difficulty(c):
         difficulty = 45
         difficulty2 = 45
 
-    app_log.warning("Difficulty: {}".format(difficulty2))
+    #app_log.warning("Difficulty: {}".format(difficulty2))
 
     return (float(difficulty), float(difficulty2))
 
@@ -300,7 +300,7 @@ syncing = []
 
 def mempool_merge(data, peer_ip, c, mempool, m):
 
-    while db_lock.locked() == True: #prevent transactions which are just being digested from being added to mempool, it's ok if digesting starts first, because it will delete the txs
+    while db_lock.locked() == True: #prevent transactions which are just being digested from being added to mempool, it's ok if digesting starts first, because it will delete the txs and mempool will check for them in the ledger
         app_log.warning("Waiting for block digestion to finish before merging mempool")
         time.sleep(0.1)
 
@@ -721,6 +721,8 @@ def manager():
             app_log.warning("Connection manager: Consensus: {} = {}%".format(consensus, consensus_percentage))
             app_log.warning("Connection manager: Consensus IP list: {}".format(peer_ip_list))
             app_log.warning("Connection manager: Consensus opinion list: {}".format(consensus_blockheight_list))
+            app_log.warning("Connection manager: Banlist: {}".format(banlist))
+
 
         #last block
         execute(c, "SELECT timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
@@ -1252,7 +1254,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # receive theirs
                     segments = connections.receive(self.request, 10)
 
-                    mempool_merge(segments, peer_ip, conn, c, mempool, m)
+                    mempool_merge(segments, peer_ip, c, mempool, m)
                     # receive theirs
 
                     execute(m, ('SELECT * FROM transactions'))
@@ -1490,7 +1492,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                 elif data == "mpinsert" and (peer_ip in allowed or "any" in allowed):
                     mempool_insert = connections.receive(self.request, 10)
-                    mempool_merge(mempool_insert, peer_ip, conn, c, mempool, m)
+                    mempool_merge(mempool_insert, peer_ip, c, mempool, m)
                     connections.send(self.request, "Mempool insert finished", 10)
 
                 elif data == "balanceget" and (peer_ip in allowed or "any" in allowed):
@@ -1595,7 +1597,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     #insert to mempool, where everything will be verified
                     mempool_data = [((remote_tx_timestamp, remote_tx_address, remote_tx_recipient, '%.8f' % float(remote_tx_amount), remote_signature_enc, remote_tx_pubkey_hashed, remote_tx_keep, remote_tx_openfield))]
 
-                    mempool_merge(mempool_data, peer_ip, conn, c, mempool, m)
+                    mempool_merge(mempool_data, peer_ip, c, mempool, m)
                     #wipe variables
                     (tx_remote, remote_tx_privkey, tx_remote_key) = (None, None, None)
 
@@ -1894,7 +1896,7 @@ def worker(HOST, PORT):
 
                 # receive theirs
                 segments = connections.receive(s, 10)
-                mempool_merge(segments, peer_ip, conn, c, mempool, m)
+                mempool_merge(segments, peer_ip, c, mempool, m)
                 # receive theirs
 
                 # receive mempool
