@@ -312,7 +312,11 @@ syncing = []
 
 # port = 2829 now defined by config
 
-def mempool_merge(data, peer_ip, conn, c, mempool, m):
+def mempool_merge(data, peer_ip, c, mempool, m):
+
+    while db_lock.locked() == True: #prevent transactions which are just being digested from being added to mempool, it's ok if digesting starts first, because it will delete the txs
+        time.sleep(0.1)
+
     if mem_lock.locked() == False:
         mem_lock.acquire()
 
@@ -344,8 +348,7 @@ def mempool_merge(data, peer_ip, conn, c, mempool, m):
 
                     acceptable = 1
                     try:
-                        execute_param(m, ("SELECT * FROM transactions WHERE signature = ?;"),
-                                      (mempool_signature_enc,))  # condition 1)
+                        execute_param(m, ("SELECT * FROM transactions WHERE signature = ?;"),(mempool_signature_enc,))  # condition 1)
                         dummy1 = m.fetchall()[0]
                         if dummy1 != None:
                             # app_log.info("That transaction is already in our mempool")
@@ -356,8 +359,7 @@ def mempool_merge(data, peer_ip, conn, c, mempool, m):
 
                     try:
                         # reject transactions which are already in the ledger
-                        execute_param(c, ("SELECT * FROM transactions WHERE signature = ?;"),
-                                      (mempool_signature_enc,))  # condition 2
+                        execute_param(c, ("SELECT * FROM transactions WHERE signature = ?;"),(mempool_signature_enc,))  # condition 2
                         dummy2 = c.fetchall()[0]
                         if dummy2 != None:
                             # app_log.info("That transaction is already in our ledger")
@@ -385,8 +387,7 @@ def mempool_merge(data, peer_ip, conn, c, mempool, m):
                     if float(mempool_timestamp) < time.time() - 86400:  # dont accept old txs
                         acceptable = 0
 
-                    if (mempool_in == 1) and (
-                                ledger_in == 1):  # remove from mempool if it's in both ledger and mempool already
+                    if (mempool_in == 1) and (ledger_in == 1):  # remove from mempool if it's in both ledger and mempool already
                         try:
                             execute_param(m, ("DELETE FROM transactions WHERE signature = ?;"), (mempool_signature_enc,))
                             commit(mempool)
