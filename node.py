@@ -216,7 +216,6 @@ def commit(cursor):
         except Exception as e:
             app_log.info("Retrying database execute due to " + str(e))
             time.sleep(random.random())
-            pass # I suggest removing this. "pass" is a null operation. Nothing happens when it's executed.
 
 def execute(cursor, query):
     """Secure execute for slow nodes"""
@@ -227,7 +226,6 @@ def execute(cursor, query):
         except Exception as e:
             app_log.warning("Retrying database execute due to {}".format(e))
             time.sleep(random.random())
-            pass # I suggest removing this. "pass" is a null operation. Nothing happens when it's executed.
     return cursor
 
 def execute_param(cursor, query, param):
@@ -239,7 +237,6 @@ def execute_param(cursor, query, param):
         except Exception as e:
             app_log.warning("Retrying database execute due to " + str(e))
             time.sleep(0.1)
-            pass # I suggest removing this. "pass" is a null operation. Nothing happens when it's executed.
     return cursor
 
 def difficulty(c):
@@ -1131,7 +1128,7 @@ address = hashlib.sha224(public_key_readable.encode('utf-8')).hexdigest()
 
 app_log.warning("Local address: {}".format(address))
 
-if not os.path.exists('ledger.db'):
+if not os.path.exists(ledger_path_conf):
     app_log.warning("Ledger file not found, bootstrapping from the website")
     try:
         download_file("http://bismuth.cz/ledger.db", ledger_path_conf)

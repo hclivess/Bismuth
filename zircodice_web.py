@@ -11,17 +11,26 @@ def server_static(filename):
 def hello():
 
     # redraw chart
-    conn = sqlite3.connect('static/ledger.db')
-    c = conn.cursor()
 
-    c.execute("SELECT block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")
-    result = c.fetchall()
-    last_block_height = result[0][0]
-    last_timestamp = result[0][1]
 
-    c.execute("SELECT * FROM transactions WHERE (openfield = ? OR openfield = ?) AND recipient = ? ORDER BY block_height DESC, timestamp DESC LIMIT 100;",("odd",)+("even",)+(address,))
-    result_bets = c.fetchall()
-    view_bets = []
+    while True:
+        try:
+            conn = sqlite3.connect('static/ledger.db')
+            c = conn.cursor()
+
+            c.execute("SELECT block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")
+            result = c.fetchall()
+            last_block_height = result[0][0]
+            last_timestamp = result[0][1]
+
+            c.execute("SELECT * FROM transactions WHERE (openfield = ? OR openfield = ?) AND recipient = ? ORDER BY block_height DESC, timestamp DESC LIMIT 100;",("odd",)+("even",)+(address,))
+            result_bets = c.fetchall()
+            view_bets = []
+            break
+
+        except Exception as e:
+            print("Retrying database access, {}".format(e))
+
 
     view_bets.append("<tr bgcolor=white>")
     view_bets.append("<td>Block Height</td><td>Time</td><td>Player</td><td>Block Hash</td><td>Hash Last Number</td><td>Amount Bet</td><td>Bet on</td><td>Result</td>")

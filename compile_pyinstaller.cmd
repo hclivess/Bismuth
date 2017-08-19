@@ -22,12 +22,19 @@ rmdir /s /q %var%\dist\miner
 robocopy %var%\dist\node %var%\dist\ /move /E
 rmdir /s /q dist\node
 
-robocopy %var%\static %var%\dist\static
+mkdir %var%\dist\static
+copy %var%\static\backup.py %var%\dist\static\backup.py
+copy %var%\static\bg.jpg %var%\dist\static\bg.jpg
+copy %var%\static\Chart.js %var%\dist\static\Chart.js
+copy %var%\static\explorer.ico %var%\dist\static\explorer.ico
+copy %var%\static\explorer_bg.png %var%\dist\static\explorer_bg.png
+copy %var%\static\style.css %var%\dist\static\style.css
+copy %var%\static\style_zircodice.css %var%\dist\static\style_zircodice.css
+copy %var%\static\zircodice.ico %var%\dist\static\zircodice.ico
+
 copy %var%\peers.txt %var%\dist\peers.txt
 copy %var%\config.txt %var%\dist\config.txt
 
 "C:\Program Files (x86)\Inno Setup 5\iscc" /q "%var%\setup.iss"
-del %var%\dist\static\ledger.db
-"C:\Program Files (x86)\Inno Setup 5\iscc" /q "%var%\setup_no_blockchain.iss"
 pause
 
