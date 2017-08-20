@@ -54,6 +54,14 @@ app_log = log.log("gui.log", debug_level_conf)
 root = Tk()
 root.wm_title("Bismuth")
 
+def address_insert():
+    recipient.delete(0,END)
+    recipient.insert(0,root.clipboard_get())
+
+def address_copy():
+    root.clipboard_clear()
+    root.clipboard_append(address)
+
 def percentage(percent, whole):
     return float((percent * whole) / 100)
 
@@ -717,7 +725,7 @@ def refresh():
         fees = stats_account[3]
         rewards = stats_account[4]
 
-        app_log.warning("Transction address balance: {}".format(balance))
+        app_log.warning("Transaction address balance: {}".format(balance))
 
         connections.send(s, "blocklast", 10)
         block_get = connections.receive(s, 10)
@@ -824,7 +832,7 @@ def refresh():
     fees_var.set("Fees Paid: {}".format('%.8f' % float(fees)))
     rewards_var.set("Rewards: {}".format('%.8f' % float(rewards)))
     bl_height_var.set("Block Height: {}".format(bl_height))
-    diff_msg_var.set("Mining Difficulty: {}".format(diff_msg))
+    diff_msg_var.set("Mining Difficulty: {}".format('%.2f' % float(diff_msg)))
     sync_msg_var.set("Network: {}".format(sync_msg))
 
     table()
@@ -980,6 +988,13 @@ gui_address = Entry(f3, width=60)
 gui_address.grid(row=0, column=1, sticky=W)
 gui_address.insert(0, address)
 gui_address.configure(state="readonly")
+
+gui_copy_address = Button(f3, text="Copy", command=address_copy, font=("Tahoma", 7))
+gui_copy_address.grid(row=0, column=2, sticky=W + E)
+
+gui_insert_clipboard = Button(f3, text="Insert", command=address_insert, font=("Tahoma", 7))
+gui_insert_clipboard.grid(row=1, column=2, sticky=W + E)
+
 
 Label(f3, text="Your Address:", width=20, anchor="e").grid(row=0)
 Label(f3, text="Recipient:", width=20, anchor="e").grid(row=1)
