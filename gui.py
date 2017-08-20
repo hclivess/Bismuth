@@ -1,5 +1,5 @@
 # icons created using http://www.winterdrache.de/freeware/png2ico/
-import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, sqlite3, time, base64, connections, icons, log, socks, ast, options, math
+import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, sqlite3, time, base64, connections, icons, log, socks, ast, options, math, tarfile, glob
 
 (port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, pool_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address, ram_conf, pool_percentage_conf, node_ip_conf) = options.read()
 
@@ -10,6 +10,7 @@ from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
 from simplecrypt import encrypt, decrypt
+from tkinter import filedialog
 from tkinter import *
 
 global key
@@ -53,6 +54,20 @@ app_log = log.log("gui.log", debug_level_conf)
 
 root = Tk()
 root.wm_title("Bismuth")
+
+def backup():
+    root.filename = filedialog.asksaveasfilename(initialdir="/", title="Select backup file", filetypes=(("gzip", "*.gz"), ))
+
+    if not root.filename == "":
+        if not root.filename.endswith(".tar.gz"):
+            root.filename = root.filename+".tar.gz"
+
+        der_files = glob.glob("*.der")
+
+        tar = tarfile.open(root.filename, "w:gz")
+        for der_file in der_files:
+            tar.add(der_file, arcname=der_file)
+        tar.close()
 
 def address_insert():
     recipient.delete(0,END)
@@ -897,28 +912,31 @@ f6.grid(row=2, column=0, sticky=E, pady=10, padx=10)
 
 # buttons
 
-send_b = Button(f5, text="Send", command=lambda: send_confirm(str(amount.get()).strip(), recipient.get().strip(), str(keep_var.get()).strip(), (openfield.get("1.0", END)).strip()), height=1, width=10)
-send_b.grid(row=7, column=0, sticky=W + E + S, pady=(45, 2), padx=15)
+send_b = Button(f5, text="Send", command=lambda: send_confirm(str(amount.get()).strip(), recipient.get().strip(), str(keep_var.get()).strip(), (openfield.get("1.0", END)).strip()), height=1, width=10, font=("Tahoma", 8))
+send_b.grid(row=7, column=0, sticky=W + E + S, pady=(45, 0), padx=15)
 
-start_b = Button(f5, text="Generate QR Code", command=qr, height=1, width=10)
+start_b = Button(f5, text="Generate QR Code", command=qr, height=1, width=10, font=("Tahoma", 8))
 if "posix" in os.name:
     start_b.configure(text="QR Disabled", state=DISABLED)
-start_b.grid(row=8, column=0, sticky=W + E + S, pady=2, padx=15)
+start_b.grid(row=8, column=0, sticky=W + E + S, pady=0, padx=15)
 
-message_b = Button(f5, text="Manual Refresh", command=refresh, height=1, width=10)
-message_b.grid(row=9, column=0, sticky=W + E + S, pady=2, padx=15)
+message_b = Button(f5, text="Manual Refresh", command=refresh, height=1, width=10, font=("Tahoma", 8))
+message_b.grid(row=9, column=0, sticky=W + E + S, pady=0, padx=15)
 
-balance_b = Button(f5, text="Messages", command=msg_dialogue, height=1, width=10)
-balance_b.grid(row=10, column=0, sticky=W + E + S, pady=2, padx=15)
+balance_b = Button(f5, text="Messages", command=msg_dialogue, height=1, width=10, font=("Tahoma", 8))
+balance_b.grid(row=10, column=0, sticky=W + E + S, pady=0, padx=15)
 
-sign_b = Button(f5, text="Sign Message", command=sign, height=1, width=10)
-sign_b.grid(row=11, column=0, sticky=W + E + S, pady=2, padx=15)
+sign_b = Button(f5, text="Sign Message", command=sign, height=1, width=10, font=("Tahoma", 8))
+sign_b.grid(row=11, column=0, sticky=W + E + S, pady=0, padx=15)
 
-sign_b = Button(f5, text="Alias Registration", command=alias, height=1, width=10)
-sign_b.grid(row=12, column=0, sticky=W + E + S, pady=2, padx=15)
+alias_b = Button(f5, text="Alias Registration", command=alias, height=1, width=10, font=("Tahoma", 8))
+alias_b.grid(row=12, column=0, sticky=W + E + S, pady=0, padx=15)
 
-quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=10)
-quit_b.grid(row=13, column=0, sticky=W + E + S, pady=0, padx=15)
+backup_b = Button(f5, text="Backup Keys", command=backup, height=1, width=10, font=("Tahoma", 8))
+backup_b.grid(row=14, column=0, sticky=W + E + S, pady=0, padx=15)
+
+quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=10, font=("Tahoma", 8))
+quit_b.grid(row=15, column=0, sticky=W + E + S, pady=0, padx=15)
 
 encrypt_b = Button(f6, text="Encrypt", command=encrypt_get_password, height=1, width=10)
 if encrypted == 1:
@@ -992,7 +1010,7 @@ gui_address.configure(state="readonly")
 gui_copy_address = Button(f3, text="Copy", command=address_copy, font=("Tahoma", 7))
 gui_copy_address.grid(row=0, column=2, sticky=W + E)
 
-gui_insert_clipboard = Button(f3, text="Insert", command=address_insert, font=("Tahoma", 7))
+gui_insert_clipboard = Button(f3, text="Paste", command=address_insert, font=("Tahoma", 7))
 gui_insert_clipboard.grid(row=1, column=2, sticky=W + E)
 
 
