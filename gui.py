@@ -69,6 +69,20 @@ def backup():
             tar.add(der_file, arcname=der_file)
         tar.close()
 
+def aliases_list():
+
+    top12 = Toplevel()
+    top12.title("Your aliases")
+    aliases_box = Text(top12, width=100)
+    aliases_box.grid(row=0, pady=0)
+
+    for row in c.execute("SELECT openfield FROM transactions WHERE address = ? AND openfield LIKE ?;", (address,) + ("alias=" + '%',)):
+        aliases_box.insert(INSERT, row[0].lstrip("alias="))
+        aliases_box.insert(INSERT,"\n")
+
+    close = Button(top12, text="Close", command=top12.destroy)
+    close.grid(row=3, column=0, sticky=W + E, padx=15, pady=(5, 5))
+
 def address_insert():
     recipient.delete(0,END)
     recipient.insert(0,root.clipboard_get())
@@ -669,13 +683,13 @@ def table():
         db_openfield = row[11]
         datasheet.append('%.8f' % (float(db_amount) + float(db_reward)))
         if float(db_reward) > 0:
-            symbol = " Mined"
+            symbol = "Mined"
         elif db_openfield.startswith("bmsg"):
-            symbol = " b64 Message"
+            symbol = "b64 Message"
         elif db_openfield.startswith("msg"):
-            symbol = " Message"
+            symbol = "Message"
         else:
-            symbol = " Transaction"
+            symbol = "Transaction"
         datasheet.append(symbol)
     # data
 
@@ -699,24 +713,41 @@ def table():
 
         for i in range(int(table_limit)):
             for j in range(5):
-
-                e = Entry(f4, width=22)
                 datasheet_compare = [datasheet[k], datasheet[k - 1], datasheet[k - 2], datasheet[k - 3], datasheet[k - 4]]
 
-                if "Unconfirmed" in datasheet_compare:
+
+                if "Time" in datasheet_compare: #header
+                    e = Entry(f4, width=0)
                     e.configure(readonlybackground='linen')
-                elif "Time" in datasheet_compare:
-                    pass
-                elif datasheet[k - 2] == address and j == 3:
+
+                elif j == 0: #first row
+                    e = Entry(f4, width=0)
+                    e.configure(readonlybackground='linen')
+
+                elif "Unconfirmed" in datasheet_compare: #unconfirmed txs
+                    e = Entry(f4, width=0)
+                    e.configure(readonlybackground='linen')
+
+                elif datasheet[k - 2] == address and j == 3: #sent
+                    e = Entry(f4, width=0)
                     e.configure(readonlybackground='indianred')
-                elif datasheet[k - 1] == address and j == 3:
+
+                elif datasheet[k - 1] == address and j == 3: #received
+                    e = Entry(f4, width=0)
                     e.configure(readonlybackground='green4')
+
+                elif j == 4: #last row
+                    e = Entry(f4, width=0)
+                    e.configure(readonlybackground='bisque')
+
                 else:
+                    e = Entry(f4, width=0)
                     e.configure(readonlybackground='bisque')
 
                 e.grid(row=i + 1, column=j, sticky=EW)
                 e.insert(END, datasheet[k])
                 e.configure(state="readonly")
+
                 k = k + 1
 
                 # transaction table
@@ -1010,9 +1041,11 @@ gui_address.configure(state="readonly")
 gui_copy_address = Button(f3, text="Copy", command=address_copy, font=("Tahoma", 7))
 gui_copy_address.grid(row=0, column=2, sticky=W + E)
 
+gui_list_aliases = Button(f3, text="Aliases", command=aliases_list, font=("Tahoma", 7))
+gui_list_aliases.grid(row=0, column=3, sticky=W + E)
+
 gui_insert_clipboard = Button(f3, text="Paste", command=address_insert, font=("Tahoma", 7))
 gui_insert_clipboard.grid(row=1, column=2, sticky=W + E)
-
 
 Label(f3, text="Your Address:", width=20, anchor="e").grid(row=0)
 Label(f3, text="Recipient:", width=20, anchor="e").grid(row=1)
