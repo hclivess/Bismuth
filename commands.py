@@ -18,6 +18,20 @@ try:
 except:
     pass
 
+try:
+    arg3 = sys.argv[4]
+except:
+    pass
+
+try:
+    arg4 = sys.argv[5]
+except:
+    pass
+
+try:
+    arg5 = sys.argv[6]
+except:
+    pass
 
 s = socks.socksocket()
 s.connect(("127.0.0.1", 5658))
@@ -90,17 +104,17 @@ def blockget(socket, arg1):
     print ("Requested block height: {}".format(block_get[0][0]))
     #get block
 
-def addlist(socket):
+def addlist(socket, arg1):
     #get all txs for an address
     connections.send(s, "addlist", 10)
-    connections.send(s, "c2221e97878e2f21fb2b5f5ff2b6fb3eb9de14bb53592e58443bde34", 10)
+    connections.send(s, arg1, 10)
     address_tx_list = connections.receive(s, 10)
     print("All transactions for requested address:")
     for row in address_tx_list:
         print (row)
     #get all txs for an address
 
-def txsend(socket, arg1, arg2):
+def txsend(socket, arg1, arg2, arg3, arg4, arg5):
     #generate transaction
     #SENDS PRIVATE KEY TO NODE
     #uses keys and address of previous "keygen" example
@@ -109,9 +123,9 @@ def txsend(socket, arg1, arg2):
     remote_tx_timestamp = '%.2f' % time.time()
     remote_tx_privkey = arg1 #node will dump pubkey+address from this
     remote_tx_recipient = arg2 #send to self
-    remote_tx_amount = "5"
-    remote_tx_keep = "0"
-    remote_tx_openfield = ""
+    remote_tx_amount = arg3
+    remote_tx_keep = arg4
+    remote_tx_openfield = arg5
 
     connections.send(s, (remote_tx_timestamp, remote_tx_privkey, remote_tx_recipient, remote_tx_amount, remote_tx_keep, remote_tx_openfield), 10)
     #generate transaction
@@ -137,9 +151,19 @@ elif command == "blockget":
     blockget(s, arg1)
 
 elif command == "addlist":
-    addlist(s)
+    addlist(s, arg1)
 
 elif command == "txsend":
-    txsend(s, arg1, arg2)
+    try:
+        arg4
+    except:
+        arg4="0"
+
+    try:
+        arg5
+    except:
+        arg5=""
+
+    txsend(s, arg1, arg2, arg3, arg4, arg5)
 
 s.close()
