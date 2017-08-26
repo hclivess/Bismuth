@@ -1671,7 +1671,6 @@ def worker(HOST, PORT):
         # s.setblocking(0)
         s.connect((HOST, PORT))
         app_log.info("Outgoing: Connected to {}".format(this_client))
-        peer_ip = s.getpeername()[0]
 
         # communication starter
 
@@ -1694,6 +1693,8 @@ def worker(HOST, PORT):
         return #can return here, because no lists are affected yet
 
     banned = 0
+    peer_ip = s.getpeername()[0]
+
     if peer_ip not in banlist:
         banned = 0
     else:
