@@ -419,8 +419,8 @@ def send(amount_input, recipient_input, keep_input, openfield_input, top10):
             if float(amount_input) < 0:
                 app_log.warning("Client: Signature OK, but cannot use negative amounts")
 
-            elif (float(amount_input) > float(balance)):
-                app_log.warning("Mempool: Sending more than owned")
+            #elif (float(amount_input) > float(balance)):
+            #    app_log.warning("Mempool: Sending more than owned")
 
             else:
                 app_log.warning("Client: The signature is valid, proceeding to save transaction, signature, new txhash and the public key to mempool")
@@ -917,8 +917,8 @@ else:
 # public_key_readable = str(key.publickey().exportKey())
 public_key_readable = open('pubkey.der'.encode('utf-8')).read()
 
-if (len(public_key_readable)) != 271:
-    raise ValueError ("Invalid public key length")
+if (len(public_key_readable)) != 271 and (len(public_key_readable)) != 799:
+    raise ValueError ("Invalid public key length: {}".format(len(public_key_readable)))
 
 public_key_hashed = base64.b64encode(public_key_readable.encode('utf-8'))
 address = hashlib.sha224(public_key_readable.encode('utf-8')).hexdigest()

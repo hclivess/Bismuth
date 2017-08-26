@@ -327,9 +327,9 @@ def mempool_merge(data, peer_ip, c, mempool, m):
                     mempool_address = str(transaction[1][:56])
                     mempool_recipient = str(transaction[2][:56])
                     mempool_amount = '%.8f' % float(transaction[3])
-                    mempool_signature_enc = str(transaction[4])
-                    mempool_public_key_hashed = str(transaction[5])
-                    mempool_keep = str(transaction[6])
+                    mempool_signature_enc = str(transaction[4][:684])
+                    mempool_public_key_hashed = str(transaction[5][:1068])
+                    mempool_keep = str(transaction[6][:1])
                     mempool_openfield = str(transaction[7])
 
                     mempool_public_key = RSA.importKey(base64.b64decode(mempool_public_key_hashed))  # convert readable key to instance
@@ -797,9 +797,9 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                     received_address = str(transaction[1][:56])
                     received_recipient = str(transaction[2][:56])
                     received_amount = '%.8f' % float(transaction[3])
-                    received_signature_enc = str(transaction[4])
-                    received_public_key_hashed = str(transaction[5])
-                    received_keep = str(transaction[6])
+                    received_signature_enc = str(transaction[4][:684])
+                    received_public_key_hashed = str(transaction[5][:1068])
+                    received_keep = str(transaction[6][:1])
                     received_openfield = str(transaction[7])
 
                     transaction_list_converted.append((received_timestamp, received_address, received_recipient, received_amount, received_signature_enc, received_public_key_hashed, received_keep, received_openfield))
@@ -906,9 +906,9 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                         db_address = str(transaction[1][:56])
                         db_recipient = str(transaction[2][:56])
                         db_amount = '%.8f' % float(transaction[3])
-                        db_signature = str(transaction[4])
-                        db_public_key_hashed = str(transaction[5])
-                        db_keep = str(transaction[6])
+                        db_signature = str(transaction[4][:684])
+                        db_public_key_hashed = str(transaction[5][:1068])
+                        db_keep = str(transaction[6][:1])
                         db_openfield = str(transaction[7])
 
                         # print "sync this"
@@ -1092,7 +1092,7 @@ elif os.path.isfile("privkey_encrypted.der") is True:
 else:
     # generate key pair and an address
     random_generator = Random.new().read
-    key = RSA.generate(1024, random_generator)
+    key = RSA.generate(4096, random_generator)
     public_key = key.publickey()
 
     private_key_readable = key.exportKey().decode("utf-8")
@@ -1120,8 +1120,8 @@ else:
 # private_key_readable = str(key.exportKey())
 public_key_readable = open('pubkey.der'.encode('utf-8')).read()
 
-if (len(public_key_readable)) != 271:
-    raise ValueError ("Invalid public key length")
+if (len(public_key_readable)) != 271 and (len(public_key_readable)) != 799:
+    raise ValueError("Invalid public key length: {}".format(len(public_key_readable)))
 
 public_key_hashed = base64.b64encode(public_key_readable.encode('utf-8'))
 address = hashlib.sha224(public_key_readable.encode('utf-8')).hexdigest()

@@ -37,7 +37,7 @@ def search():
         while not any(x in address for x in desired):
             # generate key pair and an address
             random_generator = Random.new().read
-            key = RSA.generate(1024, random_generator)
+            key = RSA.generate(4096, random_generator)
             public_key = key.publickey()
 
             private_key_readable = str(key.exportKey())
