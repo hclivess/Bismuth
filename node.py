@@ -485,10 +485,7 @@ def mempool_merge(data, peer_ip, c, mempool, m):
                 mem_lock.release()
 
 
-def purge_old_peers():
-    drop_peer_dict = []
-
-    global peer_dict
+def peers_get():
     peer_dict = {}
     with open("peers.txt") as f:
         for line in f:
@@ -497,27 +494,33 @@ def purge_old_peers():
                 peer_dict[line.split(",")[0]] = line.split(",")[1]
             except Exception as e:
                 app_log.warning("Skipping peerlist entry because of wrong format: {}".format(line))
+    return peer_dict
 
-        for key, value in peer_dict.items():
-            HOST = key
-            # app_log.info(HOST)
-            PORT = int(value)
-            # app_log.info(PORT)
+def purge_old_peers():
+    drop_peer_dict = []
+    peer_dict = peers_get()
 
-            try:
-                s = socks.socksocket()
-                s.settimeout(0.3)
-                if tor_conf == 1:
-                    s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                # s.setblocking(0)
-                s.connect((HOST, PORT))
-                s.close()
-            except:
-                if purge_conf == 1:
-                    # remove from peerlist if not connectible
-                    drop_peer_dict.append(key)
-                    print("Removed formerly active peer {} {}".format(HOST, PORT))
-                pass
+    for key, value in peer_dict.items():
+        HOST = key
+        # app_log.info(HOST)
+        PORT = int(value)
+        # app_log.info(PORT)
+
+        try:
+            s = socks.socksocket()
+            s.settimeout(0.3)
+            if tor_conf == 1:
+                s.settimeout(5)
+                s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+            # s.setblocking(0)
+            s.connect((HOST, PORT))
+            s.close()
+        except:
+            if purge_conf == 1:
+                # remove from peerlist if not connectible
+                drop_peer_dict.append(key)
+                print("Removed formerly active peer {} {}".format(HOST, PORT))
+            pass
 
     output = open("peers.txt", 'w')
     for key, value in peer_dict.items():
@@ -689,7 +692,8 @@ def consensus_remove(peer_ip):
 
 def manager():
     global banlist
-    global peer_dict
+    peer_dict = peers_get()
+
     while True:
         dict_keys = peer_dict.keys()
         #random.shuffle(dict_keys)
@@ -1735,6 +1739,7 @@ def worker(HOST, PORT):
                                 s_purge = socks.socksocket()
                                 s_purge.settimeout(0.2)
                                 if tor_conf == 1:
+                                    s_purge.settimeout(5)
                                     s_purge.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
                                     # s_purge = s.setblocking(0)
 
