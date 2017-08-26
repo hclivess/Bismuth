@@ -1,9 +1,9 @@
 language: python
 python:
-  - "2.7"
+  - "3.5"
 cache: pip
 install:
-  - pip install pillow pyqrcode pypng pyinstaller bottle pycrypto simple-crypt win_inet_pton PySocks
+  - pip install pillow pyqrcode pypng pyinstaller bottle pycryptodome simple-crypt win_inet_pton PySocks
 script: 
   - pyinstaller --uac-admin --onefile --noconsole --log-level=INFO gui.py --icon=graphics\icon.ico
   - pyinstaller --uac-admin --onefile --log-level=INFO node.py --icon=graphics\icon.ico

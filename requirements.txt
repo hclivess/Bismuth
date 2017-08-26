@@ -3,6 +3,6 @@ pyqrcode
 pypng
 pyinstaller
 bottle
-pycrypto
+pycryptodome
 simple-crypt
 PySocks
