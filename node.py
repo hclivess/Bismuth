@@ -691,7 +691,6 @@ def manager():
     global banlist
     global peer_dict
     while True:
-
         dict_keys = peer_dict.keys()
         #random.shuffle(dict_keys)
 
@@ -1969,14 +1968,13 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 
 if __name__ == "__main__":
     try:
+        purge_old_peers()
         if tor_conf == 0:
             # Port 0 means to select an arbitrary unused port
             HOST, PORT = "0.0.0.0", int(port)
 
             server = ThreadedTCPServer((HOST, PORT), ThreadedTCPRequestHandler)
             ip, port = server.server_address
-
-            purge_old_peers()
 
             # Start a thread with the server -- that thread will then start one
             # more thread for each request
