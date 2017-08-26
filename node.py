@@ -24,7 +24,33 @@ db_lock = threading.Lock()
 mem_lock = threading.Lock()
 peersync_lock = threading.Lock()
 
-(port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, pool_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address, ram_conf, pool_percentage_conf, node_ip_conf) = options.read()
+config = options.Get()
+config.read()
+debug_level = config.debug_level_conf
+port = config.port
+genesis_conf = config.genesis_conf
+verify_conf = config.verify_conf
+thread_limit_conf = config.thread_limit_conf
+rebuild_db_conf = config.rebuild_db_conf
+debug_conf = config.debug_conf
+node_ip_conf = config.node_ip_conf
+purge_conf = config.purge_conf
+pause_conf = config.pause_conf
+ledger_path_conf = config.ledger_path_conf
+hyperblocks_conf = config.hyperblocks_conf
+warning_list_limit_conf = config.warning_list_limit_conf
+tor_conf = config.tor_conf
+debug_level_conf = config.debug_level_conf
+allowed = config.allowed_conf
+pool_ip_conf = config.pool_ip_conf
+sync_conf = config.sync_conf
+pool_percentage_conf = config.pool_percentage_conf
+mining_threads_conf = config.mining_threads_conf
+diff_recalc_conf = config.diff_recalc_conf
+pool_conf = config.pool_conf
+ram_conf = config.ram_conf
+pool_address = config.pool_address_conf
+version = config.version_conf
 
 # load config
 def percentage(percent, whole):
@@ -93,7 +119,6 @@ def db_m_define():
     return mempool, m
 
 app_log = log.log("node.log", debug_level_conf)
-version = version_conf
 
 app_log.warning("Configuration settings loaded")
 

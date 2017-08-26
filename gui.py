@@ -1,9 +1,9 @@
 # icons created using http://www.winterdrache.de/freeware/png2ico/
 import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, sqlite3, time, base64, connections, icons, log, socks, ast, options, math, tarfile, glob
 
-(port, genesis_conf, verify_conf, version_conf, thread_limit_conf, rebuild_db_conf, debug_conf, purge_conf, pause_conf, ledger_path_conf, hyperblocks_conf, warning_list_limit_conf, tor_conf, debug_level_conf, allowed, pool_ip_conf, sync_conf, mining_threads_conf, diff_recalc_conf, pool_conf, pool_address, ram_conf, pool_percentage_conf, node_ip_conf) = options.read()
-
-# port = 0000
+config = options.Get()
+config.read()
+debug_level = config.debug_level_conf
 
 from datetime import datetime
 from Crypto.PublicKey import RSA
@@ -43,14 +43,8 @@ else:
     m = mempool.cursor()
 
 # for local evaluation
-# load config
-lines = [line.rstrip('\n') for line in open('config.txt')]
-for line in lines:
-    if "debug_level=" in line:
-        debug_level_conf = line.strip('debug_level=')
-# load config
 
-app_log = log.log("gui.log", debug_level_conf)
+app_log = log.log("gui.log", debug_level)
 
 root = Tk()
 root.wm_title("Bismuth")
