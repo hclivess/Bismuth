@@ -1672,6 +1672,7 @@ def worker(HOST, PORT):
         s.connect((HOST, PORT))
         app_log.info("Outgoing: Connected to {}".format(this_client))
 
+
         # communication starter
 
         connections.send(s, "version", 10)
@@ -1680,9 +1681,9 @@ def worker(HOST, PORT):
         data = connections.receive(s, 10)
 
         if (data == "ok"):
-            app_log.info("Outgoing: Node protocol version of {} matches our client".format(peer_ip))
+            app_log.info("Outgoing: Node protocol version of {} matches our client".format(this_client))
         else:
-            raise ValueError("Outgoing: Node protocol version of {} mismatch".format(peer_ip))
+            raise ValueError("Outgoing: Node protocol version of {} mismatch".format(this_client))
 
         connections.send(s, "hello", 10)
 
@@ -1694,7 +1695,6 @@ def worker(HOST, PORT):
 
     banned = 0
     peer_ip = s.getpeername()[0]
-
     if peer_ip not in banlist:
         banned = 0
     else:
