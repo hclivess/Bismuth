@@ -1266,7 +1266,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
             # if you raise here, you kill the whole server
 
-        timeout_operation = 60  # timeout
+        timeout_operation = 120  # timeout
         timer_operation = time.time()  # start counting
 
         while banned == 0 and capacity == 1:
