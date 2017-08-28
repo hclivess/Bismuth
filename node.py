@@ -1736,7 +1736,11 @@ def worker(HOST, PORT):
             mempool, m = db_m_define()
             conn, c = db_c_define()
 
-            data = connections.receive(s, 10)  # receive data, one and the only root point
+            try:
+                data = connections.receive(s, 10)  # receive data, one and the only root point
+            except Exception as e:
+                app_log.info("Failed to receive data from peer {}, because {}".format(this_client,e))
+
 
             if data == "peers":
                 subdata = connections.receive(s, 10)
