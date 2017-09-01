@@ -1,9 +1,9 @@
 language: python
 python:
-  - "3.6"
+  - "3.5"
 cache: pip
 install:
-  - pip install pillow pyqrcode pypng https://github.com/pyinstaller/pyinstaller/archive/develop.zip bottle pycryptodome simple-crypt PySocks requests
+  - pip install pillow pyqrcode pypng pyinstaller bottle pycryptodome simple-crypt PySocks requests
 script: 
   - pyinstaller --uac-admin --onefile --noconsole --log-level=INFO gui.py --icon=graphics\icon.ico
   - pyinstaller --uac-admin --onefile --log-level=INFO node.py --icon=graphics\icon.ico
