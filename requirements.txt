@@ -1,7 +1,7 @@
 pillow
 pyqrcode
 pypng
-pyinstaller
+https://github.com/pyinstaller/pyinstaller/archive/develop.zip
 bottle
 pycryptodome
 simple-crypt
