@@ -6,3 +6,4 @@ bottle
 pycryptodome
 simple-crypt
 PySocks
+requests

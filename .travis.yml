@@ -1,14 +1,13 @@
 language: python
 python:
-  - "3.5"
+  - "3.6"
 cache: pip
 install:
-  - pip install pillow pyqrcode pypng pyinstaller bottle pycryptodome simple-crypt win_inet_pton PySocks
+  - pip install pillow pyqrcode pypng pyinstaller bottle pycryptodome simple-crypt PySocks requests
 script: 
   - pyinstaller --uac-admin --onefile --noconsole --log-level=INFO gui.py --icon=graphics\icon.ico
   - pyinstaller --uac-admin --onefile --log-level=INFO node.py --icon=graphics\icon.ico
   - pyinstaller --uac-admin --onefile --log-level=INFO miner.py --icon=graphics\icon.ico
-  - pyinstaller --uac-admin --onefile --log-level=INFO ledger_explorer.py --icon=graphics\icon.ico --hidden-import=ledger_explorer
 notifications:
   slack: cryptobismuth:Mtd8QY1ElBCfM7ijzsyCE7HU
   email: false
