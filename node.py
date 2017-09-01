@@ -1461,7 +1461,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                                 else:
                                     execute_param(c, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
-                                                  (str(int(client_block)),) + (str(int(client_block + 100)),))  # select incoming transaction + 1
+                                                  (str(int(client_block)),) + (str(int(client_block + 1000)),))  # select incoming transaction + 1
                                     blocks_fetched = c.fetchall()
 
                                     blocks_send = [[l[1:] for l in group] for _, group in groupby(blocks_fetched, key=itemgetter(0))] #remove block number
@@ -1862,7 +1862,7 @@ def worker(HOST, PORT):
 
                             else:
                                 execute_param(c, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
-                                              (str(int(client_block)),) + (str(int(client_block + 100)),))  # select incoming transaction + 1, only columns that need not be verified
+                                              (str(int(client_block)),) + (str(int(client_block + 1000)),))  # select incoming transaction + 1, only columns that need not be verified
                                 blocks_fetched = c.fetchall()
 
                                 blocks_send = [[l[1:] for l in group] for _, group in groupby(blocks_fetched, key=itemgetter(0))] #remove block number
