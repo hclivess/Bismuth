@@ -1156,13 +1156,32 @@ address = hashlib.sha224(public_key_readable.encode('utf-8')).hexdigest()
 
 app_log.warning("Local address: {}".format(address))
 
-if not os.path.exists(ledger_path_conf):
-    app_log.warning("Ledger file not found, bootstrapping from the website")
+
+#check ledger integrity
+ledger_check = sqlite3.connect(ledger_path_conf)
+ledger_check.text_factory = str
+l = ledger_check.cursor()
+
+try:
+    l.execute("PRAGMA table_info('transactions')")
+    redownload = 0
+except:
+    redownload = 1
+
+if len(l.fetchall()) != 12:
+    app_log.warning("Integrity check on ledger.db failed, bootstrapping from the website")
+    redownload = 1
+
+if redownload == 1:
     try:
+        ledger_check.close()
+        os.rename(ledger_path_conf,ledger_path_conf+".old")
         download_file("http://bismuth.cz/ledger.db", ledger_path_conf)
     except:
         app_log.warning("Something went wrong during bootstrapping, aborted")
         raise
+#check ledger integrity
+
 
 if not os.path.exists('mempool.db'):
     # create empty mempool
