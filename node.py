@@ -1478,7 +1478,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                         connections.send(self.request, blocks_send, 10)
 
                                     elif confirmation == "blocksrj":
-                                        app_log.info("Incoming: Client rejected to sync from us because we're dont have the latest block")
+                                        app_log.info("Incoming: Client rejected to sync from us because we're don't have the latest block")
                                         pass
 
                                         # send own

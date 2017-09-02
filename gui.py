@@ -413,8 +413,8 @@ def send(amount_input, recipient_input, keep_input, openfield_input, top10):
             if float(amount_input) < 0:
                 app_log.warning("Client: Signature OK, but cannot use negative amounts")
 
-            #elif (float(amount_input) > float(balance)):
-            #    app_log.warning("Mempool: Sending more than owned")
+            elif (float(amount_input) > float(balance)):
+                app_log.warning("Mempool: Sending more than owned")
 
             else:
                 app_log.warning("Client: The signature is valid, proceeding to save transaction, signature, new txhash and the public key to mempool")
