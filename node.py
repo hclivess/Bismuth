@@ -1180,6 +1180,8 @@ if redownload == 1:
     except:
         app_log.warning("Something went wrong during bootstrapping, aborted")
         raise
+else:
+    ledger_check.close()
 #check ledger integrity
 
 

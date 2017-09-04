@@ -3,9 +3,11 @@ import select, picklemagic, ast, json
 def send(sdef, data, slen):
     sdef.setblocking(0)
 
+    #sdef.sendall(str(len(str(json.dumps(data)))).encode("utf-8").zfill(slen))
+    #sdef.sendall(str(json.dumps(data)).encode("utf-8"))
+
     sdef.sendall(str(len(str(picklemagic.safe_dumps(data)))).encode("utf-8").zfill(slen))
     sdef.sendall(str(picklemagic.safe_dumps(data)).encode("utf-8"))
-    #print(pickle.dumps(data))
 
 def receive(sdef, slen):
     sdef.setblocking(0)
@@ -29,10 +31,13 @@ def receive(sdef, slen):
         else:
              raise RuntimeError("Socket timeout")
 
-    segments = b''.join(chunks).decode("utf-8")
     #print ("Received segments: {}".format(segments))
 
     try:
-        return json.loads(ast.literal_eval(segments))
+        segments = b''.join(chunks).decode("utf-8")
+        return json.loads(segments)
+
     except: #compatibility
+        segments = b''.join(chunks).decode("utf-8")
         return picklemagic.safe_loads(ast.literal_eval(segments))
+
