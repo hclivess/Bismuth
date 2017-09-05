@@ -135,7 +135,7 @@ def warning(sdef, ip):
     global warning_list_limit_conf
 
     warning_list.append(ip)
-    app_log.info("Added a warning to {} ({} / {})".format(ip, warning_list.count(ip), warning_list_limit_conf))
+    app_log.warning("Added a warning to {} ({} / {})".format(ip, warning_list.count(ip), warning_list_limit_conf))
 
     if warning_list.count(ip) >= warning_list_limit_conf:
         banlist.append(ip)
@@ -1809,7 +1809,6 @@ def worker(HOST, PORT):
 
 
             elif data == "sync":
-
                 if not time.time() <= timer_operation + timeout_operation:
                     timer_operation = time.time()  # reset timer
 
@@ -1834,10 +1833,10 @@ def worker(HOST, PORT):
                     connections.send(s, db_block_height, 10)
 
                     received_block_height = connections.receive(s, 10)  # receive node's block height
-                    app_log.info("Outgoing: Node is at block height: {}".format(received_block_height))
+                    app_log.info("Outgoing: Node {} is at block height: {}".format(peer_ip,received_block_height))
 
                     if int(received_block_height) < db_block_height:
-                        app_log.info("Outgoing: We have a higher, sending")
+                        app_log.warning("Outgoing: We have a higher block than {}, sending".format(peer_ip))
                         data = connections.receive(s, 10)  # receive client's last block_hash
 
                         # send all our followup hashes
@@ -1889,8 +1888,22 @@ def worker(HOST, PORT):
                             connections.send(s, "blocknf", 10)
                             connections.send(s, data, 10)
 
-                    if int(received_block_height) >= db_block_height:
-                        app_log.info("Outgoing: We have the same or lower block height, hash will be verified")
+                    elif int(received_block_height) == db_block_height:
+                        app_log.info("Outgoing: We have the same block as {}, hash will be verified".format(peer_ip))
+
+                        execute(c, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
+                        db_block_hash = c.fetchone()[0]  # get latest block_hash
+
+                        app_log.info("Outgoing: block_hash to send: {}".format(db_block_hash))
+                        connections.send(s, db_block_hash, 10)
+
+                        # consensus pool 2 (active connection)
+                        consensus_blockheight = int(received_block_height)  # str int to remove leading zeros
+                        consensus_add(peer_ip, consensus_blockheight)
+                        # consensus pool 2 (active connection)
+
+                    if int(received_block_height) > db_block_height:
+                        app_log.warning("Outgoing: We have a lower block than {}, hash will be verified".format(peer_ip))
 
                         execute(c, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
                         db_block_hash = c.fetchone()[0]  # get latest block_hash
@@ -1981,6 +1994,7 @@ def worker(HOST, PORT):
             # remove from active pool
             if this_client in connection_pool:
                 app_log.info("Will remove {} from active pool {}".format(this_client, connection_pool))
+                app_log.warning("Disconnected from {}".format(this_client))
                 connection_pool.remove(this_client)
             # remove from active pool
 
