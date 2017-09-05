@@ -1752,6 +1752,7 @@ def worker(HOST, PORT):
         try:
             if this_client not in connection_pool:
                 connection_pool.append(this_client)
+                app_log.warning("Connected to {}".format(this_client))
                 app_log.info("Current active pool: {}".format(connection_pool))
 
             mempool, m = db_m_define()
@@ -1762,7 +1763,7 @@ def worker(HOST, PORT):
             if data == "peers":
                 subdata = connections.receive(s, 10)
 
-                if peersync_lock == False:
+                if peersync_lock.locked() == False:
                     peersync_lock.acquire()
 
                     # get remote peers into tuples (actually list)
