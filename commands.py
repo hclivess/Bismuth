@@ -117,12 +117,11 @@ def addlist(socket, arg1):
 def txsend(socket, arg1, arg2, arg3, arg4, arg5):
     #generate transaction
     #SENDS PRIVATE KEY TO NODE
-    #uses keys and address of previous "keygen" example
     connections.send(s, "txsend", 10)
 
     remote_tx_timestamp = '%.2f' % time.time()
     remote_tx_privkey = arg1 #node will dump pubkey+address from this
-    remote_tx_recipient = arg2 #send to self
+    remote_tx_recipient = arg2
     remote_tx_amount = arg3
     remote_tx_keep = arg4
     remote_tx_openfield = arg5
