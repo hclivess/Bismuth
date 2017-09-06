@@ -7,7 +7,7 @@
 
 from itertools import groupby
 from operator import itemgetter
-import shutil, socketserver, base64, gc, hashlib, os, re, sqlite3, sys, threading, time, socks, log, options, connections, random, keys, math, requests
+import shutil, socketserver, base64, hashlib, os, re, sqlite3, sys, threading, time, socks, log, options, connections, random, keys, math, requests
 
 from Crypto import Random
 from Crypto.Hash import SHA
