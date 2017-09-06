@@ -24,7 +24,7 @@ def receive(sdef, slen):
         ready = select.select([sdef], [], [], 120)
         if ready[0]:
             chunk = sdef.recv(min(data - bytes_recd, 2048))
-            if chunk == b'':
+            if not chunk:
                 raise RuntimeError("Socket connection broken")
             chunks.append(chunk)
             bytes_recd = bytes_recd + len(chunk)

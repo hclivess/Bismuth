@@ -780,9 +780,11 @@ def refresh():
 
         # print "refresh triggered"
 
-        m.execute("SELECT sum(amount) FROM transactions WHERE address = ?;", (address,))
-        debit_mempool = m.fetchone()[0]
-        if debit_mempool == None:
+        m.execute("SELECT count(amount), sum(amount) FROM transactions WHERE address = ?;", (address,))
+        result = m.fetchall()[0]
+        if result[1] != None:
+            debit_mempool = float(result[1]) + float(result[1]) * 0.001 + int(result[0]) * 0.01
+        else:
             debit_mempool = 0
 
         c.execute("SELECT sum(amount) FROM transactions WHERE recipient = ?;", (address,))
