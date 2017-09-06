@@ -303,8 +303,6 @@ def difficulty(c):
 
     return (float(difficulty), float(difficulty2))
 
-gc.enable()
-
 global connection_pool
 connection_pool = []
 global peer_ip_list
