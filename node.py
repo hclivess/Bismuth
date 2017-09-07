@@ -37,7 +37,7 @@ node_ip_conf = config.node_ip_conf
 purge_conf = config.purge_conf
 pause_conf = config.pause_conf
 ledger_path_conf = config.ledger_path_conf
-hyperblocks_conf = config.hyperblocks_conf
+hyper_path_conf = config.hyper_path_conf
 warning_list_limit_conf = config.warning_list_limit_conf
 tor_conf = config.tor_conf
 debug_level_conf = config.debug_level_conf
@@ -71,6 +71,10 @@ def db_to_drive():
     hdd.text_factory = str
     h = hdd.cursor()
 
+    hdd2 = sqlite3.connect(hyper_path_conf,timeout=1)
+    hdd2.text_factory = str
+    h2 = hdd2.cursor()
+
     old_db = sqlite3.connect('file::memory:?cache=shared', uri=True,timeout=1)
 
     old_db.text_factory = str
@@ -78,11 +82,18 @@ def db_to_drive():
 
     for row in execute_param(o, ("SELECT * FROM transactions WHERE block_height > ? ORDER BY block_height ASC"),(hdd_block,)):
         h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10], row[11]))
-        commit(hdd)
+        h2.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10], row[11]))
+        if row % 100 == 0:
+            app_log.warning("Local HDD database is still being updated, please do not interrupt this process...")
+        print ("TEST")
+    commit(hdd)
+    commit(hdd2)
 
     for row in execute_param(o, ("SELECT * FROM misc WHERE block_height > ? ORDER BY block_height ASC"),(hdd_block,)):
         h.execute("INSERT INTO misc VALUES (?,?)", (row[0], row[1]))
-        commit(hdd)
+        h2.execute("INSERT INTO misc VALUES (?,?)", (row[0], row[1]))
+    commit(hdd)
+    commit(hdd2)
 
 
     h.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
@@ -143,25 +154,55 @@ def warning(sdef, ip):
         app_log.warning("{} banned".format(ip))  # rework this
 
 
-def ledger_convert():
+def ledger_convert(ledger_path_conf,hyper_path_conf):
     try:
-        app_log.warning("Converting ledger to Hyperblocks")
-        depth = 10000
 
-        shutil.copy(ledger_path_conf, ledger_path_conf + '.hyper')
-        hyper = sqlite3.connect(ledger_path_conf + '.hyper')
+        if os.path.exists(hyper_path_conf):
+
+            # cross-integrity check
+            hdd = sqlite3.connect(ledger_path_conf, timeout=1)
+            hdd.text_factory = str
+            h = hdd.cursor()
+            h.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
+            hdd_block_last = h.fetchone()[0]
+            hdd.close()
+
+            hdd2 = sqlite3.connect(hyper_path_conf, timeout=1)
+            hdd2.text_factory = str
+            h2 = hdd2.cursor()
+            h2.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
+            hdd2_block_last = h2.fetchone()[0]
+            hdd2.close()
+            # cross-integrity check
+
+            if hdd_block_last == hdd2_block_last: # cross-integrity check
+                ledger_path_conf = hyper_path_conf # only valid within the function
+                app_log.warning("Recompressing Hyperblocks") #MAKE THIS HAPPEN LESS OFTEN
+            else:
+                app_log.warning("Cross-integrity check failed, hyperblocks will be rebuilt")
+
+        else:
+            app_log.warning("Compressing ledger to Hyperblocks")
+
+        depth = 1000 #keep a history of 1000 blocks in case of rollbacks
+
+        if os.path.exists(ledger_path_conf + '.temp'):
+            os.remove(ledger_path_conf + '.temp')
+
+        shutil.copy(ledger_path_conf, ledger_path_conf + '.temp')
+        hyper = sqlite3.connect(ledger_path_conf + '.temp')
         hyper.text_factory = str
-        h = hyper.cursor()
+        hyp = hyper.cursor()
 
         end_balance = 0
         addresses = []
 
-        h.execute("UPDATE transactions SET address = 'Hypoblock' WHERE address = 'Hyperblock'")
+        hyp.execute("UPDATE transactions SET address = 'Hypoblock' WHERE address = 'Hyperblock'")
 
-        h.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
-        db_block_height = h.fetchone()[0]
+        hyp.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
+        db_block_height = hyp.fetchone()[0]
 
-        for row in h.execute("SELECT * FROM transactions WHERE (block_height < ? AND keep = '0') ORDER BY block_height;",
+        for row in hyp.execute("SELECT * FROM transactions WHERE (block_height < ? AND keep = '0') ORDER BY block_height;",
                              (str(int(db_block_height) - depth),)):
             db_address = row[2]
             db_recipient = row[3]
@@ -171,12 +212,12 @@ def ledger_convert():
         unique_addressess = set(addresses)
 
         for x in set(unique_addressess):
-            h.execute("SELECT sum(amount) FROM transactions WHERE (recipient = ? AND block_height < ?  AND keep = '0');", (x,) + (str(int(db_block_height) - depth),))
-            credit = h.fetchone()[0]
+            hyp.execute("SELECT sum(amount) FROM transactions WHERE (recipient = ? AND block_height < ?  AND keep = '0');", (x,) + (str(int(db_block_height) - depth),))
+            credit = hyp.fetchone()[0]
             credit = 0 if credit is None else credit
 
-            h.execute("SELECT sum(amount),sum(fee),sum(reward) FROM transactions WHERE (address = ? AND block_height < ? AND keep = '0');", (x,) + (str(int(db_block_height) - depth),))
-            result = h.fetchall()
+            hyp.execute("SELECT sum(amount),sum(fee),sum(reward) FROM transactions WHERE (address = ? AND block_height < ? AND keep = '0');", (x,) + (str(int(db_block_height) - depth),))
+            result = hyp.fetchall()
             debit = result[0][0]
             debit = 0 if debit is None else debit
 
@@ -195,28 +236,30 @@ def ledger_convert():
             #app_log.info("Balance: " + str(end_balance))
 
             # test for keep positivity
-            h.execute("SELECT block_height FROM transactions WHERE address OR recipient = ?", (x,))
+            hyp.execute("SELECT block_height FROM transactions WHERE address OR recipient = ?", (x,))
             keep_is = 1
             try:
-                h.fetchone()[0]
+                hyp.fetchone()[0]
             except:
                 keep_is = 0
             # test for keep positivity
 
             if end_balance > 0 or keep_is == 1:
                 timestamp = str(time.time())
-                h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (db_block_height - depth - 1, timestamp, "Hyperblock", x, '%.8f' % float(end_balance), "0", "0", "0", "0", "0",
+                hyp.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (db_block_height - depth - 1, timestamp, "Hyperblock", x, '%.8f' % float(end_balance), "0", "0", "0", "0", "0",
                     "0", "0"))
                 hyper.commit()
 
-        h.execute("DELETE FROM transactions WHERE block_height < ? AND address != 'Hyperblock' AND keep = '0';", (str(int(db_block_height) - depth),))
+        hyp.execute("DELETE FROM transactions WHERE block_height < ? AND address != 'Hyperblock' AND keep = '0';", (str(int(db_block_height) - depth),))
         hyper.commit()
 
-        h.execute("VACUUM")
+        hyp.execute("VACUUM")
         hyper.close()
 
-        os.remove(ledger_path_conf)
-        os.rename(ledger_path_conf + '.hyper', ledger_path_conf)
+        if os.path.exists(hyper_path_conf):
+            os.remove(hyper_path_conf) #remove the old hyperblocks
+
+        os.rename(ledger_path_conf + '.temp', hyper_path_conf)
     except Exception as e:
         raise ValueError("There was an issue converting to Hyperblocks: {}".format(e))
 
@@ -631,15 +674,24 @@ def blocknf(block_hash_delete, peer_ip, conn, c):
                 app_log.warning("Node {} didn't find block {}({}), rolled back".format(peer_ip, db_block_height, db_block_hash))
 
                 if ram_conf == 1:
-                    #roll back hdd too
+                    # roll back hdd too
                     hdd = sqlite3.connect(ledger_path_conf,timeout=1)
                     hdd.text_factory = str
                     h = hdd.cursor()
+
+                    hdd2 = sqlite3.connect(hyper_path_conf,timeout=1)
+                    hdd2.text_factory = str
+                    h2 = hdd2.cursor()
+
                     execute_param(h, ("DELETE FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
                     commit(hdd)
+                    execute_param(h2, ("DELETE FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
+                    commit(hdd2)
 
                     execute_param(h, ("DELETE FROM misc WHERE block_height >= ?;"), (str(db_block_height),))
                     commit(hdd)
+                    execute_param(h2, ("DELETE FROM misc WHERE block_height >= ?;"), (str(db_block_height),))
+                    commit(hdd2)
 
                     hdd.close()
                     hdd_block = int(db_block_height)-1
@@ -1202,8 +1254,8 @@ if len(m.fetchall()) != 8:
     app_log.info("Recreated mempool file")
 #check if mempool needs recreating
 
-if hyperblocks_conf == 1:
-    ledger_convert()
+
+ledger_convert(ledger_path_conf,hyper_path_conf)
 
 if ram_conf == 1:
     try:
@@ -1212,7 +1264,7 @@ if ram_conf == 1:
         conn.text_factory = str
         c = conn.cursor()
 
-        old_db = sqlite3.connect(ledger_path_conf,timeout=1)
+        old_db = sqlite3.connect(hyper_path_conf,timeout=1)
         query = "".join(line for line in old_db.iterdump())
 
         conn.executescript(query)
@@ -1421,7 +1473,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         # send own block height
 
                         if int(received_block_height) > db_block_height:
-                            app_log.info("Incoming: Client has higher block")
+                            app_log.warning("Incoming: Client has higher block")
 
                             execute(c, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
                             db_block_hash = c.fetchone()[0]  # get latest block_hash
@@ -1432,8 +1484,11 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             # receive their latest hash
                             # confirm you know that hash or continue receiving
 
-                        if int(received_block_height) <= db_block_height:
-                            app_log.info("Incoming: We have the same or higher block height, hash will be verified")
+                        elif int(received_block_height) <= db_block_height:
+                            if int(received_block_height) == db_block_height:
+                                app_log.info("Incoming: We have the same height as {}, hash will be verified".format(peer_ip))
+                            else:
+                                app_log.warning("Incoming: We higher block height than {}, hash will be verified".format(peer_ip))
 
                             data = connections.receive(self.request, 10)  # receive client's last block_hash
                             # send all our followup hashes
@@ -1441,21 +1496,26 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             app_log.info("Incoming: Will seek the following block: {}".format(data))
 
                             try:
-                                execute_param(c, ("SELECT block_height FROM transactions WHERE block_hash = ?;"), (data,))
-                                client_block = c.fetchone()[0]
+                                hdd = sqlite3.connect(ledger_path_conf, timeout=1)
+                                hdd.text_factory = str
+                                h = hdd.cursor()
+
+                                execute_param(h, ("SELECT block_height FROM transactions WHERE block_hash = ?;"), (data,))
+                                client_block = h.fetchone()[0]
 
                                 app_log.info("Incoming: Client is at block {}".format(client_block))  # now check if we have any newer
 
-                                execute(c, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
-                                db_block_hash = c.fetchone()[0]  # get latest block_hash
+                                execute(h, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
+                                db_block_hash = h.fetchone()[0]  # get latest block_hash
                                 if db_block_hash == data:
                                     app_log.info("Incoming: Client has the latest block")
                                     connections.send(self.request, "nonewblk", 10)
 
                                 else:
-                                    execute_param(c, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
+                                    execute_param(h, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
                                                   (str(int(client_block)),) + (str(int(client_block + 5000)),))  # select incoming transaction + 1
-                                    blocks_fetched = c.fetchall()
+                                    blocks_fetched = h.fetchall()
+                                    hdd.close()
 
                                     blocks_send = [[l[1:] for l in group] for _, group in groupby(blocks_fetched, key=itemgetter(0))] #remove block number
 
@@ -1840,22 +1900,27 @@ def worker(HOST, PORT):
 
 
                         try:
-                            execute_param(c, ("SELECT block_height FROM transactions WHERE block_hash = ?;"), (data,))
-                            client_block = c.fetchone()[0]
+                            hdd = sqlite3.connect(ledger_path_conf, timeout=1)
+                            hdd.text_factory = str
+                            h = hdd.cursor()
+
+                            execute_param(h, ("SELECT block_height FROM transactions WHERE block_hash = ?;"), (data,))
+                            client_block = h.fetchone()[0]
 
                             app_log.info("Outgoing: Node is at block {}".format(client_block))  # now check if we have any newer
 
-                            execute(c, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
-                            db_block_hash = c.fetchone()[0]  # get latest block_hash
+                            execute(h, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
+                            db_block_hash = h.fetchone()[0]  # get latest block_hash
 
                             if db_block_hash == data:
                                 app_log.info("Outgoing: Node has the latest block")
                                 connections.send(s, "nonewblk", 10)
 
                             else:
-                                execute_param(c, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
+                                execute_param(h, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
                                               (str(int(client_block)),) + (str(int(client_block + 5000)),))  # select incoming transaction + 1, only columns that need not be verified
-                                blocks_fetched = c.fetchall()
+                                blocks_fetched = h.fetchall()
+                                hdd.close()
 
                                 blocks_send = [[l[1:] for l in group] for _, group in groupby(blocks_fetched, key=itemgetter(0))] #remove block number
 
@@ -1878,8 +1943,11 @@ def worker(HOST, PORT):
                             connections.send(s, "blocknf", 10)
                             connections.send(s, data, 10)
 
-                    elif int(received_block_height) == db_block_height:
-                        app_log.info("Outgoing: We have the same block as {}, hash will be verified".format(peer_ip))
+                    elif int(received_block_height) >= db_block_height:
+                        if int(received_block_height) == db_block_height:
+                            app_log.info("Outgoing: We have the same block as {}, hash will be verified".format(peer_ip))
+                        else:
+                            app_log.warning("Outgoing: We have a lower block than {}, hash will be verified".format(peer_ip))
 
                         execute(c, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
                         db_block_hash = c.fetchone()[0]  # get latest block_hash
@@ -1891,23 +1959,6 @@ def worker(HOST, PORT):
                         consensus_blockheight = int(received_block_height)  # str int to remove leading zeros
                         consensus_add(peer_ip, consensus_blockheight)
                         # consensus pool 2 (active connection)
-
-                    if int(received_block_height) > db_block_height:
-                        app_log.warning("Outgoing: We have a lower block than {}, hash will be verified".format(peer_ip))
-
-                        execute(c, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
-                        db_block_hash = c.fetchone()[0]  # get latest block_hash
-
-                        app_log.info("Outgoing: block_hash to send: {}".format(db_block_hash))
-                        connections.send(s, db_block_hash, 10)
-
-                        # consensus pool 2 (active connection)
-                        consensus_blockheight = int(received_block_height)  # str int to remove leading zeros
-                        consensus_add(peer_ip, consensus_blockheight)
-                        # consensus pool 2 (active connection)
-
-                        # receive their latest hash
-                        # confirm you know that hash or continue receiving
 
                 except Exception as e:
                     app_log.info("Outgoing: Sync failed {}".format(e))

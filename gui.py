@@ -49,6 +49,9 @@ app_log = log.log("gui.log", debug_level)
 root = Tk()
 root.wm_title("Bismuth")
 
+def help():
+    pass
+
 def backup():
     root.filename = filedialog.asksaveasfilename(initialdir="/", title="Select backup file", filetypes=(("gzip", "*.gz"), ))
 
@@ -1039,6 +1042,9 @@ gui_list_aliases.grid(row=0, column=3, sticky=W + E)
 
 gui_insert_clipboard = Button(f3, text="Paste", command=address_insert, font=("Tahoma", 7))
 gui_insert_clipboard.grid(row=1, column=2, sticky=W + E)
+
+gui_insert_clipboard = Button(f3, text="Help", command=help, font=("Tahoma", 7))
+gui_insert_clipboard.grid(row=4, column=2, sticky=W + E)
 
 Label(f3, text="Your Address:", width=20, anchor="e").grid(row=0)
 Label(f3, text="Recipient:", width=20, anchor="e").grid(row=1)

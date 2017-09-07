@@ -11,6 +11,7 @@ purge=1
 pause=6
 mining_threads=6
 diff_recalc=50000
+hyper_path=static/hyper.db
 ledger_path=static/ledger.db
 hyperblocks=0
 warning_list_limit=10

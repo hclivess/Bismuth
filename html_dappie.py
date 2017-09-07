@@ -15,20 +15,20 @@ def hello():
     c = conn.cursor()
 
     html = []
-    for row in c.execute("SELECT * FROM transactions WHERE openfield LIKE ? LIMIT 500", ("html=" + '%',)):
+    for row in c.execute("SELECT * FROM transactions WHERE openfield LIKE ? ORDER BY block_height DESC LIMIT 500", ("html=" + '%',)):
         html.append("Block: ")
         html.append(str(row[0]))
         html.append("<br>")
         html.append("Time: ")
         html.append(time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(row[1]))))
         html.append("<br>")
-        html.append("From: ")
+        html.append("Author: ")
         html.append(str(row[2]))
         html.append("<br>")
         html.append("Content: ")
-        html.append("<br>")
+        html.append("<br><br>")
         html.append(row[11].lstrip("html="))
-        html.append("<br>")
+        html.append("<br><br>")
     return str(''.join(html))
 
 run(host='0.0.0.0', port=4585, debug=True)

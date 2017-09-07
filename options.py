@@ -28,8 +28,8 @@ class Get:
                 self.pause_conf = line.lstrip('pause=')
             if "ledger_path=" in line:
                 self.ledger_path_conf = line.lstrip('ledger_path=')
-            if "hyperblocks=" in line:
-                self.hyperblocks_conf = int(line.lstrip('hyperblocks='))
+            if "hyper_path=" in line:
+                self.hyper_path_conf = line.lstrip('hyper_path=')
             if "warning_list_limit=" in line:
                 self.warning_list_limit_conf = int(line.lstrip('warning_list_limit='))
             if "tor=" in line:
