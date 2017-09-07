@@ -5,11 +5,15 @@ import sqlite3, keys
 mempool = sqlite3.connect('mempool.db')
 mempool.text_factory = str
 m = mempool.cursor()
-m.execute("SELECT sum(amount) FROM transactions WHERE address = ?;", (address,))
-debit_mempool = m.fetchone()[0]
-mempool.close()
-if debit_mempool == None:
+
+# include mempool fees
+m.execute("SELECT count(amount), sum(amount) FROM transactions WHERE address = ?;", (address,))
+result = m.fetchall()[0]
+if result[1] != None:
+    debit_mempool = float(result[1]) + float(result[1]) * 0.001 + int(result[0]) * 0.01
+else:
     debit_mempool = 0
+# include mempool fees
 
 conn = sqlite3.connect('static/ledger.db')
 conn.text_factory = str
@@ -25,14 +29,11 @@ rewards = c.fetchone()[0]
 c.execute("SELECT MAX(block_height) FROM transactions")
 bl_height = c.fetchone()[0]
 
-if debit is None:
-    debit = 0
-if fees is None:
-    fees = 0
-if rewards is None:
-    rewards = 0
-if credit is None:
-    credit = 0
+debit = 0 if debit is None else debit
+fees = 0 if fees is None else fees
+rewards = 0 if rewards is None else rewards
+credit = 0 if credit is None else credit
+
 balance = credit - debit - fees + rewards - debit_mempool
 
 print("Public key address: {}".format(address))
