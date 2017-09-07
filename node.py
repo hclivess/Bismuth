@@ -86,7 +86,6 @@ def db_to_drive():
     execute_param(o, ("SELECT * FROM transactions WHERE block_height > ? ORDER BY block_height ASC"),(hdd_block,))
     result = o.fetchall()
     for x in result:
-        print (x)
         h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
         h2.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
     commit(hdd)
@@ -95,7 +94,6 @@ def db_to_drive():
     execute_param(o, ("SELECT * FROM misc WHERE block_height > ? ORDER BY block_height ASC"),(hdd_block,))
     result = o.fetchall()
     for x in result:
-        print (x)
         h.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
         h2.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
     commit(hdd)
