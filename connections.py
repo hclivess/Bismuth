@@ -3,11 +3,8 @@ import select, picklemagic, ast, json
 def send(sdef, data, slen):
     sdef.setblocking(0)
 
-    #sdef.sendall(str(len(str(json.dumps(data)))).encode("utf-8").zfill(slen))
-    #sdef.sendall(str(json.dumps(data)).encode("utf-8"))
-
-    sdef.sendall(str(len(str(picklemagic.safe_dumps(data)))).encode("utf-8").zfill(slen))
-    sdef.sendall(str(picklemagic.safe_dumps(data)).encode("utf-8"))
+    sdef.sendall(str(len(str(json.dumps(data)))).encode("utf-8").zfill(slen))
+    sdef.sendall(str(json.dumps(data)).encode("utf-8"))
 
 def receive(sdef, slen):
     sdef.setblocking(0)
