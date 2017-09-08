@@ -60,7 +60,6 @@ full_ledger = config.full_ledger_conf
 def bootstrap():
     try:
         archive_path = ledger_path_conf + ".tar.gz"
-        os.rename(ledger_path_conf, ledger_path_conf + ".old")
         download_file("http://bismuth.cz/ledger.tar.gz", archive_path)
 
         tar = tarfile.open(archive_path)
@@ -311,7 +310,7 @@ def ledger_convert(ledger_path_conf,hyper_path_conf):
                     timestamp = str(time.time())
                     hyp.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (db_block_height - depth - 1, timestamp, "Hyperblock", x, '%.8f' % float(end_balance), "0", "0", "0", "0", "0",
                         "0", "0"))
-                    hyper.commit()
+            hyper.commit() #EXPERIMENTALLY DEDENTED TO TAKE EVERYTHING AT ONCE
 
             hyp.execute("DELETE FROM transactions WHERE block_height < ? AND address != 'Hyperblock' AND keep = '0';", (str(int(db_block_height) - depth),))
             hyper.commit()
