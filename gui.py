@@ -4,6 +4,7 @@ import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, sqlite3, time, base64, con
 config = options.Get()
 config.read()
 debug_level = config.debug_level_conf
+full_ledger = config.full_ledger_conf
 
 from datetime import datetime
 from Crypto.PublicKey import RSA
@@ -18,12 +19,18 @@ global encrypted
 global unlocked
 
 # for local evaluation
-conn = sqlite3.connect('static/ledger.db')
+if full_ledger == 1:
+    conn = sqlite3.connect('static/ledger.db')
+else:
+    conn = sqlite3.connect('static/hyper.db')
 conn.text_factory = str
 global c
 c = conn.cursor()
 
-conn2 = sqlite3.connect('static/ledger.db')
+if full_ledger == 1:
+    conn2 = sqlite3.connect('static/ledger.db')
+else:
+    conn2 = sqlite3.connect('static/hyper.db')
 conn2.text_factory = str
 global c2
 c2 = conn.cursor()

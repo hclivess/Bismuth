@@ -56,6 +56,42 @@ version = config.version_conf
 full_ledger = config.full_ledger_conf
 
 # load config
+
+def bootstrap():
+    try:
+        archive_path = ledger_path_conf + ".tar.gz"
+        os.rename(ledger_path_conf, ledger_path_conf + ".old")
+        download_file("http://bismuth.cz/ledger.tar.gz", archive_path)
+
+        tar = tarfile.open(archive_path)
+        tar.extractall("static/")  # NOT COMPATIBLE WITH CUSTOM PATH CONFS
+        tar.close()
+
+    except:
+        app_log.warning("Something went wrong during bootstrapping, aborted")
+        raise
+
+def check_integrity(database):
+    # check ledger integrity
+    ledger_check = sqlite3.connect(database)
+    ledger_check.text_factory = str
+    l = ledger_check.cursor()
+
+    try:
+        l.execute("PRAGMA table_info('transactions')")
+        redownload = 0
+    except:
+        redownload = 1
+
+    if len(l.fetchall()) != 12:
+        app_log.warning("Integrity check on database failed, bootstrapping from the website")
+        redownload = 1
+    else:
+        ledger_check.close()
+
+    if redownload == 1:
+        bootstrap()
+
 def percentage(percent, whole):
     return float((percent * whole) / 100)
 
@@ -106,6 +142,7 @@ def db_to_drive():
         for x in result2:
             h.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
         commit(hdd)
+        hdd.close()
 
     for x in result2:
         h2.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
@@ -114,7 +151,6 @@ def db_to_drive():
     h2.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
     hdd_block = h2.fetchone()[0]
 
-    hdd.close()
     hdd2.close()
     app_log.warning("Ledger updated successfully")
 
@@ -196,9 +232,10 @@ def ledger_convert(ledger_path_conf,hyper_path_conf):
                     recompress = 1
             else:
                 if hyper_recompress_conf == 1:
-                    app_log.warning("Recompressing hyperblocks (without full ledger")
+                    app_log.warning("Recompressing hyperblocks (without full ledger)")
                     recompress = 1
                 else:
+                    app_log.warning("Hyperblock recompression skipped")
                     recompress = 0
         else:
             app_log.warning("Compressing ledger to Hyperblocks")
@@ -286,6 +323,11 @@ def ledger_convert(ledger_path_conf,hyper_path_conf):
                 os.remove(hyper_path_conf) #remove the old hyperblocks
 
             os.rename(ledger_path_conf + '.temp', hyper_path_conf)
+
+        if full_ledger == 0 and os.path.exists(ledger_path_conf):
+            os.remove(ledger_path_conf)
+            app_log.warning("Removed full ledger and only kept hyperblocks")
+
     except Exception as e:
         raise ValueError("There was an issue converting to Hyperblocks: {}".format(e))
 
@@ -1235,39 +1277,7 @@ address = hashlib.sha224(public_key_readable.encode('utf-8')).hexdigest()
 app_log.warning("Local address: {}".format(address))
 
 
-#check ledger integrity
-ledger_check = sqlite3.connect(ledger_path_conf)
-ledger_check.text_factory = str
-l = ledger_check.cursor()
-
-try:
-    l.execute("PRAGMA table_info('transactions')")
-    redownload = 0
-except:
-    redownload = 1
-
-if len(l.fetchall()) != 12:
-    app_log.warning("Integrity check on ledger.db failed, bootstrapping from the website")
-    redownload = 1
-
-if redownload == 1:
-    try:
-        ledger_check.close()
-        archive_path = ledger_path_conf+".tar.gz"
-        os.rename(ledger_path_conf,ledger_path_conf+".old")
-        download_file("http://bismuth.cz/ledger.tar.gz", archive_path)
-
-        tar = tarfile.open(archive_path)
-        tar.extractall("static/") #NOT COMPATIBLE WITH CUSTOM PATH CONFS
-        tar.close()
-
-    except:
-        app_log.warning("Something went wrong during bootstrapping, aborted")
-        raise
-else:
-    ledger_check.close()
-#check ledger integrity
-
+check_integrity(hyper_path_conf)
 
 if not os.path.exists('mempool.db'):
     # create empty mempool
@@ -1536,7 +1546,10 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             app_log.info("Incoming: Will seek the following block: {}".format(data))
 
                             try:
-                                hdd = sqlite3.connect(ledger_path_conf, timeout=1)
+                                if full_ledger == 1:
+                                    hdd = sqlite3.connect(ledger_path_conf, timeout=1)
+                                else:
+                                    hdd = sqlite3.connect(hyper_path_conf, timeout=1)
                                 hdd.text_factory = str
                                 h = hdd.cursor()
 
@@ -1937,10 +1950,11 @@ def worker(HOST, PORT):
                         consensus_add(peer_ip, consensus_blockheight)
                         # consensus pool 2 (active connection)
 
-
-
                         try:
-                            hdd = sqlite3.connect(ledger_path_conf, timeout=1)
+                            if full_ledger == 1:
+                                hdd = sqlite3.connect(ledger_path_conf, timeout=1)
+                            else:
+                                hdd = sqlite3.connect(hyper_path_conf, timeout=1)
                             hdd.text_factory = str
                             h = hdd.cursor()
 

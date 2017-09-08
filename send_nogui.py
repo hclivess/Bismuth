@@ -9,6 +9,13 @@ import time
 import sqlite3
 import keys
 import sys
+import options
+
+config = options.Get()
+config.read()
+full_ledger = config.full_ledger_conf
+ledger_path = config.ledger_path_conf
+hyper_path = config.hyper_path_conf
 
 key, private_key_readable, public_key_readable, public_key_hashed, address = keys.read()
 
@@ -27,7 +34,10 @@ mempool.close()
 if debit_mempool is None:
     debit_mempool = 0
 
-conn = sqlite3.connect('static/ledger.db')
+if full_ledger == 1:
+    conn = sqlite3.connect(ledger_path)
+else:
+    conn = sqlite3.connect(hyper_path)
 conn.text_factory = str
 c = conn.cursor()
 c.execute("SELECT sum(amount) FROM transactions WHERE recipient = ?;", (address,))
