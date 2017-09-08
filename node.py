@@ -4,7 +4,7 @@
 # if you raise in the server thread, the server will die and node will stop
 # never use codecs, they are bugged and do not provide proper serialization
 # must unify node and client now that connections parameters are function parameters
-# sqlite "for row" cannot be properly combined with "commit" for the whole batch, needs to be done 1 by 1 and should be avoided (slow)
+# if you have a block of data and want to insert it into sqlite, you must use a single "commit" for the whole batch, it's 100x faster
 
 from itertools import groupby
 from operator import itemgetter
@@ -195,6 +195,7 @@ def warning(sdef, ip):
         banlist.append(ip)
         sdef.close()
         app_log.warning("{} banned".format(ip))  # rework this
+        return "banned"
 
 
 def ledger_convert(ledger_path_conf,hyper_path_conf):
@@ -1042,7 +1043,8 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                     app_log.warning("Check 1: A part of the block is invalid, rejected: {}".format(error_msg))
                     error_msg = ""
                     app_log.info("Check 1: Complete rejected data: {}".format(data))
-                    warning(sdef, peer_ip)
+                    if warning(sdef, peer_ip) == "banned":
+                        raise ValueError ("{} banned".format(peer_ip))
 
                 if block_valid == 1:
                     for transaction in transaction_list:
@@ -1160,7 +1162,8 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                         app_log.info("Check 2: A part of the block is invalid, rejected: {}".format(error_msg))
                         error_msg = ""
                         app_log.info("Check 2: Complete rejected block: {}".format(data))
-                        warning(sdef, peer_ip)
+                        if warning(sdef, peer_ip) == "banned":
+                            raise ValueError("{} banned".format(peer_ip))
 
                     if block_valid == 1:
 
@@ -1385,7 +1388,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         while banned == 0 and capacity == 1:
             try:
                 if not time.time() <= timer_operation + timeout_operation:  # return on timeout
-                    warning(self.request, peer_ip)  # add warning
+                    if warning(self.request, peer_ip) == "banned":
+                        app_log.info("{} banned".format(peer_ip))
+                        break
 
                     raise ValueError("Incoming: Operation timeout from {}".format(peer_ip))
 
@@ -1604,7 +1609,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # print peer_ip
                     if max(consensus_blockheight_list) == consensus_blockheight:
                         blocknf(block_hash_delete, peer_ip, conn, c)
-                        warning(self.request,peer_ip)
+                        if warning(self.request, peer_ip) == "banned":
+                            app_log.info("{} banned".format(peer_ip))
+                            break
                     app_log.info("Outgoing: Deletion complete, sending sync request")
 
                     while db_lock.locked() == True:
@@ -2023,7 +2030,9 @@ def worker(HOST, PORT):
                 # print peer_ip
                 if max(consensus_blockheight_list) == consensus_blockheight:
                     blocknf(block_hash_delete, peer_ip, conn, c)
-                    warning(s, peer_ip)
+                    if warning(s, peer_ip) == "banned":
+                        raise ValueError("{} banned".format(peer_ip))
+
 
                 while db_lock.locked() == True:
                     time.sleep(float(pause_conf))
