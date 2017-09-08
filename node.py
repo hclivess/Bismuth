@@ -16,7 +16,9 @@ from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 
 # load config
-global warning_list_limit_conf
+#global warning_list_limit_conf
+global banlist
+banlist = []
 global hdd_block
 global test
 test = 1
@@ -423,8 +425,6 @@ global consensus_percentage
 consensus_percentage = ""
 global warning_list
 warning_list = []
-global banlist
-banlist = []
 global consensus
 consensus = ""
 global syncing
@@ -854,13 +854,15 @@ def manager():
                 t.start()
 
                 # client thread handling
-        if len(connection_pool) < thread_limit_conf / 3:
-            app_log.info("Only {} connections active, resetting the try list and banlist".format(len(connection_pool)))
+        if len(connection_pool) < 3:
+            app_log.warning("Only {} connections active, resetting the connection history and banlist".format(len(connection_pool)))
             del tried[:]
             del banlist[:]
             del warning_list[:]
 
-        app_log.info("Connection manager: Banlist: {}".format(banlist))
+        if banlist:
+            app_log.info("Connection manager: Banlist: {}".format(banlist))
+
         app_log.info("Connection manager: Syncing nodes: {}".format(syncing))
         app_log.info("Connection manager: Syncing nodes: {}/3".format(len(syncing)))
         app_log.info("Connection manager: Database locked: {}".format(db_lock.locked()))
@@ -872,8 +874,6 @@ def manager():
             app_log.warning("Connection manager: Consensus: {} = {}%".format(consensus, consensus_percentage))
             app_log.warning("Connection manager: Consensus IP list: {}".format(peer_ip_list))
             app_log.warning("Connection manager: Consensus opinion list: {}".format(consensus_blockheight_list))
-            app_log.warning("Connection manager: Banlist: {}".format(banlist))
-
 
         #last block
         execute(c, "SELECT timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
@@ -2098,7 +2098,7 @@ def worker(HOST, PORT):
             # remove from active pool
             if this_client in connection_pool:
                 app_log.info("Will remove {} from active pool {}".format(this_client, connection_pool))
-                app_log.warning("Disconnected from {}".format(this_client))
+                app_log.warning("Outgoing: Disconnected from {} because {}".format(this_client,e))
                 connection_pool.remove(this_client)
             # remove from active pool
 

@@ -10,8 +10,12 @@ def receive(sdef, slen):
     sdef.setblocking(0)
     ready = select.select([sdef], [], [], 120)
     if ready[0]:
-        data = int(sdef.recv(slen))  # receive length
-        #print ("To receive: {}".format(data))
+        try:
+            data = int(sdef.recv(slen))  # receive length
+            #print ("To receive: {}".format(data))
+        except:
+            raise RuntimeError("no data received, probably probing") #do away with the invalid literal for int
+
     else:
         raise RuntimeError("Socket timeout")
 
