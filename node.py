@@ -53,6 +53,7 @@ pool_conf = config.pool_conf
 ram_conf = config.ram_conf
 pool_address = config.pool_address_conf
 version = config.version_conf
+full_ledger = config.full_ledger_conf
 
 # load config
 def percentage(percent, whole):
@@ -73,9 +74,11 @@ def db_to_drive():
     global hdd_block
 
     app_log.warning("Moving new data to HDD")
-    hdd = sqlite3.connect(ledger_path_conf,timeout=1)
-    hdd.text_factory = str
-    h = hdd.cursor()
+
+    if full_ledger == 1:
+        hdd = sqlite3.connect(ledger_path_conf,timeout=1)
+        hdd.text_factory = str
+        h = hdd.cursor()
 
     hdd2 = sqlite3.connect(hyper_path_conf,timeout=1)
     hdd2.text_factory = str
@@ -86,45 +89,33 @@ def db_to_drive():
     old_db.text_factory = str
     o = old_db.cursor()
 
-
     execute_param(o, ("SELECT * FROM transactions WHERE block_height > ? ORDER BY block_height ASC"),(hdd_block,))
-    result = o.fetchall()
-    for x in result:
-        h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
+    result1 = o.fetchall()
+    if full_ledger == 1:
+        for x in result1:
+            h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
+        commit(hdd)
+
+    for x in result1:
         h2.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
-    commit(hdd)
     commit(hdd2)
 
     execute_param(o, ("SELECT * FROM misc WHERE block_height > ? ORDER BY block_height ASC"),(hdd_block,))
-    result = o.fetchall()
-    for x in result:
-        h.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
+    result2 = o.fetchall()
+    if full_ledger == 1:
+        for x in result2:
+            h.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
+        commit(hdd)
+
+    for x in result2:
         h2.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
-    commit(hdd)
     commit(hdd2)
 
+    h2.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
+    hdd_block = h2.fetchone()[0]
 
-
-
-    """ #for row takes insane time, goes one by one    
-    for row in execute_param(o, ("SELECT * FROM transactions WHERE block_height > ? ORDER BY block_height ASC"),(hdd_block,)):
-        h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10], row[11]))
-        h2.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10], row[11]))
-        commit(hdd)
-        commit(hdd2)
-        if row[0] % 1000 == 0:
-            app_log.warning("Local HDD database is still being updated, please do not interrupt this process...")
-
-    for row in execute_param(o, ("SELECT * FROM misc WHERE block_height > ? ORDER BY block_height ASC"),(hdd_block,)):
-        h.execute("INSERT INTO misc VALUES (?,?)", (row[0], row[1]))
-        h2.execute("INSERT INTO misc VALUES (?,?)", (row[0], row[1]))
-        commit(hdd)
-        commit(hdd2)
-    """
-
-    h.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
-    hdd_block = h.fetchone()[0]
     hdd.close()
+    hdd2.close()
     app_log.warning("Ledger updated successfully")
 
 def db_c_define():
@@ -176,33 +167,39 @@ def ledger_convert(ledger_path_conf,hyper_path_conf):
 
         if os.path.exists(hyper_path_conf):
 
-            # cross-integrity check
-            hdd = sqlite3.connect(ledger_path_conf, timeout=1)
-            hdd.text_factory = str
-            h = hdd.cursor()
-            h.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
-            hdd_block_last = h.fetchone()[0]
-            hdd.close()
+            if full_ledger == 1:
+                # cross-integrity check
+                hdd = sqlite3.connect(ledger_path_conf, timeout=1)
+                hdd.text_factory = str
+                h = hdd.cursor()
+                h.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
+                hdd_block_last = h.fetchone()[0]
+                hdd.close()
 
-            hdd2 = sqlite3.connect(hyper_path_conf, timeout=1)
-            hdd2.text_factory = str
-            h2 = hdd2.cursor()
-            h2.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
-            hdd2_block_last = h2.fetchone()[0]
-            hdd2.close()
-            # cross-integrity check
+                hdd2 = sqlite3.connect(hyper_path_conf, timeout=1)
+                hdd2.text_factory = str
+                h2 = hdd2.cursor()
+                h2.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
+                hdd2_block_last = h2.fetchone()[0]
+                hdd2.close()
+                # cross-integrity check
 
-            if hdd_block_last == hdd2_block_last and hyper_recompress_conf == 1: # cross-integrity check
-                ledger_path_conf = hyper_path_conf # only valid within the function
-                app_log.warning("Recompressing hyperblocks")
-                recompress = 1
-            elif hdd_block_last == hdd2_block_last and hyper_recompress_conf == 0:
-                app_log.warning("Hyperblock recompression skipped")
-                recompress = 0
+                if hdd_block_last == hdd2_block_last and hyper_recompress_conf == 1: # cross-integrity check
+                    ledger_path_conf = hyper_path_conf # only valid within the function
+                    app_log.warning("Recompressing hyperblocks (keeping full ledger")
+                    recompress = 1
+                elif hdd_block_last == hdd2_block_last and hyper_recompress_conf == 0:
+                    app_log.warning("Hyperblock recompression skipped")
+                    recompress = 0
+                else:
+                    app_log.warning("Cross-integrity check failed, hyperblocks will be rebuilt")
+                    recompress = 1
             else:
-                app_log.warning("Cross-integrity check failed, hyperblocks will be rebuilt")
-                recompress = 1
-
+                if hyper_recompress_conf == 1:
+                    app_log.warning("Recompressing hyperblocks (without full ledger")
+                    recompress = 1
+                else:
+                    recompress = 0
         else:
             app_log.warning("Compressing ledger to Hyperblocks")
             recompress = 1
@@ -210,11 +207,16 @@ def ledger_convert(ledger_path_conf,hyper_path_conf):
         if recompress == 1:
             depth = 10000 #REWORK TO REFLECT TIME INSTEAD OF BLOCKS
 
-            if os.path.exists(ledger_path_conf + '.temp'):
-                os.remove(ledger_path_conf + '.temp')
+            #if os.path.exists(ledger_path_conf + '.temp'):
+            #    os.remove(ledger_path_conf + '.temp')
 
-            shutil.copy(ledger_path_conf, ledger_path_conf + '.temp')
-            hyper = sqlite3.connect(ledger_path_conf + '.temp')
+            if full_ledger == 1:
+                shutil.copy(ledger_path_conf, ledger_path_conf + '.temp')
+                hyper = sqlite3.connect(ledger_path_conf + '.temp')
+            else:
+                shutil.copy(hyper_path_conf, ledger_path_conf + '.temp')
+                hyper = sqlite3.connect(ledger_path_conf + '.temp')
+
             hyper.text_factory = str
             hyp = hyper.cursor()
 
@@ -335,7 +337,7 @@ def difficulty(c):
 
     execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (timestamp_last - 86400,))  # 86400=24h
     blocks_per_1440 = len(c.fetchall())
-    app_log.warning("Blocks per day: {}".format(blocks_per_1440))
+    app_log.info("Blocks per day: {}".format(blocks_per_1440))
 
     execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
     try:
@@ -347,7 +349,7 @@ def difficulty(c):
         log = math.log2(blocks_per_1440 / 1440)
     except:
         log = math.log2(0.5 / 1440)
-    app_log.warning("Difficulty retargeting: {}".format(log))
+    app_log.info("Difficulty retargeting: {}".format(log))
 
     difficulty = diff_block_previous + log  # increase/decrease diff by a little
 
@@ -699,25 +701,27 @@ def blocknf(block_hash_delete, peer_ip, conn, c):
 
 
                 # roll back hdd too
-                hdd = sqlite3.connect(ledger_path_conf,timeout=1)
-                hdd.text_factory = str
-                h = hdd.cursor()
+                if full_ledger == 1:
+                    hdd = sqlite3.connect(ledger_path_conf,timeout=1)
+                    hdd.text_factory = str
+                    h = hdd.cursor()
+
+                    execute_param(h, ("DELETE FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
+                    commit(hdd)
+                    execute_param(h, ("DELETE FROM misc WHERE block_height >= ?;"), (str(db_block_height),))
+                    commit(hdd)
+                    hdd.close()
 
                 hdd2 = sqlite3.connect(hyper_path_conf,timeout=1)
                 hdd2.text_factory = str
                 h2 = hdd2.cursor()
 
-                execute_param(h, ("DELETE FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
-                commit(hdd)
                 execute_param(h2, ("DELETE FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
                 commit(hdd2)
-
-                execute_param(h, ("DELETE FROM misc WHERE block_height >= ?;"), (str(db_block_height),))
-                commit(hdd)
                 execute_param(h2, ("DELETE FROM misc WHERE block_height >= ?;"), (str(db_block_height),))
                 commit(hdd2)
+                hdd2.close()
 
-                hdd.close()
                 hdd_block = int(db_block_height)-1
                 # roll back hdd too
 
@@ -1146,13 +1150,14 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                                         commit(conn)
 
                                         # also save to hdd
-                                        app_log.info("Saving reward to HDD")
-                                        hdd = sqlite3.connect(ledger_path_conf,timeout=1)
-                                        hdd.text_factory = str
-                                        h = hdd.cursor()
-                                        execute_param(h, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", ("0", str(time_now), "Development Reward", str(genesis_conf), str(reward), "0", "0", "0", "0", "0", "0", str(block_height_new)))
-                                        commit(hdd)
-                                        hdd.close()
+                                        if full_ledger == 1:
+                                            app_log.info("Saving reward to HDD")
+                                            hdd = sqlite3.connect(ledger_path_conf,timeout=1)
+                                            hdd.text_factory = str
+                                            h = hdd.cursor()
+                                            execute_param(h, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", ("0", str(time_now), "Development Reward", str(genesis_conf), str(reward), "0", "0", "0", "0", "0", "0", str(block_height_new)))
+                                            commit(hdd)
+                                            hdd.close()
 
                                         hdd2 = sqlite3.connect(hyper_path_conf,timeout=1)
                                         hdd2.text_factory = str
