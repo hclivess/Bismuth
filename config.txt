@@ -15,7 +15,6 @@ hyper_path=static/hyper.db
 hyper_recompress=0
 full_ledger=1
 ledger_path=static/ledger.db
-hyperblocks=0
 warning_list_limit=10
 tor=0
 miner_sync=1
