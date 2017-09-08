@@ -31,7 +31,7 @@ class Get:
             if "hyper_path=" in line:
                 self.hyper_path_conf = line.lstrip('hyper_path=')
             if "hyper_recompress=" in line:
-                self.hyper_recompress_conf = line.lstrip('hyper_recompress=')
+                self.hyper_recompress_conf = int(line.lstrip('hyper_recompress='))
             if "warning_list_limit=" in line:
                 self.warning_list_limit_conf = int(line.lstrip('warning_list_limit='))
             if "tor=" in line:
