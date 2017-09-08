@@ -1,5 +1,11 @@
-import sqlite3, time
+import sqlite3, time, options
 from bottle import route, run, static_file
+
+config = options.Get()
+config.read()
+full_ledger = config.full_ledger_conf
+ledger_path = config.ledger_path_conf
+hyper_path = config.hyper_path_conf
 
 @route('/static/<filename>')
 def server_static(filename):
@@ -8,7 +14,12 @@ def server_static(filename):
 @route('/')
 def hello():
     # redraw chart
-    conn = sqlite3.connect('static/ledger.db')
+
+    if full_ledger == 1:
+        conn = sqlite3.connect(ledger_path)
+    else:
+        conn = sqlite3.connect(hyper_path)
+
     c = conn.cursor()
     c.execute("SELECT * FROM transactions ORDER BY block_height DESC, timestamp DESC LIMIT 100;")
 
@@ -84,8 +95,6 @@ def hello():
     # plotter.append('</html>')
     # redraw chart
 
-    conn = sqlite3.connect('static/ledger.db')
-    c = conn.cursor()
     c.execute("SELECT * FROM transactions ORDER BY block_height DESC, timestamp DESC LIMIT 500;")
 
     all = c.fetchall()
@@ -137,7 +146,7 @@ def hello():
     html.append("<center><h1>Bismuth Transaction Explorer</h1><p></center>")
 
     html.append("<div style='padding: 20px;'>")
-    html.append("<center><a href='https://drive.google.com/file/d/0B3krI6WqvUWhd2VQNjlzZl8wbEk/view?usp=sharing' class='btn btn-info' role='button'>Download Blockchain</a></center>")
+    html.append("<center><a href='http://bismuth.cz/ledger.tar.gz' class='btn btn-info' role='button'>Download Blockchain</a></center>")
     html.append("</div>")
 
     html.append("</div>")
