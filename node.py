@@ -861,7 +861,7 @@ def manager():
             del warning_list[:]
 
         if banlist:
-            app_log.info("Connection manager: Banlist: {}".format(banlist))
+            app_log.warning("Connection manager: Banlist: {}".format(banlist))
 
         app_log.info("Connection manager: Syncing nodes: {}".format(syncing))
         app_log.info("Connection manager: Syncing nodes: {}/3".format(len(syncing)))
