@@ -184,12 +184,13 @@ def unban(ip):
     banlist = [x for x in banlist if x != ip]
 
 
-def warning(sdef, ip):
+def warning(sdef, ip, reason):
+    global banlist
     global warning_list
     global warning_list_limit_conf
 
     warning_list.append(ip)
-    app_log.warning("Added a warning to {} ({} / {})".format(ip, warning_list.count(ip), warning_list_limit_conf))
+    app_log.warning("Added a warning to {}: {} ({} / {})".format(ip, reason, warning_list.count(ip), warning_list_limit_conf))
 
     if warning_list.count(ip) >= warning_list_limit_conf:
         banlist.append(ip)
@@ -863,7 +864,7 @@ def manager():
         app_log.info("Connection manager: Syncing nodes: {}".format(syncing))
         app_log.info("Connection manager: Syncing nodes: {}/3".format(len(syncing)))
         app_log.info("Connection manager: Database locked: {}".format(db_lock.locked()))
-        app_log.info("Connection manager: Threads at {} / {}".format(threading.active_count(), thread_limit_conf))
+        app_log.warning("Connection manager: Threads at {} / {}".format(threading.active_count(), thread_limit_conf))
         app_log.info("Connection manager: Tried: {}".format(tried))
         app_log.info("Connection manager: List of outgoing connections: {}".format(connection_pool))
         app_log.warning("Connection manager: Number of outgoing connections: {}".format(len(connection_pool)))
@@ -1043,7 +1044,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                     app_log.warning("Check 1: A part of the block is invalid, rejected: {}".format(error_msg))
                     error_msg = ""
                     app_log.info("Check 1: Complete rejected data: {}".format(data))
-                    if warning(sdef, peer_ip) == "banned":
+                    if warning(sdef, peer_ip, "Check 1: rejected block") == "banned":
                         raise ValueError ("{} banned".format(peer_ip))
 
                 if block_valid == 1:
@@ -1162,7 +1163,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                         app_log.info("Check 2: A part of the block is invalid, rejected: {}".format(error_msg))
                         error_msg = ""
                         app_log.info("Check 2: Complete rejected block: {}".format(data))
-                        if warning(sdef, peer_ip) == "banned":
+                        if warning(sdef, peer_ip, "Check 2: rejected block") == "banned":
                             raise ValueError("{} banned".format(peer_ip))
 
                     if block_valid == 1:
@@ -1388,7 +1389,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         while banned == 0 and capacity == 1:
             try:
                 if not time.time() <= timer_operation + timeout_operation:  # return on timeout
-                    if warning(self.request, peer_ip) == "banned":
+                    if warning(self.request, peer_ip, "Operation timeout") == "banned":
                         app_log.info("{} banned".format(peer_ip))
                         break
 
@@ -1609,7 +1610,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # print peer_ip
                     if max(consensus_blockheight_list) == consensus_blockheight:
                         blocknf(block_hash_delete, peer_ip, conn, c)
-                        if warning(self.request, peer_ip) == "banned":
+                        if warning(self.request, peer_ip, "Rollback") == "banned":
                             app_log.info("{} banned".format(peer_ip))
                             break
                     app_log.info("Outgoing: Deletion complete, sending sync request")
@@ -2030,7 +2031,7 @@ def worker(HOST, PORT):
                 # print peer_ip
                 if max(consensus_blockheight_list) == consensus_blockheight:
                     blocknf(block_hash_delete, peer_ip, conn, c)
-                    if warning(s, peer_ip) == "banned":
+                    if warning(s, peer_ip, "Rollback") == "banned":
                         raise ValueError("{} banned".format(peer_ip))
 
 
