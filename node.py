@@ -197,7 +197,7 @@ def warning(sdef, ip, reason):
     if warning_list.count(ip) >= warning_list_limit_conf:
         banlist.append(ip)
         sdef.close()
-        app_log.warning("{} banned".format(ip))  # rework this
+        app_log.warning("{} is banned".format(ip))
         return "banned"
 
 
@@ -225,7 +225,7 @@ def ledger_convert(ledger_path_conf,hyper_path_conf):
 
                 if hdd_block_last == hdd2_block_last and hyper_recompress_conf == 1: # cross-integrity check
                     ledger_path_conf = hyper_path_conf # only valid within the function
-                    app_log.warning("Recompressing hyperblocks (keeping full ledger")
+                    app_log.warning("Recompressing hyperblocks (keeping full ledger)")
                     recompress = 1
                 elif hdd_block_last == hdd2_block_last and hyper_recompress_conf == 0:
                     app_log.warning("Hyperblock recompression skipped")
@@ -2032,7 +2032,7 @@ def worker(HOST, PORT):
                 if max(consensus_blockheight_list) == consensus_blockheight:
                     blocknf(block_hash_delete, peer_ip, conn, c)
                     if warning(s, peer_ip, "Rollback") == "banned":
-                        raise ValueError("{} banned".format(peer_ip))
+                        raise ValueError("{} is banned".format(peer_ip))
 
 
                 while db_lock.locked() == True:
@@ -2098,7 +2098,7 @@ def worker(HOST, PORT):
             # remove from active pool
             if this_client in connection_pool:
                 app_log.info("Will remove {} from active pool {}".format(this_client, connection_pool))
-                app_log.warning("Outgoing: Disconnected from {} because {}".format(this_client,e))
+                app_log.warning("Outgoing: Disconnected from {}: {}".format(this_client,e))
                 connection_pool.remove(this_client)
             # remove from active pool
 
