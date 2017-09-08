@@ -838,7 +838,7 @@ def manager():
     peer_dict = peers_get()
 
     while True:
-        dict_keys = peer_dict.keys()
+        #dict_keys = peer_dict.keys()
         #random.shuffle(dict_keys)
 
         for key, value in peer_dict.items():
