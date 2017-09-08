@@ -8,7 +8,7 @@
 
 from itertools import groupby
 from operator import itemgetter
-import shutil, socketserver, base64, hashlib, os, re, sqlite3, sys, threading, time, socks, log, options, connections, random, keys, math, requests
+import shutil, socketserver, base64, hashlib, os, re, sqlite3, sys, threading, time, socks, log, options, connections, random, keys, math, requests, tarfile
 
 from Crypto import Random
 from Crypto.Hash import SHA
@@ -59,11 +59,15 @@ def percentage(percent, whole):
     return float((percent * whole) / 100)
 
 def download_file(url, filename):
-    r = requests.get(url, stream=True)
-    with open(filename, 'wb') as f:
-        shutil.copyfileobj(r.raw, f)
+    try:
+        r = requests.get(url, stream=True)
+        with open(filename, 'wb') as f:
+            shutil.copyfileobj(r.raw, f)
 
-    return filename
+        return filename
+    except:
+        raise
+
 
 def db_to_drive():
     global hdd_block
@@ -1244,8 +1248,14 @@ if len(l.fetchall()) != 12:
 if redownload == 1:
     try:
         ledger_check.close()
+        archive_path = ledger_path_conf+".tar.gz"
         os.rename(ledger_path_conf,ledger_path_conf+".old")
-        download_file("http://bismuth.cz/ledger.db", ledger_path_conf)
+        download_file("http://bismuth.cz/ledger.tar.gz", archive_path)
+
+        tar = tarfile.open(archive_path)
+        tar.extractall("static/") #NOT COMPATIBLE WITH CUSTOM PATH CONFS
+        tar.close()
+
     except:
         app_log.warning("Something went wrong during bootstrapping, aborted")
         raise
