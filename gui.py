@@ -160,7 +160,10 @@ def difficulty(c):
     time_now = time.time()
 
     if time_now > timestamp_last + 300: #if 5 minutes have passed
-        difficulty2 = percentage(90,difficulty)
+        if block_height < 300000:
+            difficulty2 = percentage(90,difficulty)
+        else:
+            difficulty2 = percentage(95, difficulty)
     else:
         difficulty2 = difficulty
 
