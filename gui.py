@@ -540,6 +540,7 @@ def msg_dialogue():
                 except:
                     msg_received_digest = "Could not decrypt message"
 
+
             elif row[1].startswith("bmsg="):
                 msg_received_digest = row[1].lstrip("bmsg=")
                 try:
@@ -568,7 +569,16 @@ def msg_dialogue():
             if row[1].startswith("enc=msg="):
                 msg_sent_digest = row[1].lstrip("enc=msg=")
                 try:
-                    msg_sent_digest = key.decrypt(ast.literal_eval(msg_sent_digest)).decode("utf-8")
+                    #msg_sent_digest = key.decrypt(ast.literal_eval(msg_sent_digest)).decode("utf-8")
+                    (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval(msg_sent_digest)
+                    private_key = RSA.import_key(open("privkey.der").read())
+                    # Decrypt the session key with the public RSA key
+                    cipher_rsa = PKCS1_OAEP.new(private_key)
+                    session_key = cipher_rsa.decrypt(enc_session_key)
+                    # Decrypt the data with the AES session key
+                    cipher_aes = AES.new(session_key, AES.MODE_EAX, cipher_aes_nonce)
+                    msg_sent_digest = cipher_aes.decrypt_and_verify(ciphertext, tag).decode("utf-8")
+
                 except:
                     msg_sent_digest = "Could not decrypt message"
 
@@ -576,7 +586,15 @@ def msg_dialogue():
                 msg_sent_digest = row[1].lstrip("enc=bmsg=")
                 try:
                     msg_sent_digest = base64.b64decode(msg_sent_digest).decode("utf-8")
-                    msg_sent_digest = key.decrypt(ast.literal_eval(msg_sent_digest)).decode("utf-8")
+                    #msg_sent_digest = key.decrypt(ast.literal_eval(msg_sent_digest)).decode("utf-8")
+                    (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval(msg_sent_digest)
+                    private_key = RSA.import_key(open("privkey.der").read())
+                    # Decrypt the session key with the public RSA key
+                    cipher_rsa = PKCS1_OAEP.new(private_key)
+                    session_key = cipher_rsa.decrypt(enc_session_key)
+                    # Decrypt the data with the AES session key
+                    cipher_aes = AES.new(session_key, AES.MODE_EAX, cipher_aes_nonce)
+                    msg_sent_digest = cipher_aes.decrypt_and_verify(ciphertext, tag).decode("utf-8")
                 except:
                     msg_sent_digest = "Could not decrypt message"
 
