@@ -1307,6 +1307,34 @@ if len(m.fetchall()) != 8:
     app_log.info("Recreated mempool file")
 #check if mempool needs recreating
 
+def coherence_check():
+    app_log.warning("Testing chain coherence")
+    chains_to_check = [ledger_path_conf, hyper_path_conf]
+
+    for chain in chains_to_check:
+        conn = sqlite3.connect(chain)
+        c = conn.cursor()
+
+        c.execute("SELECT block_height FROM transactions WHERE reward != 0 AND block_height != (0 OR 1) ORDER BY block_height ASC")
+        result = c.fetchall()
+
+        my_list = []
+        for x in result:
+            my_list.append(x[0])
+
+        y = my_list[0]-1
+        coherent = 1
+        for x in my_list:
+            if x != y+1:
+                app_log.warning("Chain {} coherence error at: {}".format(chain,y))
+                coherent = 0
+            y = x
+
+        if coherent == 1:
+            app_log.warning("Chain {} is coherent".format(chain))
+        conn.close()
+
+coherence_check()
 
 ledger_convert(ledger_path_conf,hyper_path_conf)
 

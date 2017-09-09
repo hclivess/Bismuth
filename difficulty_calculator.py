@@ -1,11 +1,13 @@
 import sqlite3, hashlib
 
 f = open('difficulty.log', 'w')
-conn = sqlite3.connect('static/ledger.db')
+conn = sqlite3.connect('static/hyper.db')
 c = conn.cursor()
 
 c.execute("select * from transactions where reward != 0 and block_height != 0 order by block_height asc")
 result = c.fetchall()
+
+
 
 def bin_convert(string):
     return ''.join(format(ord(x), '8b').replace(' ', '0') for x in string)
