@@ -1649,6 +1649,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         else:
                             digest_block(segments, self.request, peer_ip, conn, c, mempool, m)
                     else:
+                        connections.receive(self.request, 10) #receive block, but do nothing about it
                         app_log.info("{} not whitelisted for block command".format(peer_ip))
 
                 elif data == "blocklast":
