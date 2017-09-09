@@ -4,33 +4,14 @@ from Crypto.Hash import SHA
 config = options.Get()
 config.read()
 debug_level = config.debug_level_conf
-port = config.port
-genesis_conf = config.genesis_conf
-verify_conf = config.verify_conf
-thread_limit_conf = config.thread_limit_conf
-rebuild_db_conf = config.rebuild_db_conf
-debug_conf = config.debug_conf
-node_ip_conf = config.node_ip_conf
-purge_conf = config.purge_conf
-pause_conf = config.pause_conf
 ledger_path_conf = config.ledger_path_conf
-hyperblocks_conf = config.hyperblocks_conf
-warning_list_limit_conf = config.warning_list_limit_conf
-tor_conf = config.tor_conf
-debug_level_conf = config.debug_level_conf
-allowed = config.allowed_conf
-pool_ip_conf = config.pool_ip_conf
-sync_conf = config.sync_conf
-pool_percentage_conf = config.pool_percentage_conf
-mining_threads_conf = config.mining_threads_conf
-diff_recalc_conf = config.diff_recalc_conf
-pool_conf = config.pool_conf
-ram_conf = config.ram_conf
-pool_address = config.pool_address_conf
-version = config.version_conf
+full_ledger = config.full_ledger_conf
+ledger_path = config.ledger_path_conf
+hyper_path = config.hyper_path_conf
+
 
 (key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read() #import keys
-app_log = log.log("anon.log",debug_level_conf)
+app_log = log.log("anon.log",debug_level)
 
 def randomize(divider, anon_amount, anon_recipient, identifier, anon_sender):
     per_tx = int(anon_amount/divider) #how much per tx
@@ -99,7 +80,11 @@ anon = sqlite3.connect('anon.db')
 anon.text_factory = str
 a = anon.cursor()
 
-conn = sqlite3.connect('static/ledger.db')
+if full_ledger == 1:
+    conn = sqlite3.connect(ledger_path)
+else:
+    conn = sqlite3.connect(hyper_path)
+
 conn.text_factory = str
 c = conn.cursor()
 

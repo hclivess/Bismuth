@@ -1,4 +1,4 @@
-import sqlite3, keys, base64
+import sqlite3, keys, base64, options
 
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
@@ -11,13 +11,24 @@ def percentage(percent, whole):
 
 (key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read()
 
+config = options.Get()
+config.read()
+debug_level = config.debug_level_conf
+ledger_path_conf = config.ledger_path_conf
+full_ledger = config.full_ledger_conf
+ledger_path = config.ledger_path_conf
+hyper_path = config.hyper_path_conf
+
 confirmations = 5
 run = 0
 bet_max = 100
 checked = []
 processed = []
 
-conn = sqlite3.connect('static/ledger.db')
+if full_ledger == 1:
+    conn = sqlite3.connect(ledger_path)
+else:
+    conn = sqlite3.connect(hyper_path)
 conn.text_factory = str
 c = conn.cursor()
 

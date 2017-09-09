@@ -5,11 +5,16 @@ config = options.Get()
 config.read()
 debug_level = config.debug_level_conf
 full_ledger = config.full_ledger_conf
+port = config.port
+node_ip_conf = config.node_ip_conf
 
 from datetime import datetime
 from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
+from Crypto.Random import get_random_bytes
+from Crypto.Cipher import AES, PKCS1_OAEP
+
 from simplecrypt import encrypt, decrypt
 from tkinter import filedialog
 from tkinter import *
@@ -36,14 +41,7 @@ global c2
 c2 = conn.cursor()
 
 if not os.path.exists('mempool.db'):
-    # create empty mempool
-    mempool = sqlite3.connect('mempool.db',timeout=1)
-    mempool.text_factory = str
-    m = mempool.cursor()
-    execute(m, ("CREATE TABLE IF NOT EXISTS transactions (timestamp, address, recipient, amount, signature, public_key, keep, openfield)"))
-    commit(mempool)
-    app_log.info("Created mempool file")
-    # create empty mempool
+    raise ValueError ("Mempool file not present, run node first")
 else:
     mempool = sqlite3.connect('mempool.db', timeout=1)
     mempool.text_factory = str
@@ -197,7 +195,10 @@ def alias():
 def alias_register(alias_desired):
     reg_string = "alias=" + alias_desired
 
-    conn = sqlite3.connect('static/ledger.db')
+    if full_ledger == 1:
+        conn = sqlite3.connect('static/ledger.db')
+    else:
+        conn = sqlite3.connect('static/hyper.db')
     conn.text_factory = str
     c = conn.cursor()
 
@@ -330,10 +331,24 @@ def send_confirm(amount_input, recipient_input, keep_input, openfield_input):
         c.execute("SELECT public_key FROM transactions WHERE address = ? and reward = 0",(recipient_input,))
         target_public_key_hashed = c.fetchone()[0]
 
-        target_public_key = RSA.importKey(base64.b64decode(target_public_key_hashed).decode("utf-8"))
+        recipient_key = RSA.importKey(base64.b64decode(target_public_key_hashed).decode("utf-8"))
+
+        #openfield_input = str(target_public_key.encrypt(openfield_input.encode("utf-8"), 32))
+
+        data = openfield_input.encode("utf-8")
+        # print (open("pubkey.der").read())
+        session_key = get_random_bytes(16)
+        cipher_aes = AES.new(session_key, AES.MODE_EAX)
+
+        # Encrypt the session key with the public RSA key
+        cipher_rsa = PKCS1_OAEP.new(recipient_key)
+
+        # Encrypt the data with the AES session key
+        ciphertext, tag = cipher_aes.encrypt_and_digest(data)
+        enc_session_key = (cipher_rsa.encrypt(session_key))
+        openfield_input = str([x for x in (cipher_aes.nonce, tag, ciphertext, enc_session_key)])
 
 
-        openfield_input = str(target_public_key.encrypt(openfield_input.encode("utf-8"), 32))
     # encr check
 
     # msg check
@@ -493,7 +508,17 @@ def msg_dialogue():
             if row[1].startswith("enc=msg="):
                 msg_received_digest = row[1].lstrip("enc=msg=")
                 try:
-                    msg_received_digest = key.decrypt(ast.literal_eval(msg_received_digest)).decode("utf-8")
+                    #msg_received_digest = key.decrypt(ast.literal_eval(msg_received_digest)).decode("utf-8")
+
+                    (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval(msg_received_digest)
+                    private_key = RSA.import_key(open("privkey.der").read())
+                    # Decrypt the session key with the public RSA key
+                    cipher_rsa = PKCS1_OAEP.new(private_key)
+                    session_key = cipher_rsa.decrypt(enc_session_key)
+                    # Decrypt the data with the AES session key
+                    cipher_aes = AES.new(session_key, AES.MODE_EAX, cipher_aes_nonce)
+                    msg_received_digest = cipher_aes.decrypt_and_verify(ciphertext, tag).decode("utf-8")
+
                 except:
                     msg_received_digest = "Could not decrypt message"
 
@@ -501,7 +526,17 @@ def msg_dialogue():
                 msg_received_digest = row[1].lstrip("enc=bmsg=")
                 try:
                     msg_received_digest = base64.b64decode(msg_received_digest).decode("utf-8")
-                    msg_received_digest = key.decrypt(ast.literal_eval(msg_received_digest)).decode("utf-8")
+
+                    #msg_received_digest = key.decrypt(ast.literal_eval(msg_received_digest)).decode("utf-8")
+                    (cipher_aes_nonce, tag, ciphertext, enc_session_key) = msg_received_digest
+                    private_key = RSA.import_key(open("privkey.der").read())
+                    # Decrypt the session key with the public RSA key
+                    cipher_rsa = PKCS1_OAEP.new(private_key)
+                    session_key = cipher_rsa.decrypt(enc_session_key)
+                    # Decrypt the data with the AES session key
+                    cipher_aes = AES.new(session_key, AES.MODE_EAX, cipher_aes_nonce)
+                    msg_received_digest = cipher_aes.decrypt_and_verify(ciphertext, tag).decode("utf-8")
+
                 except:
                     msg_received_digest = "Could not decrypt message"
 

@@ -1,7 +1,15 @@
-import sqlite3, time, re, keys
+import sqlite3, time, keys, options
 from bottle import route, run, static_file
 
 (key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read() #import keys
+
+config = options.Get()
+config.read()
+debug_level = config.debug_level_conf
+ledger_path_conf = config.ledger_path_conf
+full_ledger = config.full_ledger_conf
+ledger_path = config.ledger_path_conf
+hyper_path = config.hyper_path_conf
 
 @route('/static/<filename>')
 def server_static(filename):
@@ -11,7 +19,10 @@ def server_static(filename):
 def hello():
 
     # redraw chart
-    conn = sqlite3.connect('static/ledger.db')
+    if full_ledger == 1:
+        conn = sqlite3.connect(ledger_path)
+    else:
+        conn = sqlite3.connect(hyper_path)
     c = conn.cursor()
 
     html = []
