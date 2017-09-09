@@ -865,7 +865,6 @@ def manager():
 
         app_log.info("Connection manager: Syncing nodes: {}".format(syncing))
         app_log.info("Connection manager: Syncing nodes: {}/3".format(len(syncing)))
-        app_log.info("Connection manager: Database locked: {}".format(db_lock.locked()))
         app_log.warning("Connection manager: Threads at {} / {}".format(threading.active_count(), thread_limit_conf))
         app_log.info("Connection manager: Tried: {}".format(tried))
         app_log.info("Connection manager: List of outgoing connections: {}".format(connection_pool))
