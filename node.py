@@ -882,7 +882,7 @@ def manager():
         # last block
 
         # app_log.info(threading.enumerate() all threads)
-        time.sleep(int(pause_conf) * 10)
+        time.sleep(10)
 
 
 def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
@@ -1619,101 +1619,116 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         time.sleep(float(pause_conf))
                     connections.send(self.request, "sync", 10)
 
-                elif data == "block" and (peer_ip in allowed or "any" in allowed):  # from miner
+                elif data == "block":
+                    if (peer_ip in allowed or "any" in allowed):  # from miner
 
-                    app_log.warning("Outgoing: Received a block from miner {}".format(peer_ip))
-                    # receive block
-                    segments = connections.receive(self.request, 10)
-                    # app_log.info("Incoming: Combined mined segments: " + segments)
+                        app_log.warning("Outgoing: Received a block from miner {}".format(peer_ip))
+                        # receive block
+                        segments = connections.receive(self.request, 10)
+                        # app_log.info("Incoming: Combined mined segments: " + segments)
 
-                    # check if we have the latest block
+                        # check if we have the latest block
 
-                    execute(c, ('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1'))
-                    db_block_height = c.fetchone()[0]
+                        execute(c, ('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1'))
+                        db_block_height = c.fetchone()[0]
 
-                    # check if we have the latest block
+                        # check if we have the latest block
 
-                    if test == 0:
-                        if len(connection_pool) < 5:
-                            app_log.warning("Outgoing: Mined block ignored, insufficient connections to the network")
-                        elif int(db_block_height) >= int(max(consensus_blockheight_list)) - 3 and db_lock.locked() == False:
-                            app_log.warning("Outgoing: Processing block from miner")
-                            digest_block(segments, self.request, peer_ip, conn, c, mempool, m)
-                        elif db_lock.locked() == True:
-                            app_log.warning("Outgoing: Block from miner skipped because we are digesting already")
+                        if test == 0:
+                            if len(connection_pool) < 5:
+                                app_log.warning("Outgoing: Mined block ignored, insufficient connections to the network")
+                            elif int(db_block_height) >= int(max(consensus_blockheight_list)) - 3 and db_lock.locked() == False:
+                                app_log.warning("Outgoing: Processing block from miner")
+                                digest_block(segments, self.request, peer_ip, conn, c, mempool, m)
+                            elif db_lock.locked() == True:
+                                app_log.warning("Outgoing: Block from miner skipped because we are digesting already")
 
-                        # receive theirs
+                            # receive theirs
+                            else:
+                                app_log.warning("Outgoing: Mined block was orphaned because node was not synced, we are at block {}, should be at least {}".format(db_block_height, int(max(consensus_blockheight_list)) - 3))
                         else:
-                            app_log.warning("Outgoing: Mined block was orphaned because node was not synced, we are at block {}, should be at least {}".format(db_block_height, int(max(consensus_blockheight_list)) - 3))
+                            digest_block(segments, self.request, peer_ip, conn, c, mempool, m)
                     else:
-                        digest_block(segments, self.request, peer_ip, conn, c, mempool, m)
+                        app_log.info("{} not whitelisted for block command".format(peer_ip))
 
-                elif data == "blocklast" and (peer_ip in allowed or "any" in allowed):  # only sends the miner part of the block!
+                elif data == "blocklast":
+                    if (peer_ip in allowed or "any" in allowed):  # only sends the miner part of the block!
 
-                    execute(c, ("SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
-                    block_last = c.fetchall()[0]
+                        execute(c, ("SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
+                        block_last = c.fetchall()[0]
 
-                    connections.send(self.request, block_last, 10)
-
-                elif data == "blockget" and (peer_ip in allowed or "any" in allowed):
-                    block_desired = connections.receive(self.request, 10)
-
-                    execute_param(c, ("SELECT * FROM transactions WHERE block_height = ?;"), (block_desired,))
-                    block_desired_result = c.fetchall()
-
-                    connections.send(self.request, block_desired_result, 10)
-
-                elif data == "mpinsert" and (peer_ip in allowed or "any" in allowed):
-                    mempool_insert = connections.receive(self.request, 10)
-                    mempool_merge(mempool_insert, peer_ip, c, mempool, m)
-                    connections.send(self.request, "Mempool insert finished", 10)
-
-                elif data == "balanceget" and (peer_ip in allowed or "any" in allowed):
-                    balance_address = connections.receive(self.request, 10)  # for which address
-
-                    # verify balance
-
-                    # app_log.info("Mempool: Verifying balance")
-                    #app_log.info("Mempool: Received address: " + str(balance_address))
-
-                    execute_param(m, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (balance_address,))
-                    credit_mempool = m.fetchone()[0]
-                    credit_mempool = 0 if credit_mempool is None else credit_mempool
-
-                    # include mempool fees
-                    execute_param(m, ("SELECT count(amount), sum(amount) FROM transactions WHERE address = ?;"), (balance_address,))
-                    result = m.fetchall()[0]
-                    if result[1] != None:
-                        debit_mempool = float(result[1]) + float(result[1]) * 0.001 + int(result[0]) * 0.01
+                        connections.send(self.request, block_last, 10)
                     else:
-                        debit_mempool = 0
-                    #include mempool fees
+                        app_log.info("{} not whitelisted for blocklast command".format(peer_ip))
 
-                    execute_param(c, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (balance_address,))
-                    credit_ledger = c.fetchone()[0]
-                    credit_ledger = 0 if credit_ledger is None else credit_ledger
-                    credit = float(credit_ledger) + float(credit_mempool)
+                elif data == "blockget":
+                    if (peer_ip in allowed or "any" in allowed):
+                        block_desired = connections.receive(self.request, 10)
 
-                    execute_param(c, ("SELECT sum(fee),sum(reward),sum(amount) FROM transactions WHERE address = ?;"), (balance_address,))
-                    result = c.fetchall()[0]
+                        execute_param(c, ("SELECT * FROM transactions WHERE block_height = ?;"), (block_desired,))
+                        block_desired_result = c.fetchall()
 
-                    fees = result[0]
-                    fees = 0 if fees is None else fees
+                        connections.send(self.request, block_desired_result, 10)
+                    else:
+                        app_log.info("{} not whitelisted for blockget command".format(peer_ip))
 
-                    rewards = result[1]
-                    rewards = 0 if rewards is None else rewards
+                elif data == "mpinsert":
+                    if (peer_ip in allowed or "any" in allowed):
+                        mempool_insert = connections.receive(self.request, 10)
+                        mempool_merge(mempool_insert, peer_ip, c, mempool, m)
+                        connections.send(self.request, "Mempool insert finished", 10)
+                    else:
+                        app_log.info("{} not whitelisted for mpinsert command".format(peer_ip))
 
-                    debit_ledger = result[2]
-                    debit_ledger = 0 if debit_ledger is None else debit_ledger
+                elif data == "balanceget":
+                    if (peer_ip in allowed or "any" in allowed):
+                        balance_address = connections.receive(self.request, 10)  # for which address
 
-                    debit = float(debit_ledger) + float(debit_mempool)
+                        # verify balance
 
-                    balance = float(credit) - float(debit) - float(fees) + float(rewards)
-                    # balance_pre = float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)
-                    # app_log.info("Mempool: Projected transction address balance: " + str(balance))
+                        # app_log.info("Mempool: Verifying balance")
+                        #app_log.info("Mempool: Received address: " + str(balance_address))
 
-                    connections.send(self.request, (balance, credit, debit, fees, rewards), 10)  # return balance of the address to the client, including mempool
-                    # connections.send(self.request, balance_pre, 10)  # return balance of the address to the client, no mempool
+                        execute_param(m, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (balance_address,))
+                        credit_mempool = m.fetchone()[0]
+                        credit_mempool = 0 if credit_mempool is None else credit_mempool
+
+                        # include mempool fees
+                        execute_param(m, ("SELECT count(amount), sum(amount) FROM transactions WHERE address = ?;"), (balance_address,))
+                        result = m.fetchall()[0]
+                        if result[1] != None:
+                            debit_mempool = float(result[1]) + float(result[1]) * 0.001 + int(result[0]) * 0.01
+                        else:
+                            debit_mempool = 0
+                        #include mempool fees
+
+                        execute_param(c, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (balance_address,))
+                        credit_ledger = c.fetchone()[0]
+                        credit_ledger = 0 if credit_ledger is None else credit_ledger
+                        credit = float(credit_ledger) + float(credit_mempool)
+
+                        execute_param(c, ("SELECT sum(fee),sum(reward),sum(amount) FROM transactions WHERE address = ?;"), (balance_address,))
+                        result = c.fetchall()[0]
+
+                        fees = result[0]
+                        fees = 0 if fees is None else fees
+
+                        rewards = result[1]
+                        rewards = 0 if rewards is None else rewards
+
+                        debit_ledger = result[2]
+                        debit_ledger = 0 if debit_ledger is None else debit_ledger
+
+                        debit = float(debit_ledger) + float(debit_mempool)
+
+                        balance = float(credit) - float(debit) - float(fees) + float(rewards)
+                        # balance_pre = float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)
+                        # app_log.info("Mempool: Projected transction address balance: " + str(balance))
+
+                        connections.send(self.request, (balance, credit, debit, fees, rewards), 10)  # return balance of the address to the client, including mempool
+                        # connections.send(self.request, balance_pre, 10)  # return balance of the address to the client, no mempool
+                    else:
+                        app_log.info("{} not whitelisted for balanceget command".format(peer_ip))
 
                 elif data == "mpget" and (peer_ip in allowed or "any" in allowed):
                     execute(m, ('SELECT * FROM transactions'))
@@ -1725,74 +1740,95 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # send own
                     connections.send(self.request, mempool_txs, 10)
 
-                elif data == "keygen" and (peer_ip in allowed or "any" in allowed):
-                    (gen_private_key_readable, gen_public_key_readable, gen_address) = keys.generate()
-                    connections.send(self.request, (gen_private_key_readable, gen_public_key_readable, gen_address), 10)
-                    (gen_private_key_readable, gen_public_key_readable, gen_address) = (None, None, None)
+                elif data == "keygen":
+                    if (peer_ip in allowed or "any" in allowed):
+                        (gen_private_key_readable, gen_public_key_readable, gen_address) = keys.generate()
+                        connections.send(self.request, (gen_private_key_readable, gen_public_key_readable, gen_address), 10)
+                        (gen_private_key_readable, gen_public_key_readable, gen_address) = (None, None, None)
+                    else:
+                        app_log.info("{} not whitelisted for keygen command".format(peer_ip))
 
-                elif data == "addlist" and (peer_ip in allowed or "any" in allowed):
-                    address_tx_list = connections.receive(self.request, 10)
-                    execute_param(c, ("SELECT * FROM transactions WHERE (address = ? OR recipient = ?)"), (address_tx_list,) + (address_tx_list,))
-                    result = c.fetchall()
-                    connections.send(self.request, result, 10)
+                elif data == "addlist":
+                    if (peer_ip in allowed or "any" in allowed):
+                        address_tx_list = connections.receive(self.request, 10)
+                        execute_param(c, ("SELECT * FROM transactions WHERE (address = ? OR recipient = ?)"), (address_tx_list,) + (address_tx_list,))
+                        result = c.fetchall()
+                        connections.send(self.request, result, 10)
+                    else:
+                        app_log.info("{} not whitelisted for addlist command".format(peer_ip))
 
-                elif data == "txsend" and (peer_ip in allowed or "any" in allowed):
-                    tx_remote = connections.receive(self.request, 10)
+                elif data == "txsend":
+                    if (peer_ip in allowed or "any" in allowed):
+                        tx_remote = connections.receive(self.request, 10)
 
-                    # receive data necessary for remote tx construction
-                    remote_tx_timestamp = tx_remote[0]
-                    remote_tx_privkey = tx_remote[1]
-                    remote_tx_recipient = tx_remote[2]
-                    remote_tx_amount = tx_remote[3]
-                    remote_tx_keep = tx_remote[4]
-                    remote_tx_openfield = tx_remote[5]
-                    # receive data necessary for remote tx construction
+                        # receive data necessary for remote tx construction
+                        remote_tx_timestamp = tx_remote[0]
+                        remote_tx_privkey = tx_remote[1]
+                        remote_tx_recipient = tx_remote[2]
+                        remote_tx_amount = tx_remote[3]
+                        remote_tx_keep = tx_remote[4]
+                        remote_tx_openfield = tx_remote[5]
+                        # receive data necessary for remote tx construction
 
-                    # derive remaining data
-                    tx_remote_key = RSA.importKey(remote_tx_privkey)
-                    remote_tx_pubkey = tx_remote_key.publickey().exportKey().decode("utf-8")
+                        # derive remaining data
+                        tx_remote_key = RSA.importKey(remote_tx_privkey)
+                        remote_tx_pubkey = tx_remote_key.publickey().exportKey().decode("utf-8")
 
-                    remote_tx_pubkey_hashed = base64.b64encode(remote_tx_pubkey.encode('utf-8')).decode("utf-8")
+                        remote_tx_pubkey_hashed = base64.b64encode(remote_tx_pubkey.encode('utf-8')).decode("utf-8")
 
-                    remote_tx_address = hashlib.sha224(remote_tx_pubkey.encode("utf-8")).hexdigest()
-                    # derive remaining data
+                        remote_tx_address = hashlib.sha224(remote_tx_pubkey.encode("utf-8")).hexdigest()
+                        # derive remaining data
 
-                    # construct tx
-                    remote_tx = (str(remote_tx_timestamp), str(remote_tx_address), str(remote_tx_recipient), '%.8f' % float(remote_tx_amount), str(remote_tx_keep), str(remote_tx_openfield))  # this is signed
+                        # construct tx
+                        remote_tx = (str(remote_tx_timestamp), str(remote_tx_address), str(remote_tx_recipient), '%.8f' % float(remote_tx_amount), str(remote_tx_keep), str(remote_tx_openfield))  # this is signed
 
-                    remote_h = SHA.new(str(remote_tx).encode("utf-8"))
-                    remote_signer = PKCS1_v1_5.new(tx_remote_key)
-                    remote_signature = remote_signer.sign(remote_h)
-                    remote_signature_enc = base64.b64encode(remote_signature).decode("utf-8")
-                    # construct tx
+                        remote_h = SHA.new(str(remote_tx).encode("utf-8"))
+                        remote_signer = PKCS1_v1_5.new(tx_remote_key)
+                        remote_signature = remote_signer.sign(remote_h)
+                        remote_signature_enc = base64.b64encode(remote_signature).decode("utf-8")
+                        # construct tx
 
-                    #insert to mempool, where everything will be verified
-                    mempool_data = [((remote_tx_timestamp, remote_tx_address, remote_tx_recipient, '%.8f' % float(remote_tx_amount), remote_signature_enc, remote_tx_pubkey_hashed, remote_tx_keep, remote_tx_openfield))]
+                        #insert to mempool, where everything will be verified
+                        mempool_data = [((remote_tx_timestamp, remote_tx_address, remote_tx_recipient, '%.8f' % float(remote_tx_amount), remote_signature_enc, remote_tx_pubkey_hashed, remote_tx_keep, remote_tx_openfield))]
 
-                    mempool_merge(mempool_data, peer_ip, c, mempool, m)
-                    #wipe variables
-                    (tx_remote, remote_tx_privkey, tx_remote_key) = (None, None, None)
+                        mempool_merge(mempool_data, peer_ip, c, mempool, m)
+                        #wipe variables
+                        (tx_remote, remote_tx_privkey, tx_remote_key) = (None, None, None)
+                    else:
+                        app_log.info("{} not whitelisted for txsend command".format(peer_ip))
 
                 #less importent methods
-                elif data == "addvalidate" and (peer_ip in allowed or "any" in allowed):
-                    pass
+                elif data == "addvalidate":
+                    if (peer_ip in allowed or "any" in allowed):
+                        pass
+                    else:
+                        app_log.info("{} not whitelisted for addvalidate command".format(peer_ip))
 
-                elif data == "statusget" and (peer_ip in allowed or "any" in allowed):
-                    pass
+                elif data == "statusget":
+                    if (peer_ip in allowed or "any" in allowed):
+                        pass
+                    else:
+                        app_log.info("{} not whitelisted for statusget command".format(peer_ip))
 
-                elif data == "connget" and (peer_ip in allowed or "any" in allowed):
-                    pass
+                elif data == "connget":
+                    if (peer_ip in allowed or "any" in allowed):
+                        pass
+                    else:
+                        app_log.info("{} not whitelisted for connget command".format(peer_ip))
 
-                elif data == "diffget" and (peer_ip in allowed or "any" in allowed):
-                    diff = difficulty(c)
-                    connections.send(self.request, diff, 10)
+                elif data == "diffget":
+                    if (peer_ip in allowed or "any" in allowed):
+                        diff = difficulty(c)
+                        connections.send(self.request, diff, 10)
+                    else:
+                        app_log.info("{} not whitelisted for diffget command".format(peer_ip))
 
                 else:
                     raise ValueError("Unexpected error, received: " + str(data))
 
                 if not time.time() <= timer_operation + timeout_operation:
                     timer_operation = time.time()  # reset timer
-                time.sleep(0.1)  # prevent cpu overload
+                time.sleep(float(pause_conf))  # prevent cpu overload
                 # app_log.info("Server resting")
 
             except Exception as e:
@@ -2083,9 +2119,9 @@ def worker(HOST, PORT):
 
                 # receive mempool
 
-                app_log.info("Outgoing: We seem to be at the latest block. Paused before recheck")
+                app_log.info("Outgoing: Synchronization with {} finished.".format(peer_ip))
 
-                time.sleep(int(pause_conf))
+                time.sleep(float(pause_conf))
                 while db_lock.locked() == True:
                     time.sleep(float(pause_conf))
 
