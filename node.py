@@ -866,27 +866,27 @@ def manager():
             del warning_list[:]
 
         if banlist:
-            app_log.warning("Connection manager: Banlist: {}".format(banlist))
+            app_log.warning("Status: Banlist: {}".format(banlist))
 
-        app_log.info("Connection manager: Syncing nodes: {}".format(syncing))
-        app_log.info("Connection manager: Syncing nodes: {}/3".format(len(syncing)))
-        app_log.warning("Connection manager: Threads at {} / {}".format(threading.active_count(), thread_limit_conf))
-        app_log.info("Connection manager: Tried: {}".format(tried))
-        app_log.info("Connection manager: List of outgoing connections: {}".format(connection_pool))
-        app_log.warning("Connection manager: Number of outgoing connections: {}".format(len(connection_pool)))
+        app_log.info("Status: Syncing nodes: {}".format(syncing))
+        app_log.info("Status: Syncing nodes: {}/3".format(len(syncing)))
+        app_log.warning("Status: Threads at {} / {}".format(threading.active_count(), thread_limit_conf))
+        app_log.info("Status: Tried: {}".format(tried))
+        app_log.info("Status: List of outgoing connections: {}".format(connection_pool))
+        app_log.warning("Status: Number of outgoing connections: {}".format(len(connection_pool)))
         if consensus:  # once the consensus is filled
-            app_log.warning("Connection manager: Consensus: {} = {}%".format(consensus, consensus_percentage))
-            app_log.warning("Connection manager: Consensus IP list: {}".format(peer_ip_list))
-            app_log.warning("Connection manager: Consensus opinion list: {}".format(consensus_blockheight_list))
+            app_log.warning("Status: Consensus: {} = {}%".format(consensus, consensus_percentage))
+            app_log.warning("Status: Consensus IP list: {}".format(peer_ip_list))
+            app_log.warning("Status: Consensus opinion list: {}".format(consensus_blockheight_list))
 
         #last block
         execute(c, "SELECT timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
         last_block_ago = float(c.fetchone()[0])
-        app_log.warning("Connection manager: Last block was generated {} minutes ago".format('%.2f' % ((time.time() - last_block_ago) / 60)))
+        app_log.warning("Status: Last block was generated {} minutes ago".format('%.2f' % ((time.time() - last_block_ago) / 60)))
         # last block
 
         # app_log.info(threading.enumerate() all threads)
-        time.sleep(10)
+        time.sleep(30)
 
 
 def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
@@ -2148,7 +2148,7 @@ def worker(HOST, PORT):
 
                 # receive mempool
 
-                app_log.info("Outgoing: Synchronization with {} finished.".format(peer_ip))
+                app_log.info("Outgoing: Synchronization with {} finished".format(peer_ip))
 
                 time.sleep(float(pause_conf))
                 while db_lock.locked() == True:
