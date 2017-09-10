@@ -1,7 +1,0 @@
-import base64, hashlib
-decode = "LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUlHZk1BMEdDU3FHU0liM0RRRUJBUVVBQTRHTkFEQ0JpUUtCZ1FDNjF5ZjBFeEh0SUNUeVAvVGs5czdGNFVwQwpsWlNBRVpqamNHaURzYWlFSXNyeG1DR2x6QXJPcGN3L3Vxbk4ycG4wZGxmSFNrRTdWQU5mUEV2TFZZSGxVVnF1CmY3WXdvZG02OWlQK09aU0FDRkF4bXdrUlQ5SDhiRXNldC9zUE9nRUxic0lvdGFUQ0wxQ0ZZekJKM3lkUmQ4S0wKRnBwWmNxMWU2SmhyNXlSTk13SURBUUFCCi0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLQ=="
-pubkey = (base64.b64decode(decode).decode("utf-8"))
-print(pubkey)
-
-address = hashlib.sha224(pubkey.encode("utf-8")).hexdigest()  # hashed public key
-print(address)
