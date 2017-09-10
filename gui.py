@@ -531,7 +531,7 @@ def msg_dialogue():
                     msg_received_digest = base64.b64decode(msg_received_digest).decode("utf-8")
 
                     #msg_received_digest = key.decrypt(ast.literal_eval(msg_received_digest)).decode("utf-8")
-                    (cipher_aes_nonce, tag, ciphertext, enc_session_key) = msg_received_digest
+                    (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval(msg_received_digest)
                     private_key = RSA.import_key(open("privkey.der").read())
                     # Decrypt the session key with the public RSA key
                     cipher_rsa = PKCS1_OAEP.new(private_key)

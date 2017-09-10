@@ -1,6 +1,9 @@
-import socketserver, connections, time, options, log, sqlite3, ast, socks, hashlib, os, random, re, keys, base64
+import time, options, log, sqlite3, ast, os, keys, base64
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
+from Crypto.PublicKey import RSA
+from Crypto.Cipher import AES, PKCS1_OAEP
+
 config = options.Get()
 config.read()
 debug_level = config.debug_level_conf
@@ -12,6 +15,23 @@ hyper_path = config.hyper_path_conf
 
 (key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read() #import keys
 app_log = log.log("anon.log",debug_level)
+
+def decrypt(encrypted):
+
+
+
+    (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval(encrypted)
+    print (cipher_aes_nonce)
+    print (tag)
+
+    private_key = RSA.import_key(open("privkey.der").read())
+    # Decrypt the session key with the public RSA key
+    cipher_rsa = PKCS1_OAEP.new(private_key)
+    session_key = cipher_rsa.decrypt(enc_session_key)
+    # Decrypt the data with the AES session key
+    cipher_aes = AES.new(session_key, AES.MODE_EAX, cipher_aes_nonce)
+    decrypted = cipher_aes.decrypt_and_verify(ciphertext, tag)
+    return decrypted
 
 def randomize(divider, anon_amount, anon_recipient, identifier, anon_sender):
     per_tx = int(anon_amount/divider) #how much per tx
@@ -97,13 +117,13 @@ while True:
         anon_sender = row[2]
 
         try:
-            #format: anon:number_of_txs:target_address
+            #format: anon:number_of_txs:target_address (no msg, just encrypted)
             print (row)
-            anon_recipient_encrypted = ast.literal_eval((row[11].lstrip("enc=")))
+            anon_recipient_encrypted = row[11].lstrip("enc=")
             print(anon_recipient_encrypted)
-            anon_recipient = key.decrypt(anon_recipient_encrypted).decode("utf-8").split(":")[2]
+            anon_recipient = decrypt(anon_recipient_encrypted).decode("utf-8").split(":")[2]
             print(anon_recipient)
-            divider = int(key.decrypt(anon_recipient_encrypted).decode("utf-8").split(":")[1])
+            divider = int(decrypt(anon_recipient_encrypted).decode("utf-8").split(":")[1])
 
             if len(anon_recipient) == 56:
                 anon_amount = float(row[4])
@@ -115,6 +135,7 @@ while True:
                 print ("Wrong target address length")
         except Exception as e:
             print (e)
+
             #print("issue occured")
 
     time.sleep(15)
