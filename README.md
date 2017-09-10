@@ -3,27 +3,9 @@ Bismuth Readme
 
 [![Build Status](https://travis-ci.org/hclivess/Bismuth.svg?branch=master)](https://travis-ci.org/hclivess/Bismuth)
 
-###Bitcointalk:
+http://bismuth.cz
 
-https://bitcointalk.org/index.php?topic=1525078
-
-###Info:
-
-https://github.com/hclivess/Bismuth/blob/master/whitepaper.md
-
-###Dependencies:
-
-https://github.com/hclivess/Bismuth/blob/master/.travis.yml
-
-###Development plan:
-https://github.com/hclivess/Bismuth/issues
-
-###Bismuth tools:
-https://github.com/maccaspacca/Bismuth-Tools/releases
-
-*WARNING: This project is in the beta stage!*
-
-###License:
+License:
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
