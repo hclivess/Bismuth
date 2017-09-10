@@ -18,7 +18,6 @@ node_ip_conf = config.node_ip_conf
 purge_conf = config.purge_conf
 pause_conf = config.pause_conf
 ledger_path_conf = config.ledger_path_conf
-hyperblocks_conf = config.hyperblocks_conf
 warning_list_limit_conf = config.warning_list_limit_conf
 tor_conf = config.tor_conf
 debug_level_conf = config.debug_level_conf
@@ -265,6 +264,12 @@ def miner(q, privatekey_readable, public_key_hashed, address):
 
                         block_send.append((str(block_timestamp), str(address[:56]), str(address[:56]), '%.8f' % float(0), str(signature_enc.decode("utf-8")), str(public_key_hashed), "0", str(nonce)))  # mining reward tx
                         print("Block to send: {}".format(block_send))
+
+                        if not any(isinstance(el, list) for el in block_send):  # if it's not a list of lists (only the mining tx and no others)
+                            new_list = []
+                            new_list.append(block_send)
+                            block_send = new_list  # make it a list of lists
+
                         #  claim reward
                         # include data
 

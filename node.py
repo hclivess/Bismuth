@@ -414,7 +414,9 @@ def difficulty(c):
 
     #app_log.warning("Difficulty: {}".format(difficulty2))
 
+    #return (float(45), float(45)) #TEST ONLY
     return (float(difficulty), float(difficulty2))
+
 
 global connection_pool
 connection_pool = []
@@ -897,10 +899,6 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
         app_log.info("Digesting started from {}".format(peer_ip))
         try:
             block_list = data
-            if not any(isinstance(el, list) for el in block_list):  # if it's not a list of lists
-                new_list = []
-                new_list.append(block_list)
-                block_list = new_list  # make it a list of lists
 
             # reject block with duplicate transactions
             signature_list = []
