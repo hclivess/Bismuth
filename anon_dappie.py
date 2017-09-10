@@ -18,12 +18,7 @@ app_log = log.log("anon.log",debug_level)
 
 def decrypt(encrypted):
 
-
-
     (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval(encrypted)
-    print (cipher_aes_nonce)
-    print (tag)
-
     private_key = RSA.import_key(open("privkey.der").read())
     # Decrypt the session key with the public RSA key
     cipher_rsa = PKCS1_OAEP.new(private_key)
