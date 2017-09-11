@@ -107,19 +107,10 @@ def download_file(url, filename):
         raise
 
 
-def db_to_drive():
+def db_to_drive(hdd, h, hdd2, h2):
     global hdd_block
 
     app_log.warning("Moving new data to HDD")
-
-    if full_ledger == 1:
-        hdd = sqlite3.connect(ledger_path_conf,timeout=1)
-        hdd.text_factory = str
-        h = hdd.cursor()
-
-    hdd2 = sqlite3.connect(hyper_path_conf,timeout=1)
-    hdd2.text_factory = str
-    h2 = hdd2.cursor()
 
     old_db = sqlite3.connect('file::memory:?cache=shared', uri=True,timeout=1)
 
@@ -143,7 +134,7 @@ def db_to_drive():
         for x in result2:
             h.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
         commit(hdd)
-        hdd.close()
+        #hdd.close()
 
     for x in result2:
         h2.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
@@ -152,8 +143,19 @@ def db_to_drive():
     h2.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
     hdd_block = h2.fetchone()[0]
 
-    hdd2.close()
     app_log.warning("Ledger updated successfully")
+
+def db_h_define():
+    hdd = sqlite3.connect(ledger_path_conf,timeout=1)
+    hdd.text_factory = str
+    h = hdd.cursor()
+    return hdd, h
+
+def db_h2_define():
+    hdd2 = sqlite3.connect(hyper_path_conf,timeout=1)
+    hdd2.text_factory = str
+    h2 = hdd2.cursor()
+    return hdd2, h2
 
 def db_c_define():
     global hdd_block
@@ -231,7 +233,7 @@ def ledger_convert(ledger_path_conf,hyper_path_conf):
                     app_log.warning("Hyperblock recompression skipped")
                     recompress = 0
                 else:
-                    app_log.warning("Cross-integrity check failed, hyperblocks will be rebuilt")
+                    app_log.warning("Cross-integrity check failed, hyperblocks will be rebuilt from full ledger")
                     recompress = 1
             else:
                 if hyper_recompress_conf == 1:
@@ -312,7 +314,7 @@ def ledger_convert(ledger_path_conf,hyper_path_conf):
 
                 if end_balance > 0 or keep_is == 1:
                     timestamp = str(time.time())
-                    hyp.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (db_block_height - depth - 1, timestamp, "Hyperblock", x, '%.8f' % float(end_balance), "0", "0", "0", "0", "0",
+                    hyp.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (db_block_height - depth - 1, timestamp, "Hyperblock", x, float(end_balance), "0", "0", "0", "0", "0",
                         "0", "0"))
             hyper.commit() #EXPERIMENTALLY DEDENTED TO TAKE EVERYTHING AT ONCE
 
@@ -529,8 +531,8 @@ def mempool_merge(data, peer_ip, c, mempool, m):
                     # verify signature
                     verifier = PKCS1_v1_5.new(mempool_public_key)
 
-                    h = SHA.new(str((mempool_timestamp, mempool_address, mempool_recipient, mempool_amount, mempool_keep, mempool_openfield)).encode("utf-8"))
-                    if not verifier.verify(h, mempool_signature_dec):
+                    hash = SHA.new(str((mempool_timestamp, mempool_address, mempool_recipient, mempool_amount, mempool_keep, mempool_openfield)).encode("utf-8"))
+                    if not verifier.verify(hash, mempool_signature_dec):
                         acceptable = 0
                         app_log.info("Wrong signature in mempool insert attempt: {}".format(transaction))
 
@@ -700,8 +702,8 @@ def verify(c):
 
             db_signature_dec = base64.b64decode(db_signature_enc)
             verifier = PKCS1_v1_5.new(db_public_key)
-            h = SHA.new(str(db_transaction).encode("utf-8"))
-            if verifier.verify(h, db_signature_dec):
+            hash = SHA.new(str(db_transaction).encode("utf-8"))
+            if verifier.verify(hash, db_signature_dec):
                 pass
             else:
                 app_log.warning("The following transaction is invalid: {}".format(row))
@@ -718,7 +720,7 @@ def verify(c):
         sys.exit(1)
 
 
-def blocknf(block_hash_delete, peer_ip, conn, c):
+def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2):
     global hdd_block
 
     if db_lock.locked() == False:
@@ -750,25 +752,17 @@ def blocknf(block_hash_delete, peer_ip, conn, c):
 
                 # roll back hdd too
                 if full_ledger == 1:
-                    hdd = sqlite3.connect(ledger_path_conf,timeout=1)
-                    hdd.text_factory = str
-                    h = hdd.cursor()
-
                     execute_param(h, ("DELETE FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
                     commit(hdd)
                     execute_param(h, ("DELETE FROM misc WHERE block_height >= ?;"), (str(db_block_height),))
                     commit(hdd)
-                    hdd.close()
 
-                hdd2 = sqlite3.connect(hyper_path_conf,timeout=1)
-                hdd2.text_factory = str
-                h2 = hdd2.cursor()
 
                 execute_param(h2, ("DELETE FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
                 commit(hdd2)
                 execute_param(h2, ("DELETE FROM misc WHERE block_height >= ?;"), (str(db_block_height),))
                 commit(hdd2)
-                hdd2.close()
+
 
                 hdd_block = int(db_block_height)-1
                 # roll back hdd too
@@ -889,7 +883,7 @@ def manager():
         time.sleep(30)
 
 
-def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
+def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2):
     global banlist, hdd_block
 
     if db_lock.locked() == False:
@@ -910,7 +904,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                     signature_list.append(r[4])
 
                     # reject block with transactions which are already in the ledger
-                    execute_param(c, ("SELECT block_height FROM transactions WHERE signature = ?;"), (r[4],))
+                    execute_param(c, ("SELECT block_height FROM transactions WHERE signature = ?;"), (r[4],)) #todo: make sure there are no more than 10k blocks per day
                     try:
                         result = c.fetchall()[0]
                         error_msg = "That transaction is already in our ledger, row {}".format(result[0])
@@ -954,8 +948,8 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                     received_signature_dec = base64.b64decode(received_signature_enc)
                     verifier = PKCS1_v1_5.new(received_public_key)
 
-                    h = SHA.new(str((received_timestamp, received_address, received_recipient, received_amount, received_keep, received_openfield)).encode("utf-8"))
-                    if not verifier.verify(h, received_signature_dec):
+                    hash = SHA.new(str((received_timestamp, received_address, received_recipient, received_amount, received_keep, received_openfield)).encode("utf-8"))
+                    if not verifier.verify(hash, received_signature_dec):
                         error_msg = "Invalid signature"
                         #print(received_timestamp +"\n"+ received_address +"\n"+ received_recipient +"\n"+ received_amount +"\n"+ received_keep +"\n"+ received_openfield)
                         block_valid = 0
@@ -1195,21 +1189,13 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
                                         commit(conn)
 
                                         # also save to hdd
+                                        app_log.info("Saving reward to HDD")
                                         if full_ledger == 1:
-                                            app_log.info("Saving reward to HDD")
-                                            hdd = sqlite3.connect(ledger_path_conf,timeout=1)
-                                            hdd.text_factory = str
-                                            h = hdd.cursor()
                                             execute_param(h, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", ("0", str(time_now), "Development Reward", str(genesis_conf), str(reward), "0", "0", "0", "0", "0", "0", str(block_height_new)))
                                             commit(hdd)
-                                            hdd.close()
 
-                                        hdd2 = sqlite3.connect(hyper_path_conf,timeout=1)
-                                        hdd2.text_factory = str
-                                        h2 = hdd2.cursor()
                                         execute_param(h2, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", ("0", str(time_now), "Development Reward", str(genesis_conf), str(reward), "0", "0", "0", "0", "0", "0", str(block_height_new)))
                                         commit(hdd2)
-                                        hdd2.close()
                                         # also save to hdd
 
                                         # dev reward
@@ -1231,7 +1217,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m):
         finally:
             app_log.info("Digesting complete")
             if block_valid == 1:
-                db_to_drive()
+                db_to_drive(hdd, h, hdd2, h2)
             db_lock.release()
 
 
@@ -1359,6 +1345,9 @@ except Exception as e:
 
 mempool, m = db_m_define()
 conn, c = db_c_define()
+if full_ledger == 1:
+    hdd, h = db_h_define()
+hdd2, h2 = db_h2_define()
 
 
 # init
@@ -1384,7 +1373,9 @@ app_log.warning("Starting up...")
 
 class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
     def handle(self):  # server defined here
-
+        if full_ledger == 1:
+            hdd, h = db_h_define()
+        hdd2, h2 = db_h2_define()
         mempool, m = db_m_define()
         conn, c = db_c_define()
 
@@ -1529,7 +1520,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         connections.send(self.request, "blockscf", 10)
 
                         segments = connections.receive(self.request, 10)
-                        digest_block(segments, self.request, peer_ip, conn, c, mempool, m)
+                        digest_block(segments, self.request, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2)
                         # receive theirs
                     else:
                         connections.send(self.request, "blocksrj", 10)
@@ -1580,28 +1571,26 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                             try:
                                 if full_ledger == 1:
-                                    hdd = sqlite3.connect(ledger_path_conf, timeout=1)
+                                    h3 = h
                                 else:
-                                    hdd = sqlite3.connect(hyper_path_conf, timeout=1)
-                                hdd.text_factory = str
-                                h = hdd.cursor()
+                                    h3 = h2
 
-                                execute_param(h, ("SELECT block_height FROM transactions WHERE block_hash = ?;"), (data,))
-                                client_block = h.fetchone()[0]
+
+                                execute_param(h3, ("SELECT block_height FROM transactions WHERE block_hash = ?;"), (data,))
+                                client_block = h3.fetchone()[0]
 
                                 app_log.info("Incoming: Client is at block {}".format(client_block))  # now check if we have any newer
 
-                                execute(h, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
-                                db_block_hash = h.fetchone()[0]  # get latest block_hash
+                                execute(h3, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
+                                db_block_hash = h3.fetchone()[0]  # get latest block_hash
                                 if db_block_hash == data:
                                     app_log.info("Incoming: Client has the latest block")
                                     connections.send(self.request, "nonewblk", 10)
 
                                 else:
-                                    execute_param(h, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
+                                    execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
                                                   (str(int(client_block)),) + (str(int(client_block + 5000)),))  # select incoming transaction + 1
-                                    blocks_fetched = h.fetchall()
-                                    hdd.close()
+                                    blocks_fetched = h3.fetchall()
 
                                     blocks_send = [[l[1:] for l in group] for _, group in groupby(blocks_fetched, key=itemgetter(0))] #remove block number
 
@@ -1667,7 +1656,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                 app_log.warning("Outgoing: Mined block ignored, insufficient connections to the network")
                             elif int(db_block_height) >= int(max(consensus_blockheight_list)) - 3 and db_lock.locked() == False:
                                 app_log.warning("Outgoing: Processing block from miner")
-                                digest_block(segments, self.request, peer_ip, conn, c, mempool, m)
+                                digest_block(segments, self.request, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2)
                             elif db_lock.locked() == True:
                                 app_log.warning("Outgoing: Block from miner skipped because we are digesting already")
 
@@ -1675,7 +1664,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             else:
                                 app_log.warning("Outgoing: Mined block was orphaned because node was not synced, we are at block {}, should be at least {}".format(db_block_height, int(max(consensus_blockheight_list)) - 3))
                         else:
-                            digest_block(segments, self.request, peer_ip, conn, c, mempool, m)
+                            digest_block(segments, self.request, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2)
                     else:
                         connections.receive(self.request, 10) #receive block, but do nothing about it
                         app_log.info("{} not whitelisted for block command".format(peer_ip))
@@ -1811,9 +1800,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         # construct tx
                         remote_tx = (str(remote_tx_timestamp), str(remote_tx_address), str(remote_tx_recipient), '%.8f' % float(remote_tx_amount), str(remote_tx_keep), str(remote_tx_openfield))  # this is signed
 
-                        remote_h = SHA.new(str(remote_tx).encode("utf-8"))
+                        remote_hash = SHA.new(str(remote_tx).encode("utf-8"))
                         remote_signer = PKCS1_v1_5.new(tx_remote_key)
-                        remote_signature = remote_signer.sign(remote_h)
+                        remote_signature = remote_signer.sign(remote_hash)
                         remote_signature_enc = base64.b64encode(remote_signature).decode("utf-8")
                         # construct tx
 
@@ -1930,6 +1919,9 @@ def worker(HOST, PORT):
                 app_log.warning("Connected to {}".format(this_client))
                 app_log.info("Current active pool: {}".format(connection_pool))
 
+            if full_ledger == 1:
+                hdd, h = db_h_define()
+            hdd2, h2 = db_h2_define()
             mempool, m = db_m_define()
             conn, c = db_c_define()
 
@@ -2024,29 +2016,28 @@ def worker(HOST, PORT):
 
                         try:
                             if full_ledger == 1:
-                                hdd = sqlite3.connect(ledger_path_conf, timeout=1)
+                                h3 = h
                             else:
-                                hdd = sqlite3.connect(hyper_path_conf, timeout=1)
-                            hdd.text_factory = str
-                            h = hdd.cursor()
+                                h3 = h2
 
-                            execute_param(h, ("SELECT block_height FROM transactions WHERE block_hash = ?;"), (data,))
-                            client_block = h.fetchone()[0]
+
+                            execute_param(h3, ("SELECT block_height FROM transactions WHERE block_hash = ?;"), (data,))
+                            client_block = h3.fetchone()[0]
 
                             app_log.info("Outgoing: Node is at block {}".format(client_block))  # now check if we have any newer
 
-                            execute(h, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
-                            db_block_hash = h.fetchone()[0]  # get latest block_hash
+                            execute(h3, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
+                            db_block_hash = h3.fetchone()[0]  # get latest block_hash
 
                             if db_block_hash == data:
                                 app_log.info("Outgoing: Node has the latest block")
                                 connections.send(s, "nonewblk", 10)
 
                             else:
-                                execute_param(h, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
+                                execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
                                               (str(int(client_block)),) + (str(int(client_block + 5000)),))  # select incoming transaction + 1, only columns that need not be verified
-                                blocks_fetched = h.fetchall()
-                                hdd.close()
+                                blocks_fetched = h3.fetchall()
+                                #hdd.close()
 
                                 blocks_send = [[l[1:] for l in group] for _, group in groupby(blocks_fetched, key=itemgetter(0))] #remove block number
 
@@ -2116,7 +2107,7 @@ def worker(HOST, PORT):
                     connections.send(s, "blockscf", 10)
 
                     segments = connections.receive(s, 10)
-                    digest_block(segments, s, peer_ip, conn, c, mempool, m)
+                    digest_block(segments, s, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2)
                     # receive theirs
                 else:
                     connections.send(s, "blocksrj", 10)
@@ -2127,8 +2118,6 @@ def worker(HOST, PORT):
                 # block_hash validation end
 
             elif data == "nonewblk":
-                # digest_block() #temporary #otherwise passive node will not be able to digest
-
                 # sand and receive mempool
                 execute(m, ('SELECT * FROM transactions'))
                 mempool_txs = m.fetchall()

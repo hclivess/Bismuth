@@ -108,30 +108,33 @@ mempool.text_factory = str
 m = mempool.cursor()
 
 while True:
-    for row in c.execute("SELECT * FROM transactions WHERE recipient = ? and openfield LIKE ? LIMIT 500", (address,)+("enc="+'%',)):
-        anon_sender = row[2]
+    try:
+        for row in c.execute("SELECT * FROM transactions WHERE recipient = ? and openfield LIKE ? LIMIT 500", (address,)+("enc="+'%',)):
+            anon_sender = row[2]
 
-        try:
-            #format: anon:number_of_txs:target_address (no msg, just encrypted)
-            print (row)
-            anon_recipient_encrypted = row[11].lstrip("enc=")
-            print(anon_recipient_encrypted)
-            anon_recipient = decrypt(anon_recipient_encrypted).decode("utf-8").split(":")[2]
-            print(anon_recipient)
-            divider = int(decrypt(anon_recipient_encrypted).decode("utf-8").split(":")[1])
+            try:
+                #format: anon:number_of_txs:target_address (no msg, just encrypted)
+                print (row)
+                anon_recipient_encrypted = row[11].lstrip("enc=")
+                print(anon_recipient_encrypted)
+                anon_recipient = decrypt(anon_recipient_encrypted).decode("utf-8").split(":")[2]
+                print(anon_recipient)
+                divider = int(decrypt(anon_recipient_encrypted).decode("utf-8").split(":")[1])
 
-            if len(anon_recipient) == 56:
-                anon_amount = float(row[4])
-                identifier = row[5][:8] #only save locally
-                #print (anon_sender, anon_recipient, anon_amount, identifier)
+                if len(anon_recipient) == 56:
+                    anon_amount = float(row[4])
+                    identifier = row[5][:8] #only save locally
+                    #print (anon_sender, anon_recipient, anon_amount, identifier)
 
-                randomize(divider, float(anon_amount), anon_recipient, identifier, anon_sender)
-            else:
-                print ("Wrong target address length")
-        except Exception as e:
-            print (e)
+                    randomize(divider, float(anon_amount), anon_recipient, identifier, anon_sender)
+                else:
+                    print ("Wrong target address length")
+            except Exception as e:
+                print (e)
 
             #print("issue occured")
+    except Exception as e:
+        print (e)
 
     time.sleep(15)
 
