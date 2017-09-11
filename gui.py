@@ -377,14 +377,14 @@ def send_confirm(amount_input, recipient_input, keep_input, openfield_input):
 
     confirmation_dialog.grid(row=0, pady=0)
 
-    enter = Button(top10, text="Confirm", command=lambda: send(amount_input, recipient_input, keep_input, openfield_input, top10))
+    enter = Button(top10, text="Confirm", command=lambda: send(amount_input, recipient_input, keep_input, openfield_input, top10, fee))
     enter.grid(row=1, column=0, sticky=W + E, padx=15, pady=(5, 5))
 
     done = Button(top10, text="Cancel", command=top10.destroy)
     done.grid(row=2, column=0, sticky=W + E, padx=15, pady=(5, 5))
 
 
-def send(amount_input, recipient_input, keep_input, openfield_input, top10):
+def send(amount_input, recipient_input, keep_input, openfield_input, top10, fee):
     try:
         key
     except:
@@ -441,7 +441,7 @@ def send(amount_input, recipient_input, keep_input, openfield_input, top10):
             if float(amount_input) < 0:
                 app_log.warning("Client: Signature OK, but cannot use negative amounts")
 
-            elif (float(amount_input) > float(balance)):
+            elif (float(amount_input) + float(fee) > float(balance)):
                 app_log.warning("Mempool: Sending more than owned")
 
             else:

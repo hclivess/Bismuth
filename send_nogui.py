@@ -119,7 +119,7 @@ else:
         if float(amount_input) < 0:
             print("Signature OK, but cannot use negative amounts")
 
-        elif float(amount_input) > float(balance):
+        elif float(amount_input) + float(fee) > float(balance):
             print("Mempool: Sending more than owned")
 
         else:
