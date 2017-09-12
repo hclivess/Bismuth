@@ -357,7 +357,7 @@ def commit(cursor):
             cursor.commit()
             break
         except Exception as e:
-            app_log.info("Retrying database execute due to " + str(e))
+            app_log.warning("Retrying database execute due to {} in {}".format(e, cursor))
             time.sleep(random.random())
 
 def execute(cursor, query):
@@ -367,7 +367,7 @@ def execute(cursor, query):
             cursor.execute(query)
             break
         except Exception as e:
-            app_log.warning("Retrying database execute due to {}".format(e))
+            app_log.warning("Retrying database execute due to {} in {}".format(e, cursor))
             time.sleep(random.random())
     return cursor
 
@@ -459,7 +459,7 @@ def mempool_merge(data, peer_ip, c, mempool, m):
 
             while db_lock.locked() == True:  # prevent transactions which are just being digested from being added to mempool, it's ok if digesting starts first, because it will delete the txs and mempool will check for them in the ledger
                 app_log.info("Waiting for block digestion to finish before merging mempool")
-                time.sleep(0.1)
+                time.sleep(1)
 
             # merge mempool
 
@@ -1398,13 +1398,6 @@ app_log.warning("Starting up...")
 
 class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
     def handle(self):  # server defined here
-        if full_ledger == 1:
-            hdd, h = db_h_define()
-        hdd2, h2 = db_h2_define()
-        backup, b = db_b_define()
-        mempool, m = db_m_define()
-        conn, c = db_c_define()
-
         global banlist
         global warning_list_limit_conf
 
@@ -1433,6 +1426,13 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
         while banned == 0 and capacity == 1:
             try:
+                if full_ledger == 1:
+                    hdd, h = db_h_define()
+                hdd2, h2 = db_h2_define()
+                backup, b = db_b_define()
+                mempool, m = db_m_define()
+                conn, c = db_c_define()
+
                 if not time.time() <= timer_operation + timeout_operation:  # return on timeout
                     if warning(self.request, peer_ip, "Operation timeout") == "banned":
                         app_log.info("{} banned".format(peer_ip))
@@ -1804,6 +1804,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "txsend":
                     if (peer_ip in allowed or "any" in allowed):
                         tx_remote = connections.receive(self.request, 10)
+                        print(tx_remote)
 
                         # receive data necessary for remote tx construction
                         remote_tx_timestamp = tx_remote[0]
@@ -1888,8 +1889,12 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     raise  # major debug client
                 else:
                     return
-        mempool.close()
-        conn.close()
+
+            finally:
+                if mempool:
+                    mempool.close()
+                if conn:
+                    conn.close()
 
 
 # client thread
