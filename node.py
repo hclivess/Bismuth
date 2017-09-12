@@ -170,6 +170,12 @@ def db_c_define():
     return conn, c
 
 
+def db_b_define():
+    backup = sqlite3.connect('backup.db',timeout=1)
+    backup.text_factory = str
+    b = backup.cursor()
+    return backup, b
+
 def db_m_define():
     mempool = sqlite3.connect('mempool.db',timeout=1)
     mempool.text_factory = str
@@ -720,7 +726,7 @@ def verify(c):
         sys.exit(1)
 
 
-def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2):
+def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, backup, b):
     global hdd_block
 
     if db_lock.locked() == False:
@@ -740,6 +746,24 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2):
                 app_log.info("We moved away from the block to rollback, skipping")
 
             else:
+                # backup
+                execute_param(c, ("SELECT * FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
+                backup_data = c.fetchall()
+
+                for x in backup_data:
+                    print(x)
+                    execute_param(b, ("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?);"), (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11],))
+                commit(backup)
+
+                execute_param(c, ("SELECT * FROM misc WHERE block_height >= ?;"), (str(db_block_height),))
+                backup_data = c.fetchall()
+
+                for x in backup_data:
+                    print(x)
+                    execute_param(b, ("INSERT INTO misc VALUES (?,?);"), (x[0], x[1],))
+                commit(backup)
+                # backup
+
                 # delete followups
                 execute_param(c, ("DELETE FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
                 commit(conn)
@@ -1343,6 +1367,7 @@ try:
 except Exception as e:
     app_log.info(e)
 
+backup, b = db_b_define()
 mempool, m = db_m_define()
 conn, c = db_c_define()
 if full_ledger == 1:
@@ -1376,6 +1401,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         if full_ledger == 1:
             hdd, h = db_h_define()
         hdd2, h2 = db_h2_define()
+        backup, b = db_b_define()
         mempool, m = db_m_define()
         conn, c = db_c_define()
 
@@ -1626,7 +1652,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     block_hash_delete = connections.receive(self.request, 10)
                     # print peer_ip
                     if max(consensus_blockheight_list) == consensus_blockheight:
-                        blocknf(block_hash_delete, peer_ip, conn, c)
+                        blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, backup, b)
                         if warning(self.request, peer_ip, "Rollback") == "banned":
                             app_log.info("{} banned".format(peer_ip))
                             break
@@ -1923,6 +1949,7 @@ def worker(HOST, PORT):
                 hdd, h = db_h_define()
             hdd2, h2 = db_h2_define()
             mempool, m = db_m_define()
+            backup, b = db_b_define()
             conn, c = db_c_define()
 
             data = connections.receive(s, 10)  # receive data, one and the only root point
@@ -2086,7 +2113,7 @@ def worker(HOST, PORT):
                 block_hash_delete = connections.receive(s, 10)
                 # print peer_ip
                 if max(consensus_blockheight_list) == consensus_blockheight:
-                    blocknf(block_hash_delete, peer_ip, conn, c)
+                    blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, backup, b)
                     if warning(s, peer_ip, "Rollback") == "banned":
                         raise ValueError("{} is banned".format(peer_ip))
 
