@@ -869,7 +869,7 @@ def refresh():
         rewards = 0 if rewards is None else rewards
         credit = 0 if credit is None else credit
 
-        balance = credit - debit - fees + rewards - debit_mempool
+        balance = '%.8f' % (credit - debit - fees + rewards - debit_mempool)
         app_log.warning("Node: Transction address balance: {}".format(balance))
 
         # calculate diff

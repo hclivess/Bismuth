@@ -589,8 +589,8 @@ def mempool_merge(data, peer_ip, c, mempool, m):
 
                         # app_log.info("Mempool: Total credit: " + str(credit))
                         # app_log.info("Mempool: Total debit: " + str(debit))
-                        balance = float(credit) - float(debit) - float(fees) + float(rewards) - float(mempool_amount)
-                        balance_pre = float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)
+                        balance = '%.8f' % (float(credit) - float(debit) - float(fees) + float(rewards) - float(mempool_amount))
+                        balance_pre = '%.8f' % (float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards))
                         # app_log.info("Mempool: Projected transction address balance: " + str(balance))
 
                         fee = '%.8f' % float(0.01 + (float(mempool_amount) * 0.001) + (float(len(mempool_openfield)) / 100000) + (float(mempool_keep) / 10))  # 0.1% + 0.01 dust
@@ -751,7 +751,6 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, backup, b):
                 backup_data = c.fetchall()
 
                 for x in backup_data:
-                    print(x)
                     execute_param(b, ("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?);"), (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11],))
                 commit(backup)
 
@@ -759,7 +758,6 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, backup, b):
                 backup_data = c.fetchall()
 
                 for x in backup_data:
-                    print(x)
                     execute_param(b, ("INSERT INTO misc VALUES (?,?);"), (x[0], x[1],))
                 commit(backup)
                 # backup
@@ -1126,8 +1124,8 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2):
 
                         # app_log.info("Digest: Total credit: " + str(credit))
                         # app_log.info("Digest: Total debit: " + str(debit))
-                        balance_pre = float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)  # without projection
-                        balance = float(credit) - float(debit) - float(fees) + float(rewards)
+                        balance_pre = '%.8f' % (float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards))  # without projection
+                        balance = '%.8f' % (float(credit) - float(debit) - float(fees) + float(rewards))
                         # app_log.info("Digest: Projected transction address balance: " + str(balance))
 
 
@@ -1164,7 +1162,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2):
                             block_valid = 0
 
                         else:
-                            # append, but do not insert to ledger before whole block is validated
+                            # append, but do not insert to ledger before whole block is validated, not that it takes already validated values (decimals, length)
                             app_log.info("Digest: Appending transaction back to block with {} transactions in it".format(len(block_transactions)))
                             block_transactions.append((block_height_new, db_timestamp, db_address, db_recipient, db_amount, db_signature, db_public_key_hashed, block_hash, fee, reward, db_keep, db_openfield))
 
@@ -1765,7 +1763,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                         debit = float(debit_ledger) + float(debit_mempool)
 
-                        balance = float(credit) - float(debit) - float(fees) + float(rewards)
+                        balance = '%.8f' % (float(credit) - float(debit) - float(fees) + float(rewards))
                         # balance_pre = float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)
                         # app_log.info("Mempool: Projected transction address balance: " + str(balance))
 
