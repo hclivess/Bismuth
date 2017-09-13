@@ -18,7 +18,6 @@ ledger_path = config.ledger_path_conf
 hyper_path = config.hyper_path_conf
 
 key, private_key_readable, public_key_readable, public_key_hashed, address = keys.read()
-
 print('Number of arguments: %d arguments.' % len(sys.argv))
 print('Argument List: %s' % ', '.join(sys.argv))
 
@@ -56,7 +55,7 @@ fees = 0 if fees is None else float('%.8f' % fees)
 rewards = 0 if rewards is None else float('%.8f' % rewards)
 credit = 0 if credit is None else float('%.8f' % credit)
 
-balance = float('%.8f' % (credit - debit - fees + rewards - debit_mempool))
+balance = '%.8f' % (credit - debit - fees + rewards - debit_mempool)
 print("Transction address: %s" % address)
 print("Transction address balance: %s" % balance)
 

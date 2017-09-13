@@ -44,7 +44,7 @@ fees = 0 if fees is None else float('%.8f' % fees)
 rewards = 0 if rewards is None else float('%.8f' % rewards)
 credit = 0 if credit is None else float('%.8f' % credit)
 
-balance = float('%.8f' % (credit - debit - fees + rewards - debit_mempool))
+balance = '%.8f' % (credit - debit - fees + rewards - debit_mempool)
 
 print("Public key address: {}".format(address))
 print("Total fees paid: {}".format(fees))
