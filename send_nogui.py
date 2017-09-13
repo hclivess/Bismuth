@@ -23,15 +23,17 @@ print('Argument List: %s' % ', '.join(sys.argv))
 
 # get balance
 
+# include mempool fees
 mempool = sqlite3.connect('mempool.db')
 mempool.text_factory = str
 m = mempool.cursor()
-m.execute("SELECT sum(amount) FROM transactions WHERE address = ?;", (address,))
-debit_mempool = m.fetchone()[0]
-mempool.close()
-
-if debit_mempool is None:
+m.execute("SELECT count(amount), sum(amount) FROM transactions WHERE address = ?;", (address,))
+result = m.fetchall()[0]
+if result[1] != None:
+    debit_mempool = float('%.8f' % (float(result[1]) + float(result[1]) * 0.001 + int(result[0]) * 0.01))
+else:
     debit_mempool = 0
+# include mempool fees
 
 if full_ledger == 1:
     conn = sqlite3.connect(ledger_path)
@@ -39,6 +41,8 @@ else:
     conn = sqlite3.connect(hyper_path)
 conn.text_factory = str
 c = conn.cursor()
+
+
 c.execute("SELECT sum(amount) FROM transactions WHERE recipient = ?;", (address,))
 credit = c.fetchone()[0]
 c.execute("SELECT sum(amount) FROM transactions WHERE address = ?;", (address,))

@@ -16,7 +16,7 @@ m = mempool.cursor()
 m.execute("SELECT count(amount), sum(amount) FROM transactions WHERE address = ?;", (address,))
 result = m.fetchall()[0]
 if result[1] != None:
-    debit_mempool = float(result[1]) + float(result[1]) * 0.001 + int(result[0]) * 0.01
+    debit_mempool = float('%.8f' % (float(result[1]) + float(result[1]) * 0.001 + int(result[0]) * 0.01))
 else:
     debit_mempool = 0
 # include mempool fees
