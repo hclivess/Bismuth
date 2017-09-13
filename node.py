@@ -566,13 +566,13 @@ def mempool_merge(data, peer_ip, c, mempool, m):
                         # include the new block
                         execute_param(m, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (mempool_address,))
                         credit_mempool = m.fetchone()[0]
-                        credit_mempool = 0 if credit_mempool is None else credit_mempool
+                        credit_mempool = 0 if credit_mempool is None else float('%.8f' % credit_mempool)
 
                         # include mempool fees
                         execute_param(m, ("SELECT count(amount), sum(amount) FROM transactions WHERE address = ?;"), (mempool_address,))
                         result = m.fetchall()[0]
                         if result[1] != None:
-                            debit_mempool = float(result[1]) + float(result[1]) * 0.001 + int(result[0]) * 0.01
+                            debit_mempool = float('%.8f' % (float(result[1]) + float(result[1]) * 0.001 + int(result[0]) * 0.01))
                         else:
                             debit_mempool = 0
 
@@ -1748,7 +1748,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         execute_param(m, ("SELECT count(amount), sum(amount) FROM transactions WHERE address = ?;"), (balance_address,))
                         result = m.fetchall()[0]
                         if result[1] != None:
-                            debit_mempool = float(result[1]) + float(result[1]) * 0.001 + int(result[0]) * 0.01
+                            debit_mempool = float('%.8f' % (float(result[1]) + float(result[1]) * 0.001 + int(result[0]) * 0.01))
                         else:
                             debit_mempool = 0
                         # include mempool fees
