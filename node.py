@@ -301,7 +301,7 @@ def ledger_convert(ledger_path_conf,hyper_path_conf):
                 rewards = result[0][2]
                 rewards = 0 if rewards is None else rewards
 
-                end_balance = credit - debit - fees + rewards
+                end_balance = float('%.8f' % (float(credit) - float(debit) - float(fees) + float(rewards)))
                 #app_log.info("Address: "+ str(x))
                 #app_log.info("Credit: " + str(credit))
                 #app_log.info("Debit: " + str(debit))
@@ -547,8 +547,6 @@ def mempool_merge(data, peer_ip, c, mempool, m):
                     if acceptable == 1:
 
                         # verify balance
-
-
                         # app_log.info("Mempool: Verifying balance")
                         app_log.info("Mempool: Received address: {}".format(mempool_address))
 
@@ -564,6 +562,7 @@ def mempool_merge(data, peer_ip, c, mempool, m):
                             debit_mempool = float(result[1]) + float(result[1]) * 0.001 + int(result[0]) * 0.01
                         else:
                             debit_mempool = 0
+
                         # include mempool fees
 
                         # include the new block
@@ -589,8 +588,8 @@ def mempool_merge(data, peer_ip, c, mempool, m):
 
                         # app_log.info("Mempool: Total credit: " + str(credit))
                         # app_log.info("Mempool: Total debit: " + str(debit))
-                        balance = '%.8f' % (float(credit) - float(debit) - float(fees) + float(rewards) - float(mempool_amount))
-                        balance_pre = '%.8f' % (float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards))
+                        balance = float('%.8f' % (float(credit) - float(debit) - float(fees) + float(rewards) - float(mempool_amount)))
+                        balance_pre = float('%.8f' % (float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)))
                         # app_log.info("Mempool: Projected transction address balance: " + str(balance))
 
                         fee = '%.8f' % float(0.01 + (float(mempool_amount) * 0.001) + (float(len(mempool_openfield)) / 100000) + (float(mempool_keep) / 10))  # 0.1% + 0.01 dust
@@ -1124,8 +1123,8 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2):
 
                         # app_log.info("Digest: Total credit: " + str(credit))
                         # app_log.info("Digest: Total debit: " + str(debit))
-                        balance_pre = '%.8f' % (float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards))  # without projection
-                        balance = '%.8f' % (float(credit) - float(debit) - float(fees) + float(rewards))
+                        balance_pre = float('%.8f' % (float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)))  # without projection
+                        balance = float('%.8f' % (float(credit) - float(debit) - float(fees) + float(rewards)))
                         # app_log.info("Digest: Projected transction address balance: " + str(balance))
 
 
@@ -1157,7 +1156,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2):
                             error_msg = "Sending more than owned"
                             block_valid = 0
 
-                        elif (float(balance)) - (float(fee)) < 0:  # removed +float(db_amount) because it is a part of the incoming block
+                        elif (float(balance)) - (float(fee)) < 0:
                             error_msg = "Cannot afford to pay fees"
                             block_valid = 0
 
@@ -1763,7 +1762,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                         debit = float(debit_ledger) + float(debit_mempool)
 
-                        balance = '%.8f' % (float(credit) - float(debit) - float(fees) + float(rewards))
+                        balance = float('%.8f' % (float(credit) - float(debit) - float(fees) + float(rewards)))
                         # balance_pre = float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)
                         # app_log.info("Mempool: Projected transction address balance: " + str(balance))
 
