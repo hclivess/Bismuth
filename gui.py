@@ -864,10 +864,10 @@ def refresh():
         c.execute("SELECT MAX(block_height) FROM transactions")
         bl_height = c.fetchone()[0]
 
-        debit = 0 if debit is None else debit
-        fees = 0 if fees is None else fees
-        rewards = 0 if rewards is None else rewards
-        credit = 0 if credit is None else credit
+        debit = 0 if debit is None else float('%.8f' % debit)
+        fees = 0 if fees is None else float('%.8f' % fees)
+        rewards = 0 if rewards is None else float('%.8f' % rewards)
+        credit = 0 if credit is None else float('%.8f' % credit)
 
         balance = '%.8f' % (credit - debit - fees + rewards - debit_mempool)
         app_log.warning("Node: Transction address balance: {}".format(balance))
