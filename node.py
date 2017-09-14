@@ -57,8 +57,10 @@ pool_address = config.pool_address_conf
 version = config.version_conf
 full_ledger = config.full_ledger_conf
 
-
 # load config
+
+def most_common(lst):
+    return max(set(lst), key=lst.count)
 
 def bootstrap():
     try:
@@ -1552,15 +1554,17 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if db_lock.locked() == True:
                         app_log.info("Skipping sync from {}, syncing already in progress".format(peer_ip))
 
-                    elif max(consensus_blockheight_list) == int(consensus_blockheight):
+                    elif int(received_block_height) >= most_common(consensus_blockheight_list):
+                        app_log.warning("Confirming to sync from {}".format(peer_ip))
                         connections.send(self.request, "blockscf", 10)
 
                         segments = connections.receive(self.request, 10)
                         digest_block(segments, self.request, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2)
                         # receive theirs
                     else:
+                        app_log.warning("Rejecting to sync from {}".format(peer_ip))
                         connections.send(self.request, "blocksrj", 10)
-                        app_log.info("Incoming: Distant peer {} is at {}, should be {}".format(peer_ip, consensus_blockheight_list, max(consensus_blockheight_list)))
+                        app_log.info("Incoming: Distant peer {} is at {}, should be {} or higher".format(peer_ip, received_block_height, most_common(consensus_blockheight_list)))
 
                     connections.send(self.request, "sync", 10)
 
@@ -1598,7 +1602,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             if int(received_block_height) == db_block_height:
                                 app_log.info("Incoming: We have the same height as {} ({}), hash will be verified".format(peer_ip, received_block_height))
                             else:
-                                app_log.warning("Incoming: We higher block height than {} ({}), hash will be verified".format(peer_ip, received_block_height))
+                                app_log.warning("Incoming: We higher ({}) block height than {} ({}), hash will be verified".format(db_block_height, peer_ip, received_block_height))
 
                             data = connections.receive(self.request, 10)  # receive client's last block_hash
                             # send all our followup hashes
@@ -1965,6 +1969,7 @@ def worker(HOST, PORT):
             conn, c = db_c_define()
 
             data = connections.receive(s, 10)  # receive data, one and the only root point
+            #print(data)
 
             if data == "peers":
                 subdata = connections.receive(s, 10)
@@ -2102,7 +2107,7 @@ def worker(HOST, PORT):
                         if int(received_block_height) == db_block_height:
                             app_log.info("Outgoing: We have the same block as {} ({}), hash will be verified".format(peer_ip,received_block_height))
                         else:
-                            app_log.warning("Outgoing: We have a lower block than {} ({}), hash will be verified".format(peer_ip,received_block_height))
+                            app_log.warning("Outgoing: We have a lower block ({}) than {} ({}), hash will be verified".format(db_block_height,peer_ip,received_block_height))
 
                         execute(c, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
                         db_block_hash = c.fetchone()[0]  # get latest block_hash
@@ -2123,7 +2128,7 @@ def worker(HOST, PORT):
             elif data == "blocknf":
                 block_hash_delete = connections.receive(s, 10)
                 # print peer_ip
-                if max(consensus_blockheight_list) == consensus_blockheight:
+                if max(consensus_blockheight_list) == int(received_block_height):
                     blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, backup, b)
                     if warning(s, peer_ip, "Rollback") == "banned":
                         raise ValueError("{} is banned".format(peer_ip))
@@ -2138,9 +2143,10 @@ def worker(HOST, PORT):
                 # app_log.info("Incoming: Combined segments: " + segments)
                 # print peer_ip
                 if db_lock.locked() == True:
-                    app_log.info("Skipping sync from {}, syncing already in progress".format(peer_ip))
+                    app_log.warning("Skipping sync from {}, syncing already in progress".format(peer_ip))
 
-                elif max(consensus_blockheight_list) >= int(consensus_blockheight-100):
+                elif int(received_block_height) >= most_common(consensus_blockheight_list):
+                    app_log.warning("Confirming to sync from {}".format(peer_ip))
                     connections.send(s, "blockscf", 10)
 
                     segments = connections.receive(s, 10)
@@ -2148,7 +2154,7 @@ def worker(HOST, PORT):
                     # receive theirs
                 else:
                     connections.send(s, "blocksrj", 10)
-                    app_log.info("Incoming: Distant peer {} is at {}, should be {}".format(peer_ip, consensus_blockheight, max(consensus_blockheight_list)))
+                    app_log.warning("Incoming: Distant peer {} is at {}, should be {} or higher".format(peer_ip, received_block_height, most_common(consensus_blockheight_list)))
 
                 connections.send(s, "sendsync", 10)
 
