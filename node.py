@@ -393,7 +393,8 @@ def execute(cursor, query):
             cursor.execute(query)
             break
         except Exception as e:
-            app_log.warning("Retrying database execute due to {} in {}".format(e, cursor))
+            app_log.warning("Database query: {} {}".format(cursor, query))
+            app_log.warning("Database retry reason: {}".format(e))
             time.sleep(random.random())
     return cursor
 
@@ -405,7 +406,8 @@ def execute_param(cursor, query, param):
             cursor.execute(query, param)
             break
         except Exception as e:
-            app_log.warning("Retrying database execute due to " + str(e))
+            app_log.warning("Database query: {} {} {}".format(cursor, query, param))
+            app_log.warning("Database retry reason: {}".format(e))
             time.sleep(0.1)
     return cursor
 
