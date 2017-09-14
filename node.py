@@ -774,6 +774,7 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, backup, b):
 
             else:
                 # backup
+
                 execute_param(c, ("SELECT * FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
                 backup_data = c.fetchall()
 
@@ -1445,6 +1446,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
             try:
                 if full_ledger == 1:
                     hdd, h = db_h_define()
+                else:
+                    hdd, h = None,None
                 hdd2, h2 = db_h2_define()
                 backup, b = db_b_define()
                 mempool, m = db_m_define()
