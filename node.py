@@ -138,11 +138,23 @@ def db_to_drive(hdd, h, hdd2, h2):
         for x in result2:
             h.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
         commit(hdd)
-        # hdd.close()
 
     for x in result2:
         h2.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
     commit(hdd2)
+
+    # reward
+    execute_param(o, ('SELECT * FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) > ?'), (hdd_block,))
+    result3 = o.fetchall()
+    if full_ledger == 1:
+        for x in result3:
+            h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
+        commit(hdd)
+
+    for x in result3:
+        h2.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
+    commit(hdd2)
+    # reward
 
     h2.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
     hdd_block = h2.fetchone()[0]
@@ -1218,16 +1230,6 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2):
                                     if transaction == block_transactions[-1]:  # put at the end
                                         execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", ("0", str(time_now), "Development Reward", str(genesis_conf), str(reward), "0", "0", "0", "0", "0", "0", str(block_height_new)))
                                         commit(conn)
-
-                                        # also save to hdd
-                                        app_log.info("Saving reward to HDD")
-                                        if full_ledger == 1:
-                                            execute_param(h, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", ("0", str(time_now), "Development Reward", str(genesis_conf), str(reward), "0", "0", "0", "0", "0", "0", str(block_height_new)))
-                                            commit(hdd)
-
-                                        execute_param(h2, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", ("0", str(time_now), "Development Reward", str(genesis_conf), str(reward), "0", "0", "0", "0", "0", "0", str(block_height_new)))
-                                        commit(hdd2)
-                                        # also save to hdd
 
                                         # dev reward
 
