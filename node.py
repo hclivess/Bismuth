@@ -1596,9 +1596,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                         elif int(received_block_height) <= db_block_height:
                             if int(received_block_height) == db_block_height:
-                                app_log.info("Incoming: We have the same height as {}, hash will be verified".format(peer_ip))
+                                app_log.info("Incoming: We have the same height as {} ({}), hash will be verified".format(peer_ip, received_block_height))
                             else:
-                                app_log.warning("Incoming: We higher block height than {}, hash will be verified".format(peer_ip))
+                                app_log.warning("Incoming: We higher block height than {} ({}), hash will be verified".format(peer_ip, received_block_height))
 
                             data = connections.receive(self.request, 10)  # receive client's last block_hash
                             # send all our followup hashes
@@ -2100,9 +2100,9 @@ def worker(HOST, PORT):
 
                     elif int(received_block_height) >= db_block_height:
                         if int(received_block_height) == db_block_height:
-                            app_log.info("Outgoing: We have the same block as {}, hash will be verified".format(peer_ip))
+                            app_log.info("Outgoing: We have the same block as {} ({}), hash will be verified".format(peer_ip,received_block_height))
                         else:
-                            app_log.warning("Outgoing: We have a lower block than {}, hash will be verified".format(peer_ip))
+                            app_log.warning("Outgoing: We have a lower block than {} ({}), hash will be verified".format(peer_ip,received_block_height))
 
                         execute(c, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
                         db_block_hash = c.fetchone()[0]  # get latest block_hash
@@ -2140,7 +2140,7 @@ def worker(HOST, PORT):
                 if db_lock.locked() == True:
                     app_log.info("Skipping sync from {}, syncing already in progress".format(peer_ip))
 
-                elif max(consensus_blockheight_list) == int(consensus_blockheight):
+                elif max(consensus_blockheight_list) >= int(consensus_blockheight-100):
                     connections.send(s, "blockscf", 10)
 
                     segments = connections.receive(s, 10)
