@@ -1332,7 +1332,10 @@ if len(m.fetchall()) != 8:
 
 def coherence_check():
     app_log.warning("Testing chain coherence")
-    chains_to_check = [ledger_path_conf, hyper_path_conf]
+    if full_ledger == 1:
+        chains_to_check = [ledger_path_conf, hyper_path_conf]
+    else:
+        chains_to_check = [hyper_path_conf]
 
     for chain in chains_to_check:
         conn = sqlite3.connect(chain)
@@ -1385,6 +1388,8 @@ mempool, m = db_m_define()
 conn, c = db_c_define()
 if full_ledger == 1:
     hdd, h = db_h_define()
+else:
+    hdd, h = None, None
 hdd2, h2 = db_h2_define()
 
 
@@ -1963,6 +1968,8 @@ def worker(HOST, PORT):
 
             if full_ledger == 1:
                 hdd, h = db_h_define()
+            else:
+                hdd, h = None, None
             hdd2, h2 = db_h2_define()
             mempool, m = db_m_define()
             backup, b = db_b_define()
