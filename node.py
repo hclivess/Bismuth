@@ -1547,7 +1547,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
 
                 elif data == "blocksfnd":
-                    app_log.info("Incoming: Client has the block")  # node should start sending txs in this step
+                    app_log.info("Incoming: Client {} has the block(s)".format(peer_ip))  # node should start sending txs in this step
 
                     # app_log.info("Incoming: Combined segments: " + segments)
                     # print peer_ip
@@ -1942,7 +1942,7 @@ def worker(HOST, PORT):
         # communication starter
 
     except Exception as e:
-        app_log.info("Could not connect to {} because {}".format(this_client, e))
+        app_log.info("Could not connect to {}: {}".format(this_client, e))
         return  # can return here, because no lists are affected yet
 
     banned = 0
@@ -2138,7 +2138,7 @@ def worker(HOST, PORT):
                 connections.send(s, "sendsync", 10)
 
             elif data == "blocksfnd":
-                app_log.info("Outgoing: Node has the block")  # node should start sending txs in this step
+                app_log.info("Outgoing: Node {} has the block(s)".format(peer_ip))  # node should start sending txs in this step
 
                 # app_log.info("Incoming: Combined segments: " + segments)
                 # print peer_ip
