@@ -2057,7 +2057,8 @@ def worker(HOST, PORT):
                     app_log.info("Outgoing: Node {} is at block height: {}".format(peer_ip, received_block_height))
 
                     if int(received_block_height) < db_block_height:
-                        app_log.warning("Outgoing: We have a higher block than {}, sending".format(peer_ip))
+                        app_log.warning("Outgoing: We have a higher block ({}) than {} ({}), sending".format(db_block_height,peer_ip,received_block_height))
+
                         data = connections.receive(s, 10)  # receive client's last block_hash
 
                         # send all our followup hashes
