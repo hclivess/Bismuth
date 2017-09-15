@@ -1612,7 +1612,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             if int(received_block_height) == db_block_height:
                                 app_log.info("Incoming: We have the same height as {} ({}), hash will be verified".format(peer_ip, received_block_height))
                             else:
-                                app_log.warning("Incoming: We higher ({}) block height than {} ({}), hash will be verified".format(db_block_height, peer_ip, received_block_height))
+                                app_log.warning("Incoming: We have higher ({}) block height than {} ({}), hash will be verified".format(db_block_height, peer_ip, received_block_height))
 
                             data = connections.receive(self.request, 10)  # receive client's last block_hash
                             # send all our followup hashes
