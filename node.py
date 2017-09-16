@@ -901,11 +901,14 @@ def manager():
                 t.start()
 
                 # client thread handling
-        if len(connection_pool) < 3:
-            app_log.warning("Only {} connections active, resetting the connection history and banlist".format(len(connection_pool)))
-            del tried[:]
+        if len(connection_pool) < 1:
+            app_log.warning("Only {} connections active, resetting banlist".format(len(connection_pool)))
             del banlist[:]
             del warning_list[:]
+
+        if len(connection_pool) < 10:
+            app_log.warning("Only {} connections active, resetting the connection history".format(len(connection_pool)))
+            del tried[:]
 
         if banlist:
             app_log.warning("Status: Banlist: {}".format(banlist))
@@ -931,7 +934,7 @@ def manager():
         time.sleep(30)
 
 
-def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2):
+def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3):
     global banlist, hdd_block
 
     if db_lock.locked() == False:
@@ -952,9 +955,9 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2):
                     signature_list.append(r[4])
 
                     # reject block with transactions which are already in the ledger
-                    execute_param(c, ("SELECT block_height FROM transactions WHERE signature = ?;"), (r[4],))  # todo: make sure there are no more than 10k blocks per day
+                    execute_param(h3, ("SELECT block_height FROM transactions WHERE signature = ?;"), (r[4],))  # todo: make sure there are no more than 10k blocks per day
                     try:
-                        result = c.fetchall()[0]
+                        result = h3.fetchall()[0]
                         error_msg = "That transaction is already in our ledger, row {}".format(result[0])
                         block_valid = 0
 
@@ -1389,11 +1392,13 @@ except Exception as e:
 backup, b = db_b_define()
 mempool, m = db_m_define()
 conn, c = db_c_define()
+hdd2, h2 = db_h2_define()
 if full_ledger == 1:
     hdd, h = db_h_define()
+    h3 = h
 else:
     hdd, h = None, None
-hdd2, h2 = db_h2_define()
+    h3 = h2
 
 
 # init
@@ -1446,14 +1451,17 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
         while banned == 0 and capacity == 1:
             try:
-                if full_ledger == 1:
-                    hdd, h = db_h_define()
-                else:
-                    hdd, h = None,None
                 hdd2, h2 = db_h2_define()
                 backup, b = db_b_define()
                 mempool, m = db_m_define()
                 conn, c = db_c_define()
+                if full_ledger == 1:
+                    hdd, h = db_h_define()
+                    h3 = h
+                else:
+                    hdd, h = None,None
+                    h3 = h2
+
 
                 if not time.time() <= timer_operation + timeout_operation:  # return on timeout
                     if warning(self.request, peer_ip, "Operation timeout") == "banned":
@@ -1569,7 +1577,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         connections.send(self.request, "blockscf", 10)
 
                         segments = connections.receive(self.request, 10)
-                        digest_block(segments, self.request, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2)
+                        digest_block(segments, self.request, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         # receive theirs
                     else:
                         app_log.warning("Rejecting to sync from {}".format(peer_ip))
@@ -1620,11 +1628,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             app_log.info("Incoming: Will seek the following block: {}".format(data))
 
                             try:
-                                if full_ledger == 1:
-                                    h3 = h
-                                else:
-                                    h3 = h2
-
                                 execute_param(h3, ("SELECT block_height FROM transactions WHERE block_hash = ?;"), (data,))
                                 client_block = h3.fetchone()[0]
 
@@ -1705,7 +1708,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                 app_log.warning("Outgoing: Mined block ignored, insufficient connections to the network")
                             elif int(db_block_height) >= int(max(consensus_blockheight_list)) - 3 and db_lock.locked() == False:
                                 app_log.warning("Outgoing: Processing block from miner")
-                                digest_block(segments, self.request, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2)
+                                digest_block(segments, self.request, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                             elif db_lock.locked() == True:
                                 app_log.warning("Outgoing: Block from miner skipped because we are digesting already")
 
@@ -1713,7 +1716,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             else:
                                 app_log.warning("Outgoing: Mined block was orphaned because node was not synced, we are at block {}, should be at least {}".format(db_block_height, int(max(consensus_blockheight_list)) - 3))
                         else:
-                            digest_block(segments, self.request, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2)
+                            digest_block(segments, self.request, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                     else:
                         connections.receive(self.request, 10)  # receive block, but do nothing about it
                         app_log.info("{} not whitelisted for block command".format(peer_ip))
@@ -1971,14 +1974,16 @@ def worker(HOST, PORT):
                 app_log.warning("Connected to {}".format(this_client))
                 app_log.info("Current active pool: {}".format(connection_pool))
 
-            if full_ledger == 1:
-                hdd, h = db_h_define()
-            else:
-                hdd, h = None, None
             hdd2, h2 = db_h2_define()
             mempool, m = db_m_define()
             backup, b = db_b_define()
             conn, c = db_c_define()
+            if full_ledger == 1:
+                hdd, h = db_h_define()
+                h3 = h
+            else:
+                hdd, h = None, None
+                h3 = h2
 
             data = connections.receive(s, 10)  # receive data, one and the only root point
             #print(data)
@@ -2072,11 +2077,6 @@ def worker(HOST, PORT):
                         # consensus pool 2 (active connection)
 
                         try:
-                            if full_ledger == 1:
-                                h3 = h
-                            else:
-                                h3 = h2
-
                             execute_param(h3, ("SELECT block_height FROM transactions WHERE block_hash = ?;"), (data,))
                             client_block = h3.fetchone()[0]
 
@@ -2163,7 +2163,7 @@ def worker(HOST, PORT):
                     connections.send(s, "blockscf", 10)
 
                     segments = connections.receive(s, 10)
-                    digest_block(segments, s, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2)
+                    digest_block(segments, s, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                     # receive theirs
                 else:
                     connections.send(s, "blocksrj", 10)
