@@ -485,7 +485,7 @@ def mempool_merge(data, peer_ip, c, mempool, m):
             app_log.info("Mempool from {} was empty".format(peer_ip))
             mem_lock.release()
         else:
-            app_log.info("Mempool merging started")
+            app_log.info("Mempool merging started from {}".format(peer_ip))
 
             while db_lock.locked() == True:  # prevent transactions which are just being digested from being added to mempool, it's ok if digesting starts first, because it will delete the txs and mempool will check for them in the ledger
                 app_log.info("Waiting for block digestion to finish before merging mempool")
@@ -536,16 +536,16 @@ def mempool_merge(data, peer_ip, c, mempool, m):
                         pass
 
                     if mempool_keep != "1" and mempool_keep != "0":
-                        app_log.info = ("Wrong keep value {}".format(mempool_keep))
+                        app_log.info = ("Mempool: Wrong keep value {}".format(mempool_keep))
                         acceptable = 0
 
                     if mempool_address != hashlib.sha224(base64.b64decode(mempool_public_key_hashed)).hexdigest():
-                        app_log.info("Attempt to spend from a wrong address")
+                        app_log.info("Mempool: Attempt to spend from a wrong address")
                         acceptable = 0
 
                     if float(mempool_amount) < 0:
                         acceptable = 0
-                        app_log.info("Negative balance spend attempt")
+                        app_log.info("Mempool: Negative balance spend attempt")
 
                     if float(mempool_timestamp) > time.time() + 30:  # dont accept future txs
                         acceptable = 0
@@ -557,9 +557,9 @@ def mempool_merge(data, peer_ip, c, mempool, m):
                         try:
                             execute_param(m, ("DELETE FROM transactions WHERE signature = ?;"), (mempool_signature_enc,))
                             commit(mempool)
-                            app_log.info("Transaction deleted from our mempool")
+                            app_log.info("Mempool: Transaction deleted from our mempool")
                         except:  # experimental try and except
-                            app_log.info("Transaction was not present in the pool anymore")
+                            app_log.info("Mempool: Transaction was not present in the pool anymore")
                             pass  # continue to mempool finished message
 
                             # verify signatures and balances
@@ -570,7 +570,7 @@ def mempool_merge(data, peer_ip, c, mempool, m):
                     hash = SHA.new(str((mempool_timestamp, mempool_address, mempool_recipient, mempool_amount, mempool_keep, mempool_openfield)).encode("utf-8"))
                     if not verifier.verify(hash, mempool_signature_dec):
                         acceptable = 0
-                        app_log.info("Wrong signature in mempool insert attempt: {}".format(transaction))
+                        app_log.info("Mempool: Wrong signature in mempool insert attempt: {}".format(transaction))
 
                     # verify signature
 
@@ -640,7 +640,7 @@ def mempool_merge(data, peer_ip, c, mempool, m):
                         else:
                             execute_param(m, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (str(mempool_timestamp), str(mempool_address), str(mempool_recipient), str(mempool_amount),
                                                                                                    str(mempool_signature_enc), str(mempool_public_key_hashed), str(mempool_keep), str(mempool_openfield)))
-                            app_log.info("Mempool updated with a received transaction")
+                            app_log.info("Mempool updated with a received transaction from {}".format(peer_ip))
                             commit(mempool)  # Save (commit) the changes
 
                             # merge mempool
@@ -800,6 +800,9 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, backup, b):
                 execute_param(c, ("DELETE FROM misc WHERE block_height >= ?;"), (str(db_block_height),))
                 commit(conn)
 
+                execute_param(c, ('DELETE FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) >= ?'), (str(db_block_height),))
+                commit(conn)
+
                 app_log.warning("Node {} didn't find block {}({}), rolled back".format(peer_ip, db_block_height, db_block_hash))
 
                 # roll back hdd too
@@ -819,9 +822,9 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, backup, b):
 
                 # roll back reward too
                 if full_ledger == 1:
-                    execute_param(h, ('DELETE FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) >= ?'), (hdd_block,))
+                    execute_param(h, ('DELETE FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) >= ?'), (str(db_block_height),))
                     commit(hdd)
-                execute_param(h2, ('DELETE FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) >= ?'), (hdd_block,))
+                execute_param(h2, ('DELETE FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) >= ?'), (str(db_block_height),))
                 commit(hdd2)
                 # roll back reward too
 
@@ -1239,15 +1242,10 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                             # dev reward
                             if int(block_height_new) % 10 == 0:  # every 10 blocks
-                                try:
-                                    execute_param(c, ("SELECT timestamp FROM transactions WHERE openfield = ?;"), (str(block_height_new),))
-                                    test_dev_reward = c.fetchone()[0]
-                                except:
-                                    if transaction == block_transactions[-1]:  # put at the end
-                                        execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", ("0", str(time_now), "Development Reward", str(genesis_conf), str(reward), "0", "0", "0", "0", "0", "0", str(block_height_new)))
-                                        commit(conn)
-
-                                        # dev reward
+                                if transaction == block_transactions[-1]:  # put at the end
+                                    execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", ("0", str(time_now), "Development Reward", str(genesis_conf), str(reward), "0", "0", "0", "0", "0", "0", str(block_height_new)))
+                                    commit(conn)
+                            # dev reward
 
                         app_log.warning("Block {} valid and saved from {}".format(block_height_new, peer_ip))
 
@@ -1830,7 +1828,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "txsend":
                     if (peer_ip in allowed or "any" in allowed):
                         tx_remote = connections.receive(self.request, 10)
-                        print(tx_remote)
 
                         # receive data necessary for remote tx construction
                         remote_tx_timestamp = tx_remote[0]

@@ -317,15 +317,16 @@ def send(amount_input, recipient_input, keep_input, openfield_input, top10, fee)
                 app_log.warning("Client: The signature is valid, proceeding to save transaction, signature, new txhash and the public key to mempool")
 
                 # print(str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input),str(signature_enc), str(public_key_hashed), str(keep_input), str(openfield_input))
-                tx_submit = ("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input), str(signature_enc.decode("utf-8")), str(public_key_hashed.decode("utf-8")), str(keep_input), str(openfield_input)))
+                tx_submit = (str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input), str(signature_enc.decode("utf-8")), str(public_key_hashed.decode("utf-8")), str(keep_input), str(openfield_input))
 
                 while True:
                     s = socks.socksocket()
                     s.connect((node_ip_conf, int(port)))
                     connections.send(s, "mpinsert", 10)
-                    connections.send(s, tx_submit, 10)  # change address here to view other people's transactions
+                    connections.send(s, [tx_submit], 10)  # change address here to view other people's transactions
+                    reply = connections.receive(s, 10)
+                    app_log.warning("Client: {}".format(reply))
                     s.close()
-                    app_log.warning("Client: Mempool updated with a received transaction")
                     break
                 # refresh() experimentally disabled
         else:
