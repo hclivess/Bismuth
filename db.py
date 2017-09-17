@@ -26,6 +26,7 @@ def execute(cursor, query, app_log):
 
 def execute_param(cursor, query, param, app_log):
     """Secure execute w/ param for slow nodes"""
+
     while True:
         try:
             cursor.execute(query, param, app_log)

@@ -29,6 +29,7 @@ peersync_lock = threading.Lock()
 
 config = options.Get()
 config.read()
+
 debug_level = config.debug_level_conf
 port = config.port
 genesis_conf = config.genesis_conf
@@ -1821,8 +1822,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "addlist":
                     if (peer_ip in allowed or "any" in allowed):
                         address_tx_list = connections.receive(self.request, 10)
-                        execute_param(c, ("SELECT * FROM transactions WHERE (address = ? OR recipient = ?)"), (address_tx_list,) + (address_tx_list,))
-                        result = c.fetchall()
+                        execute_param(h3, ("SELECT * FROM transactions WHERE (address = ? OR recipient = ?)"), (address_tx_list,) + (address_tx_list,))
+                        result = h3.fetchall()
                         connections.send(self.request, result, 10)
                     else:
                         app_log.info("{} not whitelisted for addlist command".format(peer_ip))
