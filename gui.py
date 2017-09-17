@@ -42,6 +42,7 @@ c2 = conn.cursor()
 
 app_log = log.log("gui.log", debug_level)
 
+essentials.keys_check(app_log)
 essentials.db_check(app_log)
 
 mempool = sqlite3.connect('mempool.db', timeout=1)

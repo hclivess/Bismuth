@@ -10,7 +10,7 @@ from itertools import groupby
 from operator import itemgetter
 import shutil, socketserver, base64, hashlib, os, re, sqlite3, sys, threading, time, socks, log, options, connections, random, keys, math, requests, tarfile, essentials
 
-from Crypto import Random
+
 from Crypto.Hash import SHA
 from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
@@ -1270,36 +1270,10 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
             db_lock.release()
 
 
-# key maintenance
-if os.path.isfile("privkey.der") is True:
-    app_log.warning("privkey.der found")
-elif os.path.isfile("privkey_encrypted.der") is True:
-    app_log.warning("privkey_encrypted.der found")
-else:
-    # generate key pair and an address
-    random_generator = Random.new().read
-    key = RSA.generate(4096, random_generator)
-    public_key = key.publickey()
 
-    private_key_readable = key.exportKey().decode("utf-8")
-    public_key_readable = key.publickey().exportKey().decode("utf-8")
-    address = hashlib.sha224(public_key_readable.encode("utf-8")).hexdigest()  # hashed public key
-    # generate key pair and an address
-
-    app_log.info("Your address: {}".format(address))
-    app_log.info("Your public key: {}".format(public_key_readable))
-
-    pem_file = open("privkey.der", 'a')
-    pem_file.write(str(private_key_readable))
-    pem_file.close()
-
-    pem_file = open("pubkey.der", 'a')
-    pem_file.write(str(public_key_readable))
-    pem_file.close()
-
-    address_file = open("address.txt", 'a')
-    address_file.write(str(address) + "\n")
-    address_file.close()
+check_integrity(hyper_path_conf)
+essentials.keys_check(app_log)
+essentials.db_check(app_log)
 
 # import keys
 # key = RSA.importKey(open('privkey.der').read())
@@ -1313,10 +1287,6 @@ public_key_hashed = base64.b64encode(public_key_readable.encode('utf-8'))
 address = hashlib.sha224(public_key_readable.encode('utf-8')).hexdigest()
 
 app_log.warning("Local address: {}".format(address))
-
-check_integrity(hyper_path_conf)
-
-essentials.db_check(app_log)
 
 # check if mempool needs recreating
 mempool = sqlite3.connect('mempool.db', timeout=1)
