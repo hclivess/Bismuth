@@ -6,7 +6,7 @@ config.read()
 debug_level = config.debug_level_conf
 full_ledger = config.full_ledger_conf
 port = config.port
-node_ip_conf = config.node_ip_conf
+light_ip = config.light_ip_conf
 
 from datetime import datetime
 from Crypto.PublicKey import RSA
@@ -321,7 +321,7 @@ def send(amount_input, recipient_input, keep_input, openfield_input, top10, fee)
 
                 while True:
                     s = socks.socksocket()
-                    s.connect((node_ip_conf, int(port)))
+                    s.connect((light_ip, int(port)))
                     connections.send(s, "mpinsert", 10)
                     connections.send(s, [tx_submit], 10)  # change address here to view other people's transactions
                     reply = connections.receive(s, 10)
@@ -589,7 +589,7 @@ def table():
     rows_total = 19
 
     s = socks.socksocket()
-    s.connect((node_ip_conf, int(port)))
+    s.connect((light_ip, int(port)))
     connections.send(s, "addlist", 10)
     connections.send(s, address, 10)
     addlist = connections.receive(s, 10)
@@ -704,7 +704,7 @@ def refresh():
 
     try:
         s = socks.socksocket()
-        s.connect((node_ip_conf, int(port)))
+        s.connect((light_ip, int(port)))
         connections.send(s, "balanceget", 10)
         connections.send(s, address, 10)  # change address here to view other people's transactions
         stats_account = connections.receive(s, 10)
@@ -733,7 +733,7 @@ def refresh():
 
         fee = '%.8f' % float(0.01 + (float(amount.get()) * 0.001) + (float(len(openfield_input)) / 100000) + (float(keep_var.get()) / 10))  # 0.1% + 0.01 dust
 
-        app_log.warning("Fee: {}".format(fee))
+        #app_log.warning("Fee: {}".format(fee))
 
     except Exception as e:
         fee = 0.01
@@ -743,7 +743,7 @@ def refresh():
 
     # check difficulty
     s = socks.socksocket()
-    s.connect((node_ip_conf, int(port)))
+    s.connect((light_ip, int(port)))
     connections.send(s, "diffget", 10)
     diff = connections.receive(s, 10)
     s.close()

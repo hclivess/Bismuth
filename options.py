@@ -60,3 +60,5 @@ class Get:
                 self.pool_percentage_conf = int(line.lstrip('pool_percentage='))
             if "node_ip=" in line:
                 self.node_ip_conf = line.lstrip('node_ip=')
+            if "light_ip=" in line:
+                self.light_ip_conf = line.lstrip('light_ip=')
