@@ -11,6 +11,7 @@ def db_check(app_log):
         db.execute(b, ("CREATE TABLE IF NOT EXISTS misc (block_height, difficulty)"), app_log)
         db.commit(backup, app_log)
         app_log.warning("Created backup file")
+        backup.close()
         # create empty backup file
 
     if not os.path.exists('mempool.db'):
@@ -21,4 +22,5 @@ def db_check(app_log):
         db.execute(m, ("CREATE TABLE IF NOT EXISTS transactions (timestamp, address, recipient, amount, signature, public_key, keep, openfield)"), app_log)
         db.commit(mempool, app_log)
         app_log.warning("Created mempool file")
+        mempool.close()
         # create empty mempool

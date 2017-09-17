@@ -8,7 +8,7 @@
 
 from itertools import groupby
 from operator import itemgetter
-import shutil, socketserver, base64, hashlib, os, re, sqlite3, sys, threading, time, socks, log, options, connections, random, keys, math, requests, tarfile
+import shutil, socketserver, base64, hashlib, os, re, sqlite3, sys, threading, time, socks, log, options, connections, random, keys, math, requests, tarfile, essentials
 
 from Crypto import Random
 from Crypto.Hash import SHA
@@ -1316,15 +1316,7 @@ app_log.warning("Local address: {}".format(address))
 
 check_integrity(hyper_path_conf)
 
-if not os.path.exists('mempool.db'):
-    # create empty mempool
-    mempool = sqlite3.connect('mempool.db', timeout=1)
-    mempool.text_factory = str
-    m = mempool.cursor()
-    execute(m, ("CREATE TABLE IF NOT EXISTS transactions (timestamp, address, recipient, amount, signature, public_key, keep, openfield)"))
-    commit(mempool)
-    app_log.info("Created mempool file")
-    # create empty mempool
+essentials.db_check()
 
 # check if mempool needs recreating
 mempool = sqlite3.connect('mempool.db', timeout=1)
