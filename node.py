@@ -1316,7 +1316,7 @@ app_log.warning("Local address: {}".format(address))
 
 check_integrity(hyper_path_conf)
 
-essentials.db_check()
+essentials.db_check(app_log)
 
 # check if mempool needs recreating
 mempool = sqlite3.connect('mempool.db', timeout=1)
