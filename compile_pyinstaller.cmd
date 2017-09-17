@@ -35,7 +35,6 @@ copy %var%\static\style_zircodice.css %var%\dist\static\style_zircodice.css
 copy %var%\static\zircodice.ico %var%\dist\static\zircodice.ico
 
 copy %var%\peers.txt %var%\dist\peers.txt
-copy %var%\misc\backup.db %var%\dist\backup.db
 copy %var%\config.txt %var%\dist\config.txt
 
 "C:\Program Files (x86)\Inno Setup 5\iscc" /q "%var%\setup.iss"

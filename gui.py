@@ -1,5 +1,5 @@
 # icons created using http://www.winterdrache.de/freeware/png2ico/
-import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, sqlite3, time, base64, connections, icons, log, socks, ast, options, math, tarfile, glob
+import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, sqlite3, time, base64, connections, icons, log, socks, ast, options, math, tarfile, glob, essentials
 
 config = options.Get()
 config.read()
@@ -40,16 +40,15 @@ conn2.text_factory = str
 global c2
 c2 = conn.cursor()
 
-if not os.path.exists('mempool.db'):
-    raise ValueError ("Mempool file not present, run node first")
-else:
-    mempool = sqlite3.connect('mempool.db', timeout=1)
-    mempool.text_factory = str
-    m = mempool.cursor()
+app_log = log.log("gui.log", debug_level)
+
+essentials.db_check(app_log)
+
+mempool = sqlite3.connect('mempool.db', timeout=1)
+mempool.text_factory = str
+m = mempool.cursor()
 
 # for local evaluation
-
-app_log = log.log("gui.log", debug_level)
 
 root = Tk()
 root.wm_title("Bismuth")
