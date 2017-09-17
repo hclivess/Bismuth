@@ -1,5 +1,5 @@
 # icons created using http://www.winterdrache.de/freeware/png2ico/
-import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, sqlite3, time, base64, connections, icons, log, socks, ast, options, math, tarfile, glob, essentials
+import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, time, base64, connections, icons, log, socks, ast, options, math, tarfile, glob, essentials
 
 config = options.Get()
 config.read()
@@ -366,124 +366,129 @@ def qr():
     # popup
 
 
-def msg_dialogue():
-    def msg_received_get():
-
-        for row in c.execute("SELECT address,openfield,timestamp FROM transactions WHERE recipient = ? AND (openfield LIKE ? OR openfield LIKE ? OR openfield LIKE ? OR openfield LIKE ?) ORDER BY timestamp DESC;", (address,) + ("msg=" + '%',) + ("bmsg=" + '%',) + ("enc=msg=" + '%',) + ("enc=bmsg=" + '%',)):
-
-            # get alias
-            try:
-                c2.execute("SELECT openfield FROM transactions WHERE openfield LIKE ? AND address = ? ORDER BY block_height ASC, timestamp ASC LIMIT 1;", ("alias=" + '%', row[0],))  # asc for first entry
-                msg_address = c2.fetchone()[0]
-            # get alias
-            except:
-                msg_address = row[0]
+def msg_dialogue(addlist):
+    def msg_received_get(addlist):
 
 
-            if row[1].startswith("enc=msg="):
-                msg_received_digest = row[1].lstrip("enc=msg=")
-                try:
-                    #msg_received_digest = key.decrypt(ast.literal_eval(msg_received_digest)).decode("utf-8")
+        for x in addlist:
+             if x[11].startswith(("msg=", "bmsg=", "enc=msg=", "enc=bmsg=")) and x[3] == address:
+                #print(x[11])
 
-                    (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval(msg_received_digest)
-                    private_key = RSA.import_key(open("privkey.der").read())
-                    # Decrypt the session key with the public RSA key
-                    cipher_rsa = PKCS1_OAEP.new(private_key)
-                    session_key = cipher_rsa.decrypt(enc_session_key)
-                    # Decrypt the data with the AES session key
-                    cipher_aes = AES.new(session_key, AES.MODE_EAX, cipher_aes_nonce)
-                    msg_received_digest = cipher_aes.decrypt_and_verify(ciphertext, tag).decode("utf-8")
+                s = socks.socksocket()
+                s.connect((light_ip, int(port)))
+                connections.send(s, "aliasget", 10)
+                connections.send(s, x[2], 10)
 
-                except:
-                    msg_received_digest = "Could not decrypt message"
+                msg_address = connections.receive(s,10)[0][0]
+                s.close()
 
-            elif row[1].startswith("enc=bmsg="):
-                msg_received_digest = row[1].lstrip("enc=bmsg=")
-                try:
-                    msg_received_digest = base64.b64decode(msg_received_digest).decode("utf-8")
+                if x[11].startswith("enc=msg="):
+                    msg_received_digest = x[11].lstrip("enc=msg=")
+                    try:
+                        #msg_received_digest = key.decrypt(ast.literal_eval(msg_received_digest)).decode("utf-8")
 
-                    #msg_received_digest = key.decrypt(ast.literal_eval(msg_received_digest)).decode("utf-8")
-                    (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval(msg_received_digest)
-                    private_key = RSA.import_key(open("privkey.der").read())
-                    # Decrypt the session key with the public RSA key
-                    cipher_rsa = PKCS1_OAEP.new(private_key)
-                    session_key = cipher_rsa.decrypt(enc_session_key)
-                    # Decrypt the data with the AES session key
-                    cipher_aes = AES.new(session_key, AES.MODE_EAX, cipher_aes_nonce)
-                    msg_received_digest = cipher_aes.decrypt_and_verify(ciphertext, tag).decode("utf-8")
+                        (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval(msg_received_digest)
+                        private_key = RSA.import_key(open("privkey.der").read())
+                        # Decrypt the session key with the public RSA key
+                        cipher_rsa = PKCS1_OAEP.new(private_key)
+                        session_key = cipher_rsa.decrypt(enc_session_key)
+                        # Decrypt the data with the AES session key
+                        cipher_aes = AES.new(session_key, AES.MODE_EAX, cipher_aes_nonce)
+                        msg_received_digest = cipher_aes.decrypt_and_verify(ciphertext, tag).decode("utf-8")
 
-                except:
-                    msg_received_digest = "Could not decrypt message"
+                    except:
+                        msg_received_digest = "Could not decrypt message"
+
+                elif x[11].startswith("enc=bmsg="):
+                    msg_received_digest = x[11].lstrip("enc=bmsg=")
+                    try:
+                        msg_received_digest = base64.b64decode(msg_received_digest).decode("utf-8")
+
+                        #msg_received_digest = key.decrypt(ast.literal_eval(msg_received_digest)).decode("utf-8")
+                        (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval(msg_received_digest)
+                        private_key = RSA.import_key(open("privkey.der").read())
+                        # Decrypt the session key with the public RSA key
+                        cipher_rsa = PKCS1_OAEP.new(private_key)
+                        session_key = cipher_rsa.decrypt(enc_session_key)
+                        # Decrypt the data with the AES session key
+                        cipher_aes = AES.new(session_key, AES.MODE_EAX, cipher_aes_nonce)
+                        msg_received_digest = cipher_aes.decrypt_and_verify(ciphertext, tag).decode("utf-8")
+
+                    except:
+                        msg_received_digest = "Could not decrypt message"
 
 
-            elif row[1].startswith("bmsg="):
-                msg_received_digest = row[1].lstrip("bmsg=")
-                try:
-                    msg_received_digest = base64.b64decode(msg_received_digest).decode("utf-8")
-                except:
-                    msg_received_digest = "Could not decode message"
-            elif row[1].startswith("msg="):
-                msg_received_digest = row[1].lstrip("msg=")
+                elif x[11].startswith("bmsg="):
+                    msg_received_digest = x[11].lstrip("bmsg=")
+                    try:
+                        msg_received_digest = base64.b64decode(msg_received_digest).decode("utf-8")
+                    except:
+                        msg_received_digest = "Could not decode message"
+                elif x[11].startswith("msg="):
+                    msg_received_digest = x[11].lstrip("msg=")
 
 
 
 
-            msg_received.insert(INSERT, ((time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(row[2])))) + " From " + msg_address.replace("alias=", "") + ": " + msg_received_digest) + "\n")
+                msg_received.insert(INSERT, ((time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(x[1])))) + " From " + msg_address.replace("alias=", "") + ": " + msg_received_digest) + "\n")
 
-    def msg_sent_get():
+    def msg_sent_get(addlist):
 
-        for row in c.execute("SELECT recipient,openfield,timestamp FROM transactions WHERE address = ? AND (openfield LIKE ? OR openfield LIKE ? OR openfield LIKE ? OR openfield LIKE ?) ORDER BY timestamp DESC;", (address,) + ("msg=" + '%',) + ("bmsg=" + '%',) + ("enc=msg=" + '%',) + ("enc=bmsg=" + '%',)):
-            try:
-                # get alias
-                c2.execute("SELECT openfield FROM transactions WHERE openfield LIKE ? AND address = ? ORDER BY block_height ASC, timestamp ASC LIMIT 1;", ("alias=" + '%', row[0],))  # asc for first entry
-                msg_recipient = c2.fetchone()[0]
-                # get alias
-            except:
-                msg_recipient = row[0]
+        for x in addlist:
+            if x[11].startswith(("msg=", "bmsg=", "enc=msg=", "enc=bmsg=")) and x[2] == address:
+                # print(x[11])
 
-            if row[1].startswith("enc=msg="):
-                msg_sent_digest = row[1].lstrip("enc=msg=")
-                try:
-                    #msg_sent_digest = key.decrypt(ast.literal_eval(msg_sent_digest)).decode("utf-8")
-                    (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval(msg_sent_digest)
-                    private_key = RSA.import_key(open("privkey.der").read())
-                    # Decrypt the session key with the public RSA key
-                    cipher_rsa = PKCS1_OAEP.new(private_key)
-                    session_key = cipher_rsa.decrypt(enc_session_key)
-                    # Decrypt the data with the AES session key
-                    cipher_aes = AES.new(session_key, AES.MODE_EAX, cipher_aes_nonce)
-                    msg_sent_digest = cipher_aes.decrypt_and_verify(ciphertext, tag).decode("utf-8")
+                s = socks.socksocket()
+                s.connect((light_ip, int(port)))
+                connections.send(s, "aliasget", 10)
+                connections.send(s, x[3], 10)
+                received_aliases = connections.receive(s, 10)
+                msg_recipient =  received_aliases[0][0]
+                s.close()
 
-                except:
-                    msg_sent_digest = "Could not decrypt message"
+                if x[11].startswith("enc=msg="):
+                    msg_sent_digest = x[11].lstrip("enc=msg=")
+                    try:
+                        #msg_sent_digest = key.decrypt(ast.literal_eval(msg_sent_digest)).decode("utf-8")
+                        (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval(msg_sent_digest)
+                        private_key = RSA.import_key(open("privkey.der").read())
+                        # Decrypt the session key with the public RSA key
+                        cipher_rsa = PKCS1_OAEP.new(private_key)
+                        session_key = cipher_rsa.decrypt(enc_session_key)
+                        # Decrypt the data with the AES session key
+                        cipher_aes = AES.new(session_key, AES.MODE_EAX, cipher_aes_nonce)
+                        msg_sent_digest = cipher_aes.decrypt_and_verify(ciphertext, tag).decode("utf-8")
 
-            elif row[1].startswith("enc=bmsg="):
-                msg_sent_digest = row[1].lstrip("enc=bmsg=")
-                try:
-                    msg_sent_digest = base64.b64decode(msg_sent_digest).decode("utf-8")
-                    #msg_sent_digest = key.decrypt(ast.literal_eval(msg_sent_digest)).decode("utf-8")
-                    (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval(msg_sent_digest)
-                    private_key = RSA.import_key(open("privkey.der").read())
-                    # Decrypt the session key with the public RSA key
-                    cipher_rsa = PKCS1_OAEP.new(private_key)
-                    session_key = cipher_rsa.decrypt(enc_session_key)
-                    # Decrypt the data with the AES session key
-                    cipher_aes = AES.new(session_key, AES.MODE_EAX, cipher_aes_nonce)
-                    msg_sent_digest = cipher_aes.decrypt_and_verify(ciphertext, tag).decode("utf-8")
-                except:
-                    msg_sent_digest = "Could not decrypt message"
+                    except:
+                        msg_sent_digest = "Could not decrypt message"
 
-            elif row[1].startswith("bmsg="):
-                msg_sent_digest = row[1].lstrip("bmsg=")
-                try:
-                    msg_sent_digest = base64.b64decode(msg_sent_digest).decode("utf-8")
-                except:
-                    msg_received_digest = "Could not decode message"
+                elif x[11].startswith("enc=bmsg="):
+                    msg_sent_digest = x[11].lstrip("enc=bmsg=")
+                    try:
+                        msg_sent_digest = base64.b64decode(msg_sent_digest).decode("utf-8")
+                        #msg_sent_digest = key.decrypt(ast.literal_eval(msg_sent_digest)).decode("utf-8")
+                        (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval(msg_sent_digest)
+                        private_key = RSA.import_key(open("privkey.der").read())
+                        # Decrypt the session key with the public RSA key
+                        cipher_rsa = PKCS1_OAEP.new(private_key)
+                        session_key = cipher_rsa.decrypt(enc_session_key)
+                        # Decrypt the data with the AES session key
+                        cipher_aes = AES.new(session_key, AES.MODE_EAX, cipher_aes_nonce)
+                        msg_sent_digest = cipher_aes.decrypt_and_verify(ciphertext, tag).decode("utf-8")
+                    except:
+                        msg_sent_digest = "Could not decrypt message"
 
-            elif row[1].startswith("msg="):
-                msg_sent_digest = row[1].lstrip("msg=")
+                elif x[11].startswith("bmsg="):
+                    msg_sent_digest = x[11].lstrip("bmsg=")
+                    try:
+                        msg_sent_digest = base64.b64decode(msg_sent_digest).decode("utf-8")
+                    except:
+                        msg_received_digest = "Could not decode message"
 
-            msg_sent.insert(INSERT, ((time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(row[2])))) + " To " + msg_recipient.replace("alias=", "") + ": " + msg_sent_digest) + "\n")
+                elif x[11].startswith("msg="):
+                    msg_sent_digest = x[11].lstrip("msg=")
+
+                msg_sent.insert(INSERT, ((time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(x[1])))) + " To " + msg_recipient.replace("alias=", "") + ": " + msg_sent_digest) + "\n")
 
     # popup
     top11 = Toplevel()
@@ -493,13 +498,13 @@ def msg_dialogue():
 
     msg_received = Text(top11, width=100, height=20, font=("Tahoma", 8))
     msg_received.grid(row=1, column=0, sticky=W, padx=5, pady=(5, 5))
-    msg_received_get()
+    msg_received_get(addlist)
 
     Label(top11, text="Sent:", width=20).grid(row=2)
 
     msg_sent = Text(top11, width=100, height=20, font=("Tahoma", 8))
     msg_sent.grid(row=3, column=0, sticky=W, padx=5, pady=(5, 5))
-    msg_sent_get()
+    msg_sent_get(addlist)
 
     dismiss = Button(top11, text="Dismiss", command=top11.destroy)
     dismiss.grid(row=5, column=0, sticky=W + E, padx=15, pady=(5, 5))
@@ -580,7 +585,8 @@ def refresh_auto():
     root.after(30000, refresh_auto)
 
 
-def table():
+
+def table(addlist_20):
     # transaction table
     # data
 
@@ -588,13 +594,7 @@ def table():
 
     rows_total = 19
 
-    s = socks.socksocket()
-    s.connect((light_ip, int(port)))
-    connections.send(s, "addlist", 10)
-    connections.send(s, address, 10)
-    addlist = connections.receive(s, 10)
-    addlist = addlist[::-1] #reverse
-    addlist = addlist[:20] #limit
+
 
 
     """
@@ -614,7 +614,7 @@ def table():
         datasheet.append(symbol)
     """
 
-    for row in addlist:
+    for row in addlist_20:
         db_timestamp = row[1]
         datasheet.append(datetime.fromtimestamp(float(db_timestamp)).strftime('%Y-%m-%d %H:%M:%S'))
         db_address = row[2]
@@ -780,7 +780,7 @@ def refresh():
     diff_msg_var.set("Mining Difficulty: {}".format('%.2f' % float(diff_msg)))
     sync_msg_var.set("Network: {}".format(sync_msg))
 
-    table()
+    table(addlist_20)
     # root.after(1000, refresh)
 
 
@@ -853,9 +853,9 @@ start_b.grid(row=8, column=0, sticky=W + E + S, pady=0, padx=15)
 message_b = Button(f5, text="Manual Refresh", command=refresh, height=1, width=10, font=("Tahoma", 8))
 message_b.grid(row=9, column=0, sticky=W + E + S, pady=0, padx=15)
 
-balance_b = Button(f5, text="Messages", command=msg_dialogue, height=1, width=10, font=("Tahoma", 8))
+balance_b = Button(f5, text="Messages", command=lambda: msg_dialogue(addlist), height=1, width=10, font=("Tahoma", 8))
 balance_b.grid(row=10, column=0, sticky=W + E + S, pady=0, padx=15)
-balance_b.configure(state=DISABLED)
+#balance_b.configure(state=DISABLED)
 
 sign_b = Button(f5, text="Sign Message", command=sign, height=1, width=10, font=("Tahoma", 8))
 sign_b.grid(row=11, column=0, sticky=W + E + S, pady=0, padx=15)
@@ -992,6 +992,14 @@ logo_hash_decoded = base64.b64decode(icons.logo_hash)
 logo = PhotoImage(data=logo_hash_decoded)
 image = Label(f2, image=logo).grid(pady=25, padx=50, sticky=N)
 # logo
+
+s = socks.socksocket()
+s.connect((light_ip, int(port)))
+connections.send(s, "addlist", 10)
+connections.send(s, address, 10)
+addlist = connections.receive(s, 10)
+addlist = addlist[::-1] #reverse
+addlist_20 = addlist[:20] #limit
 
 refresh_auto()
 root.mainloop()

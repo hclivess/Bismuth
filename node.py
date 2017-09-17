@@ -1827,6 +1827,22 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     else:
                         app_log.info("{} not whitelisted for addlist command".format(peer_ip))
 
+
+                elif data == "aliasget":
+                    if (peer_ip in allowed or "any" in allowed):
+                        alias_address = connections.receive(self.request, 10)
+
+                        execute_param(h3, ("SELECT openfield FROM transactions WHERE address = ? AND openfield LIKE ?;"), (alias_address,) + ("alias=" + '%',))
+
+                        result = h3.fetchall()
+
+                        if not result:
+                            result = [[alias_address]]
+
+                        connections.send(self.request, result, 10)
+                    else:
+                        app_log.info("{} not whitelisted for aliasget command".format(peer_ip))
+
                 elif data == "txsend":
                     if (peer_ip in allowed or "any" in allowed):
                         tx_remote = connections.receive(self.request, 10)

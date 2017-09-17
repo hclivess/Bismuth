@@ -13,7 +13,7 @@ rmdir /s /q %var%\build
 
 pyinstaller.exe --uac-admin --log-level=INFO %var%\miner.py --icon=%var%\graphics\icon.ico 
 pyinstaller.exe --uac-admin --noconsole --log-level=INFO %var%\gui.py --icon=%var%\graphics\icon.ico
-pyinstaller.exe --uac-admin --noconsole --log-level=INFO %var%\gui_light.py --icon=%var%\graphics\icon.ico
+pyinstaller.exe --uac-admin --noconsole --log-level=INFO %var%\light_wallet.py --icon=%var%\graphics\icon.ico
 pyinstaller.exe --uac-admin --log-level=INFO %var%\node.py --icon=%var%\graphics\icon.ico
 
 robocopy %var%\dist\gui %var%\dist\ /move /E
@@ -22,6 +22,8 @@ robocopy %var%\dist\miner %var%\dist\ /move /E
 rmdir /s /q %var%\dist\miner
 robocopy %var%\dist\node %var%\dist\ /move /E
 rmdir /s /q dist\node
+robocopy %var%\dist\light_wallet %var%\dist\ /move /E
+rmdir /s /q dist\light_wallet
 
 robocopy %var%\Crypto %var%\dist\Crypto /E
 
