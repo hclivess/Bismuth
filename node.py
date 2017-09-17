@@ -1464,9 +1464,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
 
                 if not time.time() <= timer_operation + timeout_operation:  # return on timeout
-                    if warning(self.request, peer_ip, "Operation timeout") == "banned":
-                        app_log.info("{} banned".format(peer_ip))
-                        break
+                    #if warning(self.request, peer_ip, "Operation timeout") == "banned":
+                    #    app_log.info("{} banned".format(peer_ip))
+                    #    break
 
                     raise ValueError("Incoming: Operation timeout from {}".format(peer_ip))
 
