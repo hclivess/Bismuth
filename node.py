@@ -1791,7 +1791,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "addlist":
                     if (peer_ip in allowed or "any" in allowed):
                         address_tx_list = connections.receive(self.request, 10)
-                        execute_param(h3, ("SELECT * FROM transactions WHERE (address = ? OR recipient = ?)"), (address_tx_list,) + (address_tx_list,))
+                        execute_param(h3, ("SELECT * FROM transactions WHERE (address = ? OR recipient = ?) ORDER BY block_height DESC"), (address_tx_list,) + (address_tx_list,))
                         result = h3.fetchall()
                         connections.send(self.request, result, 10)
                     else:

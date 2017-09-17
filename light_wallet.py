@@ -999,8 +999,10 @@ s.connect((light_ip, int(port)))
 connections.send(s, "addlist", 10)
 connections.send(s, address, 10)
 addlist = connections.receive(s, 10)
-addlist = addlist[::-1] #reverse
 addlist_20 = addlist[:20] #limit
+
+for x in addlist_20:
+    print(x)
 
 refresh_auto()
 root.mainloop()
