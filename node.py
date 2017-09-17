@@ -147,7 +147,7 @@ def db_to_drive(hdd, h, hdd2, h2):
     commit(hdd2)
 
     # reward
-    execute_param(o, ('SELECT * FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) >= ?'), (hdd_block,))
+    execute_param(o, ('SELECT * FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) > ?'), (hdd_block,))
     result3 = o.fetchall()
     if full_ledger == 1:
         for x in result3:
@@ -1243,7 +1243,9 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                             # dev reward
                             if int(block_height_new) % 10 == 0:  # every 10 blocks
                                 if transaction == block_transactions[-1]:  # put at the end
-                                    execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", ("0", str(time_now), "Development Reward", str(genesis_conf), str(reward), "0", "0", "0", "0", "0", "0", str(block_height_new)))
+                                    execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                                                  ("0", str(time_now), "Development Reward", str(genesis_conf), str(reward),
+                                                   "0", "0", "0", "0", "0", "0", str(block_height_new)))
                                     commit(conn)
                             # dev reward
 
