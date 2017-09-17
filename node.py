@@ -147,7 +147,7 @@ def db_to_drive(hdd, h, hdd2, h2):
     commit(hdd2)
 
     # reward
-    execute_param(o, ('SELECT * FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) > ?'), (hdd_block,))
+    execute_param(o, ('SELECT * FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) >= ?'), (hdd_block,))
     result3 = o.fetchall()
     if full_ledger == 1:
         for x in result3:
@@ -817,6 +817,13 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, backup, b):
                 hdd_block = int(db_block_height) - 1
                 # roll back hdd too
 
+                # roll back reward too
+                if full_ledger == 1:
+                    execute_param(h, ('DELETE FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) >= ?'), (hdd_block,))
+                    commit(hdd)
+                execute_param(h2, ('DELETE FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) >= ?'), (hdd_block,))
+                commit(hdd2)
+                # roll back reward too
 
         except:
             pass
