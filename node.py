@@ -1742,13 +1742,13 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             debit_mempool = 0
                         # include mempool fees
 
-                        execute_param(c, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (balance_address,))
-                        credit_ledger = c.fetchone()[0]
+                        execute_param(h3, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (balance_address,))
+                        credit_ledger = h3.fetchone()[0]
                         credit_ledger = 0 if credit_ledger is None else float('%.8f' % credit_ledger)
                         credit = float(credit_ledger) + float(credit_mempool)
 
-                        execute_param(c, ("SELECT sum(fee),sum(reward),sum(amount) FROM transactions WHERE address = ?;"), (balance_address,))
-                        result = c.fetchall()[0]
+                        execute_param(h3, ("SELECT sum(fee),sum(reward),sum(amount) FROM transactions WHERE address = ?;"), (balance_address,))
+                        result = h3.fetchall()[0]
 
                         fees = result[0]
                         fees = 0 if fees is None else float('%.8f' % fees)

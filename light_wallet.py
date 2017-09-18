@@ -1001,9 +1001,6 @@ connections.send(s, address, 10)
 addlist = connections.receive(s, 10)
 addlist_20 = addlist[:20] #limit
 
-for x in addlist_20:
-    print(x)
-
 refresh_auto()
 root.mainloop()
 
