@@ -1264,6 +1264,10 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
             db_lock.release()
 
 
+if os.path.exists("fresh_sync"):
+    app_log.warning("Fresh sync required, bootstrapping from the website")
+    os.remove("fresh_sync")
+    bootstrap()
 
 check_integrity(hyper_path_conf)
 essentials.keys_check(app_log)

@@ -39,13 +39,15 @@ def help():
     aliases_box = Text(top13, width=100)
     aliases_box.grid(row=0, pady=0)
 
-    aliases_box.insert(INSERT, "Encrypt: Encrypt the data with the recipient's private key. Only they will be able to view it.")
+    aliases_box.insert(INSERT, "Encrypt:\n Encrypt the data with the recipient's private key. Only they will be able to view it.")
     aliases_box.insert(INSERT, "\n\n")
-    aliases_box.insert(INSERT, "Message: Mark data as message. The recipient will be able to view it in the message section.")
+    aliases_box.insert(INSERT, "Message:\n Mark data as message. The recipient will be able to view it in the message section.")
     aliases_box.insert(INSERT,"\n\n")
-    aliases_box.insert(INSERT, "Base64: Encode the data with base64, it is a group of similar binary-to-text encoding schemes that represent binary data in an ASCII string format by translating it into a radix-64 representation.")
+    aliases_box.insert(INSERT, "Base64:\n Encode the data with base64, it is a group of similar binary-to-text encoding schemes that represent binary data in an ASCII string format by translating it into a radix-64 representation.")
     aliases_box.insert(INSERT, "\n\n")
-    aliases_box.insert(INSERT, "Keep Entry: Keep entry in the blockchain forever, resisting hyperblock compression.")
+    aliases_box.insert(INSERT, "Keep Entry:\n Keep entry in the blockchain forever, resisting hyperblock compression.")
+    aliases_box.insert(INSERT, "\n\n")
+    aliases_box.insert(INSERT, "Alias:\n Use an alias instead of an address recipient.")
     aliases_box.insert(INSERT, "\n\n")
 
     close = Button(top13, text="Close", command=top13.destroy)
@@ -768,8 +770,7 @@ def refresh():
         else:
             openfield_input = str(openfield.get("1.0", END)).strip()
 
-        fee = '%.8f' % float(0.01 + (float(amount.get()) * 0.001) + (float(len(openfield_input)) / 100000) + (float(keep_var.get()) / 10))  # 0.1% + 0.01 dust
-
+        fee = '%.8f' % float(0.01 + (float(len(openfield_input)) / 100000) + int(keep_var.get()))  # 0.01 dust
         #app_log.warning("Fee: {}".format(fee))
 
     except Exception as e:
