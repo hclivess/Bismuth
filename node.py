@@ -383,7 +383,8 @@ def commit(cursor):
             cursor.commit()
             break
         except Exception as e:
-            app_log.warning("Retrying database execute due to {} in {}".format(e, cursor))
+            app_log.warning("Database cursor: {}".format(cursor))
+            app_log.warning("Database retry reason: {}".format(e))
             time.sleep(random.random())
 
 
@@ -409,7 +410,7 @@ def execute_param(cursor, query, param):
         except Exception as e:
             app_log.warning("Database query: {} {} {}".format(cursor, query, param))
             app_log.warning("Database retry reason: {}".format(e))
-            time.sleep(0.1)
+            time.sleep(random.random())
     return cursor
 
 
@@ -580,16 +581,11 @@ def mempool_merge(data, peer_ip, c, mempool, m):
                         # app_log.info("Mempool: Verifying balance")
                         app_log.info("Mempool: Received address: {}".format(mempool_address))
 
-                        # include the new block
-                        execute_param(m, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (mempool_address,))
-                        credit_mempool = m.fetchone()[0]
-                        credit_mempool = 0 if credit_mempool is None else float('%.8f' % credit_mempool)
-
                         # include mempool fees
-                        execute_param(m, ("SELECT count(amount), sum(amount) FROM transactions WHERE address = ?;"), (mempool_address,))
+                        execute_param(m, ("SELECT count(amount) FROM transactions WHERE address = ?;"), (mempool_address,))
                         result = m.fetchall()[0]
-                        if result[1] != None:
-                            debit_mempool = float('%.8f' % (float(result[1]) + float(result[1]) * 0.001 + int(result[0]) * 0.01))
+                        if result[0]:
+                            debit_mempool = float('%.8f' % (int(result[0]) * 0.01))
                         else:
                             debit_mempool = 0
 
@@ -600,7 +596,7 @@ def mempool_merge(data, peer_ip, c, mempool, m):
                         execute_param(c, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (mempool_address,))
                         credit_ledger = c.fetchone()[0]
                         credit_ledger = 0 if credit_ledger is None else float('%.8f' % credit_ledger)
-                        credit = float(credit_ledger) + float(credit_mempool)
+                        credit = float(credit_ledger)
 
                         execute_param(c, ("SELECT sum(amount) FROM transactions WHERE address = ?;"), (mempool_address,))
                         debit_ledger = c.fetchone()[0]
@@ -622,7 +618,7 @@ def mempool_merge(data, peer_ip, c, mempool, m):
                         balance_pre = float('%.8f' % (float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)))
                         # app_log.info("Mempool: Projected transction address balance: " + str(balance))
 
-                        fee = '%.8f' % float(0.01 + (float(mempool_amount) * 0.001) + (float(len(mempool_openfield)) / 100000) + (float(mempool_keep) / 10))  # 0.1% + 0.01 dust
+                        fee = '%.8f' % float(0.01 + (float(len(mempool_openfield)) / 100000) + int(mempool_keep))  # 0.01 dust
 
                         time_now = time.time()
                         if float(mempool_timestamp) > float(time_now) + 30:
@@ -1168,9 +1164,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         balance = float('%.8f' % (float(credit) - float(debit) - float(fees) + float(rewards)))
                         # app_log.info("Digest: Projected transction address balance: " + str(balance))
 
-
-
-                        fee = '%.8f' % float(0.01 + (float(db_amount) * 0.001) + (float(len(db_openfield)) / 100000) + (float(db_keep) / 10))  # 0.1% + 0.01 dust
+                        fee = '%.8f' % float(0.01 + (float(len(db_openfield)) / 100000) + int(db_keep))  # 0.01 dust
 
                         fees_block.append(float(fee))
                         # app_log.info("Fee: " + str(fee))
@@ -1729,15 +1723,11 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         # app_log.info("Mempool: Verifying balance")
                         # app_log.info("Mempool: Received address: " + str(balance_address))
 
-                        execute_param(m, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (balance_address,))
-                        credit_mempool = m.fetchone()[0]
-                        credit_mempool = 0 if credit_mempool is None else float('%.8f' % credit_mempool)
-
                         # include mempool fees
-                        execute_param(m, ("SELECT count(amount), sum(amount) FROM transactions WHERE address = ?;"), (balance_address,))
+                        execute_param(m, ("SELECT count(amount) FROM transactions WHERE address = ?;"), (balance_address,))
                         result = m.fetchall()[0]
-                        if result[1] != None:
-                            debit_mempool = float('%.8f' % (float(result[1]) + float(result[1]) * 0.001 + int(result[0]) * 0.01))
+                        if result[0]:
+                            debit_mempool = float('%.8f' % (int(result[0]) * 0.01))
                         else:
                             debit_mempool = 0
                         # include mempool fees
@@ -1745,7 +1735,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         execute_param(h3, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (balance_address,))
                         credit_ledger = h3.fetchone()[0]
                         credit_ledger = 0 if credit_ledger is None else float('%.8f' % credit_ledger)
-                        credit = float(credit_ledger) + float(credit_mempool)
+                        credit = float(credit_ledger)
 
                         execute_param(h3, ("SELECT sum(fee),sum(reward),sum(amount) FROM transactions WHERE address = ?;"), (balance_address,))
                         result = h3.fetchall()[0]

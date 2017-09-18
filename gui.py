@@ -369,9 +369,8 @@ def send_confirm(amount_input, recipient_input, keep_input, openfield_input):
     if encrypt_var.get() == 1:
         openfield_input = "enc=" + str(openfield_input)
 
+    fee = '%.8f' % float(0.01 + (float(len(openfield_input)) / 100000) + int(keep_var.get()))  # 0.01 dust
 
-
-    fee = '%.8f' % float(0.01 + (float(amount.get()) * 0.001) + (float(len(openfield_input)) / 100000) + (float(keep_var.get()) / 10))  # 0.1% + 0.01 dust
     confirmation_dialog = Text(top10, width=100)
     confirmation_dialog.insert(INSERT, ("Amount: {}\nTo: {}\nFee: {}\nKeep Entry: {}\nOpenField:\n\n{}".format(amount_input, recipient_input, fee, keep_input, openfield_input)))
 
@@ -886,7 +885,7 @@ def refresh():
         else:
             openfield_input = str(openfield.get("1.0", END)).strip()
 
-        fee = '%.8f' % float(0.01 + (float(amount.get()) * 0.001) + (float(len(openfield_input)) / 100000) + (float(keep_var.get()) / 10))  # 0.1% + 0.01 dust
+        fee = '%.8f' % float(0.01 + (float(len(openfield_input)) / 100000) + int(keep_var.get()))  # 0.01 dust
 
         app_log.warning("Fee: {}".format(fee))
 

@@ -34,7 +34,40 @@ root = Tk()
 root.wm_title("Bismuth Light Wallet")
 
 def help():
-    pass
+    top13 = Toplevel()
+    top13.title("Help")
+    aliases_box = Text(top13, width=100)
+    aliases_box.grid(row=0, pady=0)
+
+    aliases_box.insert(INSERT, "Encrypt: Encrypt the data with the recipient's private key. Only they will be able to view it.")
+    aliases_box.insert(INSERT, "\n\n")
+    aliases_box.insert(INSERT, "Message: Mark data as message. The recipient will be able to view it in the message section.")
+    aliases_box.insert(INSERT,"\n\n")
+    aliases_box.insert(INSERT, "Base64: Encode the data with base64, it is a group of similar binary-to-text encoding schemes that represent binary data in an ASCII string format by translating it into a radix-64 representation.")
+    aliases_box.insert(INSERT, "\n\n")
+    aliases_box.insert(INSERT, "Keep Entry: Keep entry in the blockchain forever, resisting hyperblock compression.")
+    aliases_box.insert(INSERT, "\n\n")
+
+    close = Button(top13, text="Close", command=top13.destroy)
+    close.grid(row=3, column=0, sticky=W + E, padx=15, pady=(5, 5))
+
+def data_insert_clear():
+    openfield.delete('1.0', END)  # remove previous
+
+def all_spend_clear():
+    amount.delete(0, END)
+    amount.insert(0,0)
+
+def all_spend():
+    fee_from_all = fee_calculate(openfield.get("1.0", END).strip(),keep_var.get())
+
+    amount.delete(0, END)
+    amount.insert(0,'%.8f' % (float(balance_raw.get()) - float(fee_from_all)))
+
+
+def fee_calculate(openfield_input, keep):
+    fee = '%.8f' % float(0.01 + (float(len(openfield_input)) / 100000) + int(keep))  # 0.01 dust
+    return fee
 
 def backup():
     root.filename = filedialog.asksaveasfilename(initialdir="/", title="Select backup file", filetypes=(("gzip", "*.gz"), ))
@@ -67,6 +100,10 @@ def aliases_list():
 def address_insert():
     recipient.delete(0,END)
     recipient.insert(0,root.clipboard_get())
+
+def data_insert():
+    openfield.delete('1.0', END)  # remove previous
+    openfield.insert(INSERT, root.clipboard_get())
 
 def address_copy():
     root.clipboard_clear()
@@ -242,11 +279,10 @@ def send_confirm(amount_input, recipient_input, keep_input, openfield_input):
     if encrypt_var.get() == 1:
         openfield_input = "enc=" + str(openfield_input)
 
+    fee = fee_calculate(openfield_input, keep_var.get())
 
-
-    fee = '%.8f' % float(0.01 + (float(amount.get()) * 0.001) + (float(len(openfield_input)) / 100000) + (float(keep_var.get()) / 10))  # 0.1% + 0.01 dust
     confirmation_dialog = Text(top10, width=100)
-    confirmation_dialog.insert(INSERT, ("Amount: {}\nTo: {}\nFee: {}\nKeep Entry: {}\nOpenField:\n\n{}".format(amount_input, recipient_input, fee, keep_input, openfield_input)))
+    confirmation_dialog.insert(INSERT, ("Amount: {}\nFee: {}\nTotal: {}\nTo: {}\nKeep Entry: {}\nOpenField:\n\n{}".format(amount_input, fee, '%.8f' % (float(amount_input)+float(fee)), recipient_input, keep_input, openfield_input)))
 
     confirmation_dialog.grid(row=0, pady=0)
 
@@ -698,9 +734,9 @@ def table(addlist_20):
                 # refreshables
 
 
+
 def refresh():
     global balance
-
     # print "refresh triggered"
 
     try:
@@ -773,6 +809,7 @@ def refresh():
 
     # fees_current_var.set("Current Fee: {}".format('%.8f' % float(fee)))
     balance_var.set("Balance: {}".format('%.8f' % float(balance)))
+    balance_raw.set('%.8f' % float(balance))
     debit_var.set("Spent Total: {}".format('%.8f' % float(debit)))
     credit_var.set("Received Total: {}".format('%.8f' % float(credit)))
     fees_var.set("Fees Paid: {}".format('%.8f' % float(fees)))
@@ -783,7 +820,6 @@ def refresh():
 
     table(addlist_20)
     # root.after(1000, refresh)
-
 
 if "posix" not in os.name:
     # icon
@@ -891,6 +927,7 @@ lock_b.grid(row=1, column=3, sticky=E + N, pady=0, padx=5)
 # refreshables
 
 # update balance label
+balance_raw = StringVar()
 balance_var = StringVar()
 balance_msg_label = Label(f5, textvariable=balance_var)
 balance_msg_label.grid(row=0, column=0, sticky=N + E, padx=15, pady=(0, 0))
@@ -950,8 +987,19 @@ gui_list_aliases.configure(state=DISABLED)
 gui_insert_clipboard = Button(f3, text="Paste", command=address_insert, font=("Tahoma", 7))
 gui_insert_clipboard.grid(row=1, column=2, sticky=W + E)
 
-gui_insert_clipboard = Button(f3, text="Help", command=help, font=("Tahoma", 7))
-gui_insert_clipboard.grid(row=4, column=2, sticky=W + E)
+gui_help = Button(f3, text="Help", command=help, font=("Tahoma", 7))
+gui_help.grid(row=4, column=2, sticky=W + E)
+
+gui_all_spend = Button(f3, text="All", command=all_spend, font=("Tahoma", 7))
+gui_all_spend.grid(row=2, column=2, sticky=W + E)
+gui_all_spend_clear = Button(f3, text="Clear", command=all_spend_clear, font=("Tahoma", 7))
+gui_all_spend_clear.grid(row=2, column=3, sticky=W + E)
+
+data_insert_clipboard = Button(f3, text="Paste", command=data_insert, font=("Tahoma", 7))
+data_insert_clipboard.grid(row=3, column=2, sticky=W + E)
+
+data_insert_clear = Button(f3, text="Clear", command=data_insert_clear, font=("Tahoma", 7))
+data_insert_clear.grid(row=3, column=3, sticky=W + E)
 
 Label(f3, text="Your Address:", width=20, anchor="e").grid(row=0)
 Label(f3, text="Recipient:", width=20, anchor="e").grid(row=1)
