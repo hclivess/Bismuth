@@ -27,6 +27,7 @@ def hello():
 
     html = []
     for row in c.execute("SELECT * FROM transactions WHERE openfield LIKE ? ORDER BY block_height DESC LIMIT 500", ("html=" + '%',)):
+
         html.append("Block: ")
         html.append(str(row[0]))
         html.append("<br>")
@@ -40,6 +41,13 @@ def hello():
         html.append("<br><br>")
         html.append(row[11].lstrip("html="))
         html.append("<br><br>")
-    return str(''.join(html))
+
+    joined = str(''.join(html))
+    joined = joined.replace("<script", "(")
+    joined = joined.replace("script>", ")")
+    joined = joined.replace("http-equiv", "/http-equiv/")
+    joined = joined.replace("onload", "/onload/")
+
+    return joined
 
 run(host='0.0.0.0', port=4585, debug=True)
