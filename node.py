@@ -1817,6 +1817,18 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     else:
                         app_log.info("{} not whitelisted for aliasget command".format(peer_ip))
 
+
+                elif data == "pubkeyget":
+                    if (peer_ip in allowed or "any" in allowed):
+                        pub_key_address = connections.receive(self.request, 10)
+
+                        c.execute("SELECT public_key FROM transactions WHERE address = ? and reward = 0", (pub_key_address,))
+                        target_public_key_hashed = c.fetchone()[0]
+                        connections.send(self.request, target_public_key_hashed, 10)
+
+                    else:
+                        app_log.info("{} not whitelisted for pubkeyget command".format(peer_ip))
+
                 elif data == "aliascheck":
                     if (peer_ip in allowed or "any" in allowed):
                         reg_string = connections.receive(self.request, 10)
@@ -1832,7 +1844,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         else:
                             connections.send(self.request, "Alias registered", 10)
                     else:
-                        app_log.info("{} not whitelisted for aliasget command".format(peer_ip))
+                        app_log.info("{} not whitelisted for aliascheck command".format(peer_ip))
 
                 elif data == "aliasesget": #only gets the first one
                     if (peer_ip in allowed or "any" in allowed):

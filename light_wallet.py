@@ -274,8 +274,13 @@ def send_confirm(amount_input, recipient_input, keep_input, openfield_input):
     # encr check
     if encrypt_var.get() == 1:
         #get recipient's public key
-        c.execute("SELECT public_key FROM transactions WHERE address = ? and reward = 0",(recipient_input,))
-        target_public_key_hashed = c.fetchone()[0]
+
+        s = socks.socksocket()
+        s.connect((light_ip, int(port)))
+        connections.send(s, "pubkeyget", 10)
+        connections.send(s, recipient_input, 10)
+        target_public_key_hashed = connections.receive(s, 10)
+        s.close()
 
         recipient_key = RSA.importKey(base64.b64decode(target_public_key_hashed).decode("utf-8"))
 
