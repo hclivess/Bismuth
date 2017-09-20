@@ -1050,7 +1050,7 @@ msg.grid(row=4, column=1, sticky=W, padx=(240, 0))
 encr = Checkbutton(f3, text="Encrypt with PK", variable=encrypt_var)
 encr.grid(row=5, column=1, sticky=W, padx=(0, 0))
 
-resolve = Checkbutton(f3, text="Resolve Aliases", variable=resolve_var)
+resolve = Checkbutton(f3, text="Resolve Aliases", variable=resolve_var, command=refresh)
 resolve.grid(row=5, column=1, sticky=W, padx=(120, 0))
 
 alias_cb = Checkbutton(f3, text="Alias Recipient", variable=alias_cb_var, command=None)

@@ -1906,7 +1906,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 if not time.time() <= timer_operation + timeout_operation:
                     timer_operation = time.time()  # reset timer
                 #time.sleep(float(pause_conf))  # prevent cpu overload
-                # app_log.info("Server resting")
+                app_log.info("Server loop finished for {}".format(peer_ip))
 
             except Exception as e:
                 app_log.info("Incoming: Lost connection to {}".format(peer_ip))
