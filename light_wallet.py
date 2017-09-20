@@ -45,7 +45,7 @@ def help():
     aliases_box.insert(INSERT,"\n\n")
     aliases_box.insert(INSERT, "Base64:\n Encode the data with base64, it is a group of similar binary-to-text encoding schemes that represent binary data in an ASCII string format by translating it into a radix-64 representation.")
     aliases_box.insert(INSERT, "\n\n")
-    aliases_box.insert(INSERT, "Keep Entry:\n Keep entry in the blockchain forever, resisting hyperblock compression.")
+    aliases_box.insert(INSERT, "Keep Entry:\n Keep entry in the blockchain forever, resisting hyperblock compression on nodes not running the full ledger.")
     aliases_box.insert(INSERT, "\n\n")
     aliases_box.insert(INSERT, "Alias:\n Use an alias instead of an address recipient.")
     aliases_box.insert(INSERT, "\n\n")
@@ -639,35 +639,46 @@ def table(addlist_20):
     s.connect((light_ip, int(port)))
 
     addlist_addressess = []
+    reclist_addressess = []
+
     for x in addlist_20:
         addlist_addressess.append(x[2]) #append address
-    print(addlist_addressess)
+        reclist_addressess.append(x[3]) #append recipient
+    #print(addlist_addressess)
+
+    # define row color
+    colors = []
+    for x in addlist_20:
+        if x[2] == address:
+            colors.append("green4")
+        else:
+            colors.append("indianred")
+    # define row color
 
     connections.send(s, "aliasesget", 10)
     connections.send(s, addlist_addressess, 10)
-    aliases_results = connections.receive(s, 10)
-    print (aliases_results)
+    aliases_address_results = connections.receive(s, 10)
+    print (aliases_address_results)
+
+    connections.send(s, "aliasesget", 10)
+    connections.send(s, reclist_addressess, 10)
+    aliases_rec_results = connections.receive(s, 10)
+    print (aliases_rec_results)
     # retrieve aliases in bulk
+    s.close()
 
-
-    for x in aliases_results:
-        print(x[0])
-
+    i = 0
     for row in addlist_20:
 
 
         db_timestamp = row[1]
         datasheet.append(datetime.fromtimestamp(float(db_timestamp)).strftime('%Y-%m-%d %H:%M:%S'))
-
-
-
-        db_address = row[2]
-
-
-
-
+        db_address = aliases_address_results[i].lstrip("alias=")
+        #db_address = row[2]
         datasheet.append(db_address)
-        db_recipient = row[3]
+
+        db_recipient = aliases_rec_results[i].lstrip("alias=")
+        #db_recipient = row[3]
         datasheet.append(db_recipient)
         db_amount = row[4]
         db_reward = row[9]
@@ -682,6 +693,8 @@ def table(addlist_20):
         else:
             symbol = "Transaction"
         datasheet.append(symbol)
+
+        i = i+1
     # data
 
     app_log.warning(datasheet)
@@ -719,13 +732,9 @@ def table(addlist_20):
                     e = Entry(f4, width=0)
                     e.configure(readonlybackground='linen')
 
-                elif datasheet[k - 2] == address and j == 3: #sent
+                elif j == 3: #sent
                     e = Entry(f4, width=0)
-                    e.configure(readonlybackground='indianred')
-
-                elif datasheet[k - 1] == address and j == 3: #received
-                    e = Entry(f4, width=0)
-                    e.configure(readonlybackground='green4')
+                    e.configure(readonlybackground=colors[i])
 
                 elif j == 4: #last row
                     e = Entry(f4, width=0)
@@ -1054,8 +1063,9 @@ image = Label(f2, image=logo).grid(pady=25, padx=50, sticky=N)
 
 s = socks.socksocket()
 s.connect((light_ip, int(port)))
-connections.send(s, "addlist", 10)
+connections.send(s, "addlistlim", 10)
 connections.send(s, address, 10)
+connections.send(s, "20", 10)
 addlist = connections.receive(s, 10)
 addlist_20 = addlist[:20] #limit
 

@@ -114,6 +114,17 @@ def addlist(socket, arg1):
         print (row)
     #get all txs for an address
 
+def addlistlim(socket, arg1, arg2):
+    #get all txs for an address
+    connections.send(s, "addlistlim", 10)
+    connections.send(s, arg1, 10)
+    connections.send(s, arg2, 10)
+    address_tx_list = connections.receive(s, 10)
+    print("All transactions for requested address:")
+    for row in address_tx_list:
+        print (row)
+    #get all txs for an address
+
 def txsend(socket, arg1, arg2, arg3, arg4, arg5):
     #generate transaction
     #SENDS PRIVATE KEY TO NODE

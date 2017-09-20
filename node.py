@@ -1791,6 +1791,16 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     else:
                         app_log.info("{} not whitelisted for addlist command".format(peer_ip))
 
+                elif data == "addlistlim":
+                    if (peer_ip in allowed or "any" in allowed):
+                        address_tx_list = connections.receive(self.request, 10)
+                        address_tx_list_limit = connections.receive(self.request, 10)
+                        print (address_tx_list_limit)
+                        execute_param(h3, ("SELECT * FROM transactions WHERE (address = ? OR recipient = ?) ORDER BY block_height DESC LIMIT ?"), (address_tx_list,) + (address_tx_list,) + (address_tx_list_limit,))
+                        result = h3.fetchall()
+                        connections.send(self.request, result, 10)
+                    else:
+                        app_log.info("{} not whitelisted for addlist command".format(peer_ip))
 
                 elif data == "aliasget":
                     if (peer_ip in allowed or "any" in allowed):
@@ -1807,21 +1817,18 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     else:
                         app_log.info("{} not whitelisted for aliasget command".format(peer_ip))
 
-                elif data == "aliasesget":
+                elif data == "aliasesget": #only gets the first one
                     if (peer_ip in allowed or "any" in allowed):
                         alias_addresses = connections.receive(self.request, 10)
 
                         results=[]
                         for x in alias_addresses:
-
-                            execute_param(h3, ("SELECT openfield FROM transactions WHERE address = ? AND openfield LIKE ?;"), (x,) + ("alias=" + '%',))
-                            result = h3.fetchall()
-                            if not result:
-                                result = [[x]]
-
+                            execute_param(h3, ("SELECT openfield FROM transactions WHERE address = ? AND openfield LIKE ? ORDER BY block_height ASC LIMIT 1;"), (x,) + ("alias=" + '%',))
+                            try:
+                                result = h3.fetchall()[0][0]
+                            except:
+                                result = x
                             results.append(result)
-                            print(result)
-                            print(results)
 
                         connections.send(self.request, results, 10)
                     else:
@@ -1977,6 +1984,7 @@ def worker(HOST, PORT):
             mempool, m = db_m_define()
             backup, b = db_b_define()
             conn, c = db_c_define()
+
             if full_ledger == 1:
                 hdd, h = db_h_define()
                 h3 = h
