@@ -631,32 +631,41 @@ def table(addlist_20):
 
     datasheet = ["Time", "From", "To", "Amount", "Type"]
 
-    rows_total = 19
 
 
 
+    # retrieve aliases in bulk
+    s = socks.socksocket()
+    s.connect((light_ip, int(port)))
 
-    """
-    for row in addlist:
-        rows_total = rows_total - 1
+    addlist_addressess = []
+    for x in addlist_20:
+        addlist_addressess.append(x[2]) #append address
+    print(addlist_addressess)
 
-        # mempool_timestamp = row[1]
-        # datasheet.append(datetime.fromtimestamp(float(mempool_timestamp)).strftime('%Y-%m-%d %H:%M:%S'))
-        datasheet.append("Unconfirmed")
-        mempool_address = row[1]
-        datasheet.append(mempool_address)
-        mempool_recipient = row[2]
-        datasheet.append(mempool_recipient)
-        mempool_amount = row[3]
-        datasheet.append(mempool_amount)
-        symbol = " Transaction"
-        datasheet.append(symbol)
-    """
+    connections.send(s, "aliasesget", 10)
+    connections.send(s, addlist_addressess, 10)
+    aliases_results = connections.receive(s, 10)
+    print (aliases_results)
+    # retrieve aliases in bulk
+
+
+    for x in aliases_results:
+        print(x[0])
 
     for row in addlist_20:
+
+
         db_timestamp = row[1]
         datasheet.append(datetime.fromtimestamp(float(db_timestamp)).strftime('%Y-%m-%d %H:%M:%S'))
+
+
+
         db_address = row[2]
+
+
+
+
         datasheet.append(db_address)
         db_recipient = row[3]
         datasheet.append(db_recipient)

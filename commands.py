@@ -136,9 +136,20 @@ def aliasget(socket, arg1):
     alias_results = connections.receive(s, 10)
     print (alias_results)
 
+def aliasesget(socket, arg1):
+    arg_split = arg1.split(",")
+    print (arg_split)
+
+    connections.send(s, "aliasesget", 10)
+    connections.send(s, arg_split, 10)
+    alias_results = connections.receive(s, 10)
+    print (alias_results)
 
 if command == "aliasget":
     aliasget(s, arg1)
+
+if command == "aliasesget":
+    aliasesget(s, arg1)
 
 elif command == "diffget":
     diffget(s)
