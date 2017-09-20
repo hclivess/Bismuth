@@ -887,7 +887,7 @@ def consensus_remove(peer_ip):
         pass
 
 
-def manager():
+def manager(c, conn):
     global banlist
     peer_dict = peers_get()
 
@@ -2250,7 +2250,7 @@ if __name__ == "__main__":
             app_log.warning("Not starting a local server to conceal identity on Tor network")
 
         # start connection manager
-        t_manager = threading.Thread(target=manager())
+        t_manager = threading.Thread(target=manager(c, conn))
         app_log.warning("Starting connection manager")
         t_manager.daemon = True
         t_manager.start()
