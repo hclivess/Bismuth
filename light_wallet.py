@@ -467,8 +467,6 @@ def msg_dialogue(addlist):
                     msg_received_digest = x[11].lstrip("msg=")
 
 
-
-
                 msg_received.insert(INSERT, ((time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(x[1])))) + " From " + msg_address.replace("alias=", "") + ": " + msg_received_digest) + "\n")
 
     def msg_sent_get(addlist):
@@ -648,8 +646,10 @@ def table(addlist_20):
 
     # define row color
     colors = []
+
     for x in addlist_20:
-        if x[2] == address:
+        print(x[3])
+        if x[3] == address:
             colors.append("green4")
         else:
             colors.append("indianred")
@@ -734,7 +734,7 @@ def table(addlist_20):
 
                 elif j == 3: #sent
                     e = Entry(f4, width=0)
-                    e.configure(readonlybackground=colors[i])
+                    e.configure(readonlybackground=colors[i-1])
 
                 elif j == 4: #last row
                     e = Entry(f4, width=0)
