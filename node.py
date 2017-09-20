@@ -454,7 +454,7 @@ def difficulty(c):
 
     # app_log.warning("Difficulty: {}".format(difficulty2))
 
-    # return (float(45), float(45)) #TEST ONLY
+    #return (float(50), float(50)) #TEST ONLY
     return (float(difficulty), float(difficulty2))
 
 
@@ -962,7 +962,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                     signature_list.append(r[4])
 
                     # reject block with transactions which are already in the ledger
-                    execute_param(h3, ("SELECT block_height FROM transactions WHERE signature = ?;"), (r[4],))  # todo: make sure there are no more than 10k blocks per day
+                    execute_param(h3, ("SELECT block_height FROM transactions WHERE signature = ?;"), (r[4],))
                     try:
                         result = h3.fetchall()[0]
                         error_msg = "That transaction is already in our ledger, row {}".format(result[0])

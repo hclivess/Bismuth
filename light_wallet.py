@@ -31,20 +31,17 @@ essentials.db_check(app_log)
 # for local evaluation
 
 root = Tk()
-root.wm_title("Bismuth Light Wallet")
+root.wm_title("Bismuth Light Wallet running on {}".format(light_ip))
 
 def alias_register(alias_desired):
-    s = socks.socksocket()
-    s.connect((light_ip, int(port)))
     connections.send(s, "aliascheck", 10)
     connections.send(s, alias_desired, 10)
 
     result = connections.receive(s, 10)
 
-    s.close()
 
     if result == "Alias free":
-        send("0", address, "1", "alias="+alias_desired)
+        send("0", myaddress, "1", "alias="+alias_desired)
         pass
     else:
         top9 = Toplevel()
@@ -85,7 +82,6 @@ def all_spend_clear():
 
 def all_spend():
     fee_from_all = fee_calculate(openfield.get("1.0", END).strip(),keep_var.get())
-
     amount.delete(0, END)
     amount.insert(0,'%.8f' % (float(balance_raw.get()) - float(fee_from_all)))
 
@@ -108,6 +104,15 @@ def backup():
             tar.add(der_file, arcname=der_file)
         tar.close()
 
+def watch():
+    address = gui_address.get()
+    refresh(address,s)
+
+def unwatch():
+    gui_address.delete(0,END)
+    gui_address.insert(INSERT,myaddress)
+    refresh(myaddress,s)
+
 def aliases_list():
 
     top12 = Toplevel()
@@ -115,13 +120,10 @@ def aliases_list():
     aliases_box = Text(top12, width=100)
     aliases_box.grid(row=0, pady=0)
 
-    s = socks.socksocket()
-    s.connect((light_ip, int(port)))
     connections.send(s, "aliasget", 10)
-    connections.send(s, address, 10)
+    connections.send(s, myaddress, 10)
 
     aliases_self = connections.receive(s, 10)
-    s.close()
 
     for x in aliases_self:
         aliases_box.insert(INSERT, x[0].lstrip("alias="))
@@ -130,9 +132,13 @@ def aliases_list():
     close = Button(top12, text="Close", command=top12.destroy)
     close.grid(row=3, column=0, sticky=W + E, padx=15, pady=(5, 5))
 
-def address_insert():
+def recipient_insert():
     recipient.delete(0,END)
     recipient.insert(0,root.clipboard_get())
+
+def address_insert():
+    gui_address.delete(0,END)
+    gui_address.insert(0,root.clipboard_get())
 
 def data_insert():
     openfield.delete('1.0', END)  # remove previous
@@ -140,7 +146,11 @@ def data_insert():
 
 def address_copy():
     root.clipboard_clear()
-    root.clipboard_append(address)
+    root.clipboard_append(myaddress)
+
+def recipient_copy():
+    root.clipboard_clear()
+    root.clipboard_append(recipient.get())
 
 def percentage(percent, whole):
     return float((percent * whole) / 100)
@@ -275,12 +285,9 @@ def send_confirm(amount_input, recipient_input, keep_input, openfield_input):
     if encrypt_var.get() == 1:
         #get recipient's public key
 
-        s = socks.socksocket()
-        s.connect((light_ip, int(port)))
         connections.send(s, "pubkeyget", 10)
         connections.send(s, recipient_input, 10)
         target_public_key_hashed = connections.receive(s, 10)
-        s.close()
 
         recipient_key = RSA.importKey(base64.b64decode(target_public_key_hashed).decode("utf-8"))
 
@@ -400,13 +407,10 @@ def send(amount_input, recipient_input, keep_input, openfield_input):
                 tx_submit = (str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input), str(signature_enc.decode("utf-8")), str(public_key_hashed.decode("utf-8")), str(keep_input), str(openfield_input))
 
                 while True:
-                    s = socks.socksocket()
-                    s.connect((light_ip, int(port)))
                     connections.send(s, "mpinsert", 10)
                     connections.send(s, [tx_submit], 10)  # change address here to view other people's transactions
                     reply = connections.receive(s, 10)
                     app_log.warning("Client: {}".format(reply))
-                    s.close()
                     break
         else:
             app_log.warning("Client: Invalid signature")
@@ -418,7 +422,7 @@ def app_quit():
     root.destroy()
 
 
-def qr():
+def qr(address):
     address_qr = pyqrcode.create(address)
     address_qr.png('address_qr.png')
 
@@ -442,7 +446,12 @@ def qr():
     # popup
 
 
-def msg_dialogue(addlist):
+def msg_dialogue(address):
+    connections.send(s, "addlist", 10)
+    connections.send(s, myaddress, 10)
+    addlist = connections.receive(s, 10)
+    print(addlist)
+
     def msg_received_get(addlist):
 
 
@@ -450,13 +459,10 @@ def msg_dialogue(addlist):
              if x[11].startswith(("msg=", "bmsg=", "enc=msg=", "enc=bmsg=")) and x[3] == address:
                 #print(x[11])
 
-                s = socks.socksocket()
-                s.connect((light_ip, int(port)))
                 connections.send(s, "aliasget", 10)
                 connections.send(s, x[2], 10)
 
                 msg_address = connections.receive(s,10)[0][0]
-                s.close()
 
                 if x[11].startswith("enc=msg="):
                     msg_received_digest = x[11].lstrip("enc=msg=")
@@ -504,7 +510,7 @@ def msg_dialogue(addlist):
                     msg_received_digest = x[11].lstrip("msg=")
 
 
-                msg_received.insert(INSERT, ((time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(x[1])))) + " From " + msg_address.replace("alias=", "") + ": " + msg_received_digest) + "\n")
+                msg_received.insert(INSERT, ((time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(x[1])))) + " From " + msg_address.lstrip("alias=", "") + ": " + msg_received_digest) + "\n")
 
     def msg_sent_get(addlist):
 
@@ -512,13 +518,10 @@ def msg_dialogue(addlist):
             if x[11].startswith(("msg=", "bmsg=", "enc=msg=", "enc=bmsg=")) and x[2] == address:
                 # print(x[11])
 
-                s = socks.socksocket()
-                s.connect((light_ip, int(port)))
                 connections.send(s, "aliasget", 10)
                 connections.send(s, x[3], 10)
                 received_aliases = connections.receive(s, 10)
                 msg_recipient =  received_aliases[0][0]
-                s.close()
 
                 if x[11].startswith("enc=msg="):
                     msg_sent_digest = x[11].lstrip("enc=msg=")
@@ -562,7 +565,7 @@ def msg_dialogue(addlist):
                 elif x[11].startswith("msg="):
                     msg_sent_digest = x[11].lstrip("msg=")
 
-                msg_sent.insert(INSERT, ((time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(x[1])))) + " To " + msg_recipient.replace("alias=", "") + ": " + msg_sent_digest) + "\n")
+                msg_sent.insert(INSERT, ((time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(x[1])))) + " To " + msg_recipient.lstrip("alias=", "") + ": " + msg_sent_digest) + "\n")
 
     # popup
     top11 = Toplevel()
@@ -655,12 +658,12 @@ def sign():
 
 
 def refresh_auto():
-    root.after(0, refresh)
+    root.after(0, refresh(gui_address.get(), s))
     root.after(30000, refresh_auto)
 
 
 
-def table(addlist_20):
+def table(address, addlist_20):
     # transaction table
     # data
 
@@ -670,8 +673,6 @@ def table(addlist_20):
 
 
     # retrieve aliases in bulk
-    s = socks.socksocket()
-    s.connect((light_ip, int(port)))
 
     addlist_addressess = []
     reclist_addressess = []
@@ -700,7 +701,6 @@ def table(addlist_20):
         connections.send(s, reclist_addressess, 10)
         aliases_rec_results = connections.receive(s, 10)
     # retrieve aliases in bulk
-    s.close()
 
     i = 0
     for row in addlist_20:
@@ -796,13 +796,11 @@ def table(addlist_20):
 
 
 
-def refresh():
+def refresh(address, s):
     global balance
     # print "refresh triggered"
 
     try:
-        s = socks.socksocket()
-        s.connect((light_ip, int(port)))
         connections.send(s, "balanceget", 10)
         connections.send(s, address, 10)  # change address here to view other people's transactions
         stats_account = connections.receive(s, 10)
@@ -818,8 +816,6 @@ def refresh():
         block_get = connections.receive(s, 10)
         bl_height = block_get[0]
         db_timestamp_last = block_get[1]
-
-        s.close()
     except:
         pass
 
@@ -839,11 +835,8 @@ def refresh():
 
 
     # check difficulty
-    s = socks.socksocket()
-    s.connect((light_ip, int(port)))
     connections.send(s, "diffget", 10)
     diff = connections.receive(s, 10)
-    s.close()
     # check difficulty
 
 
@@ -861,12 +854,6 @@ def refresh():
 
     # network status
 
-    # aliases
-    # c.execute("SELECT openfield FROM transactions WHERE address = ? AND openfield LIKE ?;",(address,)+("alias="+'%',))
-    # aliases = c.fetchall()
-    # app_log.warning("Aliases: "+str(aliases))
-    # aliases
-
     # fees_current_var.set("Current Fee: {}".format('%.8f' % float(fee)))
     balance_var.set("Balance: {}".format('%.8f' % float(balance)))
     balance_raw.set('%.8f' % float(balance))
@@ -878,7 +865,13 @@ def refresh():
     diff_msg_var.set("Mining Difficulty: {}".format('%.2f' % float(diff_msg)))
     sync_msg_var.set("Network: {}".format(sync_msg))
 
-    table(addlist_20)
+    connections.send(s, "addlistlim", 10)
+    connections.send(s, address, 10)
+    connections.send(s, "20", 10)
+    addlist = connections.receive(s, 10)
+    addlist_20 = addlist[:20]  # limit
+
+    table(address, addlist_20)
     # root.after(1000, refresh)
 
 if "posix" not in os.name:
@@ -917,7 +910,7 @@ if (len(public_key_readable)) != 271 and (len(public_key_readable)) != 799:
     raise ValueError ("Invalid public key length: {}".format(len(public_key_readable)))
 
 public_key_hashed = base64.b64encode(public_key_readable.encode('utf-8'))
-address = hashlib.sha224(public_key_readable.encode('utf-8')).hexdigest()
+myaddress = hashlib.sha224(public_key_readable.encode('utf-8')).hexdigest()
 
 # frames
 f2 = Frame(root, height=100, width=100)
@@ -942,15 +935,15 @@ f6.grid(row=2, column=0, sticky=E, pady=10, padx=10)
 send_b = Button(f5, text="Send", command=lambda: send_confirm(str(amount.get()).strip(), recipient.get().strip(), str(keep_var.get()).strip(), (openfield.get("1.0", END)).strip()), height=1, width=10, font=("Tahoma", 8))
 send_b.grid(row=7, column=0, sticky=W + E + S, pady=(45, 0), padx=15)
 
-start_b = Button(f5, text="Generate QR Code", command=qr, height=1, width=10, font=("Tahoma", 8))
+start_b = Button(f5, text="Generate QR Code", command=lambda :qr(gui_address.get()), height=1, width=10, font=("Tahoma", 8))
 if "posix" in os.name:
     start_b.configure(text="QR Disabled", state=DISABLED)
 start_b.grid(row=8, column=0, sticky=W + E + S, pady=0, padx=15)
 
-message_b = Button(f5, text="Manual Refresh", command=refresh, height=1, width=10, font=("Tahoma", 8))
+message_b = Button(f5, text="Manual Refresh", command=lambda: refresh(gui_address.get(),s), height=1, width=10, font=("Tahoma", 8))
 message_b.grid(row=9, column=0, sticky=W + E + S, pady=0, padx=15)
 
-balance_b = Button(f5, text="Messages", command=lambda: msg_dialogue(addlist), height=1, width=10, font=("Tahoma", 8))
+balance_b = Button(f5, text="Messages", command=lambda: msg_dialogue(gui_address.get()), height=1, width=10, font=("Tahoma", 8))
 balance_b.grid(row=10, column=0, sticky=W + E + S, pady=0, padx=15)
 #balance_b.configure(state=DISABLED)
 
@@ -984,6 +977,9 @@ lock_b.grid(row=1, column=3, sticky=E + N, pady=0, padx=5)
 # buttons
 
 # refreshables
+
+s = socks.socksocket()
+s.connect((light_ip, int(port)))
 
 # update balance label
 balance_raw = StringVar()
@@ -1034,17 +1030,29 @@ resolve_var = IntVar()
 # address and amount
 gui_address = Entry(f3, width=60)
 gui_address.grid(row=0, column=1, sticky=W)
-gui_address.insert(0, address)
-gui_address.configure(state="readonly")
+gui_address.insert(0, myaddress)
+#gui_address.configure(state="readonly")
 
 gui_copy_address = Button(f3, text="Copy", command=address_copy, font=("Tahoma", 7))
 gui_copy_address.grid(row=0, column=2, sticky=W + E, padx=(5, 0))
 
-gui_list_aliases = Button(f3, text="Aliases", command=aliases_list, font=("Tahoma", 7))
-gui_list_aliases.grid(row=0, column=3, sticky=W + E, padx=(5, 0))
+gui_paste_address = Button(f3, text="Paste", command=address_insert, font=("Tahoma", 7))
+gui_paste_address.grid(row=0, column=3, sticky=W + E, padx=(5, 0))
 
-gui_insert_clipboard = Button(f3, text="Paste", command=address_insert, font=("Tahoma", 7))
-gui_insert_clipboard.grid(row=1, column=2, sticky=W + E, padx=(5, 0))
+gui_list_aliases = Button(f3, text="Aliases", command=aliases_list, font=("Tahoma", 7))
+gui_list_aliases.grid(row=0, column=4, sticky=W + E, padx=(5, 0))
+
+gui_watch = Button(f3, text="Watch", command=watch, font=("Tahoma", 7))
+gui_watch.grid(row=0, column=5, sticky=W + E, padx=(5, 0))
+
+gui_unwatch = Button(f3, text="Unwatch", command=unwatch, font=("Tahoma", 7))
+gui_unwatch.grid(row=0, column=6, sticky=W + E, padx=(5, 0))
+
+gui_copy_recipient = Button(f3, text="Copy", command=recipient_copy, font=("Tahoma", 7))
+gui_copy_recipient.grid(row=1, column=2, sticky=W + E, padx=(5, 0))
+
+gui_insert_recipient = Button(f3, text="Paste", command=recipient_insert, font=("Tahoma", 7))
+gui_insert_recipient.grid(row=1, column=3, sticky=W + E, padx=(5, 0))
 
 gui_help = Button(f3, text="Help", command=help, font=("Tahoma", 7))
 gui_help.grid(row=4, column=2, sticky=W + E, padx=(5, 0))
@@ -1085,7 +1093,7 @@ msg.grid(row=4, column=1, sticky=W, padx=(240, 0))
 encr = Checkbutton(f3, text="Encrypt with PK", variable=encrypt_var)
 encr.grid(row=5, column=1, sticky=W, padx=(0, 0))
 
-resolve = Checkbutton(f3, text="Resolve Aliases", variable=resolve_var, command=refresh)
+resolve = Checkbutton(f3, text="Resolve Aliases", variable=resolve_var, command=lambda :refresh(gui_address.get(),s))
 resolve.grid(row=5, column=1, sticky=W, padx=(120, 0))
 
 alias_cb = Checkbutton(f3, text="Alias Recipient", variable=alias_cb_var, command=None)
@@ -1104,13 +1112,6 @@ logo = PhotoImage(data=logo_hash_decoded)
 image = Label(f2, image=logo).grid(pady=25, padx=50, sticky=N)
 # logo
 
-s = socks.socksocket()
-s.connect((light_ip, int(port)))
-connections.send(s, "addlist", 10)
-connections.send(s, address, 10)
-#connections.send(s, "20", 10)
-addlist = connections.receive(s, 10)
-addlist_20 = addlist[:20] #limit
 
 refresh_auto()
 root.mainloop()
