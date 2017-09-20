@@ -33,6 +33,29 @@ essentials.db_check(app_log)
 root = Tk()
 root.wm_title("Bismuth Light Wallet")
 
+def alias_register(alias_desired):
+    s = socks.socksocket()
+    s.connect((light_ip, int(port)))
+    connections.send(s, "aliascheck", 10)
+    connections.send(s, alias_desired, 10)
+
+    result = connections.receive(s, 10)
+
+    s.close()
+
+    if result == "Alias free":
+        send("0", address, "1", "alias="+alias_desired)
+        pass
+    else:
+        top9 = Toplevel()
+        top9.title("Name already registered")
+
+        registered_label = Label(top9, text="Name already registered")
+        registered_label.grid(row=0, column=0, sticky=N + W, padx=15, pady=(5, 0))
+        dismiss = Button(top9, text="Dismiss", command=top9.destroy)
+        dismiss.grid(row=3, column=0, sticky=W + E, padx=15, pady=(5, 5))
+
+
 def help():
     top13 = Toplevel()
     top13.title("Help")
@@ -92,8 +115,16 @@ def aliases_list():
     aliases_box = Text(top12, width=100)
     aliases_box.grid(row=0, pady=0)
 
-    for row in c.execute("SELECT openfield FROM transactions WHERE address = ? AND openfield LIKE ?;", (address,) + ("alias=" + '%',)):
-        aliases_box.insert(INSERT, row[0].lstrip("alias="))
+    s = socks.socksocket()
+    s.connect((light_ip, int(port)))
+    connections.send(s, "aliasget", 10)
+    connections.send(s, address, 10)
+
+    aliases_self = connections.receive(s, 10)
+    s.close()
+
+    for x in aliases_self:
+        aliases_box.insert(INSERT, x[0].lstrip("alias="))
         aliases_box.insert(INSERT,"\n")
 
     close = Button(top12, text="Close", command=top12.destroy)
@@ -288,14 +319,17 @@ def send_confirm(amount_input, recipient_input, keep_input, openfield_input):
 
     confirmation_dialog.grid(row=0, pady=0)
 
-    enter = Button(top10, text="Confirm", command=lambda: send(amount_input, recipient_input, keep_input, openfield_input, top10, fee))
+    enter = Button(top10, text="Confirm", command=lambda: send_confirmed(amount_input, recipient_input, keep_input, openfield_input, top10))
     enter.grid(row=1, column=0, sticky=W + E, padx=15, pady=(5, 5))
 
     done = Button(top10, text="Cancel", command=top10.destroy)
     done.grid(row=2, column=0, sticky=W + E, padx=15, pady=(5, 5))
 
+def send_confirmed(amount_input, recipient_input, keep_input, openfield_input, top10):
+    send(amount_input, recipient_input, keep_input, openfield_input)
+    top10.destroy()
 
-def send(amount_input, recipient_input, keep_input, openfield_input, top10, fee):
+def send(amount_input, recipient_input, keep_input, openfield_input):
     try:
         key
     except:
@@ -346,6 +380,8 @@ def send(amount_input, recipient_input, keep_input, openfield_input, top10, fee)
 
         verifier = PKCS1_v1_5.new(key)
         if verifier.verify(h, signature) == True:
+            fee = fee_calculate(openfield_input, keep_var.get())
+
             if float(amount_input) < 0:
                 app_log.warning("Client: Signature OK, but cannot use negative amounts")
 
@@ -367,13 +403,9 @@ def send(amount_input, recipient_input, keep_input, openfield_input, top10, fee)
                     app_log.warning("Client: {}".format(reply))
                     s.close()
                     break
-                # refresh() experimentally disabled
         else:
             app_log.warning("Client: Invalid signature")
         # enter transaction end
-
-        top10.destroy()
-        # refresh() experimentally disabled
 
 
 def app_quit():
@@ -922,7 +954,6 @@ sign_b.grid(row=11, column=0, sticky=W + E + S, pady=0, padx=15)
 
 alias_b = Button(f5, text="Alias Registration", command=alias, height=1, width=10, font=("Tahoma", 8))
 alias_b.grid(row=12, column=0, sticky=W + E + S, pady=0, padx=15)
-alias_b.configure(state=DISABLED)
 
 backup_b = Button(f5, text="Backup Keys", command=backup, height=1, width=10, font=("Tahoma", 8))
 backup_b.grid(row=14, column=0, sticky=W + E + S, pady=0, padx=15)
@@ -1006,7 +1037,6 @@ gui_copy_address.grid(row=0, column=2, sticky=W + E, padx=(5, 0))
 
 gui_list_aliases = Button(f3, text="Aliases", command=aliases_list, font=("Tahoma", 7))
 gui_list_aliases.grid(row=0, column=3, sticky=W + E, padx=(5, 0))
-gui_list_aliases.configure(state=DISABLED)
 
 gui_insert_clipboard = Button(f3, text="Paste", command=address_insert, font=("Tahoma", 7))
 gui_insert_clipboard.grid(row=1, column=2, sticky=W + E, padx=(5, 0))

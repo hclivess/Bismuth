@@ -1817,6 +1817,23 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     else:
                         app_log.info("{} not whitelisted for aliasget command".format(peer_ip))
 
+                elif data == "aliascheck":
+                    if (peer_ip in allowed or "any" in allowed):
+                        reg_string = connections.receive(self.request, 10)
+
+                        m.execute("SELECT timestamp FROM transactions WHERE openfield = ?;", ("alias=" + reg_string,))
+                        registered_pending = m.fetchone()
+
+                        h3.execute("SELECT timestamp FROM transactions WHERE openfield = ?;", ("alias=" + reg_string,))
+                        registered_already = h3.fetchone()
+
+                        if registered_already is None and registered_pending is None:
+                            connections.send(self.request, "Alias free", 10)
+                        else:
+                            connections.send(self.request, "Alias registered", 10)
+                    else:
+                        app_log.info("{} not whitelisted for aliasget command".format(peer_ip))
+
                 elif data == "aliasesget": #only gets the first one
                     if (peer_ip in allowed or "any" in allowed):
                         alias_addresses = connections.receive(self.request, 10)
