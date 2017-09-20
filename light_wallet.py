@@ -648,22 +648,20 @@ def table(addlist_20):
     colors = []
 
     for x in addlist_20:
-        print(x[3])
         if x[3] == address:
             colors.append("green4")
         else:
             colors.append("indianred")
     # define row color
 
-    connections.send(s, "aliasesget", 10)
-    connections.send(s, addlist_addressess, 10)
-    aliases_address_results = connections.receive(s, 10)
-    print (aliases_address_results)
+    if resolve_var.get() == 1:
+        connections.send(s, "aliasesget", 10) #senders
+        connections.send(s, addlist_addressess, 10)
+        aliases_address_results = connections.receive(s, 10)
 
-    connections.send(s, "aliasesget", 10)
-    connections.send(s, reclist_addressess, 10)
-    aliases_rec_results = connections.receive(s, 10)
-    print (aliases_rec_results)
+        connections.send(s, "aliasesget", 10) #recipients
+        connections.send(s, reclist_addressess, 10)
+        aliases_rec_results = connections.receive(s, 10)
     # retrieve aliases in bulk
     s.close()
 
@@ -673,12 +671,18 @@ def table(addlist_20):
 
         db_timestamp = row[1]
         datasheet.append(datetime.fromtimestamp(float(db_timestamp)).strftime('%Y-%m-%d %H:%M:%S'))
-        db_address = aliases_address_results[i].lstrip("alias=")
-        #db_address = row[2]
+
+        if resolve_var.get() == 1:
+            db_address = aliases_address_results[i].lstrip("alias=")
+        else:
+            db_address = row[2]
         datasheet.append(db_address)
 
-        db_recipient = aliases_rec_results[i].lstrip("alias=")
-        #db_recipient = row[3]
+        if resolve_var.get() == 1:
+            db_recipient = aliases_rec_results[i].lstrip("alias=")
+        else:
+            db_recipient = row[3]
+
         datasheet.append(db_recipient)
         db_amount = row[4]
         db_reward = row[9]
@@ -989,6 +993,7 @@ alias_cb_var = IntVar()
 # encrypt_var = IntVar()
 msg_var = IntVar()
 encrypt_var = IntVar()
+resolve_var = IntVar()
 
 # address and amount
 gui_address = Entry(f3, width=60)
@@ -997,28 +1002,28 @@ gui_address.insert(0, address)
 gui_address.configure(state="readonly")
 
 gui_copy_address = Button(f3, text="Copy", command=address_copy, font=("Tahoma", 7))
-gui_copy_address.grid(row=0, column=2, sticky=W + E)
+gui_copy_address.grid(row=0, column=2, sticky=W + E, padx=(5, 0))
 
 gui_list_aliases = Button(f3, text="Aliases", command=aliases_list, font=("Tahoma", 7))
-gui_list_aliases.grid(row=0, column=3, sticky=W + E)
+gui_list_aliases.grid(row=0, column=3, sticky=W + E, padx=(5, 0))
 gui_list_aliases.configure(state=DISABLED)
 
 gui_insert_clipboard = Button(f3, text="Paste", command=address_insert, font=("Tahoma", 7))
-gui_insert_clipboard.grid(row=1, column=2, sticky=W + E)
+gui_insert_clipboard.grid(row=1, column=2, sticky=W + E, padx=(5, 0))
 
 gui_help = Button(f3, text="Help", command=help, font=("Tahoma", 7))
-gui_help.grid(row=4, column=2, sticky=W + E)
+gui_help.grid(row=4, column=2, sticky=W + E, padx=(5, 0))
 
 gui_all_spend = Button(f3, text="All", command=all_spend, font=("Tahoma", 7))
-gui_all_spend.grid(row=2, column=2, sticky=W + E)
+gui_all_spend.grid(row=2, column=2, sticky=W + E, padx=(5, 0))
 gui_all_spend_clear = Button(f3, text="Clear", command=all_spend_clear, font=("Tahoma", 7))
-gui_all_spend_clear.grid(row=2, column=3, sticky=W + E)
+gui_all_spend_clear.grid(row=2, column=3, sticky=W + E, padx=(5, 0))
 
 data_insert_clipboard = Button(f3, text="Paste", command=data_insert, font=("Tahoma", 7))
-data_insert_clipboard.grid(row=3, column=2, sticky=W + E)
+data_insert_clipboard.grid(row=3, column=2, sticky=W + E, padx=(5, 0))
 
 data_insert_clear = Button(f3, text="Clear", command=data_insert_clear, font=("Tahoma", 7))
-data_insert_clear.grid(row=3, column=3, sticky=W + E)
+data_insert_clear.grid(row=3, column=3, sticky=W + E, padx=(5, 0))
 
 Label(f3, text="Your Address:", width=20, anchor="e").grid(row=0)
 Label(f3, text="Recipient:", width=20, anchor="e").grid(row=1)
@@ -1033,20 +1038,23 @@ amount.grid(row=2, column=1, sticky=W)
 openfield = Text(f3, width=60, height=5, font=("Tahoma", 8))
 openfield.grid(row=3, column=1, sticky=W)
 
-alias_cb = Checkbutton(f3, text="Alias", variable=alias_cb_var, command=None)
-alias_cb.grid(row=4, column=1, sticky=E)
+keep = Checkbutton(f3, text="Always Permanent", variable=keep_var)
+keep.grid(row=4, column=1, sticky=W, padx=(0, 0))
 
-keep = Checkbutton(f3, text="Keep Entry", variable=keep_var)
-keep.grid(row=4, column=1, sticky=E, padx=(0, 90))
+encode = Checkbutton(f3, text="Base64 Encoding", variable=encode_var)
+encode.grid(row=4, column=1, sticky=W, padx=(120, 0))
 
-encode = Checkbutton(f3, text="Base64", variable=encode_var)
-encode.grid(row=4, column=1, sticky=E, padx=(0, 170))
+msg = Checkbutton(f3, text="Mark as Message", variable=msg_var)
+msg.grid(row=4, column=1, sticky=W, padx=(240, 0))
 
-msg = Checkbutton(f3, text="Message", variable=msg_var)
-msg.grid(row=4, column=1, sticky=E, padx=(0, 230))
+encr = Checkbutton(f3, text="Encrypt with PK", variable=encrypt_var)
+encr.grid(row=5, column=1, sticky=W, padx=(0, 0))
 
-msg = Checkbutton(f3, text="Encrypt", variable=encrypt_var)
-msg.grid(row=4, column=1, sticky=E, padx=(0, 300))
+resolve = Checkbutton(f3, text="Resolve Aliases", variable=resolve_var)
+resolve.grid(row=5, column=1, sticky=W, padx=(120, 0))
+
+alias_cb = Checkbutton(f3, text="Alias Recipient", variable=alias_cb_var, command=None)
+alias_cb.grid(row=5, column=1, sticky=W, padx=(240, 0))
 
 balance_enumerator = Entry(f3, width=5)
 # address and amount
@@ -1063,9 +1071,9 @@ image = Label(f2, image=logo).grid(pady=25, padx=50, sticky=N)
 
 s = socks.socksocket()
 s.connect((light_ip, int(port)))
-connections.send(s, "addlistlim", 10)
+connections.send(s, "addlist", 10)
 connections.send(s, address, 10)
-connections.send(s, "20", 10)
+#connections.send(s, "20", 10)
 addlist = connections.receive(s, 10)
 addlist_20 = addlist[:20] #limit
 

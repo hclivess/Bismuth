@@ -1905,7 +1905,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                 if not time.time() <= timer_operation + timeout_operation:
                     timer_operation = time.time()  # reset timer
-                time.sleep(float(pause_conf))  # prevent cpu overload
+                #time.sleep(float(pause_conf))  # prevent cpu overload
                 # app_log.info("Server resting")
 
             except Exception as e:
