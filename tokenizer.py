@@ -10,36 +10,41 @@ c = conn.cursor()
 #print all token issuances
 c.execute("SELECT block_height, address, openfield FROM transactions WHERE openfield LIKE ? ORDER BY block_height ASC;", ("token:issue" + '%',))
 results = c.fetchall()
-print (results)
-
-for x in results:
-    token = x[2].split(":")[2]
-    print("token", token)
-
-    issued_by = x[1]
-    print ("issued_by", issued_by)
-
-    amounts = x[2].split(":")[3]
-    print("amounts", amounts)
-#print all token issuances
-
-#print all token transfers
-c.execute("SELECT block_height, address, openfield FROM transactions WHERE openfield LIKE ? ORDER BY block_height ASC;", ("token:transfer" + '%',))
-results = c.fetchall()
 #print (results)
 
 for x in results:
     token = x[2].split(":")[2]
-    print("token", token)
+    #print("token", token)
 
-    transer_from = x[1]
-    print ("transfer_from", transer_from)
+    issued_by = x[1]
+    #print ("issued_by", issued_by)
 
-    transfer_to = x[2].split(":")[4]
-    print ("transfer_to", transfer_to)
+    total = x[2].split(":")[3]
+    #print("total", total)
+#print all token issuances
 
-    transfer_amount = x[2].split(":")[3]
-    print ("transfer_amount",transfer_amount)
+
+#print all transfers of a given token
+token = "worthless"
+c.execute("SELECT block_height, address, openfield FROM transactions WHERE openfield LIKE ? ORDER BY block_height ASC;", ("token:transfer:" + token + ':%' ,))
+r = c.fetchall()[0]
+print (r)
+
+
+#address_from = total # init
+#address_to = 0 # init
+
+token = r[2].split(":")[2]
+print("token", token)
+
+transer_from = results[1]
+print ("transfer_from", transer_from)
+
+transfer_to = r[2].split(":")[4]
+print ("transfer_to", transfer_to)
+
+transfer_amount = r[2].split(":")[3]
+print ("transfer_amount",transfer_amount)
 
 #print all token transfers
 

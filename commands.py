@@ -48,13 +48,12 @@ def balanceget(socket, arg1):
     connections.send(s, "balanceget", 10)
     connections.send(s, arg1, 10)
     #balance_ledger = connections.receive(s, 10)
-    balance_ledger_mempool = connections.receive(s, 10)
-    print ("Address balance with mempool: {}".format(balance_ledger_mempool[0]))
-    print ("Address credit with mempool: {}".format(balance_ledger_mempool[1]))
-    print ("Address debit with mempool: {}".format(balance_ledger_mempool[2]))
-    print ("Address fees with mempool: {}".format(balance_ledger_mempool[3]))
-    print ("Address rewards with mempool: {}".format(balance_ledger_mempool[4]))
-    #print "Address balance without mempool: {}".format(balance_ledger)
+    balance_ledger = connections.receive(s, 10)
+    print ("Address balance: {}".format(balance_ledger[0]))
+    print ("Address credit: {}".format(balance_ledger[1]))
+    print ("Address debit: {}".format(balance_ledger[2]))
+    print ("Address fees: {}".format(balance_ledger[3]))
+    print ("Address rewards: {}".format(balance_ledger[4]))
     #get balance
 
 #insert to mempool

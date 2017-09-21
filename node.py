@@ -930,6 +930,7 @@ def manager(c, conn):
             app_log.warning("Status: Consensus: {} = {}%".format(consensus, consensus_percentage))
             app_log.warning("Status: Consensus IP list: {}".format(peer_ip_list))
             app_log.warning("Status: Consensus opinion list: {}".format(consensus_blockheight_list))
+            app_log.warning("Status: Total number of connections: {}".format(len(consensus_blockheight_list)))
 
         # last block
         execute(c, "SELECT timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
@@ -1795,7 +1796,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if (peer_ip in allowed or "any" in allowed):
                         address_tx_list = connections.receive(self.request, 10)
                         address_tx_list_limit = connections.receive(self.request, 10)
-                        print (address_tx_list_limit)
+                        #print (address_tx_list_limit)
                         execute_param(h3, ("SELECT * FROM transactions WHERE (address = ? OR recipient = ?) ORDER BY block_height DESC LIMIT ?"), (address_tx_list,) + (address_tx_list,) + (address_tx_list_limit,))
                         result = h3.fetchall()
                         connections.send(self.request, result, 10)
