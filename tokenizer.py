@@ -1,4 +1,4 @@
-import sqlite3, re
+import sqlite3
 
 conn = sqlite3.connect('static/hyper.db')
 conn.text_factory = str
@@ -13,33 +13,33 @@ results = c.fetchall()
 print (results)
 
 for x in results:
-    token = re.findall("token\:issue\:(.*)\:[\d]+",x[2])[0]
-    print(token)
+    token = x[2].split(":")[2]
+    print("token", token)
 
     issued_by = x[1]
-    print (issued_by)
+    print ("issued_by", issued_by)
 
-    amounts = re.findall("token\:issue\:.*\:([\d]+)",x[2])[0]
-    print(amounts)
+    amounts = x[2].split(":")[3]
+    print("amounts", amounts)
 #print all token issuances
 
 #print all token transfers
 c.execute("SELECT block_height, address, openfield FROM transactions WHERE openfield LIKE ? ORDER BY block_height ASC;", ("token:transfer" + '%',))
 results = c.fetchall()
-print (results)
+#print (results)
 
 for x in results:
-    token = re.findall("token\:transfer\:(.*)\:[\d]+",x[2])[0]
-    print(token)
+    token = x[2].split(":")[2]
+    print("token", token)
 
     transer_from = x[1]
-    print (transer_from)
+    print ("transfer_from", transer_from)
 
-    transfer_to = re.findall("token\:transfer\:.*\:[\d]+:(.*)", x[2])[0]
-    print (transfer_to)
+    transfer_to = x[2].split(":")[4]
+    print ("transfer_to", transfer_to)
 
-    transfer_amount = re.findall("token\:transfer\:.*\:([\d]+)",x[2])[0]
-    print (transfer_amount)
+    transfer_amount = x[2].split(":")[3]
+    print ("transfer_amount",transfer_amount)
 
 #print all token transfers
 
