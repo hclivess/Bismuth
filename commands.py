@@ -182,6 +182,9 @@ elif command == "blockget":
 elif command == "addlist":
     addlist(s, arg1)
 
+elif command == "addlistlim":
+    addlistlim(s, arg1, arg2)
+
 elif command == "txsend":
     try:
         arg4
