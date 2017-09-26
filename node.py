@@ -551,7 +551,7 @@ def mempool_merge(data, peer_ip, c, mempool, m):
                     if float(mempool_timestamp) > time.time() + 30:  # dont accept future txs
                         acceptable = 0
 
-                    if float(mempool_timestamp) < time.time() - 43200:  # dont accept old txs
+                    if float(mempool_timestamp) < time.time() - 82800:  # dont accept old txs, mempool needs to be harsher than ledger
                         acceptable = 0
 
                     if (mempool_in == 1) and (ledger_in == 1):  # remove from mempool if it's in both ledger and mempool already
