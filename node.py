@@ -1702,8 +1702,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if (peer_ip in allowed or "any" in allowed):
                         block_desired = connections.receive(self.request, 10)
 
-                        execute_param(c, ("SELECT * FROM transactions WHERE block_height = ?;"), (block_desired,))
-                        block_desired_result = c.fetchall()
+                        execute_param(h3, ("SELECT * FROM transactions WHERE block_height = ?;"), (block_desired,))
+                        block_desired_result = h3.fetchall()
 
                         connections.send(self.request, block_desired_result, 10)
                     else:
