@@ -144,10 +144,8 @@ def difficulty(c):
     app_log.warning("Blocks per day: {}".format(blocks_per_1440))
 
     execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
-    try:
-        diff_block_previous = float(c.fetchone()[0])
-    except:
-        diff_block_previous = 45
+
+    diff_block_previous = float(c.fetchone()[0])
 
     try:
         log = math.log2(blocks_per_1440 / 1440)
@@ -155,21 +153,24 @@ def difficulty(c):
         log = math.log2(0.5 / 1440)
     app_log.info("Difficulty retargeting: {}".format(log))
 
-    difficulty = diff_block_previous + log  # increase/decrease diff by a little
+    if block_height < 320000:
+        difficulty = float('%.2f' % (diff_block_previous + float(log)))  # increase/decrease diff by a little
+    else:
+        difficulty = diff_block_previous + log  # increase/decrease diff by a little
 
     time_now = time.time()
 
     if time_now > timestamp_last + 300: #if 5 minutes have passed
-        if block_height < 300000:
-            difficulty2 = percentage(90,difficulty)
-        else:
+        if block_height < 320000:
             difficulty2 = percentage(95, difficulty)
+        else:
+            difficulty2 = float('%.2f' % percentage(95, difficulty))
     else:
         difficulty2 = difficulty
 
-    if difficulty < 45 or difficulty2 < 45:
-        difficulty = 45
-        difficulty2 = 45
+    if difficulty < 55 or difficulty2 < 55:
+        difficulty = 55
+        difficulty2 = 55
 
     app_log.warning("Difficulty: {}".format(difficulty2))
 
