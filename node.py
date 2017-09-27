@@ -510,31 +510,28 @@ def mempool_merge(data, peer_ip, c, mempool, m):
                     mempool_public_key = RSA.importKey(base64.b64decode(mempool_public_key_hashed))  # convert readable key to instance
                     mempool_signature_dec = base64.b64decode(mempool_signature_enc)
 
-                    ledger_in = 0
-                    mempool_in = 0
-
                     acceptable = 1
-                    try:
-                        execute_param(m, ("SELECT * FROM transactions WHERE signature = ?;"), (mempool_signature_enc,))  # condition 1)
-                        dummy1 = m.fetchall()[0]
-                        if dummy1 != None:
-                            # app_log.info("That transaction is already in our mempool")
-                            acceptable = 0
-                            mempool_in = 1
-                    except:
-                        pass
 
+                    execute_param(m, ("SELECT * FROM transactions WHERE signature = ?;"), (mempool_signature_enc,))  # condition 1)
                     try:
-                        # reject transactions which are already in the ledger
-                        execute_param(c, ("SELECT * FROM transactions WHERE signature = ?;"), (mempool_signature_enc,))  # condition 2
-                        dummy2 = c.fetchall()[0]
-                        if dummy2 != None:
-                            # app_log.info("That transaction is already in our ledger")
-                            # reject transactions which are already in the ledger
-                            acceptable = 0
-                            ledger_in = 1
+                        dummy1 = m.fetchall()[0]
+                        # app_log.info("That transaction is already in our mempool")
+                        acceptable = 0
+                        mempool_in = 1
                     except:
-                        pass
+                        mempool_in = 0
+
+
+                    # reject transactions which are already in the ledger
+                    execute_param(c, ("SELECT * FROM transactions WHERE signature = ?;"), (mempool_signature_enc,))  # condition 2
+                    try:
+                        dummy2 = c.fetchall()[0]
+                        # app_log.info("That transaction is already in our ledger")
+                        # reject transactions which are already in the ledger
+                        acceptable = 0
+                        ledger_in = 1
+                    except:
+                        ledger_in = 0
 
                     if mempool_keep != "1" and mempool_keep != "0":
                         app_log.info = ("Mempool: Wrong keep value {}".format(mempool_keep))
