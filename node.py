@@ -487,7 +487,7 @@ def mempool_merge(data, peer_ip, c, mempool, m):
         else:
             app_log.info("Mempool merging started from {}".format(peer_ip))
 
-            while db_lock.locked() == True:  # prevent transactions which are just being digested from being added to mempool, it's ok if digesting starts first, because it will delete the txs and mempool will check for them in the ledger
+            while db_lock.locked() == True:  # prevent transactions which are just being digested from being added to mempool
                 app_log.info("Waiting for block digestion to finish before merging mempool")
                 time.sleep(1)
 
@@ -1027,8 +1027,9 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                     if transaction == transaction_list[-1]:  # recognize the last transaction as the mining reward transaction
                         block_timestamp = received_timestamp
-                        nonce = received_openfield
+                        nonce = received_openfield[:128]
                         miner_address = received_address
+
 
                     time_now = time.time()
                     if float(time_now) + 30 < float(received_timestamp):
