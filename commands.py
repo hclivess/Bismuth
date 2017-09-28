@@ -140,6 +140,9 @@ def txsend(socket, arg1, arg2, arg3, arg4, arg5):
     connections.send(s, (str(remote_tx_timestamp), str(remote_tx_privkey), str(remote_tx_recipient), str(remote_tx_amount), str(remote_tx_keep), str(remote_tx_openfield)), 10)
     #generate transaction
 
+    signature = connections.receive(s, 10)
+    print (signature)
+
 def aliasget(socket, arg1):
     connections.send(s, "aliasget", 10)
     connections.send(s, arg1, 10)
