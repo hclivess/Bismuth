@@ -21,7 +21,7 @@ global banlist
 banlist = []
 global hdd_block
 global test
-test = 1
+test = 0
 
 db_lock = threading.Lock()
 mem_lock = threading.Lock()
@@ -1339,19 +1339,21 @@ ledger_convert(ledger_path_conf, hyper_path_conf)
 
 try:
     app_log.warning("Moving database to RAM")
-    conn = sqlite3.connect('file::memory:?cache=shared', uri=True, timeout=1)
-    conn.text_factory = str
-    c = conn.cursor()
+    to_ram = sqlite3.connect('file::memory:?cache=shared', uri=True, timeout=1)
+    to_ram.text_factory = str
+    tr = to_ram.cursor()
 
     old_db = sqlite3.connect(hyper_path_conf, timeout=1)
     query = "".join(line for line in old_db.iterdump())
 
-    conn.executescript(query)
+    to_ram.executescript(query)
 
-    c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
-    hdd_block = c.fetchone()[0]
+    tr.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
+    hdd_block = tr.fetchone()[0]
+    #do not close
 
     app_log.warning("Moved database to RAM")
+
 except Exception as e:
     app_log.info(e)
 
