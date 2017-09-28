@@ -1538,7 +1538,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if db_lock.locked() == True:
                         app_log.info("Skipping sync from {}, syncing already in progress".format(peer_ip))
 
-                    elif int(received_block_height) >= most_common(consensus_blockheight_list):
+                    elif int(received_block_height) == max(consensus_blockheight_list):
                         app_log.warning("Confirming to sync from {}".format(peer_ip))
                         connections.send(self.request, "blockscf", 10)
 
@@ -2192,7 +2192,7 @@ def worker(HOST, PORT):
                 if db_lock.locked() == True:
                     app_log.warning("Skipping sync from {}, syncing already in progress".format(peer_ip))
 
-                elif int(received_block_height) >= most_common(consensus_blockheight_list):
+                elif int(received_block_height) == max(consensus_blockheight_list):
                     app_log.warning("Confirming to sync from {}".format(peer_ip))
                     connections.send(s, "blockscf", 10)
 
