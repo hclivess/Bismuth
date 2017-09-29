@@ -149,6 +149,12 @@ def aliasget(socket, arg1):
     alias_results = connections.receive(s, 10)
     print (alias_results)
 
+def addvalidate(socket, arg1):
+    connections.send(s, "addvalidate", 10)
+    connections.send(s, arg1, 10)
+    validate_result = connections.receive(s, 10)
+    print (validate_result)
+
 def aliasesget(socket, arg1):
     arg_split = arg1.split(",")
     print (arg_split)
@@ -160,6 +166,9 @@ def aliasesget(socket, arg1):
 
 if command == "aliasget":
     aliasget(s, arg1)
+
+if command == "addvalidate":
+    addvalidate(s, arg1)
 
 if command == "aliasesget":
     aliasesget(s, arg1)

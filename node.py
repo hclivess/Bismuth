@@ -1907,7 +1907,14 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 # less importent methods
                 elif data == "addvalidate":
                     if (peer_ip in allowed or "any" in allowed):
-                        pass
+
+                        address_validate = connections.receive(self.request, 10)
+                        if len(address_validate) == 56 and not re.search("[^abcdef0123456789]", address_validate):
+                            result = "valid"
+                        else:
+                            result = "invalid"
+
+                        connections.send(self.request, result, 10)
                     else:
                         app_log.info("{} not whitelisted for addvalidate command".format(peer_ip))
 
