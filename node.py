@@ -926,7 +926,7 @@ def manager(c, conn):
             app_log.warning("Status: Consensus: {} = {}%".format(consensus, consensus_percentage))
             app_log.warning("Status: Consensus IP list: {}".format(peer_ip_list))
             app_log.warning("Status: Consensus opinion list: {}".format(consensus_blockheight_list))
-            app_log.warning("Status: Total number of connections: {}".format(len(consensus_blockheight_list)))
+            app_log.warning("Status: Total number of nodes: {}".format(len(consensus_blockheight_list)))
 
         # last block
         execute(c, "SELECT timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
@@ -1387,8 +1387,9 @@ if verify_conf == 1:
 # init
 
 ### LOCAL CHECKS FINISHED ###
-app_log.warning("Starting up...")
-
+app_log.warning("Starting...")
+global startup_time
+startup_time = time.time()
 
 class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
     def handle(self):  # server defined here
@@ -1920,15 +1921,23 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                 elif data == "statusget":
                     if (peer_ip in allowed or "any" in allowed):
-                        pass
+                        nodes_count = (len(consensus_blockheight_list))
+                        connections.send(self.request, nodes_count, 10)
+
+                        threads_count = threading.active_count(), thread_limit_conf
+                        connections.send(self.request, threads_count, 10)
+
+                        uptime = int(time.time() - startup_time)
+                        connections.send(self.request, uptime, 10)
+
+                        global consensus
+                        connections.send(self.request, consensus, 10)
+
+                        global consensus_percentage
+                        connections.send(self.request, consensus_percentage, 10)
+
                     else:
                         app_log.info("{} not whitelisted for statusget command".format(peer_ip))
-
-                elif data == "connget":
-                    if (peer_ip in allowed or "any" in allowed):
-                        pass
-                    else:
-                        app_log.info("{} not whitelisted for connget command".format(peer_ip))
 
                 elif data == "diffget":
                     if (peer_ip in allowed or "any" in allowed):

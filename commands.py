@@ -149,6 +149,19 @@ def aliasget(socket, arg1):
     alias_results = connections.receive(s, 10)
     print (alias_results)
 
+def statusget(socket):
+    connections.send(s, "statusget", 10)
+    nodes_count = connections.receive(s, 10)
+    threads_count = connections.receive(s, 10)
+    uptime = connections.receive(s, 10)
+    consensus = connections.receive(s, 10)
+    consensus_percentage = connections.receive(s, 10)
+    print("Number of nodes: ", nodes_count)
+    print("Number of threads: ", threads_count)
+    print("Uptime: ", uptime)
+    print("Consensus: ", consensus)
+    print("Consensus percentage: ", consensus_percentage)
+
 def addvalidate(socket, arg1):
     connections.send(s, "addvalidate", 10)
     connections.send(s, arg1, 10)
@@ -181,6 +194,9 @@ elif command == "balanceget":
 
 elif command == "mpget":
     mpget(s)
+
+elif command == "statusget":
+    statusget(s)
 
 elif command == "blocklast":
     blocklast(s)
