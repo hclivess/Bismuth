@@ -432,11 +432,12 @@ def difficulty(c):
         log = math.log2(blocks_per_1440 / 1440)
     except:
         log = math.log2(0.5 / 1440)
-    app_log.info("Difficulty retargeting: {}".format(log))
+        app_log.warning("Difficulty exception triggered! This should not happen!")
+
+    app_log.warning("Difficulty retargeting: {}".format(log))
 
 
     difficulty = diff_block_previous + log  # increase/decrease diff by a little
-    #difficulty = float('%.3f' % (diff_block_previous + float(log)))  # increase/decrease diff by a little
 
     time_now = time.time()
 
@@ -447,11 +448,14 @@ def difficulty(c):
     else:
         difficulty2 = difficulty
 
-    if difficulty < 45 or difficulty2 < 45:
+    if difficulty < 45:
         difficulty = 45
+
+    if difficulty2 < 45:
         difficulty2 = 45
 
-    app_log.warning("Difficulty: {}".format(difficulty2))
+
+    app_log.warning("Difficulty: {} {}".format(difficulty, difficulty2))
 
     # return (float(50), float(50)) #TEST ONLY
     return (float(difficulty), float(difficulty2))
@@ -1610,7 +1614,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                                 else:
                                     execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
-                                                  (str(int(client_block)),) + (str(int(client_block + 2500)),))  # select incoming transaction + 1
+                                                  (str(int(client_block)),) + (str(int(client_block + 1500)),))  # select incoming transaction + 1
                                     blocks_fetched = h3.fetchall()
 
                                     blocks_send = [[l[1:] for l in group] for _, group in groupby(blocks_fetched, key=itemgetter(0))]  # remove block number
@@ -1660,7 +1664,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "block":
                     if (peer_ip in allowed or "any" in allowed):  # from miner
 
-                        app_log.warning("Outgoing: Received a block from miner {}".format(peer_ip))
+                        app_log.info("Outgoing: Received a block from miner {}".format(peer_ip))
                         # receive block
                         segments = connections.receive(self.request, 10)
                         # app_log.info("Incoming: Combined mined segments: " + segments)
@@ -1674,16 +1678,16 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                         if test == 0:
                             if len(connection_pool) < 5:
-                                app_log.warning("Outgoing: Mined block ignored, insufficient connections to the network")
+                                app_log.info("Outgoing: Mined block ignored, insufficient connections to the network")
                             elif int(db_block_height) >= int(max(consensus_blockheight_list)) - 3 and db_lock.locked() == False:
-                                app_log.warning("Outgoing: Processing block from miner")
+                                app_log.info("Outgoing: Processing block from miner")
                                 digest_block(segments, self.request, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                             elif db_lock.locked() == True:
-                                app_log.warning("Outgoing: Block from miner skipped because we are digesting already")
+                                app_log.info("Outgoing: Block from miner skipped because we are digesting already")
 
                             # receive theirs
                             else:
-                                app_log.warning("Outgoing: Mined block was orphaned because node was not synced, we are at block {}, should be at least {}".format(db_block_height, int(max(consensus_blockheight_list)) - 3))
+                                app_log.info("Outgoing: Mined block was orphaned because node was not synced, we are at block {}, should be at least {}".format(db_block_height, int(max(consensus_blockheight_list)) - 3))
                         else:
                             digest_block(segments, self.request, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                     else:
@@ -2149,7 +2153,7 @@ def worker(HOST, PORT):
 
                             else:
                                 execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
-                                              (str(int(client_block)),) + (str(int(client_block + 2500)),))  # select incoming transaction + 1, only columns that need not be verified
+                                              (str(int(client_block)),) + (str(int(client_block + 1500)),))  # select incoming transaction + 1, only columns that need not be verified
                                 blocks_fetched = h3.fetchall()
                                 # hdd.close()
 
