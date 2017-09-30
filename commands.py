@@ -35,6 +35,7 @@ except:
 
 s = socks.socksocket()
 s.connect(("127.0.0.1", 5658))
+#s.connect(("66.70.181.150", 5658))
 
 def diffget(socket):
     #check difficulty
@@ -163,12 +164,14 @@ def statusget(socket):
     uptime = response[3]
     consensus = response[4]
     consensus_percentage = response[5]
+    version = response[6]
     print("Number of nodes:", nodes_count)
     print("List of nodes:", nodes_list)
     print("Number of threads:", threads_count)
     print("Uptime:", uptime)
     print("Consensus:", consensus)
     print("Consensus percentage:", consensus_percentage)
+    print("Version:", version)
 
 def addvalidate(socket, arg1):
     connections.send(s, "addvalidate", 10)

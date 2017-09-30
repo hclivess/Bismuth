@@ -5,6 +5,7 @@
 # never use codecs, they are bugged and do not provide proper serialization
 # must unify node and client now that connections parameters are function parameters
 # if you have a block of data and want to insert it into sqlite, you must use a single "commit" for the whole batch, it's 100x faster
+VERSION = "4.0.6"
 
 from itertools import groupby
 from operator import itemgetter
@@ -1957,7 +1958,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         threads_count = threading.active_count()
                         uptime = int(time.time() - startup_time)
 
-                        connections.send(self.request, (nodes_count, nodes_list, threads_count, uptime, consensus, consensus_percentage), 10)
+                        connections.send(self.request, (nodes_count, nodes_list, threads_count, uptime, consensus, consensus_percentage, VERSION), 10)
 
                     else:
                         app_log.info("{} not whitelisted for statusget command".format(peer_ip))
