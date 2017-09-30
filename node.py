@@ -1945,7 +1945,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         connections.send(self.request, peers_file , 10)
 
                     else:
-                        app_log.info("{} not whitelisted for statusget command".format(peer_ip))
+                        app_log.info("{} not whitelisted for peersget command".format(peer_ip))
 
                 elif data == "statusget":
                     if (peer_ip in allowed or "any" in allowed):
@@ -1953,10 +1953,11 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         global consensus_percentage
 
                         nodes_count = (len(consensus_blockheight_list))
+                        nodes_list =  peer_ip_list
                         threads_count = threading.active_count()
                         uptime = int(time.time() - startup_time)
 
-                        connections.send(self.request, (nodes_count, threads_count, uptime, consensus, consensus_percentage), 10)
+                        connections.send(self.request, (nodes_count, nodes_list, threads_count, uptime, consensus, consensus_percentage), 10)
 
                     else:
                         app_log.info("{} not whitelisted for statusget command".format(peer_ip))

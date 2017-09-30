@@ -158,11 +158,13 @@ def statusget(socket):
     connections.send(s, "statusget", 10)
     response = connections.receive(s, 10)
     nodes_count = response[0]
-    threads_count = response[1]
-    uptime = response[2]
-    consensus = response[3]
-    consensus_percentage = response[4]
+    nodes_list = response[1]
+    threads_count = response[2]
+    uptime = response[3]
+    consensus = response[4]
+    consensus_percentage = response[5]
     print("Number of nodes:", nodes_count)
+    print("List of nodes:", nodes_list)
     print("Number of threads:", threads_count)
     print("Uptime:", uptime)
     print("Consensus:", consensus)
