@@ -447,9 +447,9 @@ def difficulty(c):
     else:
         difficulty2 = difficulty
 
-    if difficulty < 55 or difficulty2 < 55:
-        difficulty = 55
-        difficulty2 = 55
+    if difficulty < 45 or difficulty2 < 45:
+        difficulty = 45
+        difficulty2 = 45
 
     app_log.warning("Difficulty: {}".format(difficulty2))
 
