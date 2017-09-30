@@ -1557,7 +1557,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             app_log.warning("Longest chain rule triggered")
 
 
-                        if int(received_block_height) >= block_req:
+                        if int(received_block_height) == block_req:
                             app_log.warning("Confirming to sync from {}".format(peer_ip))
                             connections.send(self.request, "blockscf", 10)
 
@@ -2244,7 +2244,7 @@ def worker(HOST, PORT):
                         block_req = max(consensus_blockheight_list)
                         app_log.warning("Longest chain rule triggered")
 
-                    if int(received_block_height) >= block_req:
+                    if int(received_block_height) == block_req:
                         app_log.warning("Confirming to sync from {}".format(peer_ip))
                         connections.send(s, "blockscf", 10)
 
