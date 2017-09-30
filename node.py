@@ -1919,6 +1919,17 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     else:
                         app_log.info("{} not whitelisted for addvalidate command".format(peer_ip))
 
+
+                elif data == "peersget":
+                    if (peer_ip in allowed or "any" in allowed):
+
+                        with open("peers.txt", "r") as peer_list:
+                            peers_file = peer_list.read()
+                        connections.send(self.request, peers_file , 10)
+
+                    else:
+                        app_log.info("{} not whitelisted for statusget command".format(peer_ip))
+
                 elif data == "statusget":
                     if (peer_ip in allowed or "any" in allowed):
                         global consensus

@@ -149,6 +149,11 @@ def aliasget(socket, arg1):
     alias_results = connections.receive(s, 10)
     print (alias_results)
 
+def peersget(socket):
+    connections.send(s, "peersget", 10)
+    peers_received = connections.receive(s, 10)
+    print (peers_received)
+
 def statusget(socket):
     connections.send(s, "statusget", 10)
     response = connections.receive(s, 10)
@@ -198,6 +203,9 @@ elif command == "mpget":
 
 elif command == "statusget":
     statusget(s)
+
+elif command == "peersget":
+    peersget(s)
 
 elif command == "blocklast":
     blocklast(s)
