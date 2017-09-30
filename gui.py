@@ -153,23 +153,24 @@ def difficulty(c):
         log = math.log2(0.5 / 1440)
     app_log.info("Difficulty retargeting: {}".format(log))
 
-    difficulty = diff_block_previous + log  # increase/decrease diff by a little
+    difficulty = float('%.13f' % (diff_block_previous + log))  # increase/decrease diff by a little
     # difficulty = float('%.3f' % (diff_block_previous + float(log)))  # increase/decrease diff by a little
 
     time_now = time.time()
 
     if time_now > timestamp_last + 300:  # if 5 minutes have passed
-        difficulty2 = percentage(95, difficulty)
-        # difficulty2 = float('%.3f' % percentage(95, difficulty))
+        difficulty2 = float('%.13f' % percentage(95, difficulty))
 
     else:
         difficulty2 = difficulty
 
-    if difficulty < 45 or difficulty2 < 45:
+    if difficulty < 45:
         difficulty = 45
+
+    if difficulty2 < 45:
         difficulty2 = 45
 
-    app_log.warning("Difficulty: {}".format(difficulty2))
+    app_log.warning("Difficulty: {} {}".format(difficulty, difficulty2))
 
     # return (float(50), float(50)) #TEST ONLY
     return (float(difficulty), float(difficulty2))
