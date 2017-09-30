@@ -1545,17 +1545,30 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if db_lock.locked() == True:
                         app_log.info("Skipping sync from {}, syncing already in progress".format(peer_ip))
 
-                    elif int(received_block_height) == max(consensus_blockheight_list):
-                        app_log.warning("Confirming to sync from {}".format(peer_ip))
-                        connections.send(self.request, "blockscf", 10)
-
-                        segments = connections.receive(self.request, 10)
-                        digest_block(segments, self.request, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
-                        # receive theirs
                     else:
-                        app_log.warning("Rejecting to sync from {}".format(peer_ip))
-                        connections.send(self.request, "blocksrj", 10)
-                        app_log.info("Incoming: Distant peer {} is at {}, should be {} or higher".format(peer_ip, received_block_height, most_common(consensus_blockheight_list)))
+                        execute(c, "SELECT timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
+                        last_block_ago = float(c.fetchone()[0])
+
+                        if int(last_block_ago) > (time.time() - 300):
+                            block_req = most_common(consensus_blockheight_list)
+                            app_log.warning("Most common block rule triggered")
+                        else:
+                            block_req = max(consensus_blockheight_list)
+                            app_log.warning("Longest chain rule triggered")
+
+
+                        if int(received_block_height) >= block_req:
+                            app_log.warning("Confirming to sync from {}".format(peer_ip))
+                            connections.send(self.request, "blockscf", 10)
+
+                            segments = connections.receive(self.request, 10)
+                            digest_block(segments, self.request, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
+                            # receive theirs
+
+                        else:
+                            app_log.warning("Rejecting to sync from {}".format(peer_ip))
+                            connections.send(self.request, "blocksrj", 10)
+                            app_log.info("Incoming: Distant peer {} is at {}, should be at least {}".format(peer_ip, received_block_height, block_req))
 
                     connections.send(self.request, "sync", 10)
 
@@ -1687,7 +1700,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                             # receive theirs
                             else:
-                                app_log.info("Outgoing: Mined block was orphaned because node was not synced, we are at block {}, should be at least {}".format(db_block_height, int(max(consensus_blockheight_list)) - 3))
+                                app_log.info("Outgoing: Mined block was orphaned because node was not synced, we are at block {}, should be at least {}".format(db_block_height, max(consensus_blockheight_list) - 3))
                         else:
                             digest_block(segments, self.request, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                     else:
@@ -2220,16 +2233,28 @@ def worker(HOST, PORT):
                 if db_lock.locked() == True:
                     app_log.warning("Skipping sync from {}, syncing already in progress".format(peer_ip))
 
-                elif int(received_block_height) == max(consensus_blockheight_list):
-                    app_log.warning("Confirming to sync from {}".format(peer_ip))
-                    connections.send(s, "blockscf", 10)
-
-                    segments = connections.receive(s, 10)
-                    digest_block(segments, s, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
-                    # receive theirs
                 else:
-                    connections.send(s, "blocksrj", 10)
-                    app_log.warning("Incoming: Distant peer {} is at {}, should be {} or higher".format(peer_ip, received_block_height, most_common(consensus_blockheight_list)))
+                    execute(c, "SELECT timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
+                    last_block_ago = float(c.fetchone()[0])
+
+                    if int(last_block_ago) < (time.time() - 300):
+                        block_req = most_common(consensus_blockheight_list)
+                        app_log.warning("Most common block rule triggered")
+                    else:
+                        block_req = max(consensus_blockheight_list)
+                        app_log.warning("Longest chain rule triggered")
+
+                    if int(received_block_height) >= block_req:
+                        app_log.warning("Confirming to sync from {}".format(peer_ip))
+                        connections.send(s, "blockscf", 10)
+
+                        segments = connections.receive(s, 10)
+
+                        digest_block(segments, s, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
+                        # receive theirs
+                    else:
+                        connections.send(s, "blocksrj", 10)
+                        app_log.warning("Incoming: Distant peer {} is at {}, should be {}".format(peer_ip, received_block_height, block_req))
 
                 connections.send(s, "sendsync", 10)
 
