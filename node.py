@@ -1549,7 +1549,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         execute(c, "SELECT timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
                         last_block_ago = float(c.fetchone()[0])
 
-                        if int(last_block_ago) > (time.time() - 300):
+                        if int(last_block_ago) < (time.time() - 600):
                             block_req = most_common(consensus_blockheight_list)
                             app_log.warning("Most common block rule triggered")
                         else:
@@ -1557,7 +1557,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             app_log.warning("Longest chain rule triggered")
 
 
-                        if int(received_block_height) == block_req:
+                        if int(received_block_height) >= block_req:
                             app_log.warning("Confirming to sync from {}".format(peer_ip))
                             connections.send(self.request, "blockscf", 10)
 
@@ -2237,14 +2237,14 @@ def worker(HOST, PORT):
                     execute(c, "SELECT timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
                     last_block_ago = float(c.fetchone()[0])
 
-                    if int(last_block_ago) < (time.time() - 300):
+                    if int(last_block_ago) < (time.time() - 600):
                         block_req = most_common(consensus_blockheight_list)
                         app_log.warning("Most common block rule triggered")
                     else:
                         block_req = max(consensus_blockheight_list)
                         app_log.warning("Longest chain rule triggered")
 
-                    if int(received_block_height) == block_req:
+                    if int(received_block_height) >= block_req:
                         app_log.warning("Confirming to sync from {}".format(peer_ip))
                         connections.send(s, "blockscf", 10)
 
