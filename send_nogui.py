@@ -83,7 +83,7 @@ except IndexError:
 try:
     openfield_input = sys.argv[4]
 except IndexError:
-    openfield_input = ''
+    open_field = input("Enter openfield data (message): ")
 
 # hardfork fee display
 fee = '%.8f' % float(0.01 + (float(amount_input) * 0.001) + (float(len(openfield_input)) / 100000) + (float(keep_input) / 10))  # 0.1% + 0.01 dust

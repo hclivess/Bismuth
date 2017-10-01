@@ -1415,7 +1415,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         else:
             banned = 1
             self.request.close()
-            app_log.warning("IP {} banned, disconnected".format(peer_ip))
+            app_log.info("IP {} banned, disconnected".format(peer_ip))
 
             # if you raise here, you kill the whole server
 
