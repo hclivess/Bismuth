@@ -58,6 +58,7 @@ ram_conf = config.ram_conf
 pool_address = config.pool_address_conf
 version = config.version_conf
 full_ledger = config.full_ledger_conf
+reveal_address=config.reveal_address
 
 # load config
 
@@ -1957,7 +1958,12 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         threads_count = threading.active_count()
                         uptime = int(time.time() - startup_time)
 
-                        connections.send(self.request, (nodes_count, nodes_list, threads_count, uptime, consensus, consensus_percentage, VERSION), 10)
+                        if reveal_address == "yes":
+                            revealed_address = address
+                        else:
+                            revealed_address = "private"
+
+                        connections.send(self.request, (revealed_address, nodes_count, nodes_list, threads_count, uptime, consensus, consensus_percentage, VERSION), 10)
 
                     else:
                         app_log.info("{} not whitelisted for statusget command".format(peer_ip))

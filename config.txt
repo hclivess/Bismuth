@@ -25,3 +25,4 @@ ram=1
 pool_percentage=75
 node_ip=127.0.0.1
 light_ip=94.113.207.67
+reveal_address=yes

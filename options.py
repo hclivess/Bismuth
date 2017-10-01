@@ -62,3 +62,5 @@ class Get:
                 self.node_ip_conf = line.lstrip('node_ip=')
             if "light_ip=" in line:
                 self.light_ip_conf = line.lstrip('light_ip=')
+            if "reveal_address=" in line:
+                self.reveal_address = line.lstrip('reveal_address=')

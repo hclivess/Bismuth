@@ -158,13 +158,16 @@ def peersget(socket):
 def statusget(socket):
     connections.send(s, "statusget", 10)
     response = connections.receive(s, 10)
-    nodes_count = response[0]
-    nodes_list = response[1]
-    threads_count = response[2]
-    uptime = response[3]
-    consensus = response[4]
-    consensus_percentage = response[5]
-    version = response[6]
+    node_address = response[0]
+    nodes_count = response[1]
+    nodes_list = response[2]
+    threads_count = response[3]
+    uptime = response[4]
+    consensus = response[5]
+    consensus_percentage = response[6]
+    version = response[7]
+
+    print("Node address:", node_address)
     print("Number of nodes:", nodes_count)
     print("List of nodes:", nodes_list)
     print("Number of threads:", threads_count)
