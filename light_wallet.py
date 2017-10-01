@@ -384,7 +384,7 @@ def send(amount_input, recipient_input, keep_input, openfield_input):
         app_log.warning("OpenField Data: {}".format(openfield_input))
 
         timestamp = '%.2f' % time.time()
-        transaction = (str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input), str(keep_input), str(openfield_input))  # this is signed
+        transaction = (str(timestamp), str(myaddress), str(recipient_input), '%.8f' % float(amount_input), str(keep_input), str(openfield_input))  # this is signed
 
         h = SHA.new(str(transaction).encode("utf-8"))
         signer = PKCS1_v1_5.new(key)
@@ -406,7 +406,7 @@ def send(amount_input, recipient_input, keep_input, openfield_input):
                 app_log.warning("Client: The signature is valid, proceeding to save transaction, signature, new txhash and the public key to mempool")
 
                 # print(str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input),str(signature_enc), str(public_key_hashed), str(keep_input), str(openfield_input))
-                tx_submit = (str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input), str(signature_enc.decode("utf-8")), str(public_key_hashed.decode("utf-8")), str(keep_input), str(openfield_input))
+                tx_submit = (str(timestamp), str(myaddress), str(recipient_input), '%.8f' % float(amount_input), str(signature_enc.decode("utf-8")), str(public_key_hashed.decode("utf-8")), str(keep_input), str(openfield_input))
 
                 while True:
                     connections.send(s, "mpinsert", 10)
@@ -512,7 +512,7 @@ def msg_dialogue(address):
                     msg_received_digest = x[11].lstrip("msg=")
 
 
-                msg_received.insert(INSERT, ((time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(x[1])))) + " From " + msg_address.lstrip("alias=", "") + ": " + msg_received_digest) + "\n")
+                msg_received.insert(INSERT, ((time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(float(x[1])))) + " From " + msg_address.lstrip("alias=") + ": " + msg_received_digest) + "\n")
 
     def msg_sent_get(addlist):
 
@@ -567,7 +567,7 @@ def msg_dialogue(address):
                 elif x[11].startswith("msg="):
                     msg_sent_digest = x[11].lstrip("msg=")
 
-                msg_sent.insert(INSERT, ((time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(x[1])))) + " To " + msg_recipient.lstrip("alias=", "") + ": " + msg_sent_digest) + "\n")
+                msg_sent.insert(INSERT, ((time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(float(x[1])))) + " To " + msg_recipient.lstrip("alias=") + ": " + msg_sent_digest) + "\n")
 
     # popup
     top11 = Toplevel()
@@ -671,6 +671,22 @@ def table(address, addlist_20):
 
     datasheet = ["Time", "From", "To", "Amount", "Type"]
 
+    # show mempool txs
+    connections.send(s, "mpget", 10)  # senders
+    mempool_total = connections.receive(s, 10)
+    print (mempool_total)
+
+    for tx in mempool_total:
+        if tx[1] == address:
+            datasheet.append("Unconfirmed")
+            datasheet.append(tx[1])
+            datasheet.append(tx[2])
+            datasheet.append(tx[3])
+            datasheet.append("Transaction")
+
+    # show mempool txs
+
+
 
 
 
@@ -771,7 +787,7 @@ def table(address, addlist_20):
                     e = Entry(f4, width=0)
                     e.configure(readonlybackground='linen')
 
-                elif "Unconfirmed" in datasheet_compare: #unconfirmed txs
+                elif "Unconfirmed" in datasheet_compare:  # unconfirmed txs
                     e = Entry(f4, width=0)
                     e.configure(readonlybackground='linen')
 
