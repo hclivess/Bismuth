@@ -80,6 +80,7 @@ try:
 except IndexError:
     keep_input = 0
 
+open_field = ""
 try:
     openfield_input = sys.argv[4]
 except IndexError:
