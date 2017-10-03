@@ -60,6 +60,15 @@ version = config.version_conf
 full_ledger = config.full_ledger_conf
 reveal_address=config.reveal_address
 
+if "testnet" in version: #overwrite for testnet
+    port = 2829
+    full_ledger = 0
+    hyper_path_conf = "static/test.db"
+    hyper_recompress_conf = 0
+
+
+
+
 # load config
 
 def most_common(lst):
@@ -442,18 +451,31 @@ def difficulty(c):
 
     time_now = time.time()
 
-    if time_now > timestamp_last + 300: #if 5 minutes have passed
-        difficulty2 = float('%.13f' % percentage(95, difficulty))
-        #difficulty2 = float('%.3f' % percentage(95, difficulty))
+
+    if "testnet" in version:
+        if time_now > timestamp_last + 90:  # if 1.5 minute passed
+            difficulty2 = float('%.13f' % percentage(99, difficulty))
+        else:
+            difficulty2 = difficulty
+
+        if difficulty < 65:
+            difficulty = 65
+
+        if difficulty2 < 65:
+            difficulty2 = 65
 
     else:
-        difficulty2 = difficulty
+        if time_now > timestamp_last + 300: #if 5 minutes have passed
+            difficulty2 = float('%.13f' % percentage(95, difficulty))
 
-    if difficulty < 45:
-        difficulty = 45
+        else:
+            difficulty2 = difficulty
 
-    if difficulty2 < 45:
-        difficulty2 = 45
+        if difficulty < 45:
+            difficulty = 45
+
+        if difficulty2 < 45:
+            difficulty2 = 45
 
 
     app_log.warning("Difficulty: {} {}".format(difficulty, difficulty2))

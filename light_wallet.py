@@ -7,6 +7,10 @@ debug_level = config.debug_level_conf
 full_ledger = config.full_ledger_conf
 port = config.port
 light_ip = config.light_ip_conf
+version = config.version_conf
+
+if "testnet" in version:
+    port = 2829
 
 from datetime import datetime
 from Crypto.PublicKey import RSA
