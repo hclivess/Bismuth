@@ -21,8 +21,6 @@ from Crypto.Signature import PKCS1_v1_5
 global banlist
 banlist = []
 global hdd_block
-global test
-test = 0
 
 db_lock = threading.Lock()
 mem_lock = threading.Lock()
@@ -1716,7 +1714,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                         # check if we have the latest block
 
-                        if test == 0:
+                        if "testnet" not in version:
                             if len(connection_pool) < 5:
                                 app_log.info("Outgoing: Mined block ignored, insufficient connections to the network")
                             elif int(db_block_height) >= int(max(consensus_blockheight_list)) - 3 and db_lock.locked() == False:
