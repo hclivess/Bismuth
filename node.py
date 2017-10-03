@@ -130,44 +130,52 @@ def db_to_drive(hdd, h, hdd2, h2):
 
     app_log.warning("Moving new data to HDD")
 
-    old_db = sqlite3.connect('file::memory:?cache=shared', uri=True, timeout=1)
+    if ram_conf == 1: #select RAM as source database
+        source_db = sqlite3.connect('file::memory:?cache=shared', uri=True, timeout=1)
+    else: #select hyper.db as source database
+        source_db = sqlite3.connect(hyper_path_conf, timeout=1)
 
-    old_db.text_factory = str
-    o = old_db.cursor()
+    source_db.text_factory = str
+    sc = source_db.cursor()
 
-    execute_param(o, ("SELECT * FROM transactions WHERE block_height > ? ORDER BY block_height ASC"), (hdd_block,))
-    result1 = o.fetchall()
-    if full_ledger == 1:
+    execute_param(sc, ("SELECT * FROM transactions WHERE block_height > ? ORDER BY block_height ASC"), (hdd_block,))
+    result1 = sc.fetchall()
+
+    if full_ledger == 1: #we want to save to ledger.db from hyper.db
         for x in result1:
             h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
         commit(hdd)
 
-    for x in result1:
-        h2.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
-    commit(hdd2)
+    elif ram_conf == 1: #we want to save to hyper.db from RAM
+        for x in result1:
+            h2.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
+        commit(hdd2)
 
-    execute_param(o, ("SELECT * FROM misc WHERE block_height > ? ORDER BY block_height ASC"), (hdd_block,))
-    result2 = o.fetchall()
-    if full_ledger == 1:
+    execute_param(sc, ("SELECT * FROM misc WHERE block_height > ? ORDER BY block_height ASC"), (hdd_block,))
+    result2 = sc.fetchall()
+
+    if full_ledger == 1: #we want to save to ledger.db from hyper.db
         for x in result2:
             h.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
         commit(hdd)
 
-    for x in result2:
-        h2.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
-    commit(hdd2)
+    elif ram_conf == 1: #we want to save to hyper.db from RAM
+        for x in result2:
+            h2.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
+        commit(hdd2)
 
     # reward
-    execute_param(o, ('SELECT * FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) > ?'), (hdd_block,))
-    result3 = o.fetchall()
-    if full_ledger == 1:
+    execute_param(sc, ('SELECT * FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) > ?'), (hdd_block,))
+    result3 = sc.fetchall()
+    if full_ledger == 1 and ram_conf == 0:
         for x in result3:
             h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
         commit(hdd)
 
-    for x in result3:
-        h2.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
-    commit(hdd2)
+    elif ram_conf == 1:
+        for x in result3:
+            h2.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
+        commit(hdd2)
     # reward
 
     h2.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
@@ -194,9 +202,14 @@ def db_c_define():
     global hdd_block
 
     try:
-        conn = sqlite3.connect('file::memory:?cache=shared', uri=True, timeout=1)
+        if ram_conf == 1:
+            conn = sqlite3.connect('file::memory:?cache=shared', uri=True, timeout=1)
+        else:
+            conn = sqlite3.connect(hyper_path_conf, uri=True, timeout=1)
+
         conn.text_factory = str
         c = conn.cursor()
+
     except Exception as e:
         app_log.info(e)
 
@@ -826,26 +839,29 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, backup, b):
                 app_log.warning("Node {} didn't find block {}({}), rolled back".format(peer_ip, db_block_height, db_block_hash))
 
                 # roll back hdd too
-                if full_ledger == 1:
+                if full_ledger == 1: #rollback ledger.db
                     execute_param(h, ("DELETE FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
                     commit(hdd)
                     execute_param(h, ("DELETE FROM misc WHERE block_height >= ?;"), (str(db_block_height),))
                     commit(hdd)
 
-                execute_param(h2, ("DELETE FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
-                commit(hdd2)
-                execute_param(h2, ("DELETE FROM misc WHERE block_height >= ?;"), (str(db_block_height),))
-                commit(hdd2)
+                elif ram_conf == 1: #rollback hyper.db
+                    execute_param(h2, ("DELETE FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
+                    commit(hdd2)
+                    execute_param(h2, ("DELETE FROM misc WHERE block_height >= ?;"), (str(db_block_height),))
+                    commit(hdd2)
 
                 hdd_block = int(db_block_height) - 1
                 # roll back hdd too
 
                 # roll back reward too
-                if full_ledger == 1:
+                if full_ledger == 1: #rollback ledger.db
                     execute_param(h, ('DELETE FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) >= ?'), (str(db_block_height),))
                     commit(hdd)
-                execute_param(h2, ('DELETE FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) >= ?'), (str(db_block_height),))
-                commit(hdd2)
+
+                elif ram_conf == 1: #rollback hyper.db
+                    execute_param(h2, ('DELETE FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) >= ?'), (str(db_block_height),))
+                    commit(hdd2)
                 # roll back reward too
 
         except:
@@ -1289,7 +1305,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
         finally:
             app_log.info("Digesting complete")
-            if block_valid == 1:
+            if block_valid == 1 and (full_ledger == 1 or ram_conf == 1): #first case move stuff from hyper.db to ledger.db; second case move stuff from ram to both
                 db_to_drive(hdd, h, hdd2, h2)
             db_lock.release()
 
@@ -1369,22 +1385,26 @@ coherence_check()
 
 ledger_convert(ledger_path_conf, hyper_path_conf)
 
+
 try:
-    app_log.warning("Moving database to RAM")
-    to_ram = sqlite3.connect('file::memory:?cache=shared', uri=True, timeout=1)
-    to_ram.text_factory = str
-    tr = to_ram.cursor()
+    source_db = sqlite3.connect(hyper_path_conf, timeout=1)
+    source_db.text_factory = str
+    sc = source_db.cursor()
 
-    old_db = sqlite3.connect(hyper_path_conf, timeout=1)
-    query = "".join(line for line in old_db.iterdump())
+    sc.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
+    hdd_block = sc.fetchone()[0]
 
-    to_ram.executescript(query)
+    if ram_conf == 1:
 
-    tr.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
-    hdd_block = tr.fetchone()[0]
-    #do not close
+        app_log.warning("Moving database to RAM")
+        to_ram = sqlite3.connect('file::memory:?cache=shared', uri=True, timeout=1)
+        to_ram.text_factory = str
+        tr = to_ram.cursor()
 
-    app_log.warning("Moved database to RAM")
+        query = "".join(line for line in source_db.iterdump())
+        to_ram.executescript(query)
+        #do not close
+        app_log.warning("Moved database to RAM")
 
 except Exception as e:
     app_log.info(e)
