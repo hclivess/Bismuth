@@ -452,7 +452,9 @@ def difficulty(c):
 
     if "testnet" in version:
         if time_now > timestamp_last + 90:  # if 1.5 minute passed
-            difficulty2 = float('%.13f' % percentage(99, difficulty))
+            execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 10"))
+            diff_lowest_10 = min(c.fetchall())[0]
+            difficulty2 = float('%.13f' % percentage(99, diff_lowest_10)) #lowest diffciulty in the last 10 blocks -1%
         else:
             difficulty2 = difficulty
 
@@ -476,7 +478,7 @@ def difficulty(c):
             difficulty2 = 45
 
 
-    app_log.warning("Difficulty: {} {}".format(difficulty, difficulty2))
+    app_log.info("Difficulty: {} {}".format(difficulty, difficulty2))
 
     # return (float(50), float(50)) #TEST ONLY
     return (float(difficulty), float(difficulty2))

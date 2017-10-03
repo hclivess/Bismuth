@@ -1,4 +1,4 @@
-import select, picklemagic, ast, json
+import select, json
 
 def send(sdef, data, slen):
     sdef.setblocking(0)
@@ -34,11 +34,8 @@ def receive(sdef, slen):
 
     #print ("Received segments: {}".format(segments))
 
-    try:
-        segments = b''.join(chunks).decode("utf-8")
-        return json.loads(segments)
 
-    except: #compatibility
-        segments = b''.join(chunks).decode("utf-8")
-        return picklemagic.safe_loads(ast.literal_eval(segments))
+    segments = b''.join(chunks).decode("utf-8")
+    return json.loads(segments)
+
 

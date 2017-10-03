@@ -6,6 +6,12 @@ config.read()
 full_ledger = config.full_ledger_conf
 ledger_path = config.ledger_path_conf
 hyper_path = config.hyper_path_conf
+version = config.version_conf
+if "testnet" in version:
+    port = 2829
+    full_ledger = 0
+    hyper_path = "static/test.db"
+
 
 @route('/static/<filename>')
 def server_static(filename):
