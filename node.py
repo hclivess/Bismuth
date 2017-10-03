@@ -922,6 +922,10 @@ def manager(c, conn):
             HOST = key
             # app_log.info(HOST)
             PORT = int(value)
+
+            if "testnet" in version:
+                PORT = 2829
+
             if threading.active_count() < thread_limit_conf and str(HOST + ":" + str(PORT)) not in tried and str(HOST + ":" + str(PORT)) not in connection_pool and str(HOST) not in banlist:
                 app_log.info("Will attempt to connect to {}:{}".format(HOST, PORT))
                 tried.append(HOST + ":" + str(PORT))
