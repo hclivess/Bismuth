@@ -446,7 +446,7 @@ def difficulty(c):
 
     execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (timestamp_last - 86400,))  # 86400=24h
     blocks_per_1440 = len(c.fetchall())
-    app_log.info("Blocks per day: {}".format(blocks_per_1440))
+    app_log.warning("Blocks per day: {}".format(blocks_per_1440))
 
     execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
     diff_block_previous = float(c.fetchone()[0])
@@ -457,7 +457,7 @@ def difficulty(c):
         log = math.log2(0.5 / 1440)
         app_log.info("Difficulty exception triggered! This should not happen!")
 
-    app_log.info("Difficulty retargeting: {}".format(log))
+    app_log.warning("Difficulty retargeting: {}".format(log))
 
     difficulty = float('%.13f' % (diff_block_previous + log))  # increase/decrease diff by a little
 
@@ -465,10 +465,17 @@ def difficulty(c):
 
 
     if "testnet" in version:
-        if time_now > timestamp_last + 120:  # if 2 minutes passed
-            execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 10"))
-            diff_lowest_10 = float(min(c.fetchall())[0])
-            difficulty2 = float('%.13f' % percentage(99, diff_lowest_10)) #lowest diffciulty in the last 10 blocks -1%
+        if time_now > timestamp_last + 90:  # if 1.5 minutes passed
+            execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 5"))
+            diff_5 = c.fetchall()[0]
+            diff_lowest_5 = float(min(diff_5))
+
+            if diff_lowest_5 < difficulty:
+                candidate = diff_lowest_5 #if lowest of 10 is lower than calculated diff
+            else:
+                candidate = difficulty
+
+            difficulty2 = float('%.13f' % percentage(99, candidate)) #candidate -1%
         else:
             difficulty2 = difficulty
 
@@ -492,7 +499,7 @@ def difficulty(c):
             difficulty2 = 45
 
 
-    app_log.info("Difficulty: {} {}".format(difficulty, difficulty2))
+    app_log.warning("Difficulty: {} {}".format(difficulty, difficulty2))
 
     # return (float(50), float(50)) #TEST ONLY
     return (float(difficulty), float(difficulty2))
