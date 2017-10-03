@@ -711,7 +711,7 @@ def purge_old_peers():
             s.connect((HOST, PORT))
             s.close()
         except:
-            if purge_conf == 1:
+            if purge_conf == 1 and "testnet" not in version:
                 # remove from peerlist if not connectible
                 drop_peer_dict.append(key)
                 print("Removed formerly active peer {} {}".format(HOST, PORT))
