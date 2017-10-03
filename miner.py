@@ -35,6 +35,7 @@ version = config.version_conf
 if "testnet" in version:
     port = 2829
     peerlist = "peers_test.txt"
+    ledger_path_conf = "static/test.db"
 else:
     peerlist = "peers.txt"
 
