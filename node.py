@@ -63,7 +63,9 @@ if "testnet" in version: #overwrite for testnet
     full_ledger = 0
     hyper_path_conf = "static/test.db"
     hyper_recompress_conf = 0
-
+    peerlist = "peers_test.txt"
+else:
+    peerlist = "peers.txt"
 
 
 
@@ -680,7 +682,7 @@ def mempool_merge(data, peer_ip, c, mempool, m):
 
 def peers_get():
     peer_dict = {}
-    with open("peers.txt") as f:
+    with open(peerlist) as f:
         for line in f:
             try:
                 line = re.sub("[\)\(\:\\n\'\s]", "", line)
@@ -716,7 +718,7 @@ def purge_old_peers():
                 print("Removed formerly active peer {} {}".format(HOST, PORT))
             pass
 
-    output = open("peers.txt", 'w')
+    output = open(peerlist, 'w')
     for key, value in peer_dict.items():
         if key not in drop_peer_dict:
             output.write("('" + key + "', '" + value + "')\n")
@@ -1503,7 +1505,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # send own
 
                 elif data == 'hello':
-                    with open("peers.txt", "r") as peer_list:
+                    with open(peerlist, "r") as peer_list:
                         peers = peer_list.read()
 
                         connections.send(self.request, "peers", 10)
@@ -1512,7 +1514,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     peer_list.close()
 
                     # save peer if connectible
-                    peer_file = open("peers.txt", 'r')
+                    peer_file = open(peerlist, 'r')
                     peer_tuples = []
                     for line in peer_file:
                         extension = re.findall("'([\d\.]+)', '([\d]+)'", line)
@@ -1533,7 +1535,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         peer_test.close()
                         # properly end the connection
                         if peer_tuple not in str(peer_tuples):  # stringing tuple is a nasty way
-                            peer_list_file = open("peers.txt", 'a')
+                            peer_list_file = open(peerlist, 'a')
                             peer_list_file.write((peer_tuple) + "\n")
                             app_log.info("Incoming: Distant peer saved to peer list")
                             peer_list_file.close()
@@ -1968,7 +1970,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "peersget":
                     if (peer_ip in allowed or "any" in allowed):
 
-                        with open("peers.txt", "r") as peer_list:
+                        with open(peerlist, "r") as peer_list:
                             peers_file = peer_list.read()
                         connections.send(self.request, peers_file , 10)
 
@@ -2109,7 +2111,7 @@ def worker(HOST, PORT):
                     # get remote peers into tuples (actually list)
 
                     # get local peers into tuples
-                    peer_file = open("peers.txt", 'r')
+                    peer_file = open(peerlist, 'r')
                     peer_tuples = []
                     for line in peer_file:
                         extension = re.findall("'([\d\.]+)', '([\d]+)'", line)
@@ -2131,7 +2133,7 @@ def worker(HOST, PORT):
                                 s_purge.connect((x[0], int(x[1])))  # save a new peer file with only active nodes
                                 s_purge.close()
 
-                                peer_list_file = open("peers.txt", 'a')
+                                peer_list_file = open(peerlist, 'a')
                                 peer_list_file.write("('" + x[0] + "', '" + x[1] + "')\n")
                                 peer_list_file.close()
                             except:
