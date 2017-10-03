@@ -32,10 +32,9 @@ def receive(sdef, slen):
         else:
              raise RuntimeError("Socket timeout")
 
-    #print ("Received segments: {}".format(segments))
-
-
     segments = b''.join(chunks).decode("utf-8")
+    #print("Received segments: {}".format(segments))
+
     return json.loads(segments)
 
 

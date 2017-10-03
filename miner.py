@@ -34,6 +34,9 @@ version = config.version_conf
 
 if "testnet" in version:
     port = 2829
+    peerlist = "peers_test.txt"
+else:
+    peerlist = "peers.txt"
 
 # load config
 def percentage(percent, whole):
@@ -45,10 +48,7 @@ def nodes_block_submit(block_send):
     global peer_dict
     peer_dict = {}
 
-    if "testnet" in version:
-        peerlist = "peers_test.txt"
-    else:
-        peerlist = "peers.txt"
+
 
     with open(peerlist) as f:
         for line in f:
@@ -334,7 +334,7 @@ def miner(q, privatekey_readable, public_key_hashed, address):
 
 if __name__ == '__main__':
     freeze_support()  # must be this line, dont move ahead
-    
+
     (key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read()
 
     connected = 0

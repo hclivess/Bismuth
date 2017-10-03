@@ -436,7 +436,6 @@ def difficulty(c):
     app_log.info("Blocks per day: {}".format(blocks_per_1440))
 
     execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
-
     diff_block_previous = float(c.fetchone()[0])
 
     try:
@@ -455,7 +454,7 @@ def difficulty(c):
     if "testnet" in version:
         if time_now > timestamp_last + 90:  # if 1.5 minute passed
             execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 10"))
-            diff_lowest_10 = min(c.fetchall())[0]
+            diff_lowest_10 = float(min(c.fetchall())[0])
             difficulty2 = float('%.13f' % percentage(99, diff_lowest_10)) #lowest diffciulty in the last 10 blocks -1%
         else:
             difficulty2 = difficulty
