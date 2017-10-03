@@ -32,6 +32,9 @@ ram_conf = config.ram_conf
 pool_address = config.pool_address_conf
 version = config.version_conf
 
+if "testnet" in version:
+    port = 2829
+
 # load config
 def percentage(percent, whole):
     return int((percent * whole) / 100)
