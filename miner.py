@@ -40,40 +40,58 @@ def percentage(percent, whole):
     return int((percent * whole) / 100)
 
 def nodes_block_submit(block_send):
+
     # connect to all nodes
     global peer_dict
     peer_dict = {}
-    with open("peers.txt") as f:
-        for line in f:
-            line = re.sub("[\)\(\:\\n\'\s]", "", line)
-            peer_dict[line.split(",")[0]] = line.split(",")[1]
 
-        for k, v in peer_dict.items():
-            peer_ip = k
-            # app_log.info(HOST)
-            peer_port = int(v)
-            # app_log.info(PORT)
-            # connect to all nodes
+    #for testnet
+    if "testnet" in version:
+        peer_ip = "127.0.0.1"
+        peer_port = "2829"
+        s_peer = socks.socksocket()
+        s_peer.settimeout(0.3)
+        s_peer.connect((peer_ip, int(peer_port)))  # connect to node in peerlist
+        print("Connected")
 
-            try:
-                s_peer = socks.socksocket()
-                s_peer.settimeout(0.3)
-                if tor_conf == 1:
-                    s_peer.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                s_peer.connect((peer_ip, int(peer_port)))  # connect to node in peerlist
-                print("Connected")
+        print("Miner: Proceeding to submit mined block to node")
 
-                print("Miner: Proceeding to submit mined block to node")
+        connections.send(s_peer, "block", 10)
+        connections.send(s_peer, block_send, 10)
+    #for testnet
 
-                connections.send(s_peer, "block", 10)
-                connections.send(s_peer, block_send, 10)
+    else:
+        with open("peers.txt") as f:
+            for line in f:
+                line = re.sub("[\)\(\:\\n\'\s]", "", line)
+                peer_dict[line.split(",")[0]] = line.split(",")[1]
 
-                print("Miner: Block submitted to node {}".format(peer_ip))
-            except Exception as e:
-                print("Miner: Could not submit block to node {} because {}".format(peer_ip, e))
-                pass
+            for k, v in peer_dict.items():
+                peer_ip = k
+                # app_log.info(HOST)
+                peer_port = int(v)
+                # app_log.info(PORT)
+                # connect to all nodes
 
-                # submit mined block to node
+                try:
+                    s_peer = socks.socksocket()
+                    s_peer.settimeout(0.3)
+                    if tor_conf == 1:
+                        s_peer.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+                    s_peer.connect((peer_ip, int(peer_port)))  # connect to node in peerlist
+                    print("Connected")
+
+                    print("Miner: Proceeding to submit mined block to node")
+
+                    connections.send(s_peer, "block", 10)
+                    connections.send(s_peer, block_send, 10)
+
+                    print("Miner: Block submitted to node {}".format(peer_ip))
+                except Exception as e:
+                    print("Miner: Could not submit block to node {} because {}".format(peer_ip, e))
+                    pass
+
+                    # submit mined block to node
 
 
 def check_uptodate(interval):

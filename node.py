@@ -431,7 +431,7 @@ def difficulty(c):
 
     execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (timestamp_last - 86400,))  # 86400=24h
     blocks_per_1440 = len(c.fetchall())
-    app_log.warning("Blocks per day: {}".format(blocks_per_1440))
+    app_log.info("Blocks per day: {}".format(blocks_per_1440))
 
     execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
 
@@ -441,9 +441,9 @@ def difficulty(c):
         log = math.log2(blocks_per_1440 / 1440)
     except:
         log = math.log2(0.5 / 1440)
-        app_log.warning("Difficulty exception triggered! This should not happen!")
+        app_log.info("Difficulty exception triggered! This should not happen!")
 
-    app_log.warning("Difficulty retargeting: {}".format(log))
+    app_log.info("Difficulty retargeting: {}".format(log))
 
     difficulty = float('%.13f' % (diff_block_previous + log))  # increase/decrease diff by a little
 
@@ -456,11 +456,11 @@ def difficulty(c):
         else:
             difficulty2 = difficulty
 
-        if difficulty < 55:
-            difficulty = 55
+        if difficulty < 60:
+            difficulty = 60
 
-        if difficulty2 < 55:
-            difficulty2 = 55
+        if difficulty2 < 60:
+            difficulty2 = 60
 
     else:
         if time_now > timestamp_last + 300: #if 5 minutes have passed
