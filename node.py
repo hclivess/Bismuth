@@ -458,11 +458,11 @@ def difficulty(c):
         else:
             difficulty2 = difficulty
 
-        if difficulty < 65:
-            difficulty = 65
+        if difficulty < 55:
+            difficulty = 55
 
-        if difficulty2 < 65:
-            difficulty2 = 65
+        if difficulty2 < 55:
+            difficulty2 = 55
 
     else:
         if time_now > timestamp_last + 300: #if 5 minutes have passed
