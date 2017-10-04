@@ -166,8 +166,6 @@ def statusget(socket):
     consensus = response[5]
     consensus_percentage = response[6]
     version = response[7]
-
-    print("Node address:", node_address)
     print("Number of nodes:", nodes_count)
     print("List of nodes:", nodes_list)
     print("Number of threads:", threads_count)

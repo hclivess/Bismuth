@@ -385,7 +385,7 @@ def ledger_convert(ledger_path_conf, hyper_path_conf):
 
             os.rename(ledger_path_conf + '.temp', hyper_path_conf)
 
-        if full_ledger == 0 and os.path.exists(ledger_path_conf):
+        if full_ledger == 0 and os.path.exists(ledger_path_conf) and "testnet" not in version:
             os.remove(ledger_path_conf)
             app_log.warning("Removed full ledger and only kept hyperblocks")
 
