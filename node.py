@@ -465,7 +465,7 @@ def difficulty(c):
     time_now = time.time()
 
 
-    if "testnet" in version:
+    if "testnet" in version or int(block_height) >= 340000:
         if time_now > timestamp_last + 90:  # if 1.5 minutes passed
             execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 5"))
             diff_5 = c.fetchall()[0]
@@ -480,11 +480,11 @@ def difficulty(c):
         else:
             difficulty2 = difficulty
 
-        if difficulty < 60:
-            difficulty = 60
+        if difficulty < 70:
+            difficulty = 70
 
-        if difficulty2 < 60:
-            difficulty2 = 60
+        if difficulty2 < 70:
+            difficulty2 = 70
 
     else:
         if time_now > timestamp_last + 300: #if 5 minutes have passed
