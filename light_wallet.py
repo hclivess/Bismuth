@@ -11,6 +11,7 @@ version = config.version_conf
 
 if "testnet" in version:
     port = 2829
+    light_ip = "127.0.0.1"
 
 from datetime import datetime
 from Crypto.PublicKey import RSA
