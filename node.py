@@ -853,7 +853,7 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, backup, b):
                     execute_param(h, ("DELETE FROM misc WHERE block_height >= ?;"), (str(db_block_height),))
                     commit(hdd)
 
-                elif ram_conf == 1: #rollback hyper.db
+                if ram_conf == 1: #rollback hyper.db
                     execute_param(h2, ("DELETE FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
                     commit(hdd2)
                     execute_param(h2, ("DELETE FROM misc WHERE block_height >= ?;"), (str(db_block_height),))
@@ -867,7 +867,7 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, backup, b):
                     execute_param(h, ('DELETE FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) >= ?'), (str(db_block_height),))
                     commit(hdd)
 
-                elif ram_conf == 1: #rollback hyper.db
+                if ram_conf == 1: #rollback hyper.db
                     execute_param(h2, ('DELETE FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) >= ?'), (str(db_block_height),))
                     commit(hdd2)
                 # roll back reward too
@@ -1541,38 +1541,39 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     peer_list.close()
 
                     # save peer if connectible
-                    peer_file = open(peerlist, 'r')
-                    peer_tuples = []
-                    for line in peer_file:
-                        extension = re.findall("'([\d\.]+)', '([\d]+)'", line)
-                        peer_tuples.extend(extension)
-                    peer_file.close()
-                    peer_tuple = ("('" + peer_ip + "', '" + str(port) + "')")
+                    if accept_peers == "yes":
+                        peer_file = open(peerlist, 'r')
+                        peer_tuples = []
+                        for line in peer_file:
+                            extension = re.findall("'([\d\.]+)', '([\d]+)'", line)
+                            peer_tuples.extend(extension)
+                        peer_file.close()
+                        peer_tuple = ("('" + peer_ip + "', '" + str(port) + "')")
 
-                    try:
-                        app_log.info("Testing connectivity to: {}".format(peer_ip))
-                        peer_test = socks.socksocket()
-                        if tor_conf == 1:
-                            peer_test.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                        # peer_test.setblocking(0)
-                        peer_test.connect((str(peer_ip), int(str(port))))  # double parentheses mean tuple
-                        app_log.info("Inbound: Distant peer connectible")
+                        try:
+                            app_log.warning("Testing connectivity to: {}".format(peer_ip))
+                            peer_test = socks.socksocket()
+                            if tor_conf == 1:
+                                peer_test.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+                            # peer_test.setblocking(0)
+                            peer_test.connect((str(peer_ip), int(str(port))))  # double parentheses mean tuple
+                            app_log.info("Inbound: Distant peer connectible")
 
-                        # properly end the connection
-                        peer_test.close()
-                        # properly end the connection
-                        if peer_tuple not in str(peer_tuples) and accept_peers == "yes":
-                            peer_list_file = open(peerlist, 'a')
-                            peer_list_file.write((peer_tuple) + "\n")
-                            app_log.info("Inbound: Distant peer saved to peer list")
-                            peer_list_file.close()
-                        else:
-                            app_log.info("Distant peer already in peer list")
-                    except:
-                        app_log.info("Inbound: Distant peer not connectible")
-                        pass
+                            # properly end the connection
+                            peer_test.close()
+                            # properly end the connection
+                            if peer_tuple not in str(peer_tuples):
+                                peer_list_file = open(peerlist, 'a')
+                                peer_list_file.write((peer_tuple) + "\n")
+                                app_log.info("Inbound: Distant peer saved to peer list")
+                                peer_list_file.close()
+                            else:
+                                app_log.info("Distant peer already in peer list")
+                        except:
+                            app_log.info("Inbound: Distant peer not connectible")
+                            pass
 
-                        # raise #test only
+                            # raise #test only
 
                     # save peer if connectible
 
@@ -2129,7 +2130,7 @@ def worker(HOST, PORT):
             if data == "peers":
                 subdata = connections.receive(s, 10)
 
-                if peersync_lock.locked() == False:
+                if peersync_lock.locked() == False and accept_peers == "yes":
                     peersync_lock.acquire()
 
                     # get remote peers into tuples (actually list)
