@@ -64,3 +64,5 @@ class Get:
                 self.light_ip_conf = line.lstrip('light_ip=')
             if "reveal_address=" in line:
                 self.reveal_address = line.lstrip('reveal_address=')
+            if "accept_peers=" in line:
+                self.accept_peers = line.lstrip('accept_peers=')

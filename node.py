@@ -57,6 +57,7 @@ pool_address = config.pool_address_conf
 version = config.version_conf
 full_ledger = config.full_ledger_conf
 reveal_address=config.reveal_address
+accept_peers=config.accept_peers
 
 if "testnet" in version: #overwrite for testnet
     port = 2829
@@ -471,7 +472,7 @@ def difficulty(c):
             diff_lowest_5 = float(min(diff_5))
 
             if diff_lowest_5 < difficulty:
-                candidate = diff_lowest_5 #if lowest of 10 is lower than calculated diff
+                candidate = diff_lowest_5 #if lowest of last 5 is lower than calculated diff
             else:
                 candidate = difficulty
 
@@ -1560,7 +1561,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         # properly end the connection
                         peer_test.close()
                         # properly end the connection
-                        if peer_tuple not in str(peer_tuples):  # stringing tuple is a nasty way
+                        if peer_tuple not in str(peer_tuples) and accept_peers == "yes":
                             peer_list_file = open(peerlist, 'a')
                             peer_list_file.write((peer_tuple) + "\n")
                             app_log.info("Inbound: Distant peer saved to peer list")
