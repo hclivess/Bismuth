@@ -1001,7 +1001,9 @@ lock_b.grid(row=1, column=3, sticky=E + N, pady=0, padx=5)
 # refreshables
 
 s = socks.socksocket()
+s.settimeout(30)
 s.connect((light_ip, int(port)))
+
 
 # update balance label
 balance_raw = StringVar()

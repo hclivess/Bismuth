@@ -24,6 +24,6 @@ pool_address=4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed
 ram=1
 pool_percentage=75
 node_ip=127.0.0.1
-light_ip=94.113.207.67
+light_ip=66.70.181.150
 reveal_address=yes
 accept_peers=yes
