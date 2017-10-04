@@ -466,7 +466,7 @@ def difficulty(c):
 
 
     if "testnet" in version or int(block_height) >= 340000:
-        if time_now > timestamp_last + 90:  # if 1.5 minutes passed
+        if time_now > timestamp_last + 120:  # if 2 minutes passed
             execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 5"))
             diff_5 = c.fetchall()[0]
             diff_lowest_5 = float(min(diff_5))
