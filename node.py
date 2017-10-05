@@ -941,25 +941,41 @@ def manager(c, conn):
 
     while True:
         # dict_keys = peer_dict.keys()
-        # random.shuffle(dict_keys)
+        # random.shuffle(peer_dict.items())
+
+        variability = []
+        del variability [:]
+        variable = []
+        del variable [:]
+
+        for key, value in peer_dict.items():
+            variability.append(key.split(".")[:-1])
+
+        for x in variability:
+            if variability.count(x) < 3:
+                variable.append(".".join(x))
+        print (variable)
+
 
         for key, value in peer_dict.items():
             HOST = key
             # app_log.info(HOST)
             PORT = int(value)
 
-            if "testnet" in version:
-                PORT = 2829
+            for x in variable:
+                if x in HOST:
+                    if "testnet" in version:
+                        PORT = 2829
 
-            if threading.active_count() < thread_limit_conf and str(HOST + ":" + str(PORT)) not in tried and str(HOST + ":" + str(PORT)) not in connection_pool and str(HOST) not in banlist:
-                app_log.info("Will attempt to connect to {}:{}".format(HOST, PORT))
-                tried.append(HOST + ":" + str(PORT))
-                t = threading.Thread(target=worker, args=(HOST, PORT))  # threaded connectivity to nodes here
-                app_log.info("---Starting a client thread " + str(threading.currentThread()) + "---")
-                t.daemon = True
-                t.start()
+                    if threading.active_count() < thread_limit_conf and str(HOST + ":" + str(PORT)) not in tried and str(HOST + ":" + str(PORT)) not in connection_pool and str(HOST) not in banlist:
+                        app_log.info("Will attempt to connect to {}:{}".format(HOST, PORT))
+                        tried.append(HOST + ":" + str(PORT))
+                        t = threading.Thread(target=worker, args=(HOST, PORT))  # threaded connectivity to nodes here
+                        app_log.info("---Starting a client thread " + str(threading.currentThread()) + "---")
+                        t.daemon = True
+                        t.start()
+                    # client thread handling
 
-                # client thread handling
         if len(connection_pool) < 1:
             app_log.warning("Only {} connections active, resetting banlist".format(len(connection_pool)))
             del banlist[:]
