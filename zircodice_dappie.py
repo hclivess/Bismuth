@@ -52,6 +52,7 @@ while True:
             passed = 1
         except sqlite3.OperationalError as e:
             print ("Database locked, retrying")
+            time.sleep(1)
             pass
 
     won_count = 0

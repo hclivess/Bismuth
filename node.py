@@ -943,7 +943,7 @@ def manager(c, conn):
         # dict_keys = peer_dict.keys()
         # random.shuffle(peer_dict.items())
 
-        variability = []
+        variability = [] #should invariable peers not be saved to peerlist at all? in that case, move this where peers are saved
         del variability [:]
         variable = []
         del variable [:]
@@ -954,8 +954,6 @@ def manager(c, conn):
         for x in variability:
             if variability.count(x) < 3:
                 variable.append(".".join(x))
-        print (variable)
-
 
         for key, value in peer_dict.items():
             HOST = key

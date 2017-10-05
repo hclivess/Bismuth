@@ -41,6 +41,7 @@ def hello():
 
         except Exception as e:
             print("Retrying database access, {}".format(e))
+            time.sleep(1)
 
 
     view_bets.append("<tr bgcolor=white>")

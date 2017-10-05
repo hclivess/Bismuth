@@ -35,7 +35,7 @@ except:
 
 s = socks.socksocket()
 s.connect(("127.0.0.1", 5658))
-#s.connect(("66.70.181.150", 5658))
+#s.connect(("94.113.207.67", 5658))
 
 def diffget(socket):
     #check difficulty
