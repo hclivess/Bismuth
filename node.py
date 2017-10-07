@@ -1645,6 +1645,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                             if db_lock.locked() == False: #second check for lock
                                 digest_block(segments, self.request, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
+                            else:
+                                app_log.warning("Skipping block processing from {}, someone delivered data faster")
                             # receive theirs
 
                         else:
@@ -2345,6 +2347,8 @@ def worker(HOST, PORT):
 
                         if db_lock.locked() == False:  # second check for lock
                             digest_block(segments, s, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
+                        else:
+                            app_log.warning("Skipping block processing from {}, someone delivered data faster")
                         # receive theirs
                     else:
                         connections.send(s, "blocksrj", 10)
