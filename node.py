@@ -5,7 +5,7 @@
 # never use codecs, they are bugged and do not provide proper serialization
 # must unify node and client now that connections parameters are function parameters
 # if you have a block of data and want to insert it into sqlite, you must use a single "commit" for the whole batch, it's 100x faster
-VERSION = "4.0.8"
+VERSION = "DEV"
 
 from itertools import groupby
 from operator import itemgetter
@@ -17,7 +17,7 @@ from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 
 # load config
-# global warning_list_limit_conf
+# global ban_threshold
 global banlist
 banlist = []
 global hdd_block
@@ -42,7 +42,7 @@ pause_conf = config.pause_conf
 ledger_path_conf = config.ledger_path_conf
 hyper_path_conf = config.hyper_path_conf
 hyper_recompress_conf = config.hyper_recompress_conf
-warning_list_limit_conf = config.warning_list_limit_conf
+ban_threshold = config.ban_threshold
 tor_conf = config.tor_conf
 debug_level_conf = config.debug_level_conf
 allowed = config.allowed_conf
@@ -236,23 +236,25 @@ app_log = log.log("node.log", debug_level_conf)
 app_log.warning("Configuration settings loaded")
 
 
-def unban(ip):
+def unban(peer_ip):
     global warning_list
     global banlist
 
-    warning_list = [x for x in warning_list if x != ip]
-    banlist = [x for x in banlist if x != ip]
+    warning_list = [x for x in warning_list if x != peer_ip]
+    banlist = [x for x in banlist if x != peer_ip]
+    app_log.warning("Cleared all warnings for {} because of good behavior".format(peer_ip))
 
 
-def warning(sdef, ip, reason):
+def warning(sdef, ip, reason, count):
     global banlist
     global warning_list
-    global warning_list_limit_conf
+    global ban_threshold
 
-    warning_list.append(ip)
-    app_log.warning("Added a warning to {}: {} ({} / {})".format(ip, reason, warning_list.count(ip), warning_list_limit_conf))
+    for x in range(count):
+        warning_list.append(ip)
+    app_log.warning("Added {} warning(s) to {}: {} ({} / {})".format(count, ip, reason, warning_list.count(ip), ban_threshold))
 
-    if warning_list.count(ip) >= warning_list_limit_conf:
+    if warning_list.count(ip) >= ban_threshold:
         banlist.append(ip)
         sdef.close()
         app_log.warning("{} is banned".format(ip))
@@ -1164,7 +1166,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                     app_log.warning("Check 1: A part of the block is invalid, rejected: {}".format(error_msg))
                     error_msg = ""
                     app_log.info("Check 1: Complete rejected data: {}".format(data))
-                    if warning(sdef, peer_ip, "Check 1: rejected block") == "banned":
+                    if warning(sdef, peer_ip, "Check 1: rejected block",1) == "banned":
                         raise ValueError("{} banned".format(peer_ip))
 
                 if block_valid == 1:
@@ -1281,7 +1283,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         app_log.info("Check 2: A part of the block is invalid, rejected: {}".format(error_msg))
                         error_msg = ""
                         app_log.info("Check 2: Complete rejected block: {}".format(data))
-                        if warning(sdef, peer_ip, "Check 2: rejected block") == "banned":
+                        if warning(sdef, peer_ip, "Check 2: rejected block",1) == "banned":
                             raise ValueError("{} banned".format(peer_ip))
 
                     if block_valid == 1:
@@ -1314,7 +1316,8 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         app_log.warning("Block {} valid and saved from {}".format(block_height_new, peer_ip))
 
                         del block_transactions[:]
-                        unban(peer_ip)
+                        if peer_ip in warning_list or peer_ip in banlist:
+                            unban(peer_ip)
 
                         # whole block validation
         except Exception as e:
@@ -1468,7 +1471,7 @@ startup_time = time.time()
 class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
     def handle(self):  # server defined here
         global banlist
-        global warning_list_limit_conf
+        global ban_threshold
 
         peer_ip = self.request.getpeername()[0]
 
@@ -1627,10 +1630,12 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             block_req = max(consensus_blockheight_list)
                             app_log.warning("Longest chain rule triggered")
 
-
                         if int(received_block_height) >= block_req:
                             app_log.warning("Confirming to sync from {}".format(peer_ip))
                             connections.send(self.request, "blockscf", 10)
+                            if warning(self.request, peer_ip, "Entrusted with longest chain", 10) == "banned":
+                                app_log.info("{} banned".format(peer_ip))
+                                break
 
                             segments = connections.receive(self.request, 10)
                             digest_block(segments, self.request, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
@@ -1736,7 +1741,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # print peer_ip
                     if max(consensus_blockheight_list) == consensus_blockheight:
                         blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, backup, b)
-                        if warning(self.request, peer_ip, "Rollback") == "banned":
+                        if warning(self.request, peer_ip, "Rollback",1) == "banned":
                             app_log.info("{} banned".format(peer_ip))
                             break
                     app_log.info("Outbound: Deletion complete, sending sync request")
@@ -2296,7 +2301,7 @@ def worker(HOST, PORT):
                 # print peer_ip
                 if max(consensus_blockheight_list) == int(received_block_height):
                     blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, backup, b)
-                    if warning(s, peer_ip, "Rollback") == "banned":
+                    if warning(s, peer_ip, "Rollback",1) == "banned":
                         raise ValueError("{} is banned".format(peer_ip))
 
                 while db_lock.locked() == True:
@@ -2325,6 +2330,8 @@ def worker(HOST, PORT):
                     if int(received_block_height) >= block_req:
                         app_log.warning("Confirming to sync from {}".format(peer_ip))
                         connections.send(s, "blockscf", 10)
+                        if warning(s, peer_ip, "Entrusted with longest chain", 10) == "banned":
+                            raise ValueError("{} is banned".format(peer_ip))
 
                         segments = connections.receive(s, 10)
 

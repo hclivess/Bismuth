@@ -1,17 +1,28 @@
-import sqlite3, time, options
+import sqlite3, time, options, random
 from bottle import route, run, static_file
 
 config = options.Get()
 config.read()
 full_ledger = config.full_ledger_conf
-ledger_path = config.ledger_path_conf
 hyper_path = config.hyper_path_conf
+#hyper_path = "backup.db"
 version = config.version_conf
 if "testnet" in version:
     port = 2829
     full_ledger = 0
     hyper_path = "static/test.db"
 
+def execute(cursor, query):
+    """Secure execute for slow nodes"""
+    while True:
+        try:
+            cursor.execute(query)
+            break
+        except Exception as e:
+            print("Database query: {} {}".format(cursor, query))
+            print("Database retry reason: {}".format(e))
+            time.sleep(random.uniform(1, 3))
+    return cursor
 
 @route('/static/<filename>')
 def server_static(filename):
@@ -21,13 +32,14 @@ def server_static(filename):
 def hello():
     # redraw chart
 
-    if full_ledger == 1:
-        conn = sqlite3.connect(ledger_path)
-    else:
-        conn = sqlite3.connect(hyper_path)
+    #if full_ledger == 1:
+    #    conn = sqlite3.connect(ledger_path)
+    #else:
+
+    conn = sqlite3.connect(hyper_path)
 
     c = conn.cursor()
-    c.execute("SELECT * FROM transactions ORDER BY block_height DESC, timestamp DESC LIMIT 100;")
+    execute(c, "SELECT * FROM transactions ORDER BY block_height DESC, timestamp DESC LIMIT 100;")
 
     all = c.fetchall()[::-1]
 
@@ -101,7 +113,7 @@ def hello():
     # plotter.append('</html>')
     # redraw chart
 
-    c.execute("SELECT * FROM transactions ORDER BY block_height DESC, timestamp DESC LIMIT 500;")
+    execute(c, "SELECT * FROM transactions ORDER BY block_height DESC, timestamp DESC LIMIT 500;")
 
     all = c.fetchall()
 
