@@ -242,7 +242,7 @@ def unban(peer_ip):
 
     warning_list = [x for x in warning_list if x != peer_ip]
     banlist = [x for x in banlist if x != peer_ip]
-    app_log.warning("Cleared all warnings for {} because of good behavior".format(peer_ip))
+    app_log.warning("Cleared {} of all charges {} for good behavior".format(peer_ip))
 
 
 def warning(sdef, ip, reason, count):
@@ -257,7 +257,7 @@ def warning(sdef, ip, reason, count):
     if warning_list.count(ip) >= ban_threshold:
         banlist.append(ip)
         sdef.close()
-        app_log.warning("{} is banned".format(ip))
+        app_log.warning("{} is banned, because {}".format(ip, reason))
         return "banned"
 
 
@@ -1510,9 +1510,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
 
                 if not time.time() <= timer_operation + timeout_operation:  # return on timeout
-                    #if warning(self.request, peer_ip, "Operation timeout") == "banned":
-                    #    app_log.info("{} banned".format(peer_ip))
-                    #    break
+                    if warning(self.request, peer_ip, "Operation timeout", 1) == "banned":
+                        app_log.info("{} banned".format(peer_ip))
+                        break
 
                     raise ValueError("Inbound: Operation timeout from {}".format(peer_ip))
 
@@ -1630,7 +1630,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             block_req = max(consensus_blockheight_list)
                             app_log.warning("Longest chain rule triggered")
 
-                        if int(received_block_height) >= block_req:
+                        if int(received_block_height) >= block_req and db_lock.locked() == False:
                             app_log.warning("Confirming to sync from {}".format(peer_ip))
                             connections.send(self.request, "blockscf", 10)
                             if warning(self.request, peer_ip, "Entrusted with longest chain", 10) == "banned":
@@ -2327,7 +2327,7 @@ def worker(HOST, PORT):
                         block_req = max(consensus_blockheight_list)
                         app_log.warning("Longest chain rule triggered")
 
-                    if int(received_block_height) >= block_req:
+                    if int(received_block_height) >= block_req and db_lock.locked() == False:
                         app_log.warning("Confirming to sync from {}".format(peer_ip))
                         connections.send(s, "blockscf", 10)
                         if warning(s, peer_ip, "Entrusted with longest chain", 10) == "banned":
