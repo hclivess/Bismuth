@@ -410,7 +410,7 @@ def commit(cursor):
         except Exception as e:
             app_log.warning("Database cursor: {}".format(cursor))
             app_log.warning("Database retry reason: {}".format(e))
-            time.sleep(random.random())
+            time.sleep(random.uniform(1, 3))
 
 
 def execute(cursor, query):
@@ -422,7 +422,7 @@ def execute(cursor, query):
         except Exception as e:
             app_log.warning("Database query: {} {}".format(cursor, query))
             app_log.warning("Database retry reason: {}".format(e))
-            time.sleep(random.random())
+            time.sleep(random.uniform(1, 3))
     return cursor
 
 
@@ -1306,7 +1306,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                             if int(block_height_new) % 10 == 0:  # every 10 blocks
                                 if transaction == block_transactions[-1]:  # put at the end
                                     execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                                                  ("0", str(time_now), "Development Reward", str(genesis_conf), str(reward),
+                                                  ("0", str(time_now), "Development Reward", str(genesis_conf), str(mining_reward),
                                                    "0", "0", "0", "0", "0", "0", str(block_height_new)))
                                     commit(conn)
                             # dev reward
