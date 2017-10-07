@@ -1322,6 +1322,8 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         # whole block validation
         except Exception as e:
             app_log.info(e)
+            if warning(sdef, peer_ip, "Block processing failed", 10) == "banned":
+                app_log.info("{} banned".format(peer_ip))
 
             if debug_conf == 1:
                 raise  # major debug client
@@ -1630,15 +1632,19 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             block_req = max(consensus_blockheight_list)
                             app_log.warning("Longest chain rule triggered")
 
-                        if int(received_block_height) >= block_req and db_lock.locked() == False:
+                        if int(received_block_height) >= block_req:
                             app_log.warning("Confirming to sync from {}".format(peer_ip))
-                            connections.send(self.request, "blockscf", 10)
-                            if warning(self.request, peer_ip, "Entrusted with longest chain", 10) == "banned":
-                                app_log.info("{} banned".format(peer_ip))
-                                break
 
-                            segments = connections.receive(self.request, 10)
-                            digest_block(segments, self.request, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
+                            try: #they claim to have the longest chain, things must go smooth or ban
+                                connections.send(self.request, "blockscf", 10)
+                                segments = connections.receive(self.request, 10)
+                            except:
+                                if warning(self.request, peer_ip, "Failed to deliver the longest chain", 10) == "banned":
+                                    app_log.info("{} banned".format(peer_ip))
+                                    break
+
+                            if db_lock.locked() == False: #second check for lock
+                                digest_block(segments, self.request, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                             # receive theirs
 
                         else:
@@ -2327,15 +2333,18 @@ def worker(HOST, PORT):
                         block_req = max(consensus_blockheight_list)
                         app_log.warning("Longest chain rule triggered")
 
-                    if int(received_block_height) >= block_req and db_lock.locked() == False:
+                    if int(received_block_height) >= block_req:
                         app_log.warning("Confirming to sync from {}".format(peer_ip))
-                        connections.send(s, "blockscf", 10)
-                        if warning(s, peer_ip, "Entrusted with longest chain", 10) == "banned":
-                            raise ValueError("{} is banned".format(peer_ip))
 
-                        segments = connections.receive(s, 10)
+                        try:  # they claim to have the longest chain, things must go smooth or ban
+                            connections.send(s, "blockscf", 10)
+                            segments = connections.receive(s, 10)
+                        except:
+                            if warning(s, peer_ip, "Failed to deliver the longest chain", 10) == "banned":
+                                raise ValueError("{} is banned".format(peer_ip))
 
-                        digest_block(segments, s, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
+                        if db_lock.locked() == False:  # second check for lock
+                            digest_block(segments, s, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         # receive theirs
                     else:
                         connections.send(s, "blocksrj", 10)
