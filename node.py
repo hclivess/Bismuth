@@ -238,11 +238,14 @@ app_log.warning("Configuration settings loaded")
 
 def unban(peer_ip):
     global warning_list
-    global banlist
+    #global banlist
 
-    warning_list = [x for x in warning_list if x != peer_ip]
-    banlist = [x for x in banlist if x != peer_ip]
-    app_log.warning("Cleared {} of all charges {} for good behavior".format(peer_ip))
+    # warning_list = [x for x in warning_list if x != peer_ip] #delete all
+    # banlist = [x for x in banlist if x != peer_ip]
+
+    if peer_ip in warning_list:
+        warning_list.remove(peer_ip)
+        app_log.warning("Removed a warning for {}".format(peer_ip))
 
 
 def warning(sdef, ip, reason, count):
@@ -1166,7 +1169,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                     app_log.warning("Check 1: A part of the block is invalid, rejected: {}".format(error_msg))
                     error_msg = ""
                     app_log.info("Check 1: Complete rejected data: {}".format(data))
-                    if warning(sdef, peer_ip, "Check 1: rejected block",1) == "banned":
+                    if warning(sdef, peer_ip, "Check 1: rejected block",2) == "banned":
                         raise ValueError("{} banned".format(peer_ip))
 
                 if block_valid == 1:
@@ -1283,7 +1286,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         app_log.info("Check 2: A part of the block is invalid, rejected: {}".format(error_msg))
                         error_msg = ""
                         app_log.info("Check 2: Complete rejected block: {}".format(data))
-                        if warning(sdef, peer_ip, "Check 2: rejected block",1) == "banned":
+                        if warning(sdef, peer_ip, "Check 2: rejected block",2) == "banned":
                             raise ValueError("{} banned".format(peer_ip))
 
                     if block_valid == 1:
@@ -1321,7 +1324,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                         # whole block validation
         except Exception as e:
-            app_log.info(e)
+            app_log.warning(e)
             if warning(sdef, peer_ip, "Block processing failed", 10) == "banned":
                 app_log.info("{} banned".format(peer_ip))
 
@@ -1512,7 +1515,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
 
                 if not time.time() <= timer_operation + timeout_operation:  # return on timeout
-                    if warning(self.request, peer_ip, "Operation timeout", 1) == "banned":
+                    if warning(self.request, peer_ip, "Operation timeout", 2) == "banned":
                         app_log.info("{} banned".format(peer_ip))
                         break
 
@@ -1749,7 +1752,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # print peer_ip
                     if max(consensus_blockheight_list) == consensus_blockheight:
                         blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, backup, b)
-                        if warning(self.request, peer_ip, "Rollback",1) == "banned":
+                        if warning(self.request, peer_ip, "Rollback",2) == "banned":
                             app_log.info("{} banned".format(peer_ip))
                             break
                     app_log.info("Outbound: Deletion complete, sending sync request")
@@ -2309,7 +2312,7 @@ def worker(HOST, PORT):
                 # print peer_ip
                 if max(consensus_blockheight_list) == int(received_block_height):
                     blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, backup, b)
-                    if warning(s, peer_ip, "Rollback",1) == "banned":
+                    if warning(s, peer_ip, "Rollback",2) == "banned":
                         raise ValueError("{} is banned".format(peer_ip))
 
                 while db_lock.locked() == True:
