@@ -1646,10 +1646,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                     app_log.info("{} banned".format(peer_ip))
                                     break
 
-                            if db_lock.locked() == False: #second check for lock
-                                digest_block(segments, self.request, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
-                            else:
-                                app_log.warning("Skipping block processing from {}, someone delivered data faster".format(peer_ip))
+                            digest_block(segments, self.request, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
+
                             # receive theirs
 
                         else:
@@ -2348,10 +2346,8 @@ def worker(HOST, PORT):
                             if warning(s, peer_ip, "Failed to deliver the longest chain", 10) == "banned":
                                 raise ValueError("{} is banned".format(peer_ip))
 
-                        if db_lock.locked() == False:  # second check for lock
-                            digest_block(segments, s, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
-                        else:
-                            app_log.warning("Skipping block processing from {}, someone delivered data faster".format(peer_ip))
+                        digest_block(segments, s, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
+
                         # receive theirs
                     else:
                         connections.send(s, "blocksrj", 10)
