@@ -1,5 +1,7 @@
 import sqlite3, time, re, keys, options
-from bottle import route, run, static_file
+from flask import Flask
+
+app = Flask(__name__)
 
 (key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read() #import keys
 
@@ -11,11 +13,7 @@ full_ledger = config.full_ledger_conf
 ledger_path = config.ledger_path_conf
 hyper_path = config.hyper_path_conf
 
-@route('/static/<filename>')
-def server_static(filename):
-    return static_file(filename, root='static/')
-
-@route('/')
+@app.route('/')
 def hello():
 
     # redraw chart
@@ -120,6 +118,4 @@ def hello():
     html.append("</body>")
     html.append("</html>")
 
-    return str(''.join(html))
-
-run(host='0.0.0.0', port=1212, debug=True)
+    return ''.join(html)

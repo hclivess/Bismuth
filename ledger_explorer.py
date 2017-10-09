@@ -1,5 +1,7 @@
 import sqlite3, time, options, random
-from bottle import route, run, static_file
+from flask import Flask
+
+app = Flask(__name__)
 
 config = options.Get()
 config.read()
@@ -7,6 +9,7 @@ full_ledger = config.full_ledger_conf
 hyper_path = config.hyper_path_conf
 #hyper_path = "backup.db"
 version = config.version_conf
+
 if "testnet" in version:
     port = 2829
     full_ledger = 0
@@ -24,11 +27,7 @@ def execute(cursor, query):
             time.sleep(random.uniform(1, 3))
     return cursor
 
-@route('/static/<filename>')
-def server_static(filename):
-    return static_file(filename, root='static/')
-
-@route('/')
+@app.route('/')
 def hello():
     # redraw chart
 
@@ -195,5 +194,3 @@ def hello():
     html.append("</html>")
 
     return ''.join(html)
-
-run(host='0.0.0.0', port=5492, debug=True)
