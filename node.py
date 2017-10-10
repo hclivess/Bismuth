@@ -1324,6 +1324,10 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                             unban(peer_ip)
 
                         # whole block validation
+
+                        if full_ledger == 1 or ram_conf == 1:  # first case move stuff from hyper.db to ledger.db; second case move stuff from ram to both
+                            db_to_drive(hdd, h, hdd2, h2)
+
         except Exception as e:
             app_log.warning(e)
             if warning(sdef, peer_ip, "Block processing failed", 10) == "banned":
@@ -1336,8 +1340,6 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
         finally:
             app_log.info("Digesting complete")
-            if block_valid == 1 and (full_ledger == 1 or ram_conf == 1): #first case move stuff from hyper.db to ledger.db; second case move stuff from ram to both
-                db_to_drive(hdd, h, hdd2, h2)
             db_lock.release()
     else:
         app_log.info("Skipping block processing from {}, someone delivered data faster".format(peer_ip))

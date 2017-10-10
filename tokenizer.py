@@ -51,25 +51,25 @@ for x in results:
 tok.commit()
 #print all token issuances
 
-
+print("---")
 
 #print all transfers of a given token
 #token = "worthless"
 for token in tokens_processed:
     print("processing", token)
     c.execute("SELECT block_height, timestamp, address, recipient, openfield FROM transactions WHERE openfield LIKE ? ORDER BY block_height ASC;", ("token:transfer:" + token + ':%' ,))
-    results = c.fetchall()
-    print (results)
+    results2 = c.fetchall()
+    print (results2)
 
-    for r in results:
-        block_height = x[0]
+    for r in results2:
+        block_height = r[0]
         print("block_height", block_height)
 
-        timestamp = x[1]
+        timestamp = r[1]
         print("timestamp", timestamp)
 
         token = r[4].split(":")[2]
-        print("token", token)
+        print("token", token, "operation")
 
         sender = r[2]
         print ("transfer_from", sender)
@@ -77,33 +77,34 @@ for token in tokens_processed:
         recipient = r[3]
         print ("transfer_to", recipient)
 
-        transfer_amount = r[4].split(":")[3]
+        transfer_amount = int(r[4].split(":")[3])
         print ("transfer_amount",transfer_amount)
 
         #calculate balances
-        t.execute("SELECT sum(amount) FROM transactions WHERE recipient = ? and block_height < ?", (sender,) + (block_height,))
+        t.execute("SELECT sum(amount) FROM transactions WHERE recipient = ? AND block_height < ? AND token = ?", (sender,) + (block_height,) + (token,))
         try:
             credit_sender = int(t.fetchone()[0])
-            print("credit_sender", credit_sender)
         except:
             credit_sender = 0
+        print("credit_sender", credit_sender)
 
-        t.execute("SELECT sum(amount) FROM transactions WHERE address = ? and block_height < ?", (sender,) + (block_height,))
+        t.execute("SELECT sum(amount) FROM transactions WHERE address = ? AND block_height <= ? AND token = ?", (sender,) + (block_height,) + (token,))
         try:
             debit_sender = int(t.fetchone()[0])
-            print ("debit_sender", debit_sender)
         except:
             debit_sender = 0
+        print("debit_sender", debit_sender)
         #calculate balances
 
         #print all token transfers
         balance_sender = credit_sender - debit_sender
         print ("balance_sender", balance_sender)
 
-        if balance_sender > 0:
+        if balance_sender - transfer_amount> 0:
             t.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?)", (block_height, timestamp, token, sender, recipient, transfer_amount))
         else:
             print ("invalid transaction by", sender)
+        print("---")
 
     tok.commit()
 
