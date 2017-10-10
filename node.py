@@ -261,7 +261,7 @@ def warning(sdef, ip, reason, count):
     if warning_list.count(ip) >= ban_threshold:
         banlist.append(ip)
         sdef.close()
-        app_log.warning("{} is banned, because {}".format(ip, reason))
+        app_log.warning("{} is banned: {}".format(ip, reason))
         return "banned"
 
 
