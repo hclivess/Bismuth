@@ -2,8 +2,8 @@ pillow
 pyqrcode
 pypng
 pyinstaller
-bottle
+flask
 pycryptodome
-simple-crypt
+simple-crypt --no-deps
 PySocks
 requests
