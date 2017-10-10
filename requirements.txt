@@ -4,6 +4,6 @@ pypng
 pyinstaller
 bottle
 pycryptodome
-simple-crypt
+simple-crypt --no-deps
 PySocks
 requests
