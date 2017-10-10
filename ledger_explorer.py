@@ -39,7 +39,6 @@ def hello():
 
     c = conn.cursor()
     execute(c, "SELECT * FROM transactions ORDER BY block_height DESC, timestamp DESC LIMIT 100;")
-
     all = c.fetchall()[::-1]
 
     axis0 = []
@@ -113,11 +112,16 @@ def hello():
     # redraw chart
 
     execute(c, "SELECT * FROM transactions ORDER BY block_height DESC, timestamp DESC LIMIT 500;")
-
     all = c.fetchall()
+
+    execute(c, "SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 500;")
+    diffs = c.fetchall()
+    print(diffs[0][0])
+    print(len(diffs))
 
     view = []
     i = 0
+
     for x in all:
         if i % 2 == 0:
             color_cell = "#E8E8E8"
@@ -132,6 +136,7 @@ def hello():
         view.append("<td>{}</td>".format(x[7]))
         view.append("<td>{}</td>".format(x[8]))
         view.append("<td>{}</td>".format(x[9]))
+        view.append("<td>{}</td>".format(diffs[i][0]))
         view.append("<tr>")
         i = i + 1
 
@@ -183,6 +188,7 @@ def hello():
     html.append("<td>Block Hash</td>")
     html.append("<td>Fee</td>")
     html.append("<td>Reward</td>")
+    html.append("<td>Difficulty</td>")
     html.append("</tr>")
     html.append(''.join(view))
     html.append("</table>")
