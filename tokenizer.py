@@ -10,17 +10,19 @@ c = conn.cursor()
 tok = sqlite3.connect('tokens.db')
 tok.text_factory = str
 t = tok.cursor()
-t.execute("CREATE TABLE IF NOT EXISTS transactions (block_height, timestamp, token, address, recipient, amount)")
+t.execute("CREATE TABLE IF NOT EXISTS transactions (block_height INTEGER, timestamp, token, address, recipient, amount INTEGER)")
 tok.commit()
+
 
 t.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
 try:
-    token_last_block = int(t.fetchone())
+    token_last_block = int(t.fetchone()[0])
 except:
     token_last_block = 0
+print("token_last_block", token_last_block)
 
 #print all token issuances
-c.execute("SELECT block_height, timestamp, address, recipient, openfield FROM transactions WHERE openfield LIKE ? ORDER BY block_height ASC;", ("token:issue" + '%',))
+c.execute("SELECT block_height, timestamp, address, recipient, openfield FROM transactions WHERE openfield LIKE ? AND block_height > ? ORDER BY block_height ASC;", ("token:issue" + '%',) + (token_last_block,))
 results = c.fetchall()
 print (results)
 
@@ -57,7 +59,7 @@ print("---")
 #token = "worthless"
 for token in tokens_processed:
     print("processing", token)
-    c.execute("SELECT block_height, timestamp, address, recipient, openfield FROM transactions WHERE openfield LIKE ? ORDER BY block_height ASC;", ("token:transfer:" + token + ':%' ,))
+    c.execute("SELECT block_height, timestamp, address, recipient, openfield FROM transactions WHERE openfield LIKE ? AND block_height > ? ORDER BY block_height ASC;", ("token:transfer:" + token + ':%' ,)+(token_last_block,))
     results2 = c.fetchall()
     print (results2)
 
