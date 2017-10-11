@@ -1032,19 +1032,26 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
             for transaction_list in block_list:
 
-                for r in transaction_list:  # sig 4
-                    signature_list.append(r[4])
+                for entry in transaction_list:  # sig 4
+                    entry_signature = entry[4]
 
-                    # reject block with transactions which are already in the ledger
-                    execute_param(h3, ("SELECT block_height FROM transactions WHERE signature = ?;"), (r[4],))
-                    try:
-                        result = h3.fetchall()[0]
-                        error_msg = "That transaction is already in our ledger, row {}".format(result[0])
-                        block_valid = 0
+                    if entry_signature: #prevent empty signature database retry hack
+                        signature_list.append(entry_signature)
 
-                    except:
-                        pass
                         # reject block with transactions which are already in the ledger
+                        execute_param(h3, ("SELECT block_height FROM transactions WHERE signature = ?;"), (entry_signature,))
+                        try:
+                            result = h3.fetchall()[0]
+                            error_msg = "That transaction is already in our ledger, row {}".format(result[0])
+                            block_valid = 0
+
+                        except:
+                            pass
+                            # reject block with transactions which are already in the ledger
+                    else:
+                        block_valid = 0
+                        app_log.warning("Empty signature from {}".format(peer_ip))
+
 
                 if len(signature_list) != len(set(signature_list)):
                     error_msg = "There are duplicate transactions in this block, rejected"
