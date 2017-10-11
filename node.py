@@ -692,7 +692,6 @@ def mempool_merge(data, peer_ip, c, mempool, m):
                             commit(mempool)  # Save (commit) the changes
 
                             # merge mempool
-
                             # receive mempool
 
                             # app_log.info("Mempool: Finished with {} received transactions from {}".format(len(block_list),peer_ip))
@@ -1732,7 +1731,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                                     blocks_fetched = []
                                     del blocks_fetched[:]
-                                    while len(str(blocks_fetched)) < 100000 :  # limited size based on txs in blocks
+                                    while len(str(blocks_fetched)) < 1000000 :  # limited size based on txs in blocks
                                         execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"),
                                                            (str(int(client_block)),) + (str(int(client_block + 1)),))
                                         result = h3.fetchall()
@@ -2285,7 +2284,7 @@ def worker(HOST, PORT):
 
                             else:
                                 blocks_fetched = []
-                                while len(str(blocks_fetched)) < 100000:  # limited size based on txs in blocks
+                                while len(str(blocks_fetched)) < 1000000:  # limited size based on txs in blocks
                                     execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"),
                                                   (str(int(client_block)),) + (str(int(client_block + 1)),))
                                     result = h3.fetchall()
