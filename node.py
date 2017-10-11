@@ -1326,8 +1326,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                         # whole block validation
 
-                        if full_ledger == 1 or ram_conf == 1:  # first case move stuff from hyper.db to ledger.db; second case move stuff from ram to both
-                            db_to_drive(hdd, h, hdd2, h2)
+
 
         except Exception as e:
             app_log.warning(e)
@@ -1340,6 +1339,9 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                 pass
 
         finally:
+            if full_ledger == 1 or ram_conf == 1:  # first case move stuff from hyper.db to ledger.db; second case move stuff from ram to both
+                db_to_drive(hdd, h, hdd2, h2)
+
             app_log.info("Digesting complete")
             db_lock.release()
     else:
@@ -1627,7 +1629,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                     # app_log.info("Inbound: Combined segments: " + segments)
                     # print peer_ip
-                    if db_lock.locked() == True or dl_lock.locked() == True:
+                    if db_lock.locked() == True:
                         app_log.info("Skipping sync from {}, syncing already in progress".format(peer_ip))
 
                     else:
@@ -1637,6 +1639,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         if int(last_block_ago) < (time.time() - 600):
                             block_req = most_common(consensus_blockheight_list)
                             app_log.warning("Most common block rule triggered")
+
                         else:
                             block_req = max(consensus_blockheight_list)
                             app_log.warning("Longest chain rule triggered")
@@ -1645,7 +1648,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         if int(received_block_height) >= block_req:
 
                             try: #they claim to have the longest chain, things must go smooth or ban
-                                dl_lock.acquire()
                                 app_log.warning("Confirming to sync from {}".format(peer_ip))
                                 connections.send(self.request, "blockscf", 10)
 
@@ -1656,8 +1658,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                 if warning(self.request, peer_ip, "Failed to deliver the longest chain", 10) == "banned":
                                     app_log.info("{} banned".format(peer_ip))
                                     break
-                            finally:
-                                dl_lock.release()
 
                                 # receive theirs
                         else:
@@ -1717,17 +1717,25 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                 execute(h3, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
                                 db_block_hash = h3.fetchone()[0]  # get latest block_hash
                                 if db_block_hash == data:
-                                    app_log.info("Inbound: Client has the latest block")
+                                    app_log.warning("Inbound: Client has the latest block")
                                     connections.send(self.request, "nonewblk", 10)
 
                                 else:
-                                    execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
-                                                  (str(int(client_block)),) + (str(int(client_block + 250)),))  # select Inbound transaction + 1
-                                    blocks_fetched = h3.fetchall()
+
+                                    blocks_fetched = []
+                                    del blocks_fetched[:]
+                                    while len(str(blocks_fetched)) < 100000 :  # limited size based on txs in blocks
+                                        execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"),
+                                                           (str(int(client_block)),) + (str(int(client_block + 1)),))
+                                        result = h3.fetchall()
+                                        if not result:
+                                            break
+                                        blocks_fetched.extend(result)
+                                        client_block = int(client_block) + 1
 
                                     blocks_send = [[l[1:] for l in group] for _, group in groupby(blocks_fetched, key=itemgetter(0))]  # remove block number
 
-                                    # app_log.info("Inbound: Selected " + str(blocks_send) + " to send")
+                                    app_log.info("Inbound: Selected " + str(blocks_send) + " to send")
 
 
                                     connections.send(self.request, "blocksfnd", 10)
@@ -1744,8 +1752,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                                         # send own
 
-                            except:
-                                app_log.info("Inbound: Block not found")
+                            except Exception as e:
+                                app_log.warning("Inbound: Block not found")
                                 connections.send(self.request, "blocknf", 10)
                                 connections.send(self.request, data, 10)
                     except Exception as e:
@@ -2087,6 +2095,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 # remove from consensus (connection from them)
                 if self.request:
                     self.request.close()
+
                 if debug_conf == 1:
                     raise  # major debug client
                 else:
@@ -2112,7 +2121,7 @@ def worker(HOST, PORT):
             s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
         # s.setblocking(0)
         s.connect((HOST, PORT))
-        app_log.info("Outbound: Connected to {}".format(this_client))
+        app_log.warning("Outbound: Connected to {}".format(this_client))
 
         # communication starter
 
@@ -2267,14 +2276,19 @@ def worker(HOST, PORT):
                                 connections.send(s, "nonewblk", 10)
 
                             else:
-                                execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
-                                              (str(int(client_block)),) + (str(int(client_block + 250)),))  # select Inbound transaction + 1, only columns that need not be verified
-                                blocks_fetched = h3.fetchall()
-                                # hdd.close()
+                                blocks_fetched = []
+                                while len(str(blocks_fetched)) < 100000:  # limited size based on txs in blocks
+                                    execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"),
+                                                  (str(int(client_block)),) + (str(int(client_block + 1)),))
+                                    result = h3.fetchall()
+                                    if not result:
+                                        break
+                                    blocks_fetched.extend(result)
+                                    client_block = int(client_block) + 1
 
                                 blocks_send = [[l[1:] for l in group] for _, group in groupby(blocks_fetched, key=itemgetter(0))]  # remove block number
 
-                                # app_log.info("Outbound: Selected " + str(blocks_send) + " to send")
+                                app_log.info("Outbound: Selected {}".format(blocks_send))
 
                                 connections.send(s, "blocksfnd", 10)
 
@@ -2288,8 +2302,8 @@ def worker(HOST, PORT):
                                     app_log.info("Outbound: Client rejected to sync from us because we're dont have the latest block")
                                     pass
 
-                        except:
-                            app_log.info("Outbound: Block not found")
+                        except Exception as e:
+                            app_log.warning("Outbound: Block not found")
                             connections.send(s, "blocknf", 10)
                             connections.send(s, data, 10)
 
@@ -2314,6 +2328,7 @@ def worker(HOST, PORT):
                     app_log.info("Outbound: Sync failed {}".format(e))
                 finally:
                     syncing.remove(peer_ip)
+                    #connections.send(s, "sendsync", 10)
 
             elif data == "blocknf":
                 block_hash_delete = connections.receive(s, 10)
@@ -2332,7 +2347,7 @@ def worker(HOST, PORT):
 
                 # app_log.info("Inbound: Combined segments: " + segments)
                 # print peer_ip
-                if db_lock.locked() == True or dl_lock.locked() == True:
+                if db_lock.locked() == True:
                     app_log.warning("Skipping sync from {}, syncing already in progress".format(peer_ip))
 
                 else:
@@ -2342,6 +2357,7 @@ def worker(HOST, PORT):
                     if int(last_block_ago) < (time.time() - 600):
                         block_req = most_common(consensus_blockheight_list)
                         app_log.warning("Most common block rule triggered")
+
                     else:
                         block_req = max(consensus_blockheight_list)
                         app_log.warning("Longest chain rule triggered")
@@ -2349,7 +2365,6 @@ def worker(HOST, PORT):
 
                     if int(received_block_height) >= block_req:
                         try:  # they claim to have the longest chain, things must go smooth or ban
-                            dl_lock.acquire()
                             app_log.warning("Confirming to sync from {}".format(peer_ip))
 
                             connections.send(s, "blockscf", 10)
@@ -2358,8 +2373,6 @@ def worker(HOST, PORT):
                         except:
                             if warning(s, peer_ip, "Failed to deliver the longest chain", 10) == "banned":
                                 raise ValueError("{} is banned".format(peer_ip))
-                        finally:
-                            dl_lock.release()
 
                         # receive theirs
                     else:
@@ -2406,7 +2419,7 @@ def worker(HOST, PORT):
             # remove from active pool
             if this_client in connection_pool:
                 app_log.info("Will remove {} from active pool {}".format(this_client, connection_pool))
-                app_log.info("Outbound: Disconnected from {}: {}".format(this_client, e))
+                app_log.warning("Outbound: Disconnected from {}: {}".format(this_client, e))
                 connection_pool.remove(this_client)
             # remove from active pool
 
