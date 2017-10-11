@@ -1722,7 +1722,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                                 else:
                                     execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
-                                                  (str(int(client_block)),) + (str(int(client_block + 500)),))  # select Inbound transaction + 1
+                                                  (str(int(client_block)),) + (str(int(client_block + 250)),))  # select Inbound transaction + 1
                                     blocks_fetched = h3.fetchall()
 
                                     blocks_send = [[l[1:] for l in group] for _, group in groupby(blocks_fetched, key=itemgetter(0))]  # remove block number
@@ -2147,7 +2147,7 @@ def worker(HOST, PORT):
         try:
             if this_client not in connection_pool:
                 connection_pool.append(this_client)
-                app_log.warning("Connected to {}".format(this_client))
+                app_log.info("Connected to {}".format(this_client))
                 app_log.info("Current active pool: {}".format(connection_pool))
 
             hdd2, h2 = db_h2_define()
@@ -2268,7 +2268,7 @@ def worker(HOST, PORT):
 
                             else:
                                 execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
-                                              (str(int(client_block)),) + (str(int(client_block + 500)),))  # select Inbound transaction + 1, only columns that need not be verified
+                                              (str(int(client_block)),) + (str(int(client_block + 250)),))  # select Inbound transaction + 1, only columns that need not be verified
                                 blocks_fetched = h3.fetchall()
                                 # hdd.close()
 
@@ -2406,7 +2406,7 @@ def worker(HOST, PORT):
             # remove from active pool
             if this_client in connection_pool:
                 app_log.info("Will remove {} from active pool {}".format(this_client, connection_pool))
-                app_log.warning("Outbound: Disconnected from {}: {}".format(this_client, e))
+                app_log.info("Outbound: Disconnected from {}: {}".format(this_client, e))
                 connection_pool.remove(this_client)
             # remove from active pool
 
