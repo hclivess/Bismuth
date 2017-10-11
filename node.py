@@ -23,6 +23,7 @@ global banlist
 banlist = []
 global hdd_block
 
+dl_lock = threading.Lock()
 db_lock = threading.Lock()
 mem_lock = threading.Lock()
 peersync_lock = threading.Lock()
@@ -1626,7 +1627,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                     # app_log.info("Inbound: Combined segments: " + segments)
                     # print peer_ip
-                    if db_lock.locked() == True:
+                    if db_lock.locked() == True or dl_lock.locked() == True:
                         app_log.info("Skipping sync from {}, syncing already in progress".format(peer_ip))
 
                     else:
@@ -1640,21 +1641,25 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             block_req = max(consensus_blockheight_list)
                             app_log.warning("Longest chain rule triggered")
 
+
                         if int(received_block_height) >= block_req:
-                            app_log.warning("Confirming to sync from {}".format(peer_ip))
 
                             try: #they claim to have the longest chain, things must go smooth or ban
+                                dl_lock.acquire()
+                                app_log.warning("Confirming to sync from {}".format(peer_ip))
                                 connections.send(self.request, "blockscf", 10)
+
                                 segments = connections.receive(self.request, 10)
+                                digest_block(segments, self.request, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
+
                             except:
                                 if warning(self.request, peer_ip, "Failed to deliver the longest chain", 10) == "banned":
                                     app_log.info("{} banned".format(peer_ip))
                                     break
+                            finally:
+                                dl_lock.release()
 
-                            digest_block(segments, self.request, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
-
-                            # receive theirs
-
+                                # receive theirs
                         else:
                             app_log.warning("Rejecting to sync from {}".format(peer_ip))
                             connections.send(self.request, "blocksrj", 10)
@@ -1717,7 +1722,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                                 else:
                                     execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
-                                                  (str(int(client_block)),) + (str(int(client_block + 1000)),))  # select Inbound transaction + 1
+                                                  (str(int(client_block)),) + (str(int(client_block + 500)),))  # select Inbound transaction + 1
                                     blocks_fetched = h3.fetchall()
 
                                     blocks_send = [[l[1:] for l in group] for _, group in groupby(blocks_fetched, key=itemgetter(0))]  # remove block number
@@ -2263,7 +2268,7 @@ def worker(HOST, PORT):
 
                             else:
                                 execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height < ?;"),
-                                              (str(int(client_block)),) + (str(int(client_block + 1000)),))  # select Inbound transaction + 1, only columns that need not be verified
+                                              (str(int(client_block)),) + (str(int(client_block + 500)),))  # select Inbound transaction + 1, only columns that need not be verified
                                 blocks_fetched = h3.fetchall()
                                 # hdd.close()
 
@@ -2327,7 +2332,7 @@ def worker(HOST, PORT):
 
                 # app_log.info("Inbound: Combined segments: " + segments)
                 # print peer_ip
-                if db_lock.locked() == True:
+                if db_lock.locked() == True or dl_lock.locked() == True:
                     app_log.warning("Skipping sync from {}, syncing already in progress".format(peer_ip))
 
                 else:
@@ -2341,22 +2346,26 @@ def worker(HOST, PORT):
                         block_req = max(consensus_blockheight_list)
                         app_log.warning("Longest chain rule triggered")
 
-                    if int(received_block_height) >= block_req:
-                        app_log.warning("Confirming to sync from {}".format(peer_ip))
 
+                    if int(received_block_height) >= block_req:
                         try:  # they claim to have the longest chain, things must go smooth or ban
+                            dl_lock.acquire()
+                            app_log.warning("Confirming to sync from {}".format(peer_ip))
+
                             connections.send(s, "blockscf", 10)
                             segments = connections.receive(s, 10)
+                            digest_block(segments, s, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         except:
                             if warning(s, peer_ip, "Failed to deliver the longest chain", 10) == "banned":
                                 raise ValueError("{} is banned".format(peer_ip))
-
-                        digest_block(segments, s, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
+                        finally:
+                            dl_lock.release()
 
                         # receive theirs
                     else:
                         connections.send(s, "blocksrj", 10)
                         app_log.warning("Inbound: Distant peer {} is at {}, should be at least {}".format(peer_ip, received_block_height, block_req))
+
 
                 connections.send(s, "sendsync", 10)
 

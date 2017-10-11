@@ -8,7 +8,7 @@ def send(sdef, data, slen):
 
 def receive(sdef, slen):
     sdef.setblocking(0)
-    ready = select.select([sdef], [], [], 240)
+    ready = select.select([sdef], [], [], 30)
     if ready[0]:
         try:
             data = int(sdef.recv(slen))  # receive length
@@ -22,7 +22,7 @@ def receive(sdef, slen):
     chunks = []
     bytes_recd = 0
     while bytes_recd < data:
-        ready = select.select([sdef], [], [], 240)
+        ready = select.select([sdef], [], [], 30)
         if ready[0]:
             chunk = sdef.recv(min(data - bytes_recd, 2048))
             if not chunk:
