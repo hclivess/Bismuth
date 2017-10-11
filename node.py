@@ -1717,7 +1717,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                 execute(h3, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
                                 db_block_hash = h3.fetchone()[0]  # get latest block_hash
                                 if db_block_hash == data:
-                                    app_log.warning("Inbound: Client has the latest block")
+                                    app_log.info("Inbound: Client has the latest block")
+                                    time.sleep(1) #reduce CPU usage
                                     connections.send(self.request, "nonewblk", 10)
 
                                 else:
