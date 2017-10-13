@@ -121,12 +121,22 @@ def hello():
 
     view = []
     i = 0
+    b = -1
 
     for x in all:
         if i % 2 == 0:
             color_cell = "#E8E8E8"
         else:
             color_cell = "white"
+
+        try: #first run
+            x_old
+        except:
+            x_old = "init"
+
+        if x[0] != x_old:
+            b = b + 1
+
         view.append("<tr bgcolor ={}>".format(color_cell))
         view.append("<td>{}</td>".format(x[0]))
         view.append("<td>{}".format(time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(x[1])))))
@@ -136,9 +146,12 @@ def hello():
         view.append("<td>{}</td>".format(x[7]))
         view.append("<td>{}</td>".format(x[8]))
         view.append("<td>{}</td>".format(x[9]))
-        view.append("<td>{}</td>".format(diffs[i][0]))
+        view.append("<td>{}</td>".format(diffs[b][0]))
         view.append("<tr>")
+
+        x_old = x[0]
         i = i + 1
+
 
     c.close()
 
