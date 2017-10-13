@@ -73,6 +73,16 @@ def mpget(socket):
     print ("Current mempool: {}".format(mempool))
     #ask for mempool
 
+def difflast(socket):
+    #ask for last difficulty
+    connections.send(s, "difflast", 10)
+    response = connections.receive(s, 10)
+    blocklast = response[0]
+    difflast = response[1]
+    print("Last block: {}".format(blocklast))
+    print ("Last difficulty: {}".format(difflast))
+    #ask for last difficulty
+
 def blocklast(socket):
     #get last block
     connections.send(s, "blocklast", 10)
@@ -200,6 +210,9 @@ if command == "aliasesget":
 
 elif command == "diffget":
     diffget(s)
+
+elif command == "difflast":
+    difflast(s)
 
 elif command == "balanceget":
     balanceget(s, arg1)

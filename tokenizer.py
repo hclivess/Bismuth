@@ -102,7 +102,7 @@ for token in tokens_processed:
         balance_sender = credit_sender - debit_sender
         print ("balance_sender", balance_sender)
 
-        if balance_sender - transfer_amount> 0:
+        if balance_sender - transfer_amount> 0 or transfer_amount < 0:
             t.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?)", (block_height, timestamp, token, sender, recipient, transfer_amount))
         else:
             print ("invalid transaction by", sender)

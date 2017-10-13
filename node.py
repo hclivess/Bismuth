@@ -2085,6 +2085,14 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     else:
                         app_log.info("{} not whitelisted for diffget command".format(peer_ip))
 
+                elif data == "difflast":
+                    if (peer_ip in allowed or "any" in allowed):
+                        execute(h3, ("SELECT block_height, difficulty FROM misc ORDER BY block_height LIMIT 1"))
+                        difflast = h3.fetchone()
+                        connections.send(self.request, difflast, 10)
+                    else:
+                        app_log.info("{} not whitelisted for difflastget command".format(peer_ip))
+
                 else:
                     raise ValueError("Unexpected error, received: " + str(data))
 
