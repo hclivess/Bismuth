@@ -2087,7 +2087,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                 elif data == "difflast":
                     if (peer_ip in allowed or "any" in allowed):
-                        execute(h3, ("SELECT block_height, difficulty FROM misc ORDER BY block_height LIMIT 1"))
+                        execute(h3, ("SELECT block_height, difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
                         difflast = h3.fetchone()
                         connections.send(self.request, difflast, 10)
                     else:
