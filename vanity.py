@@ -66,11 +66,11 @@ def search():
 if __name__ == '__main__':
     freeze_support() #must be this line, dont move ahead
     instances = range(threads)
-    print instances
+    print(instances)
     for q in instances:
         p = Process(target=search, args=())
         p.start()
-        print "thread "+str(p)+ " started"
+        print("thread {} started".format(p)
     for q in instances:
         p.join()
         p.terminate()
