@@ -471,41 +471,25 @@ def difficulty(c):
 
     time_now = time.time()
 
+    if time_now > timestamp_last + 120:  # if 2 minutes passed
+        execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 5"))
+        diff_5 = c.fetchall()[0]
+        diff_lowest_5 = float(min(diff_5))
 
-    if "testnet" in version or int(block_height) >= 340000:
-        if time_now > timestamp_last + 120:  # if 2 minutes passed
-            execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 5"))
-            diff_5 = c.fetchall()[0]
-            diff_lowest_5 = float(min(diff_5))
-
-            if diff_lowest_5 < difficulty:
-                candidate = diff_lowest_5 #if lowest of last 5 is lower than calculated diff
-            else:
-                candidate = difficulty
-
-            difficulty2 = float('%.13f' % percentage(99, candidate)) #candidate -1%
+        if diff_lowest_5 < difficulty:
+            candidate = diff_lowest_5 #if lowest of last 5 is lower than calculated diff
         else:
-            difficulty2 = difficulty
+            candidate = difficulty
 
-        if difficulty < 70:
-            difficulty = 70
-
-        if difficulty2 < 70:
-            difficulty2 = 70
-
+        difficulty2 = float('%.13f' % percentage(99, candidate)) #candidate -1%
     else:
-        if time_now > timestamp_last + 300: #if 5 minutes have passed
-            difficulty2 = float('%.13f' % percentage(95, difficulty))
+        difficulty2 = difficulty
 
-        else:
-            difficulty2 = difficulty
+    if difficulty < 70:
+        difficulty = 70
 
-        if difficulty < 45:
-            difficulty = 45
-
-        if difficulty2 < 45:
-            difficulty2 = 45
-
+    if difficulty2 < 70:
+        difficulty2 = 70
 
     app_log.warning("Difficulty: {} {}".format(difficulty, difficulty2))
 
@@ -1723,15 +1707,15 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                 execute(h3, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
                                 db_block_hash = h3.fetchone()[0]  # get latest block_hash
                                 if db_block_hash == data:
-                                    app_log.info("Inbound: Client has the latest block")
-                                    time.sleep(1) #reduce CPU usage
+                                    app_log.info("Inbound: Client {} has the latest block".format(peer_ip))
+                                    time.sleep(int(pause_conf)) #reduce CPU usage
                                     connections.send(self.request, "nonewblk", 10)
 
                                 else:
 
                                     blocks_fetched = []
                                     del blocks_fetched[:]
-                                    while len(str(blocks_fetched)) < 1000000 :  # limited size based on txs in blocks
+                                    while len(str(blocks_fetched)) < 500000 :  # limited size based on txs in blocks
                                         execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"),
                                                            (str(int(client_block)),) + (str(int(client_block + 1)),))
                                         result = h3.fetchall()
@@ -1760,7 +1744,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                         # send own
 
                             except Exception as e:
-                                app_log.warning("Inbound: Block not found")
+                                app_log.warning("Inbound: Block of {} not found".format(peer_ip))
                                 connections.send(self.request, "blocknf", 10)
                                 connections.send(self.request, data, 10)
                     except Exception as e:
@@ -2287,12 +2271,12 @@ def worker(HOST, PORT):
                             db_block_hash = h3.fetchone()[0]  # get latest block_hash
 
                             if db_block_hash == data:
-                                app_log.info("Outbound: Node has the latest block")
+                                app_log.info("Outbound: Node {} has the latest block".format(peer_ip))
                                 connections.send(s, "nonewblk", 10)
 
                             else:
                                 blocks_fetched = []
-                                while len(str(blocks_fetched)) < 1000000:  # limited size based on txs in blocks
+                                while len(str(blocks_fetched)) < 500000:  # limited size based on txs in blocks
                                     execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"),
                                                   (str(int(client_block)),) + (str(int(client_block + 1)),))
                                     result = h3.fetchall()
@@ -2318,7 +2302,7 @@ def worker(HOST, PORT):
                                     pass
 
                         except Exception as e:
-                            app_log.warning("Outbound: Block not found")
+                            app_log.warning("Outbound: Block of {} not found".format(peer_ip))
                             connections.send(s, "blocknf", 10)
                             connections.send(s, data, 10)
 

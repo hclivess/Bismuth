@@ -158,17 +158,25 @@ def difficulty(c):
 
     time_now = time.time()
 
-    if time_now > timestamp_last + 300:  # if 5 minutes have passed
-        difficulty2 = float('%.13f' % percentage(95, difficulty))
+    if time_now > timestamp_last + 120:  # if 2 minutes passed
+        execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 5"))
+        diff_5 = c.fetchall()[0]
+        diff_lowest_5 = float(min(diff_5))
 
+        if diff_lowest_5 < difficulty:
+            candidate = diff_lowest_5 #if lowest of last 5 is lower than calculated diff
+        else:
+            candidate = difficulty
+
+        difficulty2 = float('%.13f' % percentage(99, candidate)) #candidate -1%
     else:
         difficulty2 = difficulty
 
-    if difficulty < 45:
-        difficulty = 45
+    if difficulty < 70:
+        difficulty = 70
 
-    if difficulty2 < 45:
-        difficulty2 = 45
+    if difficulty2 < 70:
+        difficulty2 = 70
 
     app_log.warning("Difficulty: {} {}".format(difficulty, difficulty2))
 
