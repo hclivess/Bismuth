@@ -486,7 +486,7 @@ def difficulty(c):
         else:
             difficulty2 = difficulty
 
-        c.execute("SELECT cast(difficulty as FLOAT) FROM misc WHERE block_height > ?", (block_height,))
+        c.execute("SELECT cast(difficulty as FLOAT) FROM misc WHERE block_height > ?", (block_height-1440,))
         min_diff = c.fetchone()[0]
 
         if difficulty < min_diff:
