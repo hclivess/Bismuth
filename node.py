@@ -1564,8 +1564,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                 if data == 'version':
                     data = connections.receive(self.request, 10)
-                    if version != data:
-                        app_log.info("Protocol version mismatch: {}, should be {}".format(data, version))
+                    if data not in version:
+                        app_log.warning("Protocol version mismatch: {}, should be {}".format(data, version))
                         connections.send(self.request, "notok", 10)
                         return
                     else:
