@@ -6,7 +6,7 @@
 # must unify node and client now that connections parameters are function parameters
 # if you have a block of data and want to insert it into sqlite, you must use a single "commit" for the whole batch, it's 100x faster
 
-VERSION = "DEV"
+VERSION = "4.0.9"
 
 from itertools import groupby
 from operator import itemgetter
@@ -459,37 +459,74 @@ def difficulty(c):
     execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
     diff_block_previous = float(c.fetchone()[0])
 
-    try:
-        log = math.log2(blocks_per_1440 / 1440)
-    except:
-        log = math.log2(0.5 / 1440)
-        app_log.info("Difficulty exception triggered! This should not happen!")
+    if "testnet" in version:
+        try:
+            log = math.log2(blocks_per_1440 / 1440)
+        except:
+            log = math.log2(0.5 / 1440)
+            app_log.info("Difficulty exception triggered! This should not happen!")
 
-    app_log.warning("Difficulty retargeting: {}".format(log))
+        app_log.warning("Difficulty retargeting: {}".format(log))
 
-    difficulty = float('%.13f' % (diff_block_previous + log))  # increase/decrease diff by a little
+        difficulty = float('%.13f' % (diff_block_previous + log))  # increase/decrease diff by a little
 
-    time_now = time.time()
+        time_now = time.time()
 
-    if time_now > timestamp_last + 120:  # if 2 minutes passed
-        execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 5"))
-        diff_5 = c.fetchall()[0]
-        diff_lowest_5 = float(min(diff_5))
+        if time_now > timestamp_last + 120:  # if 2 minutes passed
+            execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 5"))
+            diff_5 = c.fetchall()[0]
+            diff_lowest_5 = float(min(diff_5))
 
-        if diff_lowest_5 < difficulty:
-            candidate = diff_lowest_5 #if lowest of last 5 is lower than calculated diff
+            if diff_lowest_5 < difficulty:
+                candidate = diff_lowest_5  # if lowest of last 5 is lower than calculated diff
+            else:
+                candidate = difficulty
+
+            difficulty2 = float('%.13f' % percentage(99, candidate))  # candidate -1%
         else:
-            candidate = difficulty
+            difficulty2 = difficulty
 
-        difficulty2 = float('%.13f' % percentage(99, candidate)) #candidate -1%
+        c.execute("SELECT cast(difficulty as FLOAT) FROM misc WHERE block_height > ?", (block_height,))
+        min_diff = c.fetchone()[0]
+
+        if difficulty < min_diff:
+            difficulty = float('%.13f' % min_diff)
+
+        if difficulty2 < min_diff:
+            difficulty2 = float('%.13f' % percentage(99, min_diff))
+
     else:
-        difficulty2 = difficulty
+        try:
+            log = math.log2(blocks_per_1440 / 1440)
+        except:
+            log = math.log2(0.5 / 1440)
+            app_log.info("Difficulty exception triggered! This should not happen!")
 
-    if difficulty < 70:
-        difficulty = 70
+        app_log.warning("Difficulty retargeting: {}".format(log))
 
-    if difficulty2 < 70:
-        difficulty2 = 70
+        difficulty = float('%.13f' % (diff_block_previous + log))  # increase/decrease diff by a little
+
+        time_now = time.time()
+
+        if time_now > timestamp_last + 120:  # if 2 minutes passed
+            execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 5"))
+            diff_5 = c.fetchall()[0]
+            diff_lowest_5 = float(min(diff_5))
+
+            if diff_lowest_5 < difficulty:
+                candidate = diff_lowest_5 #if lowest of last 5 is lower than calculated diff
+            else:
+                candidate = difficulty
+
+            difficulty2 = float('%.13f' % percentage(99, candidate)) #candidate -1%
+        else:
+            difficulty2 = difficulty
+
+        if difficulty < 70:
+            difficulty = 70
+
+        if difficulty2 < 70:
+            difficulty2 = 70
 
     app_log.warning("Difficulty: {} {}".format(difficulty, difficulty2))
 
