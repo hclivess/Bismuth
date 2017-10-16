@@ -488,7 +488,7 @@ def difficulty(c):
         else:
             difficulty2 = difficulty
 
-        execute_param(c, ("SELECT cast(difficulty as INTEGER) FROM misc WHERE block_height <= ?"), (blocks_list_1440[0],))
+        execute_param(c, ("SELECT cast(difficulty as INTEGER) FROM misc WHERE block_height >= ?"), (blocks_list_1440[0],))
         try:
             min_diff = statistics.mean(c.fetchone()[0])
         except:
