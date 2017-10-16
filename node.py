@@ -491,9 +491,11 @@ def difficulty(c):
 
         if difficulty < min_diff:
             difficulty = float('%.13f' % min_diff)
+            app_log.warning("Difficulty floor reached, difficulty readjusted to {}".format(min_diff))
 
         if difficulty2 < min_diff:
             difficulty2 = float('%.13f' % percentage(99, min_diff))
+            app_log.warning("Difficulty floor reached, difficulty readjusted to {}".format(min_diff))
 
     else:
         try:
