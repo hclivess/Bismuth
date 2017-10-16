@@ -11,7 +11,7 @@ VERSION = "4.0.9"
 from itertools import groupby
 from operator import itemgetter
 import shutil, socketserver, base64, hashlib, os, re, sqlite3, sys, threading, time, socks, log, options, connections, random, keys, math, requests, tarfile, essentials
-
+import statistics
 
 from Crypto.Hash import SHA
 from Crypto.PublicKey import RSA
@@ -452,8 +452,10 @@ def difficulty(c):
     timestamp_last = float(result[1])
     block_height = int(result[0])
 
-    execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (timestamp_last - 86400,))  # 86400=24h
-    blocks_per_1440 = len(c.fetchall())
+    execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0 ORDER BY block_height ASC"), (timestamp_last - 86400,))  # 86400=24h
+    blocks_list_1440 = c.fetchall()
+    print(blocks_list_1440)
+    blocks_per_1440 = len(blocks_list_1440)
     app_log.warning("Blocks per day: {}".format(blocks_per_1440))
 
     execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
@@ -486,8 +488,11 @@ def difficulty(c):
         else:
             difficulty2 = difficulty
 
-        c.execute("SELECT cast(difficulty as FLOAT) FROM misc WHERE block_height > ?", (block_height-1440,))
-        min_diff = c.fetchone()[0]
+        execute_param(c, ("SELECT cast(difficulty as FLOAT) FROM misc block_height = ?"), (blocks_list_1440,))
+        try:
+            min_diff = statistics.mean(c.fetchone()[0])
+        except:
+            min_diff = 60
 
         if difficulty < min_diff:
             difficulty = float('%.13f' % min_diff)
