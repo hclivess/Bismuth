@@ -463,7 +463,6 @@ def difficulty(c):
 
     execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0 ORDER BY block_height ASC"), (timestamp_last - 86400,))  # 86400=24h
     blocks_list_1440 = c.fetchall()
-    print(blocks_list_1440)
     blocks_per_1440 = len(blocks_list_1440)
     app_log.warning("Blocks per day: {}".format(blocks_per_1440))
 
