@@ -60,6 +60,7 @@ version_allow = config.version_allow
 full_ledger = config.full_ledger_conf
 reveal_address=config.reveal_address
 accept_peers=config.accept_peers
+nodes_ban_reset=config.nodes_ban_reset
 
 global banlist
 banlist=config.banlist
@@ -484,7 +485,7 @@ def difficulty(c):
 
         time_now = time.time()
 
-        if time_now > timestamp_last + 600:  # if 10 minutes passed
+        if time_now > timestamp_last + 600:  # if 20 minutes passed
             execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 5"))
             diff_5 = c.fetchall()[0]
             diff_lowest_5 = float(min(diff_5))
@@ -1023,7 +1024,7 @@ def manager(c, conn):
                         t.start()
                     # client thread handling
 
-        if len(connection_pool) < 1 and int(time.time() - startup_time) > 15: #do not reset before 30 secs have passed
+        if len(connection_pool) < nodes_ban_reset and int(time.time() - startup_time) > 15: #do not reset before 30 secs have passed
             app_log.warning("Only {} connections active, resetting banlist".format(len(connection_pool)))
             del banlist[:]
             del warning_list[:]

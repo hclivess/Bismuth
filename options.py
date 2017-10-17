@@ -70,3 +70,5 @@ class Get:
                 self.accept_peers = line.lstrip('accept_peers=')
             if "banlist=" in line:
                 self.banlist = line.lstrip('banlist=').split(",")
+            if "nodes_ban_reset=" in line:
+                self.nodes_ban_reset = int(line.lstrip('nodes_ban_reset='))
