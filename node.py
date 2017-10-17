@@ -1580,7 +1580,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                 if data == 'version':
                     data = connections.receive(self.request, 10)
-                    if data not in version_allow or version != "testnet":
+                    if data not in version_allow and version != "testnet":
+                        print(version)
                         app_log.warning("Protocol version mismatch: {}, should be {}".format(data, version_allow))
                         connections.send(self.request, "notok", 10)
                         return
