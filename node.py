@@ -79,7 +79,7 @@ if "testnet" in version: #overwrite for testnet
     hyper_recompress_conf = 0
     peerlist = "peers_test.txt"
 
-    redownload_test = input("Redownload test ledger? y/n")
+    redownload_test = input("Welcome to the testnet. Redownload test ledger? y/n")
     if redownload_test == "y" or not os.path.exists("static/test.db"):
         download_file("http://bismuth.cz/test.db", "static/test.db")
     else:
