@@ -471,7 +471,7 @@ def difficulty(c):
     execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
     diff_block_previous = float(c.fetchone()[0])
 
-    if "testnet" not in version:
+    if "testnet" in version:
         try:
             log = math.log2(blocks_per_1440 / 1440)
         except:
@@ -503,27 +503,20 @@ def difficulty(c):
             diff_blocks_list_1440 = c.fetchall()
             diff_blocks_list_1440 = [i[0] for i in diff_blocks_list_1440]
 
-            print(blocks_list_1440[0])
-            print(diff_blocks_list_1440)
-            print(blocks_list_1440)
+            #print(blocks_list_1440[0])
+            #print(diff_blocks_list_1440)
+            #print(blocks_list_1440)
 
             min_diff = statistics.mean(diff_blocks_list_1440)
 
         except Exception as e:
             min_diff = 70
             print(e)
-        print(min_diff)
-
-        time.sleep(10000)
-
+        #print(min_diff)
 
         if difficulty < min_diff:
             difficulty = float('%.13f' % min_diff)
-            app_log.warning("Difficulty floor reached, difficulty readjusted to {}".format(min_diff))
-
-        if difficulty2 < min_diff:
-            difficulty2 = float('%.13f' % percentage(99, min_diff))
-            app_log.warning("Difficulty floor reached, difficulty readjusted to {}".format(candidate))
+            app_log.warning("Difficulty floor reached, difficulty readjusted to {}".format(difficulty))
 
     else:
         try:
