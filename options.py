@@ -16,6 +16,8 @@ class Get:
                 self.verify_conf = int(line.lstrip('verify='))
             if "version=" in line:
                 self.version_conf = line.lstrip('version=')
+            if "version_allow=" in line:
+                self.version_allow = line.lstrip('version_allow=').split()
             if "thread_limit=" in line:
                 self.thread_limit_conf = int(line.lstrip('thread_limit='))
             if "rebuild_db=" in line:

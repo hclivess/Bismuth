@@ -57,6 +57,7 @@ pool_conf = config.pool_conf
 ram_conf = config.ram_conf
 pool_address = config.pool_address_conf
 version = config.version_conf
+version_allow = config.version_allow
 full_ledger = config.full_ledger_conf
 reveal_address=config.reveal_address
 accept_peers=config.accept_peers
@@ -1568,14 +1569,14 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                 app_log.info("Inbound: Received: {} from {}".format(data, peer_ip))  # will add custom ports later
 
-                if data == 'version':
+                if data == 'version_allow':
                     data = connections.receive(self.request, 10)
                     if data not in version:
                         app_log.warning("Protocol version mismatch: {}, should be {}".format(data, version))
                         connections.send(self.request, "notok", 10)
                         return
                     else:
-                        app_log.info("Inbound: Protocol version matched: {}".format(data))
+                        app_log.warning("Inbound: Protocol version matched: {}".format(data))
                         connections.send(self.request, "ok", 10)
 
                 elif data == 'mempool':
