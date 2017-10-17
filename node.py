@@ -62,12 +62,29 @@ full_ledger = config.full_ledger_conf
 reveal_address=config.reveal_address
 accept_peers=config.accept_peers
 
+def download_file(url, filename):
+    try:
+        r = requests.get(url, stream=True)
+        with open(filename, 'wb') as f:
+            shutil.copyfileobj(r.raw, f)
+
+        return filename
+    except:
+        raise
+
 if "testnet" in version: #overwrite for testnet
     port = 2829
     full_ledger = 0
     hyper_path_conf = "static/test.db"
     hyper_recompress_conf = 0
     peerlist = "peers_test.txt"
+
+    redownload_test = input("Redownload test ledger? y/n")
+    if redownload_test == "y" or not os.path.exists("static/test.db"):
+        download_file("http://bismuth.cz/test.db", "static/test.db")
+    else:
+        print("Not redownloading test db")
+
 else:
     peerlist = "peers.txt"
 
@@ -118,15 +135,6 @@ def percentage(percent, whole):
     return float((percent * whole) / 100)
 
 
-def download_file(url, filename):
-    try:
-        r = requests.get(url, stream=True)
-        with open(filename, 'wb') as f:
-            shutil.copyfileobj(r.raw, f)
-
-        return filename
-    except:
-        raise
 
 
 def db_to_drive(hdd, h, hdd2, h2):
