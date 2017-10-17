@@ -490,9 +490,11 @@ def difficulty(c):
 
         execute_param(c, ("SELECT cast(difficulty as INTEGER) FROM misc WHERE block_height >= ?"), (blocks_list_1440[0][0],))
         try:
-            min_diff = statistics.mean(c.fetchone()[0])
-        except:
-            min_diff = 60
+            min_diff = statistics.mean(c.fetchall()[0])
+        except Exception as e:
+            min_diff = 70
+            print(e)
+        print(min_diff)
 
         if difficulty < min_diff:
             difficulty = float('%.13f' % min_diff)
@@ -536,7 +538,6 @@ def difficulty(c):
             difficulty2 = 70
 
     app_log.warning("Difficulty: {} {}".format(difficulty, difficulty2))
-
     # return (float(50), float(50)) #TEST ONLY
     return (float(difficulty), float(difficulty2))
 
