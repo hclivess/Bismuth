@@ -17,7 +17,7 @@ class Get:
             if "version=" in line:
                 self.version_conf = line.lstrip('version=')
             if "version_allow=" in line:
-                self.version_allow = line.lstrip('version_allow=').split()
+                self.version_allow = line.lstrip('version_allow=').split(",")
             if "thread_limit=" in line:
                 self.thread_limit_conf = int(line.lstrip('thread_limit='))
             if "rebuild_db=" in line:
@@ -68,3 +68,5 @@ class Get:
                 self.reveal_address = line.lstrip('reveal_address=')
             if "accept_peers=" in line:
                 self.accept_peers = line.lstrip('accept_peers=')
+            if "banlist=" in line:
+                self.banlist = line.lstrip('banlist=').split(",")

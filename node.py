@@ -19,8 +19,7 @@ from Crypto.Signature import PKCS1_v1_5
 
 # load config
 # global ban_threshold
-global banlist
-banlist = []
+
 global hdd_block
 
 dl_lock = threading.Lock()
@@ -61,6 +60,9 @@ version_allow = config.version_allow
 full_ledger = config.full_ledger_conf
 reveal_address=config.reveal_address
 accept_peers=config.accept_peers
+
+global banlist
+banlist=config.banlist
 
 def download_file(url, filename):
     try:
@@ -1017,7 +1019,7 @@ def manager(c, conn):
                         t.start()
                     # client thread handling
 
-        if len(connection_pool) < 1:
+        if len(connection_pool) < 1 and int(time.time() - startup_time) > 15: #do not reset before 30 secs have passed
             app_log.warning("Only {} connections active, resetting banlist".format(len(connection_pool)))
             del banlist[:]
             del warning_list[:]

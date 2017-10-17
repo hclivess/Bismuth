@@ -28,3 +28,4 @@ node_ip=127.0.0.1
 light_ip=66.70.181.150
 reveal_address=yes
 accept_peers=yes
+banlist=127.0.0.1,127.0.0.2
