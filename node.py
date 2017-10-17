@@ -471,7 +471,7 @@ def difficulty(c):
     execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
     diff_block_previous = float(c.fetchone()[0])
 
-    if "testnet" in version:
+    if "testnet" not in version:
         try:
             log = math.log2(blocks_per_1440 / 1440)
         except:
@@ -484,7 +484,7 @@ def difficulty(c):
 
         time_now = time.time()
 
-        if time_now > timestamp_last + 120:  # if 2 minutes passed
+        if time_now > timestamp_last + 300:  # if 5 minutes passed
             execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 5"))
             diff_5 = c.fetchall()[0]
             diff_lowest_5 = float(min(diff_5))
@@ -498,13 +498,24 @@ def difficulty(c):
         else:
             difficulty2 = difficulty
 
-        execute_param(c, ("SELECT cast(difficulty as INTEGER) FROM misc WHERE block_height >= ?"), (blocks_list_1440[0][0],))
+        execute_param(c, ("SELECT cast(difficulty as FLOAT) FROM misc WHERE block_height >= ?"), (blocks_list_1440[0][0],))
         try:
-            min_diff = statistics.mean(c.fetchall()[0])
+            diff_blocks_list_1440 = c.fetchall()
+            diff_blocks_list_1440 = [i[0] for i in diff_blocks_list_1440]
+
+            print(blocks_list_1440[0])
+            print(diff_blocks_list_1440)
+            print(blocks_list_1440)
+
+            min_diff = statistics.mean(diff_blocks_list_1440)
+
         except Exception as e:
             min_diff = 70
             print(e)
         print(min_diff)
+
+        time.sleep(10000)
+
 
         if difficulty < min_diff:
             difficulty = float('%.13f' % min_diff)
@@ -512,7 +523,7 @@ def difficulty(c):
 
         if difficulty2 < min_diff:
             difficulty2 = float('%.13f' % percentage(99, min_diff))
-            app_log.warning("Difficulty floor reached, difficulty readjusted to {}".format(min_diff))
+            app_log.warning("Difficulty floor reached, difficulty readjusted to {}".format(candidate))
 
     else:
         try:
@@ -1581,7 +1592,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 if data == 'version':
                     data = connections.receive(self.request, 10)
                     if data not in version_allow and version != "testnet":
-                        print(version)
                         app_log.warning("Protocol version mismatch: {}, should be {}".format(data, version_allow))
                         connections.send(self.request, "notok", 10)
                         return
