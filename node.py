@@ -1578,10 +1578,10 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                 app_log.info("Inbound: Received: {} from {}".format(data, peer_ip))  # will add custom ports later
 
-                if data == 'version_allow':
+                if data == 'version':
                     data = connections.receive(self.request, 10)
-                    if data not in version:
-                        app_log.warning("Protocol version mismatch: {}, should be {}".format(data, version))
+                    if data not in version_allow:
+                        app_log.warning("Protocol version mismatch: {}, should be {}".format(data, version_allow))
                         connections.send(self.request, "notok", 10)
                         return
                     else:
