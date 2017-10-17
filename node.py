@@ -484,7 +484,7 @@ def difficulty(c):
 
         time_now = time.time()
 
-        if time_now > timestamp_last + 300:  # if 5 minutes passed
+        if time_now > timestamp_last + 600:  # if 10 minutes passed
             execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 5"))
             diff_5 = c.fetchall()[0]
             diff_lowest_5 = float(min(diff_5))
