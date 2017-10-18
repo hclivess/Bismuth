@@ -485,7 +485,7 @@ def difficulty(c):
 
         time_now = time.time()
 
-        if time_now > timestamp_last + 600:  # if 20 minutes passed
+        if time_now > timestamp_last + 600:  # if 10 minutes passed
             execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 5"))
             diff_5 = c.fetchall()[0]
             diff_lowest_5 = float(min(diff_5))
@@ -495,7 +495,7 @@ def difficulty(c):
             else:
                 candidate = difficulty
 
-            difficulty2 = float('%.13f' % percentage(99, candidate))  # candidate -1%
+            difficulty2 = float('%.13f' % percentage(95, candidate))  # candidate -5%
         else:
             difficulty2 = difficulty
 
@@ -1185,12 +1185,18 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                 mining_hash = bin_convert(hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
 
+                if "testnet" in version:
+                    diff_drop_time = 600
+                else:
+                    diff_drop_time = 300
+
                 mining_condition = bin_convert(db_block_hash)[0:int(diff[0])]
                 if mining_condition in mining_hash:  # simplified comparison, no backwards mining
                     app_log.info("Difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
                     diff = diff[0]
 
-                elif time_now > db_timestamp_last + 300:  # simplify after merging fork
+
+                elif time_now > db_timestamp_last + diff_drop_time:  # simplify after merging fork
 
                     mining_condition = bin_convert(db_block_hash)[0:int(diff[1])]
                     if mining_condition in mining_hash:  # simplified comparison, no backwards mining
