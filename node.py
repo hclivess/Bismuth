@@ -472,7 +472,7 @@ def difficulty(c):
     execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
     diff_block_previous = float(c.fetchone()[0])
 
-    if "testnet" in version:
+    if "testnet" in version or block_height > 346000:
         try:
             log = math.log2(blocks_per_1440 / 1440)
         except:
@@ -511,13 +511,19 @@ def difficulty(c):
             min_diff = statistics.mean(diff_blocks_list_1440)
 
         except Exception as e:
-            min_diff = 70
+            min_diff = 90
             print(e)
         #print(min_diff)
 
         if difficulty < min_diff:
             difficulty = float('%.13f' % min_diff)
             app_log.warning("Difficulty floor reached, difficulty readjusted to {}".format(difficulty))
+
+        if difficulty < 90:
+            difficulty = 90
+
+        if difficulty2 < 90:
+            difficulty2 = 90
 
     else:
         try:
@@ -1185,7 +1191,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                 mining_hash = bin_convert(hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
 
-                if "testnet" in version:
+                if "testnet" in version or db_block_height > 346000:
                     diff_drop_time = 600
                 else:
                     diff_drop_time = 300
@@ -1196,7 +1202,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                     diff = diff[0]
 
 
-                elif time_now > db_timestamp_last + diff_drop_time:  # simplify after merging fork
+                elif time_now > db_timestamp_last + diff_drop_time:
 
                     mining_condition = bin_convert(db_block_hash)[0:int(diff[1])]
                     if mining_condition in mining_hash:  # simplified comparison, no backwards mining
@@ -2171,7 +2177,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     mempool.close()
                 if conn:
                     conn.close()
-
 
 # client thread
 # if you "return" from the function, the exception code will node be executed and client thread will hand
