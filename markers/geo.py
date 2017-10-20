@@ -3,7 +3,8 @@
 #set FLASK_DEBUG=1
 #flask run --host=0.0.0.0 --port=1111
 
-import requests, json, threading, ast
+
+import requests, json, threading, socks, connections
 from flask import Flask
 
 app = Flask(__name__)
@@ -13,35 +14,46 @@ sem = threading.Semaphore()
 with open('key.secret', 'r') as f: #get yours here: https://developers.google.com/maps/documentation/javascript/marker-clustering
     api_key = f.read()
 
-with open('ips.txt', 'r') as f:
-    ips = ast.literal_eval(f.read())
-
-markers = []
-
-with open('geo.json', 'w') as f:
-    for ip in ips:
-        getgeo = requests.request("GET","http://freegeoip.net/json/{}".format(ip))
-        response = json.loads(getgeo.text)
-        for k, v in response.items():
-            if k == "latitude":
-                markers.append("{{lat: {},".format(v))
-            if k == "longitude":
-                markers.append(" lng: {}}},\n".format(v))
-
-                #{lat: -31.563910, lng: 147.154312}
-
-print(''.join(markers))
-
-
-
-        #responses.append(response)
-
-#print (responses)
-
 
 @app.route('/')
 def main():
     sem.acquire()
+
+    # with open('ips.txt', 'r') as f:
+    #    ips = ast.literal_eval(f.read())
+
+    # get it from node in real time
+    s = socks.socksocket()
+    s.connect(("94.113.207.67", 5658))
+    connections.send(s, "statusget", 10)
+    response = connections.receive(s, 10)
+    s.close()
+
+    nodes_list = response[2]
+    ips = nodes_list
+
+    # get it from node in real time
+
+    markers = []
+    #lats=[]
+    #longs=[]
+
+    print("IPs:",ips)
+
+    with open('geo.json', 'w') as f:
+        for ip in ips:
+            getgeo = requests.request("GET", "http://freegeoip.net/json/{}".format(ip))
+            response = json.loads(getgeo.text)
+            try:
+                print(response).encode("utf-8")
+            except:
+                pass
+
+
+            markers.append("{{lat: {},".format(response["latitude"]))
+            markers.append(" lng: {}}},\n".format(response["longitude"]))
+
+
 
     html = []
     html.append("<!DOCTYPE html>\n")
