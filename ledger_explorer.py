@@ -1,7 +1,9 @@
-import sqlite3, time, options, random
+import sqlite3, time, options, random, threading
 from flask import Flask
 
 app = Flask(__name__)
+
+sem = threading.Semaphore()
 
 config = options.Get()
 config.read()
@@ -29,6 +31,7 @@ def execute(cursor, query):
 
 @app.route('/')
 def hello():
+    sem.acquire()
     # redraw chart
 
     #if full_ledger == 1:
@@ -212,4 +215,5 @@ def hello():
     html.append("</body>")
     html.append("</html>")
 
+    sem.release()
     return ''.join(html)
