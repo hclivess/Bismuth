@@ -2,7 +2,6 @@ import sqlite3, time, options, random, threading
 from flask import Flask
 
 app = Flask(__name__)
-
 sem = threading.Semaphore()
 
 config = options.Get()
