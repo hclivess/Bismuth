@@ -483,7 +483,7 @@ def difficulty(c):
 
     difficulty = float('%.13f' % (diff_block_previous + log))  # increase/decrease diff by a little
 
-    if int(block_height) > 350000:
+    if int(block_height) > 360000:
         # min diff
         execute_param(c, ("SELECT cast(difficulty as FLOAT) FROM misc WHERE block_height >= ?"), (blocks_list_1440[0][0],))
         try:
