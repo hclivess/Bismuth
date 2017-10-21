@@ -1199,10 +1199,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                 mining_hash = bin_convert(hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
 
-                if "testnet" in version or db_block_height > 346000:
-                    diff_drop_time = 600
-                else:
-                    diff_drop_time = 300
+                diff_drop_time = 600
 
                 mining_condition = bin_convert(db_block_hash)[0:int(diff[0])]
                 if mining_condition in mining_hash:  # simplified comparison, no backwards mining
