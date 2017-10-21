@@ -23,8 +23,10 @@ def main():
     #    ips = ast.literal_eval(f.read())
 
     # get it from node in real time
+
     s = socks.socksocket()
-    s.connect(("94.113.207.67", 5658))
+    s.settimeout(10)
+    s.connect(("127.0.0.1", 5658))
     connections.send(s, "statusget", 10)
     response = connections.receive(s, 10)
     s.close()
