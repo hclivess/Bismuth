@@ -2172,11 +2172,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 else:
                     return
 
-            finally:
-                if mempool:
-                    mempool.close()
-                if conn:
-                    conn.close()
 
 # client thread
 # if you "return" from the function, the exception code will node be executed and client thread will hand
