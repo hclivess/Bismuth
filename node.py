@@ -936,7 +936,7 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, backup, b):
             # delete followups
 
 
-def consensus_add(peer_ip, consensus_blockheight):
+def consensus_add(peer_ip, consensus_blockheight, sdef):
     try:
         global peer_ip_list
         global consensus_blockheight_list
@@ -967,6 +967,10 @@ def consensus_add(peer_ip, consensus_blockheight):
 
         consensus_percentage = (float(
             consensus_blockheight_list.count(consensus) / float(len(consensus_blockheight_list)))) * 100
+
+        if int(consensus_blockheight) > float(consensus) + 30 and float(consensus) > 50 and int(len(consensus_blockheight_list)) > 10:
+            if warning(sdef, peer_ip, "Consensus deviation too high", 10) == "banned":
+                raise ValueError("{} banned".format(peer_ip))
 
         # app_log.info("Current Outbound connections: {}".format(len(connection_pool)))
         # app_log.info("Current block consensus: {} = {}%".format(consensus,consensus_percentage))
@@ -1736,7 +1740,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                         # consensus pool 1 (connection from them)
                         consensus_blockheight = int(received_block_height)  # str int to remove leading zeros
-                        consensus_add(peer_ip, consensus_blockheight)
+                        consensus_add(peer_ip, consensus_blockheight, self.request)
                         # consensus pool 1 (connection from them)
 
 
@@ -2324,7 +2328,7 @@ def worker(HOST, PORT):
 
                         # consensus pool 2 (active connection)
                         consensus_blockheight = int(received_block_height)  # str int to remove leading zeros
-                        consensus_add(peer_ip, consensus_blockheight)
+                        consensus_add(peer_ip, consensus_blockheight, s)
                         # consensus pool 2 (active connection)
 
                         try:
@@ -2386,7 +2390,7 @@ def worker(HOST, PORT):
 
                         # consensus pool 2 (active connection)
                         consensus_blockheight = int(received_block_height)  # str int to remove leading zeros
-                        consensus_add(peer_ip, consensus_blockheight)
+                        consensus_add(peer_ip, consensus_blockheight, s)
                         # consensus pool 2 (active connection)
 
                 except Exception as e:
