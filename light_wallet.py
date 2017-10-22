@@ -124,14 +124,14 @@ def tokens_update():
     tokens_processed = []
 
     for x in results:
-        if x[1] not in tokens_processed:
+        if x[4].split(":")[2].lower.strip() not in tokens_processed:
             block_height = x[0]
             print("block_height", block_height)
 
             timestamp = x[1]
             print("timestamp", timestamp)
 
-            token = x[4].split(":")[2]
+            token = x[4].split(":")[2].lower.strip()
             tokens_processed.append(token)
             print("token", token)
 
@@ -159,8 +159,8 @@ def tokens_update():
 
     tokens_transferred = []
     for transfer in openfield_transfers:
-        if transfer[0].split(":")[2] not in tokens_transferred:
-            tokens_transferred.append(transfer[0].split(":")[2])
+        if transfer[0].split(":")[2].lower.strip() not in tokens_transferred:
+            tokens_transferred.append(transfer[0].split(":")[2].lower.strip())
 
     print("tokens_transferred",tokens_transferred)
 
