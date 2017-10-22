@@ -152,7 +152,19 @@ def tokens_update():
 
     # print all transfers of a given token
     # token = "worthless"
-    for token in tokens_processed:
+
+
+    c.execute("SELECT openfield FROM transactions WHERE openfield LIKE ? AND block_height > ? ORDER BY block_height ASC;", ("token:transfer" + '%',) + (token_last_block,))
+    openfield_transfers = c.fetchall()
+
+    tokens_transferred = []
+    for transfer in openfield_transfers:
+        if transfer[0].split(":")[2] not in tokens_transferred:
+            tokens_transferred.append(transfer[0].split(":")[2])
+
+    print("tokens_transferred",tokens_transferred)
+
+    for token in tokens_transferred:
         print("processing", token)
         c.execute("SELECT block_height, timestamp, address, recipient, openfield FROM transactions WHERE openfield LIKE ? AND block_height > ? ORDER BY block_height ASC;", ("token:transfer:" + token + ':%',) + (token_last_block,))
         results2 = c.fetchall()
@@ -232,7 +244,7 @@ def tokens():
 
     t.execute("SELECT DISTINCT token FROM transactions WHERE address OR recipient = ?", (address,))
     tokens_user = t.fetchall()
-    print (tokens_user)
+    print ("tokens_user",tokens_user)
 
     token_box = Listbox(tokens_main, width=100)
     token_box.grid(row=0, pady=0)

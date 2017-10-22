@@ -22,7 +22,7 @@ except:
 print("token_last_block", token_last_block)
 
 #print all token issuances
-c.execute("SELECT block_height, timestamp, address, recipient, openfield FROM transactions WHERE openfield LIKE ? AND block_height > ? ORDER BY block_height ASC;", ("token:issue" + '%',) + (token_last_block,))
+c.execute("SELECT block_height, timestamp, address, recipient, openfield FROM transactions WHERE openfield LIKE ? AND block_height > ? ORDER BY block_height ASC;", ("token:" + '%',) + (token_last_block,))
 results = c.fetchall()
 print (results)
 
