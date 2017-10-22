@@ -197,7 +197,7 @@ def tokens_update():
             balance_sender = credit_sender - debit_sender
             print("balance_sender", balance_sender)
 
-            if balance_sender - transfer_amount > 0 or transfer_amount < 0:
+            if balance_sender - transfer_amount >= 0 or transfer_amount < 0:
                 t.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?)", (block_height, timestamp, token, sender, recipient, transfer_amount))
             else:
                 print("invalid transaction by", sender)
@@ -207,15 +207,17 @@ def tokens_update():
 
     conn.close()
 
-def token_select_o(token, amount):
+def token_transfer(token, amount, window):
     openfield.delete('1.0', END)  # remove previous
     openfield.insert(INSERT, "token:transfer:{}:{}".format(token, amount))
+    window.destroy()
 
-def token_issue_o(token, amount):
+def token_issue(token, amount, window):
     openfield.delete('1.0', END)  # remove previous
     openfield.insert(INSERT, "token:issue:{}:{}".format(token, amount))
     recipient.delete(0, END)
     recipient.insert(INSERT, myaddress)
+    window.destroy()
 
 def tokens():
     tokens_update() #catch up with the chain
@@ -267,10 +269,10 @@ def tokens():
     token_amount = Entry(tokens_main, textvariable=token_amount_var)
     token_amount.grid(row=3, column=0, sticky=W + E, padx=15, pady=(5, 5))
 
-    cancel = Button(tokens_main, text="Select", command=lambda: token_select_o(token_name_var.get(), token_amount_var.get()))
+    cancel = Button(tokens_main, text="Transfer", command=lambda: token_transfer(token_name_var.get(), token_amount_var.get(), tokens_main))
     cancel.grid(row=4, column=0, sticky=W + E, padx=5)
 
-    cancel = Button(tokens_main, text="Issue", command=lambda: token_issue_o(token_name_var.get(), token_amount_var.get()))
+    cancel = Button(tokens_main, text="Issue", command=lambda: token_issue(token_name_var.get(), token_amount_var.get(), tokens_main))
     cancel.grid(row=5, column=0, sticky=W + E, padx=5)
 
     cancel = Button(tokens_main, text="Cancel", command=tokens_main.destroy)
