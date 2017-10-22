@@ -1,4 +1,5 @@
 # icons created using http://www.winterdrache.de/freeware/png2ico/
+import sqlite3
 import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, time, base64, connections, icons, log, socks, ast, options, math, tarfile, glob, essentials
 
 config = options.Get()
@@ -96,6 +97,184 @@ def all_spend():
 def fee_calculate(openfield_input, keep):
     fee = '%.8f' % float(0.01 + (float(len(openfield_input)) / 100000) + int(keep))  # 0.01 dust
     return fee
+
+def tokens_update():
+    conn = sqlite3.connect('static/ledger.db')
+    conn.text_factory = str
+    c = conn.cursor()
+
+    tok = sqlite3.connect('tokens.db')
+    tok.text_factory = str
+    t = tok.cursor()
+    t.execute("CREATE TABLE IF NOT EXISTS transactions (block_height INTEGER, timestamp, token, address, recipient, amount INTEGER)")
+    tok.commit()
+
+    t.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
+    try:
+        token_last_block = int(t.fetchone()[0])
+    except:
+        token_last_block = 0
+    print("token_last_block", token_last_block)
+
+    # print all token issuances
+    c.execute("SELECT block_height, timestamp, address, recipient, openfield FROM transactions WHERE openfield LIKE ? AND block_height > ? ORDER BY block_height ASC;", ("token:issue" + '%',) + (token_last_block,))
+    results = c.fetchall()
+    print(results)
+
+    tokens_processed = []
+
+    for x in results:
+        if x[1] not in tokens_processed:
+            block_height = x[0]
+            print("block_height", block_height)
+
+            timestamp = x[1]
+            print("timestamp", timestamp)
+
+            token = x[4].split(":")[2]
+            tokens_processed.append(token)
+            print("token", token)
+
+            issued_by = x[3]
+            print("issued_by", issued_by)
+
+            total = x[4].split(":")[3]
+            print("total", total)
+
+            t.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?)", (block_height, timestamp, token, "issued", issued_by, total))
+        else:
+            print("issuance already processed:", x[1])
+
+    tok.commit()
+    # print all token issuances
+
+    print("---")
+
+    # print all transfers of a given token
+    # token = "worthless"
+    for token in tokens_processed:
+        print("processing", token)
+        c.execute("SELECT block_height, timestamp, address, recipient, openfield FROM transactions WHERE openfield LIKE ? AND block_height > ? ORDER BY block_height ASC;", ("token:transfer:" + token + ':%',) + (token_last_block,))
+        results2 = c.fetchall()
+        print(results2)
+
+        for r in results2:
+            block_height = r[0]
+            print("block_height", block_height)
+
+            timestamp = r[1]
+            print("timestamp", timestamp)
+
+            token = r[4].split(":")[2]
+            print("token", token, "operation")
+
+            sender = r[2]
+            print("transfer_from", sender)
+
+            recipient = r[3]
+            print("transfer_to", recipient)
+
+            transfer_amount = int(r[4].split(":")[3])
+            print("transfer_amount", transfer_amount)
+
+            # calculate balances
+            t.execute("SELECT sum(amount) FROM transactions WHERE recipient = ? AND block_height < ? AND token = ?", (sender,) + (block_height,) + (token,))
+            try:
+                credit_sender = int(t.fetchone()[0])
+            except:
+                credit_sender = 0
+            print("credit_sender", credit_sender)
+
+            t.execute("SELECT sum(amount) FROM transactions WHERE address = ? AND block_height <= ? AND token = ?", (sender,) + (block_height,) + (token,))
+            try:
+                debit_sender = int(t.fetchone()[0])
+            except:
+                debit_sender = 0
+            print("debit_sender", debit_sender)
+            # calculate balances
+
+            # print all token transfers
+            balance_sender = credit_sender - debit_sender
+            print("balance_sender", balance_sender)
+
+            if balance_sender - transfer_amount > 0 or transfer_amount < 0:
+                t.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?)", (block_height, timestamp, token, sender, recipient, transfer_amount))
+            else:
+                print("invalid transaction by", sender)
+            print("---")
+
+        tok.commit()
+
+    conn.close()
+
+def token_select_o(token, amount):
+    openfield.delete('1.0', END)  # remove previous
+    openfield.insert(INSERT, "token:transfer:{}:{}".format(token, amount))
+
+def token_issue_o(token, amount):
+    openfield.delete('1.0', END)  # remove previous
+    openfield.insert(INSERT, "token:issue:{}:{}".format(token, amount))
+    recipient.delete(0, END)
+    recipient.insert(INSERT, myaddress)
+
+def tokens():
+    tokens_update() #catch up with the chain
+
+    address = gui_address.get()
+    tokens_main = Toplevel()
+    tokens_main.title("Tokens")
+
+    tok = sqlite3.connect('tokens.db')
+    tok.text_factory = str
+    t = tok.cursor()
+
+    t.execute("SELECT DISTINCT token FROM transactions WHERE address OR recipient = ?", (address,))
+    tokens_user = t.fetchall()
+    print (tokens_user)
+
+    token_box = Listbox(tokens_main, width=100)
+    token_box.grid(row=0, pady=0)
+
+
+    for token in tokens_user:
+        token = token[0]
+        t.execute("SELECT sum(amount) FROM transactions WHERE recipient = ? AND token = ?;", (address,)+(token,))
+        credit = t.fetchone()[0]
+        t.execute("SELECT sum(amount) FROM transactions WHERE address = ? AND token = ?;", (address,)+(token,))
+        debit = t.fetchone()[0]
+
+        debit = 0 if debit is None else debit
+        credit = 0 if credit is None else credit
+
+        balance = credit - debit
+
+        token_box.insert(END, (token,":", balance))
+#experiment
+    def callback(event):
+        token_select = (token_box.get(token_box.curselection()[0]))
+        token_name_var.set(token_select[0])
+        token_amount_var.set(token_select[2])
+
+    token_box.bind('<Double-1>', callback)
+
+# experiment
+
+    token_name_var = StringVar()
+    token_name = Entry(tokens_main, textvariable=token_name_var)
+    token_name.grid(row=2, column=0, sticky=W + E, padx=15, pady=(5, 5))
+
+    token_amount_var = StringVar()
+    token_amount = Entry(tokens_main, textvariable=token_amount_var)
+    token_amount.grid(row=3, column=0, sticky=W + E, padx=15, pady=(5, 5))
+
+    cancel = Button(tokens_main, text="Select", command=lambda: token_select_o(token_name_var.get(), token_amount_var.get()))
+    cancel.grid(row=4, column=0, sticky=W + E, padx=5)
+
+    cancel = Button(tokens_main, text="Issue", command=lambda: token_issue_o(token_name_var.get(), token_amount_var.get()))
+    cancel.grid(row=5, column=0, sticky=W + E, padx=5)
+
+    cancel = Button(tokens_main, text="Cancel", command=tokens_main.destroy)
+    cancel.grid(row=6, column=0, sticky=W + E, padx=5)
 
 def backup():
     root.filename = filedialog.asksaveasfilename(initialdir="/", title="Select backup file", filetypes=(("gzip", "*.gz"), ))
@@ -952,7 +1131,6 @@ f6 = Frame(root, height=100, width=100)
 f6.grid(row=2, column=0, sticky=E, pady=10, padx=10)
 # frames
 
-
 # buttons
 
 send_b = Button(f5, text="Send", command=lambda: send_confirm(str(amount.get()).strip(), recipient.get().strip(), str(keep_var.get()).strip(), (openfield.get("1.0", END)).strip()), height=1, width=10, font=("Tahoma", 8))
@@ -979,8 +1157,11 @@ alias_b.grid(row=12, column=0, sticky=W + E + S, pady=0, padx=15)
 backup_b = Button(f5, text="Backup Keys", command=backup, height=1, width=10, font=("Tahoma", 8))
 backup_b.grid(row=14, column=0, sticky=W + E + S, pady=0, padx=15)
 
+tokens_b = Button(f5, text="Tokens", command=tokens, height=1, width=10, font=("Tahoma", 8))
+tokens_b.grid(row=15, column=0, sticky=W + E + S, pady=0, padx=15)
+
 quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=10, font=("Tahoma", 8))
-quit_b.grid(row=15, column=0, sticky=W + E + S, pady=0, padx=15)
+quit_b.grid(row=16, column=0, sticky=W + E + S, pady=0, padx=15)
 
 encrypt_b = Button(f6, text="Encrypt", command=encrypt_get_password, height=1, width=10)
 if encrypted == 1:
@@ -1118,7 +1299,7 @@ msg.grid(row=4, column=1, sticky=W, padx=(240, 0))
 encr = Checkbutton(f3, text="Encrypt with PK", variable=encrypt_var)
 encr.grid(row=5, column=1, sticky=W, padx=(0, 0))
 
-resolve = Checkbutton(f3, text="Resolve Aliases", variable=resolve_var, command=lambda :refresh(gui_address.get(),s))
+resolve = Checkbutton(f3, text="Resolve Aliases", variable=resolve_var, command=lambda: refresh(gui_address.get(),s))
 resolve.grid(row=5, column=1, sticky=W, padx=(120, 0))
 
 alias_cb = Checkbutton(f3, text="Alias Recipient", variable=alias_cb_var, command=None)
