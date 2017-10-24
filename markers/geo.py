@@ -1,24 +1,16 @@
-#how to run:
-#set FLASK_APP=geo.py
-#set FLASK_DEBUG=1
-#flask run --host=0.0.0.0 --port=5493
+import requests, json, socks, connections
 
-
-import requests, json, threading, socks, connections
-from flask import Flask
-
-app = Flask(__name__)
-sem = threading.Semaphore()
-
+import tornado.ioloop
+import tornado.web
 
 with open('key.secret', 'r') as f: #get yours here: https://developers.google.com/maps/documentation/javascript/marker-clustering
     api_key = f.read()
 
 
-@app.route('/')
-def main():
-    sem.acquire()
-    try:
+class MainHandler(tornado.web.RequestHandler):
+    def get(self):
+
+
         s = socks.socksocket()
         s.settimeout(10)
         s.connect(("127.0.0.1", 5658))
@@ -110,10 +102,18 @@ def main():
         html.append("</body>\n")
         html.append("</html>\n")
 
-        return ''.join(html)
+        self.write(''.join(html))
 
-    except Exception:
-        raise
-    finally:
-        sem.release()
+def make_app():
+
+    return tornado.web.Application([
+        (r"/", MainHandler),
+        (r"/static/(.*)", tornado.web.StaticFileHandler, {"path": "static"}),
+    ])
+
+if __name__ == "__main__":
+    app = make_app()
+    app.listen(5493)
+    tornado.ioloop.IOLoop.current().start()
+
 
