@@ -65,6 +65,12 @@ nodes_ban_reset=config.nodes_ban_reset
 global banlist
 banlist=config.banlist
 
+def fee_calculate(openfield, keep):
+    fee = '%.8f' % float(0.01 + (float(len(openfield)) / 100000) + int(keep))  # 0.01 dust
+    if "token:issue:" in openfield:
+        fee = str(float(fee) + 10)
+    return fee
+
 def download_file(url, filename):
     try:
         r = requests.get(url, stream=True)
@@ -719,7 +725,8 @@ def mempool_merge(data, peer_ip, c, mempool, m):
                         balance_pre = float('%.8f' % (float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)))
                         # app_log.info("Mempool: Projected transction address balance: " + str(balance))
 
-                        fee = '%.8f' % float(0.01 + (float(len(mempool_openfield)) / 100000) + int(mempool_keep))  # 0.01 dust
+                        #fee = '%.8f' % float(0.01 + (float(len(mempool_openfield)) / 100000) + int(mempool_keep))  # 0.01 dust
+                        fee = fee_calculate(mempool_openfield, mempool_keep)
 
                         time_now = time.time()
                         if float(mempool_timestamp) > float(time_now) + 30:
@@ -1306,7 +1313,8 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         balance = float('%.8f' % (float(credit) - float(debit) - float(fees) + float(rewards)))
                         # app_log.info("Digest: Projected transction address balance: " + str(balance))
 
-                        fee = '%.8f' % float(0.01 + (float(len(db_openfield)) / 100000) + int(db_keep))  # 0.01 dust
+                        fee = fee_calculate(db_openfield, db_keep)
+                        #fee = '%.8f' % float(0.01 + (float(len(db_openfield)) / 100000) + int(db_keep))  # 0.01 dust
 
                         fees_block.append(float(fee))
                         # app_log.info("Fee: " + str(fee))
