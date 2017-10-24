@@ -1,8 +1,7 @@
-import sqlite3, time, options, random, threading
-from flask import Flask
+import sqlite3, time, options, random
 
-app = Flask(__name__)
-sem = threading.Semaphore()
+import tornado.ioloop
+import tornado.web
 
 config = options.Get()
 config.read()
@@ -28,10 +27,8 @@ def execute(cursor, query):
             time.sleep(random.uniform(1, 3))
     return cursor
 
-@app.route('/')
-def main():
-    sem.acquire()
-    try:
+class MainHandler(tornado.web.RequestHandler):
+    def get(self):
         # redraw chart
 
         #if full_ledger == 1:
@@ -215,9 +212,18 @@ def main():
         html.append("</body>")
         html.append("</html>")
 
-        return ''.join(html)
+        self.write(''.join(html))
+        #self.render("ex.html", data=data)
 
-    except:
-        raise
-    finally:
-        sem.release()
+def make_app():
+
+    return tornado.web.Application([
+        (r"/", MainHandler),
+        (r"/static/(.*)", tornado.web.StaticFileHandler, {"path": "static"}),
+    ])
+
+
+if __name__ == "__main__":
+    app = make_app()
+    app.listen(5492)
+    tornado.ioloop.IOLoop.current().start()
