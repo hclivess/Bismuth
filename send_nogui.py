@@ -81,12 +81,12 @@ except IndexError:
     keep_input = 0
 
 try:
-    open_field = sys.argv[4]
+    openfield_input = sys.argv[4]
 except IndexError:
-    open_field = input("Enter openfield data (message): ")
+    openfield_input = input("Enter openfield data (message): ")
 
 # hardfork fee display
-fee = '%.8f' % float(0.01 + (float(len(open_field)) / 100000) + int(keep_input))  # 0.01 dust
+fee = '%.8f' % float(0.01 + (float(len(openfield_input)) / 100000) + int(keep_input))  # 0.01 dust
 print("Fee: %s" % fee)
 
 confirm = input("Confirm (y/n): ")
