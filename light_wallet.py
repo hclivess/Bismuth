@@ -189,7 +189,12 @@ def tokens_update():
             recipient = r[3]
             print("transfer_to", recipient)
 
-            transfer_amount = int(r[4].split(":")[3])
+            try:
+                print (r[4])
+                transfer_amount = int(r[4].split(":")[3])
+            except:
+                transfer_amount = 0
+
             print("transfer_amount", transfer_amount)
 
             # calculate balances
