@@ -1,12 +1,18 @@
 # icons created using http://www.winterdrache.de/freeware/png2ico/
-import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, sqlite3, time, base64, connections, icons, log, socks, ast, options, math, tarfile, glob, essentials
+import sqlite3
+import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, time, base64, connections, icons, log, socks, ast, options, tarfile, glob, essentials
 
 config = options.Get()
 config.read()
 debug_level = config.debug_level_conf
 full_ledger = config.full_ledger_conf
 port = config.port
-node_ip_conf = config.node_ip_conf
+light_ip = config.light_ip_conf
+version = config.version_conf
+
+if "testnet" in version:
+    port = 2829
+    light_ip = "127.0.0.1"
 
 from datetime import datetime
 from Crypto.PublicKey import RSA
@@ -23,39 +29,275 @@ global key
 global encrypted
 global unlocked
 
-# for local evaluation
-if full_ledger == 1:
-    conn = sqlite3.connect('static/ledger.db')
-else:
-    conn = sqlite3.connect('static/hyper.db')
-conn.text_factory = str
-global c
-c = conn.cursor()
-
-if full_ledger == 1:
-    conn2 = sqlite3.connect('static/ledger.db')
-else:
-    conn2 = sqlite3.connect('static/hyper.db')
-conn2.text_factory = str
-global c2
-c2 = conn.cursor()
-
 app_log = log.log("gui.log", debug_level)
 
 essentials.keys_check(app_log)
 essentials.db_check(app_log)
 
-mempool = sqlite3.connect('mempool.db', timeout=1)
-mempool.text_factory = str
-m = mempool.cursor()
-
 # for local evaluation
 
 root = Tk()
-root.wm_title("Bismuth")
+root.wm_title("Bismuth Light Wallet running on {}".format(light_ip))
+
+def alias_register(alias_desired):
+    connections.send(s, "aliascheck", 10)
+    connections.send(s, alias_desired, 10)
+
+    result = connections.receive(s, 10)
+
+
+    if result == "Alias free":
+        send("0", myaddress, "1", "alias="+alias_desired)
+        pass
+    else:
+        top9 = Toplevel()
+        top9.title("Name already registered")
+
+        registered_label = Label(top9, text="Name already registered")
+        registered_label.grid(row=0, column=0, sticky=N + W, padx=15, pady=(5, 0))
+        dismiss = Button(top9, text="Dismiss", command=top9.destroy)
+        dismiss.grid(row=3, column=0, sticky=W + E, padx=15, pady=(5, 5))
+
 
 def help():
-    pass
+    top13 = Toplevel()
+    top13.title("Help")
+    aliases_box = Text(top13, width=100)
+    aliases_box.grid(row=0, pady=0)
+
+    aliases_box.insert(INSERT, "Encrypt with PK:\n Encrypt the data with the recipient's private key. Only they will be able to view it.")
+    aliases_box.insert(INSERT, "\n\n")
+    aliases_box.insert(INSERT, "Mark as Message:\n Mark data as message. The recipient will be able to view it in the message section.")
+    aliases_box.insert(INSERT,"\n\n")
+    aliases_box.insert(INSERT, "Base64 Encoding:\n Encode the data with base64, it is a group of binary-to-text encoding scheme that representd binary data in an ASCII string format by translating it into a radix-64 representation.")
+    aliases_box.insert(INSERT, "\n\n")
+    aliases_box.insert(INSERT, "Permanent:\n Keep entry in the blockchain forever, resisting hyperblock compression on nodes not running the full ledger.")
+    aliases_box.insert(INSERT, "\n\n")
+    aliases_box.insert(INSERT, "Alias Recipient:\n Use an alias of the recipient in the recipient field if they have one registered")
+    aliases_box.insert(INSERT, "\n\n")
+    aliases_box.insert(INSERT, "Resolve Aliases:\n Show aliases instead of addressess where applicable in the table below.")
+    aliases_box.insert(INSERT, "\n\n")
+
+    close = Button(top13, text="Close", command=top13.destroy)
+    close.grid(row=3, column=0, sticky=W + E, padx=15, pady=(5, 5))
+
+def data_insert_clear():
+    openfield.delete('1.0', END)  # remove previous
+
+def all_spend_clear():
+    amount.delete(0, END)
+    amount.insert(0,0)
+
+def all_spend():
+    fee_from_all = fee_calculate(openfield.get("1.0", END).strip(),keep_var.get())
+    amount.delete(0, END)
+    amount.insert(0,'%.8f' % (float(balance_raw.get()) - float(fee_from_all)))
+
+
+def fee_calculate(openfield, keep):
+
+    fee = '%.8f' % float(0.01 + (float(len(openfield)) / 100000) + int(keep))  # 0.01 dust
+    if "token:issue:" in openfield:
+        fee = str(float(fee) + 10)
+    return fee
+
+def tokens_update():
+    conn = sqlite3.connect('static/ledger.db')
+    conn.text_factory = str
+    c = conn.cursor()
+
+    tok = sqlite3.connect('tokens.db')
+    tok.text_factory = str
+    t = tok.cursor()
+    t.execute("CREATE TABLE IF NOT EXISTS transactions (block_height INTEGER, timestamp, token, address, recipient, amount INTEGER)")
+    tok.commit()
+
+    t.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
+    try:
+        token_last_block = int(t.fetchone()[0])
+    except:
+        token_last_block = 0
+    print("token_last_block", token_last_block)
+
+    # print all token issuances
+    c.execute("SELECT block_height, timestamp, address, recipient, openfield FROM transactions WHERE openfield LIKE ? AND block_height > ? ORDER BY block_height ASC;", ("token:issue" + '%',) + (token_last_block,))
+    results = c.fetchall()
+    print(results)
+
+    tokens_processed = []
+
+    for x in results:
+        if x[4].split(":")[2].lower().strip() not in tokens_processed:
+            block_height = x[0]
+            print("block_height", block_height)
+
+            timestamp = x[1]
+            print("timestamp", timestamp)
+
+            token = x[4].split(":")[2].lower().strip()
+            tokens_processed.append(token)
+            print("token", token)
+
+            issued_by = x[3]
+            print("issued_by", issued_by)
+
+            total = x[4].split(":")[3]
+            print("total", total)
+
+            t.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?)", (block_height, timestamp, token, "issued", issued_by, total))
+        else:
+            print("issuance already processed:", x[1])
+
+    tok.commit()
+    # print all token issuances
+
+    print("---")
+
+    # print all transfers of a given token
+    # token = "worthless"
+
+
+    c.execute("SELECT openfield FROM transactions WHERE openfield LIKE ? AND block_height > ? ORDER BY block_height ASC;", ("token:transfer" + '%',) + (token_last_block,))
+    openfield_transfers = c.fetchall()
+
+    tokens_transferred = []
+    for transfer in openfield_transfers:
+        if transfer[0].split(":")[2].lower().strip() not in tokens_transferred:
+            tokens_transferred.append(transfer[0].split(":")[2].lower().strip())
+
+    print("tokens_transferred",tokens_transferred)
+
+    for token in tokens_transferred:
+        print("processing", token)
+        c.execute("SELECT block_height, timestamp, address, recipient, openfield FROM transactions WHERE openfield LIKE ? AND block_height > ? ORDER BY block_height ASC;", ("token:transfer:" + token + ':%',) + (token_last_block,))
+        results2 = c.fetchall()
+        print(results2)
+
+        for r in results2:
+            block_height = r[0]
+            print("block_height", block_height)
+
+            timestamp = r[1]
+            print("timestamp", timestamp)
+
+            token = r[4].split(":")[2]
+            print("token", token, "operation")
+
+            sender = r[2]
+            print("transfer_from", sender)
+
+            recipient = r[3]
+            print("transfer_to", recipient)
+
+            try:
+                print (r[4])
+                transfer_amount = int(r[4].split(":")[3])
+            except:
+                transfer_amount = 0
+
+            print("transfer_amount", transfer_amount)
+
+            # calculate balances
+            t.execute("SELECT sum(amount) FROM transactions WHERE recipient = ? AND block_height < ? AND token = ?", (sender,) + (block_height,) + (token,))
+            try:
+                credit_sender = int(t.fetchone()[0])
+            except:
+                credit_sender = 0
+            print("credit_sender", credit_sender)
+
+            t.execute("SELECT sum(amount) FROM transactions WHERE address = ? AND block_height <= ? AND token = ?", (sender,) + (block_height,) + (token,))
+            try:
+                debit_sender = int(t.fetchone()[0])
+            except:
+                debit_sender = 0
+            print("debit_sender", debit_sender)
+            # calculate balances
+
+            # print all token transfers
+            balance_sender = credit_sender - debit_sender
+            print("balance_sender", balance_sender)
+
+            if balance_sender - transfer_amount >= 0 or transfer_amount < 0:
+                t.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?)", (block_height, timestamp, token, sender, recipient, transfer_amount))
+            else:
+                print("invalid transaction by", sender)
+            print("---")
+
+        tok.commit()
+
+    conn.close()
+
+def token_transfer(token, amount, window):
+    openfield.delete('1.0', END)  # remove previous
+    openfield.insert(INSERT, "token:transfer:{}:{}".format(token, amount))
+    window.destroy()
+
+def token_issue(token, amount, window):
+    openfield.delete('1.0', END)  # remove previous
+    openfield.insert(INSERT, "token:issue:{}:{}".format(token, amount))
+    recipient.delete(0, END)
+    recipient.insert(INSERT, myaddress)
+    window.destroy()
+
+def tokens():
+    tokens_update() #catch up with the chain
+
+    address = gui_address.get()
+    tokens_main = Toplevel()
+    tokens_main.title("Tokens")
+
+    tok = sqlite3.connect('tokens.db')
+    tok.text_factory = str
+    t = tok.cursor()
+
+    t.execute("SELECT DISTINCT token FROM transactions WHERE address OR recipient = ?", (address,))
+    tokens_user = t.fetchall()
+    print ("tokens_user",tokens_user)
+
+    token_box = Listbox(tokens_main, width=100)
+    token_box.grid(row=0, pady=0)
+
+
+    for token in tokens_user:
+        token = token[0]
+        t.execute("SELECT sum(amount) FROM transactions WHERE recipient = ? AND token = ?;", (address,)+(token,))
+        credit = t.fetchone()[0]
+        t.execute("SELECT sum(amount) FROM transactions WHERE address = ? AND token = ?;", (address,)+(token,))
+        debit = t.fetchone()[0]
+
+        debit = 0 if debit is None else debit
+        credit = 0 if credit is None else credit
+
+        balance = credit - debit
+
+        token_box.insert(END, (token,":", balance))
+    # callback
+    def callback(event):
+        token_select = (token_box.get(token_box.curselection()[0]))
+        token_name_var.set(token_select[0])
+        token_amount_var.set(token_select[2])
+
+    token_box.bind('<Double-1>', callback)
+
+    # callback
+
+    token_name_var = StringVar()
+    token_name = Entry(tokens_main, textvariable=token_name_var)
+    token_name.grid(row=2, column=0, sticky=W + E, padx=15, pady=(5, 5))
+
+    token_amount_var = StringVar()
+    token_amount = Entry(tokens_main, textvariable=token_amount_var)
+    token_amount.grid(row=3, column=0, sticky=W + E, padx=15, pady=(5, 5))
+
+    transfer = Button(tokens_main, text="Transfer", command=lambda: token_transfer(token_name_var.get(), token_amount_var.get(), tokens_main))
+    transfer.grid(row=4, column=0, sticky=W + E, padx=5)
+
+    issue = Button(tokens_main, text="Issue", command=lambda: token_issue(token_name_var.get(), token_amount_var.get(), tokens_main))
+    issue.grid(row=5, column=0, sticky=W + E, padx=5)
+    issue.configure(text="Issuing disabled temporarily", state=DISABLED)
+
+    cancel = Button(tokens_main, text="Cancel", command=tokens_main.destroy)
+    cancel.grid(row=6, column=0, sticky=W + E, padx=5)
 
 def backup():
     root.filename = filedialog.asksaveasfilename(initialdir="/", title="Select backup file", filetypes=(("gzip", "*.gz"), ))
@@ -71,6 +313,15 @@ def backup():
             tar.add(der_file, arcname=der_file)
         tar.close()
 
+def watch():
+    address = gui_address.get()
+    refresh(address,s)
+
+def unwatch():
+    gui_address.delete(0,END)
+    gui_address.insert(INSERT,myaddress)
+    refresh(myaddress,s)
+
 def aliases_list():
 
     top12 = Toplevel()
@@ -78,110 +329,43 @@ def aliases_list():
     aliases_box = Text(top12, width=100)
     aliases_box.grid(row=0, pady=0)
 
-    for row in c.execute("SELECT openfield FROM transactions WHERE address = ? AND openfield LIKE ?;", (address,) + ("alias=" + '%',)):
-        aliases_box.insert(INSERT, row[0].lstrip("alias="))
+    connections.send(s, "aliasget", 10)
+    connections.send(s, myaddress, 10)
+
+    aliases_self = connections.receive(s, 10)
+
+    for x in aliases_self:
+        aliases_box.insert(INSERT, x[0].lstrip("alias="))
         aliases_box.insert(INSERT,"\n")
 
     close = Button(top12, text="Close", command=top12.destroy)
     close.grid(row=3, column=0, sticky=W + E, padx=15, pady=(5, 5))
 
-def address_insert():
+def recipient_insert():
     recipient.delete(0,END)
     recipient.insert(0,root.clipboard_get())
 
+def address_insert():
+    gui_address.delete(0,END)
+    gui_address.insert(0,root.clipboard_get())
+
+def data_insert():
+    openfield.delete('1.0', END)  # remove previous
+    openfield.insert(INSERT, root.clipboard_get())
+
 def address_copy():
     root.clipboard_clear()
-    root.clipboard_append(address)
+    root.clipboard_append(myaddress)
+
+def recipient_copy():
+    root.clipboard_clear()
+    root.clipboard_append(recipient.get())
 
 def percentage(percent, whole):
     return float((percent * whole) / 100)
 
-def execute(cursor, what):
-    # secure execute for slow nodes
-    passed = 0
-    while passed == 0:
-        try:
-            # print cursor
-            # print what
-
-            cursor.execute(what)
-            passed = 1
-        except Exception as e:
-            app_log.warning("Retrying database execute due to {}".format(e))
-            time.sleep(random.random())
-            pass
-            # secure execute for slow nodes
-    return cursor
-
-
-def execute_param(cursor, what, param):
-    # secure execute for slow nodes
-    passed = 0
-    while passed == 0:
-        try:
-            # print cursor
-            # print what
-            cursor.execute(what, param)
-            passed = 1
-        except Exception as e:
-            app_log.warning("Retrying database execute due to " + str(e))
-            time.sleep(0.1)
-            pass
-            # secure execute for slow nodes
-    return cursor
-
 def bin_convert(string):
     return ''.join(format(ord(x), '8b').replace(' ', '0') for x in string)
-
-def difficulty(c):
-    execute(c, "SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1")
-    result = c.fetchall()[0]
-    timestamp_last = float(result[1])
-    block_height = int(result[0])
-
-    execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0"), (timestamp_last - 86400,))  # 86400=24h
-    blocks_per_1440 = len(c.fetchall())
-    app_log.warning("Blocks per day: {}".format(blocks_per_1440))
-
-    execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
-
-    diff_block_previous = float(c.fetchone()[0])
-
-    try:
-        log = math.log2(blocks_per_1440 / 1440)
-    except:
-        log = math.log2(0.5 / 1440)
-    app_log.info("Difficulty retargeting: {}".format(log))
-
-    difficulty = float('%.13f' % (diff_block_previous + log))  # increase/decrease diff by a little
-    # difficulty = float('%.3f' % (diff_block_previous + float(log)))  # increase/decrease diff by a little
-
-    time_now = time.time()
-
-    if time_now > timestamp_last + 120:  # if 2 minutes passed
-        execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 5"))
-        diff_5 = c.fetchall()[0]
-        diff_lowest_5 = float(min(diff_5))
-
-        if diff_lowest_5 < difficulty:
-            candidate = diff_lowest_5 #if lowest of last 5 is lower than calculated diff
-        else:
-            candidate = difficulty
-
-        difficulty2 = float('%.13f' % percentage(99, candidate)) #candidate -1%
-    else:
-        difficulty2 = difficulty
-
-    if difficulty < 70:
-        difficulty = 70
-
-    if difficulty2 < 70:
-        difficulty2 = 70
-
-    app_log.warning("Difficulty: {} {}".format(difficulty, difficulty2))
-
-    # return (float(50), float(50)) #TEST ONLY
-    return (float(difficulty), float(difficulty2))
 
 def alias():
     alias_var = StringVar()
@@ -201,36 +385,6 @@ def alias():
 
     dismiss = Button(top8, text="Dismiss", command=top8.destroy)
     dismiss.grid(row=3, column=0, sticky=W + E, padx=15, pady=(5, 5))
-
-
-def alias_register(alias_desired):
-    reg_string = "alias=" + alias_desired
-
-    if full_ledger == 1:
-        conn = sqlite3.connect('static/ledger.db')
-    else:
-        conn = sqlite3.connect('static/hyper.db')
-    conn.text_factory = str
-    c = conn.cursor()
-
-    m.execute("SELECT timestamp FROM transactions WHERE openfield = ?;", (reg_string,))
-    registered_pending = m.fetchone()
-
-    c.execute("SELECT timestamp FROM transactions WHERE openfield = ?;", (reg_string,))
-    registered_already = c.fetchone()
-
-    if registered_already == None and registered_pending == None:
-        alias_cb_var.set(0)
-        send_confirm("0", address, "1", reg_string)
-
-    else:
-        top9 = Toplevel()
-        top9.title("Name already registered")
-
-        registered_label = Label(top9, text="Name already registered")
-        registered_label.grid(row=0, column=0, sticky=N + W, padx=15, pady=(5, 0))
-        dismiss = Button(top9, text="Dismiss", command=top9.destroy)
-        dismiss.grid(row=3, column=0, sticky=W + E, padx=15, pady=(5, 5))
 
 
 def encrypt_get_password():
@@ -339,8 +493,10 @@ def send_confirm(amount_input, recipient_input, keep_input, openfield_input):
     # encr check
     if encrypt_var.get() == 1:
         #get recipient's public key
-        c.execute("SELECT public_key FROM transactions WHERE address = ? and reward = 0",(recipient_input,))
-        target_public_key_hashed = c.fetchone()[0]
+
+        connections.send(s, "pubkeyget", 10)
+        connections.send(s, recipient_input, 10)
+        target_public_key_hashed = connections.receive(s, 10)
 
         recipient_key = RSA.importKey(base64.b64decode(target_public_key_hashed).decode("utf-8"))
 
@@ -377,21 +533,24 @@ def send_confirm(amount_input, recipient_input, keep_input, openfield_input):
     if encrypt_var.get() == 1:
         openfield_input = "enc=" + str(openfield_input)
 
-    fee = '%.8f' % float(0.01 + (float(len(openfield_input)) / 100000) + int(keep_var.get()))  # 0.01 dust
+    fee = fee_calculate(openfield_input, keep_var.get())
 
     confirmation_dialog = Text(top10, width=100)
-    confirmation_dialog.insert(INSERT, ("Amount: {}\nTo: {}\nFee: {}\nKeep Entry: {}\nOpenField:\n\n{}".format(amount_input, recipient_input, fee, keep_input, openfield_input)))
+    confirmation_dialog.insert(INSERT, ("Amount: {}\nFee: {}\nTotal: {}\nTo: {}\nKeep Entry: {}\nOpenField:\n\n{}".format(amount_input, fee, '%.8f' % (float(amount_input)+float(fee)), recipient_input, keep_input, openfield_input)))
 
     confirmation_dialog.grid(row=0, pady=0)
 
-    enter = Button(top10, text="Confirm", command=lambda: send(amount_input, recipient_input, keep_input, openfield_input, top10, fee))
+    enter = Button(top10, text="Confirm", command=lambda: send_confirmed(amount_input, recipient_input, keep_input, openfield_input, top10))
     enter.grid(row=1, column=0, sticky=W + E, padx=15, pady=(5, 5))
 
     done = Button(top10, text="Cancel", command=top10.destroy)
     done.grid(row=2, column=0, sticky=W + E, padx=15, pady=(5, 5))
 
+def send_confirmed(amount_input, recipient_input, keep_input, openfield_input, top10):
+    send(amount_input, recipient_input, keep_input, openfield_input)
+    top10.destroy()
 
-def send(amount_input, recipient_input, keep_input, openfield_input, top10, fee):
+def send(amount_input, recipient_input, keep_input, openfield_input):
     try:
         key
     except:
@@ -415,10 +574,7 @@ def send(amount_input, recipient_input, keep_input, openfield_input, top10, fee)
         done.grid(row=1, column=0, sticky=W + E, padx=15, pady=(5, 5))
 
     # alias check
-    if alias_cb_var.get() == 1:
-        c.execute("SELECT address FROM transactions WHERE openfield = ? ORDER BY block_height ASC, timestamp ASC LIMIT 1;", ("alias=" + recipient_input,))  # asc for first entry
-        recipient_input = c.fetchone()[0]
-        app_log.warning("Fetched the following alias recipient: {}".format(recipient_input))
+
     # alias check
 
     if len(recipient_input) != 56:
@@ -435,7 +591,7 @@ def send(amount_input, recipient_input, keep_input, openfield_input, top10, fee)
         app_log.warning("OpenField Data: {}".format(openfield_input))
 
         timestamp = '%.2f' % time.time()
-        transaction = (str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input), str(keep_input), str(openfield_input))  # this is signed
+        transaction = (str(timestamp), str(myaddress), str(recipient_input), '%.8f' % float(amount_input), str(keep_input), str(openfield_input))  # this is signed
 
         h = SHA.new(str(transaction).encode("utf-8"))
         signer = PKCS1_v1_5.new(key)
@@ -445,6 +601,8 @@ def send(amount_input, recipient_input, keep_input, openfield_input, top10, fee)
 
         verifier = PKCS1_v1_5.new(key)
         if verifier.verify(h, signature) == True:
+            fee = fee_calculate(openfield_input, keep_var.get())
+
             if float(amount_input) < 0:
                 app_log.warning("Client: Signature OK, but cannot use negative amounts")
 
@@ -455,29 +613,25 @@ def send(amount_input, recipient_input, keep_input, openfield_input, top10, fee)
                 app_log.warning("Client: The signature is valid, proceeding to save transaction, signature, new txhash and the public key to mempool")
 
                 # print(str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input),str(signature_enc), str(public_key_hashed), str(keep_input), str(openfield_input))
-                m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input), str(signature_enc.decode("utf-8")), str(public_key_hashed.decode("utf-8")), str(keep_input), str(openfield_input)))
-                mempool.commit()  # Save (commit) the changes
-                app_log.warning("Client: Mempool updated with a received transaction")
-                # refresh() experimentally disabled
+                tx_submit = (str(timestamp), str(myaddress), str(recipient_input), '%.8f' % float(amount_input), str(signature_enc.decode("utf-8")), str(public_key_hashed.decode("utf-8")), str(keep_input), str(openfield_input))
+
+                while True:
+                    connections.send(s, "mpinsert", 10)
+                    connections.send(s, [tx_submit], 10)  # change address here to view other people's transactions
+                    reply = connections.receive(s, 10)
+                    app_log.warning("Client: {}".format(reply))
+                    break
         else:
             app_log.warning("Client: Invalid signature")
         # enter transaction end
 
-        top10.destroy()
-        # refresh() experimentally disabled
+
+#def app_quit():
+#    app_log.warning("Received quit command")
+#    root.destroy()
 
 
-def app_quit():
-    if conn:
-        conn.close()
-    if mempool:
-        mempool.close()
-
-    app_log.warning("Received quit command")
-    root.destroy()
-
-
-def qr():
+def qr(address):
     address_qr = pyqrcode.create(address)
     address_qr.png('address_qr.png')
 
@@ -501,124 +655,126 @@ def qr():
     # popup
 
 
-def msg_dialogue():
-    def msg_received_get():
+def msg_dialogue(address):
+    connections.send(s, "addlist", 10)
+    connections.send(s, myaddress, 10)
+    addlist = connections.receive(s, 10)
+    print(addlist)
 
-        for row in c.execute("SELECT address,openfield,timestamp FROM transactions WHERE recipient = ? AND (openfield LIKE ? OR openfield LIKE ? OR openfield LIKE ? OR openfield LIKE ?) ORDER BY timestamp DESC;", (address,) + ("msg=" + '%',) + ("bmsg=" + '%',) + ("enc=msg=" + '%',) + ("enc=bmsg=" + '%',)):
-
-            # get alias
-            try:
-                c2.execute("SELECT openfield FROM transactions WHERE openfield LIKE ? AND address = ? ORDER BY block_height ASC, timestamp ASC LIMIT 1;", ("alias=" + '%', row[0],))  # asc for first entry
-                msg_address = c2.fetchone()[0]
-            # get alias
-            except:
-                msg_address = row[0]
+    def msg_received_get(addlist):
 
 
-            if row[1].startswith("enc=msg="):
-                msg_received_digest = row[1].lstrip("enc=msg=")
-                try:
-                    #msg_received_digest = key.decrypt(ast.literal_eval(msg_received_digest)).decode("utf-8")
+        for x in addlist:
+             if x[11].startswith(("msg=", "bmsg=", "enc=msg=", "enc=bmsg=")) and x[3] == address:
+                #print(x[11])
 
-                    (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval(msg_received_digest)
-                    private_key = RSA.import_key(open("privkey.der").read())
-                    # Decrypt the session key with the public RSA key
-                    cipher_rsa = PKCS1_OAEP.new(private_key)
-                    session_key = cipher_rsa.decrypt(enc_session_key)
-                    # Decrypt the data with the AES session key
-                    cipher_aes = AES.new(session_key, AES.MODE_EAX, cipher_aes_nonce)
-                    msg_received_digest = cipher_aes.decrypt_and_verify(ciphertext, tag).decode("utf-8")
+                connections.send(s, "aliasget", 10)
+                connections.send(s, x[2], 10)
 
-                except:
-                    msg_received_digest = "Could not decrypt message"
+                msg_address = connections.receive(s,10)[0][0]
 
-            elif row[1].startswith("enc=bmsg="):
-                msg_received_digest = row[1].lstrip("enc=bmsg=")
-                try:
-                    msg_received_digest = base64.b64decode(msg_received_digest).decode("utf-8")
+                if x[11].startswith("enc=msg="):
+                    msg_received_digest = x[11].lstrip("enc=msg=")
+                    try:
+                        #msg_received_digest = key.decrypt(ast.literal_eval(msg_received_digest)).decode("utf-8")
 
-                    #msg_received_digest = key.decrypt(ast.literal_eval(msg_received_digest)).decode("utf-8")
-                    (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval(msg_received_digest)
-                    private_key = RSA.import_key(open("privkey.der").read())
-                    # Decrypt the session key with the public RSA key
-                    cipher_rsa = PKCS1_OAEP.new(private_key)
-                    session_key = cipher_rsa.decrypt(enc_session_key)
-                    # Decrypt the data with the AES session key
-                    cipher_aes = AES.new(session_key, AES.MODE_EAX, cipher_aes_nonce)
-                    msg_received_digest = cipher_aes.decrypt_and_verify(ciphertext, tag).decode("utf-8")
+                        (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval(msg_received_digest)
+                        private_key = RSA.import_key(open("privkey.der").read())
+                        # Decrypt the session key with the public RSA key
+                        cipher_rsa = PKCS1_OAEP.new(private_key)
+                        session_key = cipher_rsa.decrypt(enc_session_key)
+                        # Decrypt the data with the AES session key
+                        cipher_aes = AES.new(session_key, AES.MODE_EAX, cipher_aes_nonce)
+                        msg_received_digest = cipher_aes.decrypt_and_verify(ciphertext, tag).decode("utf-8")
 
-                except:
-                    msg_received_digest = "Could not decrypt message"
+                    except:
+                        msg_received_digest = "Could not decrypt message"
 
+                elif x[11].startswith("enc=bmsg="):
+                    msg_received_digest = x[11].lstrip("enc=bmsg=")
+                    try:
+                        msg_received_digest = base64.b64decode(msg_received_digest).decode("utf-8")
 
-            elif row[1].startswith("bmsg="):
-                msg_received_digest = row[1].lstrip("bmsg=")
-                try:
-                    msg_received_digest = base64.b64decode(msg_received_digest).decode("utf-8")
-                except:
-                    msg_received_digest = "Could not decode message"
-            elif row[1].startswith("msg="):
-                msg_received_digest = row[1].lstrip("msg=")
+                        #msg_received_digest = key.decrypt(ast.literal_eval(msg_received_digest)).decode("utf-8")
+                        (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval(msg_received_digest)
+                        private_key = RSA.import_key(open("privkey.der").read())
+                        # Decrypt the session key with the public RSA key
+                        cipher_rsa = PKCS1_OAEP.new(private_key)
+                        session_key = cipher_rsa.decrypt(enc_session_key)
+                        # Decrypt the data with the AES session key
+                        cipher_aes = AES.new(session_key, AES.MODE_EAX, cipher_aes_nonce)
+                        msg_received_digest = cipher_aes.decrypt_and_verify(ciphertext, tag).decode("utf-8")
 
+                    except:
+                        msg_received_digest = "Could not decrypt message"
 
 
+                elif x[11].startswith("bmsg="):
+                    msg_received_digest = x[11].lstrip("bmsg=")
+                    try:
+                        msg_received_digest = base64.b64decode(msg_received_digest).decode("utf-8")
+                    except:
+                        msg_received_digest = "Could not decode message"
+                elif x[11].startswith("msg="):
+                    msg_received_digest = x[11].lstrip("msg=")
 
-            msg_received.insert(INSERT, ((time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(row[2])))) + " From " + msg_address.replace("alias=", "") + ": " + msg_received_digest) + "\n")
 
-    def msg_sent_get():
+                msg_received.insert(INSERT, ((time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(float(x[1])))) + " From " + msg_address.lstrip("alias=") + ": " + msg_received_digest) + "\n")
 
-        for row in c.execute("SELECT recipient,openfield,timestamp FROM transactions WHERE address = ? AND (openfield LIKE ? OR openfield LIKE ? OR openfield LIKE ? OR openfield LIKE ?) ORDER BY timestamp DESC;", (address,) + ("msg=" + '%',) + ("bmsg=" + '%',) + ("enc=msg=" + '%',) + ("enc=bmsg=" + '%',)):
-            try:
-                # get alias
-                c2.execute("SELECT openfield FROM transactions WHERE openfield LIKE ? AND address = ? ORDER BY block_height ASC, timestamp ASC LIMIT 1;", ("alias=" + '%', row[0],))  # asc for first entry
-                msg_recipient = c2.fetchone()[0]
-                # get alias
-            except:
-                msg_recipient = row[0]
+    def msg_sent_get(addlist):
 
-            if row[1].startswith("enc=msg="):
-                msg_sent_digest = row[1].lstrip("enc=msg=")
-                try:
-                    #msg_sent_digest = key.decrypt(ast.literal_eval(msg_sent_digest)).decode("utf-8")
-                    (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval(msg_sent_digest)
-                    private_key = RSA.import_key(open("privkey.der").read())
-                    # Decrypt the session key with the public RSA key
-                    cipher_rsa = PKCS1_OAEP.new(private_key)
-                    session_key = cipher_rsa.decrypt(enc_session_key)
-                    # Decrypt the data with the AES session key
-                    cipher_aes = AES.new(session_key, AES.MODE_EAX, cipher_aes_nonce)
-                    msg_sent_digest = cipher_aes.decrypt_and_verify(ciphertext, tag).decode("utf-8")
+        for x in addlist:
+            if x[11].startswith(("msg=", "bmsg=", "enc=msg=", "enc=bmsg=")) and x[2] == address:
+                # print(x[11])
 
-                except:
-                    msg_sent_digest = "Could not decrypt message"
+                connections.send(s, "aliasget", 10)
+                connections.send(s, x[3], 10)
+                received_aliases = connections.receive(s, 10)
+                msg_recipient =  received_aliases[0][0]
 
-            elif row[1].startswith("enc=bmsg="):
-                msg_sent_digest = row[1].lstrip("enc=bmsg=")
-                try:
-                    msg_sent_digest = base64.b64decode(msg_sent_digest).decode("utf-8")
-                    #msg_sent_digest = key.decrypt(ast.literal_eval(msg_sent_digest)).decode("utf-8")
-                    (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval(msg_sent_digest)
-                    private_key = RSA.import_key(open("privkey.der").read())
-                    # Decrypt the session key with the public RSA key
-                    cipher_rsa = PKCS1_OAEP.new(private_key)
-                    session_key = cipher_rsa.decrypt(enc_session_key)
-                    # Decrypt the data with the AES session key
-                    cipher_aes = AES.new(session_key, AES.MODE_EAX, cipher_aes_nonce)
-                    msg_sent_digest = cipher_aes.decrypt_and_verify(ciphertext, tag).decode("utf-8")
-                except:
-                    msg_sent_digest = "Could not decrypt message"
+                if x[11].startswith("enc=msg="):
+                    msg_sent_digest = x[11].lstrip("enc=msg=")
+                    try:
+                        #msg_sent_digest = key.decrypt(ast.literal_eval(msg_sent_digest)).decode("utf-8")
+                        (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval(msg_sent_digest)
+                        private_key = RSA.import_key(open("privkey.der").read())
+                        # Decrypt the session key with the public RSA key
+                        cipher_rsa = PKCS1_OAEP.new(private_key)
+                        session_key = cipher_rsa.decrypt(enc_session_key)
+                        # Decrypt the data with the AES session key
+                        cipher_aes = AES.new(session_key, AES.MODE_EAX, cipher_aes_nonce)
+                        msg_sent_digest = cipher_aes.decrypt_and_verify(ciphertext, tag).decode("utf-8")
 
-            elif row[1].startswith("bmsg="):
-                msg_sent_digest = row[1].lstrip("bmsg=")
-                try:
-                    msg_sent_digest = base64.b64decode(msg_sent_digest).decode("utf-8")
-                except:
-                    msg_received_digest = "Could not decode message"
+                    except:
+                        msg_sent_digest = "Could not decrypt message"
 
-            elif row[1].startswith("msg="):
-                msg_sent_digest = row[1].lstrip("msg=")
+                elif x[11].startswith("enc=bmsg="):
+                    msg_sent_digest = x[11].lstrip("enc=bmsg=")
+                    try:
+                        msg_sent_digest = base64.b64decode(msg_sent_digest).decode("utf-8")
+                        #msg_sent_digest = key.decrypt(ast.literal_eval(msg_sent_digest)).decode("utf-8")
+                        (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval(msg_sent_digest)
+                        private_key = RSA.import_key(open("privkey.der").read())
+                        # Decrypt the session key with the public RSA key
+                        cipher_rsa = PKCS1_OAEP.new(private_key)
+                        session_key = cipher_rsa.decrypt(enc_session_key)
+                        # Decrypt the data with the AES session key
+                        cipher_aes = AES.new(session_key, AES.MODE_EAX, cipher_aes_nonce)
+                        msg_sent_digest = cipher_aes.decrypt_and_verify(ciphertext, tag).decode("utf-8")
+                    except:
+                        msg_sent_digest = "Could not decrypt message"
 
-            msg_sent.insert(INSERT, ((time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(row[2])))) + " To " + msg_recipient.replace("alias=", "") + ": " + msg_sent_digest) + "\n")
+                elif x[11].startswith("bmsg="):
+                    msg_sent_digest = x[11].lstrip("bmsg=")
+                    try:
+                        msg_sent_digest = base64.b64decode(msg_sent_digest).decode("utf-8")
+                    except:
+                        msg_received_digest = "Could not decode message"
+
+                elif x[11].startswith("msg="):
+                    msg_sent_digest = x[11].lstrip("msg=")
+
+                msg_sent.insert(INSERT, ((time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(float(x[1])))) + " To " + msg_recipient.lstrip("alias=") + ": " + msg_sent_digest) + "\n")
 
     # popup
     top11 = Toplevel()
@@ -628,13 +784,13 @@ def msg_dialogue():
 
     msg_received = Text(top11, width=100, height=20, font=("Tahoma", 8))
     msg_received.grid(row=1, column=0, sticky=W, padx=5, pady=(5, 5))
-    msg_received_get()
+    msg_received_get(addlist)
 
     Label(top11, text="Sent:", width=20).grid(row=2)
 
     msg_sent = Text(top11, width=100, height=20, font=("Tahoma", 8))
     msg_sent.grid(row=3, column=0, sticky=W, padx=5, pady=(5, 5))
-    msg_sent_get()
+    msg_sent_get(addlist)
 
     dismiss = Button(top11, text="Dismiss", command=top11.destroy)
     dismiss.grid(row=5, column=0, sticky=W + E, padx=15, pady=(5, 5))
@@ -711,39 +867,84 @@ def sign():
 
 
 def refresh_auto():
-    root.after(0, refresh)
+    root.after(0, refresh(gui_address.get(), s))
     root.after(30000, refresh_auto)
 
 
-def table():
+
+def table(address, addlist_20):
     # transaction table
     # data
 
     datasheet = ["Time", "From", "To", "Amount", "Type"]
 
-    rows_total = 19
+    # show mempool txs
+    connections.send(s, "mpget", 10)  # senders
+    mempool_total = connections.receive(s, 10)
+    print (mempool_total)
 
-    for row in m.execute("SELECT * FROM transactions WHERE address = ? OR recipient = ? ORDER BY timestamp DESC LIMIT 19;", (address,) + (address,)):
-        rows_total = rows_total - 1
+    for tx in mempool_total:
+        if tx[1] == address:
+            datasheet.append("Unconfirmed")
+            datasheet.append(tx[1])
+            datasheet.append(tx[2])
+            datasheet.append(tx[3])
+            datasheet.append("Transaction")
 
-        # mempool_timestamp = row[1]
-        # datasheet.append(datetime.fromtimestamp(float(mempool_timestamp)).strftime('%Y-%m-%d %H:%M:%S'))
-        datasheet.append("Unconfirmed")
-        mempool_address = row[1]
-        datasheet.append(mempool_address)
-        mempool_recipient = row[2]
-        datasheet.append(mempool_recipient)
-        mempool_amount = row[3]
-        datasheet.append(mempool_amount)
-        symbol = " Transaction"
-        datasheet.append(symbol)
+    # show mempool txs
 
-    for row in c.execute("SELECT * FROM transactions WHERE address = ? OR recipient = ? ORDER BY block_height DESC LIMIT ?;", (address,) + (address,) + (rows_total,)):
+
+
+
+
+    # retrieve aliases in bulk
+
+    addlist_addressess = []
+    reclist_addressess = []
+
+    for x in addlist_20:
+        addlist_addressess.append(x[2]) #append address
+        reclist_addressess.append(x[3]) #append recipient
+    #print(addlist_addressess)
+
+    # define row color
+    colors = []
+
+    for x in addlist_20:
+        if x[3] == address:
+            colors.append("green4")
+        else:
+            colors.append("indianred")
+    # define row color
+
+    if resolve_var.get() == 1:
+        connections.send(s, "aliasesget", 10) #senders
+        connections.send(s, addlist_addressess, 10)
+        aliases_address_results = connections.receive(s, 10)
+
+        connections.send(s, "aliasesget", 10) #recipients
+        connections.send(s, reclist_addressess, 10)
+        aliases_rec_results = connections.receive(s, 10)
+    # retrieve aliases in bulk
+
+    i = 0
+    for row in addlist_20:
+
+
         db_timestamp = row[1]
         datasheet.append(datetime.fromtimestamp(float(db_timestamp)).strftime('%Y-%m-%d %H:%M:%S'))
-        db_address = row[2]
+
+        if resolve_var.get() == 1:
+            db_address = aliases_address_results[i].lstrip("alias=")
+        else:
+            db_address = row[2]
         datasheet.append(db_address)
-        db_recipient = row[3]
+
+        if resolve_var.get() == 1:
+            db_recipient = aliases_rec_results[i].lstrip("alias=")
+        else:
+            db_recipient = row[3]
+
         datasheet.append(db_recipient)
         db_amount = row[4]
         db_reward = row[9]
@@ -758,6 +959,8 @@ def table():
         else:
             symbol = "Transaction"
         datasheet.append(symbol)
+
+        i = i+1
     # data
 
     app_log.warning(datasheet)
@@ -791,17 +994,13 @@ def table():
                     e = Entry(f4, width=0)
                     e.configure(readonlybackground='linen')
 
-                elif "Unconfirmed" in datasheet_compare: #unconfirmed txs
+                elif "Unconfirmed" in datasheet_compare:  # unconfirmed txs
                     e = Entry(f4, width=0)
                     e.configure(readonlybackground='linen')
 
-                elif datasheet[k - 2] == address and j == 3: #sent
+                elif j == 3: #sent
                     e = Entry(f4, width=0)
-                    e.configure(readonlybackground='indianred')
-
-                elif datasheet[k - 1] == address and j == 3: #received
-                    e = Entry(f4, width=0)
-                    e.configure(readonlybackground='green4')
+                    e.configure(readonlybackground=colors[i-1])
 
                 elif j == 4: #last row
                     e = Entry(f4, width=0)
@@ -821,14 +1020,12 @@ def table():
                 # refreshables
 
 
-def refresh():
-    global balance
 
+def refresh(address, s):
+    global balance
     # print "refresh triggered"
 
     try:
-        s = socks.socksocket()
-        s.connect((node_ip_conf, int(port)))
         connections.send(s, "balanceget", 10)
         connections.send(s, address, 10)  # change address here to view other people's transactions
         stats_account = connections.receive(s, 10)
@@ -844,48 +1041,8 @@ def refresh():
         block_get = connections.receive(s, 10)
         bl_height = block_get[0]
         db_timestamp_last = block_get[1]
-
-        s.close()
-
-    except:  # get locally
-        app_log.warning("Unable to start in light mode, using local db for balance calculation")
-        # global balance
-
-        # print "refresh triggered"
-
-        m.execute("SELECT count(amount), sum(amount) FROM transactions WHERE address = ?;", (address,))
-        result = m.fetchall()[0]
-        if result[1] != None:
-            debit_mempool = float(result[1]) + float(result[1]) * 0.001 + int(result[0]) * 0.01
-        else:
-            debit_mempool = 0
-
-        c.execute("SELECT sum(amount) FROM transactions WHERE recipient = ?;", (address,))
-        credit = c.fetchone()[0]
-        c.execute("SELECT sum(amount) FROM transactions WHERE address = ?;", (address,))
-        debit = c.fetchone()[0]
-        c.execute("SELECT sum(fee) FROM transactions WHERE address = ?;", (address,))
-        fees = c.fetchone()[0]
-        c.execute("SELECT sum(reward) FROM transactions WHERE address = ?;", (address,))
-        rewards = c.fetchone()[0]
-        c.execute("SELECT MAX(block_height) FROM transactions")
-        bl_height = c.fetchone()[0]
-
-        debit = 0 if debit is None else float('%.8f' % debit)
-        fees = 0 if fees is None else float('%.8f' % fees)
-        rewards = 0 if rewards is None else float('%.8f' % rewards)
-        credit = 0 if credit is None else float('%.8f' % credit)
-
-        balance = '%.8f' % (credit - debit - fees + rewards - debit_mempool)
-        app_log.warning("Node: Transction address balance: {}".format(balance))
-
-        # calculate diff
-        c.execute("SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
-        result = c.fetchall()
-        db_timestamp_last = float(result[0][1])
-        # print db_timestamp_last
-        db_block_height = result[0][0]
-        # print timestamp_avg
+    except:
+        pass
 
     try:
         if encode_var.get() == 1:
@@ -894,8 +1051,7 @@ def refresh():
             openfield_input = str(openfield.get("1.0", END)).strip()
 
         fee = '%.8f' % float(0.01 + (float(len(openfield_input)) / 100000) + int(keep_var.get()))  # 0.01 dust
-
-        app_log.warning("Fee: {}".format(fee))
+        #app_log.warning("Fee: {}".format(fee))
 
     except Exception as e:
         fee = 0.01
@@ -904,16 +1060,8 @@ def refresh():
 
 
     # check difficulty
-    try:
-        s = socks.socksocket()
-        s.connect((node_ip_conf, int(port)))
-        connections.send(s, "diffget", 10)
-        diff = connections.receive(s, 10)
-        s.close()
-    except:  # get locally
-        app_log.warning("Unable to start in light mode, using local db for difficulty calculation")
-        diff = difficulty(c)
-
+    connections.send(s, "diffget", 10)
+    diff = connections.receive(s, 10)
     # check difficulty
 
 
@@ -931,14 +1079,9 @@ def refresh():
 
     # network status
 
-    # aliases
-    # c.execute("SELECT openfield FROM transactions WHERE address = ? AND openfield LIKE ?;",(address,)+("alias="+'%',))
-    # aliases = c.fetchall()
-    # app_log.warning("Aliases: "+str(aliases))
-    # aliases
-
     # fees_current_var.set("Current Fee: {}".format('%.8f' % float(fee)))
     balance_var.set("Balance: {}".format('%.8f' % float(balance)))
+    balance_raw.set('%.8f' % float(balance))
     debit_var.set("Spent Total: {}".format('%.8f' % float(debit)))
     credit_var.set("Received Total: {}".format('%.8f' % float(credit)))
     fees_var.set("Fees Paid: {}".format('%.8f' % float(fees)))
@@ -947,9 +1090,14 @@ def refresh():
     diff_msg_var.set("Mining Difficulty: {}".format('%.2f' % float(diff_msg)))
     sync_msg_var.set("Network: {}".format(sync_msg))
 
-    table()
-    # root.after(1000, refresh)
+    connections.send(s, "addlistlim", 10)
+    connections.send(s, address, 10)
+    connections.send(s, "20", 10)
+    addlist = connections.receive(s, 10)
+    addlist_20 = addlist[:20]  # limit
 
+    table(address, addlist_20)
+    # root.after(1000, refresh)
 
 if "posix" not in os.name:
     # icon
@@ -987,7 +1135,7 @@ if (len(public_key_readable)) != 271 and (len(public_key_readable)) != 799:
     raise ValueError ("Invalid public key length: {}".format(len(public_key_readable)))
 
 public_key_hashed = base64.b64encode(public_key_readable.encode('utf-8'))
-address = hashlib.sha224(public_key_readable.encode('utf-8')).hexdigest()
+myaddress = hashlib.sha224(public_key_readable.encode('utf-8')).hexdigest()
 
 # frames
 f2 = Frame(root, height=100, width=100)
@@ -1006,22 +1154,34 @@ f6 = Frame(root, height=100, width=100)
 f6.grid(row=2, column=0, sticky=E, pady=10, padx=10)
 # frames
 
+#menu
+def hello():
+    pass
+
+menubar = Menu(root)
+menubar.add_command(label="Exit", command=root.quit)
+menubar.add_command(label="Help", command=help)
+
+# display the menu
+root.config(menu=menubar)
+#menu
 
 # buttons
 
 send_b = Button(f5, text="Send", command=lambda: send_confirm(str(amount.get()).strip(), recipient.get().strip(), str(keep_var.get()).strip(), (openfield.get("1.0", END)).strip()), height=1, width=10, font=("Tahoma", 8))
 send_b.grid(row=7, column=0, sticky=W + E + S, pady=(45, 0), padx=15)
 
-start_b = Button(f5, text="Generate QR Code", command=qr, height=1, width=10, font=("Tahoma", 8))
+start_b = Button(f5, text="Generate QR Code", command=lambda :qr(gui_address.get()), height=1, width=10, font=("Tahoma", 8))
 if "posix" in os.name:
     start_b.configure(text="QR Disabled", state=DISABLED)
 start_b.grid(row=8, column=0, sticky=W + E + S, pady=0, padx=15)
 
-message_b = Button(f5, text="Manual Refresh", command=refresh, height=1, width=10, font=("Tahoma", 8))
+message_b = Button(f5, text="Manual Refresh", command=lambda: refresh(gui_address.get(),s), height=1, width=10, font=("Tahoma", 8))
 message_b.grid(row=9, column=0, sticky=W + E + S, pady=0, padx=15)
 
-balance_b = Button(f5, text="Messages", command=msg_dialogue, height=1, width=10, font=("Tahoma", 8))
+balance_b = Button(f5, text="Messages", command=lambda: msg_dialogue(gui_address.get()), height=1, width=10, font=("Tahoma", 8))
 balance_b.grid(row=10, column=0, sticky=W + E + S, pady=0, padx=15)
+#balance_b.configure(state=DISABLED)
 
 sign_b = Button(f5, text="Sign Message", command=sign, height=1, width=10, font=("Tahoma", 8))
 sign_b.grid(row=11, column=0, sticky=W + E + S, pady=0, padx=15)
@@ -1032,8 +1192,11 @@ alias_b.grid(row=12, column=0, sticky=W + E + S, pady=0, padx=15)
 backup_b = Button(f5, text="Backup Keys", command=backup, height=1, width=10, font=("Tahoma", 8))
 backup_b.grid(row=14, column=0, sticky=W + E + S, pady=0, padx=15)
 
-quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=10, font=("Tahoma", 8))
-quit_b.grid(row=15, column=0, sticky=W + E + S, pady=0, padx=15)
+tokens_b = Button(f5, text="Tokens", command=tokens, height=1, width=10, font=("Tahoma", 8))
+tokens_b.grid(row=15, column=0, sticky=W + E + S, pady=0, padx=15)
+
+#quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=10, font=("Tahoma", 8))
+#quit_b.grid(row=16, column=0, sticky=W + E + S, pady=0, padx=15)
 
 encrypt_b = Button(f6, text="Encrypt", command=encrypt_get_password, height=1, width=10)
 if encrypted == 1:
@@ -1054,7 +1217,13 @@ lock_b.grid(row=1, column=3, sticky=E + N, pady=0, padx=5)
 
 # refreshables
 
+s = socks.socksocket()
+s.settimeout(30)
+s.connect((light_ip, int(port)))
+
+
 # update balance label
+balance_raw = StringVar()
 balance_var = StringVar()
 balance_msg_label = Label(f5, textvariable=balance_var)
 balance_msg_label.grid(row=0, column=0, sticky=N + E, padx=15, pady=(0, 0))
@@ -1097,24 +1266,48 @@ alias_cb_var = IntVar()
 # encrypt_var = IntVar()
 msg_var = IntVar()
 encrypt_var = IntVar()
+resolve_var = IntVar()
 
 # address and amount
 gui_address = Entry(f3, width=60)
 gui_address.grid(row=0, column=1, sticky=W)
-gui_address.insert(0, address)
-gui_address.configure(state="readonly")
+gui_address.insert(0, myaddress)
+#gui_address.configure(state="readonly")
 
 gui_copy_address = Button(f3, text="Copy", command=address_copy, font=("Tahoma", 7))
-gui_copy_address.grid(row=0, column=2, sticky=W + E)
+gui_copy_address.grid(row=0, column=2, sticky=W + E, padx=(5, 0))
+
+gui_paste_address = Button(f3, text="Paste", command=address_insert, font=("Tahoma", 7))
+gui_paste_address.grid(row=0, column=3, sticky=W + E, padx=(5, 0))
 
 gui_list_aliases = Button(f3, text="Aliases", command=aliases_list, font=("Tahoma", 7))
-gui_list_aliases.grid(row=0, column=3, sticky=W + E)
+gui_list_aliases.grid(row=0, column=4, sticky=W + E, padx=(5, 0))
 
-gui_insert_clipboard = Button(f3, text="Paste", command=address_insert, font=("Tahoma", 7))
-gui_insert_clipboard.grid(row=1, column=2, sticky=W + E)
+gui_watch = Button(f3, text="Watch", command=watch, font=("Tahoma", 7))
+gui_watch.grid(row=0, column=5, sticky=W + E, padx=(5, 0))
 
-gui_insert_clipboard = Button(f3, text="Help", command=help, font=("Tahoma", 7))
-gui_insert_clipboard.grid(row=4, column=2, sticky=W + E)
+gui_unwatch = Button(f3, text="Unwatch", command=unwatch, font=("Tahoma", 7))
+gui_unwatch.grid(row=0, column=6, sticky=W + E, padx=(5, 0))
+
+gui_copy_recipient = Button(f3, text="Copy", command=recipient_copy, font=("Tahoma", 7))
+gui_copy_recipient.grid(row=1, column=2, sticky=W + E, padx=(5, 0))
+
+gui_insert_recipient = Button(f3, text="Paste", command=recipient_insert, font=("Tahoma", 7))
+gui_insert_recipient.grid(row=1, column=3, sticky=W + E, padx=(5, 0))
+
+#gui_help = Button(f3, text="Help", command=help, font=("Tahoma", 7))
+#gui_help.grid(row=4, column=2, sticky=W + E, padx=(5, 0))
+
+gui_all_spend = Button(f3, text="All", command=all_spend, font=("Tahoma", 7))
+gui_all_spend.grid(row=2, column=2, sticky=W + E, padx=(5, 0))
+gui_all_spend_clear = Button(f3, text="Clear", command=all_spend_clear, font=("Tahoma", 7))
+gui_all_spend_clear.grid(row=2, column=3, sticky=W + E, padx=(5, 0))
+
+data_insert_clipboard = Button(f3, text="Paste", command=data_insert, font=("Tahoma", 7))
+data_insert_clipboard.grid(row=3, column=2, sticky=W + E, padx=(5, 0))
+
+data_insert_clear = Button(f3, text="Clear", command=data_insert_clear, font=("Tahoma", 7))
+data_insert_clear.grid(row=3, column=3, sticky=W + E, padx=(5, 0))
 
 Label(f3, text="Your Address:", width=20, anchor="e").grid(row=0)
 Label(f3, text="Recipient:", width=20, anchor="e").grid(row=1)
@@ -1129,20 +1322,23 @@ amount.grid(row=2, column=1, sticky=W)
 openfield = Text(f3, width=60, height=5, font=("Tahoma", 8))
 openfield.grid(row=3, column=1, sticky=W)
 
-alias_cb = Checkbutton(f3, text="Alias", variable=alias_cb_var, command=None)
-alias_cb.grid(row=4, column=1, sticky=E)
+keep = Checkbutton(f3, text="Always Permanent", variable=keep_var)
+keep.grid(row=4, column=1, sticky=W, padx=(0, 0))
 
-keep = Checkbutton(f3, text="Keep Entry", variable=keep_var)
-keep.grid(row=4, column=1, sticky=E, padx=(0, 90))
+encode = Checkbutton(f3, text="Base64 Encoding", variable=encode_var)
+encode.grid(row=4, column=1, sticky=W, padx=(120, 0))
 
-encode = Checkbutton(f3, text="Base64", variable=encode_var)
-encode.grid(row=4, column=1, sticky=E, padx=(0, 170))
+msg = Checkbutton(f3, text="Mark as Message", variable=msg_var)
+msg.grid(row=4, column=1, sticky=W, padx=(240, 0))
 
-msg = Checkbutton(f3, text="Message", variable=msg_var)
-msg.grid(row=4, column=1, sticky=E, padx=(0, 230))
+encr = Checkbutton(f3, text="Encrypt with PK", variable=encrypt_var)
+encr.grid(row=5, column=1, sticky=W, padx=(0, 0))
 
-msg = Checkbutton(f3, text="Encrypt", variable=encrypt_var)
-msg.grid(row=4, column=1, sticky=E, padx=(0, 300))
+resolve = Checkbutton(f3, text="Resolve Aliases", variable=resolve_var, command=lambda: refresh(gui_address.get(),s))
+resolve.grid(row=5, column=1, sticky=W, padx=(120, 0))
+
+alias_cb = Checkbutton(f3, text="Alias Recipient", variable=alias_cb_var, command=None)
+alias_cb.grid(row=5, column=1, sticky=W, padx=(240, 0))
 
 balance_enumerator = Entry(f3, width=5)
 # address and amount
@@ -1156,6 +1352,7 @@ logo_hash_decoded = base64.b64decode(icons.logo_hash)
 logo = PhotoImage(data=logo_hash_decoded)
 image = Label(f2, image=logo).grid(pady=25, padx=50, sticky=N)
 # logo
+
 
 refresh_auto()
 root.mainloop()
