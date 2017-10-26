@@ -6,7 +6,7 @@
 # must unify node and client now that connections parameters are function parameters
 # if you have a block of data and want to insert it into sqlite, you must use a single "commit" for the whole batch, it's 100x faster
 
-VERSION = "4.1.0"
+VERSION = "4.1.2"
 
 from itertools import groupby
 from operator import itemgetter
