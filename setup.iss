@@ -32,8 +32,8 @@ Name: "{commondesktop}\Interface"; Filename: "{app}\wallet.exe"
 Name: "{commondesktop}\Mining"; Filename: "{app}\miner.exe"
 
 [Run]
-Filename: "{app}\node.exe"; Description: "Start"; Flags: postinstall shellexec skipifsilent
-Filename: "{app}\wallet.exe"; Description: "Interface"; Flags: postinstall nowait skipifsilent unchecked
+Filename: "{app}\node.exe"; Description: "Node"; Flags: postinstall shellexec skipifsilent checked
+Filename: "{app}\wallet.exe"; Description: "Wallet"; Flags: postinstall nowait skipifsilent unchecked
 Filename: "{app}\miner.exe"; Description: "Mining"; Flags: postinstall nowait skipifsilent unchecked
 
 [Registry]
