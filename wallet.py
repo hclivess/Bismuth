@@ -1357,4 +1357,5 @@ image = Label(f2, image=logo).grid(pady=25, padx=50, sticky=N)
 refresh_auto()
 root.mainloop()
 
-os.remove(tempFile)
+if "posix" not in os.name:
+    os.remove(tempFile)
