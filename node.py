@@ -689,14 +689,18 @@ def mempool_merge(data, peer_ip, c, mempool, m):
                         app_log.info("Mempool: Received address: {}".format(mempool_address))
 
                         # include mempool fees
-                        execute_param(m, ("SELECT count(amount), sum(amount) FROM transactions WHERE address = ?;"), (mempool_address,))
-                        result = m.fetchall()[0]
+                        execute_param(m, ("SELECT amount, keep, openfield FROM transactions WHERE address = ?;"), (mempool_address,))
+                        result = m.fetchall()
 
-                        if result[1] != None:
-                            debit_mempool = float('%.8f' % (float(result[1]) + float(result[1]) * 0.001 + int(result[0]) * 0.01))
+                        debit_mempool = 0
+
+                        if result != None:
+                            for x in result:
+                                debit_tx = float(x[0])
+                                fee = fee_calculate(x[2], x[1])
+                                debit_mempool = debit_mempool + debit_tx + float(fee)
                         else:
                             debit_mempool = 0
-
                         # include mempool fees
 
                         # include the new block
