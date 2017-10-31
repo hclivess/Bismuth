@@ -1286,8 +1286,10 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         for x in transaction_list:
                             if x[1] == db_address: # make calculation relevant to a particular address in the block
                                 block_debit_address = float(block_debit_address) + float(x[3])
-                                block_fees_address = float(block_fees_address) + float(fee_calculate(db_openfield, db_keep))
-                        #print("block_fees_address", block_fees_address, "for", db_address, "unless miner")
+
+                                if x != transaction_list[-1]:
+                                    block_fees_address = float(block_fees_address) + float(fee_calculate(db_openfield, db_keep)) #exclude the mining tx from fees
+                        print("block_fees_address", block_fees_address, "for", db_address)
 
                         # app_log.info("Digest: Inbound block credit: " + str(block_credit))
                         # app_log.info("Digest: Inbound block debit: " + str(block_debit))
@@ -1346,7 +1348,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                             error_msg = "Sending more than owned"
                             block_valid = 0
 
-                        elif float(balance) - float(block_fees_address) < 0 and transaction != transaction_list[-1]: #exclude fee check for the mining/header tx
+                        elif float(balance) - float(block_fees_address) < 0: #exclude fee check for the mining/header tx
                             error_msg = "Cannot afford to pay fees"
                             block_valid = 0
 
