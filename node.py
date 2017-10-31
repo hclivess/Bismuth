@@ -743,7 +743,7 @@ def mempool_merge(data, peer_ip, c, mempool, m):
                         elif float(mempool_amount) > float(balance_pre):
                             app_log.info("Mempool: Sending more than owned")
 
-                        elif (float(balance)) - (float(fee)) < 0:  # removed +float(db_amount) because it is a part of the Inbound block
+                        elif (float(balance)) - (float(fee)) < 0:
                             app_log.info("Mempool: Cannot afford to pay fees")
 
                         # verify signatures and balances
@@ -1280,14 +1280,14 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                         # if float(db_amount) > 0: todo: only check balances if user is spending
 
-                        block_credit = 0
-                        block_debit = 0
+                        block_debit_address = 0
+                        block_fees_address = 0
 
-                        for x in transaction_list:  # quite nasty, care not to overlap variables
-                            if x[2] == db_address:
-                                block_credit = float(block_credit) + float(x[3])
-                            if x[1] == db_address:
-                                block_debit = float(block_debit) + float(x[3])
+                        for x in transaction_list:
+                            if x[1] == db_address: # make calculation relevant to a particular address in the block
+                                block_debit_address = float(block_debit_address) + float(x[3])
+                                block_fees_address = float(block_fees_address) + float(fee_calculate(db_openfield, db_keep))
+                                print("block_fees_address", block_fees_address, "for", db_address, "unless miner")
 
                         # app_log.info("Digest: Inbound block credit: " + str(block_credit))
                         # app_log.info("Digest: Inbound block debit: " + str(block_debit))
@@ -1296,12 +1296,12 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         execute_param(c, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (db_address,))
                         credit_ledger = c.fetchone()[0]
                         credit_ledger = 0 if credit_ledger is None else float('%.8f' % credit_ledger)
-                        credit = float(credit_ledger) + float(block_credit)
+                        credit = float(credit_ledger)
 
                         execute_param(c, ("SELECT sum(amount) FROM transactions WHERE address = ?;"), (db_address,))
                         debit_ledger = c.fetchone()[0]
                         debit_ledger = 0 if debit_ledger is None else float('%.8f' % debit_ledger)
-                        debit = float(debit_ledger) + float(block_debit)
+                        debit = float(debit_ledger) + float(block_debit_address)
 
                         execute_param(c, ("SELECT sum(fee),sum(reward) FROM transactions WHERE address = ?;"),(db_address,))
 
@@ -1346,7 +1346,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                             error_msg = "Sending more than owned"
                             block_valid = 0
 
-                        elif (float(balance)) - (float(fee)) < 0:
+                        elif float(balance) - float(block_fees_address) < 0 and transaction != transaction_list[-1]: #exclude fee check for the miner
                             error_msg = "Cannot afford to pay fees"
                             block_valid = 0
 

@@ -120,7 +120,7 @@ def tokens_update():
     print("token_last_block", token_last_block)
 
     # print all token issuances
-    c.execute("SELECT block_height, timestamp, address, recipient, openfield FROM transactions WHERE block_height > ? AND openfield LIKE ? ORDER BY block_height ASC;", (token_last_block,) + ("token:issue" + '%',))
+    c.execute("SELECT block_height, timestamp, address, recipient, openfield FROM transactions WHERE block_height > ? AND openfield LIKE ? AND reward = 0 ORDER BY block_height ASC;", (token_last_block,) + ("token:issue" + '%',))
     results = c.fetchall()
     print(results)
 
@@ -157,7 +157,7 @@ def tokens_update():
     # token = "worthless"
 
 
-    c.execute("SELECT openfield FROM transactions WHERE block_height > ? AND openfield LIKE ? ORDER BY block_height ASC;", (token_last_block,) + ("token:transfer" + '%',))
+    c.execute("SELECT openfield FROM transactions WHERE block_height > ? AND openfield LIKE ? and reward = 0 ORDER BY block_height ASC;", (token_last_block,) + ("token:transfer" + '%',))
     openfield_transfers = c.fetchall()
 
     tokens_transferred = []
@@ -169,7 +169,7 @@ def tokens_update():
 
     for token in tokens_transferred:
         print("processing", token)
-        c.execute("SELECT block_height, timestamp, address, recipient, openfield FROM transactions WHERE block_height > ? AND openfield LIKE ? ORDER BY block_height ASC;", (token_last_block,) + ("token:transfer:" + token + ':%',))
+        c.execute("SELECT block_height, timestamp, address, recipient, openfield FROM transactions WHERE block_height > ? AND openfield LIKE ? AND reward = 0 ORDER BY block_height ASC;", (token_last_block,) + ("token:transfer:" + token + ':%',))
         results2 = c.fetchall()
         print(results2)
 
@@ -1018,8 +1018,6 @@ def table(address, addlist_20):
 
                 # transaction table
                 # refreshables
-
-
 
 def refresh(address, s):
     global balance
