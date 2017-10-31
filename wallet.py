@@ -868,7 +868,7 @@ def sign():
 
 def refresh_auto():
     root.after(0, refresh(gui_address.get(), s))
-    root.after(30000, refresh_auto)
+    root.after(10000, refresh_auto)
 
 
 
