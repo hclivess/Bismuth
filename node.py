@@ -1289,7 +1289,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                                 if x != transaction_list[-1]:
                                     block_fees_address = float(block_fees_address) + float(fee_calculate(db_openfield, db_keep)) #exclude the mining tx from fees
-                        print("block_fees_address", block_fees_address, "for", db_address)
+                        #print("block_fees_address", block_fees_address, "for", db_address)
 
                         # app_log.info("Digest: Inbound block credit: " + str(block_credit))
                         # app_log.info("Digest: Inbound block debit: " + str(block_debit))
