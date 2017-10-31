@@ -68,7 +68,7 @@ banlist=config.banlist
 def fee_calculate(openfield, keep):
     fee = '%.8f' % float(0.01 + (float(len(openfield)) / 100000) + int(keep))  # 0.01 dust
     if "token:issue:" in openfield:
-        fee = str(float(fee) + 10)
+        fee = '%.8f' % (float(fee) + 10)
     return fee
 
 def download_file(url, filename):
@@ -691,6 +691,7 @@ def mempool_merge(data, peer_ip, c, mempool, m):
                         # include mempool fees
                         execute_param(m, ("SELECT count(amount), sum(amount) FROM transactions WHERE address = ?;"), (mempool_address,))
                         result = m.fetchall()[0]
+
                         if result[1] != None:
                             debit_mempool = float('%.8f' % (float(result[1]) + float(result[1]) * 0.001 + int(result[0]) * 0.01))
                         else:
@@ -740,6 +741,7 @@ def mempool_merge(data, peer_ip, c, mempool, m):
 
                         elif (float(balance)) - (float(fee)) < 0:  # removed +float(db_amount) because it is a part of the Inbound block
                             app_log.info("Mempool: Cannot afford to pay fees")
+
                         # verify signatures and balances
                         else:
                             execute_param(m, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (str(mempool_timestamp), str(mempool_address), str(mempool_recipient), str(mempool_amount),
@@ -1297,8 +1299,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         debit_ledger = 0 if debit_ledger is None else float('%.8f' % debit_ledger)
                         debit = float(debit_ledger) + float(block_debit)
 
-                        execute_param(c, ("SELECT sum(fee),sum(reward) FROM transactions WHERE address = ?;"),
-                                      (db_address,))
+                        execute_param(c, ("SELECT sum(fee),sum(reward) FROM transactions WHERE address = ?;"),(db_address,))
 
                         result = c.fetchall()[0]
                         fees = result[0]
@@ -1925,13 +1926,18 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         # app_log.info("Mempool: Received address: " + str(balance_address))
 
                         # include mempool fees
-                        execute_param(m, ("SELECT count(amount), sum(amount) FROM transactions WHERE address = ?;"), (balance_address,))
-                        result = m.fetchall()[0]
-                        if result[1] != None:
-                            debit_mempool = float('%.8f' % (float(result[1]) + float(result[1]) * 0.001 + int(result[0]) * 0.01))
+                        execute_param(m, ("SELECT amount, keep, openfield FROM transactions WHERE address = ?;"), (balance_address,))
+                        result = m.fetchall()
+
+                        debit_mempool = 0
+
+                        if result != None:
+                            for x in result:
+                                debit_tx = float(x[0])
+                                fee = fee_calculate(x[2], x[1])
+                                debit_mempool = debit_mempool + debit_tx + float(fee)
                         else:
                             debit_mempool = 0
-
                         # include mempool fees
 
                         execute_param(h3, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (balance_address,))

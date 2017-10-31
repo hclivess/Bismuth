@@ -98,7 +98,7 @@ def fee_calculate(openfield, keep):
 
     fee = '%.8f' % float(0.01 + (float(len(openfield)) / 100000) + int(keep))  # 0.01 dust
     if "token:issue:" in openfield:
-        fee = str(float(fee) + 10)
+        fee = '%.8f' % (float(fee) + 10)
     return fee
 
 def tokens_update():
