@@ -120,7 +120,7 @@ def bootstrap():
 
 def check_integrity(database):
     # check ledger integrity
-    ledger_check = sqlite3.connect(database)
+    ledger_check = sqlite3.connect(database, isolation_level=None)
     ledger_check.execute('pragma journal_mode=wal;')
     ledger_check.text_factory = str
 
@@ -154,9 +154,9 @@ def db_to_drive(hdd, h, hdd2, h2):
     app_log.warning("Moving new data to HDD")
 
     if ram_conf == 1: #select RAM as source database
-        source_db = sqlite3.connect('file::memory:?cache=shared', uri=True, timeout=1)
+        source_db = sqlite3.connect('file::memory:?cache=shared', uri=True, timeout=1, isolation_level=None)
     else: #select hyper.db as source database
-        source_db = sqlite3.connect(hyper_path_conf, timeout=1)
+        source_db = sqlite3.connect(hyper_path_conf, timeout=1, isolation_level=None)
 
     source_db.execute('pragma journal_mode=wal;')
     source_db.text_factory = str
@@ -209,7 +209,7 @@ def db_to_drive(hdd, h, hdd2, h2):
 
 
 def db_h_define():
-    hdd = sqlite3.connect(ledger_path_conf, timeout=1)
+    hdd = sqlite3.connect(ledger_path_conf, timeout=1, isolation_level=None)
     hdd.execute('pragma journal_mode=wal;')
     hdd.text_factory = str
     h = hdd.cursor()
@@ -217,7 +217,7 @@ def db_h_define():
 
 
 def db_h2_define():
-    hdd2 = sqlite3.connect(hyper_path_conf, timeout=1)
+    hdd2 = sqlite3.connect(hyper_path_conf, timeout=1, isolation_level=None)
     hdd2.execute('pragma journal_mode=wal;')
     hdd2.text_factory = str
     h2 = hdd2.cursor()
@@ -229,9 +229,9 @@ def db_c_define():
 
     try:
         if ram_conf == 1:
-            conn = sqlite3.connect('file::memory:?cache=shared', uri=True, timeout=1)
+            conn = sqlite3.connect('file::memory:?cache=shared', uri=True, timeout=1, isolation_level=None)
         else:
-            conn = sqlite3.connect(hyper_path_conf, uri=True, timeout=1)
+            conn = sqlite3.connect(hyper_path_conf, uri=True, timeout=1, isolation_level=None)
 
         conn.execute('pragma journal_mode=wal;')
         conn.text_factory = str
@@ -244,7 +244,7 @@ def db_c_define():
 
 
 def db_b_define():
-    backup = sqlite3.connect('backup.db', timeout=1)
+    backup = sqlite3.connect('backup.db', timeout=1, isolation_level=None)
     backup.execute('pragma journal_mode=wal;')
     backup.text_factory = str
     b = backup.cursor()
@@ -252,7 +252,7 @@ def db_b_define():
 
 
 def db_m_define():
-    mempool = sqlite3.connect('mempool.db', timeout=1)
+    mempool = sqlite3.connect('mempool.db', timeout=1, isolation_level=None)
     mempool.execute('pragma journal_mode=wal;')
     mempool.text_factory = str
     m = mempool.cursor()
@@ -299,14 +299,14 @@ def ledger_convert(ledger_path_conf, hyper_path_conf):
 
             if full_ledger == 1:
                 # cross-integrity check
-                hdd = sqlite3.connect(ledger_path_conf, timeout=1)
+                hdd = sqlite3.connect(ledger_path_conf, timeout=1, isolation_level=None)
                 hdd.text_factory = str
                 h = hdd.cursor()
                 h.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
                 hdd_block_last = h.fetchone()[0]
                 hdd.close()
 
-                hdd2 = sqlite3.connect(hyper_path_conf, timeout=1)
+                hdd2 = sqlite3.connect(hyper_path_conf, timeout=1, isolation_level=None)
                 hdd2.text_factory = str
                 h2 = hdd2.cursor()
                 h2.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
@@ -1079,9 +1079,11 @@ def manager(c, conn):
             app_log.warning("Status: Total number of nodes: {}".format(len(consensus_blockheight_list)))
 
         # last block
-        execute(c, "SELECT timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
-        last_block_ago = float(c.fetchone()[0])
-        app_log.warning("Status: Last block was generated {} minutes ago".format('%.2f' % ((time.time() - last_block_ago) / 60)))
+        execute(c, "SELECT block_height, timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
+        result = c.fetchall()[0]
+        last_block = result[0]
+        last_block_ago = float(result[1])
+        app_log.warning("Status: Last block {} was generated {} minutes ago".format(last_block, '%.2f' % ((time.time() - last_block_ago) / 60)))
         # last block
 
         # app_log.info(threading.enumerate() all threads)
@@ -1461,14 +1463,14 @@ address = hashlib.sha224(public_key_readable.encode('utf-8')).hexdigest()
 app_log.warning("Local address: {}".format(address))
 
 # check if mempool needs recreating
-mempool = sqlite3.connect('mempool.db', timeout=1)
+mempool = sqlite3.connect('mempool.db', timeout=1, isolation_level=None)
 mempool.text_factory = str
 m = mempool.cursor()
 m.execute("PRAGMA table_info('transactions')")
 if len(m.fetchall()) != 8:
     mempool.close()
     os.remove("mempool.db")
-    mempool = sqlite3.connect('mempool.db', timeout=1)
+    mempool = sqlite3.connect('mempool.db', timeout=1, isolation_level=None)
     mempool.text_factory = str
     m = mempool.cursor()
     execute(m, ("CREATE TABLE IF NOT EXISTS transactions (timestamp, address, recipient, amount, signature, public_key, keep, openfield)"))
@@ -1515,7 +1517,7 @@ ledger_convert(ledger_path_conf, hyper_path_conf)
 
 
 try:
-    source_db = sqlite3.connect(hyper_path_conf, timeout=1)
+    source_db = sqlite3.connect(hyper_path_conf, timeout=1, isolation_level=None)
     source_db.text_factory = str
     sc = source_db.cursor()
 
@@ -1525,7 +1527,7 @@ try:
     if ram_conf == 1:
 
         app_log.warning("Moving database to RAM")
-        to_ram = sqlite3.connect('file::memory:?cache=shared', uri=True, timeout=1)
+        to_ram = sqlite3.connect('file::memory:?cache=shared', uri=True, timeout=1, isolation_level=None)
         to_ram.text_factory = str
         tr = to_ram.cursor()
 
