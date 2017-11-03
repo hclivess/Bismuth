@@ -1097,19 +1097,9 @@ def refresh(address, s):
     table(address, addlist_20)
     # root.after(1000, refresh)
 
-if "posix" not in os.name:
-    # icon
 
-    icondata = base64.b64decode(icons.icon_hash)
-    ## The temp file is icon.ico
-    tempFile = "icon.ico"
-    iconfile = open(tempFile, "wb")
-    ## Extract the icon
-    iconfile.write(icondata)
-    iconfile.close()
-    root.wm_iconbitmap(tempFile)
-    ## Delete the tempfile
-    # icon
+root.wm_iconbitmap("graphics/icon.ico")
+
 
 password_var_enc = StringVar()
 password_var_con = StringVar()
@@ -1351,9 +1341,5 @@ logo = PhotoImage(data=logo_hash_decoded)
 image = Label(f2, image=logo).grid(pady=25, padx=50, sticky=N)
 # logo
 
-
 refresh_auto()
 root.mainloop()
-
-if "posix" not in os.name:
-    os.remove(tempFile)
