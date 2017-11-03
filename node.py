@@ -121,7 +121,9 @@ def bootstrap():
 def check_integrity(database):
     # check ledger integrity
     ledger_check = sqlite3.connect(database)
+    ledger_check.execute('pragma journal_mode=wal;')
     ledger_check.text_factory = str
+
     l = ledger_check.cursor()
 
     try:
@@ -156,6 +158,7 @@ def db_to_drive(hdd, h, hdd2, h2):
     else: #select hyper.db as source database
         source_db = sqlite3.connect(hyper_path_conf, timeout=1)
 
+    source_db.execute('pragma journal_mode=wal;')
     source_db.text_factory = str
     sc = source_db.cursor()
 
@@ -207,6 +210,7 @@ def db_to_drive(hdd, h, hdd2, h2):
 
 def db_h_define():
     hdd = sqlite3.connect(ledger_path_conf, timeout=1)
+    hdd.execute('pragma journal_mode=wal;')
     hdd.text_factory = str
     h = hdd.cursor()
     return hdd, h
@@ -214,6 +218,7 @@ def db_h_define():
 
 def db_h2_define():
     hdd2 = sqlite3.connect(hyper_path_conf, timeout=1)
+    hdd2.execute('pragma journal_mode=wal;')
     hdd2.text_factory = str
     h2 = hdd2.cursor()
     return hdd2, h2
@@ -228,6 +233,7 @@ def db_c_define():
         else:
             conn = sqlite3.connect(hyper_path_conf, uri=True, timeout=1)
 
+        conn.execute('pragma journal_mode=wal;')
         conn.text_factory = str
         c = conn.cursor()
 
@@ -239,6 +245,7 @@ def db_c_define():
 
 def db_b_define():
     backup = sqlite3.connect('backup.db', timeout=1)
+    backup.execute('pragma journal_mode=wal;')
     backup.text_factory = str
     b = backup.cursor()
     return backup, b
@@ -246,6 +253,7 @@ def db_b_define():
 
 def db_m_define():
     mempool = sqlite3.connect('mempool.db', timeout=1)
+    mempool.execute('pragma journal_mode=wal;')
     mempool.text_factory = str
     m = mempool.cursor()
     return mempool, m
