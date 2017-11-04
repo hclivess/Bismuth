@@ -488,9 +488,9 @@ def difficulty(c):
     diff_block_previous = float(c.fetchone()[0])
 
     try:
-        log = math.log2(blocks_per_1440 / 1440)
+        log = float('%.13f' % math.log2(blocks_per_1440 / 1440))
     except:
-        log = math.log2(0.5 / 1440)
+        log = float('%.13f' % math.log2(0.5 / 1440))
         app_log.info("Difficulty exception triggered! This should not happen!")
 
     app_log.warning("Difficulty retargeting: {}".format(log))
@@ -617,12 +617,12 @@ def mempool_merge(data, peer_ip, c, mempool, m):
 
                 for transaction in block_list:  # set means unique
                     mempool_timestamp = '%.2f' % float(transaction[0])
-                    mempool_address = str(transaction[1][:56])
-                    mempool_recipient = str(transaction[2][:56])
+                    mempool_address = str(transaction[1])[:56]
+                    mempool_recipient = str(transaction[2])[:56]
                     mempool_amount = '%.8f' % float(transaction[3])
-                    mempool_signature_enc = str(transaction[4][:684])
-                    mempool_public_key_hashed = str(transaction[5][:1068])
-                    mempool_keep = str(transaction[6][:1])
+                    mempool_signature_enc = str(transaction[4])[:684]
+                    mempool_public_key_hashed = str(transaction[5])[:1068]
+                    mempool_keep = str(transaction[6])[:1]
                     mempool_openfield = str(transaction[7])
 
                     mempool_public_key = RSA.importKey(base64.b64decode(mempool_public_key_hashed))  # convert readable key to instance
@@ -1473,7 +1473,7 @@ if len(m.fetchall()) != 8:
     mempool = sqlite3.connect('mempool.db', timeout=1, isolation_level=None)
     mempool.text_factory = str
     m = mempool.cursor()
-    execute(m, ("CREATE TABLE IF NOT EXISTS transactions (timestamp, address, recipient, amount, signature, public_key, keep, openfield)"))
+    execute(m, ("CREATE TABLE IF NOT EXISTS transactions (timestamp NUMERIC, address TEXT, recipient TEXT, amount NUMERIC, signature TEXT, public_key TEXT, keep INTEGER, openfield)"))
     commit(mempool)
     app_log.info("Recreated mempool file")
 
