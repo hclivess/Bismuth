@@ -1473,7 +1473,8 @@ if len(m.fetchall()) != 8:
     mempool = sqlite3.connect('mempool.db', timeout=1, isolation_level=None)
     mempool.text_factory = str
     m = mempool.cursor()
-    execute(m, ("CREATE TABLE IF NOT EXISTS transactions (timestamp NUMERIC, address TEXT, recipient TEXT, amount NUMERIC, signature TEXT, public_key TEXT, keep INTEGER, openfield)"))
+    execute(m, ("CREATE TABLE IF NOT EXISTS transactions (timestamp TEXT, address TEXT, recipient TEXT, amount TEXT, signature TEXT, public_key TEXT, keep TEXT, openfield TEXT)"))
+#   execute(m, ("CREATE TABLE IF NOT EXISTS transactions (timestamp NUMERIC, address TEXT, recipient TEXT, amount NUMERIC, signature TEXT, public_key TEXT, keep INTEGER, openfield TEXT)")) AFTER EVERYONE UPGRADES TO 4.1.4
     commit(mempool)
     app_log.info("Recreated mempool file")
 
