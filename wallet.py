@@ -1098,7 +1098,9 @@ def refresh(address, s):
     # root.after(1000, refresh)
 
 
-root.wm_iconbitmap("graphics/icon.ico")
+img = Image("photo", file="graphics/icon.gif")
+root.tk.call('wm','iconphoto',root._w,img)
+
 
 
 password_var_enc = StringVar()
