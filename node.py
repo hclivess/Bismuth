@@ -1819,8 +1819,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                     blocks_fetched = []
                                     del blocks_fetched[:]
                                     while len(str(blocks_fetched)) < 500000 :  # limited size based on txs in blocks
-                                        execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"),
-                                                           (str(int(client_block)),) + (str(int(client_block + 1)),))
+                                        #execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"),(str(int(client_block)),) + (str(int(client_block + 1)),))
+                                        execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,cast(keep as TEXT),openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"), (str(int(client_block)),) + (str(int(client_block + 1)),))
                                         result = h3.fetchall()
                                         if not result:
                                             break
@@ -2379,8 +2379,8 @@ def worker(HOST, PORT):
                             else:
                                 blocks_fetched = []
                                 while len(str(blocks_fetched)) < 500000:  # limited size based on txs in blocks
-                                    execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"),
-                                                  (str(int(client_block)),) + (str(int(client_block + 1)),))
+                                    #execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"),(str(int(client_block)),) + (str(int(client_block + 1)),))
+                                    execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,cast(keep as TEXT),openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"), (str(int(client_block)),) + (str(int(client_block + 1)),))
                                     result = h3.fetchall()
                                     if not result:
                                         break
