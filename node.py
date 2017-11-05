@@ -410,6 +410,8 @@ def ledger_convert(ledger_path_conf, hyper_path_conf):
             hyp.execute("DELETE FROM transactions WHERE block_height < ? AND address != 'Hyperblock';", (str(int(db_block_height) - depth),))
             hyper.commit()
 
+            hyp.execute("DELETE FROM misc WHERE block_height <;", (str(int(db_block_height) - depth),)) #remove diff calc
+
             hyp.execute("VACUUM")
             hyper.close()
 
