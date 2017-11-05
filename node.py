@@ -1,6 +1,5 @@
 # it's recommended to only use code from the "release" state, running master blob may have issues
 # never remove the str() conversion in data evaluation or database inserts or you will debug for 14 days as signed types mismatch
-# never change the type of database columns from TEXT to anything else
 # if you raise in the server thread, the server will die and node will stop
 # never use codecs, they are bugged and do not provide proper serialization
 # must unify node and client now that connections parameters are function parameters

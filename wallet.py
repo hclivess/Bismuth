@@ -1316,6 +1316,7 @@ openfield.grid(row=3, column=1, sticky=W)
 
 keep = Checkbutton(f3, text="Always Permanent", variable=keep_var)
 keep.grid(row=4, column=1, sticky=W, padx=(0, 0))
+keep.configure(text="KF disabled", state=DISABLED)
 
 encode = Checkbutton(f3, text="Base64 Encoding", variable=encode_var)
 encode.grid(row=4, column=1, sticky=W, padx=(120, 0))
