@@ -1148,12 +1148,12 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                 for transaction in transaction_list:
                     # verify signatures
                     received_timestamp = '%.2f' % float(transaction[0])
-                    received_address = str(transaction[1][:56])
-                    received_recipient = str(transaction[2][:56])
+                    received_address = str(transaction[1])[:56]
+                    received_recipient = str(transaction[2])[:56]
                     received_amount = '%.8f' % float(transaction[3])
-                    received_signature_enc = str(transaction[4][:684])
-                    received_public_key_hashed = str(transaction[5][:1068])
-                    received_keep = str(transaction[6][:1])
+                    received_signature_enc = str(transaction[4])[:684]
+                    received_public_key_hashed = str(transaction[5])[:1068]
+                    received_keep = str(transaction[6])[:1]
                     received_openfield = str(transaction[7])
 
                     transaction_list_converted.append((received_timestamp, received_address, received_recipient, received_amount, received_signature_enc, received_public_key_hashed, received_keep, received_openfield))
@@ -1267,12 +1267,12 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                 if block_valid == 1:
                     for transaction in transaction_list:
                         db_timestamp = '%.2f' % float(transaction[0])
-                        db_address = str(transaction[1][:56])
-                        db_recipient = str(transaction[2][:56])
+                        db_address = str(transaction[1])[:56]
+                        db_recipient = str(transaction[2])[:56]
                         db_amount = '%.8f' % float(transaction[3])
-                        db_signature = str(transaction[4][:684])
-                        db_public_key_hashed = str(transaction[5][:1068])
-                        db_keep = str(transaction[6][:1])
+                        db_signature = str(transaction[4])[:684]
+                        db_public_key_hashed = str(transaction[5])[:1068]
+                        db_keep = str(transaction[6])[:1]
                         db_openfield = str(transaction[7])
 
                         # print "sync this"
