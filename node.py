@@ -359,7 +359,7 @@ def ledger_convert(ledger_path_conf, hyper_path_conf):
             hyp.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
             db_block_height = hyp.fetchone()[0]
 
-            for row in hyp.execute("SELECT * FROM transactions WHERE (block_height < ? AND keep = '0') ORDER BY block_height;",
+            for row in hyp.execute("SELECT * FROM transactions WHERE (block_height < ?) ORDER BY block_height;",
                                    (str(int(db_block_height) - depth),)):
                 db_address = row[2]
                 db_recipient = row[3]
@@ -369,11 +369,11 @@ def ledger_convert(ledger_path_conf, hyper_path_conf):
             unique_addressess = set(addresses)
 
             for x in set(unique_addressess):
-                hyp.execute("SELECT sum(amount) FROM transactions WHERE (recipient = ? AND block_height < ?  AND keep = '0');", (x,) + (str(int(db_block_height) - depth),))
+                hyp.execute("SELECT sum(amount) FROM transactions WHERE (recipient = ? AND block_height < ?);", (x,) + (str(int(db_block_height) - depth),))
                 credit = hyp.fetchone()[0]
                 credit = 0 if credit is None else float('%.8f' % credit)
 
-                hyp.execute("SELECT sum(amount),sum(fee),sum(reward) FROM transactions WHERE (address = ? AND block_height < ? AND keep = '0');", (x,) + (str(int(db_block_height) - depth),))
+                hyp.execute("SELECT sum(amount),sum(fee),sum(reward) FROM transactions WHERE (address = ? AND block_height < ?);", (x,) + (str(int(db_block_height) - depth),))
                 result = hyp.fetchall()
                 debit = result[0][0]
                 debit = 0 if debit is None else float('%.8f' % debit)
@@ -393,21 +393,21 @@ def ledger_convert(ledger_path_conf, hyper_path_conf):
                 # app_log.info("Balance: " + str(end_balance))
 
                 # test for keep positivity
-                hyp.execute("SELECT block_height FROM transactions WHERE address OR recipient = ?", (x,))
-                keep_is = 1
-                try:
-                    hyp.fetchone()[0]
-                except:
-                    keep_is = 0
+                #hyp.execute("SELECT block_height FROM transactions WHERE address OR recipient = ?", (x,))
+                #keep_is = 1
+                #try:
+                #    hyp.fetchone()[0]
+                #except:
+                #    keep_is = 0
                 # test for keep positivity
 
-                if end_balance > 0 or keep_is == 1:
+                if end_balance > 0:
                     timestamp = str(time.time())
                     hyp.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (db_block_height - depth - 1, timestamp, "Hyperblock", x, float(end_balance), "0", "0", "0", "0", "0",
                                                                                               "0", "0"))
-            hyper.commit()  # EXPERIMENTALLY DEDENTED TO TAKE EVERYTHING AT ONCE
+            hyper.commit()
 
-            hyp.execute("DELETE FROM transactions WHERE block_height < ? AND address != 'Hyperblock' AND keep = '0';", (str(int(db_block_height) - depth),))
+            hyp.execute("DELETE FROM transactions WHERE block_height < ? AND address != 'Hyperblock';", (str(int(db_block_height) - depth),))
             hyper.commit()
 
             hyp.execute("VACUUM")
