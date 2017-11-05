@@ -66,9 +66,11 @@ global banlist
 banlist=config.banlist
 
 def fee_calculate(openfield, keep):
-    fee = '%.8f' % float(0.01 + (float(len(openfield)) / 100000) + int(keep))  # 0.01 dust
+    fee = '%.8f' % float(0.01 + (float(len(openfield)) / 100000))  # 0.01 dust
     if "token:issue:" in openfield:
         fee = '%.8f' % (float(fee) + 10)
+    if "alias=" in openfield:
+        fee = '%.8f' % (float(fee) + 1)
     return fee
 
 def download_file(url, filename):
@@ -410,7 +412,7 @@ def ledger_convert(ledger_path_conf, hyper_path_conf):
             hyp.execute("DELETE FROM transactions WHERE block_height < ? AND address != 'Hyperblock';", (str(int(db_block_height) - depth),))
             hyper.commit()
 
-            hyp.execute("DELETE FROM misc WHERE block_height <;", (str(int(db_block_height) - depth),)) #remove diff calc
+            hyp.execute("DELETE FROM misc WHERE block_height < ?;", (str(int(db_block_height) - depth),)) #remove diff calc
 
             hyp.execute("VACUUM")
             hyper.close()

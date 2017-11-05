@@ -14,3 +14,4 @@ pubkey.der
 address.txt
 mempool.db
 ledger.db
+peers.txt
