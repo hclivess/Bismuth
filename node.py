@@ -1847,7 +1847,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                         # send own
 
                             except Exception as e:
-                                app_log.warning("Inbound: Block {} of {} not found".format(data[:4], peer_ip))
+                                app_log.warning("Inbound: Block {} of {} not found".format(data[:8], peer_ip))
                                 connections.send(self.request, "blocknf", 10)
                                 connections.send(self.request, data, 10)
                     except Exception as e:
@@ -2404,7 +2404,7 @@ def worker(HOST, PORT):
                                     pass
 
                         except Exception as e:
-                            app_log.warning("Outbound: Block {} of {} not found".format(data[:4], peer_ip))
+                            app_log.warning("Outbound: Block {} of {} not found".format(data[:8], peer_ip))
                             connections.send(s, "blocknf", 10)
                             connections.send(s, data, 10)
 
