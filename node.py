@@ -300,14 +300,14 @@ def ledger_convert(ledger_path_conf, hyper_path_conf):
 
             if full_ledger == 1:
                 # cross-integrity check
-                hdd = sqlite3.connect(ledger_path_conf, timeout=1, isolation_level=None)
+                hdd = sqlite3.connect(ledger_path_conf, timeout=1)
                 hdd.text_factory = str
                 h = hdd.cursor()
                 h.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
                 hdd_block_last = h.fetchone()[0]
                 hdd.close()
 
-                hdd2 = sqlite3.connect(hyper_path_conf, timeout=1, isolation_level=None)
+                hdd2 = sqlite3.connect(hyper_path_conf, timeout=1)
                 hdd2.text_factory = str
                 h2 = hdd2.cursor()
                 h2.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
