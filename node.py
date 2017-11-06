@@ -2569,6 +2569,7 @@ if __name__ == "__main__":
             # Port 0 means to select an arbitrary unused port
             HOST, PORT = "0.0.0.0", int(port)
 
+            ThreadedTCPServer.allow_reuse_address = True
             server = ThreadedTCPServer((HOST, PORT), ThreadedTCPRequestHandler)
             ip, port = server.server_address
 
