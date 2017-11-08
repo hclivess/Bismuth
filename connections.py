@@ -54,7 +54,7 @@ else:
             if (flag & (select.POLLIN|select.POLLPRI)):
                 data = sdef.recv(slen)
                 if not data:
-					# POLLIN and POLLHUP are not exclusive. We can have both.
+                    # POLLIN and POLLHUP are not exclusive. We can have both.
                     raise RuntimeError("Socket EOF")
                 data = int(data)  # receive length
             elif (flag & (select.POLLERR | select.POLLHUP | select.POLLNVAL)):     
