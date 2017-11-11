@@ -1421,8 +1421,8 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                         # whole block validation
 
-                        if full_ledger == 1 or ram_conf == 1:  # first case move stuff from hyper.db to ledger.db; second case move stuff from ram to both
-                            db_to_drive(hdd, h, hdd2, h2)
+            if full_ledger == 1 or ram_conf == 1:  # first case move stuff from hyper.db to ledger.db; second case move stuff from ram to both
+                db_to_drive(hdd, h, hdd2, h2)
 
 
 
