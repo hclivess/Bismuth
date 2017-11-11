@@ -5,7 +5,7 @@
 # must unify node and client now that connections parameters are function parameters
 # if you have a block of data and want to insert it into sqlite, you must use a single "commit" for the whole batch, it's 100x faster
 
-VERSION = "4.1.4"
+VERSION = "4.1.5"
 
 from itertools import groupby
 from operator import itemgetter
@@ -1421,6 +1421,11 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                         # whole block validation
 
+                        if full_ledger == 1 or ram_conf == 1:  # first case move stuff from hyper.db to ledger.db; second case move stuff from ram to both
+                            db_to_drive(hdd, h, hdd2, h2)
+
+
+
 
 
         except Exception as e:
@@ -1434,11 +1439,8 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                 pass
 
         finally:
-            if full_ledger == 1 or ram_conf == 1:  # first case move stuff from hyper.db to ledger.db; second case move stuff from ram to both
-                db_to_drive(hdd, h, hdd2, h2)
-
-            app_log.info("Digesting complete")
             db_lock.release()
+            app_log.info("Digesting complete")
     else:
         app_log.info("Skipping block processing from {}, someone delivered data faster".format(peer_ip))
 
@@ -1732,13 +1734,13 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         execute(c, "SELECT timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
                         last_block_ago = float(c.fetchone()[0])
 
-                        if int(last_block_ago) < (time.time() - 600):
-                            block_req = most_common(consensus_blockheight_list)
-                            app_log.warning("Most common block rule triggered")
+                        #if int(last_block_ago) < (time.time() - 600):
+                        #   block_req = most_common(consensus_blockheight_list)
+                        #   app_log.warning("Most common block rule triggered")
 
-                        else:
-                            block_req = max(consensus_blockheight_list)
-                            app_log.warning("Longest chain rule triggered")
+                        #else:
+                        block_req = max(consensus_blockheight_list)
+                        app_log.warning("Longest chain rule triggered")
 
 
                         if int(received_block_height) >= block_req:
