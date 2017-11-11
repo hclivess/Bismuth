@@ -1734,13 +1734,13 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         execute(c, "SELECT timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
                         last_block_ago = float(c.fetchone()[0])
 
-                        #if int(last_block_ago) < (time.time() - 600):
-                        #   block_req = most_common(consensus_blockheight_list)
-                        #   app_log.warning("Most common block rule triggered")
+                        if int(last_block_ago) < (time.time() - 600):
+                           block_req = most_common(consensus_blockheight_list)
+                           app_log.warning("Most common block rule triggered")
 
-                        #else:
-                        block_req = max(consensus_blockheight_list)
-                        app_log.warning("Longest chain rule triggered")
+                        else:
+                            block_req = max(consensus_blockheight_list)
+                            app_log.warning("Longest chain rule triggered")
 
 
                         if int(received_block_height) >= block_req:
