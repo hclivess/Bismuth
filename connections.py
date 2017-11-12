@@ -1,9 +1,9 @@
-import select, json, os, sys
+import select, json, os, time,sys
 
 def send(sdef, data, slen):
     sdef.setblocking(0)
-    sdef.sendall(str(len(str(json.dumps(data)))).encode("utf-8").zfill(slen))
-    sdef.sendall(str(json.dumps(data)).encode("utf-8"))
+    # Make sure the packet is sent in one call
+    sdef.sendall(str(len(str(json.dumps(data)))).encode("utf-8").zfill(slen)+str(json.dumps(data)).encode("utf-8"))
 
 if "posix" not in os.name:
 
@@ -13,8 +13,10 @@ if "posix" not in os.name:
         if ready[0]:
             try:
                 data = int(sdef.recv(slen))  # receive length
+                #print ("To receive: {}".format(data))
             except:
                 raise RuntimeError("Connection closed by the remote host") #do away with the invalid literal for int
+
         else:
             raise RuntimeError("Socket timeout")
 
@@ -33,6 +35,7 @@ if "posix" not in os.name:
 
         segments = b''.join(chunks).decode("utf-8")
         #print("Received segments: {}".format(segments))
+
         return json.loads(segments)
 
 else:
@@ -42,47 +45,53 @@ else:
     def receive(sdef, slen):
         try:
             sdef.setblocking(0) 
-            poller = select.epoll()
+            poller = select.poll()
             poller.register(sdef, READ_OR_ERROR)
-            ready = poller.poll(1000)
+            ready = False
+            while not ready:
+                ready = poller.poll(60000) # timeout is in ms
             fd, flag = ready[0]
             if (flag & (select.POLLIN|select.POLLPRI)):
                 data = sdef.recv(slen)
                 if not data:
-                    peer_ip = sdef.getpeername()[0]
-                    raise RuntimeError("Socket error0 {} for {}".format(flag,peer_ip))
+                    # POLLIN and POLLHUP are not exclusive. We can have both.
+                    raise RuntimeError("Socket EOF")
                 data = int(data)  # receive length
             elif (flag & (select.POLLERR | select.POLLHUP | select.POLLNVAL)):     
-                raise RuntimeError("Socket error1 {}".format(flag))
+                raise RuntimeError("Socket error {}".format(flag))
             else:
-                raise RuntimeError("Socket timeout1")
+                raise RuntimeError("Socket Unexpected Error")
             chunks = []
             bytes_recd = 0
             while bytes_recd < data:
-                ready = poller.poll(1000)
+                ready = False
+                while not ready:
+                    ready = poller.poll(60000)
                 fd, flag = ready[0]
                 if (flag & (select.POLLIN|select.POLLPRI)):
                     chunk = sdef.recv(min(data - bytes_recd, 2048))
                     if not chunk:
-                        raise RuntimeError("Socket connection broken0")
+                        raise RuntimeError("Socket EOF")
                     chunks.append(chunk)
                     bytes_recd = bytes_recd + len(chunk)
                 elif (flag & (select.POLLERR | select.POLLHUP | select.POLLNVAL)):       
-                    raise RuntimeError("Socket error2 {}".format(flag))
+                    raise RuntimeError("Socket Error {}".format(flag))
                 else:
-                    raise RuntimeError("Socket timeout2")
+                    raise RuntimeError("Socket Unexpected Error")
 
             poller.unregister(sdef)
             segments = b''.join(chunks).decode("utf-8")
             return json.loads(segments)
         except Exception as e:
+            """
             exc_type, exc_obj, exc_tb = sys.exc_info()
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-            # uncomment the following to check for detailled errors within connections.py
-            #print(exc_type, fname, exc_tb.tb_lineno)
-            # Cleanup
+            print(exc_type, fname, exc_tb.tb_lineno)
+            """
+            # Final cleanup
             try:
                 poller.unregister(sdef)
             except Exception as e2:
                 pass
-            raise RuntimeError("Exception in Receive : {}".format(e))
+                #print ("Exception unregistering: {}".format(e2))
+            raise RuntimeError("Connections: {}".format(e))
