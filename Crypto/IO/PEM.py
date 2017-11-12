@@ -112,7 +112,7 @@ def decode(pem_data, passphrase=None):
     Raises:
       ValueError: if decoding fails, if the PEM file is encrypted and no passphrase has
                   been provided or if the passphrase is incorrect.
-
+					
     # Verify Pre-Encapsulation Boundary
     r = re.compile("\s*-----BEGIN (.*)-----\s+")
     m = r.match(pem_data)
@@ -125,8 +125,9 @@ def decode(pem_data, passphrase=None):
     m = r.search(pem_data)
     if not m or m.group(1) != marker:
         raise ValueError("Not a valid PEM post boundary")
-  	"""
-    marker = None
+	
+	"""
+	marker = None
 	
     # Removes spaces and slit on lines
     lines = pem_data.replace(" ", '').split()
