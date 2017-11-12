@@ -2018,6 +2018,16 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     else:
                         app_log.info("{} not whitelisted for addlist command".format(peer_ip))
 
+                elif data == "listlim":
+                    if (peer_ip in allowed or "any" in allowed):
+                        list_limit = connections.receive(self.request, 10)
+                        #print (address_tx_list_limit)
+                        execute_param(h3, ("SELECT * FROM transactions ORDER BY block_height DESC LIMIT ?"), (list_limit,))
+                        result = h3.fetchall()
+                        connections.send(self.request, result, 10)
+                    else:
+                        app_log.info("{} not whitelisted for listlim command".format(peer_ip))
+
                 elif data == "addlistlim":
                     if (peer_ip in allowed or "any" in allowed):
                         address_tx_list = connections.receive(self.request, 10)
@@ -2027,7 +2037,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         result = h3.fetchall()
                         connections.send(self.request, result, 10)
                     else:
-                        app_log.info("{} not whitelisted for addlist command".format(peer_ip))
+                        app_log.info("{} not whitelisted for addlistlim command".format(peer_ip))
 
                 elif data == "aliasget":
                     if (peer_ip in allowed or "any" in allowed):

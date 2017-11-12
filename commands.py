@@ -131,10 +131,19 @@ def addlistlim(socket, arg1, arg2):
     connections.send(s, arg1, 10)
     connections.send(s, arg2, 10)
     address_tx_list = connections.receive(s, 10)
-    print("All transactions for requested address:")
+    print("Transactions for requested address:")
     for row in address_tx_list:
         print (row)
     #get all txs for an address
+
+def listlim(socket, arg1):
+    #get all txs for an address
+    connections.send(s, "listlim", 10)
+    connections.send(s, arg1, 10)
+    tx_list = connections.receive(s, 10)
+    print("All transactions for requested range:")
+    for row in tx_list:
+        print (row)
 
 def txsend(socket, arg1, arg2, arg3, arg4, arg5):
     #generate transaction
@@ -242,6 +251,9 @@ elif command == "addlist":
 
 elif command == "addlistlim":
     addlistlim(s, arg1, arg2)
+
+elif command == "listlim":
+    listlim(s, arg1)
 
 elif command == "txsend":
     try:
