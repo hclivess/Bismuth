@@ -75,8 +75,19 @@ def fee_calculate(openfield, keep):
 def download_file(url, filename):
     try:
         r = requests.get(url, stream=True)
-        with open(filename, 'wb') as f:
-            shutil.copyfileobj(r.raw, f)
+        total_size = int(r.headers.get('content-length'))/1024
+
+        with open(filename, 'wb') as filename:
+            chunkno = 0
+            for chunk in r.iter_content(chunk_size=1024):
+                if chunk:
+                    chunkno = chunkno + 1
+                    if chunkno % 10000 == 0:  # every x chunks
+                        print("Downloaded {} %".format(int(100 * ((chunkno) / total_size))))
+
+                    filename.write(chunk)
+                    filename.flush()
+            print ("Downloaded 100%")
 
         return filename
     except:
