@@ -64,6 +64,22 @@ nodes_ban_reset=config.nodes_ban_reset
 global banlist
 banlist=config.banlist
 
+def validate_pem(public_key):
+    # verify pem as cryptodome does
+    pem_data = base64.b64decode(public_key).decode("utf-8")
+    regex = re.compile("\s*-----BEGIN (.*)-----\s+")
+    match = regex.match(pem_data)
+    if not match:
+        raise ValueError("Not a valid PEM pre boundary")
+
+    marker = match.group(1)
+
+    regex = re.compile("-----END (.*)-----\s*$")
+    match = regex.search(pem_data)
+    if not match or match.group(1) != marker:
+        raise ValueError("Not a valid PEM post boundary")
+        # verify pem as cryptodome does
+
 def fee_calculate(openfield, keep):
     fee = '%.8f' % float(0.01 + (float(len(openfield)) / 100000))  # 0.01 dust
     if "token:issue:" in openfield:
@@ -695,6 +711,8 @@ def mempool_merge(data, peer_ip, c, mempool, m):
 
                             # verify signatures and balances
 
+                    validate_pem(mempool_public_key_hashed)
+
                     # verify signature
                     verifier = PKCS1_v1_5.new(mempool_public_key)
 
@@ -1179,20 +1197,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                     verifier = PKCS1_v1_5.new(received_public_key)
 
                     if db_block_height > 400000:
-                        # verify pem as cryptodome does
-                        pem_data = base64.b64decode(received_public_key_hashed).decode("utf-8")
-                        regex = re.compile("\s*-----BEGIN (.*)-----\s+")
-                        match = regex.match(pem_data)
-                        if not match:
-                            raise ValueError("Not a valid PEM pre boundary")
-
-                        marker = match.group(1)
-
-                        regex = re.compile("-----END (.*)-----\s*$")
-                        match = regex.search(pem_data)
-                        if not match or match.group(1) != marker:
-                            raise ValueError("Not a valid PEM post boundary")
-                        # verify pem as cryptodome does
+                        validate_pem(received_public_key_hashed)
 
                     hash = SHA.new(str((received_timestamp, received_address, received_recipient, received_amount, received_keep, received_openfield)).encode("utf-8"))
                     if not verifier.verify(hash, received_signature_dec):
