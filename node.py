@@ -5,7 +5,7 @@
 # must unify node and client now that connections parameters are function parameters
 # if you have a block of data and want to insert it into sqlite, you must use a single "commit" for the whole batch, it's 100x faster
 
-VERSION = "4.1.6"
+VERSION = "4.1.7"
 
 from itertools import groupby
 from operator import itemgetter
@@ -1177,6 +1177,22 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                     received_signature_dec = base64.b64decode(received_signature_enc)
                     verifier = PKCS1_v1_5.new(received_public_key)
+
+                    if db_block_height > 400000:
+                        # verify pem as cryptodome does
+                        pem_data = base64.b64decode(received_public_key_hashed).decode("utf-8")
+                        regex = re.compile("\s*-----BEGIN (.*)-----\s+")
+                        match = regex.match(pem_data)
+                        if not match:
+                            raise ValueError("Not a valid PEM pre boundary")
+
+                        marker = match.group(1)
+
+                        regex = re.compile("-----END (.*)-----\s*$")
+                        match = regex.search(pem_data)
+                        if not match or match.group(1) != marker:
+                            raise ValueError("Not a valid PEM post boundary")
+                        # verify pem as cryptodome does
 
                     hash = SHA.new(str((received_timestamp, received_address, received_recipient, received_amount, received_keep, received_openfield)).encode("utf-8"))
                     if not verifier.verify(hash, received_signature_dec):
