@@ -240,6 +240,7 @@ def token_issue(token, amount, window):
     recipient.delete(0, END)
     recipient.insert(INSERT, myaddress)
     window.destroy()
+    send_confirm(amount,myaddress,0,"token:issue:{}:{}".format(token, amount))
 
 def tokens():
     tokens_update() #catch up with the chain
@@ -296,7 +297,6 @@ def tokens():
 
     issue = Button(tokens_main, text="Issue", command=lambda: token_issue(token_name_var.get(), token_amount_var.get(), tokens_main))
     issue.grid(row=5, column=0, sticky=W + E, padx=5)
-    issue.configure(text="Issuing disabled temporarily", state=DISABLED)
 
     cancel = Button(tokens_main, text="Cancel", command=tokens_main.destroy)
     cancel.grid(row=6, column=0, sticky=W + E, padx=5)
