@@ -1,11 +1,11 @@
-import select, json, os, time,sys
+import select, json, platform, time,sys
 
 def send(sdef, data, slen):
     sdef.setblocking(0)
     # Make sure the packet is sent in one call
     sdef.sendall(str(len(str(json.dumps(data)))).encode("utf-8").zfill(slen)+str(json.dumps(data)).encode("utf-8"))
 
-if "posix" not in os.name:
+if "linux" in platform.system():
 
     def receive(sdef, slen):
         sdef.setblocking(0)
