@@ -1535,6 +1535,9 @@ def coherence_check():
 
         if coherent == 1:
             app_log.warning("Chain {} is coherent".format(chain))
+        else:
+            app_log.warning("There was a coherence error, consider downloading a bootstrap. This message will disappear in 5 seconds")
+            time.sleep(5)
 
 
 
