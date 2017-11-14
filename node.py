@@ -564,6 +564,7 @@ def difficulty(c):
         difficulty2 = float('%.13f' % percentage(95, candidate))  # candidate -5%
     else:
         difficulty2 = difficulty
+
     if difficulty < 90:
         difficulty = 90
 
@@ -1754,13 +1755,13 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                 connections.send(self.request, "blockscf", 10)
 
                                 segments = connections.receive(self.request, 10)
-                                digest_block(segments, self.request, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                             except:
-                                while db_lock.locked() == False: #if not working with the database
-                                    if warning(self.request, peer_ip, "Failed to deliver the longest chain", 10) == "banned":
-                                        app_log.info("{} banned".format(peer_ip))
-                                        break
+                                if warning(self.request, peer_ip, "Failed to deliver the longest chain", 10) == "banned":
+                                    app_log.info("{} banned".format(peer_ip))
+                                    break
+                            else:
+                                digest_block(segments, self.request, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                                 # receive theirs
                         else:
@@ -2490,11 +2491,13 @@ def worker(HOST, PORT):
 
                             connections.send(s, "blockscf", 10)
                             segments = connections.receive(s, 10)
-                            digest_block(segments, s, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
+
                         except:
-                            while db_lock.locked() == False:  # if not working with the database
-                                if warning(s, peer_ip, "Failed to deliver the longest chain", 10) == "banned":
-                                    raise ValueError("{} is banned".format(peer_ip))
+                            if warning(s, peer_ip, "Failed to deliver the longest chain", 10) == "banned":
+                                raise ValueError("{} is banned".format(peer_ip))
+
+                        else:
+                            digest_block(segments, s, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                         # receive theirs
                     else:
