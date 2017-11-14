@@ -64,6 +64,10 @@ nodes_ban_reset=config.nodes_ban_reset
 global banlist
 banlist=config.banlist
 
+global whitelist
+whitelist=config.whitelist
+
+
 def validate_pem(public_key):
     # verify pem as cryptodome does
     pem_data = base64.b64decode(public_key).decode("utf-8")
@@ -309,15 +313,16 @@ def warning(sdef, ip, reason, count):
     global warning_list
     global ban_threshold
 
-    for x in range(count):
-        warning_list.append(ip)
-    app_log.warning("Added {} warning(s) to {}: {} ({} / {})".format(count, ip, reason, warning_list.count(ip), ban_threshold))
+    if ip not in whitelist:
+        for x in range(count):
+            warning_list.append(ip)
+        app_log.warning("Added {} warning(s) to {}: {} ({} / {})".format(count, ip, reason, warning_list.count(ip), ban_threshold))
 
-    if warning_list.count(ip) >= ban_threshold:
-        banlist.append(ip)
-        sdef.close()
-        app_log.warning("{} is banned: {}".format(ip, reason))
-        return "banned"
+        if warning_list.count(ip) >= ban_threshold:
+            banlist.append(ip)
+            sdef.close()
+            app_log.warning("{} is banned: {}".format(ip, reason))
+            return "banned"
 
 
 def ledger_convert(ledger_path_conf, hyper_path_conf):
@@ -528,55 +533,39 @@ def difficulty(c):
 
     difficulty = float('%.13f' % (diff_block_previous + log))  # increase/decrease diff by a little
 
-    if int(block_height) > 360000:
-        # min diff
-        execute_param(c, ("SELECT cast(difficulty as FLOAT) FROM misc WHERE block_height >= ?"), (blocks_list_1440[0][0],))
-        try:
-            diff_blocks_list_1440 = c.fetchall()
-            diff_blocks_list_1440 = [i[0] for i in diff_blocks_list_1440]
-            min_diff = statistics.mean(diff_blocks_list_1440)
+    # min diff
+    execute_param(c, ("SELECT cast(difficulty as FLOAT) FROM misc WHERE block_height >= ?"), (blocks_list_1440[0][0],))
+    try:
+        diff_blocks_list_1440 = c.fetchall()
+        diff_blocks_list_1440 = [i[0] for i in diff_blocks_list_1440]
+        min_diff = statistics.mean(diff_blocks_list_1440)
 
-        except Exception:
-            min_diff = 90
-        # print(min_diff)
-        # min diff
+    except Exception:
+        min_diff = 90
+    # print(min_diff)
+    # min diff
 
-        if difficulty < min_diff:
-            difficulty = float('%.13f' % min_diff)
-            app_log.warning("Difficulty floor reached, difficulty readjusted to {}".format(difficulty))
+    if difficulty < min_diff:
+        difficulty = float('%.13f' % min_diff)
+        app_log.warning("Difficulty floor reached, difficulty readjusted to {}".format(difficulty))
 
-        time_now = time.time()
+    time_now = time.time()
 
-        if time_now > timestamp_last + 600:  # if 10 minutes passed
-            execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 5"))
-            diff_5 = c.fetchall()[0]
-            diff_lowest_5 = float(min(diff_5))
+    if time_now > timestamp_last + 600:  # if 10 minutes passed
+        execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 5"))
+        diff_5 = c.fetchall()[0]
+        diff_lowest_5 = float(min(diff_5))
 
-            if diff_lowest_5 < difficulty:
-                candidate = diff_lowest_5  # if lowest of last 5 is lower than calculated diff
-            else:
-                candidate = difficulty
-
-            difficulty2 = float('%.13f' % percentage(95, candidate))  # candidate -5%
+        if diff_lowest_5 < difficulty:
+            candidate = diff_lowest_5  # if lowest of last 5 is lower than calculated diff
         else:
-            difficulty2 = difficulty
+            candidate = difficulty
 
+        difficulty2 = float('%.13f' % percentage(95, candidate))  # candidate -5%
     else:
-        time_now = time.time()
+        difficulty2 = difficulty
 
-        if time_now > timestamp_last + 600:  # if 10 minutes passed
-            execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 5"))
-            diff_5 = c.fetchall()[0]
-            diff_lowest_5 = float(min(diff_5))
 
-            if diff_lowest_5 < difficulty:
-                candidate = diff_lowest_5  # if lowest of last 5 is lower than calculated diff
-            else:
-                candidate = difficulty
-
-            difficulty2 = float('%.13f' % percentage(95, candidate))  # candidate -5%
-        else:
-            difficulty2 = difficulty
 
         # min diff
         execute_param(c, ("SELECT cast(difficulty as FLOAT) FROM misc WHERE block_height >= ?"), (blocks_list_1440[0][0],))
@@ -1098,6 +1087,8 @@ def manager(c, conn):
 
         if banlist:
             app_log.warning("Status: Banlist: {}".format(banlist))
+        if whitelist:
+            app_log.warning("Status: Whitelist: {}".format(banlist))
 
         app_log.info("Status: Syncing nodes: {}".format(syncing))
         app_log.info("Status: Syncing nodes: {}/3".format(len(syncing)))

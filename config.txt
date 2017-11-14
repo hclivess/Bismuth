@@ -29,4 +29,5 @@ light_ip=127.0.0.1
 reveal_address=yes
 accept_peers=yes
 banlist=127.1.2.3
+whitelist=127.1.2.4
 nodes_ban_reset=1
