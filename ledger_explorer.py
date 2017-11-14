@@ -146,7 +146,7 @@ class MainHandler(tornado.web.RequestHandler):
             view.append("<td>{}</td>".format(x[7]))
             view.append("<td>{}</td>".format(x[8]))
             view.append("<td>{}</td>".format(x[9]))
-            view.append("<td>{}</td>".format(diffs[b][0]))
+            view.append("<td>{}</td>".format('%.12f' % float(diffs[b][0])))
             view.append("<tr>")
 
             x_old = x[0]
