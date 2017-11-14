@@ -1528,8 +1528,9 @@ def coherence_check():
         coherent = 1
         for x in my_list:
             if x != y + 1:
-                app_log.warning("Chain {} difficulty coherence error at: {}".format(chain, y))
-                coherent = 0
+                if y > 300000: #there are some forgotten deviances
+                    app_log.warning("Chain {} difficulty coherence error at: {}".format(chain, y))
+                    coherent = 0
             y = x
 
         if coherent == 1:
