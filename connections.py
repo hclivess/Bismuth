@@ -5,7 +5,7 @@ def send(sdef, data, slen):
     # Make sure the packet is sent in one call
     sdef.sendall(str(len(str(json.dumps(data)))).encode("utf-8").zfill(slen)+str(json.dumps(data)).encode("utf-8"))
 
-if "linux" in platform.system():
+if "Linux" in platform.system():
 
     def receive(sdef, slen):
         sdef.setblocking(0)
