@@ -564,32 +564,11 @@ def difficulty(c):
         difficulty2 = float('%.13f' % percentage(95, candidate))  # candidate -5%
     else:
         difficulty2 = difficulty
-
-
-
-        # min diff
-        execute_param(c, ("SELECT cast(difficulty as FLOAT) FROM misc WHERE block_height >= ?"), (blocks_list_1440[0][0],))
-        try:
-            diff_blocks_list_1440 = c.fetchall()
-            diff_blocks_list_1440 = [i[0] for i in diff_blocks_list_1440]
-            min_diff = statistics.mean(diff_blocks_list_1440)
-
-        except Exception as e:
-            min_diff = 90
-            # print(min_diff)
-            # min diff
-
-        if difficulty < min_diff:
-            difficulty = float('%.13f' % min_diff)
-            app_log.warning("Difficulty floor reached, difficulty readjusted to {}".format(difficulty))
-
     if difficulty < 90:
         difficulty = 90
 
     if difficulty2 < 90:
         difficulty2 = 90
-
-
 
     app_log.warning("Difficulty: {} {}".format(difficulty, difficulty2))
     # return (float(50), float(50)) #TEST ONLY
