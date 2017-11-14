@@ -107,7 +107,7 @@ def download_file(url, filename):
 
                     filename.write(chunk)
                     filename.flush()
-            print ("Downloaded 100%")
+            print ("Downloaded 100 %")
 
         return filename
     except:
@@ -1757,9 +1757,10 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                 digest_block(segments, self.request, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                             except:
-                                if warning(self.request, peer_ip, "Failed to deliver the longest chain", 10) == "banned":
-                                    app_log.info("{} banned".format(peer_ip))
-                                    break
+                                while db_lock.locked() == False: #if not working with the database
+                                    if warning(self.request, peer_ip, "Failed to deliver the longest chain", 10) == "banned":
+                                        app_log.info("{} banned".format(peer_ip))
+                                        break
 
                                 # receive theirs
                         else:
@@ -2491,8 +2492,9 @@ def worker(HOST, PORT):
                             segments = connections.receive(s, 10)
                             digest_block(segments, s, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         except:
-                            if warning(s, peer_ip, "Failed to deliver the longest chain", 10) == "banned":
-                                raise ValueError("{} is banned".format(peer_ip))
+                            while db_lock.locked() == False:  # if not working with the database
+                                if warning(s, peer_ip, "Failed to deliver the longest chain", 10) == "banned":
+                                    raise ValueError("{} is banned".format(peer_ip))
 
                         # receive theirs
                     else:
