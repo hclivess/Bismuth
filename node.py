@@ -1088,7 +1088,7 @@ def manager(c, conn):
         if banlist:
             app_log.warning("Status: Banlist: {}".format(banlist))
         if whitelist:
-            app_log.warning("Status: Whitelist: {}".format(banlist))
+            app_log.warning("Status: Whitelist: {}".format(whitelist))
 
         app_log.info("Status: Syncing nodes: {}".format(syncing))
         app_log.info("Status: Syncing nodes: {}/3".format(len(syncing)))
