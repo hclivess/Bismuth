@@ -1426,8 +1426,8 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                         # whole block validation
 
-            if full_ledger == 1 or ram_conf == 1:  # first case move stuff from hyper.db to ledger.db; second case move stuff from ram to both
-                db_to_drive(hdd, h, hdd2, h2)
+                        if full_ledger == 1 or ram_conf == 1:  # first case move stuff from hyper.db to ledger.db; second case move stuff from ram to both
+                            db_to_drive(hdd, h, hdd2, h2)
 
 
 
@@ -1517,8 +1517,26 @@ def coherence_check():
                 coherent = 0
             y = x
 
+        c.execute("SELECT block_height FROM misc ORDER BY block_height ASC")
+        result = c.fetchall()
+
+        my_list = []
+        for x in result:
+            my_list.append(x[0])
+
+        y = my_list[0] - 1
+        coherent = 1
+        for x in my_list:
+            if x != y + 1:
+                app_log.warning("Chain {} difficulty coherence error at: {}".format(chain, y))
+                coherent = 0
+            y = x
+
         if coherent == 1:
             app_log.warning("Chain {} is coherent".format(chain))
+
+
+
         conn.close()
 
 
