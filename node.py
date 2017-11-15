@@ -509,71 +509,128 @@ def execute_param(cursor, query, param):
 
 
 def difficulty(c):
-
     execute(c, "SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1")
     result = c.fetchall()[0]
     timestamp_last = float(result[1])
     block_height = int(result[0])
 
-    execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0 ORDER BY block_height ASC"), (timestamp_last - 86400,))  # 86400=24h
-    blocks_list_1440 = c.fetchall()
-    blocks_per_1440 = len(blocks_list_1440)
-    app_log.warning("Blocks per day: {}".format(blocks_per_1440))
+    if block_height < 400000: #REMOVE THIS AFTER HF
+        execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0 ORDER BY block_height ASC"), (timestamp_last - 86400,))  # 86400=24h
+        blocks_list_1440 = c.fetchall()
+        blocks_per_1440 = len(blocks_list_1440)
+        block_time = (1440 / blocks_per_1440) * 60
+        app_log.warning("Blocks per day: {}".format(blocks_per_1440))
+        app_log.warning("Daily block time: {}".format(block_time))
 
-    execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
-    diff_block_previous = float(c.fetchone()[0])
 
-    try:
-        log = float('%.13f' % math.log2(blocks_per_1440 / 1440))
-    except:
-        log = float('%.13f' % math.log2(0.5 / 1440))
-        app_log.info("Difficulty exception triggered! This should not happen!")
+        execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
+        diff_block_previous = float(c.fetchone()[0])
 
-    app_log.warning("Difficulty retargeting: {}".format(log))
+        try:
+            log = float('%.13f' % math.log2(blocks_per_1440 / 1440))
+        except:
+            log = float('%.13f' % math.log2(0.5 / 1440))
+            app_log.info("Difficulty exception triggered! This should not happen!")
 
-    difficulty = float('%.13f' % (diff_block_previous + log))  # increase/decrease diff by a little
+        app_log.warning("Difficulty retargeting: {}".format(log))
 
-    # min diff
-    execute_param(c, ("SELECT cast(difficulty as FLOAT) FROM misc WHERE block_height >= ?"), (blocks_list_1440[0][0],))
-    try:
-        diff_blocks_list_1440 = c.fetchall()
-        diff_blocks_list_1440 = [i[0] for i in diff_blocks_list_1440]
-        min_diff = statistics.mean(diff_blocks_list_1440)
+        difficulty = float('%.13f' % (diff_block_previous + log))  # increase/decrease diff by a little
 
-    except Exception:
-        min_diff = 90
-    # print(min_diff)
-    # min diff
+        # min diff
+        execute_param(c, ("SELECT cast(difficulty as FLOAT) FROM misc WHERE block_height >= ?"), (blocks_list_1440[0][0],))
+        try:
+            diff_blocks_list_1440 = c.fetchall()
+            diff_blocks_list_1440 = [i[0] for i in diff_blocks_list_1440]
+            min_diff = statistics.mean(diff_blocks_list_1440)
 
-    if difficulty < min_diff:
-        difficulty = float('%.13f' % min_diff)
-        app_log.warning("Difficulty floor reached, difficulty readjusted to {}".format(difficulty))
+        except Exception:
+            min_diff = 90
+        # print(min_diff)
+        # min diff
 
-    time_now = time.time()
+        if difficulty < min_diff:
+            difficulty = float('%.13f' % min_diff)
+            app_log.warning("Difficulty floor reached, difficulty readjusted to {}".format(difficulty))
 
-    if time_now > timestamp_last + 600:  # if 10 minutes passed
-        execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 5"))
-        diff_5 = c.fetchall()[0]
-        diff_lowest_5 = float(min(diff_5))
+        time_now = time.time()
 
-        if diff_lowest_5 < difficulty:
-            candidate = diff_lowest_5  # if lowest of last 5 is lower than calculated diff
+        if time_now > timestamp_last + 600:  # if 10 minutes passed
+            execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 5"))
+            diff_5 = c.fetchall()[0]
+            diff_lowest_5 = float(min(diff_5))
+
+            if diff_lowest_5 < difficulty:
+                candidate = diff_lowest_5  # if lowest of last 5 is lower than calculated diff
+            else:
+                candidate = difficulty
+
+            difficulty2 = float('%.13f' % percentage(95, candidate))  # candidate -5%
         else:
-            candidate = difficulty
+            difficulty2 = difficulty
 
-        difficulty2 = float('%.13f' % percentage(95, candidate))  # candidate -5%
-    else:
-        difficulty2 = difficulty
+        if difficulty < 90:
+            difficulty = 90
 
-    if difficulty < 90:
-        difficulty = 90
+        if difficulty2 < 90:
+            difficulty2 = 90
 
-    if difficulty2 < 90:
-        difficulty2 = 90
+        app_log.warning("Difficulty: {} {}".format(difficulty, difficulty2))
+        # return (float(50), float(50)) #TEST ONLY
+        return (float(difficulty), float(difficulty2))
 
-    app_log.warning("Difficulty: {} {}".format(difficulty, difficulty2))
-    # return (float(50), float(50)) #TEST ONLY
-    return (float(difficulty), float(difficulty2))
+    else: #KEEP THIS AFTER HF
+        execute_param(c, ("SELECT block_height FROM transactions WHERE CAST(timestamp AS INTEGER) > ? AND reward != 0 ORDER BY block_height ASC"), (timestamp_last - 86400,))  # 86400=24h
+        blocks_list_1440 = c.fetchall()
+        blocks_per_1440 = len(blocks_list_1440)
+        block_time = (1440 / blocks_per_1440) * 60
+        app_log.warning("Blocks per day: {}".format(blocks_per_1440))
+        app_log.warning("Daily block time: {}".format(block_time))
+
+        execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
+        diff_block_previous = float(c.fetchone()[0])
+
+        # Assume current difficulty D is known
+        D = diff_block_previous
+        # Assume current blocktime is known, calculcated from historic data, for example last 1440 blocks
+        T = block_time
+        # Calculcate network hashrate
+        H = pow(2, D / 2.0) / (T * math.ceil(28 - D / 16.0))
+        # Calculate new difficulty for desired blocktime of 60 seconds
+        Td = 60.00
+        D0 = D
+        Dnew = (2 / math.log(2)) * math.log(H * Td * math.ceil(28 - D0 / 16.0))
+        print("Current difficulty:", D)
+        print("Current blocktime: ", T)
+        print("Current hashrate:", H)
+        print("New difficulty to achive T=60s: ", Dnew)
+
+        difficulty = float('%.13f' % (Dnew))
+
+        time_now = time.time()
+
+        if time_now > timestamp_last + 600:  # if 10 minutes passed
+            execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 5"))
+            diff_5 = c.fetchall()[0]
+            diff_lowest_5 = float(min(diff_5))
+
+            if diff_lowest_5 < difficulty:
+                candidate = diff_lowest_5  # if lowest of last 5 is lower than calculated diff
+            else:
+                candidate = difficulty
+
+            difficulty2 = float('%.13f' % percentage(95, candidate))  # candidate -5%
+        else:
+            difficulty2 = difficulty
+
+        if difficulty < 90:
+            difficulty = 90
+
+        if difficulty2 < 90:
+            difficulty2 = 90
+
+        app_log.warning("Difficulty: {} {}".format(difficulty, difficulty2))
+        # return (float(50), float(50)) #TEST ONLY
+        return (float(difficulty), float(difficulty2))
 
 
 global connection_pool
