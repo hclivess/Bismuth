@@ -5,7 +5,7 @@
 # must unify node and client now that connections parameters are function parameters
 # if you have a block of data and want to insert it into sqlite, you must use a single "commit" for the whole batch, it's 100x faster
 
-VERSION = "4.1.8"
+VERSION = "4.1.8.1"
 
 from itertools import groupby
 from operator import itemgetter
@@ -599,12 +599,16 @@ def difficulty(c):
         Td = 60.00
         D0 = D
         Dnew = (2 / math.log(2)) * math.log(H * Td * math.ceil(28 - D0 / 16.0))
+
+        diff_adjusted = (Dnew - D)/1440 #reduce by factor of 1440
+        Dnew_adjusted = D + diff_adjusted
+
         app_log.warning("Current difficulty:", D)
         app_log.warning("Current blocktime: ", T)
         app_log.warning("Current hashrate:", H)
-        app_log.warning("New difficulty to achive T=60s: ", Dnew)
+        app_log.warning("New difficulty to achive T=60s: ", Dnew_adjusted)
 
-        difficulty = float('%.13f' % (Dnew))
+        difficulty = float('%.13f' % (Dnew_adjusted))
 
         time_now = time.time()
 
