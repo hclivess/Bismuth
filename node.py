@@ -599,10 +599,10 @@ def difficulty(c):
         Td = 60.00
         D0 = D
         Dnew = (2 / math.log(2)) * math.log(H * Td * math.ceil(28 - D0 / 16.0))
-        print("Current difficulty:", D)
-        print("Current blocktime: ", T)
-        print("Current hashrate:", H)
-        print("New difficulty to achive T=60s: ", Dnew)
+        app_log.warning("Current difficulty:", D)
+        app_log.warning("Current blocktime: ", T)
+        app_log.warning("Current hashrate:", H)
+        app_log.warning("New difficulty to achive T=60s: ", Dnew)
 
         difficulty = float('%.13f' % (Dnew))
 
