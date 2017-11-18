@@ -190,7 +190,9 @@ def db_to_drive(hdd, h, hdd2, h2):
     else: #select hyper.db as source database
         source_db = sqlite3.connect(hyper_path_conf, timeout=1, isolation_level=None)
 
-    source_db.execute('pragma journal_mode=wal;')
+    source_db.execute('PRAGMA journal_mode = WAL;')
+    source_db.execute('PRAGMA synchronous = NORMAL;')
+
     source_db.text_factory = str
     sc = source_db.cursor()
 
@@ -600,8 +602,8 @@ def difficulty(c):
         D0 = D
         Dnew = (2 / math.log(2)) * math.log(H * Td * math.ceil(28 - D0 / 16.0))
 
-        diff_adjusted = (Dnew - D)/1440 #reduce by factor of 1440
-        Dnew_adjusted = D + diff_adjusted
+        diff_adjustment = (Dnew - D)/1440 #reduce by factor of 1440
+        Dnew_adjusted = D + diff_adjustment
 
         app_log.warning("Current difficulty:", D)
         app_log.warning("Current blocktime: ", T)
@@ -1491,13 +1493,6 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                         # whole block validation
 
-            if full_ledger == 1 or ram_conf == 1:  # first case move stuff from hyper.db to ledger.db; second case move stuff from ram to both
-                db_to_drive(hdd, h, hdd2, h2)
-
-
-
-
-
         except Exception as e:
             app_log.warning(e)
             if warning(sdef, peer_ip, "Block processing failed", 10) == "banned":
@@ -1509,8 +1504,11 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                 pass
 
         finally:
-            db_lock.release()
+            if full_ledger == 1 or ram_conf == 1:  # first case move stuff from hyper.db to ledger.db; second case move stuff from ram to both
+                db_to_drive(hdd, h, hdd2, h2)
             app_log.info("Digesting complete")
+            db_lock.release()
+
     else:
         app_log.info("Skipping block processing from {}, someone delivered data faster".format(peer_ip))
 
