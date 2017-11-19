@@ -145,7 +145,7 @@ class MainHandler(tornado.web.RequestHandler):
             view.append("<td>{}</td>".format(x[4]))
             view.append("<td>{}</td>".format(x[7]))
             view.append("<td>{}</td>".format(x[8]))
-            view.append("<td>{}</td>".format(x[9]))
+            view.append("<td>{}</td>".format('%.6f' % float(x[9])))
             view.append("<td>{}</td>".format('%.13f' % float(diffs[b][0])))
             view.append("<tr>")
 
