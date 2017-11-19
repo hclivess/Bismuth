@@ -1601,15 +1601,15 @@ def coherence_check():
                 if y > 300000: #there are some forgotten deviances
                     app_log.warning("Chain {} difficulty coherence error at: {}".format(chain, y))
                     coherent = 0
+                    c.execute ("DELETE FROM transactions WHERE block_height >= ?", (y,))
+                    conn.commit()
+                    c.execute("DELETE FROM misc WHERE block_height >= ?", (y,))
+                    conn.commit()
+                    app_log.warning("Due to a coherence issue at block {}, {} has been rolled back and will be resynchronized".format(y,chain))
             y = x
 
         if coherent == 1:
             app_log.warning("Chain {} is coherent".format(chain))
-        else:
-            app_log.warning("There was a coherence error, consider downloading a bootstrap. This message will disappear in 5 seconds")
-            time.sleep(5)
-
-
 
         conn.close()
 
