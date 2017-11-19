@@ -626,10 +626,10 @@ def difficulty(c, mode):
         if mode == "verbose":
             app_log.warning("Blocks per day: {}".format(blocks_per_1440))
             app_log.warning("Daily block time: {}".format(block_time))
-            app_log.warning("Current difficulty:", D)
-            app_log.warning("Current blocktime: ", T)
-            app_log.warning("Current hashrate:", H)
-            app_log.warning("New difficulty to achive T=60s: ", Dnew_adjusted)
+            app_log.warning("Current difficulty: {}".format(D))
+            app_log.warning("Current blocktime: {}".format(T))
+            app_log.warning("Current hashrate: {}".format(H))
+            app_log.warning("New difficulty to achive T=60s: {}".format(Dnew_adjusted))
             app_log.warning("Difficulty: {} {}".format(difficulty, difficulty2))
 
         # return (float(50), float(50)) #TEST ONLY
