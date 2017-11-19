@@ -1525,7 +1525,6 @@ if os.path.exists("fresh_sync"):
     os.remove("fresh_sync")
     bootstrap()
 
-check_integrity(hyper_path_conf)
 essentials.keys_check(app_log)
 essentials.db_check(app_log)
 
@@ -1615,7 +1614,7 @@ def coherence_check():
 
 
 coherence_check()
-
+check_integrity(hyper_path_conf)
 ledger_convert(ledger_path_conf, hyper_path_conf)
 
 
