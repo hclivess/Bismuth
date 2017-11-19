@@ -1580,11 +1580,14 @@ def coherence_check():
             my_list.append(x[0])
 
         y = my_list[0] - 1
-        coherent = 1
         for x in my_list:
             if x != y + 1:
-                app_log.warning("Chain {} coherence error at: {}".format(chain, y))
-                coherent = 0
+                app_log.warning("Chain {} difficulty coherence error at: {}".format(chain, y))
+                c.execute("DELETE FROM transactions WHERE block_height >= ?", (y,))
+                conn.commit()
+                c.execute("DELETE FROM misc WHERE block_height >= ?", (y,))
+                conn.commit()
+                app_log.warning("Due to a coherence issue at block {}, {} has been rolled back and will be resynchronized".format(y, chain))
             y = x
 
         c.execute("SELECT block_height FROM misc ORDER BY block_height ASC")
@@ -1595,7 +1598,6 @@ def coherence_check():
             my_list.append(x[0])
 
         y = my_list[0] - 1
-        coherent = 1
         for x in my_list:
             if x != y + 1:
                 if y > 300000: #there are some forgotten deviances
@@ -1608,9 +1610,7 @@ def coherence_check():
                     app_log.warning("Due to a coherence issue at block {}, {} has been rolled back and will be resynchronized".format(y,chain))
             y = x
 
-        if coherent == 1:
-            app_log.warning("Chain {} is coherent".format(chain))
-
+        app_log.warning("Chain coherence test complete for {}".format(chain))
         conn.close()
 
 
