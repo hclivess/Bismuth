@@ -4,8 +4,9 @@
 # never use codecs, they are bugged and do not provide proper serialization
 # must unify node and client now that connections parameters are function parameters
 # if you have a block of data and want to insert it into sqlite, you must use a single "commit" for the whole batch, it's 100x faster
+# do not isolation_level=None/WAL hdd levels, it makes saving slow
 
-VERSION = "4.1.8.1"
+VERSION = "4.1.8.3"
 
 from itertools import groupby
 from operator import itemgetter
@@ -186,12 +187,14 @@ def db_to_drive(hdd, h, hdd2, h2):
     app_log.warning("Moving new data to HDD")
 
     if ram_conf == 1: #select RAM as source database
-        source_db = sqlite3.connect('file::memory:?cache=shared', uri=True, timeout=1, isolation_level=None)
+        #source_db = sqlite3.connect('file::memory:?cache=shared', uri=True, timeout=1, isolation_level=None)
+        source_db = sqlite3.connect('file::memory:?cache=shared', uri=True, timeout=1)
     else: #select hyper.db as source database
-        source_db = sqlite3.connect(hyper_path_conf, timeout=1, isolation_level=None)
+        #source_db = sqlite3.connect(hyper_path_conf, timeout=1, isolation_level=None)
+        source_db = sqlite3.connect(hyper_path_conf, timeout=1)
 
-    source_db.execute('PRAGMA journal_mode = WAL;')
-    source_db.execute('PRAGMA synchronous = NORMAL;')
+    #source_db.execute('PRAGMA journal_mode = WAL;')
+    #source_db.execute('PRAGMA synchronous = NORMAL;')
 
     source_db.text_factory = str
     sc = source_db.cursor()
@@ -243,16 +246,18 @@ def db_to_drive(hdd, h, hdd2, h2):
 
 
 def db_h_define():
-    hdd = sqlite3.connect(ledger_path_conf, timeout=1, isolation_level=None)
-    hdd.execute('pragma journal_mode=wal;')
+    #hdd = sqlite3.connect(ledger_path_conf, timeout=1, isolation_level=None)
+    hdd = sqlite3.connect(ledger_path_conf, timeout=1)
+    #hdd.execute('pragma journal_mode=wal;')
     hdd.text_factory = str
     h = hdd.cursor()
     return hdd, h
 
 
 def db_h2_define():
-    hdd2 = sqlite3.connect(hyper_path_conf, timeout=1, isolation_level=None)
-    hdd2.execute('pragma journal_mode=wal;')
+    #hdd2 = sqlite3.connect(hyper_path_conf, timeout=1, isolation_level=None)
+    hdd2 = sqlite3.connect(hyper_path_conf, timeout=1)
+    #hdd2.execute('pragma journal_mode=wal;')
     hdd2.text_factory = str
     h2 = hdd2.cursor()
     return hdd2, h2
