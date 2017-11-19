@@ -153,8 +153,7 @@ def bootstrap():
 
 def check_integrity(database):
     # check ledger integrity
-    ledger_check = sqlite3.connect(database, isolation_level=None)
-    ledger_check.execute('pragma journal_mode=wal;')
+    ledger_check = sqlite3.connect(database)
     ledger_check.text_factory = str
 
     l = ledger_check.cursor()
@@ -187,14 +186,9 @@ def db_to_drive(hdd, h, hdd2, h2):
     app_log.warning("Moving new data to HDD")
 
     if ram_conf == 1: #select RAM as source database
-        #source_db = sqlite3.connect('file::memory:?cache=shared', uri=True, timeout=1, isolation_level=None)
         source_db = sqlite3.connect('file::memory:?cache=shared', uri=True, timeout=1)
     else: #select hyper.db as source database
-        #source_db = sqlite3.connect(hyper_path_conf, timeout=1, isolation_level=None)
         source_db = sqlite3.connect(hyper_path_conf, timeout=1)
-
-    #source_db.execute('PRAGMA journal_mode = WAL;')
-    #source_db.execute('PRAGMA synchronous = NORMAL;')
 
     source_db.text_factory = str
     sc = source_db.cursor()
@@ -246,18 +240,14 @@ def db_to_drive(hdd, h, hdd2, h2):
 
 
 def db_h_define():
-    #hdd = sqlite3.connect(ledger_path_conf, timeout=1, isolation_level=None)
     hdd = sqlite3.connect(ledger_path_conf, timeout=1)
-    #hdd.execute('pragma journal_mode=wal;')
     hdd.text_factory = str
     h = hdd.cursor()
     return hdd, h
 
 
 def db_h2_define():
-    #hdd2 = sqlite3.connect(hyper_path_conf, timeout=1, isolation_level=None)
     hdd2 = sqlite3.connect(hyper_path_conf, timeout=1)
-    #hdd2.execute('pragma journal_mode=wal;')
     hdd2.text_factory = str
     h2 = hdd2.cursor()
     return hdd2, h2
@@ -283,16 +273,14 @@ def db_c_define():
 
 
 def db_b_define():
-    backup = sqlite3.connect('backup.db', timeout=1, isolation_level=None)
-    backup.execute('pragma journal_mode=wal;')
+    backup = sqlite3.connect('backup.db', timeout=1)
     backup.text_factory = str
     b = backup.cursor()
     return backup, b
 
 
 def db_m_define():
-    mempool = sqlite3.connect('mempool.db', timeout=1, isolation_level=None)
-    mempool.execute('pragma journal_mode=wal;')
+    mempool = sqlite3.connect('mempool.db', timeout=1)
     mempool.text_factory = str
     m = mempool.cursor()
     return mempool, m
@@ -1542,14 +1530,14 @@ address = hashlib.sha224(public_key_readable.encode('utf-8')).hexdigest()
 app_log.warning("Local address: {}".format(address))
 
 # check if mempool needs recreating
-mempool = sqlite3.connect('mempool.db', timeout=1, isolation_level=None)
+mempool = sqlite3.connect('mempool.db', timeout=1)
 mempool.text_factory = str
 m = mempool.cursor()
 m.execute("PRAGMA table_info('transactions')")
 if len(m.fetchall()) != 8:
     mempool.close()
     os.remove("mempool.db")
-    mempool = sqlite3.connect('mempool.db', timeout=1, isolation_level=None)
+    mempool = sqlite3.connect('mempool.db', timeout=1)
     mempool.text_factory = str
     m = mempool.cursor()
     execute(m, ("CREATE TABLE IF NOT EXISTS transactions (timestamp TEXT, address TEXT, recipient TEXT, amount TEXT, signature TEXT, public_key TEXT, keep TEXT, openfield TEXT)"))
@@ -1581,12 +1569,16 @@ def coherence_check():
         y = my_list[0] - 1
         for x in my_list:
             if x != y + 1:
-                app_log.warning("Chain {} difficulty coherence error at: {}".format(chain, y))
-                c.execute("DELETE FROM transactions WHERE block_height >= ?", (y,))
-                conn.commit()
-                c.execute("DELETE FROM misc WHERE block_height >= ?", (y,))
-                conn.commit()
-                app_log.warning("Due to a coherence issue at block {}, {} has been rolled back and will be resynchronized".format(y, chain))
+                for chain2 in chains_to_check:
+                    conn2 = sqlite3.connect(chain2)
+                    c2 = conn2.cursor()
+                    app_log.warning("Chain {} difficulty coherence error at: {}".format(chain, y))
+                    c2.execute("DELETE FROM transactions WHERE block_height >= ?", (y,))
+                    conn2.commit()
+                    c2.execute("DELETE FROM misc WHERE block_height >= ?", (y,))
+                    conn2.commit()
+                    conn2.close()
+                    app_log.warning("Due to a coherence issue at block {}, {} has been rolled back and will be resynchronized".format(y, chain))
             y = x
 
         c.execute("SELECT block_height FROM misc ORDER BY block_height ASC")
@@ -1600,26 +1592,29 @@ def coherence_check():
         for x in my_list:
             if x != y + 1:
                 if y > 300000: #there are some forgotten deviances
-                    app_log.warning("Chain {} difficulty coherence error at: {}".format(chain, y))
-                    coherent = 0
-                    c.execute ("DELETE FROM transactions WHERE block_height >= ?", (y,))
-                    conn.commit()
-                    c.execute("DELETE FROM misc WHERE block_height >= ?", (y,))
-                    conn.commit()
-                    app_log.warning("Due to a coherence issue at block {}, {} has been rolled back and will be resynchronized".format(y,chain))
+                    for chain2 in chains_to_check:
+                        conn2 = sqlite3.connect(chain2)
+                        c2 = conn2.cursor()
+                        app_log.warning("Chain {} difficulty coherence error at: {}".format(chain, y))
+                        c2.execute("DELETE FROM transactions WHERE block_height >= ?", (y,))
+                        conn2.commit()
+                        c2.execute("DELETE FROM misc WHERE block_height >= ?", (y,))
+                        conn2.commit()
+                        conn2.close()
+                        app_log.warning("Due to a coherence issue at block {}, {} has been rolled back and will be resynchronized".format(y, chain))
             y = x
 
         app_log.warning("Chain coherence test complete for {}".format(chain))
         conn.close()
 
 
-coherence_check()
 check_integrity(hyper_path_conf)
+coherence_check()
 ledger_convert(ledger_path_conf, hyper_path_conf)
 
 
 try:
-    source_db = sqlite3.connect(hyper_path_conf, timeout=1, isolation_level=None)
+    source_db = sqlite3.connect(hyper_path_conf, timeout=1)
     source_db.text_factory = str
     sc = source_db.cursor()
 
