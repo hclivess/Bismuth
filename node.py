@@ -6,7 +6,7 @@
 # if you have a block of data and want to insert it into sqlite, you must use a single "commit" for the whole batch, it's 100x faster
 # do not isolation_level=None/WAL hdd levels, it makes saving slow
 
-VERSION = "4.1.8.3"
+VERSION = "4.1.8.4"
 
 from itertools import groupby
 from operator import itemgetter
