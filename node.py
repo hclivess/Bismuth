@@ -243,6 +243,7 @@ def db_h_define():
     hdd = sqlite3.connect(ledger_path_conf, timeout=1)
     hdd.text_factory = str
     h = hdd.cursor()
+    hdd.execute("PRAGMA page_size = 4096;")
     return hdd, h
 
 
@@ -250,6 +251,7 @@ def db_h2_define():
     hdd2 = sqlite3.connect(hyper_path_conf, timeout=1)
     hdd2.text_factory = str
     h2 = hdd2.cursor()
+    hdd2.execute("PRAGMA page_size = 4096;")
     return hdd2, h2
 
 
@@ -262,7 +264,8 @@ def db_c_define():
         else:
             conn = sqlite3.connect(hyper_path_conf, uri=True, timeout=1, isolation_level=None)
 
-        conn.execute('pragma journal_mode=wal;')
+        conn.execute('PRAGMA journal_mode = WAL;')
+        conn.execute("PRAGMA page_size = 4096;")
         conn.text_factory = str
         c = conn.cursor()
 
