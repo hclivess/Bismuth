@@ -515,7 +515,7 @@ def execute_param(cursor, query, param):
     return cursor
 
 
-def difficulty(c):
+def difficulty(c, mode):
     execute(c, "SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1")
     result = c.fetchall()[0]
     timestamp_last = float(result[1])
@@ -526,9 +526,6 @@ def difficulty(c):
         blocks_list_1440 = c.fetchall()
         blocks_per_1440 = len(blocks_list_1440)
         block_time = (1440 / blocks_per_1440) * 60
-        app_log.warning("Blocks per day: {}".format(blocks_per_1440))
-        app_log.warning("Daily block time: {}".format(block_time))
-
 
         execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
         diff_block_previous = float(c.fetchone()[0])
@@ -538,8 +535,6 @@ def difficulty(c):
         except:
             log = float('%.13f' % math.log2(0.5 / 1440))
             app_log.info("Difficulty exception triggered! This should not happen!")
-
-        app_log.warning("Difficulty retargeting: {}".format(log))
 
         difficulty = float('%.13f' % (diff_block_previous + log))  # increase/decrease diff by a little
 
@@ -557,7 +552,8 @@ def difficulty(c):
 
         if difficulty < min_diff:
             difficulty = float('%.13f' % min_diff)
-            app_log.warning("Difficulty floor reached, difficulty readjusted to {}".format(difficulty))
+            if mode == "verbose":
+                app_log.warning("Difficulty floor reached, difficulty readjusted to {}".format(difficulty))
 
         time_now = time.time()
 
@@ -581,7 +577,11 @@ def difficulty(c):
         if difficulty2 < 90:
             difficulty2 = 90
 
-        app_log.warning("Difficulty: {} {}".format(difficulty, difficulty2))
+        if mode == "verbose":
+            app_log.warning("Blocks per day: {}".format(blocks_per_1440))
+            app_log.warning("Daily block time: {}".format(block_time))
+            app_log.warning("Difficulty retargeting: {}".format(log))
+            app_log.warning("Difficulty: {} {}".format(difficulty, difficulty2))
         # return (float(50), float(50)) #TEST ONLY
         return (float(difficulty), float(difficulty2))
 
@@ -590,8 +590,6 @@ def difficulty(c):
         blocks_list_1440 = c.fetchall()
         blocks_per_1440 = len(blocks_list_1440)
         block_time = (1440 / blocks_per_1440) * 60
-        app_log.warning("Blocks per day: {}".format(blocks_per_1440))
-        app_log.warning("Daily block time: {}".format(block_time))
 
         execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
         diff_block_previous = float(c.fetchone()[0])
@@ -609,11 +607,6 @@ def difficulty(c):
 
         diff_adjustment = (Dnew - D)/1440 #reduce by factor of 1440
         Dnew_adjusted = D + diff_adjustment
-
-        app_log.warning("Current difficulty:", D)
-        app_log.warning("Current blocktime: ", T)
-        app_log.warning("Current hashrate:", H)
-        app_log.warning("New difficulty to achive T=60s: ", Dnew_adjusted)
 
         difficulty = float('%.13f' % (Dnew_adjusted))
 
@@ -639,8 +632,17 @@ def difficulty(c):
         if difficulty2 < 90:
             difficulty2 = 90
 
-        app_log.warning("Difficulty: {} {}".format(difficulty, difficulty2))
+        if mode == "verbose":
+            app_log.warning("Blocks per day: {}".format(blocks_per_1440))
+            app_log.warning("Daily block time: {}".format(block_time))
+            app_log.warning("Current difficulty:", D)
+            app_log.warning("Current blocktime: ", T)
+            app_log.warning("Current hashrate:", H)
+            app_log.warning("New difficulty to achive T=60s: ", Dnew_adjusted)
+            app_log.warning("Difficulty: {} {}".format(difficulty, difficulty2))
+
         # return (float(50), float(50)) #TEST ONLY
+
         return (float(difficulty), float(difficulty2))
 
 
@@ -1288,7 +1290,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                 # calculate difficulty
 
-                diff = difficulty(c)
+                diff = difficulty(c, "verbose")
 
                 # app_log.info("Transaction list: {}".format(transaction_list_converted))
                 block_hash = hashlib.sha224((str(transaction_list_converted) + db_block_hash).encode("utf-8")).hexdigest()
@@ -2283,7 +2285,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                 elif data == "diffget":
                     if (peer_ip in allowed or "any" in allowed):
-                        diff = difficulty(c)
+                        diff = difficulty(c, "silent")
                         connections.send(self.request, diff, 10)
                     else:
                         app_log.info("{} not whitelisted for diffget command".format(peer_ip))
