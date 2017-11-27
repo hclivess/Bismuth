@@ -1798,8 +1798,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         last_block_ago = float(c.fetchone()[0])
 
                         if int(last_block_ago) < (time.time() - 600):
-                           block_req = most_common(consensus_blockheight_list)
-                           app_log.warning("Most common block rule triggered")
+                            block_req = most_common(consensus_blockheight_list)
+                            app_log.warning("Most common block rule triggered")
 
                         else:
                             block_req = max(consensus_blockheight_list)
@@ -2264,6 +2264,13 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     else:
                         app_log.info("{} not whitelisted for difflastget command".format(peer_ip))
 
+                elif data == "*":
+                    app_log.info(">> inbound sending ping to {}".format(peer_ip))
+                    connections.send(self.request, "ping", 10)
+
+                elif data == "ping":
+                    app_log.info(">> Inbound got ping from {}".format(peer_ip))
+
                 else:
                     raise ValueError("Unexpected error, received: " + str(data))
 
@@ -2286,6 +2293,19 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     raise  # major debug client
                 else:
                     return
+
+            finally:
+                # cleanup
+                try:
+                    if mempool:
+                        mempool.close()
+                except Exception as e:
+                    app_log.info("Error closing mempool {}".format(e))
+                try:
+                    if conn:
+                        conn.close()
+                except Exception as e:
+                    app_log.info("Error closing conn {}".format(e))
 
 
 # client thread
@@ -2595,6 +2615,13 @@ def worker(HOST, PORT):
 
                 connections.send(s, "sendsync", 10)
 
+            elif data == "*":
+                app_log.info(">> sending ping to {}".format(peer_ip))
+                connections.send(s, "ping", 10)
+
+            elif data == "ping":
+                app_log.info(">> Got ping from {}".format(peer_ip))
+                
             else:
                 raise ValueError("Unexpected error, received: {}".format(data))
 
@@ -2649,6 +2676,10 @@ if __name__ == "__main__":
             HOST, PORT = "0.0.0.0", int(port)
 
             ThreadedTCPServer.allow_reuse_address = True
+            ThreadedTCPServer.daemon_threads = True
+            ThreadedTCPServer.timeout = 60
+            ThreadedTCPServer.request_queue_size = 100
+            
             server = ThreadedTCPServer((HOST, PORT), ThreadedTCPRequestHandler)
             ip, port = server.server_address
 
