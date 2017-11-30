@@ -1653,19 +1653,27 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
             capacity = 1
         else:
             capacity = 0
-            self.request.close()
-            app_log.info("Free capacity for {} unavailable, disconnected".format(peer_ip))
-            # if you raise here, you kill the whole server
+            try:
+                self.request.close()
+                app_log.info("Free capacity for {} unavailable, disconnected".format(peer_ip))
+                # if you raise here, you kill the whole server
+            except:
+                pass
+            finally:
+                return
 
         if peer_ip not in banlist:
             banned = 0
         else:
             banned = 1
-            self.request.close()
-            app_log.info("IP {} banned, disconnected".format(peer_ip))
-
-            # if you raise here, you kill the whole server
-
+            try:
+                self.request.close()
+                app_log.info("IP {} banned, disconnected".format(peer_ip))
+            except:
+                pass
+            finally:
+                return
+           
         timeout_operation = 120  # timeout
         timer_operation = time.time()  # start counting
 
@@ -1682,7 +1690,10 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     hdd, h = None,None
                     h3 = h2
 
-
+                # Failsafe
+                if self.request == -1:
+                    raise ValueError("Inbound: Closed socket from {}".format(peer_ip))
+                    return
                 if not time.time() <= timer_operation + timeout_operation:  # return on timeout
                     if warning(self.request, peer_ip, "Operation timeout", 1) == "banned":
                         app_log.info("{} banned".format(peer_ip))
