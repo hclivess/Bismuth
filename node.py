@@ -1050,7 +1050,8 @@ def consensus_remove(peer_ip):
 def manager(c, conn):
     global banlist
     peer_dict = peers_get()
-
+    # When was the last time we reset banlist and tries?
+    reset_time = startup_time
     while True:
         # dict_keys = peer_dict.keys()
         # random.shuffle(peer_dict.items())
@@ -1088,15 +1089,24 @@ def manager(c, conn):
 
         if len(connection_pool) < nodes_ban_reset and int(time.time() - startup_time) > 15: #do not reset before 30 secs have passed
             app_log.warning("Only {} connections active, resetting banlist".format(len(connection_pool)))
-            del banlist[:]
+            #del banlist[:]
+            banlist = config.banlist # reset to config version
             del warning_list[:]
 
         if len(connection_pool) < 10:
             app_log.warning("Only {} connections active, resetting the connection history".format(len(connection_pool)))
             del tried[:]
 
+        if nodes_ban_reset and len(connection_pool) < len(banlist) and int(time.time() - reset_time) > 60*10: #do not reset too often. 10 minutes here
+            app_log.warning("Less active connections ({}) than banlist ({}), resetting banlist and tried" .format(len(connection_pool), len(banlist)))
+            banlist = config.banlist # reset to config version
+            del warning_list[:]
+            del tried[:]
+            reset_time = time.time()
+
         if banlist:
             app_log.warning("Status: Banlist: {}".format(banlist))
+            app_log.warning("Status: Banlist Count : {}".format(len(banlist)))
         if whitelist:
             app_log.warning("Status: Whitelist: {}".format(whitelist))
 
@@ -1104,6 +1114,7 @@ def manager(c, conn):
         app_log.info("Status: Syncing nodes: {}/3".format(len(syncing)))
         app_log.warning("Status: Threads at {} / {}".format(threading.active_count(), thread_limit_conf))
         app_log.info("Status: Tried: {}".format(tried))
+        app_log.info("Status: Tried Count: {}".format(len(tried)))
         app_log.info("Status: List of Outbound connections: {}".format(connection_pool))
         app_log.warning("Status: Number of Outbound connections: {}".format(len(connection_pool)))
         if consensus:  # once the consensus is filled
