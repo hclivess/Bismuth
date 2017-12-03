@@ -1089,8 +1089,8 @@ def manager(c, conn):
 
         if len(connection_pool) < nodes_ban_reset and int(time.time() - startup_time) > 15: #do not reset before 30 secs have passed
             app_log.warning("Only {} connections active, resetting banlist".format(len(connection_pool)))
-            #del banlist[:]
-            banlist = config.banlist # reset to config version
+            del banlist[:]
+            banlist.extend(config.banlist) # reset to config version
             del warning_list[:]
 
         if len(connection_pool) < 10:
@@ -1099,7 +1099,8 @@ def manager(c, conn):
 
         if nodes_ban_reset and len(connection_pool) < len(banlist) and int(time.time() - reset_time) > 60*10: #do not reset too often. 10 minutes here
             app_log.warning("Less active connections ({}) than banlist ({}), resetting banlist and tried" .format(len(connection_pool), len(banlist)))
-            banlist = config.banlist # reset to config version
+            del banlist[:]
+            banlist.extend(config.banlist) # reset to config version
             del warning_list[:]
             del tried[:]
             reset_time = time.time()
