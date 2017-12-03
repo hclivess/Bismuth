@@ -1097,7 +1097,7 @@ def manager(c, conn):
             app_log.warning("Only {} connections active, resetting the connection history".format(len(connection_pool)))
             del tried[:]
 
-        if nodes_ban_reset and len(connection_pool) < len(banlist) and int(time.time() - reset_time) > 60*10: #do not reset too often. 10 minutes here
+        if nodes_ban_reset and len(connection_pool) <= len(banlist) and int(time.time() - reset_time) > 60*10: #do not reset too often. 10 minutes here
             app_log.warning("Less active connections ({}) than banlist ({}), resetting banlist and tried" .format(len(connection_pool), len(banlist)))
             del banlist[:]
             banlist.extend(config.banlist) # reset to config version
