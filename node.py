@@ -6,7 +6,7 @@
 # if you have a block of data and want to insert it into sqlite, you must use a single "commit" for the whole batch, it's 100x faster
 # do not isolation_level=None/WAL hdd levels, it makes saving slow
 
-VERSION = "4.1.9"
+VERSION = "4.2.0"
 
 from itertools import groupby
 from operator import itemgetter
@@ -322,7 +322,6 @@ def warning(sdef, ip, reason, count):
             app_log.warning("{} is banned: {}".format(ip, reason))
             return "banned"
 
-
 def ledger_convert(ledger_path_conf, hyper_path_conf):
     try:
 
@@ -382,7 +381,6 @@ def ledger_convert(ledger_path_conf, hyper_path_conf):
             hyper.text_factory = str
             hyp = hyper.cursor()
 
-            end_balance = 0
             addresses = []
 
             hyp.execute("UPDATE transactions SET address = 'Hypoblock' WHERE address = 'Hyperblock'")
