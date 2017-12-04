@@ -1,4 +1,4 @@
-import select, json, platform, time, sys
+import select, json, platform
 
 # Logical timeout
 LTIMEOUT = 45
