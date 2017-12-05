@@ -11,7 +11,8 @@ rmdir /s /q %var%\dist
 del /f /s /q %var%\build 1>nul
 rmdir /s /q %var%\build
 
-pyinstaller.exe --uac-admin --log-level=INFO %var%\miner.py --icon=%var%\graphics\icon.ico 
+pyinstaller.exe --uac-admin --log-level=INFO %var%\miner.py --icon=%var%\graphics\icon.ico
+pyinstaller.exe --uac-admin --log-level=INFO %var%\commands.py --icon=%var%\graphics\icon.ico
 pyinstaller.exe --uac-admin --noconsole --log-level=INFO %var%\wallet.py --icon=%var%\graphics\icon.ico
 pyinstaller.exe --uac-admin --noconsole --log-level=INFO %var%\legacy_gui.py --icon=%var%\graphics\icon.ico
 pyinstaller.exe --uac-admin --log-level=INFO %var%\node.py --icon=%var%\graphics\icon.ico
