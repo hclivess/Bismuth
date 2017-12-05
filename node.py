@@ -551,7 +551,7 @@ def difficulty(c, mode):
         app_log.warning("Current hashrate: {}".format(H))
         app_log.warning("New difficulty after adjustment: {}".format(Dnew_adjusted))
         app_log.warning("Difficulty: {} {}".format(difficulty, difficulty2))
-    return (float(difficulty), float(difficulty2)) #need to keep float here for database inserts support
+    return (float('%.13f' % difficulty), float('%.13f' % difficulty2)) #need to keep float here for database inserts support
 
 
 global connection_pool
