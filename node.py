@@ -539,7 +539,7 @@ def difficulty(c, mode):
     time_now = time.time()
     if block_time > 70.0:
         if time_now > timestamp_last + 300:  # if more than 5 minutes passed
-            difficulty2 = difficulty - 1.0
+            difficulty2 = difficulty - Decimal(1.0)
     if difficulty < 80:
         difficulty = 80
     if difficulty2 < 80:
@@ -1628,7 +1628,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 pass
             finally:
                 return
-           
+
         timeout_operation = 120  # timeout
         timer_operation = time.time()  # start counting
 
@@ -2587,7 +2587,7 @@ def worker(HOST, PORT):
 
             #elif data == "ping":
             #    app_log.info(">> Got ping from {}".format(peer_ip))
-                
+
             else:
                 raise ValueError("Unexpected error, received: {}".format(data))
 
@@ -2645,7 +2645,7 @@ if __name__ == "__main__":
             ThreadedTCPServer.daemon_threads = True
             ThreadedTCPServer.timeout = 60
             ThreadedTCPServer.request_queue_size = 100
-            
+
             server = ThreadedTCPServer((HOST, PORT), ThreadedTCPRequestHandler)
             ip, port = server.server_address
 
