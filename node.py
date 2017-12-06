@@ -601,7 +601,7 @@ def mempool_merge(data, peer_ip, c, mempool, m):
                     mempool_signature_enc = str(transaction[4])[:684]
                     mempool_public_key_hashed = str(transaction[5])[:1068]
                     mempool_keep = str(transaction[6])[:1]
-                    mempool_openfield = str(transaction[7])
+                    mempool_openfield = str(transaction[7])[:100000]
 
                     mempool_public_key = RSA.importKey(base64.b64decode(mempool_public_key_hashed))  # convert readable key to instance
                     mempool_signature_dec = base64.b64decode(mempool_signature_enc)
