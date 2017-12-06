@@ -1738,7 +1738,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         time.sleep(float(pause_conf))
                     app_log.info("Inbound: Sending sync request")
 
-                    connections.send(self.request, "sync", 10)
+                    
 
                 elif data == "sendsync":
                     while db_lock.locked() == True:
@@ -1793,7 +1793,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             connections.send(self.request, "blocksrj", 10)
                             app_log.info("Inbound: Distant peer {} is at {}, should be at least {}".format(peer_ip, received_block_height, block_req))
 
-                    connections.send(self.request, "sync", 10)
+                    
 
                 elif data == "blockheight":
                     try:
@@ -1889,9 +1889,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         app_log.info("Inbound: Sync failed {}".format(e))
 
 
-                elif data == "nonewblk":
-                    connections.send(self.request, "sync", 10)
-
                 elif data == "blocknf":
                     block_hash_delete = connections.receive(self.request, 10)
                     # print peer_ip
@@ -1904,7 +1901,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                     while db_lock.locked() == True:
                         time.sleep(float(pause_conf))
-                    connections.send(self.request, "sync", 10)
 
                 elif data == "block":
                     if (peer_ip in allowed or "any" in allowed):  # from miner
@@ -2230,6 +2226,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     else:
                         app_log.info("{} not whitelisted for difflastget command".format(peer_ip))
 
+
                 #elif data == "*":
                 #    app_log.info(">> inbound sending ping to {}".format(peer_ip))
                 #    connections.send(self.request, "ping", 10)
@@ -2494,7 +2491,6 @@ def worker(HOST, PORT):
                     app_log.info("Outbound: Sync failed {}".format(e))
                 finally:
                     syncing.remove(peer_ip)
-                    #connections.send(s, "sendsync", 10)
 
             elif data == "blocknf":
                 block_hash_delete = connections.receive(s, 10)
@@ -2503,10 +2499,7 @@ def worker(HOST, PORT):
                     blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, backup, b)
                     if warning(s, peer_ip, "Rollback",1) == "banned":
                         raise ValueError("{} is banned".format(peer_ip))
-
-                while db_lock.locked() == True:
-                    time.sleep(float(pause_conf))
-                connections.send(s, "sendsync", 10)
+                
 
             elif data == "blocksfnd":
                 app_log.info("Outbound: Node {} has the block(s)".format(peer_ip))  # node should start sending txs in this step
@@ -2549,8 +2542,6 @@ def worker(HOST, PORT):
                         app_log.warning("Inbound: Distant peer {} is at {}, should be at least {}".format(peer_ip, received_block_height, block_req))
 
 
-                connections.send(s, "sendsync", 10)
-
                 # block_hash validation end
 
             elif data == "nonewblk":
@@ -2579,7 +2570,6 @@ def worker(HOST, PORT):
                 while db_lock.locked() == True:
                     time.sleep(float(pause_conf))
 
-                connections.send(s, "sendsync", 10)
 
             #elif data == "*":
             #    app_log.info(">> sending ping to {}".format(peer_ip))
@@ -2588,8 +2578,11 @@ def worker(HOST, PORT):
             #elif data == "ping":
             #    app_log.info(">> Got ping from {}".format(peer_ip))
 
+            #else:
+                #raise ValueError("Unexpected error, received: {}".format(data))
+
             else:
-                raise ValueError("Unexpected error, received: {}".format(data))
+                connections.send(s, "sendsync", 10)
 
         except Exception as e:
             # remove from active pool
