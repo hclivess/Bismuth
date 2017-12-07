@@ -6,7 +6,7 @@
 # if you have a block of data and want to insert it into sqlite, you must use a single "commit" for the whole batch, it's 100x faster
 # do not isolation_level=None/WAL hdd levels, it makes saving slow
 
-VERSION = "4.2.1.2"
+VERSION = "4.2.1.3"
 
 from itertools import groupby
 from operator import itemgetter
@@ -547,9 +547,19 @@ def difficulty(c, mode):
     difficulty = Decimal(Dnew_adjusted)
     difficulty2 = difficulty
     time_now = time.time()
-    if block_time > 70.0:
-        if time_now > timestamp_last + 300:  # if more than 5 minutes passed
-            difficulty2 = difficulty - Decimal(1.0)
+
+
+    if block_height < 427000: #remove after hf
+        if block_time > 70.0:
+            if time_now > timestamp_last + 300:  # if more than 5 minutes passed
+                difficulty2 = difficulty - Decimal(1.0)
+    else:
+        if block_time > 90.0: #keep after hf
+            if time_now > timestamp_last + 300:  # if more than 5 minutes passed
+                difficulty2 = difficulty - Decimal(1.0)
+
+
+
     if difficulty < 80:
         difficulty = 80
     if difficulty2 < 80:
@@ -2228,12 +2238,12 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         app_log.info("{} not whitelisted for difflastget command".format(peer_ip))
 
 
-                # elif data == "*":
-                #    app_log.info(">> inbound sending ping to {}".format(peer_ip))
-                #    connections.send(self.request, "ping", 10)
+                elif data == "*":
+                    app_log.info(">> inbound sending ping to {}".format(peer_ip))
+                    connections.send(self.request, "ping", 10)
 
-                # elif data == "ping":
-                #    app_log.info(">> Inbound got ping from {}".format(peer_ip))
+                elif data == "ping":
+                    app_log.info(">> Inbound got ping from {}".format(peer_ip))
 
                 else:
                     raise ValueError("Unexpected error, received: " + str(data))
@@ -2569,12 +2579,12 @@ def worker(HOST, PORT):
                 sendsync(s)
 
 
-            # elif data == "*":
-            #    app_log.info(">> sending ping to {}".format(peer_ip))
-            #    connections.send(s, "ping", 10)
+            elif data == "*":
+                app_log.info(">> sending ping to {}".format(peer_ip))
+                connections.send(s, "ping", 10)
 
-            # elif data == "ping":
-            #    app_log.info(">> Got ping from {}".format(peer_ip))
+            elif data == "ping":
+                app_log.info(">> Got ping from {}".format(peer_ip))
 
             else:
                 raise ValueError("Unexpected error, received: {}".format(data))
