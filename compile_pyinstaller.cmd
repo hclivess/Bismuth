@@ -25,6 +25,8 @@ robocopy %var%\dist\node %var%\dist\ /move /E
 rmdir /s /q dist\node
 robocopy %var%\dist\legacy_gui %var%\dist\ /move /E
 rmdir /s /q dist\legacy_gui
+robocopy %var%\dist\commands %var%\dist\ /move /E
+rmdir /s /q dist\commands
 
 robocopy %var%\Crypto %var%\dist\Crypto /E
 

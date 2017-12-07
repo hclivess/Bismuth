@@ -6,7 +6,7 @@ import socks, connections, time, sys
 try:
     command = sys.argv[1]
 except:
-    pass
+    command = input("No argument detected, please insert command manually\n")
 
 try:
     arg1 = sys.argv[2]
