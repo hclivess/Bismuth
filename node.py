@@ -68,6 +68,12 @@ banlist=config.banlist
 global whitelist
 whitelist=config.whitelist
 
+def sendsync(sdef):
+    time.sleep(float(pause_conf))
+    while db_lock.locked() == True:
+        time.sleep(float(pause_conf))
+
+    connections.send(sdef, "sendsync", 10)
 
 def validate_pem(public_key):
     # verify pem as cryptodome does
@@ -2494,9 +2500,8 @@ def worker(HOST, PORT):
                     app_log.info("Outbound: Sync failed {}".format(e))
                 finally:
                     syncing.remove(peer_ip)
-                    #connections.send(s, "sendsync", 10)
 
-            elif data == "blocknf":
+            elif data == "blocknf": #one of the possible outcomes
                 block_hash_delete = connections.receive(s, 10)
                 # print peer_ip
                 if max(consensus_blockheight_list) == int(received_block_height):
@@ -2504,9 +2509,7 @@ def worker(HOST, PORT):
                     if warning(s, peer_ip, "Rollback",1) == "banned":
                         raise ValueError("{} is banned".format(peer_ip))
 
-                while db_lock.locked() == True:
-                    time.sleep(float(pause_conf))
-                connections.send(s, "sendsync", 10)
+                sendsync(s)
 
             elif data == "blocksfnd":
                 app_log.info("Outbound: Node {} has the block(s)".format(peer_ip))  # node should start sending txs in this step
@@ -2548,8 +2551,7 @@ def worker(HOST, PORT):
                         connections.send(s, "blocksrj", 10)
                         app_log.warning("Inbound: Distant peer {} is at {}, should be at least {}".format(peer_ip, received_block_height, block_req))
 
-
-                connections.send(s, "sendsync", 10)
+                sendsync(s)
 
                 # block_hash validation end
 
@@ -2575,11 +2577,7 @@ def worker(HOST, PORT):
 
                 app_log.info("Outbound: Synchronization with {} finished".format(peer_ip))
 
-                time.sleep(float(pause_conf))
-                while db_lock.locked() == True:
-                    time.sleep(float(pause_conf))
-
-                connections.send(s, "sendsync", 10)
+                sendsync(s)
 
             #elif data == "*":
             #    app_log.info(">> sending ping to {}".format(peer_ip))
