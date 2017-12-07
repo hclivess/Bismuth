@@ -6,7 +6,7 @@
 # if you have a block of data and want to insert it into sqlite, you must use a single "commit" for the whole batch, it's 100x faster
 # do not isolation_level=None/WAL hdd levels, it makes saving slow
 
-VERSION = "4.2.1.3"
+VERSION = "4.2.1.2"
 
 from itertools import groupby
 from operator import itemgetter
@@ -58,15 +58,23 @@ pool_address = config.pool_address_conf
 version = config.version_conf
 version_allow = config.version_allow
 full_ledger = config.full_ledger_conf
-reveal_address=config.reveal_address
-accept_peers=config.accept_peers
-nodes_ban_reset=config.nodes_ban_reset
+reveal_address = config.reveal_address
+accept_peers = config.accept_peers
+nodes_ban_reset = config.nodes_ban_reset
 
 global banlist
-banlist=config.banlist
+banlist = config.banlist
 
 global whitelist
-whitelist=config.whitelist
+whitelist = config.whitelist
+
+
+def sendsync(sdef):
+    time.sleep(float(pause_conf))
+    while db_lock.locked() == True:
+        time.sleep(float(pause_conf))
+
+    connections.send(sdef, "sendsync", 10)
 
 
 def validate_pem(public_key):
@@ -85,6 +93,7 @@ def validate_pem(public_key):
         raise ValueError("Not a valid PEM post boundary")
         # verify pem as cryptodome does
 
+
 def fee_calculate(openfield, keep):
     fee = '%.8f' % float(0.01 + (float(len(openfield)) / 100000))  # 0.01 dust
     if "token:issue:" in openfield:
@@ -93,10 +102,11 @@ def fee_calculate(openfield, keep):
         fee = '%.8f' % (float(fee) + 1)
     return fee
 
+
 def download_file(url, filename):
     try:
         r = requests.get(url, stream=True)
-        total_size = int(r.headers.get('content-length'))/1024
+        total_size = int(r.headers.get('content-length')) / 1024
 
         with open(filename, 'wb') as filename:
             chunkno = 0
@@ -108,13 +118,14 @@ def download_file(url, filename):
 
                     filename.write(chunk)
                     filename.flush()
-            print ("Downloaded 100 %")
+            print("Downloaded 100 %")
 
         return filename
     except:
         raise
 
-if "testnet" in version: #overwrite for testnet
+
+if "testnet" in version:  # overwrite for testnet
     port = 2829
     full_ledger = 0
     hyper_path_conf = "static/test.db"
@@ -131,11 +142,11 @@ else:
     peerlist = "peers.txt"
 
 
-
 # load config
 
 def most_common(lst):
     return max(set(lst), key=lst.count)
+
 
 def bootstrap():
     try:
@@ -178,16 +189,14 @@ def percentage(percent, whole):
     return float((percent * whole) / 100)
 
 
-
-
 def db_to_drive(hdd, h, hdd2, h2):
     global hdd_block
 
     app_log.warning("Moving new data to HDD")
 
-    if ram_conf == 1: #select RAM as source database
+    if ram_conf == 1:  # select RAM as source database
         source_db = sqlite3.connect('file::memory:?cache=shared', uri=True, timeout=1)
-    else: #select hyper.db as source database
+    else:  # select hyper.db as source database
         source_db = sqlite3.connect(hyper_path_conf, timeout=1)
 
     source_db.text_factory = str
@@ -196,12 +205,12 @@ def db_to_drive(hdd, h, hdd2, h2):
     execute_param(sc, ("SELECT * FROM transactions WHERE block_height > ? ORDER BY block_height ASC"), (hdd_block,))
     result1 = sc.fetchall()
 
-    if full_ledger == 1: #we want to save to ledger.db from hyper.db
+    if full_ledger == 1:  # we want to save to ledger.db from hyper.db
         for x in result1:
             h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
         commit(hdd)
 
-    if ram_conf == 1: #we want to save to hyper.db from RAM
+    if ram_conf == 1:  # we want to save to hyper.db from RAM
         for x in result1:
             h2.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
         commit(hdd2)
@@ -209,12 +218,12 @@ def db_to_drive(hdd, h, hdd2, h2):
     execute_param(sc, ("SELECT * FROM misc WHERE block_height > ? ORDER BY block_height ASC"), (hdd_block,))
     result2 = sc.fetchall()
 
-    if full_ledger == 1: #we want to save to ledger.db from hyper.db
+    if full_ledger == 1:  # we want to save to ledger.db from hyper.db
         for x in result2:
             h.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
         commit(hdd)
 
-    if ram_conf == 1: #we want to save to hyper.db from RAM
+    if ram_conf == 1:  # we want to save to hyper.db from RAM
         for x in result2:
             h2.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
         commit(hdd2)
@@ -222,12 +231,12 @@ def db_to_drive(hdd, h, hdd2, h2):
     # reward
     execute_param(sc, ('SELECT * FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) > ?'), (hdd_block,))
     result3 = sc.fetchall()
-    if full_ledger == 1: #we want to save to ledger.db from hyper.db
+    if full_ledger == 1:  # we want to save to ledger.db from hyper.db
         for x in result3:
             h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
         commit(hdd)
 
-    elif ram_conf == 1: #we want to save to hyper.db from RAM
+    elif ram_conf == 1:  # we want to save to hyper.db from RAM
         for x in result3:
             h2.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
         commit(hdd2)
@@ -296,7 +305,7 @@ app_log.warning("Configuration settings loaded")
 
 def unban(peer_ip):
     global warning_list
-    #global banlist
+    # global banlist
 
     # warning_list = [x for x in warning_list if x != peer_ip] #delete all
     # banlist = [x for x in banlist if x != peer_ip]
@@ -321,6 +330,7 @@ def warning(sdef, ip, reason, count):
             sdef.close()
             app_log.warning("{} is banned: {}".format(ip, reason))
             return "banned"
+
 
 def ledger_convert(ledger_path_conf, hyper_path_conf):
     try:
@@ -422,11 +432,11 @@ def ledger_convert(ledger_path_conf, hyper_path_conf):
                 # app_log.info("Balance: " + str(end_balance))
 
                 # test for keep positivity
-                #hyp.execute("SELECT block_height FROM transactions WHERE address OR recipient = ?", (x,))
-                #keep_is = 1
-                #try:
+                # hyp.execute("SELECT block_height FROM transactions WHERE address OR recipient = ?", (x,))
+                # keep_is = 1
+                # try:
                 #    hyp.fetchone()[0]
-                #except:
+                # except:
                 #    keep_is = 0
                 # test for keep positivity
 
@@ -439,7 +449,7 @@ def ledger_convert(ledger_path_conf, hyper_path_conf):
             hyp.execute("DELETE FROM transactions WHERE block_height < ? AND address != 'Hyperblock';", (str(int(db_block_height) - depth),))
             hyper.commit()
 
-            hyp.execute("DELETE FROM misc WHERE block_height < ?;", (str(int(db_block_height) - depth),)) #remove diff calc
+            hyp.execute("DELETE FROM misc WHERE block_height < ?;", (str(int(db_block_height) - depth),))  # remove diff calc
             hyper.commit()
 
             hyp.execute("VACUUM")
@@ -505,7 +515,7 @@ def execute_param(cursor, query, param):
 
 
 def difficulty(c, mode):
-    getcontext().prec = 13 #decimal places
+    getcontext().prec = 13  # decimal places
     execute(c, "SELECT * FROM transactions ORDER BY block_height DESC LIMIT 2")
     result = c.fetchone()
     timestamp_last = Decimal(result[1])
@@ -514,9 +524,9 @@ def difficulty(c, mode):
 
     execute_param(c, ("SELECT timestamp FROM transactions WHERE CAST(block_height AS INTEGER) > ? AND reward != 0 ORDER BY timestamp ASC LIMIT 2"), (block_height - 1441,))
     timestamp_1441 = Decimal(c.fetchone()[0])
-    block_time_prev = (timestamp_before_last - timestamp_1441)/1440
+    block_time_prev = (timestamp_before_last - timestamp_1441) / 1440
     timestamp_1440 = Decimal(c.fetchone()[0])
-    block_time = Decimal(timestamp_last - timestamp_1440)/1440
+    block_time = Decimal(timestamp_last - timestamp_1440) / 1440
     execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
     diff_block_previous = Decimal(c.fetchone()[0])
     # Assume current difficulty D is known
@@ -531,8 +541,8 @@ def difficulty(c, mode):
     Dnew = Decimal((2 / math.log(2)) * math.log(H * Td * math.ceil(28 - D0 / Decimal(16.0))))
     # Feedback controller
     Kd = 10
-    Dnew = Dnew - Kd*(block_time - block_time_prev)
-    diff_adjustment = (Dnew - D)/720 #reduce by factor of 720
+    Dnew = Dnew - Kd * (block_time - block_time_prev)
+    diff_adjustment = (Dnew - D) / 720  # reduce by factor of 720
     Dnew_adjusted = D + diff_adjustment
     difficulty = Decimal(Dnew_adjusted)
     difficulty2 = difficulty
@@ -545,13 +555,13 @@ def difficulty(c, mode):
     if difficulty2 < 80:
         difficulty2 = 80
     if mode == "verbose":
-        app_log.warning("Time to generate block {}: {}".format(block_height,timestamp_last - timestamp_before_last))
+        app_log.warning("Time to generate block {}: {}".format(block_height, timestamp_last - timestamp_before_last))
         app_log.warning("Current difficulty: {}".format(D))
         app_log.warning("Current blocktime: {}".format(T))
         app_log.warning("Current hashrate: {}".format(H))
         app_log.warning("New difficulty after adjustment: {}".format(Dnew_adjusted))
         app_log.warning("Difficulty: {} {}".format(difficulty, difficulty2))
-    return (float('%.13f' % difficulty), float('%.13f' % difficulty2)) #need to keep float here for database inserts support
+    return (float('%.13f' % difficulty), float('%.13f' % difficulty2))  # need to keep float here for database inserts support
 
 
 global connection_pool
@@ -616,7 +626,6 @@ def mempool_merge(data, peer_ip, c, mempool, m):
                         mempool_in = 1
                     except:
                         mempool_in = 0
-
 
                     # reject transactions which are already in the ledger
                     execute_param(c, ("SELECT * FROM transactions WHERE signature = ?;"), (mempool_signature_enc,))  # condition 2
@@ -718,7 +727,7 @@ def mempool_merge(data, peer_ip, c, mempool, m):
                         balance_pre = float('%.8f' % (float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)))
                         # app_log.info("Mempool: Projected transction address balance: " + str(balance))
 
-                        #fee = '%.8f' % float(0.01 + (float(len(mempool_openfield)) / 100000) + int(mempool_keep))  # 0.01 dust
+                        # fee = '%.8f' % float(0.01 + (float(len(mempool_openfield)) / 100000) + int(mempool_keep))  # 0.01 dust
                         fee = fee_calculate(mempool_openfield, mempool_keep)
 
                         time_now = time.time()
@@ -903,13 +912,13 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, backup, b):
                 app_log.warning("Node {} didn't find block {}({}), rolled back".format(peer_ip, db_block_height, db_block_hash))
 
                 # roll back hdd too
-                if full_ledger == 1: #rollback ledger.db
+                if full_ledger == 1:  # rollback ledger.db
                     execute_param(h, ("DELETE FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
                     commit(hdd)
                     execute_param(h, ("DELETE FROM misc WHERE block_height >= ?;"), (str(db_block_height),))
                     commit(hdd)
 
-                if ram_conf == 1: #rollback hyper.db
+                if ram_conf == 1:  # rollback hyper.db
                     execute_param(h2, ("DELETE FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
                     commit(hdd2)
                     execute_param(h2, ("DELETE FROM misc WHERE block_height >= ?;"), (str(db_block_height),))
@@ -919,14 +928,14 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, backup, b):
                 # roll back hdd too
 
                 # roll back reward too
-                if full_ledger == 1: #rollback ledger.db
+                if full_ledger == 1:  # rollback ledger.db
                     execute_param(h, ('DELETE FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) >= ?'), (str(db_block_height),))
                     commit(hdd)
 
-                if ram_conf == 1: #rollback hyper.db
+                if ram_conf == 1:  # rollback hyper.db
                     execute_param(h2, ('DELETE FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) >= ?'), (str(db_block_height),))
                     commit(hdd2)
-                # roll back reward too
+                    # roll back reward too
 
         except:
             pass
@@ -1004,10 +1013,10 @@ def manager(c, conn):
         # dict_keys = peer_dict.keys()
         # random.shuffle(peer_dict.items())
 
-        variability = [] #should invariable peers not be saved to peerlist at all? in that case, move this where peers are saved
-        del variability [:]
+        variability = []  # should invariable peers not be saved to peerlist at all? in that case, move this where peers are saved
+        del variability[:]
         variable = []
-        del variable [:]
+        del variable[:]
 
         for key, value in peer_dict.items():
             variability.append(key.split(".")[:-1])
@@ -1033,22 +1042,22 @@ def manager(c, conn):
                         app_log.info("---Starting a client thread " + str(threading.currentThread()) + "---")
                         t.daemon = True
                         t.start()
-                    # client thread handling
+                        # client thread handling
 
-        if len(connection_pool) < nodes_ban_reset and int(time.time() - startup_time) > 15: #do not reset before 30 secs have passed
+        if len(connection_pool) < nodes_ban_reset and int(time.time() - startup_time) > 15:  # do not reset before 30 secs have passed
             app_log.warning("Only {} connections active, resetting banlist".format(len(connection_pool)))
             del banlist[:]
-            banlist.extend(config.banlist) # reset to config version
+            banlist.extend(config.banlist)  # reset to config version
             del warning_list[:]
 
         if len(connection_pool) < 10:
             app_log.warning("Only {} connections active, resetting the connection history".format(len(connection_pool)))
             del tried[:]
 
-        if nodes_ban_reset and len(connection_pool) <= len(banlist) and int(time.time() - reset_time) > 60*10: #do not reset too often. 10 minutes here
-            app_log.warning("Less active connections ({}) than banlist ({}), resetting banlist and tried" .format(len(connection_pool), len(banlist)))
+        if nodes_ban_reset and len(connection_pool) <= len(banlist) and int(time.time() - reset_time) > 60 * 10:  # do not reset too often. 10 minutes here
+            app_log.warning("Less active connections ({}) than banlist ({}), resetting banlist and tried".format(len(connection_pool), len(banlist)))
             del banlist[:]
-            banlist.extend(config.banlist) # reset to config version
+            banlist.extend(config.banlist)  # reset to config version
             del warning_list[:]
             del tried[:]
             reset_time = time.time()
@@ -1104,7 +1113,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                 for entry in transaction_list:  # sig 4
                     entry_signature = entry[4]
 
-                    if entry_signature: #prevent empty signature database retry hack
+                    if entry_signature:  # prevent empty signature database retry hack
                         signature_list.append(entry_signature)
 
                         # reject block with transactions which are already in the ledger
@@ -1120,7 +1129,6 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                     else:
                         block_valid = 0
                         app_log.warning("Empty signature from {}".format(peer_ip))
-
 
                 if len(signature_list) != len(set(signature_list)):
                     error_msg = "There are duplicate transactions in this block, rejected"
@@ -1186,11 +1194,9 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         nonce = received_openfield[:128]
                         miner_address = received_address
 
-                        #if float(db_timestamp_last) + 30 > float(block_timestamp): #if block comes 0-30 seconds after the previous one
+                        # if float(db_timestamp_last) + 30 > float(block_timestamp): #if block comes 0-30 seconds after the previous one
                         #    error_msg = "The mined block is too close to the previous one"
                         #    block_valid = 0
-
-
 
                     time_now = time.time()
                     if float(time_now) + 30 < float(received_timestamp):
@@ -1258,7 +1264,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                     app_log.warning("Check 1: A part of the block is invalid, rejected: {}".format(error_msg))
                     error_msg = ""
                     app_log.info("Check 1: Complete rejected data: {}".format(data))
-                    if warning(sdef, peer_ip, "Check 1: rejected block",1) == "banned":
+                    if warning(sdef, peer_ip, "Check 1: rejected block", 1) == "banned":
                         raise ValueError("{} banned".format(peer_ip))
 
                 if block_valid == 1:
@@ -1291,12 +1297,12 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         block_fees_address = 0
 
                         for x in transaction_list:
-                            if x[1] == db_address: # make calculation relevant to a particular address in the block
+                            if x[1] == db_address:  # make calculation relevant to a particular address in the block
                                 block_debit_address = float(block_debit_address) + float(x[3])
 
                                 if x != transaction_list[-1]:
-                                    block_fees_address = float(block_fees_address) + float(fee_calculate(db_openfield, db_keep)) #exclude the mining tx from fees
-                        #print("block_fees_address", block_fees_address, "for", db_address)
+                                    block_fees_address = float(block_fees_address) + float(fee_calculate(db_openfield, db_keep))  # exclude the mining tx from fees
+                        # print("block_fees_address", block_fees_address, "for", db_address)
 
                         # app_log.info("Digest: Inbound block credit: " + str(block_credit))
                         # app_log.info("Digest: Inbound block debit: " + str(block_debit))
@@ -1312,7 +1318,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         debit_ledger = 0 if debit_ledger is None else float('%.8f' % debit_ledger)
                         debit = float(debit_ledger) + float(block_debit_address)
 
-                        execute_param(c, ("SELECT sum(fee),sum(reward) FROM transactions WHERE address = ?;"),(db_address,))
+                        execute_param(c, ("SELECT sum(fee),sum(reward) FROM transactions WHERE address = ?;"), (db_address,))
 
                         result = c.fetchall()[0]
                         fees = result[0]
@@ -1328,7 +1334,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         # app_log.info("Digest: Projected transction address balance: " + str(balance))
 
                         fee = fee_calculate(db_openfield, db_keep)
-                        #fee = '%.8f' % float(0.01 + (float(len(db_openfield)) / 100000) + int(db_keep))  # 0.01 dust
+                        # fee = '%.8f' % float(0.01 + (float(len(db_openfield)) / 100000) + int(db_keep))  # 0.01 dust
 
                         fees_block.append(float(fee))
                         # app_log.info("Fee: " + str(fee))
@@ -1355,7 +1361,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                             error_msg = "Sending more than owned"
                             block_valid = 0
 
-                        elif float(balance) - float(block_fees_address) < 0: #exclude fee check for the mining/header tx
+                        elif float(balance) - float(block_fees_address) < 0:  # exclude fee check for the mining/header tx
                             error_msg = "Cannot afford to pay fees"
                             block_valid = 0
 
@@ -1377,7 +1383,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         app_log.info("Check 2: A part of the block is invalid, rejected: {}".format(error_msg))
                         error_msg = ""
                         app_log.info("Check 2: Complete rejected block: {}".format(data))
-                        if warning(sdef, peer_ip, "Check 2: rejected block",1) == "banned":
+                        if warning(sdef, peer_ip, "Check 2: rejected block", 1) == "banned":
                             raise ValueError("{} banned".format(peer_ip))
 
                     if block_valid == 1:
@@ -1405,7 +1411,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                                                   ("0", str(time_now), "Development Reward", str(genesis_conf), str(mining_reward),
                                                    "0", "0", "0", "0", "0", "0", str(block_height_new)))
                                     commit(conn)
-                            # dev reward
+                                    # dev reward
 
                         app_log.warning("Block {} valid and saved from {}".format(block_height_new, peer_ip))
 
@@ -1413,7 +1419,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         if peer_ip in warning_list or peer_ip in banlist:
                             unban(peer_ip)
 
-                        # whole block validation
+                            # whole block validation
 
         except Exception as e:
             app_log.warning(e)
@@ -1468,7 +1474,7 @@ if len(m.fetchall()) != 8:
     mempool.text_factory = str
     m = mempool.cursor()
     execute(m, ("CREATE TABLE IF NOT EXISTS transactions (timestamp TEXT, address TEXT, recipient TEXT, amount TEXT, signature TEXT, public_key TEXT, keep TEXT, openfield TEXT)"))
-#   execute(m, ("CREATE TABLE IF NOT EXISTS transactions (timestamp NUMERIC, address TEXT, recipient TEXT, amount NUMERIC, signature TEXT, public_key TEXT, keep INTEGER, openfield TEXT)")) AFTER EVERYONE UPGRADES TO 4.1.4
+    #   execute(m, ("CREATE TABLE IF NOT EXISTS transactions (timestamp NUMERIC, address TEXT, recipient TEXT, amount NUMERIC, signature TEXT, public_key TEXT, keep INTEGER, openfield TEXT)")) AFTER EVERYONE UPGRADES TO 4.1.4
     commit(mempool)
     app_log.info("Recreated mempool file")
 
@@ -1518,7 +1524,7 @@ def coherence_check():
         y = my_list[0] - 1
         for x in my_list:
             if x != y + 1:
-                if y > 300000: #there are some forgotten deviances
+                if y > 300000:  # there are some forgotten deviances
                     for chain2 in chains_to_check:
                         conn2 = sqlite3.connect(chain2)
                         c2 = conn2.cursor()
@@ -1539,7 +1545,6 @@ check_integrity(hyper_path_conf)
 coherence_check()
 ledger_convert(ledger_path_conf, hyper_path_conf)
 
-
 try:
     source_db = sqlite3.connect(hyper_path_conf, timeout=1)
     source_db.text_factory = str
@@ -1549,7 +1554,6 @@ try:
     hdd_block = sc.fetchone()[0]
 
     if ram_conf == 1:
-
         app_log.warning("Moving database to RAM")
         to_ram = sqlite3.connect('file::memory:?cache=shared', uri=True, timeout=1, isolation_level=None)
         to_ram.text_factory = str
@@ -1557,7 +1561,7 @@ try:
 
         query = "".join(line for line in source_db.iterdump())
         to_ram.executescript(query)
-        #do not close
+        # do not close
         app_log.warning("Moved database to RAM")
 
 except Exception as e:
@@ -1596,6 +1600,7 @@ if verify_conf == 1:
 app_log.warning("Starting...")
 global startup_time
 startup_time = time.time()
+
 
 class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
     def handle(self):  # server defined here
@@ -1642,7 +1647,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     hdd, h = db_h_define()
                     h3 = h
                 else:
-                    hdd, h = None,None
+                    hdd, h = None, None
                     h3 = h2
 
                 # Failsafe
@@ -1688,7 +1693,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     connections.send(self.request, mempool_txs, 10)
                     # send own
 
-                elif data == 'hello':
+                elif data == "hello":
                     with open(peerlist, "r") as peer_list:
                         peers = peer_list.read()
 
@@ -1738,14 +1743,12 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         time.sleep(float(pause_conf))
                     app_log.info("Inbound: Sending sync request")
 
-                    connections.send(self.request, "sync", 10)
+
 
                 elif data == "sendsync":
-                    while db_lock.locked() == True:
-                        time.sleep(float(pause_conf))
 
                     global syncing
-                    while len(syncing) >= 3:
+                    while len(syncing) >= 6 or db_lock.locked() == True:
                         time.sleep(int(pause_conf))
 
                     connections.send(self.request, "sync", 10)
@@ -1771,10 +1774,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             block_req = max(consensus_blockheight_list)
                             app_log.warning("Longest chain rule triggered")
 
-
                         if int(received_block_height) >= block_req:
 
-                            try: #they claim to have the longest chain, things must go smooth or ban
+                            try:  # they claim to have the longest chain, things must go smooth or ban
                                 app_log.warning("Confirming to sync from {}".format(peer_ip))
                                 connections.send(self.request, "blockscf", 10)
 
@@ -1793,7 +1795,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             connections.send(self.request, "blocksrj", 10)
                             app_log.info("Inbound: Distant peer {} is at {}, should be at least {}".format(peer_ip, received_block_height, block_req))
 
-                    connections.send(self.request, "sync", 10)
+
 
                 elif data == "blockheight":
                     try:
@@ -1846,15 +1848,15 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                 db_block_hash = h3.fetchone()[0]  # get latest block_hash
                                 if db_block_hash == data:
                                     app_log.info("Inbound: Client {} has the latest block".format(peer_ip))
-                                    time.sleep(int(pause_conf)) #reduce CPU usage
+                                    time.sleep(int(pause_conf))  # reduce CPU usage
                                     connections.send(self.request, "nonewblk", 10)
 
                                 else:
 
                                     blocks_fetched = []
                                     del blocks_fetched[:]
-                                    while len(str(blocks_fetched)) < 500000 :  # limited size based on txs in blocks
-                                        #execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"),(str(int(client_block)),) + (str(int(client_block + 1)),))
+                                    while len(str(blocks_fetched)) < 500000:  # limited size based on txs in blocks
+                                        # execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"),(str(int(client_block)),) + (str(int(client_block + 1)),))
                                         execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,cast(keep as TEXT),openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"), (str(int(client_block)),) + (str(int(client_block + 1)),))
                                         result = h3.fetchall()
                                         if not result:
@@ -1865,7 +1867,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                     blocks_send = [[l[1:] for l in group] for _, group in groupby(blocks_fetched, key=itemgetter(0))]  # remove block number
 
                                     app_log.info("Inbound: Selected " + str(blocks_send) + " to send")
-
 
                                     connections.send(self.request, "blocksfnd", 10)
 
@@ -1889,22 +1890,18 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         app_log.info("Inbound: Sync failed {}".format(e))
 
 
-                elif data == "nonewblk":
-                    connections.send(self.request, "sync", 10)
-
                 elif data == "blocknf":
                     block_hash_delete = connections.receive(self.request, 10)
                     # print peer_ip
                     if max(consensus_blockheight_list) == consensus_blockheight:
                         blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, backup, b)
-                        if warning(self.request, peer_ip, "Rollback",1) == "banned":
+                        if warning(self.request, peer_ip, "Rollback", 1) == "banned":
                             app_log.info("{} banned".format(peer_ip))
                             break
                     app_log.info("Outbound: Deletion complete, sending sync request")
 
                     while db_lock.locked() == True:
                         time.sleep(float(pause_conf))
-                    connections.send(self.request, "sync", 10)
 
                 elif data == "block":
                     if (peer_ip in allowed or "any" in allowed):  # from miner
@@ -2050,7 +2047,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "listlim":
                     if (peer_ip in allowed or "any" in allowed):
                         list_limit = connections.receive(self.request, 10)
-                        #print (address_tx_list_limit)
+                        # print (address_tx_list_limit)
                         execute_param(h3, ("SELECT * FROM transactions ORDER BY block_height DESC LIMIT ?"), (list_limit,))
                         result = h3.fetchall()
                         connections.send(self.request, result, 10)
@@ -2061,7 +2058,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if (peer_ip in allowed or "any" in allowed):
                         address_tx_list = connections.receive(self.request, 10)
                         address_tx_list_limit = connections.receive(self.request, 10)
-                        #print (address_tx_list_limit)
+                        # print (address_tx_list_limit)
                         execute_param(h3, ("SELECT * FROM transactions WHERE (address = ? OR recipient = ?) ORDER BY block_height DESC LIMIT ?"), (address_tx_list,) + (address_tx_list,) + (address_tx_list_limit,))
                         result = h3.fetchall()
                         connections.send(self.request, result, 10)
@@ -2112,11 +2109,11 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     else:
                         app_log.info("{} not whitelisted for aliascheck command".format(peer_ip))
 
-                elif data == "aliasesget": #only gets the first one
+                elif data == "aliasesget":  # only gets the first one
                     if (peer_ip in allowed or "any" in allowed):
                         alias_addresses = connections.receive(self.request, 10)
 
-                        results=[]
+                        results = []
                         for x in alias_addresses:
                             execute_param(h3, ("SELECT openfield FROM transactions WHERE address = ? AND openfield LIKE ? ORDER BY block_height ASC LIMIT 1;"), (x,) + ("alias=" + '%',))
                             try:
@@ -2190,7 +2187,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                         with open(peerlist, "r") as peer_list:
                             peers_file = peer_list.read()
-                        connections.send(self.request, peers_file , 10)
+                        connections.send(self.request, peers_file, 10)
 
                     else:
                         app_log.info("{} not whitelisted for peersget command".format(peer_ip))
@@ -2201,7 +2198,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         global consensus_percentage
 
                         nodes_count = (len(consensus_blockheight_list))
-                        nodes_list =  peer_ip_list
+                        nodes_list = peer_ip_list
                         threads_count = threading.active_count()
                         uptime = int(time.time() - startup_time)
 
@@ -2230,11 +2227,12 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     else:
                         app_log.info("{} not whitelisted for difflastget command".format(peer_ip))
 
-                #elif data == "*":
+
+                # elif data == "*":
                 #    app_log.info(">> inbound sending ping to {}".format(peer_ip))
                 #    connections.send(self.request, "ping", 10)
 
-                #elif data == "ping":
+                # elif data == "ping":
                 #    app_log.info(">> Inbound got ping from {}".format(peer_ip))
 
                 else:
@@ -2242,7 +2240,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                 if not time.time() <= timer_operation + timeout_operation:
                     timer_operation = time.time()  # reset timer
-                #time.sleep(float(pause_conf))  # prevent cpu overload
+                # time.sleep(float(pause_conf))  # prevent cpu overload
                 app_log.info("Server loop finished for {}".format(peer_ip))
 
             except Exception as e:
@@ -2338,7 +2336,6 @@ def worker(HOST, PORT):
                 h3 = h2
 
             data = connections.receive(s, 10)  # receive data, one and the only root point
-            #print(data)
 
             if data == "peers":
                 subdata = connections.receive(s, 10)
@@ -2416,7 +2413,7 @@ def worker(HOST, PORT):
                     app_log.info("Outbound: Node {} is at block height: {}".format(peer_ip, received_block_height))
 
                     if int(received_block_height) < db_block_height:
-                        app_log.warning("Outbound: We have a higher block ({}) than {} ({}), sending".format(db_block_height,peer_ip,received_block_height))
+                        app_log.warning("Outbound: We have a higher block ({}) than {} ({}), sending".format(db_block_height, peer_ip, received_block_height))
 
                         data = connections.receive(s, 10)  # receive client's last block_hash
 
@@ -2444,7 +2441,7 @@ def worker(HOST, PORT):
                             else:
                                 blocks_fetched = []
                                 while len(str(blocks_fetched)) < 500000:  # limited size based on txs in blocks
-                                    #execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"),(str(int(client_block)),) + (str(int(client_block + 1)),))
+                                    # execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"),(str(int(client_block)),) + (str(int(client_block + 1)),))
                                     execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,cast(keep as TEXT),openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"), (str(int(client_block)),) + (str(int(client_block + 1)),))
                                     result = h3.fetchall()
                                     if not result:
@@ -2475,9 +2472,9 @@ def worker(HOST, PORT):
 
                     elif int(received_block_height) >= db_block_height:
                         if int(received_block_height) == db_block_height:
-                            app_log.info("Outbound: We have the same block as {} ({}), hash will be verified".format(peer_ip,received_block_height))
+                            app_log.info("Outbound: We have the same block as {} ({}), hash will be verified".format(peer_ip, received_block_height))
                         else:
-                            app_log.warning("Outbound: We have a lower block ({}) than {} ({}), hash will be verified".format(db_block_height,peer_ip,received_block_height))
+                            app_log.warning("Outbound: We have a lower block ({}) than {} ({}), hash will be verified".format(db_block_height, peer_ip, received_block_height))
 
                         execute(c, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
                         db_block_hash = c.fetchone()[0]  # get latest block_hash
@@ -2494,19 +2491,15 @@ def worker(HOST, PORT):
                     app_log.info("Outbound: Sync failed {}".format(e))
                 finally:
                     syncing.remove(peer_ip)
-                    #connections.send(s, "sendsync", 10)
 
             elif data == "blocknf":
                 block_hash_delete = connections.receive(s, 10)
                 # print peer_ip
                 if max(consensus_blockheight_list) == int(received_block_height):
                     blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, backup, b)
-                    if warning(s, peer_ip, "Rollback",1) == "banned":
+                    if warning(s, peer_ip, "Rollback", 1) == "banned":
                         raise ValueError("{} is banned".format(peer_ip))
 
-                while db_lock.locked() == True:
-                    time.sleep(float(pause_conf))
-                connections.send(s, "sendsync", 10)
 
             elif data == "blocksfnd":
                 app_log.info("Outbound: Node {} has the block(s)".format(peer_ip))  # node should start sending txs in this step
@@ -2528,7 +2521,6 @@ def worker(HOST, PORT):
                         block_req = max(consensus_blockheight_list)
                         app_log.warning("Longest chain rule triggered")
 
-
                     if int(received_block_height) >= block_req:
                         try:  # they claim to have the longest chain, things must go smooth or ban
                             app_log.warning("Confirming to sync from {}".format(peer_ip))
@@ -2542,16 +2534,16 @@ def worker(HOST, PORT):
 
                         else:
                             digest_block(segments, s, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
+                            sendsync(s)  # sendsync after finished digesting
 
-                        # receive theirs
+                            # receive theirs
                     else:
                         connections.send(s, "blocksrj", 10)
                         app_log.warning("Inbound: Distant peer {} is at {}, should be at least {}".format(peer_ip, received_block_height, block_req))
+                        sendsync(s)  # sendsync after finished digesting
 
 
-                connections.send(s, "sendsync", 10)
-
-                # block_hash validation end
+                        # block_hash validation end
 
             elif data == "nonewblk":
                 # sand and receive mempool
@@ -2574,22 +2566,19 @@ def worker(HOST, PORT):
                 # receive mempool
 
                 app_log.info("Outbound: Synchronization with {} finished".format(peer_ip))
+                sendsync(s)
 
-                time.sleep(float(pause_conf))
-                while db_lock.locked() == True:
-                    time.sleep(float(pause_conf))
 
-                connections.send(s, "sendsync", 10)
-
-            #elif data == "*":
+            # elif data == "*":
             #    app_log.info(">> sending ping to {}".format(peer_ip))
             #    connections.send(s, "ping", 10)
 
-            #elif data == "ping":
+            # elif data == "ping":
             #    app_log.info(">> Got ping from {}".format(peer_ip))
 
             else:
                 raise ValueError("Unexpected error, received: {}".format(data))
+
 
         except Exception as e:
             # remove from active pool
