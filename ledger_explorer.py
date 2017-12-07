@@ -204,10 +204,10 @@ class MainHandler(tornado.web.RequestHandler):
         html.append("<table class='table table-responsive'>")
 
         html.append("<tr><th>Statistics for the last 500 blocks</th>")
-        html.append("<tr><td>Kilobytes transferred: </td><td>{}</td>".format(data_total))
+        html.append("<tr><td>Size in KB: </td><td>{}</td>".format(data_total))
         html.append("<tr><td>Transactions: </td><td>{}</td>".format(tx_count))
         html.append("<tr><td>Transactions per block: </td><td>{}</td>".format(tx_count/500))
-        html.append("<tr><td>Total BIS transferred </td><td>{}</td>".format(transferred_total))
+        html.append("<tr><td>Total BIS transferred: </td><td>{}</td>".format(transferred_total))
 
         html.append("</table>")
         html.append("</div>")
