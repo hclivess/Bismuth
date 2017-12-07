@@ -543,9 +543,17 @@ def difficulty(c, mode):
     difficulty = Decimal(Dnew_adjusted)
     difficulty2 = difficulty
     time_now = time.time()
-    if block_time > 70.0:
-        if time_now > timestamp_last + 300:  # if more than 5 minutes passed
-            difficulty2 = difficulty - Decimal(1.0)
+
+
+    if block_height < 427000: #remove after fork
+        if block_time > 70.0:
+            if time_now > timestamp_last + 300:  # if more than 5 minutes passed
+                difficulty2 = difficulty - Decimal(1.0)
+    else:
+        if block_time > 90.0: #keep after fork
+            if time_now > timestamp_last + 300:  # if more than 5 minutes passed
+                difficulty2 = difficulty - Decimal(1.0)
+
     if difficulty < 80:
         difficulty = 80
     if difficulty2 < 80:
