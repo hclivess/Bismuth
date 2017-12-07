@@ -207,7 +207,7 @@ class MainHandler(tornado.web.RequestHandler):
         html.append("<tr><td>Kilobytes transferred: </td><td>{}</td>".format(transferred_total))
         html.append("<tr><td>Transactions: </td><td>{}</td>".format(tx_count))
         html.append("<tr><td>Transactions per block: </td><td>{}</td>".format(tx_count/500))
-        html.append("<tr><td>Total BIS transferred </td><td>{}</td>".format(tx_count / 500))
+        html.append("<tr><td>Total BIS transferred </td><td>{}</td>".format(transferred_total))
 
         html.append("</table>")
         html.append("</div>")
