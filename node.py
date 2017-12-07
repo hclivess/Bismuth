@@ -69,7 +69,7 @@ global whitelist
 whitelist=config.whitelist
 
 def sendsync(sdef,peer_ip,status):
-    app_log.info("Outbound: Synchronization with {} finished after: {}, sending new sync request".format(peer_ip,status))
+    app_log.warning("Outbound: Synchronization with {} finished after: {}, sending new sync request".format(peer_ip,status))
 
     time.sleep(float(pause_conf))
     while db_lock.locked() == True:
