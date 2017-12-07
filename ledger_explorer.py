@@ -1,4 +1,4 @@
-import sqlite3, time, options, random
+import sqlite3, time, options, random, sys
 
 import tornado.ioloop
 import tornado.web
@@ -114,10 +114,19 @@ class MainHandler(tornado.web.RequestHandler):
         execute(c, "SELECT * FROM transactions ORDER BY block_height DESC, timestamp DESC LIMIT 500;")
         all = c.fetchall()
 
+        tx_count = 0
+        for x in all:
+            if x[9] == 0: #if reward is 0
+                tx_count = tx_count + 1
+
+        transferred_total = 0
+        for x in all:
+            if x[9] == 0:  # if reward is 0
+                transferred_total = transferred_total + x[4]
+
+
         execute(c, "SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 500;")
         diffs = c.fetchall()
-        print(diffs[0][0])
-        print(len(diffs))
 
         view = []
         i = 0
@@ -146,7 +155,7 @@ class MainHandler(tornado.web.RequestHandler):
             view.append("<td>{}</td>".format(x[7]))
             view.append("<td>{}</td>".format(x[8]))
             view.append("<td>{}</td>".format('%.6f' % float(x[9])))
-            view.append("<td>{}</td>".format('%.13f' % float(diffs[b][0])))
+            view.append("<td>{}</td>".format('%.10f' % float(diffs[b][0])))
             view.append("<tr>")
 
             x_old = x[0]
@@ -189,6 +198,20 @@ class MainHandler(tornado.web.RequestHandler):
         html.append("<div class ='row'>")
         html.append(''.join(plotter))
         html.append("</div>")
+
+        data_total = str(sys.getsizeof(str(all))/1024)
+        html.append("<div class ='container-fluid'>")
+        html.append("<table class='table table-responsive'>")
+
+        html.append("<tr><th>Statistics for the last 500 blocks</th>")
+        html.append("<tr><td>Kilobytes transferred: </td><td>{}</td>".format(transferred_total))
+        html.append("<tr><td>Transactions: </td><td>{}</td>".format(tx_count))
+        html.append("<tr><td>Transactions per block: </td><td>{}</td>".format(tx_count/500))
+        html.append("<tr><td>Total BIS transferred </td><td>{}</td>".format(tx_count / 500))
+
+        html.append("</table>")
+        html.append("</div>")
+
 
         html.append("<div class ='row'>")
         html.append("<table class='table table-responsive'>")
