@@ -1694,7 +1694,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     mempool_merge(segments, peer_ip, c, mempool, m)
                     # receive theirs
 
-                    execute(m, ('SELECT * FROM transactions'))
+                    execute(m, ('SELECT * FROM transactions ORDER BY RANDOM() LIMIT 1')) #merge a random tx, one at a time #PERFORMANCE TEST RESULTS PENDING
+
                     mempool_txs = m.fetchall()
 
                     # send own
