@@ -22,7 +22,7 @@ from Crypto.Random import get_random_bytes
 from Crypto.Cipher import AES, PKCS1_OAEP
 
 from simplecrypt import encrypt, decrypt
-from tkinter import filedialog
+from tkinter import filedialog, messagebox
 from tkinter import *
 
 global key
@@ -34,7 +34,14 @@ app_log = log.log("gui.log", debug_level)
 essentials.keys_check(app_log)
 essentials.db_check(app_log)
 
-# for local evaluation
+s = socks.socksocket()
+s.settimeout(3)
+
+try:
+    s.connect((light_ip, int(port)))
+except:
+    messagebox.showinfo("Connection Error", "Wallet cannot connect to the node, check config.txt for light_ip=")
+    raise
 
 root = Tk()
 root.wm_title("Bismuth Light Wallet running on {}".format(light_ip))
@@ -1099,7 +1106,6 @@ def refresh(address, s):
     table(address, addlist_20)
     # root.after(1000, refresh)
 
-
 img = Image("photo", file="graphics/icon.gif")
 root.tk.call('wm','iconphoto',root._w,img)
 
@@ -1209,11 +1215,6 @@ lock_b.grid(row=1, column=3, sticky=E + N, pady=0, padx=5)
 
 # refreshables
 
-s = socks.socksocket()
-s.settimeout(30)
-s.connect((light_ip, int(port)))
-
-
 # update balance label
 balance_raw = StringVar()
 balance_var = StringVar()
@@ -1235,10 +1236,6 @@ fees_paid_msg_label.grid(row=3, column=0, sticky=N + E, padx=15)
 rewards_var = StringVar()
 rewards_paid_msg_label = Label(f5, textvariable=rewards_var)
 rewards_paid_msg_label.grid(row=4, column=0, sticky=N + E, padx=15)
-
-# fees_current_var = StringVar()
-# fees_to_pay_msg_label = Label(f5, textvariable=fees_current_var)
-# fees_to_pay_msg_label.grid(row=5, column=0, sticky=N+E, padx=15)
 
 bl_height_var = StringVar()
 block_height_label = Label(f5, textvariable=bl_height_var)

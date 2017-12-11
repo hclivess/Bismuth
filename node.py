@@ -93,7 +93,7 @@ def validate_pem(public_key):
         raise ValueError("Not a valid PEM post boundary")
         # verify pem as cryptodome does
 
-def fee_calculate(openfield, keep):
+def fee_calculate(openfield):
     fee = '%.8f' % float(0.01 + (float(len(openfield)) / 100000))  # 0.01 dust
     if "token:issue:" in openfield:
         fee = '%.8f' % (float(fee) + 10)
@@ -693,7 +693,7 @@ def mempool_merge(data, peer_ip, c, mempool, m):
                         app_log.info("Mempool: Received address: {}".format(mempool_address))
 
                         # include mempool fees
-                        execute_param(m, ("SELECT amount, keep, openfield FROM transactions WHERE address = ?;"), (mempool_address,))
+                        execute_param(m, ("SELECT amount, openfield FROM transactions WHERE address = ?;"), (mempool_address,))
                         result = m.fetchall()
 
                         debit_mempool = 0
@@ -701,7 +701,7 @@ def mempool_merge(data, peer_ip, c, mempool, m):
                         if result != None:
                             for x in result:
                                 debit_tx = float(x[0])
-                                fee = fee_calculate(x[2], x[1])
+                                fee = fee_calculate(x[1])
                                 debit_mempool = debit_mempool + debit_tx + float(fee)
                         else:
                             debit_mempool = 0
@@ -735,7 +735,7 @@ def mempool_merge(data, peer_ip, c, mempool, m):
                         # app_log.info("Mempool: Projected transction address balance: " + str(balance))
 
                         #fee = '%.8f' % float(0.01 + (float(len(mempool_openfield)) / 100000) + int(mempool_keep))  # 0.01 dust
-                        fee = fee_calculate(mempool_openfield, mempool_keep)
+                        fee = fee_calculate(mempool_openfield)
 
                         time_now = time.time()
                         if float(mempool_timestamp) > float(time_now) + 30:
@@ -1311,7 +1311,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                                 block_debit_address = float(block_debit_address) + float(x[3])
 
                                 if x != transaction_list[-1]:
-                                    block_fees_address = float(block_fees_address) + float(fee_calculate(db_openfield, db_keep)) #exclude the mining tx from fees
+                                    block_fees_address = float(block_fees_address) + float(fee_calculate(db_openfield)) #exclude the mining tx from fees
                         #print("block_fees_address", block_fees_address, "for", db_address)
 
                         # app_log.info("Digest: Inbound block credit: " + str(block_credit))
@@ -1343,7 +1343,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         balance = float('%.8f' % (float(credit) - float(debit) - float(fees) + float(rewards)))
                         # app_log.info("Digest: Projected transction address balance: " + str(balance))
 
-                        fee = fee_calculate(db_openfield, db_keep)
+                        fee = fee_calculate(db_openfield)
                         #fee = '%.8f' % float(0.01 + (float(len(db_openfield)) / 100000) + int(db_keep))  # 0.01 dust
 
                         fees_block.append(float(fee))
@@ -1995,7 +1995,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         # app_log.info("Mempool: Received address: " + str(balance_address))
 
                         # include mempool fees
-                        execute_param(m, ("SELECT amount, keep, openfield FROM transactions WHERE address = ?;"), (balance_address,))
+                        execute_param(m, ("SELECT amount, openfield FROM transactions WHERE address = ?;"), (balance_address,))
                         result = m.fetchall()
 
                         debit_mempool = 0
@@ -2003,7 +2003,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         if result != None:
                             for x in result:
                                 debit_tx = float(x[0])
-                                fee = fee_calculate(x[2], x[1])
+                                fee = fee_calculate(x[1])
                                 debit_mempool = debit_mempool + debit_tx + float(fee)
                         else:
                             debit_mempool = 0

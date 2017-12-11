@@ -6,10 +6,9 @@ LTIMEOUT = 45
 SLEN = 10
 
 def send(sdef, data, slen=SLEN):
-    sdef.setblocking(0)
+    sdef.setblocking(1)
     # Make sure the packet is sent in one call
-    sdef.sendall(str(len(str(json.dumps(data)))).encode("utf-8").zfill(slen))
-    sdef.sendall(str(json.dumps(data)).encode("utf-8"))
+    sdef.sendall(str(len(str(json.dumps(data)))).encode("utf-8").zfill(slen) + str(json.dumps(data)).encode("utf-8"))
 
 if "Linux" in platform.system():
     READ_OR_ERROR = select.POLLIN | select.POLLPRI | select.POLLHUP | select.POLLERR | select.POLLNVAL
@@ -17,7 +16,7 @@ if "Linux" in platform.system():
 
     def receive(sdef, slen=SLEN):
         try:
-            sdef.setblocking(0)
+            sdef.setblocking(1)
             poller = select.poll()
             poller.register(sdef, READ_OR_ERROR)
             ready = poller.poll(LTIMEOUT*1000)
@@ -80,7 +79,7 @@ if "Linux" in platform.system():
 else:
 
     def receive(sdef, slen=SLEN):
-        sdef.setblocking(0)
+        sdef.setblocking(1)
         ready = select.select([sdef], [], [sdef], LTIMEOUT)
         if ready[0]:
             try:
