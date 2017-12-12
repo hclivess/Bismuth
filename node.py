@@ -784,7 +784,7 @@ def peers_get():
     return peer_dict
 
 
-def purge_old_peers():
+def test_peerlist():
     drop_peer_dict = []
     peer_dict = peers_get()
 
@@ -803,6 +803,7 @@ def purge_old_peers():
             # s.setblocking(0)
             s.connect((HOST, PORT))
             s.close()
+            print ("Connection to {} {} successful, keeping the peer".format(HOST ,PORT))
         except:
             if purge_conf == 1 and "testnet" not in version:
                 # remove from peerlist if not connectible
@@ -2644,7 +2645,7 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 
 if __name__ == "__main__":
     try:
-        purge_old_peers()
+        test_peerlist()
         if tor_conf == 0:
             # Port 0 means to select an arbitrary unused port
             HOST, PORT = "0.0.0.0", int(port)

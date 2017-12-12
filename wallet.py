@@ -892,6 +892,8 @@ def table(address, addlist_20):
     mempool_total = connections.receive(s, 10)
     print (mempool_total)
 
+    colors = []
+
     for tx in mempool_total:
         if tx[1] == address:
             datasheet.append("Unconfirmed")
@@ -899,6 +901,7 @@ def table(address, addlist_20):
             datasheet.append(tx[2])
             datasheet.append(tx[3])
             datasheet.append("Transaction")
+            colors.append("bisque")
 
     # show mempool txs
 
@@ -917,7 +920,7 @@ def table(address, addlist_20):
     #print(addlist_addressess)
 
     # define row color
-    colors = []
+
 
     for x in addlist_20:
         if x[3] == address:
@@ -1009,7 +1012,7 @@ def table(address, addlist_20):
 
                 elif j == 3: #sent
                     e = Entry(f4, width=0)
-                    e.configure(readonlybackground=colors[i-1])
+                    e.configure(readonlybackground=colors[i - 1])
 
                 elif j == 4: #last row
                     e = Entry(f4, width=0)
