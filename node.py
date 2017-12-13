@@ -1,4 +1,3 @@
-# it's recommended to only use code from the "release" state, running master blob may have issues
 # never remove the str() conversion in data evaluation or database inserts or you will debug for 14 days as signed types mismatch
 # if you raise in the server thread, the server will die and node will stop
 # never use codecs, they are bugged and do not provide proper serialization
@@ -21,6 +20,9 @@ from Crypto.Signature import PKCS1_v1_5
 # global ban_threshold
 
 global hdd_block
+
+global last_block
+last_block = 0
 
 dl_lock = threading.Lock()
 db_lock = threading.Lock()
@@ -961,13 +963,20 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, backup, b):
 
 
 def consensus_add(peer_ip, consensus_blockheight, sdef):
+    global peer_ip_list
+    global consensus_blockheight_list
+    global consensus_percentage
+    global consensus
+    global last_block
+    # obviously too old blocks, we have half a day worth of validated blocks after them
+    # no ban, they can (should) be syncing but they can't possibly be in consensus list.
+    too_old = last_block - 720
     try:
-        global peer_ip_list
-        global consensus_blockheight_list
-        global consensus_percentage
-        global consensus
-
         if peer_ip not in peer_ip_list:
+            if consensus_blockheight < too_old:
+                # should change to .info later on
+                app_log.warning("{} got too old a block ({}) for consensus".format(peer_ip,consensus_blockheight));
+                return            
             app_log.info("Adding {} to consensus peer list".format(peer_ip))
             peer_ip_list.append(peer_ip)
             app_log.info("Assigning {} to peer block height list".format(consensus_blockheight))
@@ -982,7 +991,10 @@ def consensus_add(peer_ip, consensus_blockheight, sdef):
             else:
                 del peer_ip_list[consensus_index]  # remove ip
                 del consensus_blockheight_list[consensus_index]  # remove ip's opinion
-
+                if consensus_blockheight < too_old:
+                    # should change to .info later on
+                    app_log.warning("{} got too old a block ({})for consensus".format(peer_ip,consensus_blockheight));
+                    return
                 app_log.info("Updating {} in consensus".format(peer_ip))
                 peer_ip_list.append(peer_ip)
                 consensus_blockheight_list.append(int(consensus_blockheight))
@@ -992,7 +1004,7 @@ def consensus_add(peer_ip, consensus_blockheight, sdef):
         consensus_percentage = (float(
             consensus_blockheight_list.count(consensus) / float(len(consensus_blockheight_list)))) * 100
 
-        if int(consensus_blockheight) > float(consensus) + 30 and float(consensus) > 50 and int(len(consensus_blockheight_list)) > 10:
+        if int(consensus_blockheight) > int(consensus) + 30 and consensus_percentage > 50 and len(consensus_blockheight_list) > 10:
             if warning(sdef, peer_ip, "Consensus deviation too high", 10) == "banned":
                 raise ValueError("{} banned".format(peer_ip))
 
@@ -1021,6 +1033,7 @@ def consensus_remove(peer_ip):
 
 def manager(c, conn):
     global banlist
+    global last_block
     peer_dict = peers_get()
     # When was the last time we reset banlist and tries?
     reset_time = startup_time
