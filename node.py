@@ -520,7 +520,7 @@ def difficulty(c, mode):
     block_height = int(result[0])
     timestamp_before_last = Decimal(c.fetchone()[1])
 
-    if block_height > 427000: #remove code ABOVE after hf
+    if block_height >= 427000: #remove code ABOVE after hf
         execute(c, "SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 2")
         result = c.fetchone()
         timestamp_last = Decimal(result[1])
