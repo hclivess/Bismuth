@@ -6,7 +6,7 @@
 # if you have a block of data and want to insert it into sqlite, you must use a single "commit" for the whole batch, it's 100x faster
 # do not isolation_level=None/WAL hdd levels, it makes saving slow
 
-VERSION = "4.2.1.5"
+VERSION = "4.2.1.6"
 
 from itertools import groupby
 from operator import itemgetter
@@ -519,6 +519,13 @@ def difficulty(c, mode):
     timestamp_last = Decimal(result[1])
     block_height = int(result[0])
     timestamp_before_last = Decimal(c.fetchone()[1])
+
+    if block_height > 427000: #remove code ABOVE after hf
+        execute(c, "SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 2")
+        result = c.fetchone()
+        timestamp_last = Decimal(result[1])
+        block_height = int(result[0])
+        timestamp_before_last = Decimal(c.fetchone()[1])
 
     execute_param(c, ("SELECT timestamp FROM transactions WHERE CAST(block_height AS INTEGER) > ? AND reward != 0 ORDER BY timestamp ASC LIMIT 2"), (block_height - 1441,))
     timestamp_1441 = Decimal(c.fetchone()[0])
