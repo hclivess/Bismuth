@@ -5,7 +5,7 @@
 # if you have a block of data and want to insert it into sqlite, you must use a single "commit" for the whole batch, it's 100x faster
 # do not isolation_level=None/WAL hdd levels, it makes saving slow
 
-VERSION = "4.2.1.6"
+VERSION = "4.2.1.7"
 
 from itertools import groupby
 from operator import itemgetter
@@ -794,37 +794,41 @@ def peers_get():
 
 
 def test_peerlist():
-    drop_peer_dict = []
-    peer_dict = peers_get()
+    if peersync_lock.locked() == False and accept_peers == "yes":
+        peersync_lock.acquire()
 
-    for key, value in peer_dict.items():
-        HOST = key
-        # app_log.info(HOST)
-        PORT = int(value)
-        # app_log.info(PORT)
+        drop_peer_dict = []
+        peer_dict = peers_get()
 
-        try:
-            s = socks.socksocket()
-            s.settimeout(0.6)
-            if tor_conf == 1:
-                s.settimeout(5)
-                s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-            # s.setblocking(0)
-            s.connect((HOST, PORT))
-            s.close()
-            print ("Connection to {} {} successful, keeping the peer".format(HOST ,PORT))
-        except:
-            if purge_conf == 1 and "testnet" not in version:
-                # remove from peerlist if not connectible
-                drop_peer_dict.append(key)
-                print("Removed formerly active peer {} {}".format(HOST, PORT))
-            pass
+        for key, value in peer_dict.items():
+            HOST = key
+            # app_log.info(HOST)
+            PORT = int(value)
+            # app_log.info(PORT)
 
-    output = open(peerlist, 'w')
-    for key, value in peer_dict.items():
-        if key not in drop_peer_dict:
-            output.write("('" + key + "', '" + value + "')\n")
-    output.close()
+            try:
+                s = socks.socksocket()
+                s.settimeout(0.6)
+                if tor_conf == 1:
+                    s.settimeout(5)
+                    s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+                # s.setblocking(0)
+                s.connect((HOST, PORT))
+                s.close()
+                print ("Connection to {} {} successful, keeping the peer".format(HOST ,PORT))
+            except:
+                if purge_conf == 1 and "testnet" not in version:
+                    # remove from peerlist if not connectible
+                    drop_peer_dict.append(key)
+                    print("Removed formerly active peer {} {}".format(HOST, PORT))
+                pass
+
+        output = open(peerlist, 'w')
+        for key, value in peer_dict.items():
+            if key not in drop_peer_dict:
+                output.write("('" + key + "', '" + value + "')\n")
+        output.close()
+        peersync_lock.release()
 
 
 def verify(c):
@@ -1037,6 +1041,7 @@ def manager(c, conn):
     peer_dict = peers_get()
     # When was the last time we reset banlist and tries?
     reset_time = startup_time
+    test_peerlist()
     while True:
         # dict_keys = peer_dict.keys()
         # random.shuffle(peer_dict.items())
@@ -2665,7 +2670,6 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 
 if __name__ == "__main__":
     try:
-        test_peerlist()
         if tor_conf == 0:
             # Port 0 means to select an arbitrary unused port
             HOST, PORT = "0.0.0.0", int(port)
