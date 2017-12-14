@@ -20,7 +20,6 @@ from Crypto.Signature import PKCS1_v1_5
 # global ban_threshold
 
 global hdd_block
-
 global last_block
 last_block = 0
 
