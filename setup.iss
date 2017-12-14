@@ -28,7 +28,7 @@ Name: "{group}\Mining"; Filename: "{app}\miner.exe"
 Name: "{group}\Uninstall Bismuth"; Filename: "{uninstallexe}"
 
 Name: "{commondesktop}\Start Node"; Filename: "{app}\node.exe"
-Name: "{commondesktop}\Interface"; Filename: "{app}\wallet.exe"
+Name: "{commondesktop}\Wallet"; Filename: "{app}\wallet.exe"
 Name: "{commondesktop}\Mining"; Filename: "{app}\miner.exe"
 
 [Run]
