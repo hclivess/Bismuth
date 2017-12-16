@@ -151,7 +151,7 @@ class MainHandler(tornado.web.RequestHandler):
             view.append("<td>{}".format(time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(x[1])))))
             view.append("<td>{}</td>".format(x[2]))
             view.append("<td>{}</td>".format(x[3]))
-            view.append("<td>{}</td>".format(x[4]))
+            view.append("<td>{}</td>".format('%.8f' % float(x[4])))
             view.append("<td>{}</td>".format(x[7]))
             view.append("<td>{}</td>".format(x[8]))
             view.append("<td>{}</td>".format('%.6f' % float(x[9])))
