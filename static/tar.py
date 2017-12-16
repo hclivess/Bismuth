@@ -1,7 +1,7 @@
 import tarfile
 
-files = ["hyper.db-shm", "hyper.db-wal", "ledger.db", "hyper.db"]
-
+files = ["ledger.db-wal","ledger.db-shm","hyper.db-shm", "hyper.db-wal", "ledger.db", "hyper.db"]
+0
 tar = tarfile.open("ledger.tar.gz", "w:gz")
 
 for file in files:
