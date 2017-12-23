@@ -5,33 +5,62 @@ import socks, connections, time, sys
 
 try:
     command = sys.argv[1]
-except:
-    command = input("No argument detected, please insert command manually\n")
 
-try:
-    arg1 = sys.argv[2]
-except:
-    pass
+    try:
+        arg1 = sys.argv[2]
+    except:
+        pass
 
-try:
-    arg2 = sys.argv[3]
-except:
-    pass
+    try:
+        arg2 = sys.argv[3]
+    except:
+        pass
 
-try:
-    arg3 = sys.argv[4]
-except:
-    pass
+    try:
+        arg3 = sys.argv[4]
+    except:
+        pass
 
-try:
-    arg4 = sys.argv[5]
-except:
-    pass
+    try:
+        arg4 = sys.argv[5]
+    except:
+        pass
 
-try:
-    arg5 = sys.argv[6]
+    try:
+        arg5 = sys.argv[6]
+    except:
+        pass
+
 except:
-    pass
+
+    entry = input("No argument detected, please insert command manually\n").split()
+    command = entry[0]
+    try:
+        arg1 = entry[1]
+    except:
+        pass
+    try:
+        arg2 = entry[2]
+    except:
+        pass
+    try:
+        arg3 = entry[3]
+    except:
+        pass
+    try:
+        arg4 = entry[4]
+    except:
+        pass
+    try:
+        arg4 = sys.argv[5]
+    except:
+        pass
+
+    try:
+        arg5 = sys.argv[6]
+    except:
+        pass
+
 
 s = socks.socksocket()
 s.settimeout(10)
