@@ -69,8 +69,45 @@ banlist=config.banlist
 global whitelist
 whitelist=config.whitelist
 
+
+def peers_save(peerlist, peer_ip):
+
+    peer_file = open(peerlist, 'r')
+    peer_tuples = []
+    for line in peer_file:
+        extension = re.findall("'([\d\.]+)', '([\d]+)'", line)
+        peer_tuples.extend(extension)
+    peer_file.close()
+    peer_tuple = ("('" + peer_ip + "', '" + str(port) + "')")
+
+    try:
+        if peer_tuple not in str(peer_tuples):
+            app_log.warning("Testing connectivity to: {}".format(peer_ip))
+            peer_test = socks.socksocket()
+            if tor_conf == 1:
+                peer_test.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+            # peer_test.setblocking(0)
+            peer_test.connect((str(peer_ip), int(str(port))))  # double parentheses mean tuple
+            app_log.info("Inbound: Distant peer connectible")
+
+            # properly end the connection
+            peer_test.close()
+            # properly end the connection
+
+            peer_list_file = open(peerlist, 'a')
+            peer_list_file.write((peer_tuple) + "\n")
+            app_log.info("Inbound: Distant peer saved to peer list")
+            peer_list_file.close()
+        else:
+            app_log.info("Distant peer already in peer list")
+    except:
+        app_log.info("Inbound: Distant peer not connectible")
+        pass
+
 def sendsync(sdef,peer_ip,status):
     app_log.warning("Outbound: Synchronization with {} finished after: {}, sending new sync request".format(peer_ip,status))
+
+    peers_save("providers.txt", peer_ip)
 
     time.sleep(float(pause_conf))
     while db_lock.locked() == True:
@@ -780,7 +817,7 @@ def mempool_merge(data, peer_ip, c, mempool, m):
                 mem_lock.release()
 
 
-def peers_get():
+def peers_get(peerlist):
     peer_dict = {}
     with open(peerlist) as f:
         for line in f:
@@ -792,12 +829,12 @@ def peers_get():
     return peer_dict
 
 
-def test_peerlist():
+def peers_test(peerlist):
     if peersync_lock.locked() == False and accept_peers == "yes":
         peersync_lock.acquire()
 
         drop_peer_dict = []
-        peer_dict = peers_get()
+        peer_dict = peers_get(peerlist)
 
         for key, value in peer_dict.items():
             HOST = key
@@ -979,7 +1016,7 @@ def consensus_add(peer_ip, consensus_blockheight, sdef):
             if consensus_blockheight < too_old:
                 # should change to .info later on
                 app_log.warning("{} got too old a block ({}) for consensus".format(peer_ip,consensus_blockheight));
-                return            
+                return
             app_log.info("Adding {} to consensus peer list".format(peer_ip))
             peer_ip_list.append(peer_ip)
             app_log.info("Assigning {} to peer block height list".format(consensus_blockheight))
@@ -1037,10 +1074,18 @@ def consensus_remove(peer_ip):
 def manager(c, conn):
     global banlist
     global last_block
-    peer_dict = peers_get()
+
+    peer_dict = {}
+    peer_dict.update(peers_get("providers.txt"))
+    print(peer_dict)
+
     # When was the last time we reset banlist and tries?
     reset_time = startup_time
-    test_peerlist()
+
+    peers_test("providers.txt")
+    peers_test(peerlist)
+    peers_joined = 0
+
     while True:
         # dict_keys = peer_dict.keys()
         # random.shuffle(peer_dict.items())
@@ -1074,7 +1119,15 @@ def manager(c, conn):
                         app_log.info("---Starting a client thread " + str(threading.currentThread()) + "---")
                         t.daemon = True
                         t.start()
+
                     # client thread handling
+
+
+        if int(time.time() - startup_time) > 15 and peers_joined == 0: #join peers.txt after certain time
+            peer_dict.update(peers_get(peerlist))
+            print (peer_dict)
+            peers_joined == 1
+
 
         if len(connection_pool) < nodes_ban_reset and int(time.time() - startup_time) > 15: #do not reset before 30 secs have passed
             app_log.warning("Only {} connections active, resetting banlist".format(len(connection_pool)))
@@ -1741,36 +1794,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                     # save peer if connectible
                     if accept_peers == "yes":
-                        peer_file = open(peerlist, 'r')
-                        peer_tuples = []
-                        for line in peer_file:
-                            extension = re.findall("'([\d\.]+)', '([\d]+)'", line)
-                            peer_tuples.extend(extension)
-                        peer_file.close()
-                        peer_tuple = ("('" + peer_ip + "', '" + str(port) + "')")
-
-                        try:
-                            app_log.warning("Testing connectivity to: {}".format(peer_ip))
-                            peer_test = socks.socksocket()
-                            if tor_conf == 1:
-                                peer_test.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                            # peer_test.setblocking(0)
-                            peer_test.connect((str(peer_ip), int(str(port))))  # double parentheses mean tuple
-                            app_log.info("Inbound: Distant peer connectible")
-
-                            # properly end the connection
-                            peer_test.close()
-                            # properly end the connection
-                            if peer_tuple not in str(peer_tuples):
-                                peer_list_file = open(peerlist, 'a')
-                                peer_list_file.write((peer_tuple) + "\n")
-                                app_log.info("Inbound: Distant peer saved to peer list")
-                                peer_list_file.close()
-                            else:
-                                app_log.info("Distant peer already in peer list")
-                        except:
-                            app_log.info("Inbound: Distant peer not connectible")
-                            pass
+                        peers_save(peerlist, peer_ip)
 
                             # raise #test only
 
