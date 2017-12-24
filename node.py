@@ -1083,7 +1083,6 @@ def manager(c, conn):
     reset_time = startup_time
 
     peers_test("providers.txt")
-    peers_test(peerlist)
     peers_joined = 0
 
     while True:
@@ -1125,8 +1124,8 @@ def manager(c, conn):
 
         if int(time.time() - startup_time) > 15 and peers_joined == 0: #join peers.txt after certain time
             peer_dict.update(peers_get(peerlist))
-            print (peer_dict)
-            peers_joined == 1
+            peers_test(peerlist)
+            peers_joined = 1
 
 
         if len(connection_pool) < nodes_ban_reset and int(time.time() - startup_time) > 15: #do not reset before 30 secs have passed
