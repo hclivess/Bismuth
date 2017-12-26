@@ -1,70 +1,33 @@
 import socks, connections, time, sys
+import argparse
+from functools import partial
+import types
+import atexit
 
 #print ('Number of arguments:', len(sys.argv), 'arguments.')
 #print ('Argument List:', str(sys.argv))
+parse = argparse.ArgumentParser()
+parse.add_argument('command', help="run the command.py of command")
+parse.add_argument('-a', '--arg', action='append', dest='args', help="command's args")
+args = parse.parse_args()
+command = args.command
+args = args.args if args.args else []
+"""
+SAMPLE:
+    python commands.py diffget
+    python commands.py txsend -a 1 -a 2 -a 3 -a 4 -a 5
+"""
 
-try:
-    command = sys.argv[1]
+args.extend([''] * (5 - len(args)))
 
-    try:
-        arg1 = sys.argv[2]
-    except:
-        pass
-
-    try:
-        arg2 = sys.argv[3]
-    except:
-        pass
-
-    try:
-        arg3 = sys.argv[4]
-    except:
-        pass
-
-    try:
-        arg4 = sys.argv[5]
-    except:
-        pass
-
-    try:
-        arg5 = sys.argv[6]
-    except:
-        pass
-
-except:
-
-    entry = input("No argument detected, please insert command manually\n").split()
-    command = entry[0]
-    try:
-        arg1 = entry[1]
-    except:
-        pass
-    try:
-        arg2 = entry[2]
-    except:
-        pass
-    try:
-        arg3 = entry[3]
-    except:
-        pass
-    try:
-        arg4 = entry[4]
-    except:
-        pass
-    try:
-        arg4 = sys.argv[5]
-    except:
-        pass
-
-    try:
-        arg5 = sys.argv[6]
-    except:
-        pass
-
+arg1, arg2, arg3, arg4, arg5 = args
+if not arg4:
+    arg4 = '0'
 
 s = socks.socksocket()
 s.settimeout(10)
 s.connect(("127.0.0.1", 5658))
+atexit.register(s.close)
 #s.connect(("94.113.207.67", 5658))
 
 def diffget(socket):
@@ -239,62 +202,19 @@ def aliasesget(socket, arg1):
     alias_results = connections.receive(s, 10)
     print (alias_results)
 
-if command == "aliasget":
-    aliasget(s, arg1)
+# init command and args, According to the number of different parameters
+cmd_dict = {cmd: [] for cmd in ['diffget', 'difflast', 'mpget', 'statusget', 'peersget', 'blocklast', 'keygen', ]}
+cmd_dict.update({
+    cmd: [arg1, arg2] for cmd in ['aliasget', 'addvalidate', 'aliasesget', 'balanceget', "blockget", "addlist", "listlim", ]
 
-if command == "addvalidate":
-    addvalidate(s, arg1)
+})
+cmd_dict.update({cmd: [arg1, arg2] for cmd in ["addlistlim", ]})
+cmd_dict.update({cmd: [arg1, arg2, arg3, arg4, arg5]for cmd in ["txsend", ]})
 
-if command == "aliasesget":
-    aliasesget(s, arg1)
-
-elif command == "diffget":
-    diffget(s)
-
-elif command == "difflast":
-    difflast(s)
-
-elif command == "balanceget":
-    balanceget(s, arg1)
-
-elif command == "mpget":
-    mpget(s)
-
-elif command == "statusget":
-    statusget(s)
-
-elif command == "peersget":
-    peersget(s)
-
-elif command == "blocklast":
-    blocklast(s)
-
-elif command == "keygen":
-    keygen(s)
-
-elif command == "blockget":
-    blockget(s, arg1)
-
-elif command == "addlist":
-    addlist(s, arg1)
-
-elif command == "addlistlim":
-    addlistlim(s, arg1, arg2)
-
-elif command == "listlim":
-    listlim(s, arg1)
-
-elif command == "txsend":
-    try:
-        arg4
-    except:
-        arg4="0"
-
-    try:
-        arg5
-    except:
-        arg5=""
-
-    txsend(s, arg1, arg2, arg3, arg4, arg5)
-
-s.close()
+if command in cmd_dict.keys():
+    cmd = globals().get(command)
+    assert isinstance(cmd, types.FunctionType)
+    cmd = partial(cmd, socket=s)
+    cmd(*cmd_dict[command])
+else:
+    print("No the command")
