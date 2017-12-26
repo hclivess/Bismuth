@@ -205,7 +205,7 @@ def aliasesget(socket, arg1):
 # init command and args, According to the number of different parameters
 cmd_dict = {cmd: [] for cmd in ['diffget', 'difflast', 'mpget', 'statusget', 'peersget', 'blocklast', 'keygen', ]}
 cmd_dict.update({
-    cmd: [arg1, arg2] for cmd in ['aliasget', 'addvalidate', 'aliasesget', 'balanceget', "blockget", "addlist", "listlim", ]
+    cmd: [arg1, ] for cmd in ['aliasget', 'addvalidate', 'aliasesget', 'balanceget', "blockget", "addlist", "listlim", ]
 
 })
 cmd_dict.update({cmd: [arg1, arg2] for cmd in ["addlistlim", ]})
