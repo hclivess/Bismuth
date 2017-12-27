@@ -821,7 +821,10 @@ def mempool_merge(data, peer_ip, c, mempool, m):
 def peers_get(peerlist):
     peer_dict = {}
 
-    with open(peerlist, "w+") as f:
+    if not os.path.exists(peerlist):
+        open(peerlist, "a").close()
+
+    with open(peerlist, "r") as f:
         for line in f:
             try:
                 line = re.sub("[\)\(\:\\n\'\s]", "", line)
