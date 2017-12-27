@@ -104,10 +104,11 @@ def peers_save(peerlist, peer_ip):
         app_log.info("Inbound: Distant peer not connectible")
         pass
 
-def sendsync(sdef,peer_ip,status):
+def sendsync(sdef,peer_ip,status,provider):
     app_log.warning("Outbound: Synchronization with {} finished after: {}, sending new sync request".format(peer_ip,status))
 
-    peers_save("providers.txt", peer_ip)
+    if provider == "yes":
+        peers_save("providers.txt", peer_ip)
 
     time.sleep(float(pause_conf))
     while db_lock.locked() == True:
@@ -1122,11 +1123,10 @@ def manager(c, conn):
                     # client thread handling
 
 
-        if int(time.time() - startup_time) > 15 and peers_joined == 0: #join peers.txt after certain time
+        if int(time.time() - startup_time) > 15 and peers_joined == 0: #join peers.txt after certain time, also refreshes peers from drive
             peer_dict.update(peers_get(peerlist))
             peers_test(peerlist)
             peers_joined = 1
-
 
         if len(connection_pool) < nodes_ban_reset and int(time.time() - startup_time) > 15: #do not reset before 30 secs have passed
             app_log.warning("Only {} connections active, resetting banlist".format(len(connection_pool)))
@@ -2568,7 +2568,7 @@ def worker(HOST, PORT):
                     if warning(s, peer_ip, "Rollback",1) == "banned":
                         raise ValueError("{} is banned".format(peer_ip))
 
-                sendsync(s, peer_ip, "Block not found")
+                sendsync(s, peer_ip, "Block not found", "no")
 
             elif data == "blocksfnd":
                 app_log.info("Outbound: Node {} has the block(s)".format(peer_ip))  # node should start sending txs in this step
@@ -2610,7 +2610,7 @@ def worker(HOST, PORT):
                         connections.send(s, "blocksrj", 10)
                         app_log.warning("Inbound: Distant peer {} is at {}, should be at least {}".format(peer_ip, received_block_height, block_req))
 
-                sendsync(s, peer_ip, "Block found")
+                sendsync(s, peer_ip, "Block found", "yes")
 
                 # block_hash validation end
 
@@ -2635,7 +2635,7 @@ def worker(HOST, PORT):
                 # receive mempool
 
 
-                sendsync(s,peer_ip, "No new block")
+                sendsync(s,peer_ip, "No new block", "yes")
 
             #elif data == "*":
             #    app_log.info(">> sending ping to {}".format(peer_ip))
