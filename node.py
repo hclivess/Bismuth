@@ -1120,10 +1120,9 @@ def manager(c, conn):
                     # client thread handling
 
 
-        if int(time.time() - startup_time) > 15 and peers_joined == 0: #join peers.txt after certain time, also refreshes peers from drive
+        if int(time.time() - startup_time) > 15 and peers_joined == 0: #refreshes peers from drive
             peer_dict.update(peers_get(peerlist))
             peers_test(peerlist)
-            peers_joined = 1
 
         if len(connection_pool) < nodes_ban_reset and int(time.time() - startup_time) > 15: #do not reset before 30 secs have passed
             app_log.warning("Only {} connections active, resetting banlist".format(len(connection_pool)))
@@ -1781,6 +1780,12 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                 elif data == 'hello':
 
+                    with open(peerlist, "r") as peer_list:
+                        peers = peer_list.read()
+
+                        connections.send(self.request, "peers", 10)
+                        connections.send(self.request, peers, 10)
+
                     while db_lock.locked() == True:
                         time.sleep(float(pause_conf))
                     app_log.info("Inbound: Sending sync request")
@@ -2387,8 +2392,53 @@ def worker(HOST, PORT):
             data = connections.receive(s, 10)  # receive data, one and the only root point
             #print(data)
 
-            if data == "peers": #RUDIMENT
+            if data == "peers": #REWORK
                 subdata = connections.receive(s, 10)
+
+                if peersync_lock.locked() == False and accept_peers == "yes":
+                    peersync_lock.acquire()
+
+                    # get remote peers into tuples (actually list)
+                    server_peer_tuples = re.findall("'([\d\.]+)', '([\d]+)'", subdata)
+                    app_log.info("Received following {} peers: {}".format(len((server_peer_tuples)), server_peer_tuples))
+                    # get remote peers into tuples (actually list)
+
+                    # get local peers into tuples
+                    peer_file = open(peerlist, 'r')
+                    peer_tuples = []
+                    for line in peer_file:
+                        extension = re.findall("'([\d\.]+)', '([\d]+)'", line)
+                        peer_tuples.extend(extension)
+                    peer_file.close()
+                    # get local peers into tuples
+
+                    for x in set(server_peer_tuples):  # set removes duplicates
+                        if x not in peer_tuples:
+                            app_log.info("Outbound: {} is a new peer, saving if connectible".format(x))
+                            try:
+                                s_purge = socks.socksocket()
+                                s_purge.settimeout(0.2)
+                                if tor_conf == 1:
+                                    s_purge.settimeout(5)
+                                    s_purge.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+                                    # s_purge = s.setblocking(0)
+
+                                s_purge.connect((x[0], int(x[1])))  # save a new peer file with only active nodes
+                                s_purge.close()
+
+                                peer_list_file = open("random_peers.txt", 'a')
+                                peer_list_file.write("('" + x[0] + "', '" + x[1] + "')\n")
+                                peer_list_file.close()
+                            except:
+                                pass
+                                app_log.info("Not connectible")
+
+                        else:
+                            app_log.info("Outbound: {} is not a new peer".format(x))
+                    peersync_lock.release()
+                else:
+                    app_log.info("Outbound: Peer sync occupied")
+
 
             elif data == "sync":
                 if not time.time() <= timer_operation + timeout_operation:
