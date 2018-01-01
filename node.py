@@ -108,7 +108,7 @@ def sendsync(sdef,peer_ip,status,provider):
     app_log.warning("Outbound: Synchronization with {} finished after: {}, sending new sync request".format(peer_ip,status))
 
     if provider == "yes":
-        peers_save("providers.txt", peer_ip)
+        peers_save("peers.txt", peer_ip)
 
     time.sleep(float(pause_conf))
     while db_lock.locked() == True:
@@ -553,18 +553,12 @@ def execute_param(cursor, query, param):
 
 def difficulty(c, mode):
     getcontext().prec = 13 #decimal places
-    execute(c, "SELECT * FROM transactions ORDER BY block_height DESC LIMIT 2")
+
+    execute(c, "SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 2")
     result = c.fetchone()
     timestamp_last = Decimal(result[1])
     block_height = int(result[0])
     timestamp_before_last = Decimal(c.fetchone()[1])
-
-    if block_height >= 427000: #remove code ABOVE after hf
-        execute(c, "SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 2")
-        result = c.fetchone()
-        timestamp_last = Decimal(result[1])
-        block_height = int(result[0])
-        timestamp_before_last = Decimal(c.fetchone()[1])
 
     execute_param(c, ("SELECT timestamp FROM transactions WHERE CAST(block_height AS INTEGER) > ? AND reward != 0 ORDER BY timestamp ASC LIMIT 2"), (block_height - 1441,))
     timestamp_1441 = Decimal(c.fetchone()[0])
@@ -1081,20 +1075,19 @@ def manager(c, conn):
     global last_block
 
     peer_dict = {}
-    peer_dict.update(peers_get("providers.txt"))
-    print(peer_dict)
+    peer_dict.update(peers_get("peers.txt"))
 
     # When was the last time we reset banlist and tries?
     reset_time = startup_time
 
-    peers_test("providers.txt")
+    peers_test("peers.txt")
     peers_joined = 0
 
     while True:
         # dict_keys = peer_dict.keys()
         # random.shuffle(peer_dict.items())
 
-        variability = [] #should invariable peers not be saved to peerlist at all? in that case, move this where peers are saved
+        variability = [] #prevent ip range attack (excluding inc conns)
         del variability [:]
         variable = []
         del variable [:]
@@ -1787,21 +1780,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # send own
 
                 elif data == 'hello':
-                    with open(peerlist, "r") as peer_list:
-                        peers = peer_list.read()
-
-                        connections.send(self.request, "peers", 10)
-                        connections.send(self.request, peers, 10)
-
-                    peer_list.close()
-
-                    # save peer if connectible
-                    if accept_peers == "yes":
-                        peers_save(peerlist, peer_ip)
-
-                            # raise #test only
-
-                    # save peer if connectible
 
                     while db_lock.locked() == True:
                         time.sleep(float(pause_conf))
@@ -2409,53 +2387,8 @@ def worker(HOST, PORT):
             data = connections.receive(s, 10)  # receive data, one and the only root point
             #print(data)
 
-            if data == "peers":
+            if data == "peers": #RUDIMENT
                 subdata = connections.receive(s, 10)
-
-                if peersync_lock.locked() == False and accept_peers == "yes":
-                    peersync_lock.acquire()
-
-                    # get remote peers into tuples (actually list)
-                    server_peer_tuples = re.findall("'([\d\.]+)', '([\d]+)'", subdata)
-                    app_log.info("Received following {} peers: {}".format(len((server_peer_tuples)), server_peer_tuples))
-                    # get remote peers into tuples (actually list)
-
-                    # get local peers into tuples
-                    peer_file = open(peerlist, 'r')
-                    peer_tuples = []
-                    for line in peer_file:
-                        extension = re.findall("'([\d\.]+)', '([\d]+)'", line)
-                        peer_tuples.extend(extension)
-                    peer_file.close()
-                    # get local peers into tuples
-
-                    for x in set(server_peer_tuples):  # set removes duplicates
-                        if x not in peer_tuples:
-                            app_log.info("Outbound: {} is a new peer, saving if connectible".format(x))
-                            try:
-                                s_purge = socks.socksocket()
-                                s_purge.settimeout(0.2)
-                                if tor_conf == 1:
-                                    s_purge.settimeout(5)
-                                    s_purge.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                                    # s_purge = s.setblocking(0)
-
-                                s_purge.connect((x[0], int(x[1])))  # save a new peer file with only active nodes
-                                s_purge.close()
-
-                                peer_list_file = open(peerlist, 'a')
-                                peer_list_file.write("('" + x[0] + "', '" + x[1] + "')\n")
-                                peer_list_file.close()
-                            except:
-                                pass
-                                app_log.info("Not connectible")
-
-                        else:
-                            app_log.info("Outbound: {} is not a new peer".format(x))
-                    peersync_lock.release()
-                else:
-                    app_log.info("Outbound: Peer sync occupied")
-
 
             elif data == "sync":
                 if not time.time() <= timer_operation + timeout_operation:
@@ -2657,6 +2590,7 @@ def worker(HOST, PORT):
                 app_log.info("Will remove {} from active pool {}".format(this_client, connection_pool))
                 app_log.warning("Outbound: Disconnected from {}: {}".format(this_client, e))
                 connection_pool.remove(this_client)
+
             # remove from active pool
 
             # remove from consensus 2
