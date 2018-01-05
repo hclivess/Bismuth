@@ -1181,11 +1181,15 @@ def manager(c, conn):
 def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3):
     global banlist, hdd_block
 
+    block_size = sys.getsizeof(data)/1000000
+    app_log.warning("Block size: {} MB".format(block_size))
+
     if db_lock.locked() == False:
         db_lock.acquire()
         block_valid = 1  # init
 
         app_log.info("Digesting started from {}".format(peer_ip))
+
         try:
             block_list = data
 
