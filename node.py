@@ -1123,7 +1123,7 @@ def manager(c, conn):
         if int(time.time() - startup_time) > 15: #refreshes peers from drive
             peer_dict.update(peers_get(peerlist))
 
-        app_log.warning("Total number of known peers: ".format(len(peer_dict))) #keep this here
+        app_log.warning("Total number of known peers: {}".format(len(peer_dict))) #keep this here
         if len(consensus_blockheight_list) < 3 and int(time.time() - startup_time) > 15: #join in random peers after x seconds
             app_log.warning("Not enough peers in consensus, joining in peers suggested by other nodes")
             peer_dict.update(peers_get("suggested_peers.txt"))
