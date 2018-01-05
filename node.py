@@ -1081,7 +1081,7 @@ def manager(c, conn):
     reset_time = startup_time
 
     peers_test("peers.txt")
-    peers_joined = 0
+    peers_test(peerlist)
 
     while True:
         # dict_keys = peer_dict.keys()
@@ -1120,9 +1120,14 @@ def manager(c, conn):
                     # client thread handling
 
 
-        if int(time.time() - startup_time) > 15 and peers_joined == 0: #refreshes peers from drive
+        if int(time.time() - startup_time) > 15: #refreshes peers from drive
             peer_dict.update(peers_get(peerlist))
-            peers_test(peerlist)
+
+        app_log.warning("Total number of known peers: ".format(len(peer_dict))) #keep this here
+        if len(consensus_blockheight_list) < 3 and int(time.time() - startup_time) > 15: #join in random peers after x seconds
+            app_log.warning("Not enough peers in consensus, joining in peers suggested by other nodes")
+            peer_dict.update(peers_get("suggested_peers.txt"))
+
 
         if len(connection_pool) < nodes_ban_reset and int(time.time() - startup_time) > 15: #do not reset before 30 secs have passed
             app_log.warning("Only {} connections active, resetting banlist".format(len(connection_pool)))
@@ -2426,7 +2431,7 @@ def worker(HOST, PORT):
                                 s_purge.connect((x[0], int(x[1])))  # save a new peer file with only active nodes
                                 s_purge.close()
 
-                                peer_list_file = open("random_peers.txt", 'a')
+                                peer_list_file = open("suggested_peers.txt", 'a')
                                 peer_list_file.write("('" + x[0] + "', '" + x[1] + "')\n")
                                 peer_list_file.close()
                             except:
