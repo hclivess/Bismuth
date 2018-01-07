@@ -4,8 +4,8 @@ from functools import partial
 import types
 import atexit
 
-#print ('Number of arguments:', len(sys.argv), 'arguments.')
-#print ('Argument List:', str(sys.argv))
+#print('Number of arguments:', len(sys.argv), 'arguments.')
+#print('Argument List:', str(sys.argv))
 parse = argparse.ArgumentParser()
 parse.add_argument('command', help="run the command.py of command")
 parse.add_argument('-a', '--arg', action='append', dest='args', help="command's args")
@@ -21,8 +21,7 @@ SAMPLE:
 args.extend([''] * (5 - len(args)))
 
 arg1, arg2, arg3, arg4, arg5 = args
-if not arg4:
-    arg4 = '0'
+arg4 = arg4 or 0
 
 s = socks.socksocket()
 s.settimeout(10)
@@ -43,11 +42,11 @@ def balanceget(socket, arg1):
     connections.send(s, arg1, 10)
     #balance_ledger = connections.receive(s, 10)
     balance_ledger = connections.receive(s, 10)
-    print ("Address balance: {}".format(balance_ledger[0]))
-    print ("Address credit: {}".format(balance_ledger[1]))
-    print ("Address debit: {}".format(balance_ledger[2]))
-    print ("Address fees: {}".format(balance_ledger[3]))
-    print ("Address rewards: {}".format(balance_ledger[4]))
+    print("Address balance: {}".format(balance_ledger[0]))
+    print("Address credit: {}".format(balance_ledger[1]))
+    print("Address debit: {}".format(balance_ledger[2]))
+    print("Address fees: {}".format(balance_ledger[3]))
+    print("Address rewards: {}".format(balance_ledger[4]))
     #get balance
 
 #insert to mempool
@@ -63,7 +62,7 @@ def mpget(socket):
     #ask for mempool
     connections.send(s, "mpget", 10)
     mempool = connections.receive(s, 10)
-    print ("Current mempool: {}".format(mempool))
+    print("Current mempool: {}".format(mempool))
     #ask for mempool
 
 def difflast(socket):
@@ -73,7 +72,7 @@ def difflast(socket):
     blocklast = response[0]
     difflast = response[1]
     print("Last block: {}".format(blocklast))
-    print ("Last difficulty: {}".format(difflast))
+    print("Last difficulty: {}".format(difflast))
     #ask for last difficulty
 
 def blocklast(socket):
@@ -81,8 +80,8 @@ def blocklast(socket):
     connections.send(s, "blocklast", 10)
     hash_last = connections.receive(s, 10)
 
-    print ("Last block number: {}".format(hash_last[0]))
-    print ("Last block hash: {}".format(hash_last[1]))
+    print("Last block number: {}".format(hash_last[0]))
+    print("Last block hash: {}".format(hash_last[1]))
     #get last hash
 
 
@@ -92,9 +91,9 @@ def keygen(socket):
     connections.send(s, "keygen", 10)
     keys_generated = connections.receive(s, 10)
 
-    print ("Private key: {}".format(keys_generated[0]))
-    print ("Public key: {}".format(keys_generated[1]))
-    print ("Address: {}".format(keys_generated[2]))
+    print("Private key: {}".format(keys_generated[0]))
+    print("Public key: {}".format(keys_generated[1]))
+    print("Address: {}".format(keys_generated[2]))
     #generate address
 
 def blockget(socket, arg1):
@@ -102,9 +101,9 @@ def blockget(socket, arg1):
     connections.send(s, "blockget", 10)
     connections.send(s, arg1, 10)
     block_get = connections.receive(s, 10)
-    print ("Requested block: {}".format(block_get))
-    print ("Requested block number of transactions: {}".format(len(block_get)))
-    print ("Requested block height: {}".format(block_get[0][0]))
+    print("Requested block: {}".format(block_get))
+    print("Requested block number of transactions: {}".format(len(block_get)))
+    print("Requested block height: {}".format(block_get[0][0]))
     #get block
 
 def addlist(socket, arg1):
@@ -114,7 +113,7 @@ def addlist(socket, arg1):
     address_tx_list = connections.receive(s, 10)
     print("All transactions for requested address:")
     for row in address_tx_list:
-        print (row)
+        print(row)
     #get all txs for an address
 
 def addlistlim(socket, arg1, arg2):
@@ -125,7 +124,7 @@ def addlistlim(socket, arg1, arg2):
     address_tx_list = connections.receive(s, 10)
     print("Transactions for requested address:")
     for row in address_tx_list:
-        print (row)
+        print(row)
     #get all txs for an address
 
 def listlim(socket, arg1):
@@ -135,7 +134,7 @@ def listlim(socket, arg1):
     tx_list = connections.receive(s, 10)
     print("All transactions for requested range:")
     for row in tx_list:
-        print (row)
+        print(row)
 
 def txsend(socket, arg1, arg2, arg3, arg4, arg5):
     #generate transaction
@@ -154,18 +153,18 @@ def txsend(socket, arg1, arg2, arg3, arg4, arg5):
     #generate transaction
 
     signature = connections.receive(s, 10)
-    print (signature)
+    print(signature)
 
 def aliasget(socket, arg1):
     connections.send(s, "aliasget", 10)
     connections.send(s, arg1, 10)
     alias_results = connections.receive(s, 10)
-    print (alias_results)
+    print(alias_results)
 
 def peersget(socket):
     connections.send(s, "peersget", 10)
     peers_received = connections.receive(s, 10)
-    print (peers_received)
+    print(peers_received)
 
 def statusget(socket):
     connections.send(s, "statusget", 10)
@@ -191,16 +190,16 @@ def addvalidate(socket, arg1):
     connections.send(s, "addvalidate", 10)
     connections.send(s, arg1, 10)
     validate_result = connections.receive(s, 10)
-    print (validate_result)
+    print(validate_result)
 
 def aliasesget(socket, arg1):
     arg_split = arg1.split(",")
-    print (arg_split)
+    print(arg_split)
 
     connections.send(s, "aliasesget", 10)
     connections.send(s, arg_split, 10)
     alias_results = connections.receive(s, 10)
-    print (alias_results)
+    print(alias_results)
 
 # init command and args, According to the number of different parameters
 cmd_dict = {cmd: [] for cmd in ['diffget', 'difflast', 'mpget', 'statusget', 'peersget', 'blocklast', 'keygen', ]}
