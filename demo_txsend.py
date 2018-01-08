@@ -19,7 +19,7 @@ def txsend(socket, arg1, arg2, arg3, arg4, arg5):
     connections.send(s, "txsend", 10)
 
     timestamp = '%.2f' % time.time()
-    privkey = str(arg)1 #node will dump pubkey+address from this
+    privkey = str(arg) #node will dump pubkey+address from this
     recipient = str(arg2)
     amount = str(arg3)
     keep = str(arg4)
