@@ -49,39 +49,37 @@ def nodes_block_submit(block_send):
     global peer_dict
     peer_dict = {}
 
-
-
     with open(peerlist) as f:
         for line in f:
             line = re.sub("[\)\(\:\\n\'\s]", "", line)
             peer_dict[line.split(",")[0]] = line.split(",")[1]
 
-        for k, v in peer_dict.items():
-            peer_ip = k
-            # app_log.info(HOST)
-            peer_port = int(v)
-            # app_log.info(PORT)
-            # connect to all nodes
+    for k, v in peer_dict.items():
+        peer_ip = k
+        # app_log.info(HOST)
+        peer_port = int(v)
+        # app_log.info(PORT)
+        # connect to all nodes
 
-            try:
-                s_peer = socks.socksocket()
-                s_peer.settimeout(0.3)
-                if tor_conf == 1:
-                    s_peer.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                s_peer.connect((peer_ip, int(peer_port)))  # connect to node in peerlist
-                print("Connected")
+        try:
+            s_peer = socks.socksocket()
+            s_peer.settimeout(0.3)
+            if tor_conf == 1:
+                s_peer.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+            s_peer.connect((peer_ip, int(peer_port)))  # connect to node in peerlist
+            print("Connected")
 
-                print("Miner: Proceeding to submit mined block to node")
+            print("Miner: Proceeding to submit mined block to node")
 
-                connections.send(s_peer, "block", 10)
-                connections.send(s_peer, block_send, 10)
+            connections.send(s_peer, "block", 10)
+            connections.send(s_peer, block_send, 10)
 
-                print("Miner: Block submitted to node {}".format(peer_ip))
-            except Exception as e:
-                print("Miner: Could not submit block to node {} because {}".format(peer_ip, e))
-                pass
+            print("Miner: Block submitted to node {}".format(peer_ip))
+        except Exception as e:
+            print("Miner: Could not submit block to node {} because {}".format(peer_ip, e))
+            pass
 
-                # submit mined block to node
+            # submit mined block to node
 
 
 def check_uptodate(interval):
@@ -100,8 +98,8 @@ def check_uptodate(interval):
             print("Local blockchain is {} minutes behind ({} seconds), waiting for sync to complete".format(int(last_block_ago) / 60, last_block_ago))
             time.sleep(5)
         else:
+            conn.close()
             break
-        conn.close()
         # check if blocks are up to date
 
 
@@ -109,16 +107,12 @@ def bin_convert(string):
     return ''.join(format(ord(x), '8b').replace(' ', '0') for x in string)
 
 
-def execute(cursor, what):
+def execute(cursor, query):
     # secure execute for slow nodes
-    passed = 0
-    while passed == 0:
+    while True:
         try:
-            # print cursor
-            # print what
-
-            cursor.execute(what)
-            passed = 1
+            cursor.execute(query)
+            break
         except Exception as e:
             print("Retrying database execute due to {}".format(e))
             time.sleep(0.1)
@@ -129,13 +123,12 @@ def execute(cursor, what):
 
 def execute_param(cursor, what, param):
     # secure execute for slow nodes
-    passed = 0
-    while passed == 0:
+    while True:
         try:
             # print cursor
             # print what
             cursor.execute(what, param)
-            passed = 1
+            break
         except Exception as e:
             print("Retrying database execute due to {}".format(e))
             time.sleep(0.1)
