@@ -8,7 +8,7 @@ from multiprocessing import Process, freeze_support
 config = options.Get()
 config.read()
 debug_level = config.debug_level_conf
-port = config.port
+port = int(config.port)
 genesis_conf = config.genesis_conf
 verify_conf = config.verify_conf
 thread_limit_conf = config.thread_limit_conf
@@ -66,7 +66,7 @@ def nodes_block_submit(block_send):
             s_peer.settimeout(0.3)
             if tor_conf == 1:
                 s_peer.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-            s_peer.connect((peer_ip, int(peer_port)))  # connect to node in peerlist
+            s_peer.connect((peer_ip, peer_port))  # connect to node in peerlist
             print("Connected")
 
             print("Miner: Proceeding to submit mined block to node")
@@ -176,7 +176,7 @@ def miner(q, privatekey_readable, public_key_hashed, address):
             s_node = socks.socksocket()
             if tor_conf == 1:
                 s_node.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-            s_node.connect((node_ip_conf, int(port)))  # connect to local node
+            s_node.connect((node_ip_conf, port))  # connect to local node
 
             connections.send(s_node, "blocklast", 10)
             blocklast = connections.receive(s_node, 10)
@@ -188,11 +188,7 @@ def miner(q, privatekey_readable, public_key_hashed, address):
 
             diff = int(diff[1])
 
-            diff_real = int(diff)
-
-            if pool_conf == 0:
-                diff = int(diff)
-
+            diff_real = diff
 
             else:  # if pooled
                 diff_pool = diff_real
@@ -220,7 +216,7 @@ def miner(q, privatekey_readable, public_key_hashed, address):
                         print("Thread{} {} @ {:.2f} cycles/second, difficulty: {}({}), iteration: {}".format(q, db_block_hash[:10], cycles_per_second, diff, diff_real, tries))
                     except:
                         pass
-                tries = tries + 1
+                tries += 1
 
                 if mining_condition in mining_hash:
                     tries = 0
@@ -237,7 +233,7 @@ def miner(q, privatekey_readable, public_key_hashed, address):
                     s_node = socks.socksocket()
                     if tor_conf == 1:
                         s_node.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                    s_node.connect((node_ip_conf, int(port)))  # connect to config.txt node
+                    s_node.connect((node_ip_conf, port))  # connect to config.txt node
                     connections.send(s_node, "mpget", 10)
                     data = connections.receive(s_node, 10)
                     s_node.close()
@@ -263,7 +259,7 @@ def miner(q, privatekey_readable, public_key_hashed, address):
                     signature = signer.sign(h)
                     signature_enc = base64.b64encode(signature)
 
-                    if signer.verify(h, signature) == True:
+                    if signer.verify(h, signature):
                         print("Signature valid")
 
                         block_send.append((str(block_timestamp), str(address[:56]), str(address[:56]), '%.8f' % float(0), str(signature_enc.decode("utf-8")), str(public_key_hashed), "0", str(nonce)))  # mining reward tx
@@ -303,13 +299,14 @@ def miner(q, privatekey_readable, public_key_hashed, address):
                                 connections.send(s_pool, "block", 10)
                                 connections.send(s_pool, self_address, 10)
                                 connections.send(s_pool, block_send, 10)
-                                s_pool.close()
 
                                 print("Miner: Block submitted to pool")
 
                             except Exception as e:
                                 print("Miner: Could not submit block to pool")
                                 pass
+                            finally:
+                                s_pool.close()
 
                         if pool_conf == 0:
                             nodes_block_submit(block_send)
@@ -330,17 +327,15 @@ if __name__ == '__main__':
     freeze_support()  # must be this line, dont move ahead
 
     (key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read()
-
-    connected = 0
-    while connected == 0:
+    while True:
         try:
             s_node = socks.socksocket()
             if tor_conf == 1:
                 s_node.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
             s_node.connect((node_ip_conf, int(port)))
             print("Connected")
-            connected = 1
             s_node.close()
+            break
         except Exception as e:
             print(e)
             print("Miner: Please start your node for the block to be submitted or adjust mining ip in settings.")
@@ -355,4 +350,4 @@ if __name__ == '__main__':
         p = Process(target=miner, args=(str(q + 1), private_key_readable, public_key_hashed, address))
         # p.daemon = True
         p.start()
-        print("thread " + str(p) + " started")
+        print("thread {} started".format(p)
