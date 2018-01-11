@@ -646,7 +646,6 @@ def qr(address):
 
     # popup
     top = Toplevel()
-    top.wm_iconbitmap(tempFile)
     top.title("Address QR Code")
 
     im = PIL.Image.open("address_qr.png")
