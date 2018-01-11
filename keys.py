@@ -5,9 +5,8 @@ from Crypto.PublicKey import RSA
 
 def generate():
     # generate key pair and an address
-    random_generator = Random.new().read
-    key = RSA.generate(4096, random_generator)
-    public_key = key.publickey()
+    key = RSA.generate(4096)
+    #public_key = key.publickey()
 
     private_key_readable = key.exportKey().decode("utf-8")
     public_key_readable = key.publickey().exportKey().decode("utf-8")

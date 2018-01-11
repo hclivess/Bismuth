@@ -36,13 +36,12 @@ def search():
         address = ""
         while not any(x in address for x in desired):
             # generate key pair and an address
-            random_generator = Random.new().read
-            key = RSA.generate(4096, random_generator)
+            key = RSA.generate(4096)
             public_key = key.publickey()
 
-            private_key_readable = str(key.exportKey())
-            public_key_readable = str(key.publickey().exportKey())
-            address = hashlib.sha224(public_key_readable).hexdigest()  # hashed public key
+            private_key_readable = key.exportKey().decode("utf-8")
+            public_key_readable = key.publickey().exportKey().decode("utf-8")
+            address = hashlib.sha224(public_key_readable.encode("utf-8")).hexdigest()  # hashed public key
 
             app_log.info('Generating vanity attempt: ' + address)
             # generate key pair and an address
@@ -59,10 +58,6 @@ def search():
         pem_file.write(str(public_key_readable))
         pem_file.close()
 
-        address_file = open("address.txt", 'a')
-        address_file.write(str(address) + "\n")
-        address_file.close()
-
 if __name__ == '__main__':
     freeze_support() #must be this line, dont move ahead
     instances = range(threads)
@@ -70,8 +65,5 @@ if __name__ == '__main__':
     for q in instances:
         p = Process(target=search, args=())
         p.start()
-        print("thread {} started".format(p)
-    for q in instances:
-        p.join()
-        p.terminate()
+        print("thread {} started".format(p))
 

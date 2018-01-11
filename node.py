@@ -1180,9 +1180,6 @@ def manager(c, conn):
 
 def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3):
     global banlist, hdd_block
-
-    print (data)
-    print(type(data))
     block_size = Decimal(sys.getsizeof(str(data))) / Decimal(1000000)
     app_log.warning("Block size: {} MB".format(block_size))
 
