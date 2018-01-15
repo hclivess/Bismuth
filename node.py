@@ -1102,6 +1102,7 @@ def manager(c, conn):
     reset_time = startup_time
 
     peers_test("peers.txt")
+    peers_test("suggested_peers.txt")
 
     while True:
         # dict_keys = peer_dict.keys()
@@ -1147,7 +1148,6 @@ def manager(c, conn):
         if len(consensus_blockheight_list) < 3 and int(time.time() - startup_time) > 15: #join in random peers after x seconds
             app_log.warning("Not enough peers in consensus, joining in peers suggested by other nodes")
             peer_dict.update(peers_get("suggested_peers.txt"))
-            peers_test("suggested_peers.txt")
 
         if len(connection_pool) < nodes_ban_reset and int(time.time() - startup_time) > 15: #do not reset before 30 secs have passed
             app_log.warning("Only {} connections active, resetting banlist".format(len(connection_pool)))
