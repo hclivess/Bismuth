@@ -542,21 +542,21 @@ def send_confirm(amount_input, recipient_input, openfield_input):
     fee = fee_calculate(openfield_input)
 
     confirmation_dialog = Text(top10, width=100)
-    confirmation_dialog.insert(INSERT, ("Amount: {}\nFee: {}\nTotal: {}\nTo: {}\nKeep Entry: {}\nOpenField:\n\n{}".format(amount_input, fee, '%.8f' % (float(amount_input)+float(fee)), recipient_input, keep_input, openfield_input)))
+    confirmation_dialog.insert(INSERT, ("Amount: {}\nFee: {}\nTotal: {}\nTo: {}\nOpenField:\n\n{}".format(amount_input, fee, '%.8f' % (float(amount_input)+float(fee)), recipient_input, openfield_input)))
 
     confirmation_dialog.grid(row=0, pady=0)
 
-    enter = Button(top10, text="Confirm", command=lambda: send_confirmed(amount_input, recipient_input, keep_input, openfield_input, top10))
+    enter = Button(top10, text="Confirm", command=lambda: send_confirmed(amount_input, recipient_input, openfield_input, top10))
     enter.grid(row=1, column=0, sticky=W + E, padx=15, pady=(5, 5))
 
     done = Button(top10, text="Cancel", command=top10.destroy)
     done.grid(row=2, column=0, sticky=W + E, padx=15, pady=(5, 5))
 
-def send_confirmed(amount_input, recipient_input, keep_input, openfield_input, top10):
-    send(amount_input, recipient_input, keep_input, openfield_input)
+def send_confirmed(amount_input, recipient_input, openfield_input, top10):
+    send(amount_input, recipient_input, openfield_input)
     top10.destroy()
 
-def send(amount_input, recipient_input, keep_input, openfield_input):
+def send(amount_input, recipient_input, openfield_input):
     try:
         key
     except:
@@ -593,10 +593,10 @@ def send(amount_input, recipient_input, keep_input, openfield_input):
 
         app_log.warning("Amount: {}".format(amount_input))
         app_log.warning("Recipient: {}".format(recipient_input))
-        app_log.warning("Keep Forever: {}".format(keep_input))
         app_log.warning("OpenField Data: {}".format(openfield_input))
 
         timestamp = '%.2f' % time.time()
+        keep_input = "0"
         transaction = (str(timestamp), str(myaddress), str(recipient_input), '%.8f' % float(amount_input), str(keep_input), str(openfield_input))  # this is signed
 
         h = SHA.new(str(transaction).encode("utf-8"))
@@ -627,6 +627,8 @@ def send(amount_input, recipient_input, keep_input, openfield_input):
                     reply = connections.receive(s, 10)
                     app_log.warning("Client: {}".format(reply))
                     break
+
+                refresh(gui_address.get(), s)
         else:
             app_log.warning("Client: Invalid signature")
         # enter transaction end
