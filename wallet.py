@@ -1102,6 +1102,8 @@ def refresh(address, s):
     diff_msg_var.set("Mining Difficulty: {}".format('%.2f' % float(diff_msg)))
     sync_msg_var.set("Network: {}".format(sync_msg))
     version_var.set("Version: {}".format(status_version))
+    hash_var.set("Hash: {}".format("TEST"))
+
 
     connections.send(s, "addlistlim", 10)
     connections.send(s, address, 10)
@@ -1172,7 +1174,7 @@ root.config(menu=menubar)
 
 # buttons
 
-button_row_zero = 8
+button_row_zero = 9
 send_b = Button(f5, text="Send", command=lambda: send_confirm(str(amount.get()).strip(), recipient.get().strip(), str(keep_var.get()).strip(), (openfield.get("1.0", END)).strip()), height=1, width=10, font=("Tahoma", 8))
 send_b.grid(row=button_row_zero, column=0, sticky=W + E + S, pady=(45, 0), padx=15)
 
@@ -1259,6 +1261,11 @@ sync_msg_label.grid(row=7, column=0, sticky=N + E, padx=15)
 version_var = StringVar()
 version_var_label = Label(f5, textvariable=version_var)
 version_var_label.grid(row=8, column=0, sticky=N + E, padx=15)
+
+hash_var = StringVar()
+hash_var_label = Label(f5, textvariable=hash_var)
+hash_var_label.grid(row=9, column=0, sticky=N + E, padx=15)
+
 
 keep_var = IntVar()
 encode_var = IntVar()

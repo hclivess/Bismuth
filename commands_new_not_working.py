@@ -1,70 +1,40 @@
 import socks, connections, time, sys
+import argparse
+from functools import partial
+import types
+import atexit
 
-#print ('Number of arguments:', len(sys.argv), 'arguments.')
-#print ('Argument List:', str(sys.argv))
-
+#print('Number of arguments:', len(sys.argv), 'arguments.')
+#print('Argument List:', str(sys.argv))
 try:
-    command = sys.argv[1]
+    parse = argparse.ArgumentParser()
+    parse.add_argument('command', help="run the command.py of command")
+    parse.add_argument('-a', '--arg', action='append', dest='args', help="command's args")
+    args = parse.parse_args()
+    command = args.command
+    args = args.args if args.args else []
 
-    try:
-        arg1 = sys.argv[2]
-    except:
-        pass
+    """
+    SAMPLE:
+        python commands.py diffget
+        python commands.py txsend -a 1 -a 2 -a 3 -a 4 -a 5
+    """
 
-    try:
-        arg2 = sys.argv[3]
-    except:
-        pass
+    args.extend([''] * (5 - len(args)))
 
-    try:
-        arg3 = sys.argv[4]
-    except:
-        pass
-
-    try:
-        arg4 = sys.argv[5]
-    except:
-        pass
-
-    try:
-        arg5 = sys.argv[6]
-    except:
-        pass
+    arg1, arg2, arg3, arg4, arg5 = args
+    arg4 = arg4 or 0
 
 except:
-
     entry = input("No argument detected, please insert command manually\n").split()
-    command = entry[0]
-    try:
-        arg1 = entry[1]
-    except:
-        pass
-    try:
-        arg2 = entry[2]
-    except:
-        pass
-    try:
-        arg3 = entry[3]
-    except:
-        pass
-    try:
-        arg4 = entry[4]
-    except:
-        pass
-    try:
-        arg4 = sys.argv[5]
-    except:
-        pass
 
-    try:
-        arg5 = sys.argv[6]
-    except:
-        pass
-
+    entry.extend([''] * (6 - len(entry)))
+    command, arg1, arg2, arg3, arg4, arg5 = entry
 
 s = socks.socksocket()
 s.settimeout(10)
 s.connect(("127.0.0.1", 5658))
+atexit.register(s.close)
 #s.connect(("94.113.207.67", 5658))
 
 def diffget(socket):
@@ -80,11 +50,11 @@ def balanceget(socket, arg1):
     connections.send(s, arg1, 10)
     #balance_ledger = connections.receive(s, 10)
     balance_ledger = connections.receive(s, 10)
-    print ("Address balance: {}".format(balance_ledger[0]))
-    print ("Address credit: {}".format(balance_ledger[1]))
-    print ("Address debit: {}".format(balance_ledger[2]))
-    print ("Address fees: {}".format(balance_ledger[3]))
-    print ("Address rewards: {}".format(balance_ledger[4]))
+    print("Address balance: {}".format(balance_ledger[0]))
+    print("Address credit: {}".format(balance_ledger[1]))
+    print("Address debit: {}".format(balance_ledger[2]))
+    print("Address fees: {}".format(balance_ledger[3]))
+    print("Address rewards: {}".format(balance_ledger[4]))
     #get balance
 
 #insert to mempool
@@ -100,7 +70,7 @@ def mpget(socket):
     #ask for mempool
     connections.send(s, "mpget", 10)
     mempool = connections.receive(s, 10)
-    print ("Current mempool: {}".format(mempool))
+    print("Current mempool: {}".format(mempool))
     #ask for mempool
 
 def difflast(socket):
@@ -110,7 +80,7 @@ def difflast(socket):
     blocklast = response[0]
     difflast = response[1]
     print("Last block: {}".format(blocklast))
-    print ("Last difficulty: {}".format(difflast))
+    print("Last difficulty: {}".format(difflast))
     #ask for last difficulty
 
 def blocklast(socket):
@@ -118,8 +88,8 @@ def blocklast(socket):
     connections.send(s, "blocklast", 10)
     block_last = connections.receive(s, 10)
 
-    print ("Last block number: {}".format(block_last[0]))
-    print ("Last block timestamp: {}".format(block_last[1]))
+    print("Last block number: {}".format(block_last[0]))
+    print("Last block timestamp: {}".format(block_last[1]))
     #get last block
 
 
@@ -129,9 +99,9 @@ def keygen(socket):
     connections.send(s, "keygen", 10)
     keys_generated = connections.receive(s, 10)
 
-    print ("Private key: {}".format(keys_generated[0]))
-    print ("Public key: {}".format(keys_generated[1]))
-    print ("Address: {}".format(keys_generated[2]))
+    print("Private key: {}".format(keys_generated[0]))
+    print("Public key: {}".format(keys_generated[1]))
+    print("Address: {}".format(keys_generated[2]))
     #generate address
 
 def blockget(socket, arg1):
@@ -139,9 +109,9 @@ def blockget(socket, arg1):
     connections.send(s, "blockget", 10)
     connections.send(s, arg1, 10)
     block_get = connections.receive(s, 10)
-    print ("Requested block: {}".format(block_get))
-    print ("Requested block number of transactions: {}".format(len(block_get)))
-    print ("Requested block height: {}".format(block_get[0][0]))
+    print("Requested block: {}".format(block_get))
+    print("Requested block number of transactions: {}".format(len(block_get)))
+    print("Requested block height: {}".format(block_get[0][0]))
     #get block
 
 def addlist(socket, arg1):
@@ -151,7 +121,7 @@ def addlist(socket, arg1):
     address_tx_list = connections.receive(s, 10)
     print("All transactions for requested address:")
     for row in address_tx_list:
-        print (row)
+        print(row)
     #get all txs for an address
 
 def addlistlim(socket, arg1, arg2):
@@ -162,7 +132,7 @@ def addlistlim(socket, arg1, arg2):
     address_tx_list = connections.receive(s, 10)
     print("Transactions for requested address:")
     for row in address_tx_list:
-        print (row)
+        print(row)
     #get all txs for an address
 
 def listlim(socket, arg1):
@@ -172,7 +142,7 @@ def listlim(socket, arg1):
     tx_list = connections.receive(s, 10)
     print("All transactions for requested range:")
     for row in tx_list:
-        print (row)
+        print(row)
 
 def txsend(socket, arg1, arg2, arg3, arg4, arg5):
     #generate transaction
@@ -191,18 +161,18 @@ def txsend(socket, arg1, arg2, arg3, arg4, arg5):
     #generate transaction
 
     signature = connections.receive(s, 10)
-    print (signature)
+    print(signature)
 
 def aliasget(socket, arg1):
     connections.send(s, "aliasget", 10)
     connections.send(s, arg1, 10)
     alias_results = connections.receive(s, 10)
-    print (alias_results)
+    print(alias_results)
 
 def peersget(socket):
     connections.send(s, "peersget", 10)
     peers_received = connections.receive(s, 10)
-    print (peers_received)
+    print(peers_received)
 
 def statusget(socket):
     connections.send(s, "statusget", 10)
@@ -228,73 +198,30 @@ def addvalidate(socket, arg1):
     connections.send(s, "addvalidate", 10)
     connections.send(s, arg1, 10)
     validate_result = connections.receive(s, 10)
-    print (validate_result)
+    print(validate_result)
 
 def aliasesget(socket, arg1):
     arg_split = arg1.split(",")
-    print (arg_split)
+    print(arg_split)
 
     connections.send(s, "aliasesget", 10)
     connections.send(s, arg_split, 10)
     alias_results = connections.receive(s, 10)
-    print (alias_results)
+    print(alias_results)
 
-if command == "aliasget":
-    aliasget(s, arg1)
+# init command and args, According to the number of different parameters
+cmd_dict = {cmd: [] for cmd in ['diffget', 'difflast', 'mpget', 'statusget', 'peersget', 'blocklast', 'keygen', ]}
+cmd_dict.update({
+    cmd: [arg1, ] for cmd in ['aliasget', 'addvalidate', 'aliasesget', 'balanceget', "blockget", "addlist", "listlim", ]
 
-if command == "addvalidate":
-    addvalidate(s, arg1)
+})
+cmd_dict.update({cmd: [arg1, arg2] for cmd in ["addlistlim", ]})
+cmd_dict.update({cmd: [arg1, arg2, arg3, arg4, arg5]for cmd in ["txsend", ]})
 
-if command == "aliasesget":
-    aliasesget(s, arg1)
-
-elif command == "diffget":
-    diffget(s)
-
-elif command == "difflast":
-    difflast(s)
-
-elif command == "balanceget":
-    balanceget(s, arg1)
-
-elif command == "mpget":
-    mpget(s)
-
-elif command == "statusget":
-    statusget(s)
-
-elif command == "peersget":
-    peersget(s)
-
-elif command == "blocklast":
-    blocklast(s)
-
-elif command == "keygen":
-    keygen(s)
-
-elif command == "blockget":
-    blockget(s, arg1)
-
-elif command == "addlist":
-    addlist(s, arg1)
-
-elif command == "addlistlim":
-    addlistlim(s, arg1, arg2)
-
-elif command == "listlim":
-    listlim(s, arg1)
-
-elif command == "txsend":
-    try:
-        arg4
-    except:
-        arg4="0"
-
-    try:
-        arg5
-    except:
-        arg5=""
-
-    txsend(s, arg1, arg2, arg3, arg4, arg5)
-
-s.close()
+if command in cmd_dict.keys():
+    cmd = globals().get(command)
+    assert isinstance(cmd, types.FunctionType)
+    cmd = partial(cmd, socket=s)
+    cmd(*cmd_dict[command])
+else:
+    print("Command not known")
