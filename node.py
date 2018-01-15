@@ -637,7 +637,7 @@ def mempool_size_calculate(m):
     return float(mempool_size)
 
 
-def mempool_merge(data, peer_ip, c, mempool, m):
+def mempool_merge(data, peer_ip, c, mempool, m, size_bypass):
 
     if not data:
         app_log.info("Mempool from {} was empty".format(peer_ip))
@@ -662,7 +662,7 @@ def mempool_merge(data, peer_ip, c, mempool, m):
             block_list = data
 
             for transaction in block_list:  # set means unique
-                if mempool_size < 0.1:
+                if mempool_size < 0.1 or size_bypass == "yes":
 
                     mempool_timestamp = '%.2f' % float(transaction[0])
                     mempool_address = str(transaction[1])[:56]
@@ -1791,7 +1791,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                     # receive theirs
                     segments = connections.receive(self.request, 10)
-                    mempool_merge(segments, peer_ip, c, mempool, m)
+                    mempool_merge(segments, peer_ip, c, mempool, m, "no")
 
                     # receive theirs
 
@@ -2043,7 +2043,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "mpinsert":
                     if (peer_ip in allowed or "any" in allowed):
                         mempool_insert = connections.receive(self.request, 10)
-                        mempool_merge(mempool_insert, peer_ip, c, mempool, m)
+                        mempool_merge(mempool_insert, peer_ip, c, mempool, m, "yes")
                         connections.send(self.request, "Mempool insert finished", 10)
                     else:
                         app_log.info("{} not whitelisted for mpinsert command".format(peer_ip))
@@ -2243,7 +2243,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         # insert to mempool, where everything will be verified
                         mempool_data = [((str(remote_tx_timestamp), str(remote_tx_address), str(remote_tx_recipient), '%.8f' % float(remote_tx_amount), str(remote_signature_enc), str(remote_tx_pubkey_hashed), str(remote_tx_keep), str(remote_tx_openfield)))]
 
-                        mempool_merge(mempool_data, peer_ip, c, mempool, m)
+                        mempool_merge(mempool_data, peer_ip, c, mempool, m, "yes")
                         connections.send(self.request, str(remote_signature_enc), 10)
                         # wipe variables
                         (tx_remote, remote_tx_privkey, tx_remote_key) = (None, None, None)
@@ -2646,7 +2646,7 @@ def worker(HOST, PORT):
 
                 # receive theirs
                 segments = connections.receive(s, 10)
-                mempool_merge(segments, peer_ip, c, mempool, m)
+                mempool_merge(segments, peer_ip, c, mempool, m, "no")
                 # receive theirs
 
                 # receive mempool
