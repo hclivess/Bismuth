@@ -40,7 +40,7 @@ s.settimeout(3)
 try:
     s.connect((light_ip, int(port)))
 except:
-    messagebox.showinfo("Connection Error", "Wallet cannot connect to the node, check config.txt for light_ip=")
+    messagebox.showinfo("Connection Error", "Wallet cannot connect to the node")
     raise
 
 root = Tk()
@@ -872,10 +872,12 @@ def sign():
 
 
 def refresh_auto():
-    root.after(0, refresh(gui_address.get(), s))
-    root.after(10000, refresh_auto)
-
-
+    try:
+        root.after(0, refresh(gui_address.get(), s))
+        root.after(10000, refresh_auto)
+    except:
+        messagebox.showinfo("Connection Error", "Wallet lost connection to the node")
+        sys.exit(1)
 
 def table(address, addlist_20):
     # transaction table

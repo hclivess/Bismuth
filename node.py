@@ -630,26 +630,40 @@ syncing = []
 
 # port = 2829 now defined by config
 
+def mempool_size_calculate(m):
+    execute(m, ('SELECT * FROM transactions'))  # select all txs
+    mempool_txs = m.fetchall()
+    mempool_size = (Decimal(sys.getsizeof(str(mempool_txs))) / Decimal(1000000))
+    return float(mempool_size)
+
+
 def mempool_merge(data, peer_ip, c, mempool, m):
-    if mem_lock.locked() == False:
-        mem_lock.acquire()
 
-        if not data:
-            app_log.info("Mempool from {} was empty".format(peer_ip))
-            mem_lock.release()
-        else:
-            app_log.info("Mempool merging started from {}".format(peer_ip))
+    if not data:
+        app_log.info("Mempool from {} was empty".format(peer_ip))
 
-            while db_lock.locked() == True:  # prevent transactions which are just being digested from being added to mempool
-                app_log.info("Waiting for block digestion to finish before merging mempool")
-                time.sleep(1)
+    else:
+        app_log.info("Mempool merging started from {}".format(peer_ip))
 
-            # merge mempool
+        while db_lock.locked() == True:  # prevent transactions which are just being digested from being added to mempool
+            app_log.info("Waiting for block digestion to finish before merging mempool")
+            time.sleep(1)
 
-            try:
-                block_list = data
 
-                for transaction in block_list:  # set means unique
+
+        # merge mempool
+
+        mempool_size = mempool_size_calculate(m)  # caulculate current mempool size before adding txs
+
+        if mem_lock.locked() == False:
+            mem_lock.acquire()
+
+        try:
+            block_list = data
+
+            for transaction in block_list:  # set means unique
+                if mempool_size < 0.1:
+
                     mempool_timestamp = '%.2f' % float(transaction[0])
                     mempool_address = str(transaction[1])[:56]
                     mempool_recipient = str(transaction[2])[:56]
@@ -672,7 +686,6 @@ def mempool_merge(data, peer_ip, c, mempool, m):
                         mempool_in = 1
                     except:
                         mempool_in = 0
-
 
                     # reject transactions which are already in the ledger
                     execute_param(c, ("SELECT * FROM transactions WHERE signature = ?;"), (mempool_signature_enc,))  # condition 2
@@ -797,19 +810,27 @@ def mempool_merge(data, peer_ip, c, mempool, m):
                             app_log.info("Mempool updated with a received transaction from {}".format(peer_ip))
                             commit(mempool)  # Save (commit) the changes
 
+                            mempool_size = mempool_size + Decimal(sys.getsizeof(str(transaction))) / Decimal(1000000)
+
                             # merge mempool
                             # receive mempool
 
                             # app_log.info("Mempool: Finished with {} received transactions from {}".format(len(block_list),peer_ip))
-            except:
-                app_log.info("Mempool: Error processing")
 
-                if debug_conf == 1:
-                    raise
                 else:
-                    return
-            finally:
-                mem_lock.release()
+                    app_log.warning("Local mempool is already full, skipping merging")
+
+        except:
+            app_log.info("Mempool: Error processing")
+
+            if debug_conf == 1:
+                raise
+            else:
+                return
+
+
+
+        mem_lock.release()
 
 
 def peers_get(peerlist):
@@ -1771,8 +1792,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                     # receive theirs
                     segments = connections.receive(self.request, 10)
-
                     mempool_merge(segments, peer_ip, c, mempool, m)
+
                     # receive theirs
 
                     execute(m, ('SELECT * FROM transactions ORDER BY RANDOM() LIMIT 1')) #merge a random tx, one at a time #PERFORMANCE TEST RESULTS PENDING
@@ -2434,9 +2455,11 @@ def worker(HOST, PORT):
                                 s_purge.connect((x[0], int(x[1])))  # save a new peer file with only active nodes
                                 s_purge.close()
 
-                                peer_list_file = open("suggested_peers.txt", 'a')
-                                peer_list_file.write("('" + x[0] + "', '" + x[1] + "')\n")
-                                peer_list_file.close()
+                                peer_formatted = "('" + x[0] + "', '" + x[1] + "')"
+                                if peer_formatted not in open('suggested_peers.txt').read():
+                                    peer_list_file = open("suggested_peers.txt", 'a')
+                                    peer_list_file.write(peer_formatted+"\n")
+                                    peer_list_file.close()
                             except:
                                 pass
                                 app_log.info("Not connectible")
