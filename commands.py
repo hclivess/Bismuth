@@ -118,8 +118,10 @@ def blocklast(socket):
     connections.send(s, "blocklast", 10)
     block_last = connections.receive(s, 10)
 
+
     print ("Last block number: {}".format(block_last[0]))
     print ("Last block timestamp: {}".format(block_last[1]))
+    print ("Last block hash: {}".format(block_last[7]))
     #get last block
 
 

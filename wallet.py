@@ -96,12 +96,12 @@ def all_spend_clear():
     amount.insert(0,0)
 
 def all_spend():
-    fee_from_all = fee_calculate(openfield.get("1.0", END).strip(),keep_var.get())
+    fee_from_all = fee_calculate(openfield.get("1.0", END).strip())
     amount.delete(0, END)
     amount.insert(0,'%.8f' % (float(balance_raw.get()) - float(fee_from_all)))
 
 
-def fee_calculate(openfield, keep):
+def fee_calculate(openfield):
 
     fee = '%.8f' % float(0.01 + (float(len(openfield)) / 100000))  # 0.01 dust
     if "token:issue:" in openfield:
@@ -492,7 +492,7 @@ def decrypt_fn(destroy_this):
     return key
 
 
-def send_confirm(amount_input, recipient_input, keep_input, openfield_input):
+def send_confirm(amount_input, recipient_input, openfield_input):
     top10 = Toplevel()
     top10.title("Confirm")
 
@@ -539,7 +539,7 @@ def send_confirm(amount_input, recipient_input, keep_input, openfield_input):
     if encrypt_var.get() == 1:
         openfield_input = "enc=" + str(openfield_input)
 
-    fee = fee_calculate(openfield_input, keep_var.get())
+    fee = fee_calculate(openfield_input)
 
     confirmation_dialog = Text(top10, width=100)
     confirmation_dialog.insert(INSERT, ("Amount: {}\nFee: {}\nTotal: {}\nTo: {}\nKeep Entry: {}\nOpenField:\n\n{}".format(amount_input, fee, '%.8f' % (float(amount_input)+float(fee)), recipient_input, keep_input, openfield_input)))
@@ -607,7 +607,7 @@ def send(amount_input, recipient_input, keep_input, openfield_input):
 
         verifier = PKCS1_v1_5.new(key)
         if verifier.verify(h, signature) == True:
-            fee = fee_calculate(openfield_input, keep_var.get())
+            fee = fee_calculate(openfield_input)
 
             if float(amount_input) < 0:
                 app_log.warning("Client: Signature OK, but cannot use negative amounts")
@@ -1053,23 +1053,10 @@ def refresh(address, s):
         block_get = connections.receive(s, 10)
         bl_height = block_get[0]
         db_timestamp_last = block_get[1]
+        hash_last = block_get[7]
+
     except:
         pass
-
-    try:
-        if encode_var.get() == 1:
-            openfield_input = base64.b64encode(str(openfield.get("1.0", END).strip()))
-        else:
-            openfield_input = str(openfield.get("1.0", END)).strip()
-
-        fee = '%.8f' % float(0.01 + (float(len(openfield_input)) / 100000) + int(keep_var.get()))  # 0.01 dust
-        #app_log.warning("Fee: {}".format(fee))
-
-    except Exception as e:
-        fee = 0.01
-        app_log.warning("Fee error: {}".format(e))
-    # calculate fee
-
 
     # check difficulty
     connections.send(s, "diffget", 10)
@@ -1102,7 +1089,7 @@ def refresh(address, s):
     diff_msg_var.set("Mining Difficulty: {}".format('%.2f' % float(diff_msg)))
     sync_msg_var.set("Network: {}".format(sync_msg))
     version_var.set("Version: {}".format(status_version))
-    hash_var.set("Hash: {}".format("TEST"))
+    hash_var.set("Hash: {}...".format(hash_last[:6]))
 
 
     connections.send(s, "addlistlim", 10)
@@ -1175,7 +1162,7 @@ root.config(menu=menubar)
 # buttons
 
 button_row_zero = 9
-send_b = Button(f5, text="Send", command=lambda: send_confirm(str(amount.get()).strip(), recipient.get().strip(), str(keep_var.get()).strip(), (openfield.get("1.0", END)).strip()), height=1, width=10, font=("Tahoma", 8))
+send_b = Button(f5, text="Send", command=lambda: send_confirm(str(amount.get()).strip(), recipient.get().strip(), (openfield.get("1.0", END)).strip()), height=1, width=10, font=("Tahoma", 8))
 send_b.grid(row=button_row_zero, column=0, sticky=W + E + S, pady=(45, 0), padx=15)
 
 start_b = Button(f5, text="Generate QR Code", command=lambda :qr(gui_address.get()), height=1, width=10, font=("Tahoma", 8))
@@ -1266,8 +1253,6 @@ hash_var = StringVar()
 hash_var_label = Label(f5, textvariable=hash_var)
 hash_var_label.grid(row=9, column=0, sticky=N + E, padx=15)
 
-
-keep_var = IntVar()
 encode_var = IntVar()
 alias_cb_var = IntVar()
 # encrypt_var = IntVar()
@@ -1329,10 +1314,6 @@ amount.grid(row=2, column=1, sticky=W)
 openfield = Text(f3, width=60, height=5, font=("Tahoma", 8))
 openfield.grid(row=3, column=1, sticky=W)
 
-keep = Checkbutton(f3, text="Always Permanent", variable=keep_var)
-keep.grid(row=4, column=1, sticky=W, padx=(0, 0))
-keep.configure(text="KF disabled", state=DISABLED)
-
 encode = Checkbutton(f3, text="Base64 Encoding", variable=encode_var)
 encode.grid(row=4, column=1, sticky=W, padx=(120, 0))
 
@@ -1340,13 +1321,13 @@ msg = Checkbutton(f3, text="Mark as Message", variable=msg_var)
 msg.grid(row=4, column=1, sticky=W, padx=(240, 0))
 
 encr = Checkbutton(f3, text="Encrypt with PK", variable=encrypt_var)
-encr.grid(row=5, column=1, sticky=W, padx=(0, 0))
+encr.grid(row=4, column=1, sticky=W, padx=(0, 0))
 
 resolve = Checkbutton(f3, text="Resolve Aliases", variable=resolve_var, command=lambda: refresh(gui_address.get(),s))
 resolve.grid(row=5, column=1, sticky=W, padx=(120, 0))
 
 alias_cb = Checkbutton(f3, text="Alias Recipient", variable=alias_cb_var, command=None)
-alias_cb.grid(row=5, column=1, sticky=W, padx=(240, 0))
+alias_cb.grid(row=5, column=1, sticky=W, padx=(0, 0))
 
 balance_enumerator = Entry(f3, width=5)
 # address and amount
