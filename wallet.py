@@ -373,9 +373,6 @@ def recipient_copy():
 def percentage(percent, whole):
     return float((percent * whole) / 100)
 
-def bin_convert(string):
-    return ''.join(format(ord(x), '8b').replace(' ', '0') for x in string)
-
 def alias():
     alias_var = StringVar()
 
@@ -1035,6 +1032,10 @@ def refresh(address, s):
     # print "refresh triggered"
 
     try:
+        connections.send(s, "statusget", 10)
+        statusget = connections.receive(s, 10)
+        status_version = statusget[7]
+
         connections.send(s, "balanceget", 10)
         connections.send(s, address, 10)  # change address here to view other people's transactions
         stats_account = connections.receive(s, 10)
@@ -1083,7 +1084,7 @@ def refresh(address, s):
         sync_msg = "{}m behind".format((int(last_block_ago / 60)))
         sync_msg_label.config(fg='red')
     else:
-        sync_msg = "Up to date\nLast block: {}s ago".format((int(last_block_ago)))
+        sync_msg = "Last block: {}s ago".format((int(last_block_ago)))
         sync_msg_label.config(fg='green')
 
     # network status
@@ -1098,6 +1099,7 @@ def refresh(address, s):
     bl_height_var.set("Block Height: {}".format(bl_height))
     diff_msg_var.set("Mining Difficulty: {}".format('%.2f' % float(diff_msg)))
     sync_msg_var.set("Network: {}".format(sync_msg))
+    version_var.set("Version: {}".format(status_version))
 
     connections.send(s, "addlistlim", 10)
     connections.send(s, address, 10)
@@ -1168,32 +1170,33 @@ root.config(menu=menubar)
 
 # buttons
 
+button_row_zero = 8
 send_b = Button(f5, text="Send", command=lambda: send_confirm(str(amount.get()).strip(), recipient.get().strip(), str(keep_var.get()).strip(), (openfield.get("1.0", END)).strip()), height=1, width=10, font=("Tahoma", 8))
-send_b.grid(row=7, column=0, sticky=W + E + S, pady=(45, 0), padx=15)
+send_b.grid(row=button_row_zero, column=0, sticky=W + E + S, pady=(45, 0), padx=15)
 
 start_b = Button(f5, text="Generate QR Code", command=lambda :qr(gui_address.get()), height=1, width=10, font=("Tahoma", 8))
 if "posix" in os.name:
     start_b.configure(text="QR Disabled", state=DISABLED)
-start_b.grid(row=8, column=0, sticky=W + E + S, pady=0, padx=15)
+start_b.grid(row=button_row_zero+1, column=0, sticky=W + E + S, pady=0, padx=15)
 
 message_b = Button(f5, text="Manual Refresh", command=lambda: refresh(gui_address.get(),s), height=1, width=10, font=("Tahoma", 8))
-message_b.grid(row=9, column=0, sticky=W + E + S, pady=0, padx=15)
+message_b.grid(row=button_row_zero+2, column=0, sticky=W + E + S, pady=0, padx=15)
 
 balance_b = Button(f5, text="Messages", command=lambda: msg_dialogue(gui_address.get()), height=1, width=10, font=("Tahoma", 8))
-balance_b.grid(row=10, column=0, sticky=W + E + S, pady=0, padx=15)
+balance_b.grid(row=button_row_zero+3, column=0, sticky=W + E + S, pady=0, padx=15)
 #balance_b.configure(state=DISABLED)
 
 sign_b = Button(f5, text="Sign Message", command=sign, height=1, width=10, font=("Tahoma", 8))
-sign_b.grid(row=11, column=0, sticky=W + E + S, pady=0, padx=15)
+sign_b.grid(row=button_row_zero+4, column=0, sticky=W + E + S, pady=0, padx=15)
 
 alias_b = Button(f5, text="Alias Registration", command=alias, height=1, width=10, font=("Tahoma", 8))
-alias_b.grid(row=12, column=0, sticky=W + E + S, pady=0, padx=15)
+alias_b.grid(row=button_row_zero+5, column=0, sticky=W + E + S, pady=0, padx=15)
 
 backup_b = Button(f5, text="Backup Keys", command=backup, height=1, width=10, font=("Tahoma", 8))
-backup_b.grid(row=14, column=0, sticky=W + E + S, pady=0, padx=15)
+backup_b.grid(row=button_row_zero+6, column=0, sticky=W + E + S, pady=0, padx=15)
 
 tokens_b = Button(f5, text="Tokens", command=tokens, height=1, width=10, font=("Tahoma", 8))
-tokens_b.grid(row=15, column=0, sticky=W + E + S, pady=0, padx=15)
+tokens_b.grid(row=button_row_zero+7, column=0, sticky=W + E + S, pady=0, padx=15)
 
 #quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=10, font=("Tahoma", 8))
 #quit_b.grid(row=16, column=0, sticky=W + E + S, pady=0, padx=15)
@@ -1250,6 +1253,10 @@ diff_msg_label.grid(row=6, column=0, sticky=N + E, padx=15)
 sync_msg_var = StringVar()
 sync_msg_label = Label(f5, textvariable=sync_msg_var)
 sync_msg_label.grid(row=7, column=0, sticky=N + E, padx=15)
+
+version_var = StringVar()
+version_var_label = Label(f5, textvariable=version_var)
+version_var_label.grid(row=8, column=0, sticky=N + E, padx=15)
 
 keep_var = IntVar()
 encode_var = IntVar()
