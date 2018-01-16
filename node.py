@@ -335,6 +335,17 @@ def db_m_define():
     m = mempool.cursor()
     return mempool, m
 
+def mempool_purge():
+    """Purge mempool from too old txs"""
+    if mem_lock.locked() == False:
+        mem_lock.acquire()
+    try:
+        mempool, m = dm_m_define()
+        m.execute("delete from transactions where timestamp <= strftime('%s', 'now', '-1 day');")
+    except:
+        pass
+    finally:
+        mem_lock.release()
 
 app_log = log.log("node.log", debug_level_conf)
 
@@ -822,7 +833,7 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass):
 
         except:
             app_log.info("Mempool: Error processing")
-
+            mem_lock.release() # should be here also since we raise or return, the lock was not released on exception.
             if debug_conf == 1:
                 raise
             else:
@@ -1103,11 +1114,16 @@ def manager(c, conn):
 
     peers_test("peers.txt")
     peers_test("suggested_peers.txt")
-
+    
+    until_purge = 0
     while True:
         # dict_keys = peer_dict.keys()
         # random.shuffle(peer_dict.items())
-
+        if until_purge == 0:
+            # will purge once at start, then about every hour (120 * 30 sec)
+            mempool_purge()
+            until_purge = 120
+        until_purge -= 1
         variability = [] #prevent ip range attack (excluding inc conns)
         del variability [:]
         variable = []
