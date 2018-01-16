@@ -5,7 +5,7 @@
 # if you have a block of data and want to insert it into sqlite, you must use a single "commit" for the whole batch, it's 100x faster
 # do not isolation_level=None/WAL hdd levels, it makes saving slow
 
-VERSION = "4.2.2.2"
+VERSION = "4.2.2.3"
 
 from itertools import groupby
 from operator import itemgetter
@@ -832,16 +832,14 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass):
                     app_log.warning("Local mempool is already full, skipping merging")
 
         except:
-            app_log.info("Mempool: Error processing")
-            mem_lock.release() # should be here also since we raise or return, the lock was not released on exception.
+            app_log.warning("Mempool: Error processing")
             if debug_conf == 1:
                 raise
             else:
                 return
 
-
-
-        mem_lock.release()
+        finally:
+            mem_lock.release()
 
 
 def peers_get(peerlist):
