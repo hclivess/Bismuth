@@ -335,17 +335,10 @@ def db_m_define():
     m = mempool.cursor()
     return mempool, m
 
-def mempool_purge():
+def mempool_purge(mempool, m):
     """Purge mempool from too old txs"""
-    if mem_lock.locked() == False:
-        mem_lock.acquire()
-    try:
-        mempool, m = dm_m_define()
-        m.execute("delete from transactions where timestamp <= strftime('%s', 'now', '-1 day');")
-    except:
-        pass
-    finally:
-        mem_lock.release()
+    m.execute("DELETE FROM transactions WHERE timestamp <= strftime('%s', 'now', '-1 day');")
+    mempool.commit()
 
 app_log = log.log("node.log", debug_level_conf)
 
@@ -666,10 +659,10 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass):
 
         mempool_size = mempool_size_calculate(m)  # caulculate current mempool size before adding txs
 
-        if mem_lock.locked() == False:
-            mem_lock.acquire()
-
         try:
+            if mem_lock.locked() == False:
+                mem_lock.acquire()
+
             block_list = data
 
             for transaction in block_list:  # set means unique
@@ -1100,7 +1093,7 @@ def consensus_remove(peer_ip):
         pass
 
 
-def manager(c, conn):
+def manager(c, mempool, m):
     global banlist
     global last_block
 
@@ -1114,12 +1107,13 @@ def manager(c, conn):
     peers_test("suggested_peers.txt")
     
     until_purge = 0
+
     while True:
         # dict_keys = peer_dict.keys()
         # random.shuffle(peer_dict.items())
         if until_purge == 0:
             # will purge once at start, then about every hour (120 * 30 sec)
-            mempool_purge()
+            mempool_purge(mempool,m)
             until_purge = 120
         until_purge -= 1
         variability = [] #prevent ip range attack (excluding inc conns)
@@ -2750,7 +2744,7 @@ if __name__ == "__main__":
             app_log.warning("Not starting a local server to conceal identity on Tor network")
 
         # start connection manager
-        t_manager = threading.Thread(target=manager(c, conn))
+        t_manager = threading.Thread(target=manager(c,mempool,m))
         app_log.warning("Starting connection manager")
         t_manager.daemon = True
         t_manager.start()
