@@ -5,7 +5,7 @@
 # if you have a block of data and want to insert it into sqlite, you must use a single "commit" for the whole batch, it's 100x faster
 # do not isolation_level=None/WAL hdd levels, it makes saving slow
 
-VERSION = "4.2.2.4"
+VERSION = "4.2.2.5"
 
 from itertools import groupby
 from operator import itemgetter
@@ -638,7 +638,7 @@ def mempool_size_calculate(m):
     execute(m, ('SELECT * FROM transactions'))  # select all txs
     mempool_txs = m.fetchall()
     mempool_size = (Decimal(sys.getsizeof(str(mempool_txs))) / Decimal(1000000))
-    return float(mempool_size)
+    return mempool_size #return Decimal
 
 
 def mempool_merge(data, peer_ip, c, mempool, m, size_bypass):
