@@ -1,6 +1,7 @@
 # icons created using http://www.winterdrache.de/freeware/png2ico/
 import sqlite3
 import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, time, base64, connections, icons, log, socks, ast, options, tarfile, glob, essentials
+from decimal import *
 
 config = options.Get()
 config.read()
@@ -102,13 +103,13 @@ def all_spend():
 
 
 def fee_calculate(openfield):
-
-    fee = '%.8f' % float(0.01 + (float(len(openfield)) / 100000))  # 0.01 dust
+    getcontext().prec = 8
+    fee = Decimal(0.01) + (Decimal(len(openfield)) / 100000)  # 0.01 dust
     if "token:issue:" in openfield:
-        fee = '%.8f' % (float(fee) + 10)
+        fee = Decimal(fee) + Decimal(10)
     if "alias=" in openfield:
-        fee = '%.8f' % (float(fee) + 1)
-    return fee
+        fee = Decimal(fee) + Decimal(1)
+    return float(fee) #float temporarily
 
 def tokens_update():
     conn = sqlite3.connect('static/ledger.db')
@@ -613,6 +614,7 @@ def send(amount_input, recipient_input, openfield_input):
                 app_log.warning("Client: Signature OK, but cannot use negative amounts")
 
             elif (float(amount_input) + float(fee) > float(balance)):
+                print(amount_input,fee,balance)
                 app_log.warning("Mempool: Sending more than owned")
 
             else:

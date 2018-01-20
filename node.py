@@ -132,7 +132,7 @@ def validate_pem(public_key):
         raise ValueError("Not a valid PEM post boundary")
         # verify pem as cryptodome does
 
-def fee_calculate(openfield):
+def fee_calculate(openfield): #move in model from wallet.py on a certain block
     fee = '%.8f' % float(0.01 + (float(len(openfield)) / 100000))  # 0.01 dust
     if "token:issue:" in openfield:
         fee = '%.8f' % (float(fee) + 10)
