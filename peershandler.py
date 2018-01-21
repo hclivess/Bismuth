@@ -318,7 +318,7 @@ class Peers:
 			self.consensus = most_common(self.consensus_blockheight_list)
 
 			self.consensus_percentage = (float(
-				self.consensus_blockheight_list.count(consensus) / float(len(self.consensus_blockheight_list)))) * 100
+				self.consensus_blockheight_list.count(self.consensus) / float(len(self.consensus_blockheight_list)))) * 100
 
 			if int(consensus_blockheight) > int(self.consensus) + 30 and self.consensus_percentage > 50 and len(self.consensus_blockheight_list) > 10:
 				if self.warning(sdef, peer_ip, "Consensus deviation too high", 10) == "banned":
