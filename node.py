@@ -972,13 +972,14 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, mempool, m):
                 for x in backup_data:
                     while True:
                         try:
-                            mem_lock.acquire()
-                            if x[9] == 0 and presence_check(m, x[5]) == "absent":
-                                execute_param(m, ("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?);"), (x[1], x[2], x[3], x[4], x[5], x[6], x[10], x[11]))
-                                app_log.warning("Moved transaction back to mempool: {}".format((x[1], x[2], x[3], x[4], x[5], x[6], x[10], x[11])))
-                                commit(mempool)
-                            mem_lock.release()
-                            break
+                            if mem_lock.locked() == False:
+                                mem_lock.acquire()
+                                if x[9] == 0 and presence_check(m, x[5]) == "absent":
+                                    execute_param(m, ("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?);"), (x[1], x[2], x[3], x[4], x[5], x[6], x[10], x[11]))
+                                    app_log.warning("Moved transaction back to mempool: {}".format((x[1], x[2], x[3], x[4], x[5], x[6], x[10], x[11])))
+                                    commit(mempool)
+                                mem_lock.release()
+                                break
                         except:
                             pass
 
