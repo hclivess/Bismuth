@@ -184,7 +184,7 @@ if "testnet" in version: #overwrite for testnet
         print("Not redownloading test db")
 
 else:
-    peerlist = "peers.txt"
+    peerlist = "peers.txt" #might be better to keep peer.txt for better performance (provides filtering)
 
 
 
@@ -669,7 +669,7 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass):
                 block_list = data
 
                 for transaction in block_list:  # set means unique
-                    if mempool_size < 0.1 or size_bypass == "yes":
+                    if mempool_size < 0.4 or size_bypass == "yes":
 
                         mempool_timestamp = '%.2f' % float(transaction[0])
                         mempool_address = str(transaction[1])[:56]
