@@ -8,7 +8,7 @@ import threading
 
 import socks
 
-VERSION = "0.0.1b"
+__version__ = "0.0.2b"
 
 
 # TODO : some config options are _conf and others without => clean up later on
@@ -21,48 +21,34 @@ def most_common(lst):
 class Peers:
 	"""The peers manager. A thread safe peers manager"""
 
-	#protomsg = None
-	logstats = True
-	app_log = None
-	config = None
-	# kept the original name, would be good to harmonize _list or list
-	warning_list = []
-	banlist = []
-	whitelist = []
-	stats=[]
-	connection_pool = []
-	# from globals
-	peer_ip_list = []
-	consensus_blockheight_list = []
-	tried = []
-	consensus_percentage = 0
-	warning_list = []
-	consensus = False
-	peer_dict = {}
-	startup_time = 0
-	reset_time = 0
-	peersync_lock = None
-	peerlist = "peers.txt"
-	connection_pool = []
-
-
-	#def __init__(self, applog, logstats= True, banlist=[], whitelist=[], ban_threshold=10, config.nodes_ban_reset=5):
 	def __init__(self, app_log, config = None, logstats= True):
-		self.peersync_lock = threading.Lock()
 		self.app_log = app_log
-		self.logstats = logstats
 		self.config = config
+		self.logstats = logstats
+
+		self.peersync_lock = threading.Lock()
+		self.startup_time = time.time()
+		self.reset_time = time.time()
+		self.warning_list = []
+		self.stats = []
+		self.connection_pool = []
+		self.peer_ip_list = []
+		self.consensus_blockheight_list = []
+		self.consensus_percentage = 0
+		self.consensus = None
+		self.tried = []
+		self.peer_dict = {}
+		self.connection_pool = []
 		# We store them apart from the initial config, could diverge somehow later on.
 		self.banlist = config.banlist
 		self.whitelist = config.whitelist
-		self.startup_time = time.time()
-		self.reset_time = time.time()
-		
+
 		# From manager(), init
 		self.peer_dict.update(self.peers_get("peers.txt"))
 		self.peers_test("peers.txt")
 		self.peers_test("suggested_peers.txt")
-		
+
+		self.peerlist = "peers.txt"
 		if self.is_testnet(): #overwrite for testnet
 			self.peerlist = "peers_test.txt"
 
@@ -188,7 +174,7 @@ class Peers:
 		return (peer_ip in self.config.allowed_conf or "any" in self.config.allowed_conf)
 
 	def is_whitelisted(self,peer_ip,command=''):
-		# TODO: could be handled later opn via "allowed" and rights.
+		# TODO: could be handled later on via "allowed" and rights.
 		return (peer_ip in self.whitelist or "127.0.0.1" ==peer_ip)
 
 	def is_banned(self,peer_ip):
