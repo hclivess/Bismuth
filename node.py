@@ -184,7 +184,7 @@ if "testnet" in version: #overwrite for testnet
         print("Not redownloading test db")
 
 else:
-    peerlist = "peers.txt"
+    peerlist = "suggested_peers.txt"
 
 
 
