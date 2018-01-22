@@ -1622,12 +1622,12 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                         if int(last_block_ago) < (time.time() - 600):
                             #block_req = most_common(consensus_blockheight_list)
-                            block_req = peers.consensus_most_common()
+                            block_req = peers.consensus_most_common
                             app_log.warning("Most common block rule triggered")
 
                         else:
                             #block_req = max(consensus_blockheight_list)
-                            block_req = peers.consensus_max()
+                            block_req = peers.consensus_max
                             app_log.warning("Longest chain rule triggered")
 
 
@@ -1755,7 +1755,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "blocknf":
                     block_hash_delete = connections.receive(self.request, 10)
                     # print peer_ip
-                    if consensus_blockheight == peers.consensus_max():
+                    if consensus_blockheight == peers.consensus_max:
                         blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, backup, b)
                         if peers.warning(self.request, peer_ip, "Rollback",1) == "banned":
                             app_log.info("{} banned".format(peer_ip))
@@ -1786,7 +1786,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         if "testnet" not in version:
                             if len(peers.connection_pool) < 5:
                                 app_log.info("Outbound: Mined block ignored, insufficient connections to the network")
-                            elif int(db_block_height) >= int(peers.consensus_max()) - 3 and db_lock.locked() == False:
+                            elif int(db_block_height) >= int(peers.consensus_max) - 3 and db_lock.locked() == False:
                                 app_log.info("Outbound: Processing block from miner")
                                 digest_block(segments, self.request, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                             elif db_lock.locked() == True:
@@ -1794,7 +1794,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                             # receive theirs
                             else:
-                                app_log.info("Outbound: Mined block was orphaned because node was not synced, we are at block {}, should be at least {}".format(db_block_height, peers.consensus_max() - 3))
+                                app_log.info("Outbound: Mined block was orphaned because node was not synced, we are at block {}, should be at least {}".format(db_block_height, peers.consensus_max - 3))
                         else:
                             digest_block(segments, self.request, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                     else:
@@ -2075,7 +2075,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     #if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip,data):
 
-                        nodes_count = peers.consensus_size()
+                        nodes_count = peers.consensus_size
                         nodes_list =  peers.peer_ip_list
                         threads_count = threading.active_count()
                         uptime = int(time.time() - startup_time)
@@ -2334,7 +2334,7 @@ def worker(HOST, PORT):
                 block_hash_delete = connections.receive(s, 10)
                 # print peer_ip
                 #if max(consensus_blockheight_list) == int(received_block_height):
-                if int(received_block_height) == peers.consensus_max():
+                if int(received_block_height) == peers.consensus_max:
                     blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, backup, b)
                     if warning(s, peer_ip, "Rollback",1) == "banned":
                         raise ValueError("{} is banned".format(peer_ip))
@@ -2354,11 +2354,11 @@ def worker(HOST, PORT):
                     last_block_ago = float(c.fetchone()[0])
 
                     if int(last_block_ago) < (time.time() - 600):
-                        block_req = peers.consensus_most_common()
+                        block_req = peers.consensus_most_common
                         app_log.warning("Most common block rule triggered")
 
                     else:
-                        block_req = peers.consensus_max()
+                        block_req = peers.consensus_max
                         app_log.warning("Longest chain rule triggered")
 
 
