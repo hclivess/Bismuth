@@ -8,7 +8,7 @@ import threading
 
 import socks
 
-__version__ = "0.0.2b"
+__version__ = "0.0.3"
 
 
 # TODO : some config options are _conf and others without => clean up later on
@@ -21,14 +21,14 @@ def most_common(lst):
 class Peers:
 	"""The peers manager. A thread safe peers manager"""
 
-	def __init__(self, app_log, config = None, logstats= True):
+	def __init__(self, app_log, config=None, logstats=True):
 		self.app_log = app_log
 		self.config = config
 		self.logstats = logstats
 
 		self.peersync_lock = threading.Lock()
 		self.startup_time = time.time()
-		self.reset_time = time.time()
+		self.reset_time = self.startup_time
 		self.warning_list = []
 		self.stats = []
 		self.connection_pool = []
@@ -78,7 +78,6 @@ class Peers:
 				peer_test = socks.socksocket()
 				if self.config.tor_conf == 1:
 					peer_test.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-				# peer_test.setblocking(0)
 				peer_test.connect((str(peer_ip), int(self.config.port)))  # double parentheses mean tuple
 				self.app_log.info("Inbound: Distant peer connectible")
 
@@ -96,22 +95,22 @@ class Peers:
 			self.app_log.info("Inbound: Distant peer not connectible")
 			pass
 
-	def append_client(self,client):
+	def append_client(self, client):
 		# TODO: thread safe?
 		self.connection_pool.append(client)
 		
-	def remove_client(self,client):
+	def remove_client(self, client):
 		# TODO: thread safe?
 		self.connection_pool.remove(client)
 
-	def unban(self,peer_ip):
+	def unban(self, peer_ip):
 		"""Removes the peer_ip from the warning list"""
 		# TODO: Not thread safe atm. Should use a thread aware list or some lock
 		if peer_ip in self.warning_list:
 			self.warning_list.remove(peer_ip)
 			self.app_log.warning("Removed a warning for {}".format(peer_ip))
 
-	def warning(self,sdef, ip, reason, count):
+	def warning(self, sdef, ip, reason, count):
 		"""Adds a weighted warning to a peer."""
 		# TODO: Not thread safe atm. Should use a thread aware list or some lock
 		if ip not in self.whitelist:
@@ -126,7 +125,7 @@ class Peers:
 				self.app_log.warning("{} is banned: {}".format(ip, reason))
 				return "banned"
 
-	def peers_get(self,peerlist):
+	def peers_get(self, peerlist):
 		"""Returns a peerlist from disk as a dict {ip:port}"""
 		peer_dict = {}
 		if not os.path.exists(peerlist):
@@ -142,7 +141,7 @@ class Peers:
 		return peer_dict
 
 
-	def peer_list(self,peerlist):
+	def peer_list(self, peerlist):
 		"""Returns a peerlist as is, simple text format"""
 		# TODO: caching and format to handle here
 		with open(peerlist, "r") as peer_list:
@@ -168,19 +167,19 @@ class Peers:
 		"""Number of nodes in consensus"""
 		return len(self.consensus_blockheight_list)
 
-	def is_allowed(self,peer_ip,command=''):
+	def is_allowed(self, peer_ip, command=''):
 		"""Tells if the given peer is allowed for that command"""
 		# TODO: more granularity here later
-		return (peer_ip in self.config.allowed_conf or "any" in self.config.allowed_conf)
+		return peer_ip in self.config.allowed_conf or "any" in self.config.allowed_conf
 
-	def is_whitelisted(self,peer_ip,command=''):
+	def is_whitelisted(self, peer_ip, command=''):
 		# TODO: could be handled later on via "allowed" and rights.
-		return (peer_ip in self.whitelist or "127.0.0.1" ==peer_ip)
+		return peer_ip in self.whitelist or "127.0.0.1" ==peer_ip
 
-	def is_banned(self,peer_ip):
+	def is_banned(self, peer_ip):
 		return peer_ip in self.banlist
 
-	def peers_test(self,peerlist):
+	def peers_test(self, peerlist):
 		"""Tests all peers from a list."""
 		# TODO: lengthy, no need to test everyone at once?
 		if self.peersync_lock.locked() == False and self.config.accept_peers == "yes":
@@ -191,9 +190,7 @@ class Peers:
 
 			for key, value in peer_dict.items():
 				HOST = key
-				# app_log.info(HOST)
 				PORT = int(value)
-				# app_log.info(PORT)
 
 				try:
 					s = socks.socksocket()
@@ -201,7 +198,6 @@ class Peers:
 					if self.config.tor_conf == 1:
 						s.settimeout(5)
 						s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-					# s.setblocking(0)
 					s.connect((HOST, PORT))
 					s.close()
 					self.app_log.info("Connection to {} {} successful, keeping the peer".format(HOST ,PORT))
@@ -220,7 +216,7 @@ class Peers:
 			self.peersync_lock.release()
 
 
-	def peersync(self,subdata):
+	def peersync(self, subdata):
 		"""Got a peers list from a peer, process. From worker()."""
 		if self.peersync_lock.locked() == False and self.config.accept_peers == "yes":
 			self.peersync_lock.acquire()
@@ -248,7 +244,6 @@ class Peers:
 						if self.config.tor_conf == 1:
 							s_purge.settimeout(5)
 							s_purge.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-							# s_purge = s.setblocking(0)
 
 						s_purge.connect((x[0], int(x[1])))  # save a new peer file with only active nodes
 						s_purge.close()
@@ -269,7 +264,7 @@ class Peers:
 			self.app_log.info("Outbound: Peer sync occupied")
 
 
-	def consensus_add(self,peer_ip, consensus_blockheight, sdef,last_block):
+	def consensus_add(self, peer_ip, consensus_blockheight, sdef, last_block):
 		# obviously too old blocks, we have half a day worth of validated blocks after them
 		# no ban, they can (should) be syncing but they can't possibly be in consensus list.
 		too_old = last_block - 720
@@ -316,7 +311,7 @@ class Peers:
 			raise
 
 
-	def consensus_remove(self,peer_ip):
+	def consensus_remove(self, peer_ip):
 		try:
 			self.app_log.info("Consensus opinion list: {}".format(self.consensus_blockheight_list))
 			self.app_log.info("Will remove {} from consensus pool {}".format(peer_ip, self.peer_ip_list))
@@ -327,7 +322,7 @@ class Peers:
 			self.app_log.info("IP of {} not present in the consensus pool".format(peer_ip))
 			pass
 			
-	def manager_loop(self,target=None):
+	def manager_loop(self, target=None):
 		"""Manager loop called every 30 sec. Handles maintenance"""
 		variability = [] #prevent ip range attack (excluding inc conns)
 		del variability [:]
@@ -343,7 +338,6 @@ class Peers:
 
 		for key, value in self.peer_dict.items():
 			HOST = key
-			# app_log.info(HOST)
 			PORT = int(value)
 
 			for x in variable:
@@ -359,7 +353,7 @@ class Peers:
 						t.daemon = True
 						t.start()
 
-		# TODO : 15 s after start is too short for all peers to have been tested, rework needed.
+		# TODO: 15 s after start is too short for all peers to have been tested, rework needed.
 		if int(time.time() - self.startup_time) > 15: #refreshes peers from drive
 			self.peer_dict.update(self.peers_get(self.peerlist))
 
