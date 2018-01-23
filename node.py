@@ -7,9 +7,12 @@
 
 VERSION = "4.2.2.7"
 
+# Bis specific modules
+import log, options, connections, peershandler
+
 from itertools import groupby
 from operator import itemgetter
-import shutil, socketserver, base64, hashlib, os, re, sqlite3, sys, threading, time, socks, log, options, connections, random, keys, math, requests, tarfile, essentials
+import shutil, socketserver, base64, hashlib, os, re, sqlite3, sys, threading, time, socks, random, keys, math, requests, tarfile, essentials
 from decimal import *
 
 from Crypto.Hash import SHA
@@ -26,7 +29,7 @@ last_block = 0
 dl_lock = threading.Lock()
 db_lock = threading.Lock()
 mem_lock = threading.Lock()
-peersync_lock = threading.Lock()
+#peersync_lock = threading.Lock()
 
 config = options.Get()
 config.read()
@@ -44,7 +47,7 @@ pause_conf = config.pause_conf
 ledger_path_conf = config.ledger_path_conf
 hyper_path_conf = config.hyper_path_conf
 hyper_recompress_conf = config.hyper_recompress_conf
-ban_threshold = config.ban_threshold
+#ban_threshold = config.ban_threshold
 tor_conf = config.tor_conf
 debug_level_conf = config.debug_level_conf
 allowed = config.allowed_conf
@@ -61,14 +64,15 @@ version_allow = config.version_allow
 full_ledger = config.full_ledger_conf
 reveal_address=config.reveal_address
 accept_peers=config.accept_peers
-nodes_ban_reset=config.nodes_ban_reset
+#nodes_ban_reset=config.nodes_ban_reset
 
-global banlist
-banlist=config.banlist
+#global banlist
+#banlist=config.banlist
 
-global whitelist
-whitelist=config.whitelist
+#global whitelist
+#whitelist=config.whitelist
 
+global peers
 
 def presence_check(cursor,signature):
     execute_param(cursor, ("SELECT * FROM transactions WHERE signature = ?;"), (signature,))
@@ -79,45 +83,11 @@ def presence_check(cursor,signature):
         result = "absent"
     return result
 
-def peers_save(peerlist, peer_ip):
-
-    peer_file = open(peerlist, 'r')
-    peer_tuples = []
-    for line in peer_file:
-        extension = re.findall("'([\d\.]+)', '([\d]+)'", line)
-        peer_tuples.extend(extension)
-    peer_file.close()
-    peer_tuple = ("('" + peer_ip + "', '" + str(port) + "')")
-
-    try:
-        if peer_tuple not in str(peer_tuples):
-            app_log.warning("Testing connectivity to: {}".format(peer_ip))
-            peer_test = socks.socksocket()
-            if tor_conf == 1:
-                peer_test.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-            # peer_test.setblocking(0)
-            peer_test.connect((str(peer_ip), int(str(port))))  # double parentheses mean tuple
-            app_log.info("Inbound: Distant peer connectible")
-
-            # properly end the connection
-            peer_test.close()
-            # properly end the connection
-
-            peer_list_file = open(peerlist, 'a')
-            peer_list_file.write((peer_tuple) + "\n")
-            app_log.info("Inbound: Distant peer saved to peer list")
-            peer_list_file.close()
-        else:
-            app_log.info("Distant peer already in peer list")
-    except:
-        app_log.info("Inbound: Distant peer not connectible")
-        pass
-
 def sendsync(sdef,peer_ip,status,provider):
     app_log.warning("Outbound: Synchronization with {} finished after: {}, sending new sync request".format(peer_ip,status))
 
     if provider == "yes":
-        peers_save("peers.txt", peer_ip)
+        peers.peers_save("peers.txt", peer_ip)
 
     time.sleep(float(pause_conf))
     while db_lock.locked() == True:
@@ -182,7 +152,8 @@ if "testnet" in version: #overwrite for testnet
         download_file("http://bismuth.cz/test.db", "static/test.db")
     else:
         print("Not redownloading test db")
-
+        
+#TODO : move this to peers also.
 else:
     peerlist = "peers.txt" #might be better to keep peer.txt for better performance (provides filtering)
 
@@ -345,34 +316,6 @@ app_log = log.log("node.log", debug_level_conf)
 
 app_log.warning("Configuration settings loaded")
 
-
-def unban(peer_ip):
-    global warning_list
-    #global banlist
-
-    # warning_list = [x for x in warning_list if x != peer_ip] #delete all
-    # banlist = [x for x in banlist if x != peer_ip]
-
-    if peer_ip in warning_list:
-        warning_list.remove(peer_ip)
-        app_log.warning("Removed a warning for {}".format(peer_ip))
-
-
-def warning(sdef, ip, reason, count):
-    global banlist
-    global warning_list
-    global ban_threshold
-
-    if ip not in whitelist:
-        for x in range(count):
-            warning_list.append(ip)
-        app_log.warning("Added {} warning(s) to {}: {} ({} / {})".format(count, ip, reason, warning_list.count(ip), ban_threshold))
-
-        if warning_list.count(ip) >= ban_threshold:
-            banlist.append(ip)
-            sdef.close()
-            app_log.warning("{} is banned: {}".format(ip, reason))
-            return "banned"
 
 def ledger_convert(ledger_path_conf, hyper_path_conf):
     try:
@@ -615,7 +558,8 @@ def difficulty(c, mode):
     return (float('%.13f' % difficulty), float('%.13f' % difficulty2)) #need to keep float here for database inserts support
 
 
-global connection_pool
+# moved to peershandler - globals become peers.?? and only peers is global.
+"""global connection_pool
 connection_pool = []
 global peer_ip_list
 peer_ip_list = []
@@ -629,6 +573,9 @@ global warning_list
 warning_list = []
 global consensus
 consensus = ""
+"""
+
+# This one too?
 global syncing
 syncing = []
 
@@ -826,6 +773,7 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass):
 
                     else:
                         app_log.warning("Local mempool is already full, skipping merging")
+                        return # avoid spamming of the logs
 
             except:
                 app_log.warning("Mempool: Error processing")
@@ -838,58 +786,6 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass):
                 mem_lock.release()
 
 
-def peers_get(peerlist):
-    peer_dict = {}
-
-    if not os.path.exists(peerlist):
-        open(peerlist, "a").close()
-
-    with open(peerlist, "r") as f:
-        for line in f:
-            try:
-                line = re.sub("[\)\(\:\\n\'\s]", "", line)
-                peer_dict[line.split(",")[0]] = line.split(",")[1]
-            except Exception as e:
-                app_log.warning("Skipping peerlist entry because of wrong format: {}".format(line))
-    return peer_dict
-
-
-def peers_test(peerlist):
-    if peersync_lock.locked() == False and accept_peers == "yes":
-        peersync_lock.acquire()
-
-        drop_peer_dict = []
-        peer_dict = peers_get(peerlist)
-
-        for key, value in peer_dict.items():
-            HOST = key
-            # app_log.info(HOST)
-            PORT = int(value)
-            # app_log.info(PORT)
-
-            try:
-                s = socks.socksocket()
-                s.settimeout(0.6)
-                if tor_conf == 1:
-                    s.settimeout(5)
-                    s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                # s.setblocking(0)
-                s.connect((HOST, PORT))
-                s.close()
-                print ("Connection to {} {} successful, keeping the peer".format(HOST ,PORT))
-            except:
-                if purge_conf == 1 and "testnet" not in version:
-                    # remove from peerlist if not connectible
-                    drop_peer_dict.append(key)
-                    print("Removed formerly active peer {} {}".format(HOST, PORT))
-                pass
-
-        output = open(peerlist, 'w')
-        for key, value in peer_dict.items():
-            if key not in drop_peer_dict:
-                output.write("('" + key + "', '" + value + "')\n")
-        output.close()
-        peersync_lock.release()
 
 
 def verify(c):
@@ -985,8 +881,6 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, mempool, m):
 
 
 
-                # backup
-
                 # delete followups
                 execute_param(c, ("DELETE FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
                 commit(conn)
@@ -1033,87 +927,15 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, mempool, m):
             # delete followups
 
 
-def consensus_add(peer_ip, consensus_blockheight, sdef):
-    global peer_ip_list
-    global consensus_blockheight_list
-    global consensus_percentage
-    global consensus
-    global last_block
-    # obviously too old blocks, we have half a day worth of validated blocks after them
-    # no ban, they can (should) be syncing but they can't possibly be in consensus list.
-    too_old = last_block - 720
-    try:
-        if peer_ip not in peer_ip_list:
-            if consensus_blockheight < too_old:
-                # should change to .info later on
-                app_log.warning("{} got too old a block ({}) for consensus".format(peer_ip,consensus_blockheight));
-                return
-            app_log.info("Adding {} to consensus peer list".format(peer_ip))
-            peer_ip_list.append(peer_ip)
-            app_log.info("Assigning {} to peer block height list".format(consensus_blockheight))
-            consensus_blockheight_list.append(str(int(consensus_blockheight)))
-
-        if peer_ip in peer_ip_list:
-            consensus_index = peer_ip_list.index(peer_ip)  # get where in this list it is
-
-            if consensus_blockheight_list[consensus_index] == (consensus_blockheight):
-                app_log.info("Opinion of {} hasn't changed".format(peer_ip))
-
-            else:
-                del peer_ip_list[consensus_index]  # remove ip
-                del consensus_blockheight_list[consensus_index]  # remove ip's opinion
-                if consensus_blockheight < too_old:
-                    # should change to .info later on
-                    app_log.warning("{} got too old a block ({})for consensus".format(peer_ip,consensus_blockheight));
-                    return
-                app_log.info("Updating {} in consensus".format(peer_ip))
-                peer_ip_list.append(peer_ip)
-                consensus_blockheight_list.append(int(consensus_blockheight))
-
-        consensus = most_common(consensus_blockheight_list)
-
-        consensus_percentage = (float(
-            consensus_blockheight_list.count(consensus) / float(len(consensus_blockheight_list)))) * 100
-
-        if int(consensus_blockheight) > int(consensus) + 30 and consensus_percentage > 50 and len(consensus_blockheight_list) > 10:
-            if warning(sdef, peer_ip, "Consensus deviation too high", 10) == "banned":
-                raise ValueError("{} banned".format(peer_ip))
-
-        # app_log.info("Current Outbound connections: {}".format(len(connection_pool)))
-        # app_log.info("Current block consensus: {} = {}%".format(consensus,consensus_percentage))
-
-        return
-    except Exception as e:
-        app_log.info(e)
-        raise
-
-
-def consensus_remove(peer_ip):
-    global peer_ip_list
-    global consensus_blockheight_list
-    try:
-        app_log.info("Consensus opinion list: {}".format(consensus_blockheight_list))
-        app_log.info("Will remove {} from consensus pool {}".format(peer_ip, peer_ip_list))
-        consensus_index = peer_ip_list.index(peer_ip)
-        peer_ip_list.remove(peer_ip)
-        del consensus_blockheight_list[consensus_index]  # remove ip's opinion
-    except:
-        app_log.info("IP of {} not present in the consensus pool".format(peer_ip))
-        pass
-
 
 def manager(c, mempool, m):
-    global banlist
+    #global banlist
     global last_block
 
-    peer_dict = {}
-    peer_dict.update(peers_get("peers.txt"))
-
-    # When was the last time we reset banlist and tries?
-    reset_time = startup_time
-
-    peers_test("peers.txt")
-    peers_test("suggested_peers.txt")
+    # moved to peershandler
+    # reset_time = startup_time
+    # peers_test("peers.txt")
+    # peers_test("suggested_peers.txt")
     
     until_purge = 0
 
@@ -1125,83 +947,17 @@ def manager(c, mempool, m):
             mempool_purge(mempool,m)
             until_purge = 120
         until_purge -= 1
-        variability = [] #prevent ip range attack (excluding inc conns)
-        del variability [:]
-        variable = []
-        del variable [:]
-
-        for key, value in peer_dict.items():
-            variability.append(key.split(".")[:-1])
-
-        for x in variability:
-            if variability.count(x) < 3:
-                variable.append(".".join(x))
-
-        for key, value in peer_dict.items():
-            HOST = key
-            # app_log.info(HOST)
-            PORT = int(value)
-
-            for x in variable:
-                if x in HOST:
-                    if "testnet" in version:
-                        PORT = 2829
-
-                    if threading.active_count() < thread_limit_conf and str(HOST + ":" + str(PORT)) not in tried and str(HOST + ":" + str(PORT)) not in connection_pool and str(HOST) not in banlist:
-                        app_log.info("Will attempt to connect to {}:{}".format(HOST, PORT))
-                        tried.append(HOST + ":" + str(PORT))
-                        t = threading.Thread(target=worker, args=(HOST, PORT))  # threaded connectivity to nodes here
-                        app_log.info("---Starting a client thread " + str(threading.currentThread()) + "---")
-                        t.daemon = True
-                        t.start()
-
-                    # client thread handling
-
-
-        if int(time.time() - startup_time) > 15: #refreshes peers from drive
-            peer_dict.update(peers_get(peerlist))
-
-        app_log.warning("Total number of known peers: {}".format(len(peer_dict))) #keep this here
-        if len(consensus_blockheight_list) < 3 and int(time.time() - startup_time) > 15: #join in random peers after x seconds
-            app_log.warning("Not enough peers in consensus, joining in peers suggested by other nodes")
-            peer_dict.update(peers_get("suggested_peers.txt"))
-
-        if len(connection_pool) < nodes_ban_reset and int(time.time() - startup_time) > 15: #do not reset before 30 secs have passed
-            app_log.warning("Only {} connections active, resetting banlist".format(len(connection_pool)))
-            del banlist[:]
-            banlist.extend(config.banlist) # reset to config version
-            del warning_list[:]
-
-        if len(connection_pool) < 10:
-            app_log.warning("Only {} connections active, resetting the connection history".format(len(connection_pool)))
-            del tried[:]
-
-        if nodes_ban_reset and len(connection_pool) <= len(banlist) and int(time.time() - reset_time) > 60*10: #do not reset too often. 10 minutes here
-            app_log.warning("Less active connections ({}) than banlist ({}), resetting banlist and tried" .format(len(connection_pool), len(banlist)))
-            del banlist[:]
-            banlist.extend(config.banlist) # reset to config version
-            del warning_list[:]
-            del tried[:]
-            reset_time = time.time()
-
-        if banlist:
-            app_log.warning("Status: Banlist: {}".format(banlist))
-            app_log.warning("Status: Banlist Count : {}".format(len(banlist)))
-        if whitelist:
-            app_log.warning("Status: Whitelist: {}".format(whitelist))
-
+                
+        # peer management
+        peers.manager_loop(target=worker)
+        
+        app_log.warning("Status: Threads at {} / {}".format(threading.active_count(), thread_limit_conf))
         app_log.info("Status: Syncing nodes: {}".format(syncing))
         app_log.info("Status: Syncing nodes: {}/3".format(len(syncing)))
-        app_log.warning("Status: Threads at {} / {}".format(threading.active_count(), thread_limit_conf))
-        app_log.info("Status: Tried: {}".format(tried))
-        app_log.info("Status: Tried Count: {}".format(len(tried)))
-        app_log.info("Status: List of Outbound connections: {}".format(connection_pool))
-        app_log.warning("Status: Number of Outbound connections: {}".format(len(connection_pool)))
-        if consensus:  # once the consensus is filled
-            app_log.warning("Status: Consensus: {} = {}%".format(consensus, consensus_percentage))
-            app_log.warning("Status: Consensus IP list: {}".format(peer_ip_list))
-            app_log.warning("Status: Consensus opinion list: {}".format(consensus_blockheight_list))
-            app_log.warning("Status: Total number of nodes: {}".format(len(consensus_blockheight_list)))
+
+        # Status display for Peers related info
+        peers.status_log()
+
 
         # last block
         execute(c, "SELECT block_height, timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
@@ -1384,7 +1140,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                 fees_block = []
 
-                if peer_ip in banlist:
+                if peers.is_banned(peer_ip):
                     block_valid = 0
                     error_msg = "Cannot accept blocks form a banned peer"
 
@@ -1392,7 +1148,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                     app_log.warning("Check 1: A part of the block is invalid, rejected: {}".format(error_msg))
                     error_msg = ""
                     app_log.info("Check 1: Complete rejected data: {}".format(data))
-                    if warning(sdef, peer_ip, "Check 1: rejected block",1) == "banned":
+                    if peers.warning(sdef, peer_ip, "Check 1: rejected block",1) == "banned":
                         raise ValueError("{} banned".format(peer_ip))
 
                 if block_valid == 1:
@@ -1511,7 +1267,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         app_log.info("Check 2: A part of the block is invalid, rejected: {}".format(error_msg))
                         error_msg = ""
                         app_log.info("Check 2: Complete rejected block: {}".format(data))
-                        if warning(sdef, peer_ip, "Check 2: rejected block",1) == "banned":
+                        if peers.warning(sdef, peer_ip, "Check 2: rejected block",1) == "banned":
                             raise ValueError("{} banned".format(peer_ip))
 
                     if block_valid == 1:
@@ -1544,14 +1300,16 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         app_log.warning("Block {} valid and saved from {}".format(block_height_new, peer_ip))
 
                         del block_transactions[:]
-                        if peer_ip in warning_list or peer_ip in banlist:
-                            unban(peer_ip)
+                        peers.unban(peer_ip)
+                        # peers will test himself. Anyway, unban was only unwarning, not unbanning.
+                        #if peer_ip in warning_list or peer_ip in banlist:
+                        #    unban(peer_ip)
 
                         # whole block validation
 
         except Exception as e:
             app_log.warning(e)
-            if warning(sdef, peer_ip, "Block processing failed", 10) == "banned":
+            if peers.warning(sdef, peer_ip, "Block processing failed", 10) == "banned":
                 app_log.info("{} banned".format(peer_ip))
 
             if debug_conf == 1:
@@ -1732,12 +1490,15 @@ startup_time = time.time()
 
 class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
     def handle(self):  # server defined here
-        global banlist
-        global ban_threshold
+        #global banlist
+        #global ban_threshold
+        global peers
 
         peer_ip = self.request.getpeername()[0]
 
-        if threading.active_count() < thread_limit_conf or peer_ip == "127.0.0.1":
+        #if threading.active_count() < thread_limit_conf or peer_ip == "127.0.0.1":
+        # Always keep a slot for whitelisted (wallet could be there)
+        if threading.active_count() < thread_limit_conf or peers.is_whitelisted(peer_ip):
             capacity = 1
         else:
             capacity = 0
@@ -1750,9 +1511,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
             finally:
                 return
 
-        if peer_ip not in banlist:
-            banned = 0
-        else:
+        banned = 0
+        if peers.is_banned(peer_ip):
             banned = 1
             try:
                 self.request.close()
@@ -1823,11 +1583,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                 elif data == 'hello':
 
-                    with open(peerlist, "r") as peer_list:
-                        peers = peer_list.read()
-
-                        connections.send(self.request, "peers", 10)
-                        connections.send(self.request, peers, 10)
+                    connections.send(self.request, "peers", 10)
+                    connections.send(self.request, peers.peer_list(peerlist), 10)
 
                     while db_lock.locked() == True:
                         time.sleep(float(pause_conf))
@@ -1859,11 +1616,13 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         last_block_ago = float(c.fetchone()[0])
 
                         if int(last_block_ago) < (time.time() - 600):
-                            block_req = most_common(consensus_blockheight_list)
+                            #block_req = most_common(consensus_blockheight_list)
+                            block_req = peers.consensus_most_common
                             app_log.warning("Most common block rule triggered")
 
                         else:
-                            block_req = max(consensus_blockheight_list)
+                            #block_req = max(consensus_blockheight_list)
+                            block_req = peers.consensus_max
                             app_log.warning("Longest chain rule triggered")
 
 
@@ -1876,7 +1635,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                 segments = connections.receive(self.request, 10)
 
                             except:
-                                if warning(self.request, peer_ip, "Failed to deliver the longest chain", 10) == "banned":
+                                if peers.warning(self.request, peer_ip, "Failed to deliver the longest chain", 10) == "banned":
                                     app_log.info("{} banned".format(peer_ip))
                                     break
                             else:
@@ -1897,9 +1656,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                         # consensus pool 1 (connection from them)
                         consensus_blockheight = int(received_block_height)  # str int to remove leading zeros
-                        consensus_add(peer_ip, consensus_blockheight, self.request)
+                        #consensus_add(peer_ip, consensus_blockheight, self.request)
+                        peers.consensus_add(peer_ip, consensus_blockheight, self.request, last_block)
                         # consensus pool 1 (connection from them)
-
 
                         execute(c, ('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1'))
                         db_block_height = c.fetchone()[0]
@@ -1990,9 +1749,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "blocknf":
                     block_hash_delete = connections.receive(self.request, 10)
                     # print peer_ip
-                    if max(consensus_blockheight_list) == consensus_blockheight:
+                    if consensus_blockheight == peers.consensus_max:
                         blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, mempool, m)
-                        if warning(self.request, peer_ip, "Rollback",1) == "banned":
+                        if peers.warning(self.request, peer_ip, "Rollback",1) == "banned":
                             app_log.info("{} banned".format(peer_ip))
                             break
                     app_log.info("Outbound: Deletion complete, sending sync request")
@@ -2002,7 +1761,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     connections.send(self.request, "sync", 10)
 
                 elif data == "block":
-                    if (peer_ip in allowed or "any" in allowed):  # from miner
+                    #if (peer_ip in allowed or "any" in allowed):  # from miner
+                    if peers.is_allowed(peer_ip,data):  # from miner
+                    # TODO: rights management could be done one level higher instead of repeating the same check everywhere
 
                         app_log.info("Outbound: Received a block from miner {}".format(peer_ip))
                         # receive block
@@ -2017,9 +1778,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         # check if we have the latest block
 
                         if "testnet" not in version:
-                            if len(connection_pool) < 5:
+                            if len(peers.connection_pool) < 5:
                                 app_log.info("Outbound: Mined block ignored, insufficient connections to the network")
-                            elif int(db_block_height) >= int(max(consensus_blockheight_list)) - 3 and db_lock.locked() == False:
+                            elif int(db_block_height) >= int(peers.consensus_max) - 3 and db_lock.locked() == False:
                                 app_log.info("Outbound: Processing block from miner")
                                 digest_block(segments, self.request, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                             elif db_lock.locked() == True:
@@ -2027,7 +1788,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                             # receive theirs
                             else:
-                                app_log.info("Outbound: Mined block was orphaned because node was not synced, we are at block {}, should be at least {}".format(db_block_height, max(consensus_blockheight_list) - 3))
+                                app_log.info("Outbound: Mined block was orphaned because node was not synced, we are at block {}, should be at least {}".format(db_block_height, peers.consensus_max - 3))
                         else:
                             digest_block(segments, self.request, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                     else:
@@ -2035,8 +1796,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         app_log.info("{} not whitelisted for block command".format(peer_ip))
 
                 elif data == "blocklast":
-                    if (peer_ip in allowed or "any" in allowed):  # only sends the miner part of the block!
-
+                    #if (peer_ip in allowed or "any" in allowed):  # only sends the miner part of the block!
+                    if peers.is_allowed(peer_ip,data):
                         execute(c, ("SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
                         block_last = c.fetchall()[0]
 
@@ -2045,7 +1806,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         app_log.info("{} not whitelisted for blocklast command".format(peer_ip))
 
                 elif data == "blockget":
-                    if (peer_ip in allowed or "any" in allowed):
+                    #if (peer_ip in allowed or "any" in allowed):
+                    if peers.is_allowed(peer_ip,data):
                         block_desired = connections.receive(self.request, 10)
 
                         execute_param(h3, ("SELECT * FROM transactions WHERE block_height = ?;"), (block_desired,))
@@ -2056,7 +1818,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         app_log.info("{} not whitelisted for blockget command".format(peer_ip))
 
                 elif data == "mpinsert":
-                    if (peer_ip in allowed or "any" in allowed):
+                    #if (peer_ip in allowed or "any" in allowed):
+                    if peers.is_allowed(peer_ip,data):
                         mempool_insert = connections.receive(self.request, 10)
                         mempool_merge(mempool_insert, peer_ip, c, mempool, m, "yes")
                         connections.send(self.request, "Mempool insert finished", 10)
@@ -2064,7 +1827,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         app_log.info("{} not whitelisted for mpinsert command".format(peer_ip))
 
                 elif data == "balanceget":
-                    if (peer_ip in allowed or "any" in allowed):
+                    #if (peer_ip in allowed or "any" in allowed):
+                    if peers.is_allowed(peer_ip,data):
                         balance_address = connections.receive(self.request, 10)  # for which address
 
                         # verify balance
@@ -2115,7 +1879,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     else:
                         app_log.info("{} not whitelisted for balanceget command".format(peer_ip))
 
-                elif data == "mpget" and (peer_ip in allowed or "any" in allowed):
+                elif data == "mpget" and peers.is_allowed(peer_ip,data):
                     execute(m, ('SELECT * FROM transactions ORDER BY amount DESC;'))
                     mempool_txs = m.fetchall()
 
@@ -2126,7 +1890,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     connections.send(self.request, mempool_txs, 10)
 
                 elif data == "keygen":
-                    if (peer_ip in allowed or "any" in allowed):
+                    #if (peer_ip in allowed or "any" in allowed):
+                    if peers.is_allowed(peer_ip,data):
                         (gen_private_key_readable, gen_public_key_readable, gen_address) = keys.generate()
                         connections.send(self.request, (gen_private_key_readable, gen_public_key_readable, gen_address), 10)
                         (gen_private_key_readable, gen_public_key_readable, gen_address) = (None, None, None)
@@ -2134,7 +1899,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         app_log.info("{} not whitelisted for keygen command".format(peer_ip))
 
                 elif data == "addlist":
-                    if (peer_ip in allowed or "any" in allowed):
+                    #if (peer_ip in allowed or "any" in allowed):
+                    if peers.is_allowed(peer_ip,data):
                         address_tx_list = connections.receive(self.request, 10)
                         execute_param(h3, ("SELECT * FROM transactions WHERE (address = ? OR recipient = ?) ORDER BY block_height DESC"), (address_tx_list,) + (address_tx_list,))
                         result = h3.fetchall()
@@ -2143,7 +1909,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         app_log.info("{} not whitelisted for addlist command".format(peer_ip))
 
                 elif data == "listlim":
-                    if (peer_ip in allowed or "any" in allowed):
+                    #if (peer_ip in allowed or "any" in allowed):
+                    if peers.is_allowed(peer_ip,data):                      
                         list_limit = connections.receive(self.request, 10)
                         #print (address_tx_list_limit)
                         execute_param(h3, ("SELECT * FROM transactions ORDER BY block_height DESC LIMIT ?"), (list_limit,))
@@ -2153,7 +1920,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         app_log.info("{} not whitelisted for listlim command".format(peer_ip))
 
                 elif data == "addlistlim":
-                    if (peer_ip in allowed or "any" in allowed):
+                    #if (peer_ip in allowed or "any" in allowed):
+                    if peers.is_allowed(peer_ip,data):
                         address_tx_list = connections.receive(self.request, 10)
                         address_tx_list_limit = connections.receive(self.request, 10)
                         #print (address_tx_list_limit)
@@ -2164,7 +1932,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         app_log.info("{} not whitelisted for addlistlim command".format(peer_ip))
 
                 elif data == "aliasget":
-                    if (peer_ip in allowed or "any" in allowed):
+                    #if (peer_ip in allowed or "any" in allowed):
+                    if peers.is_allowed(peer_ip,data):
                         alias_address = connections.receive(self.request, 10)
 
                         execute_param(h3, ("SELECT openfield FROM transactions WHERE address = ? AND openfield LIKE ?;"), (alias_address,) + ("alias=" + '%',))
@@ -2180,7 +1949,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
 
                 elif data == "pubkeyget":
-                    if (peer_ip in allowed or "any" in allowed):
+                    #if (peer_ip in allowed or "any" in allowed):
+                    if peers.is_allowed(peer_ip,data):
                         pub_key_address = connections.receive(self.request, 10)
 
                         c.execute("SELECT public_key FROM transactions WHERE address = ? and reward = 0", (pub_key_address,))
@@ -2191,7 +1961,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         app_log.info("{} not whitelisted for pubkeyget command".format(peer_ip))
 
                 elif data == "aliascheck":
-                    if (peer_ip in allowed or "any" in allowed):
+                    #if (peer_ip in allowed or "any" in allowed):
+                    if peers.is_allowed(peer_ip,data):
                         reg_string = connections.receive(self.request, 10)
 
                         m.execute("SELECT timestamp FROM transactions WHERE openfield = ?;", ("alias=" + reg_string,))
@@ -2208,7 +1979,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         app_log.info("{} not whitelisted for aliascheck command".format(peer_ip))
 
                 elif data == "aliasesget": #only gets the first one
-                    if (peer_ip in allowed or "any" in allowed):
+                    #if (peer_ip in allowed or "any" in allowed):
+                    if peers.is_allowed(peer_ip,data):
                         alias_addresses = connections.receive(self.request, 10)
 
                         results=[]
@@ -2225,7 +1997,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         app_log.info("{} not whitelisted for aliasgetes command".format(peer_ip))
 
                 elif data == "txsend":
-                    if (peer_ip in allowed or "any" in allowed):
+                    #if (peer_ip in allowed or "any" in allowed):
+                    if peers.is_allowed(peer_ip,data):
                         tx_remote = connections.receive(self.request, 10)
 
                         # receive data necessary for remote tx construction
@@ -2265,9 +2038,10 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     else:
                         app_log.info("{} not whitelisted for txsend command".format(peer_ip))
 
-                # less importent methods
+                # less important methods
                 elif data == "addvalidate":
-                    if (peer_ip in allowed or "any" in allowed):
+                    #if (peer_ip in allowed or "any" in allowed):
+                    if peers.is_allowed(peer_ip,data):
 
                         address_validate = connections.receive(self.request, 10)
                         if len(address_validate) == 56 and not re.search("[^abcdef0123456789]", address_validate):
@@ -2281,22 +2055,22 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
 
                 elif data == "peersget":
-                    if (peer_ip in allowed or "any" in allowed):
+                    #if (peer_ip in allowed or "any" in allowed):
+                    if peers.is_allowed(peer_ip,data):
 
-                        with open(peerlist, "r") as peer_list:
-                            peers_file = peer_list.read()
-                        connections.send(self.request, peers_file , 10)
+                        #with open(peerlist, "r") as peer_list:
+                        #    peers_file = peer_list.read()
+                        connections.send(self.request, peers.peer_list(peerlist) , 10)
 
                     else:
                         app_log.info("{} not whitelisted for peersget command".format(peer_ip))
 
                 elif data == "statusget":
-                    if (peer_ip in allowed or "any" in allowed):
-                        global consensus
-                        global consensus_percentage
+                    #if (peer_ip in allowed or "any" in allowed):
+                    if peers.is_allowed(peer_ip,data):
 
-                        nodes_count = (len(consensus_blockheight_list))
-                        nodes_list =  peer_ip_list
+                        nodes_count = peers.consensus_size
+                        nodes_list =  peers.peer_ip_list
                         threads_count = threading.active_count()
                         uptime = int(time.time() - startup_time)
 
@@ -2305,20 +2079,23 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         else:
                             revealed_address = "private"
 
-                        connections.send(self.request, (revealed_address, nodes_count, nodes_list, threads_count, uptime, consensus, consensus_percentage, VERSION), 10)
+                        connections.send(self.request, (revealed_address, nodes_count, nodes_list, threads_count, uptime, peers.consensus, peers.consensus_percentage, VERSION), 10)
 
                     else:
                         app_log.info("{} not whitelisted for statusget command".format(peer_ip))
 
                 elif data == "diffget":
-                    if (peer_ip in allowed or "any" in allowed):
+                    #if (peer_ip in allowed or "any" in allowed):
+                    if peers.is_allowed(peer_ip,data):
                         diff = difficulty(c, "silent")
                         connections.send(self.request, diff, 10)
                     else:
                         app_log.info("{} not whitelisted for diffget command".format(peer_ip))
 
                 elif data == "difflast":
-                    if (peer_ip in allowed or "any" in allowed):
+                    #if (peer_ip in allowed or "any" in allowed):
+                    if peers.is_allowed(peer_ip,data):
+
                         execute(h3, ("SELECT block_height, difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
                         difflast = h3.fetchone()
                         connections.send(self.request, difflast, 10)
@@ -2345,7 +2122,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 app_log.info("Inbound: {}".format(e))
 
                 # remove from consensus (connection from them)
-                consensus_remove(peer_ip)
+                peers.consensus_remove(peer_ip)
                 # remove from consensus (connection from them)
                 if self.request:
                     self.request.close()
@@ -2372,6 +2149,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 # client thread
 # if you "return" from the function, the exception code will node be executed and client thread will hand
 def worker(HOST, PORT):
+    global peers
     timeout_operation = 60  # timeout
     timer_operation = time.time()  # start counting
 
@@ -2406,19 +2184,17 @@ def worker(HOST, PORT):
 
     banned = 0
     peer_ip = s.getpeername()[0]
-    if peer_ip not in banlist:
-        banned = 0
-    else:
+    if peers.is_banned(peer_ip):
         banned = 1
         s.close()
         app_log.warning("IP {} banned, disconnected".format(peer_ip))
 
     while banned == 0:
         try:
-            if this_client not in connection_pool:
-                connection_pool.append(this_client)
+            if this_client not in peers.connection_pool:
+                peers.append_client(this_client)
                 app_log.info("Connected to {}".format(this_client))
-                app_log.info("Current active pool: {}".format(connection_pool))
+                app_log.info("Current active pool: {}".format(peers.connection_pool))
 
             hdd2, h2 = db_h2_define()
             mempool, m = db_m_define()
@@ -2436,53 +2212,7 @@ def worker(HOST, PORT):
 
             if data == "peers": #REWORK
                 subdata = connections.receive(s, 10)
-
-                if peersync_lock.locked() == False and accept_peers == "yes":
-                    peersync_lock.acquire()
-
-                    # get remote peers into tuples (actually list)
-                    server_peer_tuples = re.findall("'([\d\.]+)', '([\d]+)'", subdata)
-                    app_log.info("Received following {} peers: {}".format(len((server_peer_tuples)), server_peer_tuples))
-                    # get remote peers into tuples (actually list)
-
-                    # get local peers into tuples
-                    peer_file = open(peerlist, 'r')
-                    peer_tuples = []
-                    for line in peer_file:
-                        extension = re.findall("'([\d\.]+)', '([\d]+)'", line)
-                        peer_tuples.extend(extension)
-                    peer_file.close()
-                    # get local peers into tuples
-
-                    for x in set(server_peer_tuples):  # set removes duplicates
-                        if x not in peer_tuples:
-                            app_log.info("Outbound: {} is a new peer, saving if connectible".format(x))
-                            try:
-                                s_purge = socks.socksocket()
-                                s_purge.settimeout(0.2)
-                                if tor_conf == 1:
-                                    s_purge.settimeout(5)
-                                    s_purge.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                                    # s_purge = s.setblocking(0)
-
-                                s_purge.connect((x[0], int(x[1])))  # save a new peer file with only active nodes
-                                s_purge.close()
-
-                                peer_formatted = "('" + x[0] + "', '" + x[1] + "')"
-                                if peer_formatted not in open('suggested_peers.txt').read():
-                                    peer_list_file = open("suggested_peers.txt", 'a')
-                                    peer_list_file.write(peer_formatted+"\n")
-                                    peer_list_file.close()
-                            except:
-                                pass
-                                app_log.info("Not connectible")
-
-                        else:
-                            app_log.info("Outbound: {} is not a new peer".format(x))
-                    peersync_lock.release()
-                else:
-                    app_log.info("Outbound: Peer sync occupied")
-
+                peers.peersync(subdata)
 
             elif data == "sync":
                 if not time.time() <= timer_operation + timeout_operation:
@@ -2521,7 +2251,7 @@ def worker(HOST, PORT):
 
                         # consensus pool 2 (active connection)
                         consensus_blockheight = int(received_block_height)  # str int to remove leading zeros
-                        consensus_add(peer_ip, consensus_blockheight, s)
+                        peers.consensus_add(peer_ip, consensus_blockheight, s, last_block)
                         # consensus pool 2 (active connection)
 
                         try:
@@ -2583,7 +2313,7 @@ def worker(HOST, PORT):
 
                         # consensus pool 2 (active connection)
                         consensus_blockheight = int(received_block_height)  # str int to remove leading zeros
-                        consensus_add(peer_ip, consensus_blockheight, s)
+                        peers.consensus_add(peer_ip, consensus_blockheight, s, last_block)
                         # consensus pool 2 (active connection)
 
                 except Exception as e:
@@ -2594,7 +2324,8 @@ def worker(HOST, PORT):
             elif data == "blocknf": #one of the possible outcomes
                 block_hash_delete = connections.receive(s, 10)
                 # print peer_ip
-                if max(consensus_blockheight_list) == int(received_block_height):
+                #if max(consensus_blockheight_list) == int(received_block_height):
+                if int(received_block_height) == peers.consensus_max:
                     blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, mempool, m)
                     if warning(s, peer_ip, "Rollback",1) == "banned":
                         raise ValueError("{} is banned".format(peer_ip))
@@ -2614,11 +2345,11 @@ def worker(HOST, PORT):
                     last_block_ago = float(c.fetchone()[0])
 
                     if int(last_block_ago) < (time.time() - 600):
-                        block_req = most_common(consensus_blockheight_list)
+                        block_req = peers.consensus_most_common
                         app_log.warning("Most common block rule triggered")
 
                     else:
-                        block_req = max(consensus_blockheight_list)
+                        block_req = peers.consensus_max
                         app_log.warning("Longest chain rule triggered")
 
 
@@ -2646,7 +2377,7 @@ def worker(HOST, PORT):
                 # block_hash validation end
 
             elif data == "nonewblk":
-                # sand and receive mempool
+                # send and receive mempool
                 execute(m, ('SELECT * FROM transactions ORDER BY amount DESC;'))
                 mempool_txs = m.fetchall()
 
@@ -2680,16 +2411,21 @@ def worker(HOST, PORT):
 
         except Exception as e:
             # remove from active pool
-            if this_client in connection_pool:
-                app_log.info("Will remove {} from active pool {}".format(this_client, connection_pool))
+            if this_client in peers.connection_pool:
+                app_log.info("Will remove {} from active pool {}".format(this_client, peers.connection_pool))
                 app_log.warning("Outbound: Disconnected from {}: {}".format(this_client, e))
-                connection_pool.remove(this_client)
+                # temp
+                exc_type, exc_obj, exc_tb = sys.exc_info()
+                fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+                print(exc_type, fname, exc_tb.tb_lineno)
+                # temp 
+                peers.remove_client(this_client)
 
             # remove from active pool
 
             # remove from consensus 2
             try:
-                consensus_remove(peer_ip)
+                peers.consensus_remove(peer_ip)
             except:
                 pass
             # remove from consensus 2
@@ -2724,6 +2460,8 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 
 if __name__ == "__main__":
     try:
+        peers = peershandler.Peers(app_log, config)
+
         if tor_conf == 0:
             # Port 0 means to select an arbitrary unused port
             HOST, PORT = "0.0.0.0", int(port)
