@@ -1810,7 +1810,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                     # receive theirs
 
-                    execute(m, ('SELECT * FROM transactions ORDER BY RANDOM() LIMIT 1')) #merge a random tx, one at a time #PERFORMANCE TEST RESULTS PENDING
+                    execute(m, ('SELECT * FROM transactions ORDER BY amount DESC;'))
 
                     mempool_txs = m.fetchall()
 
@@ -2116,7 +2116,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         app_log.info("{} not whitelisted for balanceget command".format(peer_ip))
 
                 elif data == "mpget" and (peer_ip in allowed or "any" in allowed):
-                    execute(m, ('SELECT * FROM transactions'))
+                    execute(m, ('SELECT * FROM transactions ORDER BY amount DESC;'))
                     mempool_txs = m.fetchall()
 
                     # app_log.info("Outbound: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
@@ -2647,7 +2647,7 @@ def worker(HOST, PORT):
 
             elif data == "nonewblk":
                 # sand and receive mempool
-                execute(m, ('SELECT * FROM transactions'))
+                execute(m, ('SELECT * FROM transactions ORDER BY amount DESC;'))
                 mempool_txs = m.fetchall()
 
                 # app_log.info("Outbound: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
