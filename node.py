@@ -2084,6 +2084,17 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     else:
                         app_log.info("{} not whitelisted for statusget command".format(peer_ip))
 
+                elif data == "statusjson":
+                    if peers.is_allowed(peer_ip,data):
+                        uptime = int(time.time() - startup_time)
+                        tempdiff = difficulty(c, "silent")
+                        status = {"protocolversion":config.version_conf, "walletversion":VERSION, "testnet":peers.is_testnet, # config data
+                                  "blocks":last_block, "timeoffset":0, "connections":peers.consensus_size, "difficulty": tempdiff[0], # live status, bitcoind format
+                                  "threads":threading.active_count(), "uptime":uptime, "consensus":peers.consensus, "consensus_percent":peers.consensus_percentage} # extra data
+                        connections.send(self.request, status, 10)
+                    else:
+                        app_log.info("{} not whitelisted for statusjson command".format(peer_ip))                        
+                        
                 elif data == "diffget":
                     #if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip,data):
