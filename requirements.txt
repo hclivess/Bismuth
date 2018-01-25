@@ -1,8 +1,18 @@
+# Pip3 requirements for a node and wallet setup
+
+# You need to manually run the following line first
+# pip3 install simple-crypt --no-deps
+
+# Now the minimal modules needed for a full install
+
+PySocks
+pycryptodome
 pillow
 pyqrcode
-pypng
-pyinstaller
-tornado
-pycryptodome
-PySocks
+
+# request may be needed by helper scripts
 requests
+
+# These are no more used
+# pypng
+# pyinstaller
