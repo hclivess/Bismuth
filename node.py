@@ -5,7 +5,7 @@
 # if you have a block of data and want to insert it into sqlite, you must use a single "commit" for the whole batch, it's 100x faster
 # do not isolation_level=None/WAL hdd levels, it makes saving slow
 
-VERSION = "4.2.2.7"
+VERSION = "4.2.2.8"
 
 # Bis specific modules
 import log, options, connections, peershandler
@@ -616,7 +616,7 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass):
                 block_list = data
 
                 for transaction in block_list:  # set means unique
-                    if (mempool_size < 0.2 or size_bypass == "yes") or (Decimal(transaction[3]) > Decimal(25) and mempool_size < 0.4) or (len(str(transaction[7])) > 200 and mempool_size < 0.3):
+                    if (mempool_size < 0.3 or size_bypass == "yes") or (Decimal(transaction[3]) > Decimal(25) and mempool_size < 0.5) or (len(str(transaction[7])) > 200 and mempool_size < 0.4):
                        #condition 1: size limit or bypass, condition 2: spend more than 25 coins, condition 3: have length of openfield larger than 200
                        #all transactions in the mempool need to be cycled to check for special cases, therefore no while/break loop here
 
