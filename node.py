@@ -616,7 +616,9 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass):
                 block_list = data
 
                 for transaction in block_list:  # set means unique
-                    if mempool_size < 0.4 or size_bypass == "yes":
+                    if (mempool_size < 0.2 or size_bypass == "yes") or (Decimal(transaction[3]) > Decimal(25) and mempool_size < 0.4) or (len(str(transaction[7])) > 200 and mempool_size < 0.3):
+                       #condition 1: size limit or bypass, condition 2: spend more than 25 coins, condition 3: have length of openfield larger than 200
+                       #all transactions in the mempool need to be cycled to check for special cases, therefore no while/break loop here
 
                         mempool_timestamp = '%.2f' % float(transaction[0])
                         mempool_address = str(transaction[1])[:56]
@@ -772,7 +774,7 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass):
                                 # app_log.info("Mempool: Finished with {} received transactions from {}".format(len(block_list),peer_ip))
 
                     else:
-                        app_log.warning("Local mempool is already full, skipping merging")
+                        app_log.info("Local mempool is already full, skipping merging")
                         return # avoid spamming of the logs
 
             except:
