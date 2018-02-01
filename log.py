@@ -1,6 +1,17 @@
 import logging, sys
 from logging.handlers import RotatingFileHandler
 
+
+def filter_status(record):
+    """"
+    Only displays log messages about status info
+    or ERROR level
+    """
+    if ("Status:" in record.msg) or (record.levelname == 'ERROR'):
+        return 1
+    return 0
+
+
 def log(logFile,level):
     if level == "INFO":
         level = logging.INFO
@@ -8,6 +19,8 @@ def log(logFile,level):
         level = logging.DEBUG
     if level == "WARNING":
         level = logging.WARNING
+    if level == "ERROR":
+        level = logging.ERROR
 
     log_formatter = logging.Formatter('%(asctime)s %(levelname)s %(funcName)s(%(lineno)d) %(message)s')
     my_handler = RotatingFileHandler(logFile, mode='a', maxBytes=5 * 1024 * 1024, backupCount=2, encoding=None, delay=0)
@@ -17,10 +30,18 @@ def log(logFile,level):
     app_log.setLevel(level)
     app_log.addHandler(my_handler)
 
+    # This part is what goes on console.
     ch = logging.StreamHandler(sys.stdout)
     ch.setLevel(level)
-    formatter = logging.Formatter('%(asctime)s %(funcName)s(%(lineno)d) %(message)s')
+    # TODO: We could have 2 level in the config, one for screen and one for files.
+    if level != "DEBUG":
+        ch.addFilter(filter_status)
+        # No need for complete func and line info here.
+        formatter = logging.Formatter('%(asctime)s %(message)s')
+    else:
+        formatter = logging.Formatter('%(asctime)s %(funcName)s(%(lineno)d) %(message)s')
     ch.setFormatter(formatter)
-    app_log.addHandler(ch)
+    app_log.addHandler(ch) 
+    
 
     return app_log
