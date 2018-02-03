@@ -114,8 +114,11 @@ else:
     signer = PKCS1_v1_5.new(key)
     signature = signer.sign(h)
     signature_enc = base64.b64encode(signature)
+    txid = signature_enc[:56]
 
     print("Encoded Signature: %s" % signature_enc.decode("utf-8"))
+    print("Transaction ID: %s" % txid.decode("utf-8"))
+
     verifier = PKCS1_v1_5.new(key)
 
     if verifier.verify(h, signature):
