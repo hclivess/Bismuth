@@ -23,7 +23,10 @@ Here are a few sample outputs.
 
 
 ```
-{"Status": "Unknown", "TxId": "bZ8/XjQhKX4GmlVmettD8H1+Tdh+FG8zXfghfdgh"}
+{
+ "Status": "Unknown", 
+ "TxId": "bZ8/XjQhKX4GmlVmettD8H1+Tdh+FG8zXfghfdgh"
+}
 ```
 
 ## Tx in Mempool
@@ -31,7 +34,16 @@ Here are a few sample outputs.
 `python3 check_tx.py anotheroneinthepool`
 
 ```
-{"Amount": 0, "Timestamp": 1517594747.07, "Address": "371a2a76a527d0a45aac441fc3170a9e609e59abd134aa4bca726211", "Recipient": "371a2a76a527d0a45aac441fc3170a9e609e59abd134aa4bca726211", "Block": 498059, "Openfield": "a9443a88b04834e8001ddc3569491d31a2b9c61765f99d1c62", "TxId": "bZ8/XjQhKX4GmlVmettD8H1+Tdh+FG8zX", "Status": "Mempool"}
+{
+ "Amount": 0, 
+ "Timestamp": 1517594747.07,
+ "Address": "371a2a76a527d0a45aac441fc3170a9e609e59abd134aa4bca726211",
+ "Recipient": "371a2a76a527d0a45aac441fc3170a9e609e59abd134aa4bca726211",
+ "Block": 498059,
+ "Openfield": "a9443a88b04834e8001ddc3569491d31a2b9c61765f99d1c62",
+ "TxId": "bZ8/XjQhKX4GmlVmettD8H1+Tdh+FG8zX",
+ "Status": "Mempool"
+}
 ```
 
 ## Confirmed Tx, in ledger
@@ -40,5 +52,15 @@ Here are a few sample outputs.
 `python3 check_tx.py bZ8/XjQhKX4GmlVmettD8H1+Tdh+FG8zX`
 
 ```
-{"Amount": 0, "Confirmations": 2, "Timestamp": 1517594747.07, "Address": "371a2a76a527d0a45aac441fc3170a9e609e59abd134aa4bca726211", "Recipient": "371a2a76a527d0a45aac441fc3170a9e609e59abd134aa4bca726211", "Block": 498059, "Openfield": "a9443a88b04834e8001ddc3569491d31a2b9c61765f99d1c62", "TxId": "bZ8/XjQhKX4GmlVmettD8H1+Tdh+FG8zX", "Status": "Confirmed"}
+{
+ "Amount": 0,
+ "Confirmations": 2,
+ "Timestamp": 1517594747.07,
+ "Address": "371a2a76a527d0a45aac441fc3170a9e609e59abd134aa4bca726211",
+ "Recipient": "371a2a76a527d0a45aac441fc3170a9e609e59abd134aa4bca726211",
+ "Block": 498059,
+ "Openfield": "a9443a88b04834e8001ddc3569491d31a2b9c61765f99d1c62",
+ "TxId": "bZ8/XjQhKX4GmlVmettD8H1+Tdh+FG8zX",
+ "Status": "Confirmed"
+}
 ```
