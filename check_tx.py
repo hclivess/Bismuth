@@ -79,4 +79,4 @@ if __name__ == "__main__":
 		res.update(details)
 		res["Confirmations"] = lastblock - res["Block"]
 	
-	print (json.dumps(res))
+	print(json.dumps(res))
