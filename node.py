@@ -64,6 +64,8 @@ version_allow = config.version_allow
 full_ledger = config.full_ledger_conf
 reveal_address=config.reveal_address
 accept_peers=config.accept_peers
+mempool_allowed = config.mempool_allowed
+
 #nodes_ban_reset=config.nodes_ban_reset
 
 #global banlist
@@ -74,7 +76,11 @@ accept_peers=config.accept_peers
 
 global peers
 
-def presence_check(cursor,signature):
+
+app_log = log.log("node.log", debug_level_conf)
+app_log.warning("Configuration settings loaded")
+
+def presence_check(cursor, signature):
     execute_param(cursor, ("SELECT * FROM transactions WHERE signature = ?;"), (signature,))
     try:
         dummy1 = cursor.fetchall()[0]
@@ -83,8 +89,9 @@ def presence_check(cursor,signature):
         result = "absent"
     return result
 
-def sendsync(sdef,peer_ip,status,provider):
-    app_log.warning("Outbound: Synchronization with {} finished after: {}, sending new sync request".format(peer_ip,status))
+
+def sendsync(sdef, peer_ip, status, provider):
+    app_log.warning("Outbound: Synchronization with {} finished after: {}, sending new sync request".format(peer_ip, status))
 
     if provider == "yes":
         peers.peers_save("peers.txt", peer_ip)
@@ -94,6 +101,7 @@ def sendsync(sdef,peer_ip,status,provider):
         time.sleep(float(pause_conf))
 
     connections.send(sdef, "sendsync", 10)
+
 
 def validate_pem(public_key):
     # verify pem as cryptodome does
@@ -111,7 +119,8 @@ def validate_pem(public_key):
         raise ValueError("Not a valid PEM post boundary")
         # verify pem as cryptodome does
 
-def fee_calculate(openfield): #move in model from wallet.py on a certain block
+
+def fee_calculate(openfield):  # move in model from wallet.py on a certain block
     fee = '%.8f' % float(0.01 + (float(len(openfield)) / 100000))  # 0.01 dust
     if "token:issue:" in openfield:
         fee = '%.8f' % (float(fee) + 10)
@@ -119,10 +128,11 @@ def fee_calculate(openfield): #move in model from wallet.py on a certain block
         fee = '%.8f' % (float(fee) + 1)
     return fee
 
+
 def download_file(url, filename):
     try:
         r = requests.get(url, stream=True)
-        total_size = int(r.headers.get('content-length'))/1024
+        total_size = int(r.headers.get('content-length')) / 1024
 
         with open(filename, 'wb') as filename:
             chunkno = 0
@@ -134,13 +144,14 @@ def download_file(url, filename):
 
                     filename.write(chunk)
                     filename.flush()
-            print ("Downloaded 100 %")
+            print("Downloaded 100 %")
 
         return filename
     except:
         raise
 
-if "testnet" in version: #overwrite for testnet
+
+if "testnet" in version:  # overwrite for testnet
     port = 2829
     full_ledger = 0
     hyper_path_conf = "static/test.db"
@@ -152,17 +163,17 @@ if "testnet" in version: #overwrite for testnet
         download_file("http://bismuth.cz/test.db", "static/test.db")
     else:
         print("Not redownloading test db")
-        
-#TODO : move this to peers also.
-else:
-    peerlist = "peers.txt" #might be better to keep peer.txt for better performance (provides filtering)
 
+# TODO : move this to peers also.
+else:
+    peerlist = "peers.txt"  # might be better to keep peer.txt for better performance (provides filtering)
 
 
 # load config
 
 def most_common(lst):
     return max(set(lst), key=lst.count)
+
 
 def bootstrap():
     try:
@@ -205,16 +216,14 @@ def percentage(percent, whole):
     return float((percent * whole) / 100)
 
 
-
-
 def db_to_drive(hdd, h, hdd2, h2):
     global hdd_block
 
     app_log.warning("Moving new data to HDD")
 
-    if ram_conf == 1: #select RAM as source database
+    if ram_conf == 1:  # select RAM as source database
         source_db = sqlite3.connect('file::memory:?cache=shared', uri=True, timeout=1)
-    else: #select hyper.db as source database
+    else:  # select hyper.db as source database
         source_db = sqlite3.connect(hyper_path_conf, timeout=1)
 
     source_db.text_factory = str
@@ -223,12 +232,12 @@ def db_to_drive(hdd, h, hdd2, h2):
     execute_param(sc, ("SELECT * FROM transactions WHERE block_height > ? ORDER BY block_height ASC"), (hdd_block,))
     result1 = sc.fetchall()
 
-    if full_ledger == 1: #we want to save to ledger.db from hyper.db
+    if full_ledger == 1:  # we want to save to ledger.db from hyper.db
         for x in result1:
             h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
         commit(hdd)
 
-    if ram_conf == 1: #we want to save to hyper.db from RAM
+    if ram_conf == 1:  # we want to save to hyper.db from RAM
         for x in result1:
             h2.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
         commit(hdd2)
@@ -236,12 +245,12 @@ def db_to_drive(hdd, h, hdd2, h2):
     execute_param(sc, ("SELECT * FROM misc WHERE block_height > ? ORDER BY block_height ASC"), (hdd_block,))
     result2 = sc.fetchall()
 
-    if full_ledger == 1: #we want to save to ledger.db from hyper.db
+    if full_ledger == 1:  # we want to save to ledger.db from hyper.db
         for x in result2:
             h.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
         commit(hdd)
 
-    if ram_conf == 1: #we want to save to hyper.db from RAM
+    if ram_conf == 1:  # we want to save to hyper.db from RAM
         for x in result2:
             h2.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
         commit(hdd2)
@@ -249,12 +258,12 @@ def db_to_drive(hdd, h, hdd2, h2):
     # reward
     execute_param(sc, ('SELECT * FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) > ?'), (hdd_block,))
     result3 = sc.fetchall()
-    if full_ledger == 1: #we want to save to ledger.db from hyper.db
+    if full_ledger == 1:  # we want to save to ledger.db from hyper.db
         for x in result3:
             h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
         commit(hdd)
 
-    elif ram_conf == 1: #we want to save to hyper.db from RAM
+    elif ram_conf == 1:  # we want to save to hyper.db from RAM
         for x in result3:
             h2.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
         commit(hdd2)
@@ -301,21 +310,18 @@ def db_c_define():
 
     return conn, c
 
+
 def db_m_define():
     mempool = sqlite3.connect('mempool.db', timeout=1)
     mempool.text_factory = str
     m = mempool.cursor()
     return mempool, m
 
+
 def mempool_purge(mempool, m):
     """Purge mempool from too old txs"""
     m.execute("DELETE FROM transactions WHERE timestamp <= strftime('%s', 'now', '-1 day');")
     mempool.commit()
-
-app_log = log.log("node.log", debug_level_conf)
-
-app_log.warning("Configuration settings loaded")
-
 
 def ledger_convert(ledger_path_conf, hyper_path_conf):
     try:
@@ -616,7 +622,7 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass):
                 block_list = data
 
                 for transaction in block_list:  # set means unique
-                    if (mempool_size < 0.3 or size_bypass == "yes") or (Decimal(transaction[3]) > Decimal(25) and mempool_size < 0.5) or (len(str(transaction[7])) > 200 and mempool_size < 0.4):
+                    if (mempool_size < 0.3 or size_bypass == "yes") or (Decimal(transaction[3]) > Decimal(25) and mempool_size < 0.5) or (len(str(transaction[7])) > 200 and mempool_size < 0.4) or (transaction[1] in mempool_allowed):
                        #condition 1: size limit or bypass, condition 2: spend more than 25 coins, condition 3: have length of openfield larger than 200
                        #all transactions in the mempool need to be cycled to check for special cases, therefore no while/break loop here
 

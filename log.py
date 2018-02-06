@@ -12,14 +12,14 @@ def filter_status(record):
     return 0
 
 
-def log(logFile,level):
-    if level == "INFO":
+def log(logFile,level_input):
+    if level_input == "INFO":
         level = logging.INFO
-    if level == "DEBUG":
+    if level_input == "DEBUG":
         level = logging.DEBUG
-    if level == "WARNING":
+    if level_input == "WARNING":
         level = logging.WARNING
-    if level == "ERROR":
+    if level_input == "ERROR":
         level = logging.ERROR
 
     log_formatter = logging.Formatter('%(asctime)s %(levelname)s %(funcName)s(%(lineno)d) %(message)s')
@@ -34,7 +34,8 @@ def log(logFile,level):
     ch = logging.StreamHandler(sys.stdout)
     ch.setLevel(level)
     # TODO: We could have 2 level in the config, one for screen and one for files.
-    if level != "DEBUG":
+    print ("Logging level: {} ({})".format(level_input,level))
+    if level_input != ("DEBUG" and "WARNING"):
         ch.addFilter(filter_status)
         # No need for complete func and line info here.
         formatter = logging.Formatter('%(asctime)s %(message)s')
