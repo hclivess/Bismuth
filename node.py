@@ -980,7 +980,7 @@ def manager(c, mempool, m):
 
 
 def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3):
-    global banlist, hdd_block
+    global hdd_block
     block_size = Decimal(sys.getsizeof(str(data))) / Decimal(1000000)
     app_log.warning("Block size: {} MB".format(block_size))
 
@@ -2346,7 +2346,7 @@ def worker(HOST, PORT):
                 #if max(consensus_blockheight_list) == int(received_block_height):
                 if int(received_block_height) == peers.consensus_max:
                     blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, mempool, m)
-                    if warning(s, peer_ip, "Rollback",1) == "banned":
+                    if peers.warning(s, peer_ip, "Rollback",1) == "banned":
                         raise ValueError("{} is banned".format(peer_ip))
 
                 sendsync(s, peer_ip, "Block not found", "no")
