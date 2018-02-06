@@ -76,7 +76,6 @@ mempool_allowed = config.mempool_allowed
 
 global peers
 
-
 app_log = log.log("node.log", debug_level_conf)
 app_log.warning("Configuration settings loaded")
 

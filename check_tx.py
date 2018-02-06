@@ -62,9 +62,9 @@ def is_in_ledger(txid):
 
 if __name__ == "__main__":
 	if len(sys.argv) != 2:
-		print("Usage: python3 check_tx.py [txid]")
-		sys.exit()
-	txid = sys.argv[1]
+		txid = input("No argument detected, please insert command manually\n")
+	else:
+		txid = sys.argv[1]
 
 	res = {"TxId":txid, "Status":"Unknown"}
 	
