@@ -622,7 +622,7 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass):
                 block_list = data
 
                 for transaction in block_list:  # set means unique
-                    if (mempool_size < 0.3 or size_bypass == "yes") or (Decimal(transaction[3]) > Decimal(25) and mempool_size < 0.5) or (len(str(transaction[7])) > 200 and mempool_size < 0.4) or (transaction[1] in mempool_allowed):
+                    if (mempool_size < 0.3 or size_bypass == "yes") or (Decimal(transaction[3]) > Decimal(25) and mempool_size < 0.5) or (len(str(transaction[7])) > 200 and mempool_size < 0.4) or (transaction[1] in mempool_allowed and mempool_size < 0.6):
                        #condition 1: size limit or bypass, condition 2: spend more than 25 coins, condition 3: have length of openfield larger than 200
                        #all transactions in the mempool need to be cycled to check for special cases, therefore no while/break loop here
 
