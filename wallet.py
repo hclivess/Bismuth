@@ -30,7 +30,8 @@ global key
 global encrypted
 global unlocked
 
-app_log = log.log("gui.log", debug_level)
+#app_log = log.log("gui.log", debug_level)
+app_log = log.log("gui.log", "WARNING")
 
 essentials.keys_check(app_log)
 essentials.db_check(app_log)
