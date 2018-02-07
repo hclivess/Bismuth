@@ -64,7 +64,10 @@ version_allow = config.version_allow
 full_ledger = config.full_ledger_conf
 reveal_address=config.reveal_address
 accept_peers=config.accept_peers
-mempool_allowed = config.mempool_allowed
+try:
+    mempool_allowed = config.mempool_allowed
+except:
+    mempool_allowed = []
 
 #nodes_ban_reset=config.nodes_ban_reset
 
@@ -75,6 +78,7 @@ mempool_allowed = config.mempool_allowed
 #whitelist=config.whitelist
 
 global peers
+
 
 app_log = log.log("node.log", debug_level_conf)
 app_log.warning("Configuration settings loaded")
@@ -524,7 +528,7 @@ def difficulty(c, mode):
     D = diff_block_previous
     # Assume current blocktime is known, calculcated from historic data, for example last 1440 blocks
     T = block_time
-    # Calculcate network hashrate
+    # Calculate network hashrate
     H = pow(2, D / Decimal(2.0)) / (T * math.ceil(28 - D / Decimal(16.0)))
     # Calculate new difficulty for desired blocktime of 60 seconds
     Td = Decimal(60.00)
@@ -1335,7 +1339,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
 
 if os.path.exists("fresh_sync"):
-    app_log.warning("Fresh sync required, bootstrapping from the website")
+    app_log.warning("Status: Fresh sync required, bootstrapping from the website")
     os.remove("fresh_sync")
     bootstrap()
 
@@ -1353,7 +1357,7 @@ if (len(public_key_readable)) != 271 and (len(public_key_readable)) != 799:
 public_key_hashed = base64.b64encode(public_key_readable.encode('utf-8'))
 address = hashlib.sha224(public_key_readable.encode('utf-8')).hexdigest()
 
-app_log.warning("Local address: {}".format(address))
+app_log.warning("Status: Local address: {}".format(address))
 
 # check if mempool needs recreating
 mempool = sqlite3.connect('mempool.db', timeout=1)
@@ -1369,13 +1373,13 @@ if len(m.fetchall()) != 8:
     execute(m, ("CREATE TABLE IF NOT EXISTS transactions (timestamp TEXT, address TEXT, recipient TEXT, amount TEXT, signature TEXT, public_key TEXT, keep TEXT, openfield TEXT)"))
 #   execute(m, ("CREATE TABLE IF NOT EXISTS transactions (timestamp NUMERIC, address TEXT, recipient TEXT, amount NUMERIC, signature TEXT, public_key TEXT, keep INTEGER, openfield TEXT)")) AFTER EVERYONE UPGRADES TO 4.1.4
     commit(mempool)
-    app_log.info("Recreated mempool file")
+    app_log.info("Status: Recreated mempool file")
 
 
 # check if mempool needs recreating
 
 def coherence_check():
-    app_log.warning("Testing chain coherence")
+    app_log.warning("Status: Testing chain coherence")
     if full_ledger == 1:
         chains_to_check = [ledger_path_conf, hyper_path_conf]
     else:
@@ -1430,7 +1434,7 @@ def coherence_check():
                         app_log.warning("Due to a coherence issue at block {}, {} has been rolled back and will be resynchronized".format(y, chain))
             y = x
 
-        app_log.warning("Chain coherence test complete for {}".format(chain))
+        app_log.warning("Status: Chain coherence test complete for {}".format(chain))
         conn.close()
 
 
@@ -1449,7 +1453,7 @@ try:
 
     if ram_conf == 1:
 
-        app_log.warning("Moving database to RAM")
+        app_log.warning("Status: Moving database to RAM")
         to_ram = sqlite3.connect('file::memory:?cache=shared', uri=True, timeout=1, isolation_level=None)
         to_ram.text_factory = str
         tr = to_ram.cursor()
@@ -1457,7 +1461,7 @@ try:
         query = "".join(line for line in source_db.iterdump())
         to_ram.executescript(query)
         #do not close
-        app_log.warning("Moved database to RAM")
+        app_log.warning("Status: Moved database to RAM")
 
 except Exception as e:
     app_log.info(e)
@@ -1491,7 +1495,7 @@ if verify_conf == 1:
 # init
 
 ### LOCAL CHECKS FINISHED ###
-app_log.warning("Starting...")
+app_log.warning("Status: Starting...")
 global startup_time
 startup_time = time.time()
 
@@ -2501,13 +2505,13 @@ if __name__ == "__main__":
 
             server_thread.daemon = True
             server_thread.start()
-            app_log.warning("Server loop running in thread: {}".format(server_thread.name))
+            app_log.warning("Status: Server loop running.")
         else:
-            app_log.warning("Not starting a local server to conceal identity on Tor network")
+            app_log.warning("Status: Not starting a local server to conceal identity on Tor network")
 
         # start connection manager
         t_manager = threading.Thread(target=manager(c,mempool,m))
-        app_log.warning("Starting connection manager")
+        app_log.warning("Status: Starting connection manager")
         t_manager.daemon = True
         t_manager.start()
         # start connection manager
@@ -2517,7 +2521,7 @@ if __name__ == "__main__":
         server.server_close()
 
     except Exception as e:
-        app_log.info("Node already running?")
+        app_log.info("Status: Node already running?")
         app_log.info(e)
         raise
 sys.exit()
