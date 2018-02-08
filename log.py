@@ -43,6 +43,5 @@ def log(logFile,level_input):
         formatter = logging.Formatter('%(asctime)s %(funcName)s(%(lineno)d) %(message)s')
     ch.setFormatter(formatter)
     app_log.addHandler(ch) 
-    
 
     return app_log
