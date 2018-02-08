@@ -1,4 +1,4 @@
-import sqlite3, time, keys, options
+import sqlite3, time, keys, options, re
 from bottle import route, run, static_file
 
 (key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read() #import keys
@@ -10,6 +10,10 @@ ledger_path_conf = config.ledger_path_conf
 full_ledger = config.full_ledger_conf
 ledger_path = config.ledger_path_conf
 hyper_path = config.hyper_path_conf
+
+def replace_regex(string,replace):
+    replaced_string = re.sub(r'^{}'.format(replace), "", string)
+    return replaced_string
 
 @route('/static/<filename>')
 def server_static(filename):
@@ -39,7 +43,7 @@ def hello():
         html.append("<br>")
         html.append("Content: ")
         html.append("<br><br>")
-        html.append(row[11].lstrip("html="))
+        html.append(replace_regex(row[11],"html="))
         html.append("<br><br>")
 
     joined = str(''.join(html))

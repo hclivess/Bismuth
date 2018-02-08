@@ -1,7 +1,8 @@
 # icons created using http://www.winterdrache.de/freeware/png2ico/
 import sqlite3
-import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, time, base64, connections, icons, log, socks, ast, options, tarfile, glob, essentials
+import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, time, base64, connections, icons, log, socks, ast, options, tarfile, glob, essentials, re
 from decimal import *
+
 
 config = options.Get()
 config.read()
@@ -48,6 +49,11 @@ except:
 root = Tk()
 root.wm_title("Bismuth Light Wallet running on {}".format(light_ip))
 
+
+def replace_regex(string,replace):
+    replaced_string = re.sub(r'^{}'.format(replace), "", string)
+    return replaced_string
+
 def alias_register(alias_desired):
     connections.send(s, "aliascheck", 10)
     connections.send(s, alias_desired, 10)
@@ -56,7 +62,7 @@ def alias_register(alias_desired):
 
 
     if result == "Alias free":
-        send("0", myaddress, "1", "alias="+alias_desired)
+        send("0", myaddress, "alias="+alias_desired)
         pass
     else:
         top9 = Toplevel()
@@ -346,7 +352,7 @@ def aliases_list():
     aliases_self = connections.receive(s, 10)
 
     for x in aliases_self:
-        aliases_box.insert(INSERT, x[0].lstrip("alias="))
+        aliases_box.insert(INSERT, replace_regex(x[0], "alias="))
         aliases_box.insert(INSERT,"\n")
 
     close = Button(top12, text="Close", command=top12.destroy)
@@ -684,7 +690,7 @@ def msg_dialogue(address):
                 msg_address = connections.receive(s,10)[0][0]
 
                 if x[11].startswith("enc=msg="):
-                    msg_received_digest = x[11].lstrip("enc=msg=")
+                    msg_received_digest = replace_regex(x[11],"enc=msg=")
                     try:
                         #msg_received_digest = key.decrypt(ast.literal_eval(msg_received_digest)).decode("utf-8")
 
@@ -701,7 +707,7 @@ def msg_dialogue(address):
                         msg_received_digest = "Could not decrypt message"
 
                 elif x[11].startswith("enc=bmsg="):
-                    msg_received_digest = x[11].lstrip("enc=bmsg=")
+                    msg_received_digest = replace_regex(x[11],"enc=bmsg=")
                     try:
                         msg_received_digest = base64.b64decode(msg_received_digest).decode("utf-8")
 
@@ -720,16 +726,15 @@ def msg_dialogue(address):
 
 
                 elif x[11].startswith("bmsg="):
-                    msg_received_digest = x[11].lstrip("bmsg=")
+                    msg_received_digest = replace_regex(x[11],"bmsg=")
                     try:
                         msg_received_digest = base64.b64decode(msg_received_digest).decode("utf-8")
                     except:
                         msg_received_digest = "Could not decode message"
                 elif x[11].startswith("msg="):
-                    msg_received_digest = x[11].lstrip("msg=")
+                    msg_received_digest = replace_regex(x[11],"msg=")
 
-
-                msg_received.insert(INSERT, ((time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(float(x[1])))) + " From " + msg_address.lstrip("alias=") + ": " + msg_received_digest) + "\n")
+                msg_received.insert(INSERT, ((time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(float(x[1])))) + " From " + replace_regex(msg_address,"alias=") + ": " + msg_received_digest) + "\n")
 
     def msg_sent_get(addlist):
 
@@ -743,7 +748,7 @@ def msg_dialogue(address):
                 msg_recipient =  received_aliases[0][0]
 
                 if x[11].startswith("enc=msg="):
-                    msg_sent_digest = x[11].lstrip("enc=msg=")
+                    msg_sent_digest = replace_regex(x[11],"enc=msg=")
                     try:
                         #msg_sent_digest = key.decrypt(ast.literal_eval(msg_sent_digest)).decode("utf-8")
                         (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval(msg_sent_digest)
@@ -759,7 +764,7 @@ def msg_dialogue(address):
                         msg_sent_digest = "Could not decrypt message"
 
                 elif x[11].startswith("enc=bmsg="):
-                    msg_sent_digest = x[11].lstrip("enc=bmsg=")
+                    msg_sent_digest = replace_regex(x[11],"enc=bmsg=")
                     try:
                         msg_sent_digest = base64.b64decode(msg_sent_digest).decode("utf-8")
                         #msg_sent_digest = key.decrypt(ast.literal_eval(msg_sent_digest)).decode("utf-8")
@@ -775,16 +780,16 @@ def msg_dialogue(address):
                         msg_sent_digest = "Could not decrypt message"
 
                 elif x[11].startswith("bmsg="):
-                    msg_sent_digest = x[11].lstrip("bmsg=")
+                    msg_sent_digest = replace_regex(x[11],"bmsg=")
                     try:
                         msg_sent_digest = base64.b64decode(msg_sent_digest).decode("utf-8")
                     except:
                         msg_received_digest = "Could not decode message"
 
                 elif x[11].startswith("msg="):
-                    msg_sent_digest = x[11].lstrip("msg=")
+                    msg_sent_digest = replace_regex(x[11],"msg=")
 
-                msg_sent.insert(INSERT, ((time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(float(x[1])))) + " To " + msg_recipient.lstrip("alias=") + ": " + msg_sent_digest) + "\n")
+                msg_sent.insert(INSERT, ((time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(float(x[1])))) + " To " + replace_regex(msg_recipient,"alias=") + ": " + msg_sent_digest) + "\n")
 
     # popup
     top11 = Toplevel()
@@ -950,13 +955,13 @@ def table(address, addlist_20):
         datasheet.append(datetime.fromtimestamp(float(db_timestamp)).strftime('%Y-%m-%d %H:%M:%S'))
 
         if resolve_var.get() == 1:
-            db_address = aliases_address_results[i].lstrip("alias=")
+            db_address = replace_regex(aliases_address_results[i],"alias=")
         else:
             db_address = row[2]
         datasheet.append(db_address)
 
         if resolve_var.get() == 1:
-            db_recipient = aliases_rec_results[i].lstrip("alias=")
+            db_recipient = replace_regex(aliases_rec_results[i],"alias=")
         else:
             db_recipient = row[3]
 

@@ -1,4 +1,4 @@
-import time, options, log, sqlite3, ast, os, keys, base64
+import time, options, log, sqlite3, ast, os, keys, base64, re
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
 from Crypto.PublicKey import RSA
@@ -15,6 +15,10 @@ hyper_path = config.hyper_path_conf
 
 (key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read() #import keys
 app_log = log.log("anon.log",debug_level)
+
+def replace_regex(string,replace):
+    replaced_string = re.sub(r'^{}'.format(replace), "", string)
+    return replaced_string
 
 def decrypt(encrypted):
 
@@ -115,7 +119,7 @@ while True:
             try:
                 #format: anon:number_of_txs:target_address (no msg, just encrypted)
                 print (row)
-                anon_recipient_encrypted = row[11].lstrip("enc=")
+                anon_recipient_encrypted = replace_regex(row[11], "enc=")
                 print(anon_recipient_encrypted)
                 anon_recipient = decrypt(anon_recipient_encrypted).decode("utf-8").split(":")[2]
                 print(anon_recipient)
