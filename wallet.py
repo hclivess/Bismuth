@@ -48,12 +48,10 @@ def node_connect():
         try:
             s.connect((light_ip, int(port)))
             app_log.warning("Status: Wallet connected")
-
             break
         except:
             app_log.warning("Status: Wallet cannot connect to the node, perhaps it is still starting up, retrying")
             time.sleep(1)
-            raise
 
 
 def replace_regex(string,replace):
@@ -888,12 +886,9 @@ def sign():
 
 
 def refresh_auto():
-    try:
-        root.after(0, refresh(gui_address.get(), s))
-        root.after(10000, refresh_auto)
-    except:
-        messagebox.showinfo("Connection Error", "Wallet lost connection to the node, will be restarted")
-        raise
+    root.after(0, refresh(gui_address.get(), s))
+    root.after(10000, refresh_auto)
+
 
 def table(address, addlist_20):
     # transaction table
@@ -1046,10 +1041,11 @@ def table(address, addlist_20):
                 # refreshables
 
 def refresh(address, s):
+
     global balance
     # print "refresh triggered"
-
     try:
+
         connections.send(s, "statusget", 10)
         statusget = connections.receive(s, 10)
         status_version = statusget[7]
@@ -1071,53 +1067,52 @@ def refresh(address, s):
         db_timestamp_last = block_get[1]
         hash_last = block_get[7]
 
+
+        # check difficulty
+        connections.send(s, "diffget", 10)
+        diff = connections.receive(s, 10)
+        # check difficulty
+
+
+        diff_msg = diff[1]
+
+        # network status
+        time_now = str(time.time())
+        last_block_ago = float(time_now) - float(db_timestamp_last)
+        if last_block_ago > 300:
+            sync_msg = "{}m behind".format((int(last_block_ago / 60)))
+            sync_msg_label.config(fg='red')
+        else:
+            sync_msg = "Last block: {}s ago".format((int(last_block_ago)))
+            sync_msg_label.config(fg='green')
+
+        # network status
+
+        # fees_current_var.set("Current Fee: {}".format('%.8f' % float(fee)))
+        balance_var.set("Balance: {}".format('%.8f' % float(balance)))
+        balance_raw.set('%.8f' % float(balance))
+        debit_var.set("Spent Total: {}".format('%.8f' % float(debit)))
+        credit_var.set("Received Total: {}".format('%.8f' % float(credit)))
+        fees_var.set("Fees Paid: {}".format('%.8f' % float(fees)))
+        rewards_var.set("Rewards: {}".format('%.8f' % float(rewards)))
+        bl_height_var.set("Block Height: {}".format(bl_height))
+        diff_msg_var.set("Mining Difficulty: {}".format('%.2f' % float(diff_msg)))
+        sync_msg_var.set("Network: {}".format(sync_msg))
+        version_var.set("Version: {}".format(status_version))
+        hash_var.set("Hash: {}...".format(hash_last[:6]))
+
+
+        connections.send(s, "addlistlim", 10)
+        connections.send(s, address, 10)
+        connections.send(s, "20", 10)
+        addlist = connections.receive(s, 10)
+        addlist_20 = addlist[:20]  # limit
+
+        table(address, addlist_20)
+        # root.after(1000, refresh)
     except:
-        pass
-
-    # check difficulty
-    connections.send(s, "diffget", 10)
-    diff = connections.receive(s, 10)
-    # check difficulty
-
-
-    diff_msg = diff[1]
-
-    # network status
-    time_now = str(time.time())
-    last_block_ago = float(time_now) - float(db_timestamp_last)
-    if last_block_ago > 300:
-        sync_msg = "{}m behind".format((int(last_block_ago / 60)))
-        sync_msg_label.config(fg='red')
-    else:
-        sync_msg = "Last block: {}s ago".format((int(last_block_ago)))
-        sync_msg_label.config(fg='green')
-
-    # network status
-
-    # fees_current_var.set("Current Fee: {}".format('%.8f' % float(fee)))
-    balance_var.set("Balance: {}".format('%.8f' % float(balance)))
-    balance_raw.set('%.8f' % float(balance))
-    debit_var.set("Spent Total: {}".format('%.8f' % float(debit)))
-    credit_var.set("Received Total: {}".format('%.8f' % float(credit)))
-    fees_var.set("Fees Paid: {}".format('%.8f' % float(fees)))
-    rewards_var.set("Rewards: {}".format('%.8f' % float(rewards)))
-    bl_height_var.set("Block Height: {}".format(bl_height))
-    diff_msg_var.set("Mining Difficulty: {}".format('%.2f' % float(diff_msg)))
-    sync_msg_var.set("Network: {}".format(sync_msg))
-    version_var.set("Version: {}".format(status_version))
-    hash_var.set("Hash: {}...".format(hash_last[:6]))
-
-
-    connections.send(s, "addlistlim", 10)
-    connections.send(s, address, 10)
-    connections.send(s, "20", 10)
-    addlist = connections.receive(s, 10)
-    addlist_20 = addlist[:20]  # limit
-
-    table(address, addlist_20)
-    # root.after(1000, refresh)
-
-
+        messagebox.showinfo("Connection error", "Connection to node aborted")
+        sys.exit(1)
 
 root = Tk()
 root.wm_title("Bismuth Light Wallet running on {}".format(light_ip))
