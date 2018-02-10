@@ -18,6 +18,8 @@ ledger_path_conf = config.ledger_path_conf
 full_ledger = config.full_ledger_conf
 ledger_path = config.ledger_path_conf
 hyper_path = config.hyper_path_conf
+terminal_output=config.terminal_output
+
 
 confirmations = 5
 run = 0

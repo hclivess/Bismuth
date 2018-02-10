@@ -38,7 +38,8 @@ class Get:
         "banlist":["list"],
         "whitelist":["list"],
         "nodes_ban_reset":["int"],
-        "mempool_allowed": ["list"]
+        "mempool_allowed": ["list"],
+        "terminal_output": ["str"]
     }
  
     def load_file(self,filename):

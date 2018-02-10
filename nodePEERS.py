@@ -65,6 +65,7 @@ version_allow = config.version_allow
 full_ledger = config.full_ledger_conf
 reveal_address=config.reveal_address
 accept_peers=config.accept_peers
+terminal_output=config.terminal_output
 #nodes_ban_reset=config.nodes_ban_reset
 
 #global banlist
@@ -314,7 +315,7 @@ def mempool_purge(mempool, m):
     m.execute("DELETE FROM transactions WHERE timestamp <= strftime('%s', 'now', '-1 day');")
     mempool.commit()
 
-app_log = log.log("node.log", debug_level_conf)
+app_log = log.log("node.log", debug_level_conf ,terminal_output)
 
 app_log.warning("Configuration settings loaded")
 

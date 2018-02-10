@@ -64,10 +64,8 @@ version_allow = config.version_allow
 full_ledger = config.full_ledger_conf
 reveal_address=config.reveal_address
 accept_peers=config.accept_peers
-try:
-    mempool_allowed = config.mempool_allowed
-except:
-    mempool_allowed = []
+mempool_allowed = config.mempool_allowed
+terminal_output=config.terminal_output
 
 #nodes_ban_reset=config.nodes_ban_reset
 
@@ -80,7 +78,7 @@ except:
 global peers
 
 
-app_log = log.log("node.log", debug_level_conf)
+app_log = log.log("node.log", debug_level_conf, terminal_output)
 app_log.warning("Configuration settings loaded")
 
 def presence_check(cursor, signature):
@@ -161,7 +159,7 @@ if "testnet" in version:  # overwrite for testnet
     hyper_recompress_conf = 0
     peerlist = "peers_test.txt"
 
-    redownload_test = input("Welcome to the testnet. Redownload test ledger? y/n")
+    redownload_test = input("Status: Welcome to the testnet. Redownload test ledger? y/n")
     if redownload_test == "y" or not os.path.exists("static/test.db"):
         download_file("http://bismuth.cz/test.db", "static/test.db")
     else:
@@ -206,7 +204,7 @@ def check_integrity(database):
         redownload = 1
 
     if len(l.fetchall()) != 12:
-        app_log.warning("Integrity check on database failed, bootstrapping from the website")
+        app_log.warning("Status: Integrity check on database failed, bootstrapping from the website")
         redownload = 1
     else:
         ledger_check.close()
@@ -329,6 +327,11 @@ def mempool_purge(mempool, m):
 def ledger_convert(ledger_path_conf, hyper_path_conf):
     try:
 
+        #if os.path.exists(hyper_path_conf+".temp"):
+        #    os.remove(hyper_path_conf+".temp")
+        #    app_log.warning("Status: Removed old temporary hyperblock file")
+        #    time.sleep(100)
+
         if os.path.exists(hyper_path_conf):
 
             if full_ledger == 1:
@@ -350,23 +353,23 @@ def ledger_convert(ledger_path_conf, hyper_path_conf):
 
                 if hdd_block_last == hdd2_block_last and hyper_recompress_conf == 1:  # cross-integrity check
                     ledger_path_conf = hyper_path_conf  # only valid within the function
-                    app_log.warning("Recompressing hyperblocks (keeping full ledger)")
+                    app_log.warning("Staus: Recompressing hyperblocks (keeping full ledger)")
                     recompress = 1
                 elif hdd_block_last == hdd2_block_last and hyper_recompress_conf == 0:
-                    app_log.warning("Hyperblock recompression skipped")
+                    app_log.warning("Status: Hyperblock recompression skipped")
                     recompress = 0
                 else:
-                    app_log.warning("Cross-integrity check failed, hyperblocks will be rebuilt from full ledger")
+                    app_log.warning("Status: Cross-integrity check failed, hyperblocks will be rebuilt from full ledger")
                     recompress = 1
             else:
                 if hyper_recompress_conf == 1:
-                    app_log.warning("Recompressing hyperblocks (without full ledger)")
+                    app_log.warning("Status: Recompressing hyperblocks (without full ledger)")
                     recompress = 1
                 else:
-                    app_log.warning("Hyperblock recompression skipped")
+                    app_log.warning("Status: Hyperblock recompression skipped")
                     recompress = 0
         else:
-            app_log.warning("Compressing ledger to Hyperblocks")
+            app_log.warning("Status: Compressing ledger to Hyperblocks")
             recompress = 1
 
         if recompress == 1:
@@ -1402,13 +1405,13 @@ def coherence_check():
                 for chain2 in chains_to_check:
                     conn2 = sqlite3.connect(chain2)
                     c2 = conn2.cursor()
-                    app_log.warning("Chain {} difficulty coherence error at: {}".format(chain, y))
+                    app_log.warning("Status: Chain {} difficulty coherence error at: {}".format(chain, y))
                     c2.execute("DELETE FROM transactions WHERE block_height >= ?", (y,))
                     conn2.commit()
                     c2.execute("DELETE FROM misc WHERE block_height >= ?", (y,))
                     conn2.commit()
                     conn2.close()
-                    app_log.warning("Due to a coherence issue at block {}, {} has been rolled back and will be resynchronized".format(y, chain))
+                    app_log.warning("Status: Due to a coherence issue at block {}, {} has been rolled back and will be resynchronized".format(y, chain))
             y = x
 
         c.execute("SELECT block_height FROM misc ORDER BY block_height ASC")
@@ -1425,13 +1428,13 @@ def coherence_check():
                     for chain2 in chains_to_check:
                         conn2 = sqlite3.connect(chain2)
                         c2 = conn2.cursor()
-                        app_log.warning("Chain {} difficulty coherence error at: {}".format(chain, y))
+                        app_log.warning("Status: Chain {} difficulty coherence error at: {}".format(chain, y))
                         c2.execute("DELETE FROM transactions WHERE block_height >= ?", (y,))
                         conn2.commit()
                         c2.execute("DELETE FROM misc WHERE block_height >= ?", (y,))
                         conn2.commit()
                         conn2.close()
-                        app_log.warning("Due to a coherence issue at block {}, {} has been rolled back and will be resynchronized".format(y, chain))
+                        app_log.warning("Status: Due to a coherence issue at block {}, {} has been rolled back and will be resynchronized".format(y, chain))
             y = x
 
         app_log.warning("Status: Chain coherence test complete for {}".format(chain))
@@ -1482,7 +1485,7 @@ def db_maintenance():
     # db maintenance
     execute(conn, "VACUUM")
     execute(mempool, "VACUUM")
-    app_log.warning("Database maintenance finished")
+    app_log.warning("Status: Database maintenance finished")
 
 
 if rebuild_db_conf == 1:

@@ -11,6 +11,8 @@ full_ledger = config.full_ledger_conf
 port = config.port
 light_ip = config.light_ip_conf
 version = config.version_conf
+terminal_output=config.terminal_output
+
 
 if "testnet" in version:
     port = 2829
@@ -32,7 +34,7 @@ global encrypted
 global unlocked
 
 #app_log = log.log("gui.log", debug_level)
-app_log = log.log("gui.log", "WARNING")
+app_log = log.log("gui.log", debug_level, terminal_output)
 
 essentials.keys_check(app_log)
 essentials.db_check(app_log)

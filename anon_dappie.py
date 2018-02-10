@@ -11,10 +11,12 @@ ledger_path_conf = config.ledger_path_conf
 full_ledger = config.full_ledger_conf
 ledger_path = config.ledger_path_conf
 hyper_path = config.hyper_path_conf
+terminal_output=config.terminal_output
+
 
 
 (key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read() #import keys
-app_log = log.log("anon.log",debug_level)
+app_log = log.log("anon.log",debug_level,terminal_output)
 
 def replace_regex(string,replace):
     replaced_string = re.sub(r'^{}'.format(replace), "", string)

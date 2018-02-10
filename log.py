@@ -2,6 +2,7 @@ import logging, sys
 from logging.handlers import RotatingFileHandler
 
 
+
 def filter_status(record):
     """"
     Only displays log messages about status info
@@ -9,10 +10,11 @@ def filter_status(record):
     """
     if ("Status:" in record.msg) or (record.levelname == 'ERROR'):
         return 1
-    return 0
+    else:
+        return 0
 
 
-def log(logFile,level_input):
+def log(logFile,level_input, terminal_output):
     if level_input == "INFO":
         level = logging.INFO
     if level_input == "DEBUG":
@@ -35,7 +37,7 @@ def log(logFile,level_input):
     ch.setLevel(level)
     # TODO: We could have 2 level in the config, one for screen and one for files.
     print ("Logging level: {} ({})".format(level_input,level))
-    if level_input not in ("DEBUG", "WARNING"):
+    if terminal_output != "yes":
         ch.addFilter(filter_status)
         # No need for complete func and line info here.
         formatter = logging.Formatter('%(asctime)s %(message)s')
