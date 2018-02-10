@@ -8,7 +8,7 @@ def filter_status(record):
     Only displays log messages about status info
     or ERROR level
     """
-    if ("Status:" in record.msg) or (record.levelname == 'ERROR'):
+    if ("Status:" in str(record.msg)) or (record.levelname == 'ERROR'):
         return 1
     else:
         return 0

@@ -42,14 +42,18 @@ essentials.db_check(app_log)
 s = socks.socksocket()
 s.settimeout(3)
 
-try:
-    s.connect((light_ip, int(port)))
-except:
-    messagebox.showinfo("Connection Error", "Wallet cannot connect to the node")
-    raise
 
-root = Tk()
-root.wm_title("Bismuth Light Wallet running on {}".format(light_ip))
+def node_connect():
+    while True:
+        try:
+            s.connect((light_ip, int(port)))
+            app_log.warning("Status: Wallet connected")
+
+            break
+        except:
+            app_log.warning("Status: Wallet cannot connect to the node, perhaps it is still starting up, retrying")
+            time.sleep(1)
+            raise
 
 
 def replace_regex(string,replace):
@@ -888,8 +892,8 @@ def refresh_auto():
         root.after(0, refresh(gui_address.get(), s))
         root.after(10000, refresh_auto)
     except:
-        messagebox.showinfo("Connection Error", "Wallet lost connection to the node")
-        sys.exit(1)
+        messagebox.showinfo("Connection Error", "Wallet lost connection to the node, will be restarted")
+        raise
 
 def table(address, addlist_20):
     # transaction table
@@ -1113,9 +1117,13 @@ def refresh(address, s):
     table(address, addlist_20)
     # root.after(1000, refresh)
 
+
+
+root = Tk()
+root.wm_title("Bismuth Light Wallet running on {}".format(light_ip))
+
 img = Image("photo", file="graphics/icon.gif")
 root.tk.call('wm','iconphoto',root._w,img)
-
 
 
 password_var_enc = StringVar()
@@ -1354,5 +1362,6 @@ logo = PhotoImage(data=logo_hash_decoded)
 image = Label(f2, image=logo).grid(pady=25, padx=50, sticky=N)
 # logo
 
+node_connect()
 refresh_auto()
 root.mainloop()
