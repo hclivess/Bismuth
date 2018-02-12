@@ -3,6 +3,8 @@ import sqlite3
 import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, time, base64, connections, icons, log, socks, ast, options, tarfile, glob, essentials, re
 from decimal import *
 
+getcontext().prec = 8  # decimal places
+print(getcontext())
 
 config = options.Get()
 config.read()
@@ -110,17 +112,16 @@ def all_spend_clear():
 def all_spend():
     fee_from_all = fee_calculate(openfield.get("1.0", END).strip())
     amount.delete(0, END)
-    amount.insert(0,'%.8f' % (float(balance_raw.get()) - float(fee_from_all)))
+    amount.insert(0, (Decimal(balance_raw.get()) - Decimal(fee_from_all)))
 
 
 def fee_calculate(openfield):
-    getcontext().prec = 8
-    fee = Decimal(0.01) + (Decimal(len(openfield)) / 100000)  # 0.01 dust
+    fee = Decimal("0.01") + (Decimal(len(openfield)) / 100000)  # 0.01 dust
     if "token:issue:" in openfield:
         fee = Decimal(fee) + Decimal(10)
     if "alias=" in openfield:
         fee = Decimal(fee) + Decimal(1)
-    return float(fee) #float temporarily
+    return fee
 
 def tokens_update():
     conn = sqlite3.connect('static/ledger.db')
@@ -290,7 +291,7 @@ def tokens():
         debit = 0 if debit is None else debit
         credit = 0 if credit is None else credit
 
-        balance = credit - debit
+        balance = Decimal(credit) - Decimal(debit)
 
         token_box.insert(END, (token,":", balance))
     # callback
@@ -383,7 +384,7 @@ def recipient_copy():
     root.clipboard_append(recipient.get())
 
 def percentage(percent, whole):
-    return float((percent * whole) / 100)
+    return (Decimal(percent) * Decimal(whole) / 100)
 
 def alias():
     alias_var = StringVar()
@@ -554,7 +555,7 @@ def send_confirm(amount_input, recipient_input, openfield_input):
     fee = fee_calculate(openfield_input)
 
     confirmation_dialog = Text(top10, width=100)
-    confirmation_dialog.insert(INSERT, ("Amount: {}\nFee: {}\nTotal: {}\nTo: {}\nOpenField:\n\n{}".format(amount_input, fee, '%.8f' % (float(amount_input)+float(fee)), recipient_input, openfield_input)))
+    confirmation_dialog.insert(INSERT, ("Amount: {}\nFee: {}\nTotal: {}\nTo: {}\nOpenField:\n\n{}".format(amount_input, fee, Decimal(amount_input) + Decimal(fee), recipient_input, openfield_input)))
 
     confirmation_dialog.grid(row=0, pady=0)
 
@@ -583,7 +584,7 @@ def send(amount_input, recipient_input, openfield_input):
     app_log.warning("Received tx command")
 
     try:
-        float(amount_input)
+        Decimal(amount_input)
     except:
         top7 = Toplevel()
         top7.title("Invalid amount")
@@ -609,7 +610,7 @@ def send(amount_input, recipient_input, openfield_input):
 
         timestamp = '%.2f' % time.time()
         keep_input = "0"
-        transaction = (str(timestamp), str(myaddress), str(recipient_input), '%.8f' % float(amount_input), str(keep_input), str(openfield_input))  # this is signed
+        transaction = (str(timestamp), str(myaddress), str(recipient_input), '%.8f' % float(amount_input), str(keep_input), str(openfield_input))  # this is signed, float kept for compatibility
 
         h = SHA.new(str(transaction).encode("utf-8"))
         signer = PKCS1_v1_5.new(key)
@@ -621,10 +622,10 @@ def send(amount_input, recipient_input, openfield_input):
         if verifier.verify(h, signature) == True:
             fee = fee_calculate(openfield_input)
 
-            if float(amount_input) < 0:
+            if Decimal(amount_input) < 0:
                 app_log.warning("Client: Signature OK, but cannot use negative amounts")
 
-            elif (float(amount_input) + float(fee) > float(balance)):
+            elif (Decimal(amount_input) + Decimal(fee) > Decimal(balance)):
                 print(amount_input,fee,balance)
                 app_log.warning("Mempool: Sending more than owned")
 
@@ -632,7 +633,7 @@ def send(amount_input, recipient_input, openfield_input):
                 app_log.warning("Client: The signature is valid, proceeding to save transaction, signature, new txhash and the public key to mempool")
 
                 # print(str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input),str(signature_enc), str(public_key_hashed), str(keep_input), str(openfield_input))
-                tx_submit = (str(timestamp), str(myaddress), str(recipient_input), '%.8f' % float(amount_input), str(signature_enc.decode("utf-8")), str(public_key_hashed.decode("utf-8")), str(keep_input), str(openfield_input))
+                tx_submit = (str(timestamp), str(myaddress), str(recipient_input), '%.8f' % float(amount_input), str(signature_enc.decode("utf-8")), str(public_key_hashed.decode("utf-8")), str(keep_input), str(openfield_input)) #float kept for compatibility
 
                 while True:
                     connections.send(s, "mpinsert", 10)
@@ -738,7 +739,7 @@ def msg_dialogue(address):
                 elif x[11].startswith("msg="):
                     msg_received_digest = replace_regex(x[11],"msg=")
 
-                msg_received.insert(INSERT, ((time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(float(x[1])))) + " From " + replace_regex(msg_address,"alias=") + ": " + msg_received_digest) + "\n")
+                msg_received.insert(INSERT, ((time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(Decimal(x[1])))) + " From " + replace_regex(msg_address,"alias=") + ": " + msg_received_digest) + "\n")
 
     def msg_sent_get(addlist):
 
@@ -793,7 +794,7 @@ def msg_dialogue(address):
                 elif x[11].startswith("msg="):
                     msg_sent_digest = replace_regex(x[11],"msg=")
 
-                msg_sent.insert(INSERT, ((time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(float(x[1])))) + " To " + replace_regex(msg_recipient,"alias=") + ": " + msg_sent_digest) + "\n")
+                msg_sent.insert(INSERT, ((time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(Decimal(x[1])))) + " To " + replace_regex(msg_recipient,"alias=") + ": " + msg_sent_digest) + "\n")
 
     # popup
     top11 = Toplevel()
@@ -953,7 +954,7 @@ def table(address, addlist_20):
 
 
         db_timestamp = row[1]
-        datasheet.append(datetime.fromtimestamp(float(db_timestamp)).strftime('%Y-%m-%d %H:%M:%S'))
+        datasheet.append(datetime.fromtimestamp(Decimal(db_timestamp)).strftime('%Y-%m-%d %H:%M:%S'))
 
         if resolve_var.get() == 1:
             db_address = replace_regex(aliases_address_results[i],"alias=")
@@ -970,8 +971,8 @@ def table(address, addlist_20):
         db_amount = row[4]
         db_reward = row[9]
         db_openfield = row[11]
-        datasheet.append('%.8f' % (float(db_amount) + float(db_reward)))
-        if float(db_reward) > 0:
+        datasheet.append(str(Decimal(db_amount) + Decimal(db_reward)))
+        if Decimal(db_reward) > 0:
             symbol = "Mined"
         elif db_openfield.startswith("bmsg"):
             symbol = "b64 Message"
@@ -1074,11 +1075,11 @@ def refresh(address, s):
         # check difficulty
 
 
-        diff_msg = diff[1]
+        diff_msg = int(diff[1]) #integer is enough
 
         # network status
         time_now = str(time.time())
-        last_block_ago = float(time_now) - float(db_timestamp_last)
+        last_block_ago = Decimal(time_now) - Decimal(db_timestamp_last)
         if last_block_ago > 300:
             sync_msg = "{}m behind".format((int(last_block_ago / 60)))
             sync_msg_label.config(fg='red')
@@ -1089,14 +1090,14 @@ def refresh(address, s):
         # network status
 
         # fees_current_var.set("Current Fee: {}".format('%.8f' % float(fee)))
-        balance_var.set("Balance: {}".format('%.8f' % float(balance)))
-        balance_raw.set('%.8f' % float(balance))
-        debit_var.set("Spent Total: {}".format('%.8f' % float(debit)))
-        credit_var.set("Received Total: {}".format('%.8f' % float(credit)))
-        fees_var.set("Fees Paid: {}".format('%.8f' % float(fees)))
-        rewards_var.set("Rewards: {}".format('%.8f' % float(rewards)))
+        balance_var.set("Balance: {}".format(balance))
+        balance_raw.set(balance)
+        debit_var.set("Spent Total: {}".format(debit))
+        credit_var.set("Received Total: {}".format(credit))
+        fees_var.set("Fees Paid: {}".format(fees))
+        rewards_var.set("Rewards: {}".format(rewards))
         bl_height_var.set("Block Height: {}".format(bl_height))
-        diff_msg_var.set("Mining Difficulty: {}".format('%.2f' % float(diff_msg)))
+        diff_msg_var.set("Mining Difficulty: {}".format(diff_msg))
         sync_msg_var.set("Network: {}".format(sync_msg))
         version_var.set("Version: {}".format(status_version))
         hash_var.set("Hash: {}...".format(hash_last[:6]))
@@ -1112,6 +1113,7 @@ def refresh(address, s):
         # root.after(1000, refresh)
     except:
         messagebox.showinfo("Connection error", "Connection to node aborted")
+        raise
         sys.exit(1)
 
 root = Tk()
