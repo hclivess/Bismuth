@@ -12,7 +12,7 @@ def percentage(percent, whole):
 
 def fee_calculate(openfield):
     getcontext().prec = 8
-    fee = Decimal(0.01) + (Decimal(len(openfield)) / 100000)  # 0.01 dust
+    fee = Decimal("0.01") + (Decimal(len(openfield)) / 100000)  # 0.01 dust
     if "token:issue:" in openfield:
         fee = Decimal(fee) + Decimal(10)
     if "alias=" in openfield:
@@ -137,7 +137,6 @@ while True:
             bet_amount = float(y[4])
             tx_signature = y[5]  # unique
             #print y
-
 
             # create transactions for missing payouts
             timestamp = '%.2f' % time.time()
