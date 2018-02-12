@@ -3,6 +3,7 @@ from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import AES, PKCS1_OAEP
+from decimal import *
 
 config = options.Get()
 config.read()
@@ -17,6 +18,15 @@ terminal_output=config.terminal_output
 
 (key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read() #import keys
 app_log = log.log("anon.log",debug_level,terminal_output)
+
+def fee_calculate(openfield):
+    getcontext().prec = 8
+    fee = Decimal(0.01) + (Decimal(len(openfield)) / 100000)  # 0.01 dust
+    if "token:issue:" in openfield:
+        fee = Decimal(fee) + Decimal(10)
+    if "alias=" in openfield:
+        fee = Decimal(fee) + Decimal(1)
+    return float(fee) #float temporarily
 
 def replace_regex(string,replace):
     replaced_string = re.sub(r'^{}'.format(replace), "", string)
@@ -55,7 +65,7 @@ def anonymize(tx_count, per_tx, remainder, anon_recipient, identifier, anon_send
             #construct tx
             openfield = "mixer"
             keep = 0
-            fee = float('%.8f' % float(0.01 + (float(per_tx) * 0.001) + (float(len(openfield)) / 100000) + (float(keep) / 10)))  # 0.1% + 0.01 dust
+            fee = fee_calculate(openfield)
 
             timestamp = '%.2f' % time.time()
             transaction = (str(timestamp), str(address), str(anon_recipient), '%.8f' % float(per_tx - fee), str(keep), str(openfield))  # this is signed

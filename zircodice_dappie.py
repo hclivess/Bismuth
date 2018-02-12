@@ -4,10 +4,20 @@ from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
 import re
 import time
+from decimal import *
 
 
 def percentage(percent, whole):
   return (percent * whole) / 100.0
+
+def fee_calculate(openfield):
+    getcontext().prec = 8
+    fee = Decimal(0.01) + (Decimal(len(openfield)) / 100000)  # 0.01 dust
+    if "token:issue:" in openfield:
+        fee = Decimal(fee) + Decimal(10)
+    if "alias=" in openfield:
+        fee = Decimal(fee) + Decimal(1)
+    return float(fee) #float temporarily
 
 (key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read()
 
@@ -135,7 +145,9 @@ while True:
             payout_amount = float(bet_amount * 2) - percentage(1, bet_amount)
             payout_openfield = "payout for " + tx_signature[:8]
             payout_keep = 0
-            fee = float(0.01 + (float(payout_amount) * 0.001) + (float(len(payout_openfield)) / 100000) + (float(payout_keep) / 10))  # 0.1% + 0.01 dust
+            fee = fee_calculate(payout_openfield)
+
+            #float(0.01 + (float(payout_amount) * 0.001) + (float(len(payout_openfield)) / 100000) + (float(payout_keep) / 10))  # 0.1% + 0.01 dust
 
             transaction = (str(timestamp), str(address), str(payout_address), '%.8f' % float(payout_amount-fee), str(payout_keep), str(payout_openfield))  # this is signed
             print(transaction)
