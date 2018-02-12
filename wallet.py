@@ -1115,6 +1115,7 @@ def refresh(address, s):
         sys.exit(1)
 
 root = Tk()
+
 root.wm_title("Bismuth Light Wallet running on {}".format(light_ip))
 
 img = Image("photo", file="graphics/icon.gif")
