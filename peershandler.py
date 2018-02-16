@@ -22,7 +22,7 @@ class Peers:
     """The peers manager. A thread safe peers manager"""
 
     __slots__ = ('app_log','config','logstats','peersync_lock','startup_time','reset_time','warning_list','stats','connection_pool',
-                'peer_ip_list','consensus_blockheight_list','consensus_percentage','consensus','tried','peer_dict','connection_pool','peerlist','banlist','whitelist')
+                'peer_ip_list','consensus_blockheight_list','consensus_percentage','consensus','tried','peer_dict','connection_pool','peerlist','banlist','whitelist','ban_threshold')
 
     def __init__(self, app_log, config=None, logstats=True):
         self.app_log = app_log
@@ -45,6 +45,7 @@ class Peers:
         # We store them apart from the initial config, could diverge somehow later on.
         self.banlist = config.banlist
         self.whitelist = config.whitelist
+        self.ban_threshold = config.ban_threshold
 
         # From manager(), init
         self.peer_dict.update(self.peers_get("peers.txt"))
