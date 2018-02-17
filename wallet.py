@@ -1,6 +1,7 @@
 # icons created using http://www.winterdrache.de/freeware/png2ico/
 import sqlite3
 import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, time, base64, connections, icons, log, socks, ast, options, tarfile, glob, essentials, re
+from tokens import *
 from decimal import *
 
 getcontext().prec = 8  # decimal places
@@ -123,203 +124,6 @@ def fee_calculate(openfield):
         fee = Decimal(fee) + Decimal(1)
     return fee
 
-def tokens_update():
-    conn = sqlite3.connect('static/ledger.db')
-    conn.text_factory = str
-    c = conn.cursor()
-
-    tok = sqlite3.connect('tokens.db')
-    tok.text_factory = str
-    t = tok.cursor()
-    t.execute("CREATE TABLE IF NOT EXISTS transactions (block_height INTEGER, timestamp, token, address, recipient, amount INTEGER)")
-    tok.commit()
-
-    t.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
-    try:
-        token_last_block = int(t.fetchone()[0])
-    except:
-        token_last_block = 0
-    print("token_last_block", token_last_block)
-
-    # print all token issuances
-    c.execute("SELECT block_height, timestamp, address, recipient, openfield FROM transactions WHERE block_height > ? AND openfield LIKE ? AND reward = 0 ORDER BY block_height ASC;", (token_last_block,) + ("token:issue" + '%',))
-    results = c.fetchall()
-    print(results)
-
-    tokens_processed = []
-
-    for x in results:
-        if x[4].split(":")[2].lower().strip() not in tokens_processed:
-            block_height = x[0]
-            print("block_height", block_height)
-
-            timestamp = x[1]
-            print("timestamp", timestamp)
-
-            token = x[4].split(":")[2].lower().strip()
-            tokens_processed.append(token)
-            print("token", token)
-
-            issued_by = x[3]
-            print("issued_by", issued_by)
-
-            total = x[4].split(":")[3]
-            print("total", total)
-
-            t.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?)", (block_height, timestamp, token, "issued", issued_by, total))
-        else:
-            print("issuance already processed:", x[1])
-
-    tok.commit()
-    # print all token issuances
-
-    print("---")
-
-    # print all transfers of a given token
-    # token = "worthless"
-
-
-    c.execute("SELECT openfield FROM transactions WHERE block_height > ? AND openfield LIKE ? and reward = 0 ORDER BY block_height ASC;", (token_last_block,) + ("token:transfer" + '%',))
-    openfield_transfers = c.fetchall()
-
-    tokens_transferred = []
-    for transfer in openfield_transfers:
-        if transfer[0].split(":")[2].lower().strip() not in tokens_transferred:
-            tokens_transferred.append(transfer[0].split(":")[2].lower().strip())
-
-    print("tokens_transferred",tokens_transferred)
-
-    for token in tokens_transferred:
-        print("processing", token)
-        c.execute("SELECT block_height, timestamp, address, recipient, openfield FROM transactions WHERE block_height > ? AND openfield LIKE ? AND reward = 0 ORDER BY block_height ASC;", (token_last_block,) + ("token:transfer:" + token + ':%',))
-        results2 = c.fetchall()
-        print(results2)
-
-        for r in results2:
-            block_height = r[0]
-            print("block_height", block_height)
-
-            timestamp = r[1]
-            print("timestamp", timestamp)
-
-            token = r[4].split(":")[2]
-            print("token", token, "operation")
-
-            sender = r[2]
-            print("transfer_from", sender)
-
-            recipient = r[3]
-            print("transfer_to", recipient)
-
-            try:
-                print (r[4])
-                transfer_amount = int(r[4].split(":")[3])
-            except:
-                transfer_amount = 0
-
-            print("transfer_amount", transfer_amount)
-
-            # calculate balances
-            t.execute("SELECT sum(amount) FROM transactions WHERE recipient = ? AND block_height < ? AND token = ?", (sender,) + (block_height,) + (token,))
-            try:
-                credit_sender = int(t.fetchone()[0])
-            except:
-                credit_sender = 0
-            print("credit_sender", credit_sender)
-
-            t.execute("SELECT sum(amount) FROM transactions WHERE address = ? AND block_height <= ? AND token = ?", (sender,) + (block_height,) + (token,))
-            try:
-                debit_sender = int(t.fetchone()[0])
-            except:
-                debit_sender = 0
-            print("debit_sender", debit_sender)
-            # calculate balances
-
-            # print all token transfers
-            balance_sender = credit_sender - debit_sender
-            print("balance_sender", balance_sender)
-
-            if balance_sender - transfer_amount >= 0 or transfer_amount < 0:
-                t.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?)", (block_height, timestamp, token, sender, recipient, transfer_amount))
-            else:
-                print("invalid transaction by", sender)
-            print("---")
-
-        tok.commit()
-
-    conn.close()
-
-def token_transfer(token, amount, window):
-    openfield.delete('1.0', END)  # remove previous
-    openfield.insert(INSERT, "token:transfer:{}:{}".format(token, amount))
-    window.destroy()
-
-def token_issue(token, amount, window):
-    openfield.delete('1.0', END)  # remove previous
-    openfield.insert(INSERT, "token:issue:{}:{}".format(token, amount))
-    recipient.delete(0, END)
-    recipient.insert(INSERT, myaddress)
-    window.destroy()
-    send_confirm(amount,myaddress,0,"token:issue:{}:{}".format(token, amount))
-
-def tokens():
-    tokens_update() #catch up with the chain
-
-    address = gui_address.get()
-    tokens_main = Toplevel()
-    tokens_main.title("Tokens")
-
-    tok = sqlite3.connect('tokens.db')
-    tok.text_factory = str
-    t = tok.cursor()
-
-    t.execute("SELECT DISTINCT token FROM transactions WHERE address OR recipient = ?", (address,))
-    tokens_user = t.fetchall()
-    print ("tokens_user",tokens_user)
-
-    token_box = Listbox(tokens_main, width=100)
-    token_box.grid(row=0, pady=0)
-
-
-    for token in tokens_user:
-        token = token[0]
-        t.execute("SELECT sum(amount) FROM transactions WHERE recipient = ? AND token = ?;", (address,)+(token,))
-        credit = t.fetchone()[0]
-        t.execute("SELECT sum(amount) FROM transactions WHERE address = ? AND token = ?;", (address,)+(token,))
-        debit = t.fetchone()[0]
-
-        debit = 0 if debit is None else debit
-        credit = 0 if credit is None else credit
-
-        balance = Decimal(credit) - Decimal(debit)
-
-        token_box.insert(END, (token,":", balance))
-    # callback
-    def callback(event):
-        token_select = (token_box.get(token_box.curselection()[0]))
-        token_name_var.set(token_select[0])
-        token_amount_var.set(token_select[2])
-
-    token_box.bind('<Double-1>', callback)
-
-    # callback
-
-    token_name_var = StringVar()
-    token_name = Entry(tokens_main, textvariable=token_name_var)
-    token_name.grid(row=2, column=0, sticky=W + E, padx=15, pady=(5, 5))
-
-    token_amount_var = StringVar()
-    token_amount = Entry(tokens_main, textvariable=token_amount_var)
-    token_amount.grid(row=3, column=0, sticky=W + E, padx=15, pady=(5, 5))
-
-    transfer = Button(tokens_main, text="Transfer", command=lambda: token_transfer(token_name_var.get(), token_amount_var.get(), tokens_main))
-    transfer.grid(row=4, column=0, sticky=W + E, padx=5)
-
-    issue = Button(tokens_main, text="Issue", command=lambda: token_issue(token_name_var.get(), token_amount_var.get(), tokens_main))
-    issue.grid(row=5, column=0, sticky=W + E, padx=5)
-
-    cancel = Button(tokens_main, text="Cancel", command=tokens_main.destroy)
-    cancel.grid(row=6, column=0, sticky=W + E, padx=5)
 
 def backup():
     root.filename = filedialog.asksaveasfilename(initialdir="/", title="Select backup file", filetypes=(("gzip", "*.gz"), ))
@@ -889,6 +693,78 @@ def sign():
 def refresh_auto():
     root.after(0, refresh(gui_address.get(), s))
     root.after(10000, refresh_auto)
+
+def token_transfer(token, amount, window):
+    openfield.delete('1.0', END)  # remove previous
+    openfield.insert(INSERT, "token:transfer:{}:{}".format(token, amount))
+    window.destroy()
+
+def token_issue(token, amount, window):
+    openfield.delete('1.0', END)  # remove previous
+    openfield.insert(INSERT, "token:issue:{}:{}".format(token, amount))
+    recipient.delete(0, END)
+    recipient.insert(INSERT, myaddress)
+    window.destroy()
+    send_confirm(amount,myaddress,0,"token:issue:{}:{}".format(token, amount))
+
+def tokens():
+    tokens_update() #catch up with the chain
+
+    address = gui_address.get()
+    tokens_main = Toplevel()
+    tokens_main.title("Tokens")
+
+    tok = sqlite3.connect('tokens.db')
+    tok.text_factory = str
+    t = tok.cursor()
+
+    t.execute("SELECT DISTINCT token FROM transactions WHERE address OR recipient = ?", (address,))
+    tokens_user = t.fetchall()
+    print ("tokens_user",tokens_user)
+
+    token_box = Listbox(tokens_main, width=100)
+    token_box.grid(row=0, pady=0)
+
+
+    for token in tokens_user:
+        token = token[0]
+        t.execute("SELECT sum(amount) FROM transactions WHERE recipient = ? AND token = ?;", (address,)+(token,))
+        credit = t.fetchone()[0]
+        t.execute("SELECT sum(amount) FROM transactions WHERE address = ? AND token = ?;", (address,)+(token,))
+        debit = t.fetchone()[0]
+
+        debit = 0 if debit is None else debit
+        credit = 0 if credit is None else credit
+
+        balance = Decimal(credit) - Decimal(debit)
+
+        token_box.insert(END, (token,":", balance))
+    # callback
+    def callback(event):
+        token_select = (token_box.get(token_box.curselection()[0]))
+        token_name_var.set(token_select[0])
+        token_amount_var.set(token_select[2])
+
+    token_box.bind('<Double-1>', callback)
+
+    # callback
+
+    token_name_var = StringVar()
+    token_name = Entry(tokens_main, textvariable=token_name_var)
+    token_name.grid(row=2, column=0, sticky=W + E, padx=15, pady=(5, 5))
+
+    token_amount_var = StringVar()
+    token_amount = Entry(tokens_main, textvariable=token_amount_var)
+    token_amount.grid(row=3, column=0, sticky=W + E, padx=15, pady=(5, 5))
+
+    transfer = Button(tokens_main, text="Transfer", command=lambda: token_transfer(token_name_var.get(), token_amount_var.get(), tokens_main))
+    transfer.grid(row=4, column=0, sticky=W + E, padx=5)
+
+    issue = Button(tokens_main, text="Issue", command=lambda: token_issue(token_name_var.get(), token_amount_var.get(), tokens_main))
+    issue.grid(row=5, column=0, sticky=W + E, padx=5)
+
+    cancel = Button(tokens_main, text="Cancel", command=tokens_main.destroy)
+    cancel.grid(row=6, column=0, sticky=W + E, padx=5)
 
 
 def table(address, addlist_20):
