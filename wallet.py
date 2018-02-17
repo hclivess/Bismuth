@@ -1083,10 +1083,10 @@ backup_b.grid(row=button_row_zero+6, column=0, sticky=W + E + S, pady=0, padx=15
 tokens_b = Button(f5, text="Tokens", command=tokens, height=1, width=10, font=("Tahoma", 8))
 tokens_b.grid(row=button_row_zero+7, column=0, sticky=W + E + S, pady=0, padx=15)
 
-create_url_b = Button(f5, text="Create URL", command=lambda: create_url("pay",myaddress,recipient.get(),amount.get(),openfield.get("1.0", END).strip()), height=1, width=10, font=("Tahoma", 8))
+create_url_b = Button(f5, text="Create URL", command=lambda: create_url(app_log,"pay",myaddress,recipient.get(),amount.get(),openfield.get("1.0", END).strip()), height=1, width=10, font=("Tahoma", 8))
 create_url_b.grid(row=button_row_zero+8, column=0, sticky=W + E + S, pady=0, padx=15)
 
-read_url_b = Button(f5, text="Read URL", command=lambda: read_url(url.get()), height=1, width=10, font=("Tahoma", 8))
+read_url_b = Button(f5, text="Read URL", command=lambda: read_url(app_log,url.get()), height=1, width=10, font=("Tahoma", 8))
 read_url_b.grid(row=button_row_zero+9, column=0, sticky=W + E + S, pady=0, padx=15)
 
 #quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=10, font=("Tahoma", 8))
