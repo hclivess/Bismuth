@@ -1235,7 +1235,7 @@ create_url_b = Button(f3, text="Create", command=lambda: create_url_clicked(app_
 create_url_b.grid(row=4, column=5, sticky=W + E, padx=(5, 0))
 
 
-qr_b = Button(f5, text="QR", command=lambda :qr(url.get()), height=1, width=10, font=("Tahoma", 8))
+qr_b = Button(f5, text="URL QR", command=lambda :qr(url.get()), height=1, width=10, font=("Tahoma", 8))
 if "Linux" in platform.system():
     qr_b.configure(text="QR Disabled", state=DISABLED)
 qr_b.grid(row=button_row_zero+1, column=0, sticky=W + E + S, pady=0, padx=15)
