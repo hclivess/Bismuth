@@ -46,6 +46,25 @@ essentials.db_check(app_log)
 s = socks.socksocket()
 s.settimeout(3)
 
+def create_url_clicked(app_log, command, recipient, amount, openfield):
+    """isolated function so no GUI leftovers are in bisurl.py"""
+    result = create_url(app_log, command, recipient, amount, openfield)
+    url.delete(0, END)
+    url.insert(0,result)
+
+def read_url_clicked(app_log,url):
+    """isolated function so no GUI leftovers are in bisurl.py"""
+    result = (read_url(app_log,url))
+
+    recipient.delete(0,END)
+    amount.delete(0, END)
+    openfield.delete("1.0", END)
+
+    recipient.insert(0,result[1])  # amount
+    amount.insert(0, result[2])  # recipient
+    openfield.insert(INSERT,result[3])  # openfield
+
+
 def node_connect():
     while True:
         try:
@@ -105,6 +124,9 @@ def help():
 
 def data_insert_clear():
     openfield.delete('1.0', END)  # remove previous
+
+def url_insert_clear():
+    url.delete(0, END)  # remove previous
 
 def all_spend_clear():
     amount.delete(0, END)
@@ -178,6 +200,10 @@ def address_insert():
 def data_insert():
     openfield.delete('1.0', END)  # remove previous
     openfield.insert(INSERT, root.clipboard_get())
+
+def url_insert():
+    url.delete(0, END)  # remove previous
+    url.insert(0, root.clipboard_get())
 
 def address_copy():
     root.clipboard_clear()
@@ -1083,11 +1109,7 @@ backup_b.grid(row=button_row_zero+6, column=0, sticky=W + E + S, pady=0, padx=15
 tokens_b = Button(f5, text="Tokens", command=tokens, height=1, width=10, font=("Tahoma", 8))
 tokens_b.grid(row=button_row_zero+7, column=0, sticky=W + E + S, pady=0, padx=15)
 
-create_url_b = Button(f5, text="Create URL", command=lambda: create_url(app_log,"pay",myaddress,recipient.get(),amount.get(),openfield.get("1.0", END).strip()), height=1, width=10, font=("Tahoma", 8))
-create_url_b.grid(row=button_row_zero+8, column=0, sticky=W + E + S, pady=0, padx=15)
 
-read_url_b = Button(f5, text="Read URL", command=lambda: read_url(app_log,url.get()), height=1, width=10, font=("Tahoma", 8))
-read_url_b.grid(row=button_row_zero+9, column=0, sticky=W + E + S, pady=0, padx=15)
 
 #quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=10, font=("Tahoma", 8))
 #quit_b.grid(row=16, column=0, sticky=W + E + S, pady=0, padx=15)
@@ -1201,10 +1223,29 @@ data_insert_clipboard.grid(row=3, column=2, sticky=W + E, padx=(5, 0))
 data_insert_clear = Button(f3, text="Clear", command=data_insert_clear, font=("Tahoma", 7))
 data_insert_clear.grid(row=3, column=3, sticky=W + E, padx=(5, 0))
 
+
+url_insert_clipboard = Button(f3, text="Paste", command=url_insert, font=("Tahoma", 7))
+url_insert_clipboard.grid(row=4, column=2, sticky=W + E, padx=(5, 0))
+
+url_insert_clear = Button(f3, text="Clear", command=url_insert_clear, font=("Tahoma", 7))
+url_insert_clear.grid(row=4, column=3, sticky=W + E, padx=(5, 0))
+
+
+create_url_b = Button(f3, text="Create", command=lambda: create_url_clicked(app_log,"pay",recipient.get(),amount.get(),openfield.get("1.0", END).strip()), font=("Tahoma", 7))
+create_url_b.grid(row=4, column=5, sticky=W + E, padx=(5, 0))
+
+read_url_b = Button(f3, text="Read", command=lambda: read_url_clicked(app_log,url.get()), font=("Tahoma", 7))
+read_url_b.grid(row=4, column=4, sticky=W + E, padx=(5, 0))
+
+
+
+
+
 Label(f3, text="Your Address:", width=20, anchor="e").grid(row=0)
 Label(f3, text="Recipient:", width=20, anchor="e").grid(row=1)
 Label(f3, text="Amount:", width=20, anchor="e").grid(row=2)
 Label(f3, text="Data:", width=20, anchor="e").grid(row=3)
+Label(f3, text="URL:", width=20, anchor="e").grid(row=4)
 
 recipient = Entry(f3, width=60)
 recipient.grid(row=1, column=1, sticky=W)
@@ -1214,20 +1255,24 @@ amount.grid(row=2, column=1, sticky=W)
 openfield = Text(f3, width=60, height=5, font=("Tahoma", 8))
 openfield.grid(row=3, column=1, sticky=W)
 
+url = Entry(f3, width=60)
+url.grid(row=4, column=1, sticky=W)
+url.insert(0,"bis://")
+
 encode = Checkbutton(f3, text="Base64 Encoding", variable=encode_var)
-encode.grid(row=4, column=1, sticky=W, padx=(120, 0))
+encode.grid(row=5, column=1, sticky=W, padx=(120, 0))
 
 msg = Checkbutton(f3, text="Mark as Message", variable=msg_var)
-msg.grid(row=4, column=1, sticky=W, padx=(240, 0))
+msg.grid(row=5, column=1, sticky=W, padx=(240, 0))
 
 encr = Checkbutton(f3, text="Encrypt with PK", variable=encrypt_var)
-encr.grid(row=4, column=1, sticky=W, padx=(0, 0))
+encr.grid(row=5, column=1, sticky=W, padx=(0, 0))
 
 resolve = Checkbutton(f3, text="Resolve Aliases", variable=resolve_var, command=lambda: refresh(gui_address.get(),s))
-resolve.grid(row=5, column=1, sticky=W, padx=(120, 0))
+resolve.grid(row=6, column=1, sticky=W, padx=(120, 0))
 
 alias_cb = Checkbutton(f3, text="Alias Recipient", variable=alias_cb_var, command=None)
-alias_cb.grid(row=5, column=1, sticky=W, padx=(0, 0))
+alias_cb.grid(row=6, column=1, sticky=W, padx=(0, 0))
 
 balance_enumerator = Entry(f3, width=5)
 # address and amount

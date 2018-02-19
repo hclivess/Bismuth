@@ -12,7 +12,7 @@ def create_url(app_log, command, recipient, amount, openfield):
         openfield_b85_encode = (base64.b85encode(openfield.encode("utf-8"))).decode("utf-8")
         url_partial = "bis://{}/{}/{}/{}/".format(command,recipient,amount,openfield_b85_encode)
         url_constructed = url_partial+checksum(url_partial)
-        app_log.warning(url_constructed)        
+        app_log.warning(url_constructed)
         return url_constructed
 
 def read_url(app_log, url):
@@ -23,10 +23,10 @@ def read_url(app_log, url):
 
     if checksum(reconstruct) == url_split[6]:
         url_deconstructed = url_split[2],url_split[3],url_split[4],openfield_b85_decode
-        print ("Checksum match")
+        app_log.warning("Checksum match")
         return url_deconstructed
     else:
-        print ("Checksum mismatch",checksum(reconstruct),url_split[6])
+        app_log.warning("Checksum mismatch",checksum(reconstruct),url_split[6])
         return
 
 
