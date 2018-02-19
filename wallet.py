@@ -1,6 +1,6 @@
 # icons created using http://www.winterdrache.de/freeware/png2ico/
 import sqlite3
-import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, time, base64, connections, icons, log, socks, ast, options, tarfile, glob, essentials, re
+import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, time, base64, connections, icons, log, socks, ast, options, tarfile, glob, essentials, re, platform
 from tokens import *
 from decimal import *
 from bisurl import *
@@ -125,9 +125,6 @@ def help():
 def data_insert_clear():
     openfield.delete('1.0', END)  # remove previous
 
-def url_insert_clear():
-    url.delete(0, END)  # remove previous
-
 def all_spend_clear():
     amount.delete(0, END)
     amount.insert(0,0)
@@ -208,6 +205,10 @@ def url_insert():
 def address_copy():
     root.clipboard_clear()
     root.clipboard_append(myaddress)
+
+def url_copy():
+    root.clipboard_clear()
+    root.clipboard_append(url.get())
 
 def recipient_copy():
     root.clipboard_clear()
@@ -1085,11 +1086,6 @@ button_row_zero = 9
 send_b = Button(f5, text="Send", command=lambda: send_confirm(str(amount.get()).strip(), recipient.get().strip(), (openfield.get("1.0", END)).strip()), height=1, width=10, font=("Tahoma", 8))
 send_b.grid(row=button_row_zero, column=0, sticky=W + E + S, pady=(45, 0), padx=15)
 
-start_b = Button(f5, text="Generate QR Code", command=lambda :qr(gui_address.get()), height=1, width=10, font=("Tahoma", 8))
-if "posix" in os.name:
-    start_b.configure(text="QR Disabled", state=DISABLED)
-start_b.grid(row=button_row_zero+1, column=0, sticky=W + E + S, pady=0, padx=15)
-
 message_b = Button(f5, text="Manual Refresh", command=lambda: refresh(gui_address.get(),s), height=1, width=10, font=("Tahoma", 8))
 message_b.grid(row=button_row_zero+2, column=0, sticky=W + E + S, pady=0, padx=15)
 
@@ -1224,20 +1220,25 @@ data_insert_clear = Button(f3, text="Clear", command=data_insert_clear, font=("T
 data_insert_clear.grid(row=3, column=3, sticky=W + E, padx=(5, 0))
 
 
+
+gui_copy_address = Button(f3, text="Copy", command=url_copy, font=("Tahoma", 7))
+gui_copy_address.grid(row=4, column=2, sticky=W + E, padx=(5, 0))
+
 url_insert_clipboard = Button(f3, text="Paste", command=url_insert, font=("Tahoma", 7))
-url_insert_clipboard.grid(row=4, column=2, sticky=W + E, padx=(5, 0))
+url_insert_clipboard.grid(row=4, column=3, sticky=W + E, padx=(5, 0))
 
-url_insert_clear = Button(f3, text="Clear", command=url_insert_clear, font=("Tahoma", 7))
-url_insert_clear.grid(row=4, column=3, sticky=W + E, padx=(5, 0))
-
-
-create_url_b = Button(f3, text="Create", command=lambda: create_url_clicked(app_log,"pay",recipient.get(),amount.get(),openfield.get("1.0", END).strip()), font=("Tahoma", 7))
-create_url_b.grid(row=4, column=5, sticky=W + E, padx=(5, 0))
 
 read_url_b = Button(f3, text="Read", command=lambda: read_url_clicked(app_log,url.get()), font=("Tahoma", 7))
 read_url_b.grid(row=4, column=4, sticky=W + E, padx=(5, 0))
 
+create_url_b = Button(f3, text="Create", command=lambda: create_url_clicked(app_log,"pay",recipient.get(),amount.get(),openfield.get("1.0", END).strip()), font=("Tahoma", 7))
+create_url_b.grid(row=4, column=5, sticky=W + E, padx=(5, 0))
 
+
+qr_b = Button(f5, text="QR", command=lambda :qr(url.get()), height=1, width=10, font=("Tahoma", 8))
+if "Linux" in platform.system():
+    qr_b.configure(text="QR Disabled", state=DISABLED)
+qr_b.grid(row=button_row_zero+1, column=0, sticky=W + E + S, pady=0, padx=15)
 
 
 
