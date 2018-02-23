@@ -732,16 +732,17 @@ def token_issue(token, amount, window):
     recipient.delete(0, END)
     recipient.insert(INSERT, myaddress)
     window.destroy()
-    send_confirm(amount,myaddress,0,"token:issue:{}:{}".format(token, amount))
+    send_confirm(amount,0,"token:issue:{}:{}".format(token, amount))
 
 def tokens():
-    tokens_update() #catch up with the chain
+    token_db = "tokens.db"
+    tokens_update(token_db,"normal") #catch up with the chain
 
     address = gui_address.get()
     tokens_main = Toplevel()
     tokens_main.title("Tokens")
 
-    tok = sqlite3.connect('tokens.db')
+    tok = sqlite3.connect(token_db)
     tok.text_factory = str
     t = tok.cursor()
 
