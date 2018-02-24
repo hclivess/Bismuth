@@ -1,6 +1,11 @@
 import sqlite3
+import log
 
-def tokens_update(file, mode):
+
+def tokens_update(file, mode, app_log):
+    if mode not in ("normal","reindex"):
+        raise ValueError ("Wrong value for tokens_update function")
+
     conn = sqlite3.connect('static/ledger.db')
     conn.text_factory = str
     c = conn.cursor()
@@ -12,7 +17,7 @@ def tokens_update(file, mode):
     tok.commit()
 
     if mode == "reindex":
-        print("Token database will be reindexed")
+        app_log.warning("Token database will be reindexed")
         t.execute("DELETE FROM TRANSACTIONS")
         tok.commit()
 
@@ -21,43 +26,44 @@ def tokens_update(file, mode):
         token_last_block = int(t.fetchone()[0])
     except:
         token_last_block = 0
-    print("token_last_block", token_last_block)
 
-    # print all token issuances
+    app_log.warning("Token anchor block: {}".format(token_last_block))
+
+    # app_log.warning all token issuances
     c.execute("SELECT block_height, timestamp, address, recipient, openfield FROM transactions WHERE block_height > ? AND openfield LIKE ? AND reward = 0 ORDER BY block_height ASC;", (token_last_block,) + ("token:issue" + '%',))
     results = c.fetchall()
-    print(results)
+    #app_log.warning(results)
 
     tokens_processed = []
 
     for x in results:
         if x[4].split(":")[2].lower().strip() not in tokens_processed:
             block_height = x[0]
-            print("block_height", block_height)
+            app_log.warning("Block height {}".format(block_height))
 
             timestamp = x[1]
-            print("timestamp", timestamp)
+            app_log.warning("Timestamp {}".format(timestamp))
 
             token = x[4].split(":")[2].lower().strip()
             tokens_processed.append(token)
-            print("token", token)
+            app_log.warning("Token: {}".format(token))
 
             issued_by = x[3]
-            print("issued_by", issued_by)
+            app_log.warning("Issued by: {}".format(issued_by))
 
             total = x[4].split(":")[3]
-            print("total", total)
+            app_log.warning("Total amount: {}".format(total))
 
             t.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?)", (block_height, timestamp, token, "issued", issued_by, total))
         else:
-            print("issuance already processed:", x[1])
+            app_log.warning("Issuance already processed: {}".format(x[1]))
 
     tok.commit()
-    # print all token issuances
+    # app_log.warning all token issuances
 
-    print("---")
+    #app_log.warning("---")
 
-    # print all transfers of a given token
+    # app_log.warning all transfers of a given token
     # token = "worthless"
 
 
@@ -69,37 +75,38 @@ def tokens_update(file, mode):
         if transfer[0].split(":")[2].lower().strip() not in tokens_transferred:
             tokens_transferred.append(transfer[0].split(":")[2].lower().strip())
 
-    print("tokens_transferred",tokens_transferred)
+    if tokens_transferred:
+        app_log.warning("Token transferred: {}".format(tokens_transferred))
 
     for token in tokens_transferred:
-        print("processing", token)
+        app_log.warning("processing {}".format(token))
         c.execute("SELECT block_height, timestamp, address, recipient, openfield FROM transactions WHERE block_height > ? AND openfield LIKE ? AND reward = 0 ORDER BY block_height ASC;", (token_last_block,) + ("token:transfer:" + token + ':%',))
         results2 = c.fetchall()
-        print(results2)
+        app_log.warning(results2)
 
         for r in results2:
             block_height = r[0]
-            print("block_height", block_height)
+            app_log.warning("Block height {}".format(block_height))
 
             timestamp = r[1]
-            print("timestamp", timestamp)
+            app_log.warning("Timestamp {}".format(timestamp))
 
             token = r[4].split(":")[2]
-            print("token", token, "operation")
+            app_log.warning("Token {} operation".format(token))
 
             sender = r[2]
-            print("transfer_from", sender)
+            app_log.warning("Transfer from {}".format(sender))
 
             recipient = r[3]
-            print("transfer_to", recipient)
+            app_log.warning("Transfer to {}".format(recipient))
 
             try:
-                print (r[4])
+                app_log.warning (r[4])
                 transfer_amount = int(r[4].split(":")[3])
             except:
                 transfer_amount = 0
 
-            print("transfer_amount", transfer_amount)
+            app_log.warning("Transfer amount {}".format(transfer_amount))
 
             # calculate balances
             t.execute("SELECT sum(amount) FROM transactions WHERE recipient = ? AND block_height < ? AND token = ?", (sender,) + (block_height,) + (token,))
@@ -107,26 +114,34 @@ def tokens_update(file, mode):
                 credit_sender = int(t.fetchone()[0])
             except:
                 credit_sender = 0
-            print("credit_sender", credit_sender)
+            app_log.warning("Sender's credit {}".format(credit_sender))
 
             t.execute("SELECT sum(amount) FROM transactions WHERE address = ? AND block_height <= ? AND token = ?", (sender,) + (block_height,) + (token,))
             try:
                 debit_sender = int(t.fetchone()[0])
             except:
                 debit_sender = 0
-            print("debit_sender", debit_sender)
+            app_log.warning("Sender's debit: {}".format(debit_sender))
             # calculate balances
 
-            # print all token transfers
+            # app_log.warning all token transfers
             balance_sender = credit_sender - debit_sender
-            print("balance_sender", balance_sender)
+            app_log.warning("Sender's balance {}".format(balance_sender))
 
-            if balance_sender - transfer_amount >= 0 or transfer_amount < 0:
+            if balance_sender - transfer_amount >= 0 and transfer_amount > 0:
                 t.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?)", (block_height, timestamp, token, sender, recipient, transfer_amount))
-            else:
-                print("invalid transaction by", sender)
-            print("---")
+            else: #save block height so that we do not have to process the same again
+                app_log.warning("Invalid transaction by {}".format(sender))
+                t.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?)", (block_height, "", "", "", "", ""))
+            app_log.warning("Processing of {} finished".format(token))
 
         tok.commit()
 
+    tok.close()
     conn.close()
+
+
+if __name__ == "__main__":
+    app_log = log.log("tokens.log", "WARNING", "yes")
+    tokens_update("tokens.db","reindex",app_log)
+    #tokens_update("tokens.db","reindex")

@@ -14,6 +14,7 @@ from itertools import groupby
 from operator import itemgetter
 import shutil, socketserver, base64, hashlib, os, re, sqlite3, sys, threading, time, socks, random, keys, math, requests, tarfile, essentials
 from decimal import *
+import tokens
 
 from Crypto.Hash import SHA
 from Crypto.PublicKey import RSA
@@ -325,7 +326,7 @@ def mempool_purge(mempool, m):
     mempool.commit()
 
 
-def ledger_convert(ledger_path_conf, hyper_path_conf):
+def ledger_compress(ledger_path_conf, hyper_path_conf):
     """conversion of normal blocks into hyperblocks from ledger.db or hyper.db to hyper.db"""
     try:
 
@@ -931,6 +932,15 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, mempool, m):
                     commit(hdd2)
                     # roll back reward too
 
+                # rollback tokens too
+                tok = sqlite3.connect("static/tokens.db")
+                tok.text_factory = str
+                t = tok.cursor()
+                execute_param(t, ("DELETE FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
+                commit(tok)
+                t.close()
+                # rollback tokens too
+
         except:
             pass
         finally:
@@ -1436,7 +1446,11 @@ def coherence_check():
 
 check_integrity(hyper_path_conf)
 coherence_check()
-ledger_convert(ledger_path_conf, hyper_path_conf)
+
+app_log.warning("Status: Indexing tokens")
+tokens.tokens_update("static/tokens.db","normal",app_log)
+
+ledger_compress(ledger_path_conf, hyper_path_conf)
 
 try:
     source_db = sqlite3.connect(hyper_path_conf, timeout=1)

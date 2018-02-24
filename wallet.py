@@ -735,8 +735,8 @@ def token_issue(token, amount, window):
     send_confirm(amount,0,"token:issue:{}:{}".format(token, amount))
 
 def tokens():
-    token_db = "tokens.db"
-    tokens_update(token_db,"normal") #catch up with the chain
+    token_db = "static/tokens.db"
+    tokens_update(token_db,"normal",app_log) #catch up with the chain
 
     address = gui_address.get()
     tokens_main = Toplevel()
