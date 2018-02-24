@@ -1,22 +1,11 @@
 import sqlite3
-from shutil import copyfile
 
-def tokens_update(output, mode):
+def tokens_update(file, mode):
     conn = sqlite3.connect('static/ledger.db')
     conn.text_factory = str
     c = conn.cursor()
 
-    #enable hyper mode
-    if mode == "hyper": #this mode indexes only blocks older than last 10000 blocks and is intended to be kept with hyper.db, safe vs rollbacks
-        print ("Entering hyper mode")
-        c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
-        db_block_height = c.fetchone()[0]  # get last block number of the ledger
-        depth = db_block_height - 10000
-    else:
-        depth = -1
-    #enable hyper mode
-
-    tok = sqlite3.connect(output)
+    tok = sqlite3.connect(file)
     tok.text_factory = str
     t = tok.cursor()
     t.execute("CREATE TABLE IF NOT EXISTS transactions (block_height INTEGER, timestamp, token, address, recipient, amount INTEGER)")
@@ -24,7 +13,7 @@ def tokens_update(output, mode):
 
     if mode == "reindex":
         print("Token database will be reindexed")
-        copyfile("tokens_hyper.db","tokens.db") #copy the last hyperblock version of tokens, hyperblocking should happen at node startup
+        t.execute("DELETE FROM TRANSACTIONS")
         tok.commit()
 
     t.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
@@ -35,7 +24,7 @@ def tokens_update(output, mode):
     print("token_last_block", token_last_block)
 
     # print all token issuances
-    c.execute("SELECT block_height, timestamp, address, recipient, openfield FROM transactions WHERE block_height > ? AND openfield LIKE ? AND reward = 0 AND block_height < ? ORDER BY block_height ASC;", (token_last_block,) + ("token:issue" + '%',) + (depth,))
+    c.execute("SELECT block_height, timestamp, address, recipient, openfield FROM transactions WHERE block_height > ? AND openfield LIKE ? AND reward = 0 ORDER BY block_height ASC;", (token_last_block,) + ("token:issue" + '%',))
     results = c.fetchall()
     print(results)
 
@@ -72,7 +61,7 @@ def tokens_update(output, mode):
     # token = "worthless"
 
 
-    c.execute("SELECT openfield FROM transactions WHERE block_height > ? AND openfield LIKE ? and reward = 0 AND block_height < ? ORDER BY block_height ASC;", (token_last_block,) + ("token:transfer" + '%',) + (depth,))
+    c.execute("SELECT openfield FROM transactions WHERE block_height > ? AND openfield LIKE ? and reward = 0 ORDER BY block_height ASC;", (token_last_block,) + ("token:transfer" + '%',))
     openfield_transfers = c.fetchall()
 
     tokens_transferred = []
@@ -84,7 +73,7 @@ def tokens_update(output, mode):
 
     for token in tokens_transferred:
         print("processing", token)
-        c.execute("SELECT block_height, timestamp, address, recipient, openfield FROM transactions WHERE block_height > ? AND openfield LIKE ? AND reward = 0 AND block_height < ?  ORDER BY block_height ASC;", (token_last_block,) + ("token:transfer:" + token + ':%',) + (depth,))
+        c.execute("SELECT block_height, timestamp, address, recipient, openfield FROM transactions WHERE block_height > ? AND openfield LIKE ? AND reward = 0 ORDER BY block_height ASC;", (token_last_block,) + ("token:transfer:" + token + ':%',))
         results2 = c.fetchall()
         print(results2)
 
@@ -141,4 +130,3 @@ def tokens_update(output, mode):
         tok.commit()
 
     conn.close()
-
