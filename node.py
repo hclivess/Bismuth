@@ -81,6 +81,13 @@ global peers
 app_log = log.log("node.log", debug_level_conf, terminal_output)
 app_log.warning("Configuration settings loaded")
 
+def tokens_rollback(height):
+    tok = sqlite3.connect("static/tokens.db")
+    tok.text_factory = str
+    t = tok.cursor()
+    execute_param(t, ("DELETE FROM transactions WHERE block_height >= ?;"), (height,))
+    commit(tok)
+    t.close()
 
 def presence_check(cursor, signature):
     execute_param(cursor, ("SELECT * FROM transactions WHERE signature = ?;"), (signature,))
@@ -355,7 +362,7 @@ def ledger_compress(ledger_path_conf, hyper_path_conf):
                 # cross-integrity check
 
                 if hdd_block_last == hdd2_block_last and hyper_recompress_conf == 1:  # cross-integrity check
-                    ledger_path_conf = hyper_path_conf  # only valid within the function
+                    ledger_path_conf = hyper_path_conf  # only valid within the function, this temporarily sets hyper.db as source
                     app_log.warning("Staus: Recompressing hyperblocks (keeping full ledger)")
                     recompress = 1
                 elif hdd_block_last == hdd2_block_last and hyper_recompress_conf == 0:
@@ -933,12 +940,7 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, mempool, m):
                     # roll back reward too
 
                 # rollback tokens too
-                tok = sqlite3.connect("static/tokens.db")
-                tok.text_factory = str
-                t = tok.cursor()
-                execute_param(t, ("DELETE FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
-                commit(tok)
-                t.close()
+                tokens_rollback(str(db_block_height))
                 # rollback tokens too
 
         except:
@@ -1395,6 +1397,7 @@ def coherence_check():
         conn = sqlite3.connect(chain)
         c = conn.cursor()
 
+        #perform test on transaction table
         c.execute("SELECT block_height FROM transactions WHERE reward != 0 AND block_height != (0 OR 1) ORDER BY block_height ASC")
         result = c.fetchall()
 
@@ -1408,15 +1411,21 @@ def coherence_check():
                 for chain2 in chains_to_check:
                     conn2 = sqlite3.connect(chain2)
                     c2 = conn2.cursor()
-                    app_log.warning("Status: Chain {} difficulty coherence error at: {}".format(chain, y))
+                    app_log.warning("Status: Chain {} transaction coherence error at: {}".format(chain, y))
                     c2.execute("DELETE FROM transactions WHERE block_height >= ?", (y,))
                     conn2.commit()
                     c2.execute("DELETE FROM misc WHERE block_height >= ?", (y,))
                     conn2.commit()
                     conn2.close()
+
+                    # rollback token index
+                    tokens_rollback(y)
+                    # rollback token index
+
                     app_log.warning("Status: Due to a coherence issue at block {}, {} has been rolled back and will be resynchronized".format(y, chain))
             y = x
 
+        # perform test on misc table
         c.execute("SELECT block_height FROM misc ORDER BY block_height ASC")
         result = c.fetchall()
 
@@ -1437,6 +1446,11 @@ def coherence_check():
                         c2.execute("DELETE FROM misc WHERE block_height >= ?", (y,))
                         conn2.commit()
                         conn2.close()
+
+                        # rollback token index
+                        tokens_rollback(y)
+                        # rollback token index
+
                         app_log.warning("Status: Due to a coherence issue at block {}, {} has been rolled back and will be resynchronized".format(y, chain))
             y = x
 
