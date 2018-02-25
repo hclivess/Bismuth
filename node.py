@@ -84,21 +84,25 @@ global peers
 app_log = log.log("node.log", debug_level_conf, terminal_output)
 app_log.warning("Configuration settings loaded")
 
-def tokens_rollback(height):
+def tokens_rollback(height,app_log):
+    """rollback token index"""
     tok = sqlite3.connect("static/tokens.db")
     tok.text_factory = str
     t = tok.cursor()
     execute_param(t, ("DELETE FROM transactions WHERE block_height >= ?;"), (height,))
     commit(tok)
     t.close()
+    app_log.warning("Rolled back the token index to {}".format(height))
 
-def aliases_rollback(height):
+def aliases_rollback(height,app_log):
+    """rollback alias index"""
     ali = sqlite3.connect("static/aliases.db")
     ali.text_factory = str
     a = ali.cursor()
     execute_param(a, ("DELETE FROM transactions WHERE block_height >= ?;"), (height,))
     commit(ali)
     a.close()
+    app_log.warning("Rolled back the alias index to {}".format(height))
 
 def presence_check(cursor, signature):
     execute_param(cursor, ("SELECT * FROM transactions WHERE signature = ?;"), (signature,))
@@ -950,10 +954,10 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, mempool, m):
                     commit(hdd2)
                     # roll back reward too
 
-                # rollback indices too
-                tokens_rollback(str(db_block_height))
-                aliases_rollback(str(db_block_height))
-                # rollback indices too
+                # rollback indices
+                tokens_rollback(str(db_block_height),app_log)
+                aliases_rollback(str(db_block_height),app_log)
+                # rollback indices
 
         except:
             pass
@@ -1431,8 +1435,8 @@ def coherence_check():
                     conn2.close()
 
                     # rollback indices
-                    tokens_rollback(y)
-                    aliases_rollback(y)
+                    tokens_rollback(y,app_log)
+                    aliases_rollback(y,app_log)
                     # rollback indices
 
                     app_log.warning("Status: Due to a coherence issue at block {}, {} has been rolled back and will be resynchronized".format(y, chain))
@@ -1460,10 +1464,10 @@ def coherence_check():
                         conn2.commit()
                         conn2.close()
 
-                        # rollback token index
-                        tokens_rollback(y)
-                        aliases_rollback(y)
-                        # rollback token index
+                        # rollback indices
+                        tokens_rollback(y,app_log)
+                        aliases_rollback(y,app_log)
+                        # rollback indices
 
                         app_log.warning("Status: Due to a coherence issue at block {}, {} has been rolled back and will be resynchronized".format(y, chain))
             y = x
@@ -2017,16 +2021,22 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                 elif data == "addfromalias": #TODO: update to use index
                     if peers.is_allowed(peer_ip, data):
+
+                        ali = sqlite3.connect("static/aliases.db")
+                        ali.text_factory = str
+                        a = ali.cursor()
+
                         alias_address = connections.receive(self.request, 10)
-                        print(alias_address)
-                        h3.execute("SELECT address FROM transactions WHERE openfield LIKE ? ORDER BY block_height ASC, timestamp ASC LIMIT 1;", ("alias=" + alias_address,))  # asc for first entry
+                        a.execute("SELECT address FROM transactions WHERE alias = ? ORDER BY block_height ASC LIMIT 1;", (alias_address,))  # asc for first entry
                         try:
-                            address_fetch = h3.fetchone()[0]
+                            address_fetch = a.fetchone()[0]
                         except:
                             address_fetch = "No alias"
                         app_log.warning("Fetched the following alias address: {}".format(address_fetch))
 
                         connections.send(self.request, address_fetch, 10)
+
+                        ali.close()
 
                     else:
                         app_log.info("{} not whitelisted for addfromalias command".format(peer_ip))
