@@ -2019,7 +2019,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         app_log.info("{} not whitelisted for aliasesget command".format(peer_ip))
 
 
-                elif data == "addfromalias": #TODO: update to use index
+                elif data == "addfromalias":
                     if peers.is_allowed(peer_ip, data):
 
                         ali = sqlite3.connect("static/aliases.db")

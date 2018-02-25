@@ -340,6 +340,11 @@ def send_confirm(amount_input, recipient_input, openfield_input):
     top10 = Toplevel()
     top10.title("Confirm")
 
+    if alias_cb_var.get() == 1: #alias check
+        connections.send(s, "addfromalias", 10)
+        connections.send(s, recipient_input, 10)
+        recipient_input = connections.receive(s, 10)
+
     # encr check
     if encrypt_var.get() == 1:
         #get recipient's public key
