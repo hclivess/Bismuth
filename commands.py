@@ -201,6 +201,12 @@ def aliasget(socket, arg1):
     alias_results = connections.receive(s, 10)
     print (alias_results)
 
+def addfromalias(socket, arg1):
+    connections.send(s, "addfromalias", 10)
+    connections.send(s, arg1, 10)
+    address_fetch = connections.receive(s, 10)
+    print (address_fetch)
+
 def peersget(socket):
     connections.send(s, "peersget", 10)
     peers_received = connections.receive(s, 10)
@@ -285,6 +291,9 @@ elif command == "addlistlim":
 
 elif command == "listlim":
     listlim(s, arg1)
+
+elif command == "addfromalias":
+    addfromalias(s, arg1)
 
 elif command == "txsend":
     try:

@@ -799,8 +799,8 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass):
                         app_log.info("Local mempool is already full, skipping merging")
                         return  # avoid spamming of the logs
 
-            except:
-                app_log.warning("Mempool: Error processing")
+            except Exception as e:
+                app_log.warning("Mempool: Error processing ({})".format(e))
                 if debug_conf == 1:
                     raise
                 else:
@@ -1963,7 +1963,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     else:
                         app_log.info("{} not whitelisted for addlistlim command".format(peer_ip))
 
-                elif data == "aliasget":
+                elif data == "aliasget": # all for a single address, no protection against overlapping
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
                         alias_address = connections.receive(self.request, 10)
@@ -1980,6 +1980,41 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         app_log.info("{} not whitelisted for aliasget command".format(peer_ip))
 
 
+                elif data == "aliasesget":  # only gets the first one, for multiple addresses
+                    # if (peer_ip in allowed or "any" in allowed):
+                    if peers.is_allowed(peer_ip, data):
+                        aliases = connections.receive(self.request, 10)
+
+                        results = []
+                        for x in aliases:
+                            execute_param(h3, ("SELECT openfield FROM transactions WHERE address = ? AND openfield LIKE ? ORDER BY block_height ASC LIMIT 1;"), (x,) + ("alias=" + '%',))
+                            try:
+                                result = h3.fetchall()[0][0]
+                            except:
+                                result = x
+                            results.append(result)
+
+                        connections.send(self.request, results, 10)
+                    else:
+                        app_log.info("{} not whitelisted for aliasesget command".format(peer_ip))
+
+
+                elif data == "addfromalias":
+                    if peers.is_allowed(peer_ip, data):
+                        alias_address = connections.receive(self.request, 10)
+                        print(alias_address)
+                        h3.execute("SELECT address FROM transactions WHERE openfield LIKE ? ORDER BY block_height ASC, timestamp ASC LIMIT 1;", ("alias=" + alias_address,))  # asc for first entry
+                        try:
+                            address_fetch = h3.fetchone()[0]
+                        except:
+                            address_fetch = "No alias"
+                        app_log.warning("Fetched the following alias address: {}".format(address_fetch))
+
+                        connections.send(self.request, address_fetch, 10)
+
+                    else:
+                        app_log.info("{} not whitelisted for addfromalias command".format(peer_ip))
+
                 elif data == "pubkeyget":
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
@@ -1991,6 +2026,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                     else:
                         app_log.info("{} not whitelisted for pubkeyget command".format(peer_ip))
+
+
 
                 elif data == "aliascheck":
                     # if (peer_ip in allowed or "any" in allowed):
@@ -2010,23 +2047,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     else:
                         app_log.info("{} not whitelisted for aliascheck command".format(peer_ip))
 
-                elif data == "aliasesget":  # only gets the first one
-                    # if (peer_ip in allowed or "any" in allowed):
-                    if peers.is_allowed(peer_ip, data):
-                        alias_addresses = connections.receive(self.request, 10)
 
-                        results = []
-                        for x in alias_addresses:
-                            execute_param(h3, ("SELECT openfield FROM transactions WHERE address = ? AND openfield LIKE ? ORDER BY block_height ASC LIMIT 1;"), (x,) + ("alias=" + '%',))
-                            try:
-                                result = h3.fetchall()[0][0]
-                            except:
-                                result = x
-                            results.append(result)
-
-                        connections.send(self.request, results, 10)
-                    else:
-                        app_log.info("{} not whitelisted for aliasgetes command".format(peer_ip))
 
                 elif data == "txsend":
                     # if (peer_ip in allowed or "any" in allowed):

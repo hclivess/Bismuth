@@ -819,10 +819,6 @@ def table(address, addlist_20):
 
     # show mempool txs
 
-
-
-
-
     # retrieve aliases in bulk
 
     addlist_addressess = []
