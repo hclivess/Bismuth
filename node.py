@@ -4,6 +4,8 @@
 # must unify node and client now that connections parameters are function parameters
 # if you have a block of data and want to insert it into sqlite, you must use a single "commit" for the whole batch, it's 100x faster
 # do not isolation_level=None/WAL hdd levels, it makes saving slow
+# rolling back indexes: 1424 and 945
+
 
 VERSION = "4.2.3.1"
 
@@ -15,6 +17,7 @@ from operator import itemgetter
 import shutil, socketserver, base64, hashlib, os, re, sqlite3, sys, threading, time, socks, random, keys, math, requests, tarfile, essentials
 from decimal import *
 import tokens
+import aliases
 
 from Crypto.Hash import SHA
 from Crypto.PublicKey import RSA
@@ -88,6 +91,14 @@ def tokens_rollback(height):
     execute_param(t, ("DELETE FROM transactions WHERE block_height >= ?;"), (height,))
     commit(tok)
     t.close()
+
+def aliases_rollback(height):
+    ali = sqlite3.connect("static/aliases.db")
+    ali.text_factory = str
+    a = ali.cursor()
+    execute_param(a, ("DELETE FROM transactions WHERE block_height >= ?;"), (height,))
+    commit(ali)
+    a.close()
 
 def presence_check(cursor, signature):
     execute_param(cursor, ("SELECT * FROM transactions WHERE signature = ?;"), (signature,))
@@ -939,9 +950,10 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, mempool, m):
                     commit(hdd2)
                     # roll back reward too
 
-                # rollback tokens too
+                # rollback indices too
                 tokens_rollback(str(db_block_height))
-                # rollback tokens too
+                aliases_rollback(str(db_block_height))
+                # rollback indices too
 
         except:
             pass
@@ -1418,9 +1430,10 @@ def coherence_check():
                     conn2.commit()
                     conn2.close()
 
-                    # rollback token index
+                    # rollback indices
                     tokens_rollback(y)
-                    # rollback token index
+                    aliases_rollback(y)
+                    # rollback indices
 
                     app_log.warning("Status: Due to a coherence issue at block {}, {} has been rolled back and will be resynchronized".format(y, chain))
             y = x
@@ -1449,6 +1462,7 @@ def coherence_check():
 
                         # rollback token index
                         tokens_rollback(y)
+                        aliases_rollback(y)
                         # rollback token index
 
                         app_log.warning("Status: Due to a coherence issue at block {}, {} has been rolled back and will be resynchronized".format(y, chain))
@@ -1463,6 +1477,8 @@ coherence_check()
 
 app_log.warning("Status: Indexing tokens")
 tokens.tokens_update("static/tokens.db","normal",app_log)
+app_log.warning("Status: Indexing aliases")
+aliases.aliases_update("static/aliases.db","normal",app_log)
 
 ledger_compress(ledger_path_conf, hyper_path_conf)
 
@@ -1999,7 +2015,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         app_log.info("{} not whitelisted for aliasesget command".format(peer_ip))
 
 
-                elif data == "addfromalias":
+                elif data == "addfromalias": #TODO: update to use index
                     if peers.is_allowed(peer_ip, data):
                         alias_address = connections.receive(self.request, 10)
                         print(alias_address)
