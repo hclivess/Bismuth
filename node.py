@@ -2403,7 +2403,7 @@ def worker(HOST, PORT):
                             segments = connections.receive(s, 10)
 
                         except:
-                            if warning(s, peer_ip, "Failed to deliver the longest chain", 10) == "banned":
+                            if peers.warning(s, peer_ip, "Failed to deliver the longest chain", 10) == "banned":
                                 raise ValueError("{} is banned".format(peer_ip))
 
                         else:
