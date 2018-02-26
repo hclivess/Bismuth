@@ -86,20 +86,20 @@ app_log.warning("Configuration settings loaded")
 
 def tokens_rollback(height,app_log):
     """rollback token index"""
-    tok = sqlite3.connect("static/tokens.db")
+    tok = sqlite3.connect("static/index.db")
     tok.text_factory = str
     t = tok.cursor()
-    execute_param(t, ("DELETE FROM transactions WHERE block_height >= ?;"), (height,))
+    execute_param(t, ("DELETE FROM tokens WHERE block_height >= ?;"), (height,))
     commit(tok)
     t.close()
     app_log.warning("Rolled back the token index to {}".format(height))
 
 def aliases_rollback(height,app_log):
     """rollback alias index"""
-    ali = sqlite3.connect("static/aliases.db")
+    ali = sqlite3.connect("static/index.db")
     ali.text_factory = str
     a = ali.cursor()
-    execute_param(a, ("DELETE FROM transactions WHERE block_height >= ?;"), (height,))
+    execute_param(a, ("DELETE FROM aliases WHERE block_height >= ?;"), (height,))
     commit(ali)
     a.close()
     app_log.warning("Rolled back the alias index to {}".format(height))
@@ -120,9 +120,9 @@ def sendsync(sdef, peer_ip, status, provider):
     if provider == "yes":
         peers.peers_save("peers.txt", peer_ip)
 
-    time.sleep(float(pause_conf))
+    time.sleep(Decimal(pause_conf))
     while db_lock.locked() == True:
-        time.sleep(float(pause_conf))
+        time.sleep(Decimal(pause_conf))
 
     connections.send(sdef, "sendsync", 10)
 
@@ -144,12 +144,12 @@ def validate_pem(public_key):
         # verify pem as cryptodome does
 
 
-def fee_calculate(openfield):  # move in model from wallet.py on a certain block
-    fee = '%.8f' % float(0.01 + (float(len(openfield)) / 100000))  # 0.01 dust
+def fee_calculate(openfield):
+    fee = Decimal("0.01") + (Decimal(len(openfield)) / 100000)  # 0.01 dust
     if "token:issue:" in openfield:
-        fee = '%.8f' % (float(fee) + 10)
+        fee = Decimal(fee) + Decimal(10)
     if "alias=" in openfield:
-        fee = '%.8f' % (float(fee) + 1)
+        fee = Decimal(fee) + Decimal(1)
     return fee
 
 
@@ -237,7 +237,7 @@ def check_integrity(database):
 
 
 def percentage(percent, whole):
-    return float((percent * whole) / 100)
+    return ((Decimal (percent) * Decimal(whole)) / 100)
 
 
 def db_to_drive(hdd, h, hdd2, h2):
@@ -1480,9 +1480,9 @@ check_integrity(hyper_path_conf)
 coherence_check()
 
 app_log.warning("Status: Indexing tokens")
-tokens.tokens_update("static/tokens.db","normal",app_log)
+tokens.tokens_update("static/index.db","normal",app_log)
 app_log.warning("Status: Indexing aliases")
-aliases.aliases_update("static/aliases.db","normal",app_log)
+aliases.aliases_update("static/index.db","normal",app_log)
 
 ledger_compress(ledger_path_conf, hyper_path_conf)
 
@@ -2022,12 +2022,12 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "addfromalias":
                     if peers.is_allowed(peer_ip, data):
 
-                        ali = sqlite3.connect("static/aliases.db")
+                        ali = sqlite3.connect("static/index.db")
                         ali.text_factory = str
                         a = ali.cursor()
 
                         alias_address = connections.receive(self.request, 10)
-                        a.execute("SELECT address FROM transactions WHERE alias = ? ORDER BY block_height ASC LIMIT 1;", (alias_address,))  # asc for first entry
+                        a.execute("SELECT address FROM aliases WHERE alias = ? ORDER BY block_height ASC LIMIT 1;", (alias_address,))  # asc for first entry
                         try:
                             address_fetch = a.fetchone()[0]
                         except:
@@ -2432,7 +2432,7 @@ def worker(HOST, PORT):
 
                 else:
                     execute(c, "SELECT timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
-                    last_block_ago = float(c.fetchone()[0])
+                    last_block_ago = Decimal(c.fetchone()[0])
 
                     if int(last_block_ago) < (time.time() - 600):
                         block_req = peers.consensus_most_common

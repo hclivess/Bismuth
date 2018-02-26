@@ -18,15 +18,15 @@ def aliases_update(file,mode,app_log):
     ali = sqlite3.connect(file)
     ali.text_factory = str
     a = ali.cursor()
-    a.execute("CREATE TABLE IF NOT EXISTS transactions (block_height INTEGER, address, alias)")
+    a.execute("CREATE TABLE IF NOT EXISTS aliases (block_height INTEGER, address, alias)")
     ali.commit()
 
     if mode == "reindex":
         app_log.warning("Alias database will be reindexed")
-        a.execute("DELETE FROM TRANSACTIONS")
+        a.execute("DELETE FROM aliases")
         ali.commit()
 
-    a.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
+    a.execute("SELECT block_height FROM aliases ORDER BY block_height DESC LIMIT 1;")
     try:
         alias_last_block = int(a.fetchone()[0])
     except:
@@ -34,17 +34,19 @@ def aliases_update(file,mode,app_log):
 
     app_log.warning("Alias anchor block: {}".format(alias_last_block))
 
-    c.execute("SELECT block_height, address, openfield FROM transactions WHERE openfield LIKE ? AND block_height > ? ORDER BY block_height ASC, timestamp ASC;", ("alias=" + '%',)+(alias_last_block,))
+    c.execute("SELECT block_height, address, openfield FROM transactions WHERE openfield LIKE ? AND block_height >= ? ORDER BY block_height ASC, timestamp ASC;", ("alias=" + '%',)+(alias_last_block,))
+    #include the anchor block in case indexation stopped there
     result = c.fetchall()
 
     for openfield in result:
-        app_log.warning("Processing alias registration: {}".format(alias_last_block))
-        alias = (replace_regex(openfield[2],"alias="))
+        alias = (replace_regex(openfield[2], "alias="))
+        app_log.warning("Processing alias registration: {}".format(alias))
         try:
-            a.execute("SELECT * from transactions WHERE alias = ?", (alias,))
-            dummy = a.fetchall()[0] #check for presence
+            a.execute("SELECT * from aliases WHERE alias = ?", (alias,))
+            dummy = a.fetchall()[0] #check for uniqueness
+            app_log.warning("Alias already registered: {}".format(alias))
         except:
-            a.execute("INSERT INTO transactions VALUES (?,?,?)", (openfield[0],openfield[1],alias))
+            a.execute("INSERT INTO aliases VALUES (?,?,?)", (openfield[0],openfield[1],alias))
             ali.commit()
 
     conn.close()
@@ -52,8 +54,6 @@ def aliases_update(file,mode,app_log):
 
 # index aliases
 
-
-
 if __name__ == "__main__":
     app_log = log.log("tokens.log", "WARNING", "yes")
-    aliases_update("aliases.db","normal",app_log)
+    aliases_update("index.db","normal",app_log)

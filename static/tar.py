@@ -1,6 +1,6 @@
 import tarfile
 
-files = ["ledger.db-wal","ledger.db-shm","ledger.db","hyper.db-shm", "hyper.db-wal", "hyper.db", "tokens.db"]
+files = ["ledger.db-wal","ledger.db-shm","ledger.db","hyper.db-shm", "hyper.db-wal", "hyper.db", "index.db"]
 
 tar = tarfile.open("ledger.tar.gz", "w:gz")
 
