@@ -740,7 +740,7 @@ def token_issue(token, amount, window):
     send_confirm(amount,0,"token:issue:{}:{}".format(token, amount))
 
 def tokens():
-    token_db = "static/tokens.db"
+    token_db = "static/index.db"
     tokens_update(token_db,"normal",app_log) #catch up with the chain
 
     address = gui_address.get()
@@ -751,7 +751,7 @@ def tokens():
     tok.text_factory = str
     t = tok.cursor()
 
-    t.execute("SELECT DISTINCT token FROM transactions WHERE address OR recipient = ?", (address,))
+    t.execute("SELECT DISTINCT token FROM tokens WHERE address OR recipient = ?", (address,))
     tokens_user = t.fetchall()
     print ("tokens_user",tokens_user)
 
@@ -761,9 +761,9 @@ def tokens():
 
     for token in tokens_user:
         token = token[0]
-        t.execute("SELECT sum(amount) FROM transactions WHERE recipient = ? AND token = ?;", (address,)+(token,))
+        t.execute("SELECT sum(amount) FROM tokens WHERE recipient = ? AND token = ?;", (address,)+(token,))
         credit = t.fetchone()[0]
-        t.execute("SELECT sum(amount) FROM transactions WHERE address = ? AND token = ?;", (address,)+(token,))
+        t.execute("SELECT sum(amount) FROM tokens WHERE address = ? AND token = ?;", (address,)+(token,))
         debit = t.fetchone()[0]
 
         debit = 0 if debit is None else debit
