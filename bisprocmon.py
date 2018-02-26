@@ -1,15 +1,16 @@
 import psutil
+import time
 
 import tornado.ioloop
 import tornado.web
 
 #print(psutil.pids()) # Print all pids
 
-
-
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
+
         pnames = []
+        del pnames [:]
         for process in psutil.pids():
             try:
                 # print (process)
@@ -78,7 +79,7 @@ class MainHandler(tornado.web.RequestHandler):
             self.write("</font>")
             self.write("<br>")
 
-        if "anon.py" in str(pnames):
+        if "anon_dappie.py" in str(pnames):
             self.write("<font color='green'>")
             self.write("Anonymizer: <strong>OK</strong>")
             self.write("</font>")
@@ -88,6 +89,10 @@ class MainHandler(tornado.web.RequestHandler):
             self.write("Anonymizer: <strong>Not running</strong>")
             self.write("</font>")
             self.write("<br>")
+
+        self.write("<br>")
+        self.write("Last updated: {}".format(time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(time.time()))))
+        #time.sleep(5)
 
 
 
