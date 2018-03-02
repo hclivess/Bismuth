@@ -814,16 +814,13 @@ def tokens():
     cancel.grid(row=6, column=0, sticky=W + E, padx=5)
 
 
-def table(address, addlist_20):
+def table(address, addlist_20, mempool_total):
     # transaction table
     # data
 
     datasheet = ["Time", "From", "To", "Amount", "Type"]
 
     # show mempool txs
-    connections.send(s, "mpget", 10)  # senders
-    mempool_total = connections.receive(s, 10)
-    print (mempool_total)
 
     colors = []
 
@@ -868,7 +865,7 @@ def table(address, addlist_20):
         aliases_rec_results = connections.receive(s, 10)
     # retrieve aliases in bulk
 
-    i = 0
+    i = 1
     for row in addlist_20:
 
 
@@ -1008,6 +1005,10 @@ def refresh(address, s):
 
         # network status
 
+        connections.send(s, "mpget", 10)  # senders
+        mempool_total = connections.receive(s, 10)
+        print(mempool_total)
+
         # fees_current_var.set("Current Fee: {}".format('%.8f' % float(fee)))
         balance_var.set("Balance: {}".format(balance))
         balance_raw.set(balance)
@@ -1017,9 +1018,11 @@ def refresh(address, s):
         rewards_var.set("Rewards: {}".format(rewards))
         bl_height_var.set("Block Height: {}".format(bl_height))
         diff_msg_var.set("Mining Difficulty: {}".format(diff_msg))
-        sync_msg_var.set("Network: {}".format(sync_msg))
+        sync_msg_var.set(sync_msg)
         version_var.set("Version: {}".format(status_version))
         hash_var.set("Hash: {}...".format(hash_last[:6]))
+
+        mempool_count_var.set("Mempool txs: {}".format(len(mempool_total)))
 
 
         connections.send(s, "addlistlim", 10)
@@ -1028,7 +1031,7 @@ def refresh(address, s):
         addlist = connections.receive(s, 10)
         addlist_20 = addlist[:20]  # limit
 
-        table(address, addlist_20)
+        table(address, addlist_20, mempool_total)
         # root.after(1000, refresh)
     except:
         messagebox.showinfo("Connection error", "Connection to node aborted")
@@ -1069,7 +1072,7 @@ myaddress = hashlib.sha224(public_key_readable.encode('utf-8')).hexdigest()
 
 # frames
 f2 = Frame(root, height=100, width=100)
-f2.grid(row=0, column=1, sticky=W + E + N)
+f2.grid(row=0, column=1, sticky = N)
 
 f3 = Frame(root, width=500)
 f3.grid(row=0, column=0, sticky=W + E + N, pady=10, padx=10)
@@ -1098,29 +1101,35 @@ root.config(menu=menubar)
 
 # buttons
 
-button_row_zero = 9
-send_b = Button(f5, text="Send", command=lambda: send_confirm(str(amount.get()).strip(), recipient.get().strip(), (openfield.get("1.0", END)).strip()), height=1, width=10, font=("Tahoma", 8))
-send_b.grid(row=button_row_zero, column=0, sticky=W + E + S, pady=(45, 0), padx=15)
+button_row_zero = 0
+column = 1
 
-message_b = Button(f5, text="Manual Refresh", command=lambda: refresh(gui_address.get(),s), height=1, width=10, font=("Tahoma", 8))
-message_b.grid(row=button_row_zero+2, column=0, sticky=W + E + S, pady=0, padx=15)
+send_b = Button(f5, text="Send", command=lambda: send_confirm(str(amount.get()).strip(), recipient.get().strip(), (openfield.get("1.0", END)).strip()), height=1, width=20, font=("Tahoma", 8))
+send_b.grid(row=button_row_zero, column=column, sticky=N+E, pady=0, padx=15)
 
-balance_b = Button(f5, text="Messages", command=lambda: msg_dialogue(gui_address.get()), height=1, width=10, font=("Tahoma", 8))
-balance_b.grid(row=button_row_zero+3, column=0, sticky=W + E + S, pady=0, padx=15)
+qr_b = Button(f5, text="URL QR", command=lambda :qr(url.get()), height=1, width=20, font=("Tahoma", 8))
+if "Linux" in platform.system():
+    qr_b.configure(text="QR Disabled", state=DISABLED)
+qr_b.grid(row=button_row_zero+1, column=column, sticky=N+E, pady=0, padx=15)
+
+message_b = Button(f5, text="Manual Refresh", command=lambda: refresh(gui_address.get(),s), height=1, width=20, font=("Tahoma", 8))
+message_b.grid(row=button_row_zero+2, column=column, sticky=N+E, pady=0, padx=15)
+
+balance_b = Button(f5, text="Messages", command=lambda: msg_dialogue(gui_address.get()), height=1, width=20, font=("Tahoma", 8))
+balance_b.grid(row=button_row_zero+3, column=column, sticky=N+E, pady=0, padx=15)
 #balance_b.configure(state=DISABLED)
 
-sign_b = Button(f5, text="Sign Message", command=sign, height=1, width=10, font=("Tahoma", 8))
-sign_b.grid(row=button_row_zero+4, column=0, sticky=W + E + S, pady=0, padx=15)
+sign_b = Button(f5, text="Sign Message", command=sign, height=1, width=20, font=("Tahoma", 8))
+sign_b.grid(row=button_row_zero+4, column=column, sticky=N+E, pady=0, padx=15)
 
-alias_b = Button(f5, text="Alias Registration", command=alias, height=1, width=10, font=("Tahoma", 8))
-alias_b.grid(row=button_row_zero+5, column=0, sticky=W + E + S, pady=0, padx=15)
+alias_b = Button(f5, text="Alias Registration", command=alias, height=1, width=20, font=("Tahoma", 8))
+alias_b.grid(row=button_row_zero+5, column=column, sticky=N+E, pady=0, padx=15)
 
-backup_b = Button(f5, text="Backup Keys", command=backup, height=1, width=10, font=("Tahoma", 8))
-backup_b.grid(row=button_row_zero+6, column=0, sticky=W + E + S, pady=0, padx=15)
+backup_b = Button(f5, text="Backup Keys", command=backup, height=1, width=20, font=("Tahoma", 8))
+backup_b.grid(row=button_row_zero+6, column=column, sticky=N+E, pady=0, padx=15)
 
-tokens_b = Button(f5, text="Tokens", command=tokens, height=1, width=10, font=("Tahoma", 8))
-tokens_b.grid(row=button_row_zero+7, column=0, sticky=W + E + S, pady=0, padx=15)
-
+tokens_b = Button(f5, text="Tokens", command=tokens, height=1, width=20, font=("Tahoma", 8))
+tokens_b.grid(row=button_row_zero+7, column=column, sticky=N+E, pady=0, padx=15)
 
 
 #quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=10, font=("Tahoma", 8))
@@ -1148,8 +1157,9 @@ lock_b.grid(row=1, column=3, sticky=E + N, pady=0, padx=5)
 # update balance label
 balance_raw = StringVar()
 balance_var = StringVar()
+
 balance_msg_label = Label(f5, textvariable=balance_var)
-balance_msg_label.grid(row=0, column=0, sticky=N + E, padx=15, pady=(0, 0))
+balance_msg_label.grid(row=0, column=0, sticky=N + E, padx=15)
 
 debit_var = StringVar()
 spent_msg_label = Label(f5, textvariable=debit_var)
@@ -1186,6 +1196,10 @@ version_var_label.grid(row=8, column=0, sticky=N + E, padx=15)
 hash_var = StringVar()
 hash_var_label = Label(f5, textvariable=hash_var)
 hash_var_label.grid(row=9, column=0, sticky=N + E, padx=15)
+
+mempool_count_var = StringVar()
+mempool_count_var_label = Label(f5, textvariable=mempool_count_var)
+mempool_count_var_label.grid(row=10, column=0, sticky=N + E, padx=15)
 
 encode_var = IntVar()
 alias_cb_var = IntVar()
@@ -1251,10 +1265,7 @@ create_url_b = Button(f3, text="Create", command=lambda: create_url_clicked(app_
 create_url_b.grid(row=4, column=5, sticky=W + E, padx=(5, 0))
 
 
-qr_b = Button(f5, text="URL QR", command=lambda :qr(url.get()), height=1, width=10, font=("Tahoma", 8))
-if "Linux" in platform.system():
-    qr_b.configure(text="QR Disabled", state=DISABLED)
-qr_b.grid(row=button_row_zero+1, column=0, sticky=W + E + S, pady=0, padx=15)
+
 
 
 
@@ -1295,13 +1306,13 @@ balance_enumerator = Entry(f3, width=5)
 # address and amount
 
 Label(f3, text="Your Latest Transactions:", width=20, anchor="w").grid(row=8, sticky=S)
-Label(f3, text="", width=20, anchor="w").grid(row=7, sticky=S)
+Label(f3, text="", width=20, anchor=W).grid(row=7, sticky=S)
 
 # logo
 
 logo_hash_decoded = base64.b64decode(icons.logo_hash)
 logo = PhotoImage(data=logo_hash_decoded)
-image = Label(f2, image=logo).grid(pady=25, padx=50, sticky=N)
+Label(f2, image=logo).grid(column=0,sticky=NE, pady=10, padx=0)
 # logo
 
 node_connect()
