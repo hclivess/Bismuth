@@ -783,12 +783,26 @@ def tokens():
     # callback
 
     token_name_var = StringVar()
-    token_name = Entry(tokens_main, textvariable=token_name_var)
-    token_name.grid(row=2, column=0, sticky=W + E, padx=15, pady=(5, 5))
+    token_name = Entry(tokens_main, textvariable=token_name_var, width=80)
+    token_name.grid(row=2, column=0, sticky=E, padx=15, pady=(5, 5))
+
+    token_name_label_var = StringVar()
+    token_name_label_var.set("Token Name:")
+    token_name_label = Label(tokens_main, textvariable=token_name_label_var)
+    token_name_label.grid(row=2, column=0, sticky= W, padx=15, pady=(0, 0))
+
+
+    #balance_var = StringVar()
+    #balance_msg_label = Label(f5, textvariable=balance_var)
 
     token_amount_var = StringVar()
-    token_amount = Entry(tokens_main, textvariable=token_amount_var)
-    token_amount.grid(row=3, column=0, sticky=W + E, padx=15, pady=(5, 5))
+    token_amount = Entry(tokens_main, textvariable=token_amount_var, width=80,)
+    token_amount.grid(row=3, column=0, sticky=E, padx=15, pady=(5, 5))
+    
+    token_amount_label_var = StringVar()
+    token_amount_label_var.set("Token Amount:")
+    token_amount_label = Label(tokens_main, textvariable=token_amount_label_var)
+    token_amount_label.grid(row=3, column=0, sticky= W, padx=15, pady=(0, 0))
 
     transfer = Button(tokens_main, text="Transfer", command=lambda: token_transfer(token_name_var.get(), token_amount_var.get(), tokens_main))
     transfer.grid(row=4, column=0, sticky=W + E, padx=5)
