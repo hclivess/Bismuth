@@ -2022,6 +2022,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "addfromalias":
                     if peers.is_allowed(peer_ip, data):
 
+                        aliases.aliases_update("static/index.db", "normal", app_log)
+
                         ali = sqlite3.connect("static/index.db")
                         ali.text_factory = str
                         a = ali.cursor()
