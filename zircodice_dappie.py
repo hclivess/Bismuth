@@ -6,9 +6,9 @@ import re
 import time
 from decimal import *
 
-
 def percentage(percent, whole):
-  return (percent * whole) / 100.0
+    getcontext().prec = 2
+    return ((Decimal (percent) * Decimal(whole)) / 100)
 
 def fee_calculate(openfield):
     getcontext().prec = 8
@@ -141,7 +141,7 @@ while True:
             # create transactions for missing payouts
             timestamp = '%.2f' % time.time()
 
-            payout_amount = float(bet_amount * 2) - percentage(1, bet_amount)
+            payout_amount = float(bet_amount * 2) - percentage(5.3, bet_amount)
             payout_openfield = "payout for " + tx_signature[:8]
             payout_keep = 0
             fee = fee_calculate(payout_openfield)
