@@ -32,22 +32,29 @@ class MainHandler(tornado.web.RequestHandler):
                 last_block_height = result[0][0]
                 last_timestamp = result[0][1]
 
-                c.execute("SELECT * FROM transactions WHERE (openfield = ? OR openfield = ?) AND recipient = ? ORDER BY block_height DESC, timestamp DESC LIMIT 100;",("odd",)+("even",)+(address,))
+                c.execute("SELECT * FROM transactions WHERE (openfield = ? OR openfield = ?) AND recipient = ? ORDER BY block_height DESC, timestamp DESC LIMIT 1000;",("odd",)+("even",)+(address,))
                 result_bets = c.fetchall()
-                view_bets = []
+
                 break
 
             except Exception as e:
                 print("Retrying database access, {}".format(e))
                 time.sleep(1)
 
-
+        view_bets = []
         view_bets.append("<tr bgcolor=white>")
         view_bets.append("<td>Block Height</td><td>Time</td><td>Player</td><td>Block Hash</td><td>Hash Last Number</td><td>Amount Bet</td><td>Bet on</td><td>Result</td>")
         view_bets.append("</tr>")
 
         betting_signatures = []
+
+        wins = 0
+        losses = 0
+        wins_amount = 0
+        losses_amount = 0
+
         for x in result_bets:
+            amount = x[4]
             block_hash = x[7]
             openfield = str(x[11])
             betting_signatures.append(x[5]) #sig
@@ -56,12 +63,19 @@ class MainHandler(tornado.web.RequestHandler):
             if (digit_last % 2 == 0) and (openfield == "even"): #if bets even and wins
                 cell_color = "#49b675"
                 result = "win"
+                wins = wins + 1
+                wins_amount = wins_amount + amount
             elif (digit_last % 2 != 0) and (openfield == "odd"): #if bets odd and wins
                 cell_color = "#49b675"
                 result = "win"
+                wins = wins + 1
+                wins_amount = wins_amount + amount
+
             else:
                 cell_color = "#9b111e"
                 result = "loss"
+                losses = losses + 1
+                losses_amount = losses_amount + amount
 
             view_bets.append("<tr bgcolor="+cell_color+">")
             view_bets.append("<td>{}</td>".format(x[0]))#block height
@@ -74,7 +88,9 @@ class MainHandler(tornado.web.RequestHandler):
             view_bets.append("<td>{}</td>".format(result))
             view_bets.append("</tr>")
 
-        c.execute('SELECT * FROM transactions WHERE address = ? AND openfield LIKE ? ORDER BY block_height DESC, timestamp DESC LIMIT 100;',(address,)+('%'+"payout"+'%',)) #should work, needs testing
+
+
+        c.execute('SELECT * FROM transactions WHERE address = ? AND openfield LIKE ? ORDER BY block_height DESC, timestamp DESC LIMIT 1000;',(address,)+('%'+"payout"+'%',)) #should work, needs testing
         result_payouts = c.fetchall()
         #print result_payouts
         view_payouts = []
@@ -100,6 +116,7 @@ class MainHandler(tornado.web.RequestHandler):
         html.append("<!DOCTYPE html>")
         html.append("<html>")
         html.append("<link rel = 'icon' href = 'static/zircodice.ico' type = 'image/x-icon' / >")
+        html.append('<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" >')
         html.append("<head>")
         html.append("<meta http-equiv='refresh' content='60' >")
         html.append("<link rel='stylesheet' type='text/css' href='static/style_zircodice.css'>")
@@ -111,10 +128,33 @@ class MainHandler(tornado.web.RequestHandler):
         html.append("<p>Please send any amount of coins lower than 100 to the address <strong>"+address+"</strong> and include the word '<strong>even</strong>' or '<strong>odd</strong>' in the OpenField data.<br> You are betting on the last number in the block hash where your bet is included. 0 is considered an even number.<br>If you win, you will receive 2x your bet. House returns 99% of your win minus fees. Payout happens after 10 blocks have passed.</p>")
         html.append("<br>")
         html.append("<h1>Bets</h1>")
-        html.append("<table style='width:100%'>"+ str(''.join(view_bets))+"</table>")
+
+        html.append("<div class ='container-fluid'>")
+        html.append("<table class='table table-responsive'>"+ str(''.join(view_bets))+"</table>")
+        html.append("</table>")
+        html.append("</div>")
+
         html.append("<h1>Payouts</h1>")
-        html.append("<table style='width:100%'>" + str(''.join(view_payouts)) + "</table>")
+
+        html.append("<div class ='container-fluid'>")
+        html.append("<table class='table table-responsive'>" + str(''.join(view_payouts)))
+        html.append("</table>")
+        html.append("</div>")
+
         html.append("<p>We are currently at block {} from {} ({} minutes ago)</p>".format(last_block_height,time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(last_timestamp))),int((time.time() - float(last_timestamp))/60)))
+
+        html.append("<div class ='container-fluid'>")
+        html.append("<table class='table table-responsive'>")
+
+        html.append("<tr bgcolor='lightblue'><th>Statistics for the last 1000 bets</th>")
+        html.append("<tr bgcolor='lightblue'><td>Player wins:</td><td>{}</td>".format(str(wins)))
+        html.append("<tr bgcolor='lightblue'><td>Player losses: </td><td>{}</td>".format(str(losses)))
+        html.append("<tr bgcolor='lightblue'><td>Wins amount: </td><td>{}</td>".format(str(wins_amount)))
+        html.append("<tr bgcolor='lightblue'><td>Losses amount: </td><td>{}</td>".format(str(losses_amount)))
+
+        html.append("</table>")
+        html.append("</div>")
+
         html.append("</body>")
         html.append("</html>")
 

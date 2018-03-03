@@ -52,8 +52,8 @@ while True:
     run = run + 1
 
     # confirmations
-    passed = 0
-    while passed == 0:
+
+    while True:
         try:
             c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
             block_height_last = c.fetchone()[0]
@@ -61,7 +61,7 @@ while True:
 
             c.execute("SELECT * FROM transactions WHERE (openfield = ? OR openfield = ?) and recipient = ? and block_height <= ? ORDER BY block_height DESC LIMIT 500",("odd",)+("even",)+(address,)+(block_height_last-confirmations,))
             result_bets = c.fetchall()
-            passed = 1
+            break
         except sqlite3.OperationalError as e:
             print ("Database locked, retrying")
             time.sleep(1)
@@ -82,7 +82,7 @@ while True:
             if openfield == "even":
                 player = [0, 2, 4, 6, 8]
                 bank = [1, 3, 5, 7, 9]
-            else: #if even
+            else: #if odd
                 player = [1, 3, 5, 7, 9]
                 bank = [0, 2, 4, 6, 8]
 
