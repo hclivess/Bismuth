@@ -126,6 +126,7 @@ class MainHandler(tornado.web.RequestHandler):
         html.append("<body><body background="'static/bg.jpg'"><center>")
         html.append("<h1>Welcome to ZircoDice</h1>")
         html.append("<p>Please send any amount of coins lower than 100 to the address <strong>"+address+"</strong> and include the word '<strong>even</strong>' or '<strong>odd</strong>' in the OpenField data.<br> You are betting on the last number in the block hash where your bet is included. 0 is considered an even number.<br>If you win, you will receive 2x your bet. House returns 94.7% of your win minus fees. Payout happens after 10 blocks have passed.</p>")
+        html.append("<p>Changes: House edge has been risen to industry standard 5.26% for roulette from 1%")
         html.append("<br>")
         html.append("<h1>Bets</h1>")
 
