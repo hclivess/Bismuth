@@ -1,12 +1,19 @@
-import sqlite3, keys
+import sqlite3
+import keys
 
-(key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read()
+_, _, _, _, address = keys.read()
 
-conn = sqlite3.connect('static/ledger.db')
-conn.text_factory = str
-c = conn.cursor()
-
-c.execute('SELECT * FROM transactions WHERE recipient = ? AND openfield LIKE ? ORDER BY block_height DESC, timestamp DESC LIMIT 100;', (address,) + ('%' + "Archies:" + '%',))  # should work, needs testing
-result_payouts = c.fetchall()
-
-print result_payouts
+ledger = sqlite3.connect('static/ledger.db')
+ledger.text_factory = str
+cursor = None
+try:
+    cursor = ledger.cursor()
+    ledger.execute('SELECT * FROM transactions WHERE recipient = ? AND openfield LIKE ? ORDER BY block_height DESC, timestamp DESC LIMIT 100;', (address,) + ('%' + "Archies:" + '%',))  # should work, needs testing
+    result_payouts = ledger.fetchall()
+    print(result_payouts)
+except Exception as e:
+    print(type(e), e)
+finally:
+    if cursor is not None:
+        cursor.close()
+    ledger.close()
