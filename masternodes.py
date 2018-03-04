@@ -90,7 +90,7 @@ def masternodes_update(file, mode, app_log):
         print(ips)
 
         try:
-            m.execute("SELECT * from masternodes WHERE txid = ?", (txid,))
+            m.execute("SELECT * from masternodes WHERE address = ?", (address,))
             dummy = m.fetchall()[0] #check for uniqueness
             app_log.warning("Masternode already registered: {}".format(txid))
         except:
