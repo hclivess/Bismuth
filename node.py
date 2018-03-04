@@ -1414,8 +1414,8 @@ def coherence_check():
         c = conn.cursor()
 
         #perform test on transaction table
-        c.execute("SELECT block_height FROM transactions WHERE reward != 0 AND block_height != (0 OR 1) ORDER BY block_height ASC")
-        result = c.fetchall()
+        c.execute("SELECT block_height FROM transactions WHERE reward != 0 AND block_height != (0 OR 1) ORDER BY block_height DESC LIMIT 10000")
+        result = reversed(c.fetchall())
 
         my_list = []
         for x in result:
