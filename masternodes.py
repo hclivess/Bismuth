@@ -1,26 +1,54 @@
+#do not mine to the same address you use for staking, you will reduce your rewards
+
 import sqlite3
 import log
 
-def stake_eligible(recipient, block_spread):
+def delegates_list(file):
+    """list masternode addresses registered for the period"""
+    try:
+        mas = sqlite3.connect(file)
+        mas.text_factory = str
+        m = mas.cursor()
+        m.execute("SELECT DISTINCT delegate FROM masternodes")
+        found = m.fetchall()[0]
+        m.close()
+    except:
+        found = False
+
+    return found
+
+
+
+def stake_eligible(recipient, block_spread, reg_phase_start, reg_phase_end):
     """find out whether the masternode's delegate (or self) has staked in the past number of blocks decided by masternode_ratio"""
     conn = sqlite3.connect('static/ledger.db')
     conn.text_factory = str
     c = conn.cursor()
 
+    c.execute("SELECT block_height FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")
+    block_last = c.fetchone()[0]
+
     try:
-        c.execute("SELECT block_height FROM transactions WHERE reward != 0 AND recipient = ? AND openfield LIKE ?",(recipient,)+("mint:" + '%',))
-        last_staked = c.fetchall()[0]
+        delegates = delegates_list("static/index.db")
+
+        c.execute("SELECT block_height FROM transactions WHERE reward != 0 AND block_height > ? AND block_height < ? AND address IN(?)",(reg_phase_start,)+(reg_phase_end,)+(delegates))
+        last_staked = c.fetchone()[0]
     except:
         last_staked = 0
 
-    c.execute("SELECT block_height FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")
-    block_last = c.fetchone()[0]
+    try:
+        c.execute("SELECT COUNT (*) FROM transactions WHERE recipient = ? reward != 0 AND block_height > ? AND block_height < ?",(recipient,)+(reg_phase_start,)+(reg_phase_end,))
+        self_staked_count = c.fetchone()[0]
+    except:
+        self_staked_count = 0
+
     c.close()
 
     print("block_last",block_last)
     print("last_staked",last_staked)
+    print("self_staked_count", self_staked_count)
 
-    if block_last - block_spread > last_staked:
+    if (block_last - block_spread > last_staked):
         eligible = True
     else:
         eligible = False
@@ -46,10 +74,10 @@ def masternode_count(file, app_log):
         mas.text_factory = str
         m = mas.cursor()
         m.execute("SELECT COUNT(DISTINCT address) FROM masternodes")
-        found = m.fetchall()[0][0]
+        found = m.fetchone()[0]
         m.close()
     except:
-        found = 0
+        found = False
 
     return found
 
@@ -65,12 +93,17 @@ def masternode_find(file, address, app_log):
 
 def delegate_find(file, address, recipient, app_log):
     """find address of the delegate in case the delegate exists"""
-    mas = sqlite3.connect(file)
-    mas.text_factory = str
-    m = mas.cursor()
-    m.execute("SELECT address FROM masternodes WHERE delegate = ? AND address = ?", (recipient,) + (address,))
-    found = m.fetchall()
-    m.close()
+    try:
+        mas = sqlite3.connect(file)
+        mas.text_factory = str
+        m = mas.cursor()
+        m.execute("SELECT address FROM masternodes WHERE delegate = ? AND address = ?", (recipient,) + (address,))
+        found = m.fetchone()[0]
+        m.close()
+    except:
+        found = False
+
+
     return found
 
 def masternodes_update(file, mode, app_log):
@@ -154,13 +187,19 @@ def masternodes_update(file, mode, app_log):
     c.close()
     m.close()
 
-if __name__ == "__main__":
-    app_log = log.log("masternodes.log", "WARNING", "yes")
-    masternodes_update("static/index.db","normal",app_log)
-    print(masternode_count("static/index.db", app_log))
-    print(masternode_find("static/index.db", "4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed", app_log))
-    print(delegate_find("static/index.db", "4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed", "4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed", app_log))
-    print(masternode_ratio(masternode_count("static/index.db", app_log)))
-    print(stake_eligible("4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed", masternode_ratio(masternode_count("static/index.db", app_log))[1]))
+    return reg_phase_start, reg_phase_end
 
+if __name__ == "__main__":
+    address = "4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed"
+    delegate = "4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed"
+
+    app_log = log.log("masternodes.log", "WARNING", "yes")
+    reg_phase_start, reg_phase_end = masternodes_update("static/index.db","normal",app_log)
+
+    print(masternode_count("static/index.db", app_log))
+    #print(masternode_find("static/index.db", address, app_log))
+    print(delegate_find("static/index.db", address, delegate, app_log))
+    print(masternode_ratio(masternode_count("static/index.db", app_log)))
+    print(stake_eligible(delegate, masternode_ratio(masternode_count("static/index.db", app_log))[1],reg_phase_start,reg_phase_end))
+    print(delegates_list("static/index.db"))
     #masternode:delegate:ip

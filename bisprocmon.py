@@ -101,6 +101,17 @@ class MainHandler(tornado.web.RequestHandler):
             self.write("</font>")
             self.write("<br>")
 
+        if "geo.py" in str(pnames):
+            self.write("<font color='green'>")
+            self.write("Geo: <strong>OK</strong>")
+            self.write("</font>")
+            self.write("<br>")
+        else:
+            self.write("<font color='red'>")
+            self.write("Geo: <strong>Not running</strong>")
+            self.write("</font>")
+            self.write("<br>")
+
         self.write("<br>")
         self.write("Last updated: {}".format(time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(time.time()))))
         #time.sleep(5)
