@@ -1,40 +1,5 @@
 import sqlite3
 import log
-import time, random
-from decimal import *
-
-def fee_calculate(openfield):
-    fee = Decimal("0.01") + (Decimal(len(openfield)) / 100000)  # 0.01 dust
-    if "token:issue:" in openfield:
-        fee = Decimal(fee) + Decimal(10)
-    if "alias=" in openfield:
-        fee = Decimal(fee) + Decimal(1)
-    return fee
-
-def execute(cursor, query):
-    """Secure execute for slow nodes"""
-    while True:
-        try:
-            cursor.execute(query)
-            break
-        except Exception as e:
-            app_log.warning("Database query: {} {}".format(cursor, query))
-            app_log.warning("Database retry reason: {}".format(e))
-            time.sleep(random.uniform(0, 1))
-    return cursor
-
-
-def execute_param(cursor, query, param):
-    """Secure execute w/ param for slow nodes"""
-    while True:
-        try:
-            cursor.execute(query, param)
-            break
-        except Exception as e:
-            app_log.warning("Database query: {} {} {}".format(cursor, query, param))
-            app_log.warning("Database retry reason: {}".format(e))
-            time.sleep(random.random())
-    return cursor
 
 def masternodes_update(file, mode, app_log):
     if mode not in ("normal","reindex"):
@@ -76,7 +41,10 @@ def masternodes_update(file, mode, app_log):
     print("reg_phase_start", reg_phase_start)
     print("reg_phase_end", reg_phase_end)
 
-    for row in c.execute("SELECT block_height, timestamp, address, recipient, openfield, signature FROM transactions WHERE block_height >= ? AND block_height <= ? AND openfield LIKE ?", (reg_phase_start,) + (reg_phase_end,) + ("masternode:" + '%',)):
+    c.execute("SELECT block_height, timestamp, address, recipient, openfield, signature FROM transactions WHERE block_height >= ? AND block_height <= ? AND openfield LIKE ?", (reg_phase_start,) + (reg_phase_end,) + ("masternode:" + '%',))
+    results = c.fetchall() #more efficient than "for row in"
+
+    for row in results:
         block_height = row[0]
         timestamp = row[1]
         address = row[2]
@@ -98,14 +66,14 @@ def masternodes_update(file, mode, app_log):
 
             try:
                 m.execute("SELECT * from masternodes WHERE address = ?", (address,))
-                regitration_requests = len(m.fetchall())
+                registration_requests = len(m.fetchall())
             except:
-                regitration_requests = 0
+                registration_requests = 0
 
-            print("regitration_requests",regitration_requests)
+            print("registration_requests",registration_requests)
 
-            if regitration_requests > 3:
-                app_log.warning("Masternode registration limit surpassed: {}".format(regitration_requests))
+            if registration_requests > 3:
+                app_log.warning("Masternode registration limit surpassed: {}".format(registration_requests))
             else:
                 m.execute("INSERT INTO masternodes VALUES (?, ?, ?, ?, ?, ?)", (block_height, timestamp, address, delegate, ip, txid))
                 mas.commit()

@@ -1522,6 +1522,7 @@ else:
 # init
 def db_maintenance():
     # db maintenance
+    app_log.warning("Status: Database maintenance started")
     execute(conn, "VACUUM")
     execute(mempool, "VACUUM")
     app_log.warning("Status: Database maintenance finished")
