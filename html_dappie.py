@@ -36,7 +36,7 @@ def html_update(file, mode, app_log):
     conn.text_factory = str
     c = conn.cursor()
 
-    c.execute("SELECT * FROM transactions WHERE  block_height >= ? AND reward != 0 AND openfield LIKE ?", (html_last_block,) + ("html=" + '%',))
+    c.execute("SELECT * FROM transactions WHERE  block_height >= ? AND openfield LIKE ?", (html_last_block,) + ("html=" + '%',))
     results = c.fetchall()
 
     print ("results",results)
