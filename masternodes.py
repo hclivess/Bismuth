@@ -19,8 +19,11 @@ def delegates_list(file):
 
 
 
-def stake_eligible(recipient, block_spread, reg_phase_start, reg_phase_end):
-    """find out whether the masternode's delegate (or self) has staked in the past number of blocks decided by masternode_ratio"""
+def stake_eligible(recipient, masternode_ratio, reg_phase_start, reg_phase_end):
+    ratio_blocks = masternode_ratio[0]
+    block_spread = masternode_ratio[1]
+
+    """find out whether the masternode's delegate (or self) has staked in the past number of blocks decided by masternode_ratio and nobody else staked for x blocks"""
     conn = sqlite3.connect('static/ledger.db')
     conn.text_factory = str
     c = conn.cursor()
@@ -31,13 +34,25 @@ def stake_eligible(recipient, block_spread, reg_phase_start, reg_phase_end):
     try:
         delegates = delegates_list("static/index.db")
 
-        c.execute("SELECT block_height FROM transactions WHERE reward != 0 AND block_height > ? AND block_height < ? AND address IN(?)",(reg_phase_start,)+(reg_phase_end,)+(delegates))
-        last_staked = c.fetchone()[0]
+        #delegates = ("3d2e8fa99657ab59242f95ca09e0698a670e65c3ded951643c239bc7")#HACK TO TEST
+        #recipient = ("3d2e8fa99657ab59242f95ca09e0698a670e65c3ded951643c239bc7")#HACK TO TEST
+
+        c.execute("SELECT block_height, recipient FROM transactions WHERE reward != 0 AND block_height >= ? AND block_height <= ? ORDER BY block_height DESC",(reg_phase_start,)+(reg_phase_end,))
+        mined = c.fetchall()
+        for x in mined:
+            if x[1] in delegates:
+                last_staked = x[0]
+                break
+            else:
+                last_staked = 0
     except:
         last_staked = 0
 
+
+
+
     try:
-        c.execute("SELECT COUNT (*) FROM transactions WHERE recipient = ? reward != 0 AND block_height > ? AND block_height < ?",(recipient,)+(reg_phase_start,)+(reg_phase_end,))
+        c.execute("SELECT COUNT (*) FROM transactions WHERE recipient = ? AND reward != 0 AND block_height >= ? AND block_height <= ?",(recipient,)+(reg_phase_start,)+(reg_phase_end,))
         self_staked_count = c.fetchone()[0]
     except:
         self_staked_count = 0
@@ -48,7 +63,7 @@ def stake_eligible(recipient, block_spread, reg_phase_start, reg_phase_end):
     print("last_staked",last_staked)
     print("self_staked_count", self_staked_count)
 
-    if (block_last - block_spread > last_staked):
+    if (block_last - block_spread > last_staked) and (self_staked_count < ratio_blocks):
         eligible = True
     else:
         eligible = False
@@ -191,7 +206,7 @@ def masternodes_update(file, mode, app_log):
 
 if __name__ == "__main__":
     address = "4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed"
-    delegate = "4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed"
+    delegate = "de98671db1ce0e5c9ba89ab7ccdca6c427460295b8dd3642e9b2bb96"
 
     app_log = log.log("masternodes.log", "WARNING", "yes")
     reg_phase_start, reg_phase_end = masternodes_update("static/index.db","normal",app_log)
@@ -200,6 +215,6 @@ if __name__ == "__main__":
     #print(masternode_find("static/index.db", address, app_log))
     print(delegate_find("static/index.db", address, delegate, app_log))
     print(masternode_ratio(masternode_count("static/index.db", app_log)))
-    print(stake_eligible(delegate, masternode_ratio(masternode_count("static/index.db", app_log))[1],reg_phase_start,reg_phase_end))
+    print(stake_eligible(delegate, masternode_ratio(masternode_count("static/index.db", app_log)),reg_phase_start,reg_phase_end))
     print(delegates_list("static/index.db"))
     #masternode:delegate:ip
