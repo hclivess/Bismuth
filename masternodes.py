@@ -2,6 +2,8 @@
 
 import sqlite3
 import log
+from decimal import *
+
 
 def delegates_list(file):
     """list masternode addresses registered for the period"""
@@ -10,18 +12,20 @@ def delegates_list(file):
         mas.text_factory = str
         m = mas.cursor()
         m.execute("SELECT DISTINCT delegate FROM masternodes")
-        found = m.fetchall()[0]
+        delegates_found = m.fetchall()
         m.close()
     except:
-        found = False
+        delegates_found = False
 
-    return found
+    print ("delegates_found",delegates_found)
+    return delegates_found
 
 
 
 def stake_eligible(recipient, masternode_ratio, reg_phase_start, reg_phase_end):
-    ratio_blocks = masternode_ratio[0]
-    block_spread = masternode_ratio[1]
+    blocks_allowed = masternode_ratio[0]
+    block_turn = masternode_ratio[1]
+
 
     """find out whether the masternode's delegate (or self) has staked in the past number of blocks decided by masternode_ratio and nobody else staked for x blocks"""
     conn = sqlite3.connect('static/ledger.db')
@@ -35,7 +39,7 @@ def stake_eligible(recipient, masternode_ratio, reg_phase_start, reg_phase_end):
         delegates = delegates_list("static/index.db")
 
         #delegates = ("3d2e8fa99657ab59242f95ca09e0698a670e65c3ded951643c239bc7")#HACK TO TEST
-        #recipient = ("3d2e8fa99657ab59242f95ca09e0698a670e65c3ded951643c239bc7")#HACK TO TEST
+        recipient = ("3d2e8fa99657ab59242f95ca09e0698a670e65c3ded951643c239bc7")#HACK TO TEST
 
         c.execute("SELECT block_height, recipient FROM transactions WHERE reward != 0 AND block_height >= ? AND block_height <= ? ORDER BY block_height DESC",(reg_phase_start,)+(reg_phase_end,))
         mined = c.fetchall()
@@ -47,9 +51,6 @@ def stake_eligible(recipient, masternode_ratio, reg_phase_start, reg_phase_end):
                 last_staked = 0
     except:
         last_staked = 0
-
-
-
 
     try:
         c.execute("SELECT COUNT (*) FROM transactions WHERE recipient = ? AND reward != 0 AND block_height >= ? AND block_height <= ?",(recipient,)+(reg_phase_start,)+(reg_phase_end,))
@@ -63,7 +64,7 @@ def stake_eligible(recipient, masternode_ratio, reg_phase_start, reg_phase_end):
     print("last_staked",last_staked)
     print("self_staked_count", self_staked_count)
 
-    if (block_last - block_spread > last_staked) and (self_staked_count < ratio_blocks):
+    if (block_last - block_turn > last_staked) and (self_staked_count < blocks_allowed):
         eligible = True
     else:
         eligible = False
@@ -71,30 +72,37 @@ def stake_eligible(recipient, masternode_ratio, reg_phase_start, reg_phase_end):
     return eligible
 
 def masternode_ratio(masternode_count):
+    masternode_count = 1000 #HACK
 
     """report how many blocks a node can mine in the given phase and how often it can mine"""
     try:
-        print ("masternode_count",masternode_count)
-        ratio_blocks = int(1000 / masternode_count) #1000 blocks = 10% of mining during phase, result per single node
-        block_spread = int(ratio_blocks / 100) #assume block per minute
+        
+        blocks_allowed = int(1000 / masternode_count) #every node can mint this amount of blocks per period
+        block_turn = int(blocks_allowed * masternode_count) #one block every x turns
     except:
-        ratio_blocks, block_spread = 0, 0
+        blocks_allowed, block_turn = 0, 0
 
-    return ratio_blocks, block_spread
 
-def masternode_count(file, app_log):
+    print ("block_turn",block_turn)
+    print ("blocks_allowed",blocks_allowed)
+    return blocks_allowed, block_turn
+
+def masternode_count(file):
     """return the number of unique masternodes registered for the phase to determine reward ratio"""
     try:
         mas = sqlite3.connect(file)
         mas.text_factory = str
         m = mas.cursor()
         m.execute("SELECT COUNT(DISTINCT address) FROM masternodes")
-        found = m.fetchone()[0]
+        masternodes_found = m.fetchone()[0]
         m.close()
     except:
-        found = False
+        masternodes_found = False
 
-    return found
+    print("masternodes_found", masternodes_found)
+    return masternodes_found
+
+    
 
 def masternode_find(file, address, app_log):
     """determine whether the masternode is registered for the phase"""
@@ -113,13 +121,13 @@ def delegate_find(file, address, recipient, app_log):
         mas.text_factory = str
         m = mas.cursor()
         m.execute("SELECT address FROM masternodes WHERE delegate = ? AND address = ?", (recipient,) + (address,))
-        found = m.fetchone()[0]
+        delegate_found = m.fetchone()[0]
         m.close()
     except:
-        found = False
+        delegate_found = False
 
 
-    return found
+    return delegate_found
 
 def masternodes_update(file, mode, app_log):
     """update register of masternodes based on the current phase (10000 block intervals)"""
@@ -211,10 +219,10 @@ if __name__ == "__main__":
     app_log = log.log("masternodes.log", "WARNING", "yes")
     reg_phase_start, reg_phase_end = masternodes_update("static/index.db","normal",app_log)
 
-    print(masternode_count("static/index.db", app_log))
+    masternode_count("static/index.db")
     #print(masternode_find("static/index.db", address, app_log))
     print(delegate_find("static/index.db", address, delegate, app_log))
-    print(masternode_ratio(masternode_count("static/index.db", app_log)))
-    print(stake_eligible(delegate, masternode_ratio(masternode_count("static/index.db", app_log)),reg_phase_start,reg_phase_end))
-    print(delegates_list("static/index.db"))
+    print(masternode_ratio(masternode_count("static/index.db")))
+    print(stake_eligible(delegate, masternode_ratio(masternode_count("static/index.db")),reg_phase_start,reg_phase_end))
+    delegates_list("static/index.db")
     #masternode:delegate:ip
