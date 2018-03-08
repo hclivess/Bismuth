@@ -1,8 +1,9 @@
+#todo: node competition can be solved by comparing mn's hash (address) to block hash and picking the closest/most distant node to it as winner
 #do not mine to the same address you use for staking, you will reduce your rewards
 
 import sqlite3
 import log
-from decimal import *
+from difflib import SequenceMatcher
 
 
 def delegates_list(file):
@@ -20,6 +21,20 @@ def delegates_list(file):
     print ("delegates_found",delegates_found)
     return delegates_found
 
+
+def candidate_select(delegates_list, hash_last):
+    delegate_dict = {}
+
+    for delegate in delegates_list:
+        delegate = delegate[0] #drop tuple
+
+        ratio = SequenceMatcher(None, delegate, hash_last).ratio()
+        delegate_dict.update({delegate : ratio})
+        print (delegate_dict)
+
+    lowest_match =  min(delegate_dict, key=delegate_dict.get)
+    print("lowest_match",lowest_match)
+    return lowest_match
 
 
 def stake_eligible(recipient, masternode_ratio, reg_phase_start, reg_phase_end):
@@ -39,7 +54,7 @@ def stake_eligible(recipient, masternode_ratio, reg_phase_start, reg_phase_end):
         delegates = delegates_list("static/index.db")
 
         #delegates = ("3d2e8fa99657ab59242f95ca09e0698a670e65c3ded951643c239bc7")#HACK TO TEST
-        recipient = ("3d2e8fa99657ab59242f95ca09e0698a670e65c3ded951643c239bc7")#HACK TO TEST
+        #recipient = ("3d2e8fa99657ab59242f95ca09e0698a670e65c3ded951643c239bc7")#HACK TO TEST
 
         c.execute("SELECT block_height, recipient FROM transactions WHERE reward != 0 AND block_height >= ? AND block_height <= ? ORDER BY block_height DESC",(reg_phase_start,)+(reg_phase_end,))
         mined = c.fetchall()
@@ -72,7 +87,7 @@ def stake_eligible(recipient, masternode_ratio, reg_phase_start, reg_phase_end):
     return eligible
 
 def masternode_ratio(masternode_count):
-    masternode_count = 1000 #HACK
+    #masternode_count = 1000 #HACK
 
     """report how many blocks a node can mine in the given phase and how often it can mine"""
     try:
@@ -164,7 +179,7 @@ def masternodes_update(file, mode, app_log):
         else:
             break
 
-    reg_phase_end = block_last#hack FOR TESTING ONLY
+    #reg_phase_end = block_last#hack FOR TESTING ONLY
 
     reg_phase_start = reg_phase_end - 10000
     print("reg_phase_start", reg_phase_start)
@@ -214,7 +229,7 @@ def masternodes_update(file, mode, app_log):
 
 if __name__ == "__main__":
     address = "4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed"
-    delegate = "de98671db1ce0e5c9ba89ab7ccdca6c427460295b8dd3642e9b2bb96"
+    delegate = "4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed"
 
     app_log = log.log("masternodes.log", "WARNING", "yes")
     reg_phase_start, reg_phase_end = masternodes_update("static/index.db","normal",app_log)
@@ -226,3 +241,5 @@ if __name__ == "__main__":
     print(stake_eligible(delegate, masternode_ratio(masternode_count("static/index.db")),reg_phase_start,reg_phase_end))
     delegates_list("static/index.db")
     #masternode:delegate:ip
+
+    candidate_select(delegates_list("static/index.db"),"4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed")
