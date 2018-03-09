@@ -10,7 +10,7 @@
 VERSION = "4.2.3.3"
 
 # Bis specific modules
-import log, options, connections, peershandler
+import log, options, connections, peershandler, apihandler
 
 from itertools import groupby
 from operator import itemgetter
@@ -1549,7 +1549,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         # global banlist
         # global ban_threshold
         global peers
-
+        global apihandler
+        
         peer_ip = self.request.getpeername()[0]
 
         # if threading.active_count() < thread_limit_conf or peer_ip == "127.0.0.1":
@@ -2177,6 +2178,12 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         connections.send(self.request, status, 10)
                     else:
                         app_log.info("{} not whitelisted for statusjson command".format(peer_ip))
+                elif data[:4] == 'api_':
+                    if peers.is_allowed(peer_ip, data):
+                        try:
+                            apihandler.dispatch(data, self.request, h3, peers)
+                        except Exception as e:
+                            print(e)
 
                 elif data == "diffget":
                     # if (peer_ip in allowed or "any" in allowed):
@@ -2554,6 +2561,7 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 if __name__ == "__main__":
     try:
         peers = peershandler.Peers(app_log, config)
+        apihandler = apihandler.ApiHandler(app_log, config)
 
         if tor_conf == 0:
             # Port 0 means to select an arbitrary unused port
