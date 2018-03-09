@@ -7,7 +7,7 @@
 # rolling back indexes: 1424 and 945
 
 
-VERSION = "4.2.3.2"
+VERSION = "4.2.3.3"
 
 # Bis specific modules
 import log, options, connections, peershandler
@@ -234,6 +234,7 @@ def check_integrity(database):
 
     if redownload == 1:
         bootstrap()
+
 
 
 def percentage(percent, whole):
@@ -2126,7 +2127,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if peers.is_allowed(peer_ip, data):
 
                         address_validate = connections.receive(self.request, 10)
-                        if len(address_validate) == 56 and not re.search("[^abcdef0123456789]", address_validate):
+                        if re.match('[abcdef0123456789]{56}', address_validate):
                             result = "valid"
                         else:
                             result = "invalid"

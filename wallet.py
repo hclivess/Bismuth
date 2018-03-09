@@ -337,6 +337,13 @@ def decrypt_fn(destroy_this):
 
 
 def send_confirm(amount_input, recipient_input, openfield_input):
+
+    #cryptopia check
+    if recipient_input == "edf2d63cdf0b6275ead22c9e6d66aa8ea31dc0ccb367fad2e7c08a25" and len(openfield_input) not in [16,20]:
+        messagebox.showinfo("Cannot send", "Identification message is missing for Cryptopia, please include it")
+        return
+    # cryptopia check
+
     top10 = Toplevel()
     top10.title("Confirm")
 

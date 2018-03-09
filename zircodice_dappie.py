@@ -2,9 +2,29 @@ import sqlite3, keys, base64, options
 
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
-import re
 import time
 from decimal import *
+from random import randint
+
+block_anchor = 547989 #no payouts previous to this block
+
+def roll(block_height, txid):
+    roll = sqlite3.connect("roll.db")
+    roll.text_factory = str
+    r = roll.cursor()
+    r.execute("CREATE TABLE IF NOT EXISTS transactions (block_height INTEGER, txid, rolled)")
+    roll.commit()
+
+    try:
+        r.execute("SELECT rolled FROM transactions WHERE txid = ?",(txid,))
+        roll_number = r.fetchone()[0]
+    except:
+        roll_number = (randint(0, 9))
+        r.execute("INSERT INTO transactions VALUES (?,?,?)",(block_height, txid, roll_number))
+
+    roll.commit()
+    r.close()
+    return roll_number
 
 def percentage(percent, whole):
     getcontext().prec = 2
@@ -29,7 +49,6 @@ full_ledger = config.full_ledger_conf
 ledger_path = config.ledger_path_conf
 hyper_path = config.hyper_path_conf
 terminal_output=config.terminal_output
-
 
 confirmations = 5
 run = 0
@@ -59,7 +78,7 @@ while True:
             block_height_last = c.fetchone()[0]
             # confirmations
 
-            c.execute("SELECT * FROM transactions WHERE (openfield = ? OR openfield = ?) and recipient = ? and block_height <= ? ORDER BY block_height DESC LIMIT 500",("odd",)+("even",)+(address,)+(block_height_last-confirmations,))
+            c.execute("SELECT * FROM transactions WHERE (openfield = ? OR openfield = ?) and recipient = ? and block_height <= ? AND block_height > ? ORDER BY block_height DESC LIMIT 500",("odd",)+("even",)+(address,)+(block_height_last-confirmations,)+(block_anchor,))
             result_bets = c.fetchall()
             break
         except sqlite3.OperationalError as e:
@@ -90,9 +109,10 @@ while True:
             block_hash = x[7]
             # print block_hash
             tx_signature = x[5]  # unique
-            digit_last = (re.findall("(\d)", block_hash))[-1]
-            # print digit_last
-            if (int(digit_last) in player) and (bet_amount <= bet_max) and (bet_amount != 0):
+            txid = x[5][:56]
+            rolled = roll(x[0],txid)
+            # print rolled
+            if (int(rolled) in player) and (bet_amount <= bet_max) and (bet_amount != 0):
                 # print "player wins"
                 won_count = won_count + 1
 
