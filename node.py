@@ -1415,16 +1415,14 @@ def coherence_check():
         c = conn.cursor()
 
         #perform test on transaction table
-        c.execute("SELECT block_height FROM transactions WHERE reward != 0 AND block_height != (0 OR 1) ORDER BY block_height DESC LIMIT 10000")
-        result = reversed(c.fetchall())
+        y = None
+        for row in c.execute("SELECT block_height FROM transactions WHERE reward != 0 AND block_height != (0 OR 1) ORDER BY block_height ASC"):
+            y_init = row[0]
 
-        my_list = []
-        for x in result:
-            my_list.append(x[0])
+            if y is None:
+                y = y_init
 
-        y = my_list[0] - 1
-        for x in my_list:
-            if x != y + 1:
+            if row[0] != y:
                 for chain2 in chains_to_check:
                     conn2 = sqlite3.connect(chain2)
                     c2 = conn2.cursor()
@@ -1441,37 +1439,44 @@ def coherence_check():
                     # rollback indices
 
                     app_log.warning("Status: Due to a coherence issue at block {}, {} has been rolled back and will be resynchronized".format(y, chain))
-            y = x
+                break
+
+            y = y + 1
 
         # perform test on misc table
-        c.execute("SELECT block_height FROM misc ORDER BY block_height ASC")
-        result = c.fetchall()
+        y = None
 
-        my_list = []
-        for x in result:
-            my_list.append(x[0])
 
-        y = my_list[0] - 1
-        for x in my_list:
-            if x != y + 1:
-                if y > 300000:  # there are some forgotten deviances
-                    for chain2 in chains_to_check:
-                        conn2 = sqlite3.connect(chain2)
-                        c2 = conn2.cursor()
-                        app_log.warning("Status: Chain {} difficulty coherence error at: {}".format(chain, y))
-                        c2.execute("DELETE FROM transactions WHERE block_height >= ?", (y,))
-                        conn2.commit()
-                        c2.execute("DELETE FROM misc WHERE block_height >= ?", (y,))
-                        conn2.commit()
-                        conn2.close()
+        for row in c.execute("SELECT block_height FROM misc WHERE block_height > ? ORDER BY block_height ASC",(300000,)):
+            y_init = row[0]
 
-                        # rollback indices
-                        tokens_rollback(y,app_log)
-                        aliases_rollback(y,app_log)
-                        # rollback indices
+            if y is None:
+                y = y_init
+                # print("assigned")
+                # print (row[0], y)
 
-                        app_log.warning("Status: Due to a coherence issue at block {}, {} has been rolled back and will be resynchronized".format(y, chain))
-            y = x
+
+
+            if row[0] != y:
+                for chain2 in chains_to_check:
+                    conn2 = sqlite3.connect(chain2)
+                    c2 = conn2.cursor()
+                    app_log.warning("Status: Chain {} difficulty coherence error at: {}".format(chain, y))
+                    c2.execute("DELETE FROM transactions WHERE block_height >= ?", (y,))
+                    conn2.commit()
+                    c2.execute("DELETE FROM misc WHERE block_height >= ?", (y,))
+                    conn2.commit()
+                    conn2.close()
+
+                    # rollback indices
+                    tokens_rollback(y,app_log)
+                    aliases_rollback(y,app_log)
+                    # rollback indices
+
+                    app_log.warning("Status: Due to a coherence issue at block {}, {} has been rolled back and will be resynchronized".format(y, chain))
+                break
+
+            y = y + 1
 
         app_log.warning("Status: Chain coherence test complete for {}".format(chain))
         conn.close()
