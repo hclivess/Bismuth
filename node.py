@@ -651,9 +651,10 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass):
             mem_lock.acquire()
 
             try:  # only if mempool was unlocked and we locked it
-
-
                 block_list = data
+
+                if not isinstance(block_list, list):  # only accept lists
+                    block_list = [block_list]
 
                 for transaction in block_list:  # set means unique, only accepts list of txs
                     if (mempool_size < 0.3 or size_bypass == "yes") or (Decimal(transaction[3]) > Decimal(25) and mempool_size < 0.5) or (len(str(transaction[7])) > 200 and mempool_size < 0.4) or (transaction[1] in mempool_allowed and mempool_size < 0.6):
@@ -909,7 +910,7 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, mempool, m):
                     while True:
                         try:
                             if tx[9] == 0:
-                                mempool_merge([(tx[1], tx[2], tx[3], tx[4], tx[5], tx[6], tx[10], tx[11])],peer_ip,c,mempool,m,"no") #strip block_height
+                                mempool_merge((tx[1], tx[2], tx[3], tx[4], tx[5], tx[6], tx[10], tx[11]),peer_ip,c,mempool,m,"no") #strip block_height
                                 app_log.warning("Moved tx back to mempool: {}".format(tx))
                                 commit(mempool)
                             break
@@ -1880,7 +1881,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
                         mempool_insert = connections.receive(self.request, 10)
-                        mempool_merge([mempool_insert], peer_ip, c, mempool, m, "yes")
+                        mempool_merge(mempool_insert, peer_ip, c, mempool, m, "yes")
                         connections.send(self.request, "Mempool insert finished", 10)
                     else:
                         app_log.info("{} not whitelisted for mpinsert command".format(peer_ip))
@@ -2117,7 +2118,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         # construct tx
 
                         # insert to mempool, where everything will be verified
-                        mempool_data = [((str(remote_tx_timestamp), str(remote_tx_address), str(remote_tx_recipient), '%.8f' % float(remote_tx_amount), str(remote_signature_enc), str(remote_tx_pubkey_hashed), str(remote_tx_keep), str(remote_tx_openfield)))]
+                        mempool_data = ((str(remote_tx_timestamp), str(remote_tx_address), str(remote_tx_recipient), '%.8f' % float(remote_tx_amount), str(remote_signature_enc), str(remote_tx_pubkey_hashed), str(remote_tx_keep), str(remote_tx_openfield)))
 
                         mempool_merge(mempool_data, peer_ip, c, mempool, m, "yes")
                         connections.send(self.request, str(remote_signature_enc), 10)
