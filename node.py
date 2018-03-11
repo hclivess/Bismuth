@@ -653,7 +653,7 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass):
 
                 block_list = data
 
-                for transaction in block_list:  # set means unique
+                for transaction in block_list:  # set means unique, only accepts list of txs
                     if (mempool_size < 0.3 or size_bypass == "yes") or (Decimal(transaction[3]) > Decimal(25) and mempool_size < 0.5) or (len(str(transaction[7])) > 200 and mempool_size < 0.4) or (transaction[1] in mempool_allowed and mempool_size < 0.6):
                         # condition 1: size limit or bypass, condition 2: spend more than 25 coins, condition 3: have length of openfield larger than 200
                         # all transactions in the mempool need to be cycled to check for special cases, therefore no while/break loop here
@@ -903,18 +903,16 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, mempool, m):
                 execute_param(c, ("SELECT * FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
                 backup_data = c.fetchall()
 
-                for x in backup_data:
+                for transaction in backup_data:
                     while True:
                         try:
-                            if mem_lock.locked() == False:
-                                mem_lock.acquire()
-                                if x[9] == 0 and presence_check(m, x[5]) == "absent":
-                                    execute_param(m, ("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?);"), (x[1], x[2], x[3], x[4], x[5], x[6], x[10], x[11]))
-                                    app_log.warning("Moved transaction back to mempool: {}".format((x[1], x[2], x[3], x[4], x[5], x[6], x[10], x[11])))
-                                    commit(mempool)
-                                mem_lock.release()
-                                break
-                        except:
+                            if transaction[9] == 0 and presence_check(m, transaction[5]) == "absent":
+                                #execute_param(m, ("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?);"), (transaction[1], transaction[2], transaction[3], transaction[4], transaction[5], transaction[6], transaction[10], transaction[11]))
+                                mempool_merge([transaction],peer_ip,c,mempool,m,"no")
+                                app_log.warning("Moved transaction back to mempool: {}".format((transaction[1], transaction[2], transaction[3], transaction[4], transaction[5], transaction[6], transaction[10], transaction[11])))
+                                commit(mempool)
+                            break
+                        except Exception as e:
                             pass
 
                 # delete followups
