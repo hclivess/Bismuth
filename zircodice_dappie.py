@@ -2,12 +2,42 @@ import sqlite3, keys, base64, options
 
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
-import re
 import time
+from decimal import *
+from random import randint
 
+block_anchor = 547989 #no payouts previous to this block
+
+def roll(block_height, txid):
+    roll = sqlite3.connect("roll.db")
+    roll.text_factory = str
+    r = roll.cursor()
+    r.execute("CREATE TABLE IF NOT EXISTS transactions (block_height INTEGER, txid, rolled)")
+    roll.commit()
+
+    try:
+        r.execute("SELECT rolled FROM transactions WHERE txid = ?",(txid,))
+        roll_number = r.fetchone()[0]
+    except:
+        roll_number = (randint(0, 9))
+        r.execute("INSERT INTO transactions VALUES (?,?,?)",(block_height, txid, roll_number))
+
+    roll.commit()
+    r.close()
+    return roll_number
 
 def percentage(percent, whole):
-  return (percent * whole) / 100.0
+    getcontext().prec = 2
+    return ((Decimal (percent) * Decimal(whole)) / 100)
+
+def fee_calculate(openfield):
+    getcontext().prec = 8
+    fee = Decimal("0.01") + (Decimal(len(openfield)) / 100000)  # 0.01 dust
+    if "token:issue:" in openfield:
+        fee = Decimal(fee) + Decimal(10)
+    if "alias=" in openfield:
+        fee = Decimal(fee) + Decimal(1)
+    return fee
 
 (key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read()
 
@@ -18,6 +48,7 @@ ledger_path_conf = config.ledger_path_conf
 full_ledger = config.full_ledger_conf
 ledger_path = config.ledger_path_conf
 hyper_path = config.hyper_path_conf
+terminal_output=config.terminal_output
 
 confirmations = 5
 run = 0
@@ -40,16 +71,16 @@ while True:
     run = run + 1
 
     # confirmations
-    passed = 0
-    while passed == 0:
+
+    while True:
         try:
             c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
             block_height_last = c.fetchone()[0]
             # confirmations
 
-            c.execute("SELECT * FROM transactions WHERE (openfield = ? OR openfield = ?) and recipient = ? and block_height <= ? ORDER BY block_height DESC LIMIT 500",("odd",)+("even",)+(address,)+(block_height_last-confirmations,))
+            c.execute("SELECT * FROM transactions WHERE (openfield = ? OR openfield = ?) and recipient = ? and block_height <= ? AND block_height > ? ORDER BY block_height DESC LIMIT 500",("odd",)+("even",)+(address,)+(block_height_last-confirmations,)+(block_anchor,))
             result_bets = c.fetchall()
-            passed = 1
+            break
         except sqlite3.OperationalError as e:
             print ("Database locked, retrying")
             time.sleep(1)
@@ -70,7 +101,7 @@ while True:
             if openfield == "even":
                 player = [0, 2, 4, 6, 8]
                 bank = [1, 3, 5, 7, 9]
-            else: #if even
+            else: #if odd
                 player = [1, 3, 5, 7, 9]
                 bank = [0, 2, 4, 6, 8]
 
@@ -78,9 +109,10 @@ while True:
             block_hash = x[7]
             # print block_hash
             tx_signature = x[5]  # unique
-            digit_last = (re.findall("(\d)", block_hash))[-1]
-            # print digit_last
-            if (int(digit_last) in player) and (bet_amount <= bet_max) and (bet_amount != 0):
+            txid = x[5][:56]
+            rolled = roll(x[0],txid)
+            # print rolled
+            if (int(rolled) in player) and (bet_amount <= bet_max) and (bet_amount != 0):
                 # print "player wins"
                 won_count = won_count + 1
 
@@ -126,14 +158,15 @@ while True:
             tx_signature = y[5]  # unique
             #print y
 
-
             # create transactions for missing payouts
             timestamp = '%.2f' % time.time()
 
-            payout_amount = float(bet_amount * 2) - percentage(1, bet_amount)
+            payout_amount = Decimal(bet_amount * 2) - percentage(5.3, bet_amount)
             payout_openfield = "payout for " + tx_signature[:8]
             payout_keep = 0
-            fee = float(0.01 + (float(payout_amount) * 0.001) + (float(len(payout_openfield)) / 100000) + (float(payout_keep) / 10))  # 0.1% + 0.01 dust
+            fee = fee_calculate(payout_openfield)
+
+            #float(0.01 + (float(payout_amount) * 0.001) + (float(len(payout_openfield)) / 100000) + (float(payout_keep) / 10))  # 0.1% + 0.01 dust
 
             transaction = (str(timestamp), str(address), str(payout_address), '%.8f' % float(payout_amount-fee), str(payout_keep), str(payout_openfield))  # this is signed
             print(transaction)

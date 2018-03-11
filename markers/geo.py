@@ -1,19 +1,16 @@
-import connections
-import json
-import requests
-import socks
+import requests, json, socks, connections
 
 import tornado.ioloop
 import tornado.web
 
-with open('key.secret', 'r') as f:
-    # get yours here:
-    # https://developers.google.com/maps/documentation/javascript/marker-clustering
+with open('key.secret', 'r') as f: #get yours here: https://developers.google.com/maps/documentation/javascript/marker-clustering
     api_key = f.read()
 
 
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
+
+
         s = socks.socksocket()
         s.settimeout(10)
         s.connect(("127.0.0.1", 5658))
@@ -22,122 +19,125 @@ class MainHandler(tornado.web.RequestHandler):
         s.close()
 
         nodes_list = response[2]
+        ips = nodes_list
 
-        print("IPs:", ips)
+        markers = []
+
+        print("IPs:",ips)
 
         with open('geo.json', 'w') as f:
-            for node in nodes_list:
+            for ip in ips:
+                getgeo = requests.request("GET", "http://freegeoip.net/json/{}".format(ip))
+                response_web = json.loads(getgeo.text)
                 try:
-                    getgeo = requests.request("GET", "http://freegeoip.net/json/{}".format(ip))
-                    response_web = json.loads(getgeo.text)
                     print(response_web).encode("utf-8")
                 except:
                     pass
 
-                markers = """
-                {{lat: {latitude},
-                lng: {longitude}}},
-                """.format(latitude=response_web["latitude"],
-                           longitude=response_web["longitude"])
 
-        html = """
-        <!DOCTYPE html>
-        <html>
-        <head>
-        <meta name='viewport' content='initial-scale=1.0, user-scalable=no'>
-        <meta charset='utf-8'>
-        <title>Bismuth Node Statistics</title>
-        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css"
-        <style>
-        /* Always set the map height explicitly to define the size of the div
-        * element that contains the map. */
-        #map {
-            height: 100%;
-        }
-        /* Optional: Makes the sample page fill the window. */
-        html, body {
-            height: 100%;
-            margin: 0;
-            padding: 0;
-        }
-        </style>
-        </head>
-        <body>
+                markers.append("{{lat: {},".format(response_web["latitude"]))
+                markers.append(" lng: {}}},\n".format(response_web["longitude"]))
 
-        <div id='map'></div>
-        <script>
-        function initMap() {
 
-        var map = new google.maps.Map(document.getElementById('map'), {
-            zoom: 3,
-            center: {lat: -28.024, lng: 140.887}
-        });
 
-        // Create an array of alphabetical characters used to label the markers.
-        var labels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        html = []
+        html.append("<!DOCTYPE html>\n")
+        html.append("<html>\n")
+        html.append("<head>\n")
+        html.append("<meta name='viewport' content='initial-scale=1.0, user-scalable=no'>\n")
+        html.append("<meta charset='utf-8'>\n")
+        html.append("<title>Bismuth Node Statistics</title>\n")
+        html.append('<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" >')
+        html.append("<style>\n")
+        html.append("/* Always set the map height explicitly to define the size of the div\n")
+        html.append("* element that contains the map. */\n")
+        html.append("#map {\n")
+        html.append("height: 100%;\n")
+        html.append("}\n")
+        html.append("/* Optional: Makes the sample page fill the window. */\n")
+        html.append("html, body {\n")
+        html.append("height: 100%;\n")
+        html.append("margin: 0;\n")
+        html.append("padding: 0;\n")
+        html.append("}\n")
+        html.append("</style>\n")
+        html.append("</head>\n")
+        html.append("<body>\n")
 
-        // Add some markers to the map.
-        // Note: The code uses the JavaScript Array.prototype.map() method to
-        // create an array of markers based on a given 'locations' array.
-        // The map() method here has nothing to do with the Google Maps API.
-        var markers = locations.map(function(location, i) {
-            return new google.maps.Marker({
-                position: location,
-                label: labels[i % labels.length]
-                });
-        });
+        html.append("<div id='map'></div>\n")
+        html.append("<script>\n")
+        html.append("\n")
+        html.append("function initMap() {\n")
 
-        // Add a marker clusterer to manage the markers.
-        var markerCluster = new MarkerClusterer(map, markers,
-        {imagePath: 'https://developers.google.com/maps/documentation/javascript/examples/markerclusterer/m'});
-        }
-        var locations = [
-            {markers} //''.join(markers))
-        ]
-        </script>
-            <script src='https://developers.google.com/maps/documentation/javascript/examples/markerclusterer/markerclusterer.js'>
-        </script>
-        <script async defer
-            src='https://maps.googleapis.com/maps/api/js?key={
-            }&callback=initMap'>"
-        </script>
+        html.append("var map = new google.maps.Map(document.getElementById('map'), {\n")
+        html.append("zoom: 3,\n")
+        html.append("center: {lat: -28.024, lng: 140.887}\n")
+        html.append("});\n")
 
-        <div class = 'col-md-8'>
-            Node address: {node_address}<br>
-            Number of nodes: {nodes_count}<br>
-            List of nodes: {nodes_list}<br>
-            Number of threads: {threads_count}<br>
-            Uptime: {uptime}<br>
-            Consensus: {concensus}<br>
-            Consensus percentage: {concensus_precentage}<br>
-            Version: {version}<br>
-        </div>
-        </body>
-        </html>
+        html.append("// Create an array of alphabetical characters used to label the markers.\n")
+        html.append("var labels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';\n")
+
+        html.append("// Add some markers to the map.\n")
+        html.append("// Note: The code uses the JavaScript Array.prototype.map() method to\n")
+        html.append("// create an array of markers based on a given 'locations' array.\n")
+        html.append("// The map() method here has nothing to do with the Google Maps API.\n")
+        html.append("var markers = locations.map(function(location, i) {\n")
+        html.append("return new google.maps.Marker({\n")
+        html.append("position: location,\n")
+        html.append("label: labels[i % labels.length]\n")
+        html.append("});\n")
+        html.append("});\n")
+
+        html.append("// Add a marker clusterer to manage the markers.\n")
+        html.append("var markerCluster = new MarkerClusterer(map, markers,\n")
+        html.append("{imagePath: 'https://developers.google.com/maps/documentation/javascript/examples/markerclusterer/m'});\n")
+        html.append("}\n")
+        html.append("var locations = [\n")
+        html.append(''.join(markers))
+        html.append("]\n")
+        html.append("</script>\n")
+        html.append("<script src='https://developers.google.com/maps/documentation/javascript/examples/markerclusterer/markerclusterer.js'>\n")
+        html.append("</script>\n")
+        html.append("<script async defer\n")
+        html.append("src='https://maps.googleapis.com/maps/api/js?key={}&callback=initMap'>".format(api_key))
+        html.append("</script>\n")
+
+        """
+        node_address = response[0]
+        nodes_count = response[1]
+        nodes_list = response[2]
+        threads_count = response[3]
+        uptime = response[4]
+        consensus = response[5]
+        consensus_percentage = response[6]
+        version = response[7]
+        html.append("<div class = 'col-md-8'>")
+        html.append("Node address: {}<br>".format(node_address))
+        html.append("Number of nodes: {}<br>".format(nodes_count))
+        html.append("List of nodes: {}<br>".format(nodes_list))
+        html.append("Number of threads: {}<br>".format(threads_count))
+        html.append("Uptime: {}<br>".format(uptime))
+        html.append("Consensus: {}<br>".format(consensus))
+        html.append("Consensus percentage: {}<br>".format(consensus_percentage))
+        html.append("Version: {}<br>".format(version))
+        html.append("</div>")
         """
 
-        self.write(html.format(markers=markers,
-                               api_key=api_key,
-                               node_address=response[0],
-                               nodes_count=response[1],
-                               nodes_list=nodes_list,
-                               threads_count=response[3],
-                               uptime=response[4],
-                               consensus=response[5],
-                               consensus_percentage=response[6],
-                               version=response[7]))
+        html.append("</body>\n")
+        html.append("</html>\n")
 
+        self.write(''.join(html))
 
 def make_app():
+
     return tornado.web.Application([
         (r"/", MainHandler),
-        (r"/static/(.*)",
-         tornado.web.StaticFileHandler,
-         {"path": "static"}),
+        (r"/static/(.*)", tornado.web.StaticFileHandler, {"path": "static"}),
     ])
-
 
 if __name__ == "__main__":
     app = make_app()
     app.listen(5493)
     tornado.ioloop.IOLoop.current().start()
+
+

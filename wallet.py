@@ -1,7 +1,12 @@
 # icons created using http://www.winterdrache.de/freeware/png2ico/
 import sqlite3
-import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, time, base64, connections, icons, log, socks, ast, options, tarfile, glob, essentials
+import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, time, base64, connections, icons, log, socks, ast, options, tarfile, glob, essentials, re, platform
+from tokens import *
 from decimal import *
+from bisurl import *
+
+getcontext().prec = 8  # decimal places
+print(getcontext())
 
 config = options.Get()
 config.read()
@@ -10,6 +15,8 @@ full_ledger = config.full_ledger_conf
 port = config.port
 light_ip = config.light_ip_conf
 version = config.version_conf
+terminal_output=config.terminal_output
+
 
 if "testnet" in version:
     port = 2829
@@ -30,7 +37,8 @@ global key
 global encrypted
 global unlocked
 
-app_log = log.log("gui.log", debug_level)
+#app_log = log.log("gui.log", debug_level)
+app_log = log.log("gui.log", debug_level, terminal_output)
 
 essentials.keys_check(app_log)
 essentials.db_check(app_log)
@@ -38,14 +46,39 @@ essentials.db_check(app_log)
 s = socks.socksocket()
 s.settimeout(3)
 
-try:
-    s.connect((light_ip, int(port)))
-except:
-    messagebox.showinfo("Connection Error", "Wallet cannot connect to the node")
-    raise
+def create_url_clicked(app_log, command, recipient, amount, openfield):
+    """isolated function so no GUI leftovers are in bisurl.py"""
+    result = create_url(app_log, command, recipient, amount, openfield)
+    url.delete(0, END)
+    url.insert(0,result)
 
-root = Tk()
-root.wm_title("Bismuth Light Wallet running on {}".format(light_ip))
+def read_url_clicked(app_log,url):
+    """isolated function so no GUI leftovers are in bisurl.py"""
+    result = (read_url(app_log,url))
+
+    recipient.delete(0,END)
+    amount.delete(0, END)
+    openfield.delete("1.0", END)
+
+    recipient.insert(0,result[1])  # amount
+    amount.insert(0, result[2])  # recipient
+    openfield.insert(INSERT,result[3])  # openfield
+
+
+def node_connect():
+    while True:
+        try:
+            s.connect((light_ip, int(port)))
+            app_log.warning("Status: Wallet connected")
+            break
+        except:
+            app_log.warning("Status: Wallet cannot connect to the node, perhaps it is still starting up, retrying")
+            time.sleep(1)
+
+
+def replace_regex(string,replace):
+    replaced_string = re.sub(r'^{}'.format(replace), "", string)
+    return replaced_string
 
 def alias_register(alias_desired):
     connections.send(s, "aliascheck", 10)
@@ -55,7 +88,7 @@ def alias_register(alias_desired):
 
 
     if result == "Alias free":
-        send("0", myaddress, "1", "alias="+alias_desired)
+        send("0", myaddress, "alias="+alias_desired)
         pass
     else:
         top9 = Toplevel()
@@ -99,215 +132,17 @@ def all_spend_clear():
 def all_spend():
     fee_from_all = fee_calculate(openfield.get("1.0", END).strip())
     amount.delete(0, END)
-    amount.insert(0,'%.8f' % (float(balance_raw.get()) - float(fee_from_all)))
+    amount.insert(0, (Decimal(balance_raw.get()) - Decimal(fee_from_all)))
 
 
 def fee_calculate(openfield):
-    getcontext().prec = 8
-    fee = Decimal(0.01) + (Decimal(len(openfield)) / 100000)  # 0.01 dust
+    fee = Decimal("0.01") + (Decimal(len(openfield)) / 100000)  # 0.01 dust
     if "token:issue:" in openfield:
         fee = Decimal(fee) + Decimal(10)
     if "alias=" in openfield:
         fee = Decimal(fee) + Decimal(1)
-    return float(fee) #float temporarily
+    return fee
 
-def tokens_update():
-    conn = sqlite3.connect('static/ledger.db')
-    conn.text_factory = str
-    c = conn.cursor()
-
-    tok = sqlite3.connect('tokens.db')
-    tok.text_factory = str
-    t = tok.cursor()
-    t.execute("CREATE TABLE IF NOT EXISTS transactions (block_height INTEGER, timestamp, token, address, recipient, amount INTEGER)")
-    tok.commit()
-
-    t.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
-    try:
-        token_last_block = int(t.fetchone()[0])
-    except:
-        token_last_block = 0
-    print("token_last_block", token_last_block)
-
-    # print all token issuances
-    c.execute("SELECT block_height, timestamp, address, recipient, openfield FROM transactions WHERE block_height > ? AND openfield LIKE ? AND reward = 0 ORDER BY block_height ASC;", (token_last_block,) + ("token:issue" + '%',))
-    results = c.fetchall()
-    print(results)
-
-    tokens_processed = []
-
-    for x in results:
-        if x[4].split(":")[2].lower().strip() not in tokens_processed:
-            block_height = x[0]
-            print("block_height", block_height)
-
-            timestamp = x[1]
-            print("timestamp", timestamp)
-
-            token = x[4].split(":")[2].lower().strip()
-            tokens_processed.append(token)
-            print("token", token)
-
-            issued_by = x[3]
-            print("issued_by", issued_by)
-
-            total = x[4].split(":")[3]
-            print("total", total)
-
-            t.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?)", (block_height, timestamp, token, "issued", issued_by, total))
-        else:
-            print("issuance already processed:", x[1])
-
-    tok.commit()
-    # print all token issuances
-
-    print("---")
-
-    # print all transfers of a given token
-    # token = "worthless"
-
-
-    c.execute("SELECT openfield FROM transactions WHERE block_height > ? AND openfield LIKE ? and reward = 0 ORDER BY block_height ASC;", (token_last_block,) + ("token:transfer" + '%',))
-    openfield_transfers = c.fetchall()
-
-    tokens_transferred = []
-    for transfer in openfield_transfers:
-        if transfer[0].split(":")[2].lower().strip() not in tokens_transferred:
-            tokens_transferred.append(transfer[0].split(":")[2].lower().strip())
-
-    print("tokens_transferred",tokens_transferred)
-
-    for token in tokens_transferred:
-        print("processing", token)
-        c.execute("SELECT block_height, timestamp, address, recipient, openfield FROM transactions WHERE block_height > ? AND openfield LIKE ? AND reward = 0 ORDER BY block_height ASC;", (token_last_block,) + ("token:transfer:" + token + ':%',))
-        results2 = c.fetchall()
-        print(results2)
-
-        for r in results2:
-            block_height = r[0]
-            print("block_height", block_height)
-
-            timestamp = r[1]
-            print("timestamp", timestamp)
-
-            token = r[4].split(":")[2]
-            print("token", token, "operation")
-
-            sender = r[2]
-            print("transfer_from", sender)
-
-            recipient = r[3]
-            print("transfer_to", recipient)
-
-            try:
-                print (r[4])
-                transfer_amount = int(r[4].split(":")[3])
-            except:
-                transfer_amount = 0
-
-            print("transfer_amount", transfer_amount)
-
-            # calculate balances
-            t.execute("SELECT sum(amount) FROM transactions WHERE recipient = ? AND block_height < ? AND token = ?", (sender,) + (block_height,) + (token,))
-            try:
-                credit_sender = int(t.fetchone()[0])
-            except:
-                credit_sender = 0
-            print("credit_sender", credit_sender)
-
-            t.execute("SELECT sum(amount) FROM transactions WHERE address = ? AND block_height <= ? AND token = ?", (sender,) + (block_height,) + (token,))
-            try:
-                debit_sender = int(t.fetchone()[0])
-            except:
-                debit_sender = 0
-            print("debit_sender", debit_sender)
-            # calculate balances
-
-            # print all token transfers
-            balance_sender = credit_sender - debit_sender
-            print("balance_sender", balance_sender)
-
-            if balance_sender - transfer_amount >= 0 or transfer_amount < 0:
-                t.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?)", (block_height, timestamp, token, sender, recipient, transfer_amount))
-            else:
-                print("invalid transaction by", sender)
-            print("---")
-
-        tok.commit()
-
-    conn.close()
-
-def token_transfer(token, amount, window):
-    openfield.delete('1.0', END)  # remove previous
-    openfield.insert(INSERT, "token:transfer:{}:{}".format(token, amount))
-    window.destroy()
-
-def token_issue(token, amount, window):
-    openfield.delete('1.0', END)  # remove previous
-    openfield.insert(INSERT, "token:issue:{}:{}".format(token, amount))
-    recipient.delete(0, END)
-    recipient.insert(INSERT, myaddress)
-    window.destroy()
-    send_confirm(amount,myaddress,0,"token:issue:{}:{}".format(token, amount))
-
-def tokens():
-    tokens_update() #catch up with the chain
-
-    address = gui_address.get()
-    tokens_main = Toplevel()
-    tokens_main.title("Tokens")
-
-    tok = sqlite3.connect('tokens.db')
-    tok.text_factory = str
-    t = tok.cursor()
-
-    t.execute("SELECT DISTINCT token FROM transactions WHERE address OR recipient = ?", (address,))
-    tokens_user = t.fetchall()
-    print ("tokens_user",tokens_user)
-
-    token_box = Listbox(tokens_main, width=100)
-    token_box.grid(row=0, pady=0)
-
-
-    for token in tokens_user:
-        token = token[0]
-        t.execute("SELECT sum(amount) FROM transactions WHERE recipient = ? AND token = ?;", (address,)+(token,))
-        credit = t.fetchone()[0]
-        t.execute("SELECT sum(amount) FROM transactions WHERE address = ? AND token = ?;", (address,)+(token,))
-        debit = t.fetchone()[0]
-
-        debit = 0 if debit is None else debit
-        credit = 0 if credit is None else credit
-
-        balance = credit - debit
-
-        token_box.insert(END, (token,":", balance))
-    # callback
-    def callback(event):
-        token_select = (token_box.get(token_box.curselection()[0]))
-        token_name_var.set(token_select[0])
-        token_amount_var.set(token_select[2])
-
-    token_box.bind('<Double-1>', callback)
-
-    # callback
-
-    token_name_var = StringVar()
-    token_name = Entry(tokens_main, textvariable=token_name_var)
-    token_name.grid(row=2, column=0, sticky=W + E, padx=15, pady=(5, 5))
-
-    token_amount_var = StringVar()
-    token_amount = Entry(tokens_main, textvariable=token_amount_var)
-    token_amount.grid(row=3, column=0, sticky=W + E, padx=15, pady=(5, 5))
-
-    transfer = Button(tokens_main, text="Transfer", command=lambda: token_transfer(token_name_var.get(), token_amount_var.get(), tokens_main))
-    transfer.grid(row=4, column=0, sticky=W + E, padx=5)
-
-    issue = Button(tokens_main, text="Issue", command=lambda: token_issue(token_name_var.get(), token_amount_var.get(), tokens_main))
-    issue.grid(row=5, column=0, sticky=W + E, padx=5)
-
-    cancel = Button(tokens_main, text="Cancel", command=tokens_main.destroy)
-    cancel.grid(row=6, column=0, sticky=W + E, padx=5)
 
 def backup():
     root.filename = filedialog.asksaveasfilename(initialdir="/", title="Select backup file", filetypes=(("gzip", "*.gz"), ))
@@ -345,7 +180,7 @@ def aliases_list():
     aliases_self = connections.receive(s, 10)
 
     for x in aliases_self:
-        aliases_box.insert(INSERT, x[0].lstrip("alias="))
+        aliases_box.insert(INSERT, replace_regex(x[0], "alias="))
         aliases_box.insert(INSERT,"\n")
 
     close = Button(top12, text="Close", command=top12.destroy)
@@ -363,16 +198,24 @@ def data_insert():
     openfield.delete('1.0', END)  # remove previous
     openfield.insert(INSERT, root.clipboard_get())
 
+def url_insert():
+    url.delete(0, END)  # remove previous
+    url.insert(0, root.clipboard_get())
+
 def address_copy():
     root.clipboard_clear()
     root.clipboard_append(myaddress)
+
+def url_copy():
+    root.clipboard_clear()
+    root.clipboard_append(url.get())
 
 def recipient_copy():
     root.clipboard_clear()
     root.clipboard_append(recipient.get())
 
 def percentage(percent, whole):
-    return float((percent * whole) / 100)
+    return (Decimal(percent) * Decimal(whole) / 100)
 
 def alias():
     alias_var = StringVar()
@@ -494,8 +337,20 @@ def decrypt_fn(destroy_this):
 
 
 def send_confirm(amount_input, recipient_input, openfield_input):
+
+    #cryptopia check
+    if recipient_input == "edf2d63cdf0b6275ead22c9e6d66aa8ea31dc0ccb367fad2e7c08a25" and len(openfield_input) not in [16,20]:
+        messagebox.showinfo("Cannot send", "Identification message is missing for Cryptopia, please include it")
+        return
+    # cryptopia check
+
     top10 = Toplevel()
     top10.title("Confirm")
+
+    if alias_cb_var.get() == 1: #alias check
+        connections.send(s, "addfromalias", 10)
+        connections.send(s, recipient_input, 10)
+        recipient_input = connections.receive(s, 10)
 
     # encr check
     if encrypt_var.get() == 1:
@@ -543,7 +398,7 @@ def send_confirm(amount_input, recipient_input, openfield_input):
     fee = fee_calculate(openfield_input)
 
     confirmation_dialog = Text(top10, width=100)
-    confirmation_dialog.insert(INSERT, ("Amount: {}\nFee: {}\nTotal: {}\nTo: {}\nOpenField:\n\n{}".format(amount_input, fee, '%.8f' % (float(amount_input)+float(fee)), recipient_input, openfield_input)))
+    confirmation_dialog.insert(INSERT, ("Amount: {}\nFee: {}\nTotal: {}\nTo: {}\nOpenField:\n\n{}".format(amount_input, fee, Decimal(amount_input) + Decimal(fee), recipient_input, openfield_input)))
 
     confirmation_dialog.grid(row=0, pady=0)
 
@@ -572,7 +427,7 @@ def send(amount_input, recipient_input, openfield_input):
     app_log.warning("Received tx command")
 
     try:
-        float(amount_input)
+        Decimal(amount_input)
     except:
         top7 = Toplevel()
         top7.title("Invalid amount")
@@ -598,7 +453,7 @@ def send(amount_input, recipient_input, openfield_input):
 
         timestamp = '%.2f' % time.time()
         keep_input = "0"
-        transaction = (str(timestamp), str(myaddress), str(recipient_input), '%.8f' % float(amount_input), str(keep_input), str(openfield_input))  # this is signed
+        transaction = (str(timestamp), str(myaddress), str(recipient_input), '%.8f' % float(amount_input), str(keep_input), str(openfield_input))  # this is signed, float kept for compatibility
 
         h = SHA.new(str(transaction).encode("utf-8"))
         signer = PKCS1_v1_5.new(key)
@@ -610,10 +465,10 @@ def send(amount_input, recipient_input, openfield_input):
         if verifier.verify(h, signature) == True:
             fee = fee_calculate(openfield_input)
 
-            if float(amount_input) < 0:
+            if Decimal(amount_input) < 0:
                 app_log.warning("Client: Signature OK, but cannot use negative amounts")
 
-            elif (float(amount_input) + float(fee) > float(balance)):
+            elif (Decimal(amount_input) + Decimal(fee) > Decimal(balance)):
                 print(amount_input,fee,balance)
                 app_log.warning("Mempool: Sending more than owned")
 
@@ -621,7 +476,7 @@ def send(amount_input, recipient_input, openfield_input):
                 app_log.warning("Client: The signature is valid, proceeding to save transaction, signature, new txhash and the public key to mempool")
 
                 # print(str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input),str(signature_enc), str(public_key_hashed), str(keep_input), str(openfield_input))
-                tx_submit = (str(timestamp), str(myaddress), str(recipient_input), '%.8f' % float(amount_input), str(signature_enc.decode("utf-8")), str(public_key_hashed.decode("utf-8")), str(keep_input), str(openfield_input))
+                tx_submit = (str(timestamp), str(myaddress), str(recipient_input), '%.8f' % float(amount_input), str(signature_enc.decode("utf-8")), str(public_key_hashed.decode("utf-8")), str(keep_input), str(openfield_input)) #float kept for compatibility
 
                 while True:
                     connections.send(s, "mpinsert", 10)
@@ -683,7 +538,7 @@ def msg_dialogue(address):
                 msg_address = connections.receive(s,10)[0][0]
 
                 if x[11].startswith("enc=msg="):
-                    msg_received_digest = x[11].lstrip("enc=msg=")
+                    msg_received_digest = replace_regex(x[11],"enc=msg=")
                     try:
                         #msg_received_digest = key.decrypt(ast.literal_eval(msg_received_digest)).decode("utf-8")
 
@@ -700,7 +555,7 @@ def msg_dialogue(address):
                         msg_received_digest = "Could not decrypt message"
 
                 elif x[11].startswith("enc=bmsg="):
-                    msg_received_digest = x[11].lstrip("enc=bmsg=")
+                    msg_received_digest = replace_regex(x[11],"enc=bmsg=")
                     try:
                         msg_received_digest = base64.b64decode(msg_received_digest).decode("utf-8")
 
@@ -719,16 +574,15 @@ def msg_dialogue(address):
 
 
                 elif x[11].startswith("bmsg="):
-                    msg_received_digest = x[11].lstrip("bmsg=")
+                    msg_received_digest = replace_regex(x[11],"bmsg=")
                     try:
                         msg_received_digest = base64.b64decode(msg_received_digest).decode("utf-8")
                     except:
                         msg_received_digest = "Could not decode message"
                 elif x[11].startswith("msg="):
-                    msg_received_digest = x[11].lstrip("msg=")
+                    msg_received_digest = replace_regex(x[11],"msg=")
 
-
-                msg_received.insert(INSERT, ((time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(float(x[1])))) + " From " + msg_address.lstrip("alias=") + ": " + msg_received_digest) + "\n")
+                msg_received.insert(INSERT, ((time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(Decimal(x[1])))) + " From " + replace_regex(msg_address,"alias=") + ": " + msg_received_digest) + "\n")
 
     def msg_sent_get(addlist):
 
@@ -742,7 +596,7 @@ def msg_dialogue(address):
                 msg_recipient =  received_aliases[0][0]
 
                 if x[11].startswith("enc=msg="):
-                    msg_sent_digest = x[11].lstrip("enc=msg=")
+                    msg_sent_digest = replace_regex(x[11],"enc=msg=")
                     try:
                         #msg_sent_digest = key.decrypt(ast.literal_eval(msg_sent_digest)).decode("utf-8")
                         (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval(msg_sent_digest)
@@ -758,7 +612,7 @@ def msg_dialogue(address):
                         msg_sent_digest = "Could not decrypt message"
 
                 elif x[11].startswith("enc=bmsg="):
-                    msg_sent_digest = x[11].lstrip("enc=bmsg=")
+                    msg_sent_digest = replace_regex(x[11],"enc=bmsg=")
                     try:
                         msg_sent_digest = base64.b64decode(msg_sent_digest).decode("utf-8")
                         #msg_sent_digest = key.decrypt(ast.literal_eval(msg_sent_digest)).decode("utf-8")
@@ -774,16 +628,16 @@ def msg_dialogue(address):
                         msg_sent_digest = "Could not decrypt message"
 
                 elif x[11].startswith("bmsg="):
-                    msg_sent_digest = x[11].lstrip("bmsg=")
+                    msg_sent_digest = replace_regex(x[11],"bmsg=")
                     try:
                         msg_sent_digest = base64.b64decode(msg_sent_digest).decode("utf-8")
                     except:
                         msg_received_digest = "Could not decode message"
 
                 elif x[11].startswith("msg="):
-                    msg_sent_digest = x[11].lstrip("msg=")
+                    msg_sent_digest = replace_regex(x[11],"msg=")
 
-                msg_sent.insert(INSERT, ((time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(float(x[1])))) + " To " + msg_recipient.lstrip("alias=") + ": " + msg_sent_digest) + "\n")
+                msg_sent.insert(INSERT, ((time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(Decimal(x[1])))) + " To " + replace_regex(msg_recipient,"alias=") + ": " + msg_sent_digest) + "\n")
 
     # popup
     top11 = Toplevel()
@@ -876,23 +730,104 @@ def sign():
 
 
 def refresh_auto():
-    try:
-        root.after(0, refresh(gui_address.get(), s))
-        root.after(10000, refresh_auto)
-    except:
-        messagebox.showinfo("Connection Error", "Wallet lost connection to the node")
-        sys.exit(1)
+    root.after(0, refresh(gui_address.get(), s))
+    root.after(10000, refresh_auto)
 
-def table(address, addlist_20):
+def token_transfer(token, amount, window):
+    openfield.delete('1.0', END)  # remove previous
+    openfield.insert(INSERT, "token:transfer:{}:{}".format(token, amount))
+    window.destroy()
+
+def token_issue(token, amount, window):
+    openfield.delete('1.0', END)  # remove previous
+    openfield.insert(INSERT, "token:issue:{}:{}".format(token, amount))
+    recipient.delete(0, END)
+    recipient.insert(INSERT, myaddress)
+    window.destroy()
+    send_confirm(amount,0,"token:issue:{}:{}".format(token, amount))
+
+def tokens():
+    token_db = "static/index.db"
+    tokens_update(token_db,"normal",app_log) #catch up with the chain
+
+    address = gui_address.get()
+    tokens_main = Toplevel()
+    tokens_main.title("Tokens")
+
+    tok = sqlite3.connect(token_db)
+    tok.text_factory = str
+    t = tok.cursor()
+
+    t.execute("SELECT DISTINCT token FROM tokens WHERE address OR recipient = ?", (address,))
+    tokens_user = t.fetchall()
+    print ("tokens_user",tokens_user)
+
+    token_box = Listbox(tokens_main, width=100)
+    token_box.grid(row=0, pady=0)
+
+
+    for token in tokens_user:
+        token = token[0]
+        t.execute("SELECT sum(amount) FROM tokens WHERE recipient = ? AND token = ?;", (address,)+(token,))
+        credit = t.fetchone()[0]
+        t.execute("SELECT sum(amount) FROM tokens WHERE address = ? AND token = ?;", (address,)+(token,))
+        debit = t.fetchone()[0]
+
+        debit = 0 if debit is None else debit
+        credit = 0 if credit is None else credit
+
+        balance = Decimal(credit) - Decimal(debit)
+
+        token_box.insert(END, (token,":", balance))
+    # callback
+    def callback(event):
+        token_select = (token_box.get(token_box.curselection()[0]))
+        token_name_var.set(token_select[0])
+        token_amount_var.set(token_select[2])
+
+    token_box.bind('<Double-1>', callback)
+
+    # callback
+
+    token_name_var = StringVar()
+    token_name = Entry(tokens_main, textvariable=token_name_var, width=80)
+    token_name.grid(row=2, column=0, sticky=E, padx=15, pady=(5, 5))
+
+    token_name_label_var = StringVar()
+    token_name_label_var.set("Token Name:")
+    token_name_label = Label(tokens_main, textvariable=token_name_label_var)
+    token_name_label.grid(row=2, column=0, sticky= W, padx=15, pady=(0, 0))
+
+
+    #balance_var = StringVar()
+    #balance_msg_label = Label(f5, textvariable=balance_var)
+
+    token_amount_var = StringVar()
+    token_amount = Entry(tokens_main, textvariable=token_amount_var, width=80,)
+    token_amount.grid(row=3, column=0, sticky=E, padx=15, pady=(5, 5))
+    
+    token_amount_label_var = StringVar()
+    token_amount_label_var.set("Token Amount:")
+    token_amount_label = Label(tokens_main, textvariable=token_amount_label_var)
+    token_amount_label.grid(row=3, column=0, sticky= W, padx=15, pady=(0, 0))
+
+    transfer = Button(tokens_main, text="Transfer", command=lambda: token_transfer(token_name_var.get(), token_amount_var.get(), tokens_main))
+    transfer.grid(row=4, column=0, sticky=W + E, padx=5)
+
+    issue = Button(tokens_main, text="Issue", command=lambda: token_issue(token_name_var.get(), token_amount_var.get(), tokens_main))
+    issue.grid(row=5, column=0, sticky=W + E, padx=5)
+
+    cancel = Button(tokens_main, text="Cancel", command=tokens_main.destroy)
+    cancel.grid(row=6, column=0, sticky=W + E, padx=5)
+
+
+def table(address, addlist_20, mempool_total):
     # transaction table
     # data
 
     datasheet = ["Time", "From", "To", "Amount", "Type"]
 
     # show mempool txs
-    connections.send(s, "mpget", 10)  # senders
-    mempool_total = connections.receive(s, 10)
-    print (mempool_total)
 
     colors = []
 
@@ -906,10 +841,6 @@ def table(address, addlist_20):
             colors.append("bisque")
 
     # show mempool txs
-
-
-
-
 
     # retrieve aliases in bulk
 
@@ -941,21 +872,21 @@ def table(address, addlist_20):
         aliases_rec_results = connections.receive(s, 10)
     # retrieve aliases in bulk
 
-    i = 0
+    i = 1
     for row in addlist_20:
 
 
         db_timestamp = row[1]
-        datasheet.append(datetime.fromtimestamp(float(db_timestamp)).strftime('%Y-%m-%d %H:%M:%S'))
+        datasheet.append(datetime.fromtimestamp(Decimal(db_timestamp)).strftime('%Y-%m-%d %H:%M:%S'))
 
         if resolve_var.get() == 1:
-            db_address = aliases_address_results[i].lstrip("alias=")
+            db_address = replace_regex(aliases_address_results[i],"alias=")
         else:
             db_address = row[2]
         datasheet.append(db_address)
 
         if resolve_var.get() == 1:
-            db_recipient = aliases_rec_results[i].lstrip("alias=")
+            db_recipient = replace_regex(aliases_rec_results[i],"alias=")
         else:
             db_recipient = row[3]
 
@@ -963,8 +894,8 @@ def table(address, addlist_20):
         db_amount = row[4]
         db_reward = row[9]
         db_openfield = row[11]
-        datasheet.append('%.8f' % (float(db_amount) + float(db_reward)))
-        if float(db_reward) > 0:
+        datasheet.append(str(Decimal(db_amount) + Decimal(db_reward)))
+        if Decimal(db_reward) > 0:
             symbol = "Mined"
         elif db_openfield.startswith("bmsg"):
             symbol = "b64 Message"
@@ -1034,10 +965,11 @@ def table(address, addlist_20):
                 # refreshables
 
 def refresh(address, s):
+
     global balance
     # print "refresh triggered"
-
     try:
+
         connections.send(s, "statusget", 10)
         statusget = connections.receive(s, 10)
         status_version = statusget[7]
@@ -1059,55 +991,66 @@ def refresh(address, s):
         db_timestamp_last = block_get[1]
         hash_last = block_get[7]
 
+
+        # check difficulty
+        connections.send(s, "diffget", 10)
+        diff = connections.receive(s, 10)
+        # check difficulty
+
+
+        diff_msg = int(diff[1]) #integer is enough
+
+        # network status
+        time_now = str(time.time())
+        last_block_ago = Decimal(time_now) - Decimal(db_timestamp_last)
+        if last_block_ago > 300:
+            sync_msg = "{}m behind".format((int(last_block_ago / 60)))
+            sync_msg_label.config(fg='red')
+        else:
+            sync_msg = "Last block: {}s ago".format((int(last_block_ago)))
+            sync_msg_label.config(fg='green')
+
+        # network status
+
+        connections.send(s, "mpget", 10)  # senders
+        mempool_total = connections.receive(s, 10)
+        print(mempool_total)
+
+        # fees_current_var.set("Current Fee: {}".format('%.8f' % float(fee)))
+        balance_var.set("Balance: {}".format(balance))
+        balance_raw.set(balance)
+        debit_var.set("Spent Total: {}".format(debit))
+        credit_var.set("Received Total: {}".format(credit))
+        fees_var.set("Fees Paid: {}".format(fees))
+        rewards_var.set("Rewards: {}".format(rewards))
+        bl_height_var.set("Block Height: {}".format(bl_height))
+        diff_msg_var.set("Mining Difficulty: {}".format(diff_msg))
+        sync_msg_var.set(sync_msg)
+        version_var.set("Version: {}".format(status_version))
+        hash_var.set("Hash: {}...".format(hash_last[:6]))
+
+        mempool_count_var.set("Mempool txs: {}".format(len(mempool_total)))
+
+
+        connections.send(s, "addlistlim", 10)
+        connections.send(s, address, 10)
+        connections.send(s, "20", 10)
+        addlist = connections.receive(s, 10)
+        addlist_20 = addlist[:20]  # limit
+
+        table(address, addlist_20, mempool_total)
+        # root.after(1000, refresh)
     except:
-        pass
+        messagebox.showinfo("Connection error", "Connection to node aborted")
+        raise
+        sys.exit(1)
 
-    # check difficulty
-    connections.send(s, "diffget", 10)
-    diff = connections.receive(s, 10)
-    # check difficulty
+root = Tk()
 
-
-    diff_msg = diff[1]
-
-    # network status
-    time_now = str(time.time())
-    last_block_ago = float(time_now) - float(db_timestamp_last)
-    if last_block_ago > 300:
-        sync_msg = "{}m behind".format((int(last_block_ago / 60)))
-        sync_msg_label.config(fg='red')
-    else:
-        sync_msg = "Last block: {}s ago".format((int(last_block_ago)))
-        sync_msg_label.config(fg='green')
-
-    # network status
-
-    # fees_current_var.set("Current Fee: {}".format('%.8f' % float(fee)))
-    balance_var.set("Balance: {}".format('%.8f' % float(balance)))
-    balance_raw.set('%.8f' % float(balance))
-    debit_var.set("Spent Total: {}".format('%.8f' % float(debit)))
-    credit_var.set("Received Total: {}".format('%.8f' % float(credit)))
-    fees_var.set("Fees Paid: {}".format('%.8f' % float(fees)))
-    rewards_var.set("Rewards: {}".format('%.8f' % float(rewards)))
-    bl_height_var.set("Block Height: {}".format(bl_height))
-    diff_msg_var.set("Mining Difficulty: {}".format('%.2f' % float(diff_msg)))
-    sync_msg_var.set("Network: {}".format(sync_msg))
-    version_var.set("Version: {}".format(status_version))
-    hash_var.set("Hash: {}...".format(hash_last[:6]))
-
-
-    connections.send(s, "addlistlim", 10)
-    connections.send(s, address, 10)
-    connections.send(s, "20", 10)
-    addlist = connections.receive(s, 10)
-    addlist_20 = addlist[:20]  # limit
-
-    table(address, addlist_20)
-    # root.after(1000, refresh)
+root.wm_title("Bismuth Light Wallet running on {}".format(light_ip))
 
 img = Image("photo", file="graphics/icon.gif")
 root.tk.call('wm','iconphoto',root._w,img)
-
 
 
 password_var_enc = StringVar()
@@ -1136,7 +1079,7 @@ myaddress = hashlib.sha224(public_key_readable.encode('utf-8')).hexdigest()
 
 # frames
 f2 = Frame(root, height=100, width=100)
-f2.grid(row=0, column=1, sticky=W + E + N)
+f2.grid(row=0, column=1, sticky = N)
 
 f3 = Frame(root, width=500)
 f3.grid(row=0, column=0, sticky=W + E + N, pady=10, padx=10)
@@ -1165,33 +1108,36 @@ root.config(menu=menubar)
 
 # buttons
 
-button_row_zero = 9
-send_b = Button(f5, text="Send", command=lambda: send_confirm(str(amount.get()).strip(), recipient.get().strip(), (openfield.get("1.0", END)).strip()), height=1, width=10, font=("Tahoma", 8))
-send_b.grid(row=button_row_zero, column=0, sticky=W + E + S, pady=(45, 0), padx=15)
+button_row_zero = 0
+column = 1
 
-start_b = Button(f5, text="Generate QR Code", command=lambda :qr(gui_address.get()), height=1, width=10, font=("Tahoma", 8))
-if "posix" in os.name:
-    start_b.configure(text="QR Disabled", state=DISABLED)
-start_b.grid(row=button_row_zero+1, column=0, sticky=W + E + S, pady=0, padx=15)
+send_b = Button(f5, text="Send", command=lambda: send_confirm(str(amount.get()).strip(), recipient.get().strip(), (openfield.get("1.0", END)).strip()), height=1, width=20, font=("Tahoma", 8))
+send_b.grid(row=button_row_zero, column=column, sticky=N+E, pady=0, padx=15)
 
-message_b = Button(f5, text="Manual Refresh", command=lambda: refresh(gui_address.get(),s), height=1, width=10, font=("Tahoma", 8))
-message_b.grid(row=button_row_zero+2, column=0, sticky=W + E + S, pady=0, padx=15)
+qr_b = Button(f5, text="URL QR", command=lambda :qr(url.get()), height=1, width=20, font=("Tahoma", 8))
+if "Linux" in platform.system():
+    qr_b.configure(text="QR Disabled", state=DISABLED)
+qr_b.grid(row=button_row_zero+1, column=column, sticky=N+E, pady=0, padx=15)
 
-balance_b = Button(f5, text="Messages", command=lambda: msg_dialogue(gui_address.get()), height=1, width=10, font=("Tahoma", 8))
-balance_b.grid(row=button_row_zero+3, column=0, sticky=W + E + S, pady=0, padx=15)
+message_b = Button(f5, text="Manual Refresh", command=lambda: refresh(gui_address.get(),s), height=1, width=20, font=("Tahoma", 8))
+message_b.grid(row=button_row_zero+2, column=column, sticky=N+E, pady=0, padx=15)
+
+balance_b = Button(f5, text="Messages", command=lambda: msg_dialogue(gui_address.get()), height=1, width=20, font=("Tahoma", 8))
+balance_b.grid(row=button_row_zero+3, column=column, sticky=N+E, pady=0, padx=15)
 #balance_b.configure(state=DISABLED)
 
-sign_b = Button(f5, text="Sign Message", command=sign, height=1, width=10, font=("Tahoma", 8))
-sign_b.grid(row=button_row_zero+4, column=0, sticky=W + E + S, pady=0, padx=15)
+sign_b = Button(f5, text="Sign Message", command=sign, height=1, width=20, font=("Tahoma", 8))
+sign_b.grid(row=button_row_zero+4, column=column, sticky=N+E, pady=0, padx=15)
 
-alias_b = Button(f5, text="Alias Registration", command=alias, height=1, width=10, font=("Tahoma", 8))
-alias_b.grid(row=button_row_zero+5, column=0, sticky=W + E + S, pady=0, padx=15)
+alias_b = Button(f5, text="Alias Registration", command=alias, height=1, width=20, font=("Tahoma", 8))
+alias_b.grid(row=button_row_zero+5, column=column, sticky=N+E, pady=0, padx=15)
 
-backup_b = Button(f5, text="Backup Keys", command=backup, height=1, width=10, font=("Tahoma", 8))
-backup_b.grid(row=button_row_zero+6, column=0, sticky=W + E + S, pady=0, padx=15)
+backup_b = Button(f5, text="Backup Keys", command=backup, height=1, width=20, font=("Tahoma", 8))
+backup_b.grid(row=button_row_zero+6, column=column, sticky=N+E, pady=0, padx=15)
 
-tokens_b = Button(f5, text="Tokens", command=tokens, height=1, width=10, font=("Tahoma", 8))
-tokens_b.grid(row=button_row_zero+7, column=0, sticky=W + E + S, pady=0, padx=15)
+tokens_b = Button(f5, text="Tokens", command=tokens, height=1, width=20, font=("Tahoma", 8))
+tokens_b.grid(row=button_row_zero+7, column=column, sticky=N+E, pady=0, padx=15)
+
 
 #quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=10, font=("Tahoma", 8))
 #quit_b.grid(row=16, column=0, sticky=W + E + S, pady=0, padx=15)
@@ -1218,8 +1164,9 @@ lock_b.grid(row=1, column=3, sticky=E + N, pady=0, padx=5)
 # update balance label
 balance_raw = StringVar()
 balance_var = StringVar()
+
 balance_msg_label = Label(f5, textvariable=balance_var)
-balance_msg_label.grid(row=0, column=0, sticky=N + E, padx=15, pady=(0, 0))
+balance_msg_label.grid(row=0, column=0, sticky=N + E, padx=15)
 
 debit_var = StringVar()
 spent_msg_label = Label(f5, textvariable=debit_var)
@@ -1256,6 +1203,10 @@ version_var_label.grid(row=8, column=0, sticky=N + E, padx=15)
 hash_var = StringVar()
 hash_var_label = Label(f5, textvariable=hash_var)
 hash_var_label.grid(row=9, column=0, sticky=N + E, padx=15)
+
+mempool_count_var = StringVar()
+mempool_count_var_label = Label(f5, textvariable=mempool_count_var)
+mempool_count_var_label.grid(row=10, column=0, sticky=N + E, padx=15)
 
 encode_var = IntVar()
 alias_cb_var = IntVar()
@@ -1305,10 +1256,31 @@ data_insert_clipboard.grid(row=3, column=2, sticky=W + E, padx=(5, 0))
 data_insert_clear = Button(f3, text="Clear", command=data_insert_clear, font=("Tahoma", 7))
 data_insert_clear.grid(row=3, column=3, sticky=W + E, padx=(5, 0))
 
+
+
+gui_copy_address = Button(f3, text="Copy", command=url_copy, font=("Tahoma", 7))
+gui_copy_address.grid(row=4, column=2, sticky=W + E, padx=(5, 0))
+
+url_insert_clipboard = Button(f3, text="Paste", command=url_insert, font=("Tahoma", 7))
+url_insert_clipboard.grid(row=4, column=3, sticky=W + E, padx=(5, 0))
+
+
+read_url_b = Button(f3, text="Read", command=lambda: read_url_clicked(app_log,url.get()), font=("Tahoma", 7))
+read_url_b.grid(row=4, column=4, sticky=W + E, padx=(5, 0))
+
+create_url_b = Button(f3, text="Create", command=lambda: create_url_clicked(app_log,"pay",recipient.get(),amount.get(),openfield.get("1.0", END).strip()), font=("Tahoma", 7))
+create_url_b.grid(row=4, column=5, sticky=W + E, padx=(5, 0))
+
+
+
+
+
+
 Label(f3, text="Your Address:", width=20, anchor="e").grid(row=0)
 Label(f3, text="Recipient:", width=20, anchor="e").grid(row=1)
 Label(f3, text="Amount:", width=20, anchor="e").grid(row=2)
 Label(f3, text="Data:", width=20, anchor="e").grid(row=3)
+Label(f3, text="URL:", width=20, anchor="e").grid(row=4)
 
 recipient = Entry(f3, width=60)
 recipient.grid(row=1, column=1, sticky=W)
@@ -1318,33 +1290,38 @@ amount.grid(row=2, column=1, sticky=W)
 openfield = Text(f3, width=60, height=5, font=("Tahoma", 8))
 openfield.grid(row=3, column=1, sticky=W)
 
+url = Entry(f3, width=60)
+url.grid(row=4, column=1, sticky=W)
+url.insert(0,"bis://")
+
 encode = Checkbutton(f3, text="Base64 Encoding", variable=encode_var)
-encode.grid(row=4, column=1, sticky=W, padx=(120, 0))
+encode.grid(row=5, column=1, sticky=W, padx=(120, 0))
 
 msg = Checkbutton(f3, text="Mark as Message", variable=msg_var)
-msg.grid(row=4, column=1, sticky=W, padx=(240, 0))
+msg.grid(row=5, column=1, sticky=W, padx=(240, 0))
 
 encr = Checkbutton(f3, text="Encrypt with PK", variable=encrypt_var)
-encr.grid(row=4, column=1, sticky=W, padx=(0, 0))
+encr.grid(row=5, column=1, sticky=W, padx=(0, 0))
 
 resolve = Checkbutton(f3, text="Resolve Aliases", variable=resolve_var, command=lambda: refresh(gui_address.get(),s))
-resolve.grid(row=5, column=1, sticky=W, padx=(120, 0))
+resolve.grid(row=6, column=1, sticky=W, padx=(120, 0))
 
 alias_cb = Checkbutton(f3, text="Alias Recipient", variable=alias_cb_var, command=None)
-alias_cb.grid(row=5, column=1, sticky=W, padx=(0, 0))
+alias_cb.grid(row=6, column=1, sticky=W, padx=(0, 0))
 
 balance_enumerator = Entry(f3, width=5)
 # address and amount
 
 Label(f3, text="Your Latest Transactions:", width=20, anchor="w").grid(row=8, sticky=S)
-Label(f3, text="", width=20, anchor="w").grid(row=7, sticky=S)
+Label(f3, text="", width=20, anchor=W).grid(row=7, sticky=S)
 
 # logo
 
 logo_hash_decoded = base64.b64decode(icons.logo_hash)
 logo = PhotoImage(data=logo_hash_decoded)
-image = Label(f2, image=logo).grid(pady=25, padx=50, sticky=N)
+Label(f2, image=logo).grid(column=0,sticky=NE, pady=10, padx=0)
 # logo
 
+node_connect()
 refresh_auto()
 root.mainloop()

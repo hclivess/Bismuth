@@ -7,6 +7,7 @@ debug_level = config.debug_level_conf
 full_ledger = config.full_ledger_conf
 port = config.port
 node_ip_conf = config.node_ip_conf
+terminal_output=config.terminal_output
 
 from datetime import datetime
 from Crypto.PublicKey import RSA
@@ -40,7 +41,7 @@ conn2.text_factory = str
 global c2
 c2 = conn.cursor()
 
-app_log = log.log("gui.log", debug_level)
+app_log = log.log("gui.log", debug_level, terminal_output)
 
 essentials.keys_check(app_log)
 essentials.db_check(app_log)

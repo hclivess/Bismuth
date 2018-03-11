@@ -1,8 +1,9 @@
-import time, options, log, sqlite3, ast, os, keys, base64
+import time, options, log, sqlite3, ast, os, keys, base64, re
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import AES, PKCS1_OAEP
+from decimal import *
 
 config = options.Get()
 config.read()
@@ -11,10 +12,25 @@ ledger_path_conf = config.ledger_path_conf
 full_ledger = config.full_ledger_conf
 ledger_path = config.ledger_path_conf
 hyper_path = config.hyper_path_conf
+terminal_output=config.terminal_output
+
 
 
 (key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read() #import keys
-app_log = log.log("anon.log",debug_level)
+app_log = log.log("anon.log",debug_level,terminal_output)
+
+def fee_calculate(openfield):
+    getcontext().prec = 8
+    fee = Decimal("0.01") + (Decimal(len(openfield)) / 100000)  # 0.01 dust
+    if "token:issue:" in openfield:
+        fee = Decimal(fee) + Decimal(10)
+    if "alias=" in openfield:
+        fee = Decimal(fee) + Decimal(1)
+    return float(fee) #float temporarily
+
+def replace_regex(string,replace):
+    replaced_string = re.sub(r'^{}'.format(replace), "", string)
+    return replaced_string
 
 def decrypt(encrypted):
     cipher_aes_nonce, tag, ciphertext, enc_session_key = ast.literal_eval(encrypted)
@@ -52,7 +68,7 @@ def anonymize(tx_count, per_tx, remainder, anon_recipient, identifier, anon_send
             #construct tx
             openfield = "mixer"
             keep = 0
-            fee = float('%.8f' % float(0.01 + (float(per_tx) * 0.001) + (float(len(openfield)) / 100000) + (float(keep) / 10)))  # 0.1% + 0.01 dust
+            fee = fee_calculate(openfield)
 
             timestamp = '%.2f' % time.time()
             transaction = (str(timestamp),
@@ -83,7 +99,7 @@ def anonymize(tx_count, per_tx, remainder, anon_recipient, identifier, anon_send
         if (remainder - fee) > 0:
             openfield = "mixer"
             keep = 0
-            fee = float('%.8f' % float(0.01 + (float(remainder) * 0.001) + (float(len(openfield)) / 100000) + (float(keep) / 10)))  # 0.1% + 0.01 dust
+            fee = fee_calculate(openfield)
             timestamp = '%.2f' % time.time()
             transaction = (str(timestamp), str(address), str(anon_sender), '%.8f' % float(remainder - fee), str(keep), str(openfield))  # this is signed
             m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (str(timestamp), str(address), str(anon_sender), '%.8f' % float(remainder - fee), str(signature_enc.decode("utf-8")), str(public_key_hashed), str(keep), str(openfield)))
@@ -123,7 +139,7 @@ while True:
             try:
                 #format: anon:number_of_txs:target_address (no msg, just encrypted)
                 print(row)
-                anon_recipient_encrypted = row[11].lstrip("enc=")
+                anon_recipient_encrypted = replace_regex(row[11], "enc=")
                 print(anon_recipient_encrypted)
                 anon_recipient = decrypt(anon_recipient_encrypted).decode("utf-8").split(":")[2]
                 print(anon_recipient)

@@ -133,10 +133,6 @@ class MainHandler(tornado.web.RequestHandler):
         b = -1
 
         for x in all:
-            if i % 2 == 0:
-                color_cell = "#E8E8E8"
-            else:
-                color_cell = "white"
 
             try: #first run
                 x_old
@@ -144,18 +140,44 @@ class MainHandler(tornado.web.RequestHandler):
                 x_old = "init"
 
             if x[0] != x_old:
-                b = b + 1
+                color_cell = "#E8E8E8"
+                view.append("<tr><td></td></tr>") #block separator
+            else:
+                color_cell = "white"
+
 
             view.append("<tr bgcolor ={}>".format(color_cell))
-            view.append("<td>{}</td>".format(x[0]))
+
+            if x[0] != x_old:
+                b = b + 1
+
+
+            if x_old != x[0]:
+                view.append("<td>{}</td>".format(x[0])) #block height
+            else:
+                view.append("<td></td>")
+
+
             view.append("<td>{}".format(time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(x[1])))))
             view.append("<td>{}</td>".format(x[2]))
             view.append("<td>{}</td>".format(x[3]))
             view.append("<td>{}</td>".format('%.8f' % float(x[4])))
-            view.append("<td>{}</td>".format(x[7]))
+            view.append("<td>{}</td>".format(x[5][:56]))
+
+            if x_old != x[0]:
+                view.append("<td>{}</td>".format(x[7])) #block hash
+            else:
+                view.append("<td></td>")
+
+
             view.append("<td>{}</td>".format(x[8]))
             view.append("<td>{}</td>".format('%.6f' % float(x[9])))
-            view.append("<td>{}</td>".format('%.10f' % float(diffs[b][0])))
+
+            if x_old != x[0]:
+                view.append("<td>{}</td>".format('%.10f' % float(diffs[b][0])))
+            else:
+                view.append("<td></td>")
+
             view.append("<tr>")
 
             x_old = x[0]
@@ -216,11 +238,13 @@ class MainHandler(tornado.web.RequestHandler):
         html.append("<div class ='row'>")
         html.append("<table class='table table-responsive'>")
         html.append("<tr bgcolor='white'>")
+
         html.append("<td>Block</td>")
         html.append("<td>Timestamp</td>")
         html.append("<td>From</td>")
         html.append("<td>To</td>")
         html.append("<td>Amount</td>")
+        html.append("<td>TXID</td>")
         html.append("<td>Block Hash</td>")
         html.append("<td>Fee</td>")
         html.append("<td>Reward</td>")

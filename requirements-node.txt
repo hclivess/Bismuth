@@ -1,0 +1,9 @@
+# Pip3 requirements for a node only setup
+
+# You need to manually run the following line first
+# pip3 install simple-crypt --no-deps
+
+# Now the minimal modules needed for a node only install
+
+PySocks
+pycryptodome

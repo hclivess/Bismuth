@@ -9,10 +9,29 @@ table, th, td {
 
 h1 {
     font-family: Verdana;
-    color: White;
+    color: white;
 }
 
 p {
     font-family: Verdana;
-    color: White;
+    color: white;
+}
+
+p2 {
+    font-family: Verdana;
+    color: yellow;
+}
+
+body, html {
+    height: 100%;
+}
+.bg {
+    /* The image used */
+    background-image: url("bg.jpg");
+
+    /* Half height */
+    height: 50%;
+
+    /* Center and scale the image nicely */
+    background-repeat: repeat;
 }

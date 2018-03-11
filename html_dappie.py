@@ -1,53 +1,114 @@
-import sqlite3, time, keys, options
-from bottle import route, run, static_file
+import sqlite3, time, options, re
+import log
+import tornado.ioloop
+import tornado.web
 
-(key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read() #import keys
 
-config = options.Get()
-config.read()
-debug_level = config.debug_level_conf
-ledger_path_conf = config.ledger_path_conf
-full_ledger = config.full_ledger_conf
-ledger_path = config.ledger_path_conf
-hyper_path = config.hyper_path_conf
+def replace_regex(string, replace):
+    replaced_string = re.sub(r'^{}'.format(replace), "", string)
+    return replaced_string
 
-@route('/static/<filename>')
-def server_static(filename):
-    return static_file(filename, root='static/')
 
-@route('/')
-def hello():
+def html_update(file, mode, app_log):
+    if mode not in ("normal","reindex"):
+        raise ValueError ("Wrong value for html_update function")
 
-    # redraw chart
-    if full_ledger == 1:
-        conn = sqlite3.connect(ledger_path)
-    else:
-        conn = sqlite3.connect(hyper_path)
+    html = sqlite3.connect(file)
+    html.text_factory = str
+    h = html.cursor()
+    h.execute("CREATE TABLE IF NOT EXISTS transactions (block_height INTEGER, timestamp NUMERIC, address, recipient, txid, content)")
+    html.commit()
+
+    if mode == "reindex":
+        app_log.warning("HTML database will be reindexed")
+        h.execute("DELETE FROM html")
+        html.commit()
+
+    h.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
+    try:
+        html_last_block = int(h.fetchone()[0])
+    except:
+        html_last_block = 0
+
+    app_log.warning("HTML anchor block: {}".format(html_last_block))
+
+    conn = sqlite3.connect('static/ledger.db')
+    conn.text_factory = str
     c = conn.cursor()
 
-    html = []
-    for row in c.execute("SELECT * FROM transactions WHERE openfield LIKE ? ORDER BY block_height DESC LIMIT 500", ("html=" + '%',)):
+    c.execute("SELECT * FROM transactions WHERE block_height >= ? AND openfield LIKE ?", (html_last_block,) + ("html=" + '%',))
+    results = c.fetchall()
 
-        html.append("Block: ")
-        html.append(str(row[0]))
-        html.append("<br>")
-        html.append("Time: ")
-        html.append(time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(row[1]))))
-        html.append("<br>")
-        html.append("Author: ")
-        html.append(str(row[2]))
-        html.append("<br>")
-        html.append("Content: ")
-        html.append("<br><br>")
-        html.append(row[11].lstrip("html="))
-        html.append("<br><br>")
+    print ("results",results)
 
-    joined = str(''.join(html))
-    joined = joined.replace("<script", "(")
-    joined = joined.replace("script>", ")")
-    joined = joined.replace("http-equiv", "/http-equiv/")
-    joined = joined.replace("onload", "/onload/")
+    for row in results:
+        content = replace_regex(row[11],"html=")
+        txid = row[5][:56]
 
-    return joined
+        try:
+            h.execute("SELECT * from transactions WHERE txid = ?", (txid,))
+            dummy = h.fetchall()[0] #check for uniqueness
+            app_log.warning("HTML tx already processed: {} ({})".format(txid,dummy))
+        except:
 
-run(host='0.0.0.0', port=4585, debug=True)
+            h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?)", (row[0], row[1], row[2], row[3], txid, content))
+            html.commit()
+
+
+
+class MainHandler(tornado.web.RequestHandler):
+    def get(self):
+
+        config = options.Get()
+        config.read()
+
+        # redraw chart
+        html = sqlite3.connect("html.db")
+        html.text_factory = str
+        h = html.cursor()
+
+        html = []
+        print("selecting")
+
+        for row in h.execute("SELECT * FROM transactions ORDER BY block_height DESC"):
+
+            self.write("Block: ")
+            self.write(str(row[0]))
+            self.write("<br>")
+            self.write("Time: ")
+            self.write(time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(float(row[1]))))
+            self.write("<br>")
+            self.write("Author: ")
+            self.write(str(row[2]))
+            self.write("<br>")
+            self.write("Content: ")
+            self.write("<br><br>")
+
+
+            content_safe = row[5].replace("<script", "(")
+            content_safe = content_safe.replace("script>", ")")
+            content_safe = content_safe.replace("http-equiv", "/http-equiv/")
+            content_safe = content_safe.replace("onload", "/onload/")
+
+            self.write(replace_regex(str(content_safe),"html="))
+            self.write("<br><br>")
+
+
+
+
+        #self.write(joined)
+
+
+def make_app():
+    return tornado.web.Application([
+        (r"/", MainHandler),
+        (r"/static/(.*)", tornado.web.StaticFileHandler, {"path": "static"}),
+    ])
+
+if __name__ == "__main__":
+    app_log = log.log("html.log", "WARNING", "yes")
+    html_update("html.db","normal",app_log)
+
+    app = make_app()
+    app.listen(4585)
+    tornado.ioloop.IOLoop.current().start()

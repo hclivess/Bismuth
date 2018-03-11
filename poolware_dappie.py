@@ -29,9 +29,11 @@ pool_conf = config.pool_conf
 ram_conf = config.ram_conf
 pool_address = config.pool_address_conf
 version = config.version_conf
+terminal_output=config.terminal_output
+
 
 (key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read() #import keys
-app_log = log.log("pool.log",debug_level_conf)
+app_log = log.log("pool.log",debug_level_conf,terminal_output)
 
 def percentage(percent, whole):
     return int((percent * whole) / 100)
