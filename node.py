@@ -104,6 +104,8 @@ def aliases_rollback(height,app_log):
     a.close()
     app_log.warning("Rolled back the alias index to {}".format(height))
 
+
+""" for use after modularizing mempool_merge 
 def presence_check(cursor, signature):
     execute_param(cursor, ("SELECT * FROM transactions WHERE signature = ?;"), (signature,))
     try:
@@ -112,7 +114,7 @@ def presence_check(cursor, signature):
     except:
         result = "absent"
     return result
-
+"""
 
 def sendsync(sdef, peer_ip, status, provider):
     app_log.warning("Outbound: Synchronization with {} finished after: {}, sending new sync request".format(peer_ip, status))
@@ -685,7 +687,7 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass):
                         execute_param(c, ("SELECT * FROM transactions WHERE signature = ?;"), (mempool_signature_enc,))  # condition 2
                         try:
                             dummy2 = c.fetchall()[0]
-                            # app_log.info("That transaction is already in our ledger")
+                            app_log.info("That transaction is already in our ledger")
                             # reject transactions which are already in the ledger
                             acceptable = 0
                             ledger_in = 1
@@ -903,13 +905,12 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, mempool, m):
                 execute_param(c, ("SELECT * FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
                 backup_data = c.fetchall()
 
-                for transaction in backup_data:
+                for tx in backup_data:
                     while True:
                         try:
-                            if transaction[9] == 0 and presence_check(m, transaction[5]) == "absent":
-                                #execute_param(m, ("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?);"), (transaction[1], transaction[2], transaction[3], transaction[4], transaction[5], transaction[6], transaction[10], transaction[11]))
-                                mempool_merge([transaction],peer_ip,c,mempool,m,"no")
-                                app_log.warning("Moved transaction back to mempool: {}".format((transaction[1], transaction[2], transaction[3], transaction[4], transaction[5], transaction[6], transaction[10], transaction[11])))
+                            if tx[9] == 0:
+                                mempool_merge([(tx[1], tx[2], tx[3], tx[4], tx[5], tx[6], tx[10], tx[11])],peer_ip,c,mempool,m,"no") #strip block_height
+                                app_log.warning("Moved tx back to mempool: {}".format(tx))
                                 commit(mempool)
                             break
                         except Exception as e:
@@ -1879,7 +1880,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
                         mempool_insert = connections.receive(self.request, 10)
-                        mempool_merge(mempool_insert, peer_ip, c, mempool, m, "yes")
+                        mempool_merge([mempool_insert], peer_ip, c, mempool, m, "yes")
                         connections.send(self.request, "Mempool insert finished", 10)
                     else:
                         app_log.info("{} not whitelisted for mpinsert command".format(peer_ip))
