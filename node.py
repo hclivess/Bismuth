@@ -632,14 +632,14 @@ def mempool_size_calculate(m):
     return mempool_size  # return Decimal
 
 
-def mempool_merge(data, peer_ip, c, mempool, m, size_bypass):
+def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
     if not data:
         app_log.info("Mempool from {} was empty".format(peer_ip))
 
     else:
         app_log.info("Mempool merging started from {}".format(peer_ip))
 
-        while db_lock.locked() == True:  # prevent transactions which are just being digested from being added to mempool
+        while db_lock.locked() == True and lock_respect == True:  # prevent transactions which are just being digested from being added to mempool
             app_log.info("Waiting for block digestion to finish before merging mempool")
             time.sleep(1)
 
@@ -657,7 +657,7 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass):
                     block_list = [block_list]
 
                 for transaction in block_list:  # set means unique, only accepts list of txs
-                    if (mempool_size < 0.3 or size_bypass == "yes") or (Decimal(transaction[3]) > Decimal(25) and mempool_size < 0.5) or (len(str(transaction[7])) > 200 and mempool_size < 0.4) or (transaction[1] in mempool_allowed and mempool_size < 0.6):
+                    if (mempool_size < 0.3 or size_bypass == True) or (Decimal(transaction[3]) > Decimal(25) and mempool_size < 0.5) or (len(str(transaction[7])) > 200 and mempool_size < 0.4) or (transaction[1] in mempool_allowed and mempool_size < 0.6):
                         # condition 1: size limit or bypass, condition 2: spend more than 25 coins, condition 3: have length of openfield larger than 200
                         # all transactions in the mempool need to be cycled to check for special cases, therefore no while/break loop here
 
@@ -910,11 +910,12 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, mempool, m):
                     while True:
                         try:
                             if tx[9] == 0:
-                                mempool_merge((tx[1], tx[2], tx[3], tx[4], tx[5], tx[6], tx[10], tx[11]),peer_ip,c,mempool,m,"no") #strip block_height
+                                mempool_merge((tx[1], tx[2], tx[3], tx[4], tx[5], tx[6], tx[10], tx[11]),peer_ip,c,mempool,m,False,False) #strip block_height
                                 app_log.warning("Moved tx back to mempool: {}".format(tx))
                                 commit(mempool)
                             break
                         except Exception as e:
+                            app_log.info(e)
                             pass
 
                 # delete followups
@@ -1628,7 +1629,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                     # receive theirs
                     segments = connections.receive(self.request, 10)
-                    mempool_merge(segments, peer_ip, c, mempool, m, "no")
+                    mempool_merge(segments, peer_ip, c, mempool, m, False, True)
 
                     # receive theirs
 
@@ -1881,7 +1882,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
                         mempool_insert = connections.receive(self.request, 10)
-                        mempool_merge(mempool_insert, peer_ip, c, mempool, m, "yes")
+                        mempool_merge(mempool_insert, peer_ip, c, mempool, m, True, True)
                         connections.send(self.request, "Mempool insert finished", 10)
                     else:
                         app_log.info("{} not whitelisted for mpinsert command".format(peer_ip))
@@ -2084,7 +2085,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         app_log.info("{} not whitelisted for aliascheck command".format(peer_ip))
 
 
-
                 elif data == "txsend":
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
@@ -2120,7 +2120,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         # insert to mempool, where everything will be verified
                         mempool_data = ((str(remote_tx_timestamp), str(remote_tx_address), str(remote_tx_recipient), '%.8f' % float(remote_tx_amount), str(remote_signature_enc), str(remote_tx_pubkey_hashed), str(remote_tx_keep), str(remote_tx_openfield)))
 
-                        mempool_merge(mempool_data, peer_ip, c, mempool, m, "yes")
+                        mempool_merge(mempool_data, peer_ip, c, mempool, m, True, True)
                         connections.send(self.request, str(remote_signature_enc), 10)
                         # wipe variables
                         (tx_remote, remote_tx_privkey, tx_remote_key) = (None, None, None)
@@ -2496,7 +2496,7 @@ def worker(HOST, PORT):
 
                 # receive theirs
                 segments = connections.receive(s, 10)
-                mempool_merge(segments, peer_ip, c, mempool, m, "no")
+                mempool_merge(segments, peer_ip, c, mempool, m, True, True)
                 # receive theirs
 
                 # receive mempool
