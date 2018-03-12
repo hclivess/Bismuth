@@ -353,6 +353,8 @@ def mempool_purge(mempool, m):
 
 def ledger_compress(ledger_path_conf, hyper_path_conf):
     """conversion of normal blocks into hyperblocks from ledger.db or hyper.db to hyper.db"""
+    getcontext().prec = 8  # decimal places
+
     try:
 
         # if os.path.exists(hyper_path_conf+".temp"):
@@ -427,50 +429,50 @@ def ledger_compress(ledger_path_conf, hyper_path_conf):
                                    (str(int(db_block_height) - depth),)):
                 db_address = row[2]
                 db_recipient = row[3]
-                addresses.append(db_address.strip())
-                addresses.append(db_recipient.strip())
+                addresses.append(db_address)
+                addresses.append(db_recipient)
 
             unique_addressess = set(addresses)
 
             for x in set(unique_addressess):
                 hyp.execute("SELECT sum(amount) FROM transactions WHERE (recipient = ? AND block_height < ?);", (x,) + (str(int(db_block_height) - depth),))
                 credit = hyp.fetchone()[0]
-                credit = 0 if credit is None else float('%.8f' % credit)
+                credit = 0 if credit is None else Decimal(credit)
 
                 hyp.execute("SELECT sum(amount),sum(fee) FROM transactions WHERE (address = ? AND block_height < ?);", (x,) + (str(int(db_block_height) - depth),))
-                result = hyp.fetchall()
-                debit = result[0][0]
-                debit = 0 if debit is None else float('%.8f' % debit)
+                result = hyp.fetchall()[0]
 
-                fees = result[0][1]
-                fees = 0 if fees is None else float('%.8f' % fees)
+                try:
+                    debit = Decimal(result[0])
+                except:
+                    debit = 0
+
+                try:
+                    fees = Decimal(result[1])
+                except:
+                    fees = 0
+                #print("fees",fees)
 
                 hyp.execute("SELECT sum(reward) FROM transactions WHERE (recipient = ? AND block_height < ?);", (x,) + (str(int(db_block_height) - depth),))
                 try:
-                    rewards = float('%.8f' % hyp.fetchall()[0])
+                    rewards = Decimal(hyp.fetchone()[0])
                 except:
                     rewards = 0
+                #print("rewards",rewards)
 
-                end_balance = float('%.8f' % (float(credit) - float(debit) - float(fees) + float(rewards)))
-                # app_log.info("Address: "+ str(x))
-                # app_log.info("Credit: " + str(credit))
-                # app_log.info("Debit: " + str(debit))
-                # app_log.info("Fees: " + str(fees))
-                # app_log.info("Rewards: " + str(rewards))
-                # app_log.info("Balance: " + str(end_balance))
 
-                # test for keep positivity
-                # hyp.execute("SELECT block_height FROM transactions WHERE address OR recipient = ?", (x,))
-                # keep_is = 1
-                # try:
-                #    hyp.fetchone()[0]
-                # except:
-                #    keep_is = 0
-                # test for keep positivity
+                end_balance = Decimal(Decimal(credit) - Decimal(debit) - Decimal(fees) + Decimal(rewards))
+
+                app_log.info("Address: "+ str(x))
+                app_log.info("Credit: " + str(credit))
+                app_log.info("Debit: " + str(debit))
+                app_log.info("Fees: " + str(fees))
+                app_log.info("Rewards: " + str(rewards))
+                app_log.info("Balance: " + str(end_balance))
 
                 if end_balance > 0:
                     timestamp = str(time.time())
-                    hyp.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (db_block_height - depth - 1, timestamp, "Hyperblock", x, float(end_balance), "0", "0", "0", "0", "0",
+                    hyp.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (db_block_height - depth - 1, timestamp, "Hyperblock", x, str(end_balance), "0", "0", "0", "0", "0",
                                                                                               "0", "0"))
             hyper.commit()
 
@@ -517,7 +519,6 @@ def commit(cursor):
         except Exception as e:
             app_log.warning("Database cursor: {}".format(cursor))
             app_log.warning("Database retry reason: {}".format(e))
-            time.sleep(random.uniform(0, 1))
 
 
 def execute(cursor, query):
@@ -529,7 +530,6 @@ def execute(cursor, query):
         except Exception as e:
             app_log.warning("Database query: {} {}".format(cursor, query))
             app_log.warning("Database retry reason: {}".format(e))
-            time.sleep(random.uniform(0, 1))
     return cursor
 
 
@@ -542,7 +542,6 @@ def execute_param(cursor, query, param):
         except Exception as e:
             app_log.warning("Database query: {} {} {}".format(cursor, query, param))
             app_log.warning("Database retry reason: {}".format(e))
-            time.sleep(random.random())
     return cursor
 
 
@@ -664,10 +663,10 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                         # condition 1: size limit or bypass, condition 2: spend more than 25 coins, condition 3: have length of openfield larger than 200
                         # all transactions in the mempool need to be cycled to check for special cases, therefore no while/break loop here
 
-                        mempool_timestamp = '%.2f' % float(transaction[0])
+                        mempool_timestamp = '%.2f' % Decimal(transaction[0])
                         mempool_address = str(transaction[1])[:56]
                         mempool_recipient = str(transaction[2])[:56]
-                        mempool_amount = '%.8f' % float(transaction[3])
+                        mempool_amount = '%.8f' % Decimal(transaction[3])
                         mempool_signature_enc = str(transaction[4])[:684]
                         mempool_public_key_hashed = str(transaction[5])[:1068]
                         mempool_keep = str(transaction[6])[:1]
@@ -706,14 +705,14 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                             app_log.info("Mempool: Attempt to spend from a wrong address")
                             acceptable = 0
 
-                        if float(mempool_amount) < 0:
+                        if Decimal(mempool_amount) < 0:
                             acceptable = 0
                             app_log.info("Mempool: Negative balance spend attempt")
 
-                        if float(mempool_timestamp) > time.time() + 30:  # dont accept future txs
+                        if Decimal(mempool_timestamp) > Decimal(time.time()) + 30:  # dont accept future txs
                             acceptable = 0
 
-                        if float(mempool_timestamp) < time.time() - 82800:  # dont accept old txs, mempool needs to be harsher than ledger
+                        if Decimal(mempool_timestamp) < Decimal(time.time()) - 82800:  # dont accept old txs, mempool needs to be harsher than ledger
                             acceptable = 0
 
                         if (mempool_in == 1) and (ledger_in == 1):  # remove from mempool if it's in both ledger and mempool already
@@ -750,12 +749,11 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                             result = m.fetchall()
 
                             debit_mempool = 0
-
                             if result != None:
                                 for x in result:
-                                    debit_tx = float(x[0])
+                                    debit_tx = Decimal(x[0])
                                     fee = fee_calculate(x[1])
-                                    debit_mempool = debit_mempool + debit_tx + float(fee)
+                                    debit_mempool = debit_mempool + debit_tx + Decimal(fee)
                             else:
                                 debit_mempool = 0
                             # include mempool fees
@@ -764,45 +762,51 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
 
                             execute_param(c, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (mempool_address,))
                             credit_ledger = c.fetchone()[0]
-                            credit_ledger = 0 if credit_ledger is None else float('%.8f' % credit_ledger)
-                            credit = float(credit_ledger)
+                            credit_ledger = 0 if credit_ledger is None else Decimal(credit_ledger)
+                            credit = Decimal(credit_ledger)
 
                             execute_param(c, ("SELECT sum(amount) FROM transactions WHERE address = ?;"), (mempool_address,))
                             debit_ledger = c.fetchone()[0]
-                            debit_ledger = 0 if debit_ledger is None else float('%.8f' % debit_ledger)
+                            debit_ledger = 0 if debit_ledger is None else Decimal(debit_ledger)
 
-                            debit = float(debit_ledger) + float(debit_mempool)
+                            debit = Decimal(debit_ledger) + Decimal(debit_mempool)
 
                             execute_param(c, ("SELECT sum(fee) FROM transactions WHERE address = ?;"), (mempool_address,))
-                            fees = c.fetchall()[0]
-                            fees = 0 if fees is None else float('%.8f' % fees)
+                            try:
+                                fees = Decimal(c.fetchone()[0])
+                            except:
+                                fees = 0
+                            #print("fees",fees)
 
                             execute_param(c, ("SELECT sum(reward) FROM transactions WHERE recipient = ?;"), (mempool_address,))
                             try:
-                                rewards = float('%.8f' % c.fetchall()[0])
+                                rewards = Decimal(c.fetchone()[0])
+                                #print("rewards",rewards)
                             except:
                                 rewards = 0
+                            #print("rewards",rewards)
 
                             # app_log.info("Mempool: Total credit: " + str(credit))
                             # app_log.info("Mempool: Total debit: " + str(debit))
-                            balance = float('%.8f' % (float(credit) - float(debit) - float(fees) + float(rewards) - float(mempool_amount)))
-                            balance_pre = float('%.8f' % (float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)))
+                            getcontext().prec = 8  # decimal places
+                            balance = Decimal(Decimal(credit) - Decimal(debit) - Decimal(fees) + Decimal(rewards) - Decimal(mempool_amount))
+                            balance_pre = Decimal(Decimal(credit_ledger) - Decimal(debit_ledger) - Decimal(fees) + Decimal(rewards))
                             # app_log.info("Mempool: Projected transction address balance: " + str(balance))
 
                             # fee = '%.8f' % float(0.01 + (float(len(mempool_openfield)) / 100000) + int(mempool_keep))  # 0.01 dust
                             fee = fee_calculate(mempool_openfield)
 
-                            time_now = time.time()
-                            if float(mempool_timestamp) > float(time_now) + 30:
-                                app_log.info("Mempool: Future transaction not allowed, timestamp {} minutes in the future".format((float(mempool_timestamp) - float(time_now)) / 60))
+                            time_now = Decimal(time.time())
+                            if Decimal(mempool_timestamp) > Decimal(time_now) + 30:
+                                app_log.info("Mempool: Future transaction not allowed, timestamp {} minutes in the future".format((Decimal(mempool_timestamp) - Decimal(time_now)) / 60))
 
-                            elif float(time_now) - 86400 > float(mempool_timestamp):
+                            elif Decimal(time_now) - 86400 > Decimal(mempool_timestamp):
                                 app_log.info("Mempool: Transaction older than 24h not allowed.")
 
-                            elif float(mempool_amount) > float(balance_pre):
+                            elif Decimal(mempool_amount) > Decimal(balance_pre):
                                 app_log.info("Mempool: Sending more than owned")
 
-                            elif (float(balance)) - (float(fee)) < 0:
+                            elif (Decimal(balance)) - (Decimal(fee)) < 0:
                                 app_log.info("Mempool: Cannot afford to pay fees")
 
                             # verify signatures and balances
@@ -854,7 +858,7 @@ def verify(c):
         for row in execute(c, ('SELECT * FROM transactions WHERE block_height > 0 and ORDER BY block_height')):
 
             db_block_height = row[0]
-            db_timestamp = '%.2f' % float(row[1])
+            db_timestamp = '%.2f' % Decimal(row[1])
             db_address = row[2]
             db_recipient = row[3]
             db_amount = row[4]
@@ -864,7 +868,7 @@ def verify(c):
             db_keep = str(row[10])
             db_openfield = row[11]
 
-            db_transaction = (str(db_timestamp), str(db_address), str(db_recipient), '%.8f' % float(db_amount), str(db_keep), str(db_openfield))
+            db_transaction = (str(db_timestamp), str(db_address), str(db_recipient), '%.8f' % Decimal(db_amount), str(db_keep), str(db_openfield))
 
             db_signature_dec = base64.b64decode(db_signature_enc)
             verifier = PKCS1_v1_5.new(db_public_key)
@@ -1008,8 +1012,8 @@ def manager(c, mempool, m):
         execute(c, "SELECT block_height, timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
         result = c.fetchall()[0]
         last_block = result[0]
-        last_block_ago = float(result[1])
-        app_log.warning("Status: Last block {} was generated {} minutes ago".format(last_block, '%.2f' % ((time.time() - last_block_ago) / 60)))
+        last_block_ago = Decimal(result[1])
+        app_log.warning("Status: Last block {} was generated {} minutes ago".format(last_block, '%.2f' % ((Decimal(time.time()) - last_block_ago) / 60)))
         # last block
 
         # app_log.info(threading.enumerate() all threads)
@@ -1068,17 +1072,17 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                 result = c.fetchall()
                 db_block_hash = result[0][0]
                 db_block_height = result[0][1]
-                db_timestamp_last = float(result[0][2])
+                db_timestamp_last = Decimal(result[0][2])
                 block_height_new = db_block_height + 1
                 # previous block info
 
                 transaction_list_converted = []  # makes sure all the data are properly converted as in the previous lines
                 for transaction in transaction_list:
                     # verify signatures
-                    received_timestamp = '%.2f' % float(transaction[0])
+                    received_timestamp = '%.2f' % Decimal(transaction[0])
                     received_address = str(transaction[1])[:56]
                     received_recipient = str(transaction[2])[:56]
-                    received_amount = '%.8f' % float(transaction[3])
+                    received_amount = '%.8f' % Decimal(transaction[3])
                     received_signature_enc = str(transaction[4])[:684]
                     received_public_key_hashed = str(transaction[5])[:1068]
                     received_keep = str(transaction[6])[:1]
@@ -1106,7 +1110,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         # print (type(received_keep))
                         error_msg = "Wrong keep value {}".format(received_keep)
 
-                    if float(received_amount) < 0:
+                    if Decimal(received_amount) < 0:
                         block_valid = 0
                         error_msg = "Negative balance spend attempt"
 
@@ -1124,17 +1128,17 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         #    error_msg = "The mined block is too close to the previous one"
                         #    block_valid = 0
 
-                    time_now = time.time()
-                    if float(time_now) + 30 < float(received_timestamp):
-                        error_msg = "Future transaction not allowed, timestamp {} minutes in the future".format((float(received_timestamp) - float(time_now)) / 60)
+                    time_now = Decimal(time.time())
+                    if Decimal(time_now) + 30 < Decimal(received_timestamp):
+                        error_msg = "Future transaction not allowed, timestamp {} minutes in the future".format((Decimal(received_timestamp) - Decimal(time_now)) / 60)
                         block_valid = 0
-                    if float(db_timestamp_last) - 86400 > float(received_timestamp):
+                    if Decimal(db_timestamp_last) - 86400 > Decimal(received_timestamp):
                         error_msg = "Transaction older than 24h not allowed."
                         block_valid = 0
                         # verify signatures
 
                 # reject blocks older than latest block
-                if float(block_timestamp) <= float(db_timestamp_last):
+                if Decimal(block_timestamp) <= Decimal(db_timestamp_last):
                     block_valid = 0
                     error_msg = "Block is older than the previous one, will be rejected"
                 # reject blocks older than latest block
@@ -1195,10 +1199,10 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                 if block_valid == 1:
                     for transaction in transaction_list:
-                        db_timestamp = '%.2f' % float(transaction[0])
+                        db_timestamp = '%.2f' % Decimal(transaction[0])
                         db_address = str(transaction[1])[:56]
                         db_recipient = str(transaction[2])[:56]
-                        db_amount = '%.8f' % float(transaction[3])
+                        db_amount = '%.8f' % Decimal(transaction[3])
                         db_signature = str(transaction[4])[:684]
                         db_public_key_hashed = str(transaction[5])[:1068]
                         db_keep = str(transaction[6])[:1]
@@ -1224,10 +1228,10 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                         for x in transaction_list:
                             if x[1] == db_address:  # make calculation relevant to a particular address in the block
-                                block_debit_address = float(block_debit_address) + float(x[3])
+                                block_debit_address = Decimal(block_debit_address) + Decimal(x[3])
 
                                 if x != transaction_list[-1]:
-                                    block_fees_address = float(block_fees_address) + float(fee_calculate(db_openfield))  # exclude the mining tx from fees
+                                    block_fees_address = Decimal(block_fees_address) + Decimal(fee_calculate(db_openfield))  # exclude the mining tx from fees
                         # print("block_fees_address", block_fees_address, "for", db_address)
 
                         # app_log.info("Digest: Inbound block credit: " + str(block_credit))
@@ -1236,35 +1240,42 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                         execute_param(c, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (db_address,))
                         credit_ledger = c.fetchone()[0]
-                        credit_ledger = 0 if credit_ledger is None else float('%.8f' % credit_ledger)
-                        credit = float(credit_ledger)
+                        credit_ledger = 0 if credit_ledger is None else Decimal(credit_ledger)
+                        credit = Decimal(credit_ledger)
 
                         execute_param(c, ("SELECT sum(amount) FROM transactions WHERE address = ?;"), (db_address,))
                         debit_ledger = c.fetchone()[0]
-                        debit_ledger = 0 if debit_ledger is None else float('%.8f' % debit_ledger)
-                        debit = float(debit_ledger) + float(block_debit_address)
+                        debit_ledger = 0 if debit_ledger is None else Decimal(debit_ledger)
+                        debit = Decimal(debit_ledger) + Decimal(block_debit_address)
 
                         execute_param(c, ("SELECT sum(fee) FROM transactions WHERE address = ?;"), (db_address,))
-                        fees = c.fetchall()[0]
-                        fees = 0 if fees is None else float('%.8f' % fees)
+
+                        try:
+                            fees = Decimal(c.fetchone()[0])
+                        except:
+                            fees = 0
+                        #print("fees",fees)
 
                         execute_param(c, ("SELECT sum(reward) FROM transactions WHERE recipient = ?;"), (db_address,))
                         try:
-                            rewards = float('%.8f' % c.fetchall()[0])
+                            rewards = Decimal(c.fetchone()[0])
+                            #print("rewards",rewards)
                         except:
                             rewards = 0
-
+                        #print("rewards",rewards)
 
                         # app_log.info("Digest: Total credit: " + str(credit))
                         # app_log.info("Digest: Total debit: " + str(debit))
-                        balance_pre = float('%.8f' % (float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)))  # without projection
-                        balance = float('%.8f' % (float(credit) - float(debit) - float(fees) + float(rewards)))
+
+                        getcontext().prec = 8  # decimal places
+                        balance_pre = Decimal(Decimal(credit_ledger) - Decimal(debit_ledger) - Decimal(fees) + Decimal(rewards))  # without projection
+                        balance = Decimal(Decimal(credit) - Decimal(debit) - Decimal(fees) + Decimal(rewards))
                         # app_log.info("Digest: Projected transction address balance: " + str(balance))
 
                         fee = fee_calculate(db_openfield)
                         # fee = '%.8f' % float(0.01 + (float(len(db_openfield)) / 100000) + int(db_keep))  # 0.01 dust
 
-                        fees_block.append(float(fee))
+                        fees_block.append(Decimal(fee))
                         # app_log.info("Fee: " + str(fee))
 
 
@@ -1274,22 +1285,22 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                             db_amount = 0  # prevent spending from another address, because mining txs allow delegation
                             if db_block_height <= 10000000:
-                                mining_reward = 15 - (float(block_height_new) / float(1000000))  # one zero less
+                                mining_reward = 15 - (Decimal(block_height_new) / Decimal(1000000))  # one zero less
                             else:
                                 mining_reward = 0
 
-                            reward = '%.8f' % float(mining_reward + sum(fees_block[:-1]))
+                            reward = Decimal(mining_reward + sum(fees_block[:-1]))
                             fee = 0
                         else:
                             reward = 0
 
                             # dont request a fee for mined block so new accounts can mine
 
-                        if float(balance_pre) < float(db_amount):
+                        if Decimal(balance_pre) < Decimal(db_amount):
                             error_msg = "Sending more than owned"
                             block_valid = 0
 
-                        elif float(balance) - float(block_fees_address) < 0:  # exclude fee check for the mining/header tx
+                        elif Decimal(balance) - Decimal(block_fees_address) < 0:  # exclude fee check for the mining/header tx
                             error_msg = "Cannot afford to pay fees"
                             block_valid = 0
 
@@ -1317,7 +1328,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                     if block_valid == 1:
 
                         # save diff
-                        execute_param(c, "INSERT INTO misc VALUES (?, ?)", (block_height_new, diff))
+                        execute_param(c, "INSERT INTO misc VALUES (?, ?)", (float(block_height_new), float(diff)))
                         commit(conn)
                         # save diff
 
@@ -1554,7 +1565,7 @@ if verify_conf == 1:
 ### LOCAL CHECKS FINISHED ###
 app_log.warning("Status: Starting...")
 global startup_time
-startup_time = time.time()
+startup_time = Decimal(time.time())
 
 
 class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
@@ -1593,7 +1604,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 return
 
         timeout_operation = 120  # timeout
-        timer_operation = time.time()  # start counting
+        timer_operation = Decimal(time.time())  # start counting
 
         while banned == 0 and capacity == 1:
             try:
@@ -1611,7 +1622,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 if self.request == -1:
                     raise ValueError("Inbound: Closed socket from {}".format(peer_ip))
                     return
-                if not time.time() <= timer_operation + timeout_operation:  # return on timeout
+                if not Decimal(time.time()) <= timer_operation + timeout_operation:  # return on timeout
                     if warning(self.request, peer_ip, "Operation timeout", 1) == "banned":
                         app_log.info("{} banned".format(peer_ip))
                         break
@@ -1657,14 +1668,14 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     connections.send(self.request, peers.peer_list(peerlist), 10)
 
                     while db_lock.locked() == True:
-                        time.sleep(float(pause_conf))
+                        time.sleep(Decimal(pause_conf))
                     app_log.info("Inbound: Sending sync request")
 
                     connections.send(self.request, "sync", 10)
 
                 elif data == "sendsync":
                     while db_lock.locked() == True:
-                        time.sleep(float(pause_conf))
+                        time.sleep(Decimal(pause_conf))
 
                     global syncing
                     while len(syncing) >= 3:
@@ -1683,9 +1694,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                     else:
                         execute(c, "SELECT timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
-                        last_block_ago = float(c.fetchone()[0])
+                        last_block_ago = Decimal(c.fetchone()[0])
 
-                        if int(last_block_ago) < (time.time() - 600):
+                        if int(last_block_ago) < (Decimal(time.time()) - 600):
                             # block_req = most_common(consensus_blockheight_list)
                             block_req = peers.consensus_most_common
                             app_log.warning("Most common block rule triggered")
@@ -1825,7 +1836,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     app_log.info("Outbound: Deletion complete, sending sync request")
 
                     while db_lock.locked() == True:
-                        time.sleep(float(pause_conf))
+                        time.sleep(Decimal(pause_conf))
                     connections.send(self.request, "sync", 10)
 
                 elif data == "block":
@@ -1912,40 +1923,47 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                         if result != None:
                             for x in result:
-                                debit_tx = float(x[0])
+                                debit_tx = Decimal(x[0])
                                 fee = fee_calculate(x[1])
-                                debit_mempool = debit_mempool + debit_tx + float(fee)
+                                debit_mempool = debit_mempool + debit_tx + Decimal(fee)
                         else:
                             debit_mempool = 0
                         # include mempool fees
 
                         execute_param(h3, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (balance_address,))
                         credit_ledger = h3.fetchone()[0]
-                        credit_ledger = 0 if credit_ledger is None else float('%.8f' % credit_ledger)
-                        credit = float(credit_ledger)
+                        credit_ledger = 0 if credit_ledger is None else Decimal(credit_ledger)
+                        credit = Decimal(credit_ledger)
 
-                        execute_param(h3, ("SELECT sum(fee),sum(amount) FROM transactions WHERE address = ?;"), (balance_address,))
+                        execute_param(h3, ("SELECT sum(amount),sum(fee) FROM transactions WHERE address = ?;"), (balance_address,))
                         result = h3.fetchall()[0]
 
-                        fees = result[0]
-                        fees = 0 if fees is None else float('%.8f' % fees)
+                        try:
+                            debit_ledger = Decimal(result[0])
+                        except:
+                            debit_ledger = 0
 
-                        debit_ledger = result[1]
-                        debit_ledger = 0 if debit_ledger is None else float('%.8f' % debit_ledger)
+                        try:
+                            fees = Decimal(result[1])
+                        except:
+                            fees = 0
+                        #print("fees",fees)
 
-                        debit = float(debit_ledger) + float(debit_mempool)
+                        debit = Decimal(debit_ledger) + Decimal(debit_mempool)
 
                         execute_param(h3, ("SELECT sum(reward) FROM transactions WHERE recipient = ?;"), (balance_address,))
                         try:
-                            rewards = float('%.8f' % h3.fetchall()[0])
+                            rewards = Decimal(h3.fetchone()[0])
                         except:
                             rewards = 0
+                        #print("rewards",rewards)
 
-                        balance = float('%.8f' % (float(credit) - float(debit) - float(fees) + float(rewards)))
+                        getcontext().prec = 8  # decimal places
+                        balance = Decimal(Decimal(credit) - Decimal(debit) - Decimal(fees) + Decimal(rewards))
                         # balance_pre = float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)
                         # app_log.info("Mempool: Projected transction address balance: " + str(balance))
 
-                        connections.send(self.request, (balance, credit, debit, fees, rewards), 10)  # return balance of the address to the client, including mempool
+                        connections.send(self.request, (float(balance), float(credit), float(debit), float(fees), float(rewards)), 10)  # return balance of the address to the client, including mempool
                         # connections.send(self.request, balance_pre, 10)  # return balance of the address to the client, no mempool
                     else:
                         app_log.info("{} not whitelisted for balanceget command".format(peer_ip))
@@ -2119,7 +2137,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         # derive remaining data
 
                         # construct tx
-                        remote_tx = (str(remote_tx_timestamp), str(remote_tx_address), str(remote_tx_recipient), '%.8f' % float(remote_tx_amount), str(remote_tx_keep), str(remote_tx_openfield))  # this is signed
+                        remote_tx = (str(remote_tx_timestamp), str(remote_tx_address), str(remote_tx_recipient), '%.8f' % Decimal(remote_tx_amount), str(remote_tx_keep), str(remote_tx_openfield))  # this is signed
 
                         remote_hash = SHA.new(str(remote_tx).encode("utf-8"))
                         remote_signer = PKCS1_v1_5.new(tx_remote_key)
@@ -2128,7 +2146,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         # construct tx
 
                         # insert to mempool, where everything will be verified
-                        mempool_data = ((str(remote_tx_timestamp), str(remote_tx_address), str(remote_tx_recipient), '%.8f' % float(remote_tx_amount), str(remote_signature_enc), str(remote_tx_pubkey_hashed), str(remote_tx_keep), str(remote_tx_openfield)))
+                        mempool_data = ((str(remote_tx_timestamp), str(remote_tx_address), str(remote_tx_recipient), '%.8f' % Decimal(remote_tx_amount), str(remote_signature_enc), str(remote_tx_pubkey_hashed), str(remote_tx_keep), str(remote_tx_openfield)))
 
                         mempool_merge(mempool_data, peer_ip, c, mempool, m, True, True)
                         connections.send(self.request, str(remote_signature_enc), 10)
@@ -2171,7 +2189,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         nodes_count = peers.consensus_size
                         nodes_list = peers.peer_ip_list
                         threads_count = threading.active_count()
-                        uptime = int(time.time() - startup_time)
+                        uptime = int(Decimal(time.time()) - startup_time)
 
                         if reveal_address == "yes":
                             revealed_address = address
@@ -2185,7 +2203,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                 elif data == "statusjson":
                     if peers.is_allowed(peer_ip, data):
-                        uptime = int(time.time() - startup_time)
+                        uptime = int(Decimal(time.time()) - startup_time)
                         tempdiff = difficulty(c, "silent")
                         status = {"protocolversion": config.version_conf, "walletversion": VERSION, "testnet": peers.is_testnet,  # config data
                                   "blocks": last_block, "timeoffset": 0, "connections": peers.consensus_size, "difficulty": tempdiff[0],  # live status, bitcoind format
@@ -2204,6 +2222,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
                         diff = difficulty(c, "silent")
+                        print (diff)
                         connections.send(self.request, diff, 10)
                     else:
                         app_log.info("{} not whitelisted for diffget command".format(peer_ip))
@@ -2228,8 +2247,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 else:
                     raise ValueError("Unexpected error, received: " + str(data))
 
-                if not time.time() <= timer_operation + timeout_operation:
-                    timer_operation = time.time()  # reset timer
+                if not Decimal(time.time()) <= timer_operation + timeout_operation:
+                    timer_operation = Decimal(time.time())  # reset timer
                 # time.sleep(float(pause_conf))  # prevent cpu overload
                 app_log.info("Server loop finished for {}".format(peer_ip))
 
@@ -2267,7 +2286,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 def worker(HOST, PORT):
     global peers
     timeout_operation = 60  # timeout
-    timer_operation = time.time()  # start counting
+    timer_operation = Decimal(time.time())  # start counting
 
     try:
         this_client = (HOST + ":" + str(PORT))
@@ -2331,8 +2350,8 @@ def worker(HOST, PORT):
                 peers.peersync(subdata)
 
             elif data == "sync":
-                if not time.time() <= timer_operation + timeout_operation:
-                    timer_operation = time.time()  # reset timer
+                if not Decimal(time.time()) <= timer_operation + timeout_operation:
+                    timer_operation = Decimal(time.time())  # reset timer
 
                 try:
 
@@ -2460,7 +2479,7 @@ def worker(HOST, PORT):
                     execute(c, "SELECT timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
                     last_block_ago = Decimal(c.fetchone()[0])
 
-                    if int(last_block_ago) < (time.time() - 600):
+                    if int(last_block_ago) < (Decimal(time.time()) - 600):
                         block_req = peers.consensus_most_common
                         app_log.warning("Most common block rule triggered")
 
