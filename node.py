@@ -437,7 +437,7 @@ def ledger_compress(ledger_path_conf, hyper_path_conf):
                 credit = hyp.fetchone()[0]
                 credit = 0 if credit is None else float('%.8f' % credit)
 
-                hyp.execute("SELECT sum(amount),sum(fee),sum(reward) FROM transactions WHERE (address = ? AND block_height < ?);", (x,) + (str(int(db_block_height) - depth),))
+                hyp.execute("SELECT sum(amount),sum(fee) FROM transactions WHERE (address = ? AND block_height < ?);", (x,) + (str(int(db_block_height) - depth),))
                 result = hyp.fetchall()
                 debit = result[0][0]
                 debit = 0 if debit is None else float('%.8f' % debit)
@@ -445,8 +445,11 @@ def ledger_compress(ledger_path_conf, hyper_path_conf):
                 fees = result[0][1]
                 fees = 0 if fees is None else float('%.8f' % fees)
 
-                rewards = result[0][2]
-                rewards = 0 if rewards is None else float('%.8f' % rewards)
+                hyp.execute("SELECT sum(reward) FROM transactions WHERE (recipient = ? AND block_height < ?);", (x,) + (str(int(db_block_height) - depth),))
+                try:
+                    rewards = float('%.8f' % hyp.fetchall()[0])
+                except:
+                    rewards = 0
 
                 end_balance = float('%.8f' % (float(credit) - float(debit) - float(fees) + float(rewards)))
                 # app_log.info("Address: "+ str(x))
@@ -770,13 +773,15 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
 
                             debit = float(debit_ledger) + float(debit_mempool)
 
-                            execute_param(c, ("SELECT sum(fee),sum(reward) FROM transactions WHERE address = ?;"), (mempool_address,))
-                            result = c.fetchall()[0]
-                            fees = result[0]
+                            execute_param(c, ("SELECT sum(fee) FROM transactions WHERE address = ?;"), (mempool_address,))
+                            fees = c.fetchall()[0]
                             fees = 0 if fees is None else float('%.8f' % fees)
 
-                            rewards = result[1]
-                            rewards = 0 if rewards is None else float('%.8f' % rewards)
+                            execute_param(c, ("SELECT sum(reward) FROM transactions WHERE recipient = ?;"), (mempool_address,))
+                            try:
+                                rewards = float('%.8f' % c.fetchall()[0])
+                            except:
+                                rewards = 0
 
                             # app_log.info("Mempool: Total credit: " + str(credit))
                             # app_log.info("Mempool: Total debit: " + str(debit))
@@ -1239,14 +1244,16 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         debit_ledger = 0 if debit_ledger is None else float('%.8f' % debit_ledger)
                         debit = float(debit_ledger) + float(block_debit_address)
 
-                        execute_param(c, ("SELECT sum(fee),sum(reward) FROM transactions WHERE address = ?;"), (db_address,))
-
-                        result = c.fetchall()[0]
-                        fees = result[0]
-                        rewards = result[1]
-
+                        execute_param(c, ("SELECT sum(fee) FROM transactions WHERE address = ?;"), (db_address,))
+                        fees = c.fetchall()[0]
                         fees = 0 if fees is None else float('%.8f' % fees)
-                        rewards = 0 if rewards is None else float('%.8f' % rewards)
+
+                        execute_param(c, ("SELECT sum(reward) FROM transactions WHERE recipient = ?;"), (db_address,))
+                        try:
+                            rewards = float('%.8f' % c.fetchall()[0])
+                        except:
+                            rewards = 0
+
 
                         # app_log.info("Digest: Total credit: " + str(credit))
                         # app_log.info("Digest: Total debit: " + str(debit))
@@ -1917,19 +1924,22 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         credit_ledger = 0 if credit_ledger is None else float('%.8f' % credit_ledger)
                         credit = float(credit_ledger)
 
-                        execute_param(h3, ("SELECT sum(fee),sum(reward),sum(amount) FROM transactions WHERE address = ?;"), (balance_address,))
+                        execute_param(h3, ("SELECT sum(fee),sum(amount) FROM transactions WHERE address = ?;"), (balance_address,))
                         result = h3.fetchall()[0]
 
                         fees = result[0]
                         fees = 0 if fees is None else float('%.8f' % fees)
 
-                        rewards = result[1]
-                        rewards = 0 if rewards is None else float('%.8f' % rewards)
-
-                        debit_ledger = result[2]
+                        debit_ledger = result[1]
                         debit_ledger = 0 if debit_ledger is None else float('%.8f' % debit_ledger)
 
                         debit = float(debit_ledger) + float(debit_mempool)
+
+                        execute_param(h3, ("SELECT sum(reward) FROM transactions WHERE recipient = ?;"), (balance_address,))
+                        try:
+                            rewards = float('%.8f' % h3.fetchall()[0])
+                        except:
+                            rewards = 0
 
                         balance = float('%.8f' % (float(credit) - float(debit) - float(fees) + float(rewards)))
                         # balance_pre = float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)
