@@ -112,9 +112,9 @@ def presence_check(cursor, signature):
     execute_param(cursor, ("SELECT * FROM transactions WHERE signature = ?;"), (signature,))
     try:
         dummy1 = cursor.fetchall()[0]
-        result = "present"
+        result = True
     except:
-        result = "absent"
+        result = False
     return result
 """
 
@@ -425,35 +425,26 @@ def ledger_compress(ledger_path_conf, hyper_path_conf):
             hyp.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
             db_block_height = hyp.fetchone()[0]
 
-            for row in hyp.execute("SELECT * FROM transactions WHERE (block_height < ?) ORDER BY block_height;",
-                                   (str(int(db_block_height) - depth),)):
-                db_address = row[2]
-                db_recipient = row[3]
-                addresses.append(db_address.strip())
-                addresses.append(db_recipient.strip())
-
-            unique_addressess = set(addresses)
+            hyp.execute("SELECT distinct(recipient) FROM transactions WHERE (block_height < ?) ORDER BY block_height;", (db_block_height - depth,))
+            unique_addressess = hyp.fetchall()
 
             for x in set(unique_addressess):
-                hyp.execute("SELECT sum(amount) FROM transactions WHERE (recipient = ? AND block_height < ?);", (x,) + (str(int(db_block_height) - depth),))
-                credit = hyp.fetchone()[0]
-                credit = 0 if credit is None else float('%.8f' % credit)
-
-                hyp.execute("SELECT sum(amount),sum(fee) FROM transactions WHERE (address = ? AND block_height < ?);", (x,) + (str(int(db_block_height) - depth),))
-                result = hyp.fetchall()
-                debit = result[0][0]
-                debit = 0 if debit is None else float('%.8f' % debit)
-
-                fees = result[0][1]
-                fees = 0 if fees is None else float('%.8f' % fees)
-
-                hyp.execute("SELECT sum(reward) FROM transactions WHERE (recipient = ? AND block_height < ?);", (x,) + (str(int(db_block_height) - depth),))
+                hyp.execute("SELECT sum(amount)+sum(reward) FROM transactions WHERE (recipient = ? AND block_height < ?);", (x[0],) + (db_block_height - depth,))
                 try:
-                    rewards = float('%.8f' % hyp.fetchall()[0])
+                    credit = float(hyp.fetchone()[0])
+                    credit = 0 if credit is None else credit
                 except:
-                    rewards = 0
+                    credit = 0
 
-                end_balance = float('%.8f' % (float(credit) - float(debit) - float(fees) + float(rewards)))
+                hyp.execute("SELECT sum(amount)+sum(fee) FROM transactions WHERE (address = ? AND block_height < ?);", (x[0],) + (db_block_height - depth,))
+                try:
+                    debit = float(hyp.fetchone()[0])
+                    debit = 0 if credit is None else debit
+                except:
+                    debit = 0
+
+                end_balance = credit - debit
+
                 # app_log.info("Address: "+ str(x))
                 # app_log.info("Credit: " + str(credit))
                 # app_log.info("Debit: " + str(debit))
@@ -472,7 +463,7 @@ def ledger_compress(ledger_path_conf, hyper_path_conf):
 
                 if end_balance > 0:
                     timestamp = str(time.time())
-                    hyp.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (db_block_height - depth - 1, timestamp, "Hyperblock", x, float(end_balance), "0", "0", "0", "0", "0",
+                    hyp.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (db_block_height - depth - 1, timestamp, "Hyperblock", x[0], float(end_balance), "0", "0", "0", "0", "0",
                                                                                               "0", "0"))
             hyper.commit()
 
@@ -778,7 +769,8 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
 
                             execute_param(c, ("SELECT sum(reward) FROM transactions WHERE recipient = ?;"), (mempool_address,))
                             try:
-                                rewards = float('%.8f' % c.fetchall()[0])
+                                rewards = float(c.fetchone()[0])
+                                rewards = 0 if rewards is None else rewards
                             except:
                                 rewards = 0
 
@@ -1045,8 +1037,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         execute_param(h3, ("SELECT block_height FROM transactions WHERE signature = ?;"), (entry_signature,))
                         try:
                             result = h3.fetchall()[0]
-                            error_msg = "That transaction is already in our ledger, row {}".format(result[0])
-                            app_log.warning(error_msg)
+                            app_log.warning("That transaction is already in our ledger, row {}".format(result[0]))
                             block_valid = 0
 
                         except:
@@ -1057,8 +1048,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         app_log.warning("Empty signature from {}".format(peer_ip))
 
                 if len(signature_list) != len(set(signature_list)):
-                    error_msg = "There are duplicate transactions in this block, rejected"
-                    app_log.warning(error_msg)
+                    app_log.warning("There are duplicate transactions in this block, rejected")
                     block_valid = 0  # dont really need this one
                 del signature_list[:]
 
@@ -1096,8 +1086,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                     hash = SHA.new(str((received_timestamp, received_address, received_recipient, received_amount, received_keep, received_openfield)).encode("utf-8"))
                     if not verifier.verify(hash, received_signature_dec):
-                        error_msg = "Invalid signature"
-                        app_log.warning(error_msg)
+                        app_log.warning("Invalid signature")
                         # print(received_timestamp +"\n"+ received_address +"\n"+ received_recipient +"\n"+ received_amount +"\n"+ received_keep +"\n"+ received_openfield)
                         block_valid = 0
                     else:
@@ -1106,18 +1095,15 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                     if received_keep != "1" and received_keep != "0":
                         block_valid = 0
                         # print (type(received_keep))
-                        error_msg = "Wrong keep value {}".format(received_keep)
-                        app_log.warning(error_msg)
+                        app_log.warning("Wrong keep value {}".format(received_keep))
 
                     if float(received_amount) < 0:
                         block_valid = 0
-                        error_msg = "Negative balance spend attempt"
-                        app_log.warning(error_msg)
+                        app_log.warning("Negative balance spend attempt")
 
                     if transaction != transaction_list[-1]:  # non-mining txs
                         if received_address != hashlib.sha224(base64.b64decode(received_public_key_hashed)).hexdigest():
-                            error_msg = "Attempt to spend from a wrong address"
-                            app_log.warning(error_msg)
+                            app_log.warning("Attempt to spend from a wrong address")
                             block_valid = 0
 
                     if transaction == transaction_list[-1]:  # recognize the last transaction as the mining reward transaction
@@ -1131,20 +1117,17 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                     time_now = time.time()
                     if float(time_now) + 30 < float(received_timestamp):
-                        error_msg = "Future transaction not allowed, timestamp {} minutes in the future".format((float(received_timestamp) - float(time_now)) / 60)
-                        app_log.warning(error_msg)
+                        app_log.warning("Future transaction not allowed, timestamp {} minutes in the future".format((float(received_timestamp) - float(time_now)) / 60))
                         block_valid = 0
                     if float(db_timestamp_last) - 86400 > float(received_timestamp):
-                        error_msg = "Transaction older than 24h not allowed."
-                        app_log.warning(error_msg)
+                        app_log.warning("Transaction older than 24h not allowed.")
                         block_valid = 0
                         # verify signatures
 
                 # reject blocks older than latest block
                 if float(block_timestamp) <= float(db_timestamp_last):
                     block_valid = 0
-                    error_msg = "Block is older than the previous one, will be rejected"
-                    app_log.warning(error_msg)
+                    app_log.warning("Block is older than the previous one, will be rejected")
                 # reject blocks older than latest block
 
                 if block_valid == 1:
@@ -1176,15 +1159,13 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                             diff = diff[1]
                         else:
                             # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
-                            error_msg = "Readjusted difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[1])
-                            app_log.warning(error_msg)
+                            app_log.warning("Readjusted difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[1]))
                             block_valid = 0
 
 
                     else:
                         # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
-                        error_msg = "Difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[0])
-                        app_log.warning(error_msg)
+                        app_log.warning("Difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[0]))
                         block_valid = 0
 
                         # print data
@@ -1195,8 +1176,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                     if peers.is_banned(peer_ip):
                         block_valid = 0
-                        error_msg = "Cannot accept blocks form a banned peer"
-                        app_log.warning(error_msg)
+                        app_log.warning("Cannot accept blocks form a banned peer")
 
                 if block_valid == 0:
                     #app_log.warning("Check 1: A part of the block is invalid, rejected: {}".format(error_msg))
@@ -1264,7 +1244,8 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                         execute_param(c, ("SELECT sum(reward) FROM transactions WHERE recipient = ?;"), (db_address,))
                         try:
-                            rewards = float('%.8f' % c.fetchall()[0])
+                            rewards = float(c.fetchone()[0])
+                            rewards = 0 if rewards is None else rewards
                         except:
                             rewards = 0
 
@@ -1298,13 +1279,11 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                             # dont request a fee for mined block so new accounts can mine
 
                         if float(balance_pre) < float(db_amount):
-                            error_msg = "Sending more than owned"
-                            app_log.warning(error_msg)
+                            app_log.warning("sending more than owned".format(db_address))
                             block_valid = 0
 
                         elif float(balance) - float(block_fees_address) < 0:  # exclude fee check for the mining/header tx
-                            error_msg = "{} Cannot afford to pay fees".format(db_address)
-                            app_log.warning(error_msg)
+                            app_log.warning("{} Cannot afford to pay fees".format(db_address))
                             block_valid = 0
 
                         else:
@@ -1353,7 +1332,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                                                   ("0", str(time_now), "Development Reward", str(genesis_conf), str(mining_reward),
                                                    "0", "0", "0", "0", "0", "0", str(block_height_new)))
                                     commit(conn)
-                                    # dev reward
+                            # dev reward
 
                         app_log.warning("Block {} valid and saved from {}".format(block_height_new, peer_ip))
 
@@ -1948,7 +1927,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                         execute_param(h3, ("SELECT sum(reward) FROM transactions WHERE recipient = ?;"), (balance_address,))
                         try:
-                            rewards = float('%.8f' % h3.fetchall()[0])
+                            rewards = float(h3.fetchone()[0])
+                            rewards = 0 if rewards is None else rewards
                         except:
                             rewards = 0
 

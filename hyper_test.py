@@ -77,7 +77,7 @@ def balance_from_cursor(cursor, address):
         debit = 0
 
     # limiting to .6f to ignore small round errors
-    res =  "{:0.8f}".format(Decimal(credit)-Decimal(debit))
+    res =  "{:0.8f}".format(credit-debit)
     if res == '-0.00000000':
         res = '0.00000000'
     return res
