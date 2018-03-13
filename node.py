@@ -1046,6 +1046,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         try:
                             result = h3.fetchall()[0]
                             error_msg = "That transaction is already in our ledger, row {}".format(result[0])
+                            app_log.warning(error_msg)
                             block_valid = 0
 
                         except:
@@ -1057,6 +1058,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                 if len(signature_list) != len(set(signature_list)):
                     error_msg = "There are duplicate transactions in this block, rejected"
+                    app_log.warning(error_msg)
                     block_valid = 0  # dont really need this one
                 del signature_list[:]
 
@@ -1095,6 +1097,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                     hash = SHA.new(str((received_timestamp, received_address, received_recipient, received_amount, received_keep, received_openfield)).encode("utf-8"))
                     if not verifier.verify(hash, received_signature_dec):
                         error_msg = "Invalid signature"
+                        app_log.warning(error_msg)
                         # print(received_timestamp +"\n"+ received_address +"\n"+ received_recipient +"\n"+ received_amount +"\n"+ received_keep +"\n"+ received_openfield)
                         block_valid = 0
                     else:
@@ -1104,14 +1107,17 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         block_valid = 0
                         # print (type(received_keep))
                         error_msg = "Wrong keep value {}".format(received_keep)
+                        app_log.warning(error_msg)
 
                     if float(received_amount) < 0:
                         block_valid = 0
                         error_msg = "Negative balance spend attempt"
+                        app_log.warning(error_msg)
 
                     if transaction != transaction_list[-1]:  # non-mining txs
                         if received_address != hashlib.sha224(base64.b64decode(received_public_key_hashed)).hexdigest():
                             error_msg = "Attempt to spend from a wrong address"
+                            app_log.warning(error_msg)
                             block_valid = 0
 
                     if transaction == transaction_list[-1]:  # recognize the last transaction as the mining reward transaction
@@ -1126,9 +1132,11 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                     time_now = time.time()
                     if float(time_now) + 30 < float(received_timestamp):
                         error_msg = "Future transaction not allowed, timestamp {} minutes in the future".format((float(received_timestamp) - float(time_now)) / 60)
+                        app_log.warning(error_msg)
                         block_valid = 0
                     if float(db_timestamp_last) - 86400 > float(received_timestamp):
                         error_msg = "Transaction older than 24h not allowed."
+                        app_log.warning(error_msg)
                         block_valid = 0
                         # verify signatures
 
@@ -1136,7 +1144,9 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                 if float(block_timestamp) <= float(db_timestamp_last):
                     block_valid = 0
                     error_msg = "Block is older than the previous one, will be rejected"
+                    app_log.warning(error_msg)
                 # reject blocks older than latest block
+
 
                 # calculate difficulty
 
@@ -1167,12 +1177,14 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                     else:
                         # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
                         error_msg = "Readjusted difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[1])
+                        app_log.warning(error_msg)
                         block_valid = 0
 
 
                 else:
                     # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
                     error_msg = "Difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[0])
+                    app_log.warning(error_msg)
                     block_valid = 0
 
                     # print data
@@ -1184,11 +1196,11 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                 if peers.is_banned(peer_ip):
                     block_valid = 0
                     error_msg = "Cannot accept blocks form a banned peer"
+                    app_log.warning(error_msg)
 
                 if block_valid == 0:
-                    app_log.warning("Check 1: A part of the block is invalid, rejected: {}".format(error_msg))
-                    error_msg = ""
-                    app_log.info("Check 1: Complete rejected data: {}".format(data))
+                    #app_log.warning("Check 1: A part of the block is invalid, rejected: {}".format(error_msg))
+                    #app_log.info("Check 1: Complete rejected data: {}".format(data))
                     if peers.warning(sdef, peer_ip, "Check 1: rejected block", 1) == "banned":
                         raise ValueError("{} banned".format(peer_ip))
 
@@ -1244,8 +1256,10 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         debit = float(debit_ledger) + float(block_debit_address)
 
                         execute_param(c, ("SELECT sum(fee) FROM transactions WHERE address = ?;"), (db_address,))
-                        fees = c.fetchall()[0]
-                        fees = 0 if fees is None else float('%.8f' % fees)
+                        try:
+                            fees = float('%.8f' % c.fetchall()[0])
+                        except:
+                            fees = 0
 
                         execute_param(c, ("SELECT sum(reward) FROM transactions WHERE recipient = ?;"), (db_address,))
                         try:
@@ -1284,10 +1298,12 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                         if float(balance_pre) < float(db_amount):
                             error_msg = "Sending more than owned"
+                            app_log.warning(error_msg)
                             block_valid = 0
 
                         elif float(balance) - float(block_fees_address) < 0:  # exclude fee check for the mining/header tx
                             error_msg = "Cannot afford to pay fees"
+                            app_log.warning(error_msg)
                             block_valid = 0
 
                         else:
@@ -1305,9 +1321,8 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                     # whole block validation
                     if block_valid == 0:
-                        app_log.info("Check 2: A part of the block is invalid, rejected: {}".format(error_msg))
-                        error_msg = ""
-                        app_log.info("Check 2: Complete rejected block: {}".format(data))
+                        #app_log.info("Check 2: A part of the block is invalid, rejected: {}".format(error_msg))
+                        #app_log.info("Check 2: Complete rejected block: {}".format(data))
                         if peers.warning(sdef, peer_ip, "Check 2: rejected block", 1) == "banned":
                             raise ValueError("{} banned".format(peer_ip))
 

@@ -2,7 +2,7 @@ import sqlite3,time
 
 reward_10 = 14.99999
 row_init = 10
-row_end = 552980
+row_end = 553620
 row = row_init
 reward = reward_10
 
