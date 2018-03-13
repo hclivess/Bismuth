@@ -95,6 +95,10 @@ def check(addresses):
             ERRORS += 1
             print(check, address, balance1, balance2)
 
+        if (Decimal(balance1) < 0 or Decimal(balance2) < 0):
+            print(address,balance1,balance2)
+
+
 
 if __name__ == "__main__":
     # Hyper
