@@ -7,7 +7,7 @@
 # rolling back indexes: 1424 and 945
 
 
-VERSION = "4.2.3.3"
+VERSION = "4.2.3.4"
 
 # Bis specific modules
 import log, options, connections, peershandler, apihandler
@@ -2287,7 +2287,7 @@ def worker(HOST, PORT):
             s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
         # s.setblocking(0)
         s.connect((HOST, PORT))
-        app_log.warning("Outbound: Connected to {}".format(this_client))
+        app_log.info("Outbound: Connected to {}".format(this_client))
 
         # communication starter
 
