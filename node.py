@@ -119,7 +119,7 @@ def presence_check(cursor, signature):
 """
 
 
-def sendsync(sdef, peer_ip, status, provider, spam_timer):
+def sendsync(sdef, peer_ip, status, provider):
 
     app_log.warning("Outbound: Synchronization with {} finished after: {}, sending new sync request".format(peer_ip, status))
 
