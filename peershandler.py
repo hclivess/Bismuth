@@ -129,6 +129,8 @@ class Peers:
                 sdef.close()
                 self.app_log.warning("{} is banned: {}".format(ip, reason))
                 return True
+            else:
+                return False
 
     def peers_get(self, peerlist):
         """Returns a peerlist from disk as a dict {ip:port}"""
