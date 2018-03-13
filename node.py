@@ -584,7 +584,7 @@ def difficulty(c, mode):
         difficulty = 80
     if difficulty2 < 80:
         difficulty2 = 80
-    if mode == "verbose":
+    if mode == True:
         app_log.warning("Time to generate block {}: {}".format(block_height, timestamp_last - timestamp_before_last))
         app_log.warning("Current difficulty: {}".format(D))
         app_log.warning("Current blocktime: {}".format(T))
@@ -1133,7 +1133,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                 if block_valid == 1:
                     # calculate difficulty
 
-                    diff = difficulty(c, "verbose")
+                    diff = difficulty(c, True)
 
                     # app_log.info("Transaction list: {}".format(transaction_list_converted))
                     block_hash = hashlib.sha224((str(transaction_list_converted) + db_block_hash).encode("utf-8")).hexdigest()
@@ -1141,6 +1141,17 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                     app_log.info("Calculated block hash: {}".format(block_hash))
                     # app_log.info("Nonce: {}".format(nonce))
 
+                    # check if we already have the hash
+                    execute_param(h3, ("SELECT block_hash FROM transactions WHERE block_hash = ?;"), (block_hash,))
+                    try:
+                        dummy = c.fetchone()[0]
+                        block_valid = 0
+                        app_log.warning("Skipping digestion of block {} from {}, because we already have it".format(peer_ip,dummy))
+                    except:
+                        pass
+                    # check if we already have the hash
+
+                if block_valid == 1:
                     mining_hash = bin_convert(hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
 
                     diff_drop_time = 300
@@ -2177,7 +2188,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "statusjson":
                     if peers.is_allowed(peer_ip, data):
                         uptime = int(time.time() - startup_time)
-                        tempdiff = difficulty(c, "silent")
+                        tempdiff = difficulty(c, False)
                         status = {"protocolversion": config.version_conf, "walletversion": VERSION, "testnet": peers.is_testnet,  # config data
                                   "blocks": last_block, "timeoffset": 0, "connections": peers.consensus_size, "difficulty": tempdiff[0],  # live status, bitcoind format
                                   "threads": threading.active_count(), "uptime": uptime, "consensus": peers.consensus, "consensus_percent": peers.consensus_percentage}  # extra data
@@ -2194,7 +2205,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "diffget":
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
-                        diff = difficulty(c, "silent")
+                        diff = difficulty(c, False)
                         connections.send(self.request, diff, 10)
                     else:
                         app_log.info("{} not whitelisted for diffget command".format(peer_ip))
