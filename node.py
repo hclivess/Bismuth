@@ -1192,7 +1192,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                 if block_valid == 0:
                     #app_log.warning("Check 1: A part of the block is invalid, rejected: {}".format(error_msg))
                     #app_log.info("Check 1: Complete rejected data: {}".format(data))
-                    if peers.warning(sdef, peer_ip, "Rejected block", 1) == "banned":
+                    if peers.warning(sdef, peer_ip, "Rejected block", 1) == True:
                         raise ValueError("{} banned".format(peer_ip))
                     raise ValueError ("Block digestion aborted")
 
@@ -1314,7 +1314,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                     if block_valid == 0:
                         #app_log.info("Check 2: A part of the block is invalid, rejected: {}".format(error_msg))
                         #app_log.info("Check 2: Complete rejected block: {}".format(data))
-                        if peers.warning(sdef, peer_ip, "Rejected block", 1) == "banned":
+                        if peers.warning(sdef, peer_ip, "Rejected block", 1) == True:
                             raise ValueError("{} banned".format(peer_ip))
                         raise ValueError("Block digestion aborted")
 
@@ -1356,9 +1356,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         # whole block validation
 
         except Exception as e:
-            app_log.warning(e)
-            if peers.warning(sdef, peer_ip, "Block processing failed", 10) == "banned":
-                app_log.info("{} banned".format(peer_ip))
+            app_log.warning("Block processing failed: {}".format(e))
 
             if debug_conf == 1:
                 raise  # major debug client
@@ -1613,7 +1611,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     raise ValueError("Inbound: Closed socket from {}".format(peer_ip))
                     return
                 if not time.time() <= timer_operation + timeout_operation:  # return on timeout
-                    if warning(self.request, peer_ip, "Operation timeout", 1) == "banned":
+                    if warning(self.request, peer_ip, "Operation timeout", 1) == True:
                         app_log.info("{} banned".format(peer_ip))
                         break
 
@@ -1705,7 +1703,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                 segments = connections.receive(self.request, 10)
 
                             except:
-                                if peers.warning(self.request, peer_ip, "Failed to deliver the longest chain", 10) == "banned":
+                                if peers.warning(self.request, peer_ip, "Failed to deliver the longest chain", 10) == True:
                                     app_log.info("{} banned".format(peer_ip))
                                     break
                             else:
@@ -1820,7 +1818,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # print peer_ip
                     if consensus_blockheight == peers.consensus_max:
                         blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, mempool, m)
-                        if peers.warning(self.request, peer_ip, "Rollback", 1) == "banned":
+                        if peers.warning(self.request, peer_ip, "Rollback", 1) == True:
                             app_log.info("{} banned".format(peer_ip))
                             break
                     app_log.info("Outbound: Deletion complete, sending sync request")
@@ -2445,7 +2443,7 @@ def worker(HOST, PORT):
                 # if max(consensus_blockheight_list) == int(received_block_height):
                 if int(received_block_height) == peers.consensus_max:
                     blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, mempool, m)
-                    if peers.warning(s, peer_ip, "Rollback", 1) == "banned":
+                    if peers.warning(s, peer_ip, "Rollback", 1) == True:
                         raise ValueError("{} is banned".format(peer_ip))
 
                 sendsync(s, peer_ip, "Block not found", "no")
@@ -2478,7 +2476,7 @@ def worker(HOST, PORT):
                             segments = connections.receive(s, 10)
 
                         except:
-                            if peers.warning(s, peer_ip, "Failed to deliver the longest chain", 10) == "banned":
+                            if peers.warning(s, peer_ip, "Failed to deliver the longest chain", 10) == True:
                                 raise ValueError("{} is banned".format(peer_ip))
 
                         else:
