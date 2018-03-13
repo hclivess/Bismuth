@@ -765,9 +765,11 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                             debit = float(debit_ledger) + float(debit_mempool)
 
                             execute_param(c, ("SELECT sum(fee) FROM transactions WHERE address = ?;"), (mempool_address,))
-                            fees = c.fetchall()[0]
-                            fees = 0 if fees is None else float('%.8f' % fees)
-
+                            try:
+                                fees = float(c.fetchone()[0])
+                                fees = 0 if fees is None else fees
+                            except:
+                                fees = 0
                             execute_param(c, ("SELECT sum(reward) FROM transactions WHERE recipient = ?;"), (mempool_address,))
                             try:
                                 rewards = float(c.fetchone()[0])
@@ -1250,7 +1252,8 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                         execute_param(c, ("SELECT sum(fee) FROM transactions WHERE address = ?;"), (db_address,))
                         try:
-                            fees = float('%.8f' % c.fetchall()[0])
+                            fees = float(c.fetchone()[0])
+                            fees = 0 if fees is None else fees
                         except:
                             fees = 0
 
