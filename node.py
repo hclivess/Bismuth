@@ -287,12 +287,12 @@ def db_to_drive(hdd, h, hdd2, h2):
     # reward
     execute_param(sc, ('SELECT * FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) > ?'), (hdd_block,))
     result3 = sc.fetchall()
-    if full_ledger == 1:  # we want to save to ledger.db from hyper.db
+    if full_ledger == 1:  # we want to save to ledger.db from RAM
         for x in result3:
             h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
         commit(hdd)
 
-    elif ram_conf == 1:  # we want to save to hyper.db from RAM
+    if ram_conf == 1:  # we want to save to hyper.db from RAM
         for x in result3:
             h2.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
         commit(hdd2)
