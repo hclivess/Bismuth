@@ -119,10 +119,11 @@ def presence_check(cursor, signature):
 """
 
 
-def sendsync(sdef, peer_ip, status, provider):
+def sendsync(sdef, peer_ip, status, provider, spam_timer):
+
     app_log.warning("Outbound: Synchronization with {} finished after: {}, sending new sync request".format(peer_ip, status))
 
-    if provider == "yes":
+    if provider == True:
         peers.peers_save("peers.txt", peer_ip)
 
     time.sleep(Decimal(pause_conf))
@@ -1611,7 +1612,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     raise ValueError("Inbound: Closed socket from {}".format(peer_ip))
                     return
                 if not time.time() <= timer_operation + timeout_operation:  # return on timeout
-                    if warning(self.request, peer_ip, "Operation timeout", 1) == True:
+                    if warning(self.request, peer_ip, "Operation timeout", 2) == True:
                         app_log.info("{} banned".format(peer_ip))
                         break
 
@@ -1818,7 +1819,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # print peer_ip
                     if consensus_blockheight == peers.consensus_max:
                         blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, mempool, m)
-                        if peers.warning(self.request, peer_ip, "Rollback", 1) == True:
+                        if peers.warning(self.request, peer_ip, "Rollback", 2) == True:
                             app_log.info("{} banned".format(peer_ip))
                             break
                     app_log.info("Outbound: Deletion complete, sending sync request")
@@ -2446,7 +2447,7 @@ def worker(HOST, PORT):
                     if peers.warning(s, peer_ip, "Rollback", 1) == True:
                         raise ValueError("{} is banned".format(peer_ip))
 
-                sendsync(s, peer_ip, "Block not found", "no")
+                sendsync(s, peer_ip, "Block not found", False)
 
             elif data == "blocksfnd":
                 app_log.info("Outbound: Node {} has the block(s)".format(peer_ip))  # node should start sending txs in this step
@@ -2487,7 +2488,7 @@ def worker(HOST, PORT):
                         connections.send(s, "blocksrj", 10)
                         app_log.warning("Inbound: Distant peer {} is at {}, should be at least {}".format(peer_ip, received_block_height, block_req))
 
-                sendsync(s, peer_ip, "Block found", "yes")
+                sendsync(s, peer_ip, "Block found", True)
 
                 # block_hash validation end
 
@@ -2511,7 +2512,7 @@ def worker(HOST, PORT):
 
                 # receive mempool
 
-                sendsync(s, peer_ip, "No new block", "yes")
+                sendsync(s, peer_ip, "No new block", True)
 
             # elif data == "*":
             #    app_log.info(">> sending ping to {}".format(peer_ip))
