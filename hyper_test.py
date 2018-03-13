@@ -35,8 +35,6 @@ def commit(cursor):
         except Exception as e:
             print("Database cursor: {}".format(cursor))
             print("Database retry reason: {}".format(e))
-            time.sleep(random.uniform(0, 1))
-
 
 def execute(cursor, query):
     """Secure execute for slow nodes"""
@@ -47,7 +45,7 @@ def execute(cursor, query):
         except Exception as e:
             print("Database query: {} {}".format(cursor, query))
             print("Database retry reason: {}".format(e))
-            time.sleep(random.uniform(0, 1))
+
     return cursor
 
 
@@ -66,17 +64,20 @@ def execute_param(cursor, query, param):
 def balance_from_cursor(cursor, address):
     execute_param(cursor, "SELECT sum(amount)+sum(reward) FROM transactions WHERE recipient = ? ",
         (address, ))
-    credit = cursor.fetchone()[0]
-
-    if not credit:
+    try:
+        credit = Decimal(cursor.fetchone()[0])
+    except:
         credit = 0
+
     execute_param(cursor, "SELECT sum(amount)+sum(fee) FROM transactions WHERE address = ? ",
         (address, ))
-    debit = cursor.fetchone()[0]
-    if not debit:
+    try:
+        debit = Decimal(cursor.fetchone()[0])
+    except:
         debit = 0
+
     # limiting to .6f to ignore small round errors
-    res =  "{:0.8f}".format(credit-debit)
+    res =  "{:0.8f}".format(Decimal(credit)-Decimal(debit))
     if res == '-0.00000000':
         res = '0.00000000'
     return res
@@ -98,7 +99,7 @@ def check(addresses):
 if __name__ == "__main__":
     # Hyper
     hdd2, h2 = db_h2_define()
-    # Ledger
+    # Ledger
     hdd, h = db_h_define()
     ERRORS = 0
     print("Selecting all addresses from full ledger for errors")
