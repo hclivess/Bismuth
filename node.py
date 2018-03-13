@@ -1147,62 +1147,63 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                     app_log.warning(error_msg)
                 # reject blocks older than latest block
 
+                if block_valid == 1:
+                    # calculate difficulty
 
-                # calculate difficulty
+                    diff = difficulty(c, "verbose")
 
-                diff = difficulty(c, "verbose")
+                    # app_log.info("Transaction list: {}".format(transaction_list_converted))
+                    block_hash = hashlib.sha224((str(transaction_list_converted) + db_block_hash).encode("utf-8")).hexdigest()
+                    # app_log.info("Last block hash: {}".format(db_block_hash))
+                    app_log.info("Calculated block hash: {}".format(block_hash))
+                    # app_log.info("Nonce: {}".format(nonce))
 
-                # app_log.info("Transaction list: {}".format(transaction_list_converted))
-                block_hash = hashlib.sha224((str(transaction_list_converted) + db_block_hash).encode("utf-8")).hexdigest()
-                # app_log.info("Last block hash: {}".format(db_block_hash))
-                app_log.info("Calculated block hash: {}".format(block_hash))
-                # app_log.info("Nonce: {}".format(nonce))
+                    mining_hash = bin_convert(hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
 
-                mining_hash = bin_convert(hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
-
-                diff_drop_time = 300
-
-                mining_condition = bin_convert(db_block_hash)[0:int(diff[0])]
-                if mining_condition in mining_hash:  # simplified comparison, no backwards mining
-                    app_log.info("Difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
-                    diff = diff[0]
+                    diff_drop_time = 300
 
 
-                elif time_now > db_timestamp_last + diff_drop_time:
-
-                    mining_condition = bin_convert(db_block_hash)[0:int(diff[1])]
+                    mining_condition = bin_convert(db_block_hash)[0:int(diff[0])]
                     if mining_condition in mining_hash:  # simplified comparison, no backwards mining
-                        app_log.info("Readjusted difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
-                        diff = diff[1]
+                        app_log.info("Difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
+                        diff = diff[0]
+
+                    elif time_now > db_timestamp_last + diff_drop_time:
+
+                        mining_condition = bin_convert(db_block_hash)[0:int(diff[1])]
+                        if mining_condition in mining_hash:  # simplified comparison, no backwards mining
+                            app_log.info("Readjusted difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
+                            diff = diff[1]
+                        else:
+                            # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
+                            error_msg = "Readjusted difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[1])
+                            app_log.warning(error_msg)
+                            block_valid = 0
+
+
                     else:
                         # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
-                        error_msg = "Readjusted difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[1])
+                        error_msg = "Difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[0])
                         app_log.warning(error_msg)
                         block_valid = 0
 
+                        # print data
+                        # print transaction_list
+                    # match difficulty
 
-                else:
-                    # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
-                    error_msg = "Difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[0])
-                    app_log.warning(error_msg)
-                    block_valid = 0
+                    fees_block = []
 
-                    # print data
-                    # print transaction_list
-                # match difficulty
-
-                fees_block = []
-
-                if peers.is_banned(peer_ip):
-                    block_valid = 0
-                    error_msg = "Cannot accept blocks form a banned peer"
-                    app_log.warning(error_msg)
+                    if peers.is_banned(peer_ip):
+                        block_valid = 0
+                        error_msg = "Cannot accept blocks form a banned peer"
+                        app_log.warning(error_msg)
 
                 if block_valid == 0:
                     #app_log.warning("Check 1: A part of the block is invalid, rejected: {}".format(error_msg))
                     #app_log.info("Check 1: Complete rejected data: {}".format(data))
-                    if peers.warning(sdef, peer_ip, "Check 1: rejected block", 1) == "banned":
+                    if peers.warning(sdef, peer_ip, "Rejected block", 1) == "banned":
                         raise ValueError("{} banned".format(peer_ip))
+                    raise ValueError ("Block digestion aborted")
 
                 if block_valid == 1:
                     for transaction in transaction_list:
@@ -1302,7 +1303,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                             block_valid = 0
 
                         elif float(balance) - float(block_fees_address) < 0:  # exclude fee check for the mining/header tx
-                            error_msg = "Cannot afford to pay fees"
+                            error_msg = "{} Cannot afford to pay fees".format(db_address)
                             app_log.warning(error_msg)
                             block_valid = 0
 
@@ -1323,8 +1324,9 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                     if block_valid == 0:
                         #app_log.info("Check 2: A part of the block is invalid, rejected: {}".format(error_msg))
                         #app_log.info("Check 2: Complete rejected block: {}".format(data))
-                        if peers.warning(sdef, peer_ip, "Check 2: rejected block", 1) == "banned":
+                        if peers.warning(sdef, peer_ip, "Rejected block", 1) == "banned":
                             raise ValueError("{} banned".format(peer_ip))
+                        raise ValueError("Block digestion aborted")
 
                     if block_valid == 1:
 
