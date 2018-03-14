@@ -1,15 +1,15 @@
 import sqlite3
 import log
 
-def tokens_update(file, mode, app_log):
+def tokens_update(index, ledger, mode, app_log):
     if mode not in ("normal","reindex"):
         raise ValueError ("Wrong value for tokens_update function")
 
-    conn = sqlite3.connect('static/ledger.db')
+    conn = sqlite3.connect(ledger)
     conn.text_factory = str
     c = conn.cursor()
 
-    tok = sqlite3.connect(file)
+    tok = sqlite3.connect(index)
     tok.text_factory = str
     t = tok.cursor()
     t.execute("CREATE TABLE IF NOT EXISTS tokens (block_height INTEGER, timestamp, token, address, recipient, txid, amount INTEGER)")
@@ -154,5 +154,5 @@ def tokens_update(file, mode, app_log):
 
 if __name__ == "__main__":
     app_log = log.log("tokens.log", "WARNING", "yes")
-    tokens_update("index.db","normal",app_log)
+    tokens_update("index.db","static/ledger.db","normal",app_log)
     #tokens_update("tokens.db","reindex")

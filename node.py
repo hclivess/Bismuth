@@ -7,7 +7,7 @@
 # rolling back indexes: 1424 and 945
 
 
-VERSION = "4.2.3.3"
+VERSION = "4.2.3.4"
 
 # Bis specific modules
 import log, options, connections, peershandler, apihandler
@@ -1486,9 +1486,9 @@ check_integrity(hyper_path_conf)
 coherence_check()
 
 app_log.warning("Status: Indexing tokens")
-tokens.tokens_update("static/index.db","normal",app_log)
+tokens.tokens_update("static/index.db",ledger_path_conf,"normal",app_log)
 app_log.warning("Status: Indexing aliases")
-aliases.aliases_update("static/index.db","normal",app_log)
+aliases.aliases_update("static/index.db",ledger_path_conf,"normal",app_log)
 
 ledger_compress(ledger_path_conf, hyper_path_conf)
 
@@ -2030,7 +2030,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "addfromalias":
                     if peers.is_allowed(peer_ip, data):
 
-                        aliases.aliases_update("static/index.db", "normal", app_log)
+                        aliases.aliases_update("static/index.db",ledger_path_conf, "normal", app_log)
 
                         ali = sqlite3.connect("static/index.db")
                         ali.text_factory = str
