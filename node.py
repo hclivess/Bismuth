@@ -1195,7 +1195,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                 if block_valid == 0:
                     #app_log.warning("Check 1: A part of the block is invalid, rejected: {}".format(error_msg))
                     #app_log.info("Check 1: Complete rejected data: {}".format(data))
-                    if peers.warning(sdef, peer_ip, "Rejected block", 1) == True:
+                    if peers.warning(sdef, peer_ip, "Rejected block", 2) == True:
                         raise ValueError("{} banned".format(peer_ip))
                     raise ValueError ("Block digestion aborted")
 
@@ -1318,7 +1318,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                     if block_valid == 0:
                         #app_log.info("Check 2: A part of the block is invalid, rejected: {}".format(error_msg))
                         #app_log.info("Check 2: Complete rejected block: {}".format(data))
-                        if peers.warning(sdef, peer_ip, "Rejected block", 1) == True:
+                        if peers.warning(sdef, peer_ip, "Rejected block", 2) == True:
                             raise ValueError("{} banned".format(peer_ip))
                         raise ValueError("Block digestion aborted")
 
@@ -1497,9 +1497,9 @@ check_integrity(hyper_path_conf)
 coherence_check()
 
 app_log.warning("Status: Indexing tokens")
-tokens.tokens_update("static/index.db", "normal", app_log)
+tokens.tokens_update("static/index.db", ledger_path_conf, "normal", app_log)
 app_log.warning("Status: Indexing aliases")
-aliases.aliases_update("static/index.db", "normal", app_log)
+aliases.aliases_update("static/index.db", ledger_path_conf,"normal", app_log)
 
 ledger_compress(ledger_path_conf, hyper_path_conf)
 
@@ -2045,7 +2045,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "addfromalias":
                     if peers.is_allowed(peer_ip, data):
 
-                        aliases.aliases_update("static/index.db", "normal", app_log)
+                        aliases.aliases_update("static/index.db", ledger_path_conf, "normal", app_log)
 
                         ali = sqlite3.connect("static/index.db")
                         ali.text_factory = str
@@ -2447,7 +2447,7 @@ def worker(HOST, PORT):
                 # if max(consensus_blockheight_list) == int(received_block_height):
                 if int(received_block_height) == peers.consensus_max:
                     blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, mempool, m)
-                    if peers.warning(s, peer_ip, "Rollback", 1) == True:
+                    if peers.warning(s, peer_ip, "Rollback", 2) == True:
                         raise ValueError("{} is banned".format(peer_ip))
 
                 sendsync(s, peer_ip, "Block not found", False)

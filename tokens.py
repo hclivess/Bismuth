@@ -1,11 +1,11 @@
 import sqlite3
 import log
 
-def tokens_update(file, mode, app_log):
+def tokens_update(file, ledger, mode, app_log):
     if mode not in ("normal","reindex"):
         raise ValueError ("Wrong value for tokens_update function")
 
-    conn = sqlite3.connect('static/ledger.db')
+    conn = sqlite3.connect(ledger)
     conn.text_factory = str
     c = conn.cursor()
 

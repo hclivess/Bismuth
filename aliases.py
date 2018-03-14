@@ -7,11 +7,11 @@ def replace_regex(string,replace):
     replaced_string = re.sub(r'^{}'.format(replace), "", string)
     return replaced_string
 
-def aliases_update(file,mode,app_log):
+def aliases_update(file,ledger,mode,app_log):
     if mode not in ("normal","reindex"):
         raise ValueError ("Wrong value for aliases_update function")
 
-    conn = sqlite3.connect("static/ledger.db")
+    conn = sqlite3.connect(ledger)
     conn.text_factory = str
     c = conn.cursor()
 
