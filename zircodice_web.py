@@ -167,6 +167,7 @@ class MainHandler(tornado.web.RequestHandler):
 
         c.execute('SELECT * FROM transactions WHERE address = ? AND openfield LIKE ? AND block_height > ? ORDER BY block_height DESC, timestamp DESC LIMIT 1000;',(address,)+('%'+"payout"+'%',)+(block_anchor,)) #should work, needs testing
         result_payouts = c.fetchall()
+
         #print result_payouts
         view_payouts = []
 
@@ -200,7 +201,7 @@ class MainHandler(tornado.web.RequestHandler):
         html.append("<TITLE>ZircoDice</TITLE>")
         html.append("<body><body class='bg'><center>")
         html.append("<h1>Welcome to ZircoDice</h1>")
-        html.append("<p>Please send any amount of coins lower than 100 to the address <strong>"+address+"</strong> and include the word '<strong>even</strong>' or '<strong>odd</strong>' in the OpenField data.<br> You are betting on a random number from 0 to 9 the casino rolls. 0 is considered an even number. Every transaction has it's own roll to prevent abuse.<br>If you win, you will receive 2x your bet. House returns 94.7% of your win minus fees. Payout happens after 10 blocks have passed.</p>")
+        html.append("<p>Please send any amount of coins lower than 100 to the address <strong>"+address+"</strong> and include the word '<strong>even</strong>' or '<strong>odd</strong>' in the OpenField data.<br> You are betting on a random number from 0 to 9 the casino rolls. 0 is considered an even number. Every transaction has it's own roll to prevent abuse.<br>If you win, you will receive 2x your bet. House returns 98% of your win minus fees. Payout happens after 10 blocks have passed.</p>")
         html.append("<p2>News: The outcome is now based on random number drawing, not on numbers included in blocks</p2>")
         html.append("<br>")
         html.append("<h1>Bets</h1>")

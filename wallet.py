@@ -997,7 +997,6 @@ def refresh(address, s):
         diff = connections.receive(s, 10)
         # check difficulty
 
-
         diff_msg = int(diff[1]) #integer is enough
 
         # network status

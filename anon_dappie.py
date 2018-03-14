@@ -33,12 +33,14 @@ def replace_regex(string,replace):
     return replaced_string
 
 def decrypt(encrypted):
-
-    (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval(encrypted)
-    private_key = RSA.import_key(open("privkey.der").read())
+    cipher_aes_nonce, tag, ciphertext, enc_session_key = ast.literal_eval(encrypted)
+    with open("privkey.der", "r") as pk:
+        private_key = RSA.import_key(pk.read())
+        
     # Decrypt the session key with the public RSA key
     cipher_rsa = PKCS1_OAEP.new(private_key)
     session_key = cipher_rsa.decrypt(enc_session_key)
+    
     # Decrypt the data with the AES session key
     cipher_aes = AES.new(session_key, AES.MODE_EAX, cipher_aes_nonce)
     decrypted = cipher_aes.decrypt_and_verify(ciphertext, tag)
@@ -56,11 +58,12 @@ def randomize(divider, anon_amount, anon_recipient, identifier, anon_sender):
 def anonymize(tx_count, per_tx, remainder, anon_recipient, identifier, anon_sender):
     # return remainder to source!
     a.execute("SELECT * FROM transactions WHERE openfield = ?", (identifier,))
+    
     try:
         exists = a.fetchall()[0]
-
     except:#if payout didn't happen yet
         print(tx_count, per_tx, remainder, identifier)
+        
         for tx in range(tx_count):
             #construct tx
             openfield = "mixer"
@@ -68,8 +71,13 @@ def anonymize(tx_count, per_tx, remainder, anon_recipient, identifier, anon_send
             fee = fee_calculate(openfield)
 
             timestamp = '%.2f' % time.time()
-            transaction = (str(timestamp), str(address), str(anon_recipient), '%.8f' % float(per_tx - fee), str(keep), str(openfield))  # this is signed
-            # print transaction
+            transaction = (str(timestamp),
+                           str(address),
+                           str(anon_recipient),
+                           '%.8f' % float(per_tx - fee),
+                           str(keep),
+                           str(openfield))  # this is signed
+           
 
             h = SHA.new(str(transaction).encode("utf-8"))
             signer = PKCS1_v1_5.new(key)
@@ -78,17 +86,17 @@ def anonymize(tx_count, per_tx, remainder, anon_recipient, identifier, anon_send
             print("Encoded Signature: {}".format(signature_enc.decode("utf-8")))
 
             verifier = PKCS1_v1_5.new(key)
-            if verifier.verify(h, signature) == True:
+            if verifier.verify(h, signature):
                 print("The signature is valid, proceeding to save transaction to mempool")
+                
             #construct tx
-
             a.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (str(timestamp), str(address), str(anon_recipient), '%.8f' % float(per_tx - fee), str(signature_enc.decode("utf-8")), str(public_key_hashed), str(keep), str(identifier)))
             anon.commit()
             m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (str(timestamp), str(address), str(anon_recipient), '%.8f' % float(per_tx - fee), str(signature_enc.decode("utf-8")), str(public_key_hashed), str(keep), str(openfield)))
             mempool.commit()
 
 
-        if remainder - fee > 0:
+        if (remainder - fee) > 0:
             openfield = "mixer"
             keep = 0
             fee = fee_calculate(openfield)
@@ -100,7 +108,7 @@ def anonymize(tx_count, per_tx, remainder, anon_recipient, identifier, anon_send
 
 if not os.path.exists('anon.db'):
     # create empty mempool
-    anon = sqlite3.connect('anon.db',timeout=1)
+    anon = sqlite3.connect('anon.db', timeout=1)
     anon.text_factory = str
     a = anon.cursor()
     a.execute("CREATE TABLE IF NOT EXISTS transactions (timestamp, address, recipient, amount, signature, public_key, keep, openfield)")
@@ -130,7 +138,7 @@ while True:
 
             try:
                 #format: anon:number_of_txs:target_address (no msg, just encrypted)
-                print (row)
+                print(row)
                 anon_recipient_encrypted = replace_regex(row[11], "enc=")
                 print(anon_recipient_encrypted)
                 anon_recipient = decrypt(anon_recipient_encrypted).decode("utf-8").split(":")[2]
@@ -144,16 +152,11 @@ while True:
 
                     randomize(divider, float(anon_amount), anon_recipient, identifier, anon_sender)
                 else:
-                    print ("Wrong target address length")
+                    print("Wrong target address length")
             except Exception as e:
-                print (e)
+                print(type(e), e)
 
-            #print("issue occured")
     except Exception as e:
-        print (e)
-
-    time.sleep(15)
-
-
-
-
+        print(e)
+    finally:
+        time.sleep(15)

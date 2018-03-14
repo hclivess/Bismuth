@@ -128,7 +128,9 @@ class Peers:
                 self.banlist.append(ip)
                 sdef.close()
                 self.app_log.warning("{} is banned: {}".format(ip, reason))
-                return "banned"
+                return True
+            else:
+                return False
 
     def peers_get(self, peerlist):
         """Returns a peerlist from disk as a dict {ip:port}"""
@@ -310,7 +312,7 @@ class Peers:
                 self.consensus_blockheight_list.count(self.consensus) / float(len(self.consensus_blockheight_list)))) * 100
 
             if int(consensus_blockheight) > int(self.consensus) + 30 and self.consensus_percentage > 50 and len(self.consensus_blockheight_list) > 10:
-                if self.warning(sdef, peer_ip, "Consensus deviation too high", 10) == "banned":
+                if self.warning(sdef, peer_ip, "Consensus deviation too high", 10) == True:
                     raise ValueError("{} banned".format(peer_ip))
 
             return

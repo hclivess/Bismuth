@@ -75,6 +75,10 @@ try:
 except IndexError:
     recipient_input = input("Recipient: ")
 
+if len(recipient_input) != 56:
+    print("Wrong address length")
+    exit(1)
+
 try:
     keep_input = sys.argv[3]
 except IndexError:
