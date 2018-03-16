@@ -154,5 +154,5 @@ def tokens_update(file, ledger, mode, app_log):
 
 if __name__ == "__main__":
     app_log = log.log("tokens.log", "WARNING", "yes")
-    tokens_update("index.db","normal",app_log)
+    tokens_update("index.db","static/ledger.db","normal",app_log)
     #tokens_update("tokens.db","reindex")
