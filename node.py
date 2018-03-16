@@ -190,7 +190,7 @@ if "testnet" in version:  # overwrite for testnet
 
     redownload_test = input("Status: Welcome to the testnet. Redownload test ledger? y/n")
     if redownload_test == "y" or not os.path.exists("static/test.db"):
-        download_file("http://bismuth.cz/test.db", "static/test.db")
+        download_file("https://bismuth.cz/test.db", "static/test.db")
     else:
         print("Not redownloading test db")
 
@@ -208,7 +208,7 @@ def most_common(lst):
 def bootstrap():
     try:
         archive_path = ledger_path_conf + ".tar.gz"
-        download_file("http://bismuth.cz/ledger.tar.gz", archive_path)
+        download_file("https://bismuth.cz/ledger.tar.gz", archive_path)
 
         tar = tarfile.open(archive_path)
         tar.extractall("static/")  # NOT COMPATIBLE WITH CUSTOM PATH CONFS

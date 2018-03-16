@@ -15,14 +15,18 @@ def filter_status(record):
 
 
 def log(logFile,level_input, terminal_output):
-    if level_input == "INFO":
-        level = logging.INFO
+    if level_input == "NOTSET":
+        level = logging.NOTSET
     if level_input == "DEBUG":
         level = logging.DEBUG
+    if level_input == "INFO":
+        level = logging.INFO
     if level_input == "WARNING":
         level = logging.WARNING
     if level_input == "ERROR":
         level = logging.ERROR
+    if level_input == "CRITICAL":
+        level = logging.CRITICAL
 
     log_formatter = logging.Formatter('%(asctime)s %(levelname)s %(funcName)s(%(lineno)d) %(message)s')
     my_handler = RotatingFileHandler(logFile, mode='a', maxBytes=5 * 1024 * 1024, backupCount=2, encoding=None, delay=0)
