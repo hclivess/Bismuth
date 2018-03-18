@@ -42,6 +42,11 @@ essentials.db_check(app_log)
 s = socks.socksocket()
 s.settimeout(3)
 
+def quantize_eight(value):
+    value = Decimal(value)
+    value = value.quantize(Decimal('0.00000000'))
+    return value
+
 def create_url_clicked(app_log, command, recipient, amount, openfield):
     """isolated function so no GUI leftovers are in bisurl.py"""
     result = create_url(app_log, command, recipient, amount, openfield)
@@ -137,7 +142,8 @@ def fee_calculate(openfield):
         fee = Decimal(fee) + Decimal("10")
     if "alias=" in openfield:
         fee = Decimal(fee) + Decimal("1")
-    fee = fee.quantize(Decimal('0.00000000'))
+    fee = quantize_eight(fee)
+
     return fee
 
 def keys_load_dialog():
@@ -358,12 +364,7 @@ def decrypt_fn(destroy_this):
 
 
 def send_confirm(amount_input, recipient_input, openfield_input):
-    amount_input = Decimal(amount_input).quantize(Decimal('0.00000000'))
-
-    if amount_input == 0: #prevent 0E-8
-        amount_input = 0
-
-    print (amount_input)
+    amount_input = quantize_eight(amount_input)
 
     #cryptopia check
     if recipient_input == "edf2d63cdf0b6275ead22c9e6d66aa8ea31dc0ccb367fad2e7c08a25" and len(openfield_input) not in [16,20]:
@@ -919,15 +920,11 @@ def table(address, addlist_20, mempool_total):
 
         datasheet.append(db_recipient)
 
-        db_amount = Decimal(row[4]).quantize(Decimal('0.00000000'))
-        db_amount = 0 if db_amount == 0 else db_amount
-
-        db_reward = Decimal(row[9]).quantize(Decimal('0.00000000'))
-        db_reward = 0 if db_reward == 0 else db_reward
-
+        db_amount = row[4]
+        db_reward = row[9]
         db_openfield = row[11]
 
-        datasheet.append(str(db_amount + db_reward))
+        datasheet.append(db_amount + db_reward)
         if Decimal(db_reward) > 0:
             symbol = "Mined"
         elif db_openfield.startswith("bmsg"):
@@ -1157,10 +1154,10 @@ sign_b.grid(row=button_row_zero+4, column=column, sticky=N+E, pady=0, padx=15)
 alias_b = Button(f5, text="Alias Registration", command=alias, height=1, width=20, font=("Tahoma", 8))
 alias_b.grid(row=button_row_zero+5, column=column, sticky=N+E, pady=0, padx=15)
 
-backup_b = Button(f5, text="Backup Keys", command=keys_backup, height=1, width=20, font=("Tahoma", 8))
+backup_b = Button(f5, text="Backup Wallet", command=keys_backup, height=1, width=20, font=("Tahoma", 8))
 backup_b.grid(row=button_row_zero+6, column=column, sticky=N+E, pady=0, padx=15)
 
-load_b = Button(f5, text="Load Keys", command=keys_load_dialog, height=1, width=20, font=("Tahoma", 8))
+load_b = Button(f5, text="Load Wallet", command=keys_load_dialog, height=1, width=20, font=("Tahoma", 8))
 load_b.grid(row=button_row_zero+7, column=column, sticky=N+E, pady=0, padx=15)
 
 tokens_b = Button(f5, text="Tokens", command=tokens, height=1, width=20, font=("Tahoma", 8))

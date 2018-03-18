@@ -84,6 +84,15 @@ global peers
 app_log = log.log("node.log", debug_level_conf, terminal_output)
 app_log.warning("Configuration settings loaded")
 
+def quantize_eight(value):
+    value = Decimal(value)
+    value = value.quantize(Decimal('0.00000000'))
+    return value
+
+def quantize_ten(value):
+    value = Decimal(value)
+    value = value.quantize(Decimal('0.0000000000'))
+    return value
 
 def tokens_rollback(height, app_log):
     """rollback token index"""
@@ -156,7 +165,7 @@ def fee_calculate(openfield):
         fee = Decimal(fee) + Decimal("10")
     if "alias=" in openfield:
         fee = Decimal(fee) + Decimal("1")
-    return fee.quantize(Decimal('0.00000000'))
+    return quantize_eight(fee)
 
 
 def download_file(url, filename):
@@ -538,7 +547,7 @@ def execute_param(cursor, query, param):
 
 
 def difficulty(c, mode):
-    getcontext().prec = 13  # decimal places
+    #getcontext().prec = 13  # decimal places
 
     execute(c, "SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 2")
     result = c.fetchone()
@@ -568,8 +577,8 @@ def difficulty(c, mode):
     Dnew = Dnew - Kd * (block_time - block_time_prev)
     diff_adjustment = (Dnew - D) / 720  # reduce by factor of 720
     Dnew_adjusted = D + diff_adjustment
-    difficulty = Decimal(Dnew_adjusted)
-    difficulty2 = difficulty
+    difficulty = quantize_ten(Dnew_adjusted)
+    difficulty2 = quantize_ten(difficulty)
     time_now = time.time()
 
     if block_height < 427000:  # remove after fork
@@ -592,7 +601,7 @@ def difficulty(c, mode):
         app_log.warning("Current hashrate: {}".format(H))
         app_log.warning("New difficulty after adjustment: {}".format(Dnew_adjusted))
         app_log.warning("Difficulty: {} {}".format(difficulty, difficulty2))
-    return (float('%.13f' % difficulty), float('%.13f' % difficulty2))  # need to keep float here for database inserts support
+    return (float('%.10f' % difficulty), float('%.10f' % difficulty2))  # need to keep float here for database inserts support
 
 
 # moved to peershandler - globals become peers.?? and only peers is global.
@@ -1912,44 +1921,56 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         result = m.fetchall()
 
                         debit_mempool = 0
-
                         if result != None:
                             for x in result:
-                                debit_tx = float(x[0])
+                                debit_tx = Decimal(x[0])
                                 fee = fee_calculate(x[1])
-                                debit_mempool = debit_mempool + debit_tx + float(fee)
+                                debit_mempool = quantize_eight(debit_mempool + debit_tx + fee)
                         else:
                             debit_mempool = 0
                         # include mempool fees
 
                         execute_param(h3, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (balance_address,))
-                        credit_ledger = h3.fetchone()[0]
-                        credit_ledger = 0 if credit_ledger is None else float('%.8f' % credit_ledger)
-                        credit = float(credit_ledger)
+                        try:
+                            credit_ledger = quantize_eight(h3.fetchone()[0])
+                            credit_ledger = 0 if credit_ledger is None else credit_ledger
+                        except:
+                            raise
+                            credit_ledger = 0
+
 
                         execute_param(h3, ("SELECT sum(fee),sum(amount) FROM transactions WHERE address = ?;"), (balance_address,))
                         result = h3.fetchall()[0]
 
-                        fees = result[0]
-                        fees = 0 if fees is None else float('%.8f' % fees)
+                        try:
+                            fees = quantize_eight(result[0])
+                            fees = 0 if fees is None else fees
+                        except:
+                            raise
+                            fees = 0
 
-                        debit_ledger = result[1]
-                        debit_ledger = 0 if debit_ledger is None else float('%.8f' % debit_ledger)
+                        try:
+                            debit_ledger = quantize_eight(result[1])
+                            debit_ledger = 0 if debit_ledger is None else debit_ledger
+                        except:
+                            raise
+                            debit_ledger = 0
 
-                        debit = float(debit_ledger) + float(debit_mempool)
+                        debit = quantize_eight(debit_ledger + debit_mempool)
 
                         execute_param(h3, ("SELECT sum(reward) FROM transactions WHERE recipient = ?;"), (balance_address,))
                         try:
-                            rewards = float(h3.fetchone()[0])
+                            rewards = quantize_eight(h3.fetchone()[0])
                             rewards = 0 if rewards is None else rewards
                         except:
+                            raise
                             rewards = 0
 
-                        balance = float('%.8f' % (float(credit) - float(debit) - float(fees) + float(rewards)))
+                        balance = quantize_eight(credit_ledger - debit - fees + rewards)
                         # balance_pre = float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)
                         # app_log.info("Mempool: Projected transction address balance: " + str(balance))
 
-                        connections.send(self.request, (balance, credit, debit, fees, rewards), 10)  # return balance of the address to the client, including mempool
+                        connections.send(self.request, (str(balance), str(credit_ledger), str(debit), str(fees), str(rewards)), 10)  # return balance of the address to the client, including mempool
                         # connections.send(self.request, balance_pre, 10)  # return balance of the address to the client, no mempool
                     else:
                         app_log.info("{} not whitelisted for balanceget command".format(peer_ip))
