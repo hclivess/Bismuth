@@ -6,9 +6,7 @@ from decimal import *
 from bisurl import *
 
 getcontext().prec = 8  # decimal places
-getcontext().rounding = ROUND_DOWN
 print(getcontext())
-
 
 config = options.Get()
 config.read()
