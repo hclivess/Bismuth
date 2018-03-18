@@ -32,9 +32,6 @@ from simplecrypt import encrypt, decrypt
 from tkinter import filedialog, messagebox
 from tkinter import *
 
-global key
-global encrypted
-global unlocked
 
 #app_log = log.log("gui.log", debug_level)
 app_log = log.log("gui.log", debug_level, terminal_output)
@@ -140,10 +137,36 @@ def fee_calculate(openfield):
         fee = Decimal(fee) + Decimal("10")
     if "alias=" in openfield:
         fee = Decimal(fee) + Decimal("1")
-    return fee.quantize(Decimal('0.00000000'))
+    fee = fee.quantize(Decimal('0.00000000'))
+    return fee
+
+def keys_load_dialog():
+    global key
+    global key
+    global private_key_readable
+    global encrypted
+    global unlocked
+    global public_key_hashed
+    global myaddress
+
+    root.filename = filedialog.askopenfilename(multiple = True, initialdir="/", title="Select wallet files", filetypes=[("Wallet keys", "*key.der")])
+    for file in root.filename:
+        if "priv" in file:
+            private_key_load = file
+        if "pub" in file:
+            public_key_load = file
+
+    key, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress = essentials.keys_load(private_key_load, public_key_load)
+
+    gui_address.delete(0,END)
+    gui_address.insert(INSERT,myaddress)
+
+    refresh(myaddress,s)
 
 
-def backup():
+
+
+def keys_backup():
     root.filename = filedialog.asksaveasfilename(initialdir="/", title="Select backup file", filetypes=(("gzip", "*.gz"), ))
 
     if not root.filename == "":
@@ -262,8 +285,7 @@ def encrypt_get_password():
 
 
 def lock_fn(button):
-    global key
-    del key
+    key.set("")
     decrypt_b.configure(text="Unlock", state=NORMAL)
     lock_b.configure(text="Locked", state=DISABLED)
     password_var_dec.set("")
@@ -314,13 +336,13 @@ def decrypt_get_password():
 
 
 def decrypt_fn(destroy_this):
-    global key
     try:
         password = password_var_dec.get()
-        encrypted_privkey = open('privkey_encrypted.der', 'rb').read()
+        encrypted_privkey = open(private_key_readable, 'rb').read()
         decrypted_privkey = decrypt(password, base64.b64decode(encrypted_privkey))
 
-        key = RSA.importKey(decrypted_privkey)  # be able to sign
+        key.set(RSA.importKey(decrypted_privkey))  # be able to sign
+
         # print key
         decrypt_b.configure(text="Unlocked", state=DISABLED)
         lock_b.configure(text="Lock", state=NORMAL)
@@ -337,6 +359,11 @@ def decrypt_fn(destroy_this):
 
 def send_confirm(amount_input, recipient_input, openfield_input):
     amount_input = Decimal(amount_input).quantize(Decimal('0.00000000'))
+
+    if amount_input == 0: #prevent 0E-8
+        amount_input = 0
+
+    print (amount_input)
 
     #cryptopia check
     if recipient_input == "edf2d63cdf0b6275ead22c9e6d66aa8ea31dc0ccb367fad2e7c08a25" and len(openfield_input) not in [16,20]:
@@ -688,7 +715,7 @@ def sign():
 
     def sign_this():
         h = SHA.new(input_text.get("1.0", END).encode("utf-8"))
-        signer = PKCS1_v1_5.new(key)
+        signer = PKCS1_v1_5.new(key.get())
         signature = signer.sign(h)
         signature_enc = base64.b64encode(signature)
 
@@ -748,7 +775,7 @@ def token_issue(token, amount, window):
 
 def tokens():
     token_db = "static/index.db"
-    tokens_update(token_db,"normal",app_log) #catch up with the chain
+    tokens_update(token_db,"static/ledger.db","normal",app_log) #catch up with the chain
 
     address = gui_address.get()
     tokens_main = Toplevel()
@@ -891,10 +918,16 @@ def table(address, addlist_20, mempool_total):
             db_recipient = row[3]
 
         datasheet.append(db_recipient)
-        db_amount = row[4]
-        db_reward = row[9]
+
+        db_amount = Decimal(row[4]).quantize(Decimal('0.00000000'))
+        db_amount = 0 if db_amount == 0 else db_amount
+
+        db_reward = Decimal(row[9]).quantize(Decimal('0.00000000'))
+        db_reward = 0 if db_reward == 0 else db_reward
+
         db_openfield = row[11]
-        datasheet.append(str(Decimal(db_amount) + Decimal(db_reward)))
+
+        datasheet.append(str(db_amount + db_reward))
         if Decimal(db_reward) > 0:
             symbol = "Mined"
         elif db_openfield.startswith("bmsg"):
@@ -1052,29 +1085,22 @@ img = Image("photo", file="graphics/icon.gif")
 root.tk.call('wm','iconphoto',root._w,img)
 
 
+
 password_var_enc = StringVar()
 password_var_con = StringVar()
 password_var_dec = StringVar()
 
 # import keys
-if not os.path.exists('privkey_encrypted.der'):
-    key = RSA.importKey(open('privkey.der').read())
-    private_key_readable = key.exportKey().decode("utf-8")
-    # public_key = key.publickey()
-    encrypted = 0
-    unlocked = 1
-else:
-    encrypted = 1
-    unlocked = 0
 
-# public_key_readable = str(key.publickey().exportKey())
-public_key_readable = open('pubkey.der'.encode('utf-8')).read()
+#globalize
+global key
+global private_key_readable
+global encrypted
+global unlocked
+global public_key_hashed
+global myaddress
 
-if (len(public_key_readable)) != 271 and (len(public_key_readable)) != 799:
-    raise ValueError ("Invalid public key length: {}".format(len(public_key_readable)))
-
-public_key_hashed = base64.b64encode(public_key_readable.encode('utf-8'))
-myaddress = hashlib.sha224(public_key_readable.encode('utf-8')).hexdigest()
+key, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress = essentials.keys_load("privkey.der","pubkey.der")
 
 # frames
 f2 = Frame(root, height=100, width=100)
@@ -1131,28 +1157,31 @@ sign_b.grid(row=button_row_zero+4, column=column, sticky=N+E, pady=0, padx=15)
 alias_b = Button(f5, text="Alias Registration", command=alias, height=1, width=20, font=("Tahoma", 8))
 alias_b.grid(row=button_row_zero+5, column=column, sticky=N+E, pady=0, padx=15)
 
-backup_b = Button(f5, text="Backup Keys", command=backup, height=1, width=20, font=("Tahoma", 8))
+backup_b = Button(f5, text="Backup Keys", command=keys_backup, height=1, width=20, font=("Tahoma", 8))
 backup_b.grid(row=button_row_zero+6, column=column, sticky=N+E, pady=0, padx=15)
 
+load_b = Button(f5, text="Load Keys", command=keys_load_dialog, height=1, width=20, font=("Tahoma", 8))
+load_b.grid(row=button_row_zero+7, column=column, sticky=N+E, pady=0, padx=15)
+
 tokens_b = Button(f5, text="Tokens", command=tokens, height=1, width=20, font=("Tahoma", 8))
-tokens_b.grid(row=button_row_zero+7, column=column, sticky=N+E, pady=0, padx=15)
+tokens_b.grid(row=button_row_zero+8, column=column, sticky=N+E, pady=0, padx=15)
 
 
 #quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=10, font=("Tahoma", 8))
 #quit_b.grid(row=16, column=0, sticky=W + E + S, pady=0, padx=15)
 
 encrypt_b = Button(f6, text="Encrypt", command=encrypt_get_password, height=1, width=10)
-if encrypted == 1:
+if encrypted == True:
     encrypt_b.configure(text="Encrypted", state=DISABLED)
 encrypt_b.grid(row=1, column=1, sticky=E + N, pady=0, padx=5)
 
 decrypt_b = Button(f6, text="Unlock", command=decrypt_get_password, height=1, width=10)
-if unlocked == 1:
+if unlocked == True:
     decrypt_b.configure(text="Unlocked", state=DISABLED)
 decrypt_b.grid(row=1, column=2, sticky=E + N, pady=0, padx=5)
 
 lock_b = Button(f6, text="Locked", command=lambda: lock_fn(lock_b), height=1, width=10, state=DISABLED)
-if encrypted == 0:
+if encrypted == False:
     lock_b.configure(text="Lock", state=DISABLED)
 lock_b.grid(row=1, column=3, sticky=E + N, pady=0, padx=5)
 
