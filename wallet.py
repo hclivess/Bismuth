@@ -5,7 +5,6 @@ from tokens import *
 from decimal import *
 from bisurl import *
 
-getcontext().prec = 8  # decimal places
 print(getcontext())
 
 config = options.Get()
@@ -141,7 +140,7 @@ def fee_calculate(openfield):
         fee = Decimal(fee) + Decimal("10")
     if "alias=" in openfield:
         fee = Decimal(fee) + Decimal("1")
-    return fee
+    return fee.quantize(Decimal('0.00000000'))
 
 
 def backup():
@@ -337,8 +336,6 @@ def decrypt_fn(destroy_this):
 
 
 def send_confirm(amount_input, recipient_input, openfield_input):
-    print(type(amount_input))
-    print(Decimal(amount_input))
     amount_input = Decimal(amount_input).quantize(Decimal('0.00000000'))
 
     #cryptopia check

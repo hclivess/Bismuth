@@ -151,12 +151,12 @@ def validate_pem(public_key):
 
 
 def fee_calculate(openfield):
-    fee = '%.8f' % float(0.01 + (float(len(openfield)) / 100000))  # 0.01 dust
+    fee = Decimal("0.01") + (Decimal(len(openfield)) / Decimal("100000"))  # 0.01 dust
     if "token:issue:" in openfield:
-        fee = '%.8f' % (float(fee) + 10)
+        fee = Decimal(fee) + Decimal("10")
     if "alias=" in openfield:
-        fee = '%.8f' % (float(fee) + 1)
-    return fee
+        fee = Decimal(fee) + Decimal("1")
+    return fee.quantize(Decimal('0.00000000'))
 
 
 def download_file(url, filename):
