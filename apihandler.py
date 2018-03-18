@@ -10,8 +10,11 @@ import base64
 # modular handlers will need access to the database methods under some form, so it needs to be modular too.
 # Here, I just duplicated the minimum needed code from node, further refactoring with classes will follow.
 import dbhandler, connections, peershandler
+import threading
+import os, sys
+#import math
 
-__version__ = "0.0.2"
+__version__ = "0.0.3"
 
 
 class ApiHandler:
@@ -21,11 +24,16 @@ class ApiHandler:
     It's called from client threads, so it has to be thread safe.
     """
 
-    __slots__ = ('app_log','config')
+    __slots__ = ('app_log', 'config', 'callback_lock', 'callbacks')
 
     def __init__(self, app_log, config=None):
         self.app_log = app_log
         self.config = config
+        # Avoid mixing answers to commands with callbacks
+        self.callback_lock = threading.Lock()
+        # list of sockets that asked for a callback (new block notification)
+        # Not used yet.
+        self.callbacks = []
 
     def dispatch(self, method, socket_handler, ledger_db, peers):
         """
@@ -96,6 +104,134 @@ class ApiHandler:
         except Exception as e:
             pass
 
+    def api_getblocksince(self, socket_handler, ledger_db, peers):
+        """
+        Returns the full blocks and transactions following a given block_height
+        Returns at most transactions from 10 blocks (the most recent ones if it truncates)
+        Used by the json-rpc server to poll and be notified of tx and new blocks.
+        :param socket_handler:
+        :param ledger_db:
+        :param peers:
+        :return:
+        """
+        info = []
+        # get the last known block
+        since_height = connections.receive(socket_handler)
+        #print('api_getblocksince', since_height)
+        try:
+            try:
+                dbhandler.execute(self.app_log, ledger_db, "SELECT MAX(block_height) FROM transactions")
+                # what is the min block height to consider ?
+                block_height = max(ledger_db.fetchone()[0]-11, since_height)
+                #print("block_height",block_height)
+                dbhandler.execute_param(self.app_log, ledger_db,
+                                        ('SELECT * FROM transactions WHERE block_height > ?;'),
+                                        (block_height, ))
+                info = ledger_db.fetchall()
+                # it's a list of tuples, send as is.
+                #print(all)
+            except Exception as e:
+                print(e)
+                raise
+            # print("info", info)
+            connections.send(socket_handler, info)
+        except Exception as e:
+            print(e)
+            raise
+
+    def api_getblockswhereoflike(self, socket_handler, ledger_db, peers):
+        """
+        Returns the full transactions following a given block_height and with openfield begining by the given string
+        Returns at most transactions from 1440 blocks at a time (the most *older* ones if it truncates) so about 1 day worth of data.
+        Maybe huge, use with caution and on restrictive queries only.
+        :param socket_handler:
+        :param ledger_db:
+        :param peers:
+        :return:
+        """
+        info = []
+        # get the last known block
+        since_height = int(connections.receive(socket_handler))
+        where_openfield_like = connections.receive(socket_handler)+'%'
+        #print('api_getblockswhereoflike', since_height, where_openfield_like)
+        try:
+            try:
+                dbhandler.execute(self.app_log, ledger_db, "SELECT MAX(block_height) FROM transactions")
+                # what is the max block height to consider ?
+                block_height = min(ledger_db.fetchone()[0], since_height+1440)
+                #print("block_height", since_height, block_height)
+                dbhandler.execute_param(self.app_log, ledger_db,
+                                        'SELECT * FROM transactions WHERE block_height > ? and block_height <= ? and openfield like ?',
+                                        (since_height, block_height, where_openfield_like) )
+                info = ledger_db.fetchall()
+                # it's a list of tuples, send as is.
+                #print("info", info)
+            except Exception as e:
+                print("error", e)
+                raise
+            # Add the last fetched block so the client will be able to fetch the next block
+            info.append([block_height])
+            connections.send(socket_handler, info)
+        except Exception as e:
+            print(e)
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+            print(exc_type, fname, exc_tb.tb_lineno)
+            raise
+
+    def api_getblocksincewhere(self, socket_handler, ledger_db, peers):
+        """
+        Returns the full transactions following a given block_height and with specific conditions
+        Returns at most transactions from 720 blocks at a time (the most *older* ones if it truncates) so about 12 hours worth of data.
+        Maybe huge, use with caution and restrictive queries only.
+        :param socket_handler:
+        :param ledger_db:
+        :param peers:
+        :return:
+        """
+        info = []
+        # get the last known block
+        since_height = connections.receive(socket_handler)
+        where_conditions = connections.receive(socket_handler)
+        print('api_getblocksincewhere', since_height, where_conditions)
+        # TODO: feed as array to have a real control and avoid sql injection !important
+        # Do *NOT* use in production until it's done.
+        raise ValueError("Unsafe, do not use yet")
+        """
+        [
+        ['','openfield','like','egg%']
+        ]
+
+        [
+        ['', '('],
+        ['','reward','>','0']
+        ['and','recipient','in',['','','']]
+        ['', ')'],
+        ]
+        """
+        where_assembled = where_conditions
+        conditions_assembled = ()
+        try:
+            try:
+                dbhandler.execute(self.app_log, ledger_db, "SELECT MAX(block_height) FROM transactions")
+                # what is the max block height to consider ?
+                block_height = min(ledger_db.fetchone()[0], since_height+720)
+                #print("block_height",block_height)
+                dbhandler.execute_param(self.app_log, ledger_db,
+                                        ('SELECT * FROM transactions WHERE block_height > ? and block_height <= ? and ( '+where_assembled+')'),
+                                        (since_height, block_height)+conditions_assembled)
+                info = ledger_db.fetchall()
+                # it's a list of tuples, send as is.
+                #print(all)
+            except Exception as e:
+                print(e)
+                raise
+            # print("info", info)
+            connections.send(socket_handler, info)
+        except Exception as e:
+            print(e)
+            raise
+
     def _get_balance(self, ledger_db, address, minconf=1):
         """
         Queries the db to get the balance of a single address
@@ -108,12 +244,12 @@ class ApiHandler:
             # what is the max block height to consider ?
             max_block_height = ledger_db.fetchone()[0] - minconf
             # calc balance up to this block_height
-            dbhandler.execute_param(self.app_log, ledger_db, "SELECT sum(amount) FROM transactions WHERE recipient = ? and block_height <= ?;", (address, max_block_height))
+            dbhandler.execute_param(self.app_log, ledger_db, "SELECT sum(amount)+sum(reward) FROM transactions WHERE recipient = ? and block_height <= ?;", (address, max_block_height))
             credit = ledger_db.fetchone()[0]
             if not credit:
                 credit = 0
             # debits + fee - reward
-            dbhandler.execute_param(self.app_log, ledger_db, "SELECT sum(amount)+sum(fee)-sum(reward) FROM transactions WHERE address = ? and block_height <= ?;", (address, max_block_height))
+            dbhandler.execute_param(self.app_log, ledger_db, "SELECT sum(amount)+sum(fee) FROM transactions WHERE address = ? and block_height <= ?;", (address, max_block_height))
             debit = ledger_db.fetchone()[0]
             if not debit:
                 debit = 0
