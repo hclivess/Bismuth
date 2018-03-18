@@ -65,15 +65,17 @@ def balance_from_cursor(cursor, address):
     execute_param(cursor, "SELECT sum(amount)+sum(reward) FROM transactions WHERE recipient = ? ",
         (address, ))
     try:
-        credit = Decimal(cursor.fetchone()[0])
-    except:
+        credit = Decimal(cursor.fetchone()[0]).quantize(Decimal('0.00000000'))
+    except Exception as e:
+        print(e)
         credit = 0
 
     execute_param(cursor, "SELECT sum(amount)+sum(fee) FROM transactions WHERE address = ? ",
         (address, ))
     try:
-        debit = Decimal(cursor.fetchone()[0])
-    except:
+        debit = Decimal(cursor.fetchone()[0]).quantize(Decimal('0.00000000'))
+    except Exception as e:
+        print(e)
         debit = 0
 
     # limiting to .6f to ignore small round errors

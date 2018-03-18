@@ -136,11 +136,11 @@ def all_spend():
 
 
 def fee_calculate(openfield):
-    fee = Decimal("0.01") + (Decimal(len(openfield)) / 100000)  # 0.01 dust
+    fee = Decimal("0.01") + (Decimal(len(openfield)) / Decimal("100000"))  # 0.01 dust
     if "token:issue:" in openfield:
-        fee = Decimal(fee) + Decimal(10)
+        fee = Decimal(fee) + Decimal("10")
     if "alias=" in openfield:
-        fee = Decimal(fee) + Decimal(1)
+        fee = Decimal(fee) + Decimal("1")
     return fee
 
 
@@ -337,6 +337,9 @@ def decrypt_fn(destroy_this):
 
 
 def send_confirm(amount_input, recipient_input, openfield_input):
+    print(type(amount_input))
+    print(Decimal(amount_input))
+    amount_input = Decimal(amount_input).quantize(Decimal('0.00000000'))
 
     #cryptopia check
     if recipient_input == "edf2d63cdf0b6275ead22c9e6d66aa8ea31dc0ccb367fad2e7c08a25" and len(openfield_input) not in [16,20]:

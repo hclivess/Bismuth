@@ -151,11 +151,11 @@ def validate_pem(public_key):
 
 
 def fee_calculate(openfield):
-    fee = Decimal("0.01") + (Decimal(len(openfield)) / Decimal("100000"))  # 0.01 dust
+    fee = '%.8f' % float(0.01 + (float(len(openfield)) / 100000))  # 0.01 dust
     if "token:issue:" in openfield:
-        fee = Decimal(fee) + Decimal(10)
+        fee = '%.8f' % (float(fee) + 10)
     if "alias=" in openfield:
-        fee = Decimal(fee) + Decimal(1)
+        fee = '%.8f' % (float(fee) + 1)
     return fee
 
 
