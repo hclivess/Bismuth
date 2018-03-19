@@ -127,7 +127,17 @@ def all_spend_clear():
     amount.insert(0,0)
 
 def all_spend():
-    fee_from_all = fee_calculate(openfield.get("1.0", END).strip())
+    openfield_fee_calc = openfield.get("1.0", END).strip()
+
+    if msg_var.get() == True and encode_var.get() == True:
+        openfield_fee_calc = "bmsg=" + openfield_fee_calc
+    if msg_var.get() == True and encode_var.get() == False:
+        openfield_fee_calc = "msg=" + openfield_fee_calc
+    if encrypt_var.get() == True:
+        openfield_fee_calc = "enc=" + str(openfield_fee_calc)
+
+
+    fee_from_all = fee_calculate(openfield_fee_calc)
     amount.delete(0, END)
     amount.insert(0, (Decimal(balance_raw.get()) - Decimal(fee_from_all)))
 
@@ -375,13 +385,13 @@ def send_confirm(amount_input, recipient_input, openfield_input):
     top10 = Toplevel()
     top10.title("Confirm")
 
-    if alias_cb_var.get() == 1: #alias check
+    if alias_cb_var.get() == True: #alias check
         connections.send(s, "addfromalias", 10)
         connections.send(s, recipient_input, 10)
         recipient_input = connections.receive(s, 10)
 
     # encr check
-    if encrypt_var.get() == 1:
+    if encrypt_var.get() == True:
         #get recipient's public key
 
         connections.send(s, "pubkeyget", 10)
@@ -410,17 +420,15 @@ def send_confirm(amount_input, recipient_input, openfield_input):
 
     # msg check
 
-    if encode_var.get() == 1:
+    if encode_var.get() == True:
         openfield_input = base64.b64encode(openfield_input.encode("utf-8")).decode("utf-8")
 
     # msg check
-    if msg_var.get() == 1 and encode_var.get() == 1:
+    if msg_var.get() == True and encode_var.get() == True:
         openfield_input = "bmsg=" + openfield_input
-    if msg_var.get() == 1 and encode_var.get() == 0:
+    if msg_var.get() == True and encode_var.get() == False:
         openfield_input = "msg=" + openfield_input
-
-
-    if encrypt_var.get() == 1:
+    if encrypt_var.get() == True:
         openfield_input = "enc=" + str(openfield_input)
 
     fee = fee_calculate(openfield_input)
@@ -1245,12 +1253,11 @@ mempool_count_var = StringVar()
 mempool_count_var_label = Label(f5, textvariable=mempool_count_var)
 mempool_count_var_label.grid(row=10, column=0, sticky=N + E, padx=15)
 
-encode_var = IntVar()
-alias_cb_var = IntVar()
-# encrypt_var = IntVar()
-msg_var = IntVar()
-encrypt_var = IntVar()
-resolve_var = IntVar()
+encode_var = BooleanVar()
+alias_cb_var = BooleanVar()
+msg_var = BooleanVar()
+encrypt_var = BooleanVar()
+resolve_var = BooleanVar()
 
 # address and amount
 gui_address = Entry(f3, width=60)
