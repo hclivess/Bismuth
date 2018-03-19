@@ -4,7 +4,7 @@ import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, time, base64, connections,
 from tokens import *
 from decimal import *
 from bisurl import *
-from quantizer import quantize_ten
+from quantizer import quantize_eight
 
 print(getcontext())
 
