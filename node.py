@@ -87,6 +87,7 @@ app_log.warning("Configuration settings loaded")
 def quantize_eight(value):
     value = Decimal(value)
     value = value.quantize(Decimal('0.00000000'))
+    #value = '{:.8f}'.format(value)
     return value
 
 def quantize_ten(value):

@@ -426,8 +426,8 @@ def send_confirm(amount_input, recipient_input, openfield_input):
     fee = fee_calculate(openfield_input)
 
     confirmation_dialog = Text(top10, width=100)
-    confirmation_dialog.insert(INSERT, ("Amount: {}\nFee: {}\nTotal: {}\nTo: {}\nOpenField:\n\n{}".format(amount_input, fee, Decimal(amount_input) + Decimal(fee), recipient_input, openfield_input)))
-
+    confirmation_dialog.insert(INSERT, ("Amount: {}\nFee: {}\nTotal: {}\nTo: {}\nOpenField:\n\n{}".format('{:.8f}'.format(amount_input),'{:.8f}'.format(fee), '{:.8f}'.format(Decimal(amount_input) + Decimal(fee)), recipient_input, openfield_input)))
+    confirmation_dialog.configure(state="disabled")
     confirmation_dialog.grid(row=0, pady=0)
 
     enter = Button(top10, text="Confirm", command=lambda: send_confirmed(amount_input, recipient_input, openfield_input, top10))
