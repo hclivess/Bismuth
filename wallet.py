@@ -1200,8 +1200,9 @@ lock_b.grid(row=1, column=3, sticky=E + N, pady=0, padx=5)
 def encryption_button_refresh():
     if unlocked == True:
         decrypt_b.configure(text="Unlocked", state=DISABLED)
+    if unlocked == False:
+        decrypt_b.configure(text="Unlock", state=NORMAL)
     if encrypted == False:
-        lock_b.configure(text="Lock", state=DISABLED)
         encrypt_b.configure(text="Encrypt", state=NORMAL)
     if encrypted == True:
         encrypt_b.configure(text="Encrypted", state=DISABLED)
