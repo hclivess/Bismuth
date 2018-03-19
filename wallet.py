@@ -155,7 +155,7 @@ def keys_load_dialog():
     global public_key_hashed
     global myaddress
 
-    root.filename = filedialog.askopenfilename(multiple = True, initialdir="/", title="Select wallet files", filetypes=[("Wallet keys", "*key.der")])
+    root.filename = filedialog.askopenfilename(multiple = True, initialdir="", title="Select wallet files", filetypes=[("Wallet keys", "*key.der")])
     for file in root.filename:
         if "priv" in file:
             private_key_load = file
@@ -173,7 +173,7 @@ def keys_load_dialog():
 
 
 def keys_backup():
-    root.filename = filedialog.asksaveasfilename(initialdir="/", title="Select backup file", filetypes=(("gzip", "*.gz"), ))
+    root.filename = filedialog.asksaveasfilename(initialdir="", title="Select backup file", filetypes=(("gzip", "*.gz"), ))
 
     if not root.filename == "":
         if not root.filename.endswith(".tar.gz"):
