@@ -4,6 +4,7 @@ import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, time, base64, connections,
 from tokens import *
 from decimal import *
 from bisurl import *
+from quantizer import quantize_ten
 
 print(getcontext())
 
@@ -41,11 +42,6 @@ essentials.db_check(app_log)
 
 s = socks.socksocket()
 s.settimeout(3)
-
-def quantize_eight(value):
-    value = Decimal(value)
-    value = value.quantize(Decimal('0.00000000'))
-    return value
 
 def create_url_clicked(app_log, command, recipient, amount, openfield):
     """isolated function so no GUI leftovers are in bisurl.py"""

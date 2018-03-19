@@ -18,6 +18,7 @@ import shutil, socketserver, base64, hashlib, os, re, sqlite3, sys, threading, t
 from decimal import *
 import tokens
 import aliases
+from quantizer import *
 
 from Crypto.Hash import SHA
 from Crypto.PublicKey import RSA
@@ -83,17 +84,6 @@ global peers
 
 app_log = log.log("node.log", debug_level_conf, terminal_output)
 app_log.warning("Configuration settings loaded")
-
-def quantize_eight(value):
-    value = Decimal(value)
-    value = value.quantize(Decimal('0.00000000'))
-    #value = '{:.8f}'.format(value)
-    return value
-
-def quantize_ten(value):
-    value = Decimal(value)
-    value = value.quantize(Decimal('0.0000000000'))
-    return value
 
 def tokens_rollback(height, app_log):
     """rollback token index"""
@@ -548,61 +538,109 @@ def execute_param(cursor, query, param):
 
 
 def difficulty(c, mode):
-    #getcontext().prec = 13  # decimal places
-
     execute(c, "SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 2")
     result = c.fetchone()
     timestamp_last = Decimal(result[1])
     block_height = int(result[0])
     timestamp_before_last = Decimal(c.fetchone()[1])
 
-    execute_param(c, ("SELECT timestamp FROM transactions WHERE CAST(block_height AS INTEGER) > ? AND reward != 0 ORDER BY timestamp ASC LIMIT 2"), (block_height - 1441,))
-    timestamp_1441 = Decimal(c.fetchone()[0])
-    block_time_prev = (timestamp_before_last - timestamp_1441) / 1440
-    timestamp_1440 = Decimal(c.fetchone()[0])
-    block_time = Decimal(timestamp_last - timestamp_1440) / 1440
-    execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
-    diff_block_previous = Decimal(c.fetchone()[0])
-    # Assume current difficulty D is known
-    D = diff_block_previous
-    # Assume current blocktime is known, calculcated from historic data, for example last 1440 blocks
-    T = block_time
-    # Calculate network hashrate
-    H = pow(2, D / Decimal(2.0)) / (T * math.ceil(28 - D / Decimal(16.0)))
-    # Calculate new difficulty for desired blocktime of 60 seconds
-    Td = Decimal(60.00)
-    D0 = D
-    Dnew = Decimal((2 / math.log(2)) * math.log(H * Td * math.ceil(28 - D0 / Decimal(16.0))))
-    # Feedback controller
-    Kd = 10
-    Dnew = Dnew - Kd * (block_time - block_time_prev)
-    diff_adjustment = (Dnew - D) / 720  # reduce by factor of 720
-    Dnew_adjusted = D + diff_adjustment
-    difficulty = quantize_ten(Dnew_adjusted)
-    difficulty2 = quantize_ten(difficulty)
-    time_now = time.time()
+    if block_height < 580000:  # remove after fork
+        getcontext().prec = 13  # decimal places
 
-    if block_height < 427000:  # remove after fork
-        if block_time > 70.0:
-            if time_now > timestamp_last + 300:  # if more than 5 minutes passed
-                difficulty2 = difficulty - Decimal(1.0)
+        execute_param(c, ("SELECT timestamp FROM transactions WHERE CAST(block_height AS INTEGER) > ? AND reward != 0 ORDER BY timestamp ASC LIMIT 2"), (block_height - 1441,))
+        timestamp_1441 = Decimal(c.fetchone()[0])
+        block_time_prev = (timestamp_before_last - timestamp_1441) / 1440
+        timestamp_1440 = Decimal(c.fetchone()[0])
+        block_time = Decimal(timestamp_last - timestamp_1440) / 1440
+        execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
+        diff_block_previous = Decimal(c.fetchone()[0])
+        # Assume current difficulty D is known
+        D = diff_block_previous
+        # Assume current blocktime is known, calculcated from historic data, for example last 1440 blocks
+        T = block_time
+        # Calculate network hashrate
+        H = pow(2, D / Decimal(2.0)) / (T * math.ceil(28 - D / Decimal(16.0)))
+        # Calculate new difficulty for desired blocktime of 60 seconds
+        Td = Decimal(60.00)
+        D0 = D
+        Dnew = Decimal((2 / math.log(2)) * math.log(H * Td * math.ceil(28 - D0 / Decimal(16.0))))
+        # Feedback controller
+        Kd = 10
+        Dnew = Dnew - Kd * (block_time - block_time_prev)
+        diff_adjustment = (Dnew - D) / 720  # reduce by factor of 720
+        Dnew_adjusted = D + diff_adjustment
+        difficulty = Decimal(Dnew_adjusted)
+        difficulty2 = difficulty
+        time_now = time.time()
+
+        if block_height < 427000:  # remove after fork
+            if block_time > 70.0:
+                if time_now > timestamp_last + 300:  # if more than 5 minutes passed
+                    difficulty2 = difficulty - Decimal(1.0)
+        else:
+            if block_time > 90.0:  # keep after fork
+                if time_now > timestamp_last + 300:  # if more than 5 minutes passed
+                    difficulty2 = difficulty - Decimal(1.0)
+
+        if difficulty < 80:
+            difficulty = 80
+        if difficulty2 < 80:
+            difficulty2 = 80
+        if mode == True:
+            app_log.warning("Time to generate block {}: {}".format(block_height, timestamp_last - timestamp_before_last))
+            app_log.warning("Current difficulty: {}".format(D))
+            app_log.warning("Current blocktime: {}".format(T))
+            app_log.warning("Current hashrate: {}".format(H))
+            app_log.warning("New difficulty after adjustment: {}".format(Dnew_adjusted))
+            app_log.warning("Difficulty: {} {}".format(difficulty, difficulty2))
+
+        getcontext().prec = 28  # decimal places
+        return (float('%.13f' % difficulty), float('%.13f' % difficulty2))  # need to keep float here for database inserts support
+
     else:
+        execute_param(c, ("SELECT timestamp FROM transactions WHERE CAST(block_height AS INTEGER) > ? AND reward != 0 ORDER BY timestamp ASC LIMIT 2"), (block_height - 1441,))
+        timestamp_1441 = Decimal(c.fetchone()[0])
+        block_time_prev = (timestamp_before_last - timestamp_1441) / 1440
+        timestamp_1440 = Decimal(c.fetchone()[0])
+        block_time = Decimal(timestamp_last - timestamp_1440) / 1440
+        execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
+        diff_block_previous = Decimal(c.fetchone()[0])
+        # Assume current difficulty D is known
+        D = diff_block_previous
+        # Assume current blocktime is known, calculcated from historic data, for example last 1440 blocks
+        T = block_time
+        # Calculate network hashrate
+        H = pow(2, D / Decimal(2.0)) / (T * math.ceil(28 - D / Decimal(16.0)))
+        # Calculate new difficulty for desired blocktime of 60 seconds
+        Td = Decimal(60.00)
+        D0 = D
+        Dnew = Decimal((2 / math.log(2)) * math.log(H * Td * math.ceil(28 - D0 / Decimal(16.0))))
+        # Feedback controller
+        Kd = 10
+        Dnew = Dnew - Kd * (block_time - block_time_prev)
+        diff_adjustment = (Dnew - D) / 720  # reduce by factor of 720
+        Dnew_adjusted = quantize_ten(D + diff_adjustment)
+        difficulty = Dnew_adjusted
+        difficulty2 = difficulty
+        time_now = time.time()
+
         if block_time > 90.0:  # keep after fork
             if time_now > timestamp_last + 300:  # if more than 5 minutes passed
                 difficulty2 = difficulty - Decimal(1.0)
 
-    if difficulty < 80:
-        difficulty = 80
-    if difficulty2 < 80:
-        difficulty2 = 80
-    if mode == True:
-        app_log.warning("Time to generate block {}: {}".format(block_height, timestamp_last - timestamp_before_last))
-        app_log.warning("Current difficulty: {}".format(D))
-        app_log.warning("Current blocktime: {}".format(T))
-        app_log.warning("Current hashrate: {}".format(H))
-        app_log.warning("New difficulty after adjustment: {}".format(Dnew_adjusted))
-        app_log.warning("Difficulty: {} {}".format(difficulty, difficulty2))
-    return (float('%.10f' % difficulty), float('%.10f' % difficulty2))  # need to keep float here for database inserts support
+        if difficulty < 80:
+            difficulty = 80
+        if difficulty2 < 80:
+            difficulty2 = 80
+        if mode == True:
+            app_log.warning("Time to generate block {}: {:.2f}".format(block_height, timestamp_last - timestamp_before_last))
+            app_log.warning("Current difficulty: {}".format(D))
+            app_log.warning("Current blocktime: {}".format(T))
+            app_log.warning("Current hashrate: {}".format(H))
+            app_log.warning("New difficulty after adjustment: {}".format(Dnew_adjusted))
+            app_log.warning("Difficulty: {} {}".format(difficulty, difficulty2))
+        return (float('%.10f' % difficulty), float('%.10f' % difficulty2))  # need to keep float here for database inserts support
+
 
 
 # moved to peershandler - globals become peers.?? and only peers is global.
