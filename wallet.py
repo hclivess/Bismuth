@@ -902,27 +902,32 @@ def table(address, addlist_20, mempool_total):
         connections.send(s, "aliasesget", 10) #senders
         connections.send(s, addlist_addressess, 10)
         aliases_address_results = connections.receive(s, 10)
+        #print(aliases_address_results)
 
         connections.send(s, "aliasesget", 10) #recipients
         connections.send(s, reclist_addressess, 10)
         aliases_rec_results = connections.receive(s, 10)
+        #print(aliases_rec_results)
     # retrieve aliases in bulk
 
-    i = 1
+    i = 0
     for row in addlist_20:
 
 
         db_timestamp = row[1]
         datasheet.append(datetime.fromtimestamp(Decimal(db_timestamp)).strftime('%Y-%m-%d %H:%M:%S'))
 
-        if resolve_var.get() == 1:
+
+        if resolve_var.get() == True:
             db_address = replace_regex(aliases_address_results[i],"alias=")
         else:
             db_address = row[2]
+
         datasheet.append(db_address)
 
-        if resolve_var.get() == 1:
+        if resolve_var.get() == True:
             db_recipient = replace_regex(aliases_rec_results[i],"alias=")
+
         else:
             db_recipient = row[3]
 
