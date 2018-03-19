@@ -1974,7 +1974,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             credit_ledger = quantize_eight(h3.fetchone()[0])
                             credit_ledger = 0 if credit_ledger is None else credit_ledger
                         except:
-                            raise
                             credit_ledger = 0
 
 
@@ -1985,14 +1984,12 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             fees = quantize_eight(result[0])
                             fees = 0 if fees is None else fees
                         except:
-                            raise
                             fees = 0
 
                         try:
                             debit_ledger = quantize_eight(result[1])
                             debit_ledger = 0 if debit_ledger is None else debit_ledger
                         except:
-                            raise
                             debit_ledger = 0
 
                         debit = quantize_eight(debit_ledger + debit_mempool)
@@ -2002,7 +1999,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             rewards = quantize_eight(h3.fetchone()[0])
                             rewards = 0 if rewards is None else rewards
                         except:
-                            raise
                             rewards = 0
 
                         balance = quantize_eight(credit_ledger - debit - fees + rewards)

@@ -150,8 +150,10 @@ def keys_load_dialog():
     global unlocked
     global public_key_hashed
     global myaddress
+    global private_key_load
+    global public_key_load
 
-    root.filename = filedialog.askopenfilename(multiple = True, initialdir="", title="Select wallet files", filetypes=[("Wallet keys", "*key.der")])
+    root.filename = filedialog.askopenfilename(multiple = True, initialdir="", title="Select wallet files", filetypes=[("Wallet keys", "*key*.der")])
     for file in root.filename:
         if "priv" in file:
             private_key_load = file
@@ -159,6 +161,8 @@ def keys_load_dialog():
             public_key_load = file
 
     key, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress = essentials.keys_load(private_key_load, public_key_load)
+
+    encryption_button_refresh()
 
     gui_address.delete(0,END)
     gui_address.insert(INSERT,myaddress)
@@ -287,7 +291,7 @@ def encrypt_get_password():
 
 
 def lock_fn(button):
-    key.set("")
+    key = None
     decrypt_b.configure(text="Unlock", state=NORMAL)
     lock_b.configure(text="Locked", state=DISABLED)
     password_var_dec.set("")
@@ -299,17 +303,16 @@ def encrypt_fn(destroy_this):
 
     if password == password_conf:
 
-
         ciphertext = encrypt(password, private_key_readable)
 
-        pem_file = open("privkey_encrypted.der", 'wb')
+        pem_file = open(private_key_load, 'wb')
+
         pem_file.write(base64.b64encode(ciphertext))
         pem_file.close()
 
-        encrypt_b.configure(text="Encrypted", state=DISABLED)
+        #encrypt_b.configure(text="Encrypted", state=DISABLED)
         destroy_this.destroy()
-        os.remove("privkey.der")
-        lock_b.configure(text="Lock", state=NORMAL)
+        #lock_b.configure(text="Lock", state=NORMAL)
     else:
         mismatch = Toplevel()
         mismatch.title("Bismuth")
@@ -340,16 +343,17 @@ def decrypt_get_password():
 def decrypt_fn(destroy_this):
     try:
         password = password_var_dec.get()
-        encrypted_privkey = open(private_key_readable, 'rb').read()
-        decrypted_privkey = decrypt(password, base64.b64decode(encrypted_privkey))
+        encrypted_privkey = open(private_key_load, 'rb').read()
+        decrypted_privkey = decrypt(password, base64.b64decode(encrypted_privkey)) #decrypt privkey
 
-        key.set(RSA.importKey(decrypted_privkey))  # be able to sign
+        key = RSA.importKey(decrypted_privkey)  # be able to sign
 
         # print key
         decrypt_b.configure(text="Unlocked", state=DISABLED)
         lock_b.configure(text="Lock", state=NORMAL)
         destroy_this.destroy()
     except:
+        raise
         top6 = Toplevel()
         top6.title("Locked")
         Label(top6, text="Wrong password", width=20).grid(row=0, pady=0)
@@ -1042,14 +1046,14 @@ def refresh(address, s):
         print(mempool_total)
 
         # fees_current_var.set("Current Fee: {}".format('%.8f' % float(fee)))
-        balance_var.set("Balance: {}".format(balance))
+        balance_var.set("Balance: {:.8f}".format(Decimal(balance)))
         balance_raw.set(balance)
-        debit_var.set("Spent Total: {}".format(debit))
-        credit_var.set("Received Total: {}".format(credit))
-        fees_var.set("Fees Paid: {}".format(fees))
-        rewards_var.set("Rewards: {}".format(rewards))
+        debit_var.set("Spent Total: {:.8f}".format(Decimal(debit)))
+        credit_var.set("Received Total: {:.8f}".format(Decimal(credit)))
+        fees_var.set("Fees Paid: {:.8f}".format(Decimal(fees)))
+        rewards_var.set("Rewards: {:.8f}".format(Decimal(rewards)))
         bl_height_var.set("Block Height: {}".format(bl_height))
-        diff_msg_var.set("Mining Difficulty: {}".format(diff_msg))
+        diff_msg_var.set("Mining Difficulty: {:.2f}".format(diff_msg))
         sync_msg_var.set(sync_msg)
         version_var.set("Version: {}".format(status_version))
         hash_var.set("Hash: {}...".format(hash_last[:6]))
@@ -1092,8 +1096,17 @@ global encrypted
 global unlocked
 global public_key_hashed
 global myaddress
+global private_key_load
+global public_key_load
 
-key, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress = essentials.keys_load("privkey.der","pubkey.der")
+if os.path.exists("privkey.der"):
+    private_key_load = "privkey.der"
+else:
+    private_key_load = "privkey_encrypted.der"
+
+public_key_load = "pubkey.der"
+
+key, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress = essentials.keys_load(private_key_load,public_key_load)
 
 # frames
 f2 = Frame(root, height=100, width=100)
@@ -1163,21 +1176,24 @@ tokens_b.grid(row=button_row_zero+8, column=column, sticky=N+E, pady=0, padx=15)
 #quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=10, font=("Tahoma", 8))
 #quit_b.grid(row=16, column=0, sticky=W + E + S, pady=0, padx=15)
 
+
 encrypt_b = Button(f6, text="Encrypt", command=encrypt_get_password, height=1, width=10)
-if encrypted == True:
-    encrypt_b.configure(text="Encrypted", state=DISABLED)
 encrypt_b.grid(row=1, column=1, sticky=E + N, pady=0, padx=5)
-
 decrypt_b = Button(f6, text="Unlock", command=decrypt_get_password, height=1, width=10)
-if unlocked == True:
-    decrypt_b.configure(text="Unlocked", state=DISABLED)
 decrypt_b.grid(row=1, column=2, sticky=E + N, pady=0, padx=5)
-
 lock_b = Button(f6, text="Locked", command=lambda: lock_fn(lock_b), height=1, width=10, state=DISABLED)
-if encrypted == False:
-    lock_b.configure(text="Lock", state=DISABLED)
 lock_b.grid(row=1, column=3, sticky=E + N, pady=0, padx=5)
 
+def encryption_button_refresh():
+    if unlocked == True:
+        decrypt_b.configure(text="Unlocked", state=DISABLED)
+    if encrypted == False:
+        lock_b.configure(text="Lock", state=DISABLED)
+        encrypt_b.configure(text="Encrypt", state=NORMAL)
+    if encrypted == True:
+        encrypt_b.configure(text="Encrypted", state=DISABLED)
+
+encryption_button_refresh()
 # buttons
 
 # refreshables

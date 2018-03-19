@@ -67,6 +67,7 @@ def keys_load(privkey, pubkey):
     except: #encrypted
         encrypted = True
         unlocked = False
+        key = None
         private_key_readable = None
 
     # public_key_readable = str(key.publickey().exportKey())
