@@ -862,7 +862,7 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                                 # app_log.info("Mempool: Finished with {} received transactions from {}".format(len(block_list),peer_ip))
 
                     else:
-                        app_log.info("Local mempool is already full, skipping merging")
+                        app_log.info("Local mempool is already full for this tx type, skipping merging")
                         return  # avoid spamming of the logs
 
             except Exception as e:
