@@ -123,23 +123,33 @@ def data_insert_clear():
     openfield.delete('1.0', END)  # remove previous
 
 def all_spend_clear():
+    all_spend_var.set(False)
+
     amount.delete(0, END)
     amount.insert(0,0)
 
 def all_spend():
-    openfield_fee_calc = openfield.get("1.0", END).strip()
+    #all_spend_var.set(True)
+    all_spend_check()
 
-    if msg_var.get() == True and encode_var.get() == True:
-        openfield_fee_calc = "bmsg=" + openfield_fee_calc
-    if msg_var.get() == True and encode_var.get() == False:
-        openfield_fee_calc = "msg=" + openfield_fee_calc
-    if encrypt_var.get() == True:
-        openfield_fee_calc = "enc=" + str(openfield_fee_calc)
+def all_spend_check():
+    if all_spend_var.get() == True:
+        openfield_fee_calc = openfield.get("1.0", END).strip()
+
+        if encode_var.get() == True and msg_var.get() == False:
+            openfield_fee_calc = base64.b64encode(openfield_fee_calc.encode("utf-8")).decode("utf-8")
+
+        if msg_var.get() == True and encode_var.get() == True:
+            openfield_fee_calc = "bmsg=" + base64.b64encode(openfield_fee_calc.encode("utf-8")).decode("utf-8")
+        if msg_var.get() == True and encode_var.get() == False:
+            openfield_fee_calc = "msg=" + openfield_fee_calc
+        if encrypt_var.get() == True:
+            openfield_fee_calc = "enc=" + str(openfield_fee_calc)
 
 
-    fee_from_all = fee_calculate(openfield_fee_calc)
-    amount.delete(0, END)
-    amount.insert(0, (Decimal(balance_raw.get()) - Decimal(fee_from_all)))
+        fee_from_all = fee_calculate(openfield_fee_calc)
+        amount.delete(0, END)
+        amount.insert(0, (Decimal(balance_raw.get()) - Decimal(fee_from_all)))
 
 
 def fee_calculate(openfield):
@@ -351,6 +361,7 @@ def decrypt_get_password():
 
 
 def decrypt_fn(destroy_this):
+    global key
     try:
         password = password_var_dec.get()
         encrypted_privkey = open(private_key_load, 'rb').read()
@@ -375,6 +386,7 @@ def decrypt_fn(destroy_this):
 
 def send_confirm(amount_input, recipient_input, openfield_input):
     amount_input = quantize_eight(amount_input)
+    all_spend_check()
 
     #cryptopia check
     if recipient_input == "edf2d63cdf0b6275ead22c9e6d66aa8ea31dc0ccb367fad2e7c08a25" and len(openfield_input) not in [16,20]:
@@ -418,14 +430,10 @@ def send_confirm(amount_input, recipient_input, openfield_input):
 
     # encr check
 
-    # msg check
-
-    if encode_var.get() == True:
+    if encode_var.get() == True and msg_var.get() == False:
         openfield_input = base64.b64encode(openfield_input.encode("utf-8")).decode("utf-8")
-
-    # msg check
     if msg_var.get() == True and encode_var.get() == True:
-        openfield_input = "bmsg=" + openfield_input
+        openfield_input = "bmsg=" + base64.b64encode(openfield_input.encode("utf-8")).decode("utf-8")
     if msg_var.get() == True and encode_var.get() == False:
         openfield_input = "msg=" + openfield_input
     if encrypt_var.get() == True:
@@ -449,9 +457,8 @@ def send_confirmed(amount_input, recipient_input, openfield_input, top10):
     top10.destroy()
 
 def send(amount_input, recipient_input, openfield_input):
-    try:
-        key
-    except:
+
+    if key is None:
         top5 = Toplevel()
         top5.title("Locked")
 
@@ -1082,6 +1089,7 @@ def refresh(address, s):
 
         table(address, addlist_20, mempool_total)
         # root.after(1000, refresh)
+        all_spend_check()
     except:
         messagebox.showinfo("Connection error", "Connection to node aborted")
         raise
@@ -1264,6 +1272,7 @@ alias_cb_var = BooleanVar()
 msg_var = BooleanVar()
 encrypt_var = BooleanVar()
 resolve_var = BooleanVar()
+all_spend_var = BooleanVar()
 
 # address and amount
 gui_address = Entry(f3, width=60)
@@ -1295,8 +1304,9 @@ gui_insert_recipient.grid(row=1, column=3, sticky=W + E, padx=(5, 0))
 #gui_help = Button(f3, text="Help", command=help, font=("Tahoma", 7))
 #gui_help.grid(row=4, column=2, sticky=W + E, padx=(5, 0))
 
-gui_all_spend = Button(f3, text="All", command=all_spend, font=("Tahoma", 7))
+gui_all_spend = Checkbutton(f3, text="All", variable=all_spend_var,command=all_spend, font=("Tahoma", 7))
 gui_all_spend.grid(row=2, column=2, sticky=W + E, padx=(5, 0))
+
 gui_all_spend_clear = Button(f3, text="Clear", command=all_spend_clear, font=("Tahoma", 7))
 gui_all_spend_clear.grid(row=2, column=3, sticky=W + E, padx=(5, 0))
 
@@ -1344,13 +1354,13 @@ url = Entry(f3, width=60)
 url.grid(row=4, column=1, sticky=W)
 url.insert(0,"bis://")
 
-encode = Checkbutton(f3, text="Base64 Encoding", variable=encode_var)
+encode = Checkbutton(f3, text="Base64 Encoding", variable=encode_var, command=all_spend_check)
 encode.grid(row=5, column=1, sticky=W, padx=(120, 0))
 
-msg = Checkbutton(f3, text="Mark as Message", variable=msg_var)
+msg = Checkbutton(f3, text="Mark as Message", variable=msg_var, command=all_spend_check)
 msg.grid(row=5, column=1, sticky=W, padx=(240, 0))
 
-encr = Checkbutton(f3, text="Encrypt with PK", variable=encrypt_var)
+encr = Checkbutton(f3, text="Encrypt with PK", variable=encrypt_var, command=all_spend_check)
 encr.grid(row=5, column=1, sticky=W, padx=(0, 0))
 
 resolve = Checkbutton(f3, text="Resolve Aliases", variable=resolve_var, command=lambda: refresh(gui_address.get(),s))
