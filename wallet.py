@@ -386,7 +386,6 @@ def decrypt_fn(destroy_this):
 
 def send_confirm(amount_input, recipient_input, openfield_input):
     amount_input = quantize_eight(amount_input)
-    all_spend_check()
 
     #cryptopia check
     if recipient_input == "edf2d63cdf0b6275ead22c9e6d66aa8ea31dc0ccb367fad2e7c08a25" and len(openfield_input) not in [16,20]:
@@ -457,6 +456,7 @@ def send_confirmed(amount_input, recipient_input, openfield_input, top10):
     top10.destroy()
 
 def send(amount_input, recipient_input, openfield_input):
+    all_spend_check()
 
     if key is None:
         top5 = Toplevel()
