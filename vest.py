@@ -51,8 +51,16 @@ def delegates_update(file, ledger, mode, app_log):
             operation = None
 
         print("operation",operation)
+
         if operation == "add":
-            vested_out = 0
+            #vested_out = 0
+            d.execute("SELECT sum(amount) FROM delegates WHERE address = ?", (sender,))
+            try:
+                vested_out = int(d.fetchone()[0])
+                print ("vested_out",vested_out)
+            except:
+                vested_out = 0
+
 
             # balance
             c.execute("SELECT sum(amount)+sum(reward) FROM transactions WHERE recipient = ? ", (sender,))
@@ -98,6 +106,13 @@ def delegates_update(file, ledger, mode, app_log):
             except:
                 app_log.warning("Unable to remove delegation: {}".format(remove_txid))
 
+        if operation == "cleanse":
+            try:
+                d.execute("DELETE FROM delegates WHERE address = ?",(sender,))
+                deleg.commit()
+                app_log.warning("Removed all delegations if found")
+            except:
+                app_log.warning("Unable to remove delegations")
 
 
 
