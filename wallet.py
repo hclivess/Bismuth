@@ -519,11 +519,11 @@ def send(amount_input, recipient_input, openfield_input):
                 app_log.warning("Client: The signature is valid, proceeding to save transaction, signature, new txhash and the public key to mempool")
 
                 # print(str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input),str(signature_enc), str(public_key_hashed), str(keep_input), str(openfield_input))
-                tx_submit = (str(timestamp), str(myaddress), str(recipient_input), '%.8f' % float(amount_input), str(signature_enc.decode("utf-8")), str(public_key_hashed.decode("utf-8")), str(keep_input), str(openfield_input)) #float kept for compatibility
+                tx_submit = str(timestamp), str(myaddress), str(recipient_input), '%.8f' % float(amount_input), str(signature_enc.decode("utf-8")), str(public_key_hashed.decode("utf-8")), str(keep_input), str(openfield_input) #float kept for compatibility
 
                 while True:
                     connections.send(s, "mpinsert", 10)
-                    connections.send(s, [tx_submit], 10)  # change address here to view other people's transactions
+                    connections.send(s, tx_submit, 10)
                     reply = connections.receive(s, 10)
                     app_log.warning("Client: {}".format(reply))
                     break
