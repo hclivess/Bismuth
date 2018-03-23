@@ -1040,7 +1040,7 @@ def refresh(address, s):
         fees_var.set("Fees Paid: {:.8f}".format(Decimal(fees)))
         rewards_var.set("Rewards: {:.8f}".format(Decimal(rewards)))
         bl_height_var.set("Block Height: {}".format(bl_height))
-        diff_msg_var.set("Mining Difficulty: {:.2f}".format(diff_msg))
+        diff_msg_var.set("Mining Difficulty: {}".format(diff_msg))
         sync_msg_var.set(sync_msg)
         version_var.set("Version: {}".format(status_version))
         hash_var.set("Hash: {}...".format(hash_last[:6]))

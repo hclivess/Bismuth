@@ -693,193 +693,195 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
 
         mempool_size = mempool_size_calculate(m)  # caulculate current mempool size before adding txs
 
-        if mem_lock.locked() == False:
-            mem_lock.acquire()
+        while mem_lock.locked() == True:
+            time.sleep(0.1)
 
-            try:  # only if mempool was unlocked and we locked it
-                block_list = data
+        mem_lock.acquire()
 
-                if not isinstance(block_list[0], list): #convert to list of lists if only one tx and not handled
-                    block_list = [block_list]
+        try:  # only if mempool was unlocked and we locked it
+            block_list = data
 
-                for transaction in block_list:  # set means unique, only accepts list of txs
+            if not isinstance(block_list[0], list): #convert to list of lists if only one tx and not handled
+                block_list = [block_list]
 
-                    if (mempool_size < 0.3 or size_bypass == True) or (len(str(transaction[7])) > 200 and mempool_size < 0.4) or (Decimal(transaction[3]) > Decimal(5) and mempool_size < 0.5) or (transaction[1] in mempool_allowed and mempool_size < 0.6):
-                        # condition 1: size limit or bypass, condition 2: spend more than 25 coins, condition 3: have length of openfield larger than 200
-                        # all transactions in the mempool need to be cycled to check for special cases, therefore no while/break loop here
+            for transaction in block_list:  # set means unique, only accepts list of txs
 
-                        mempool_timestamp = '%.2f' % float(transaction[0])
-                        mempool_address = str(transaction[1])[:56]
-                        mempool_recipient = str(transaction[2])[:56]
-                        mempool_amount = '%.8f' % float(transaction[3])
-                        mempool_signature_enc = str(transaction[4])[:684]
-                        mempool_public_key_hashed = str(transaction[5])[:1068]
-                        mempool_keep = str(transaction[6])[:1]
-                        mempool_openfield = str(transaction[7])[:100000]
+                if (mempool_size < 0.3 or size_bypass == True) or (len(str(transaction[7])) > 200 and mempool_size < 0.4) or (Decimal(transaction[3]) > Decimal(5) and mempool_size < 0.5) or (transaction[1] in mempool_allowed and mempool_size < 0.6):
+                    # condition 1: size limit or bypass, condition 2: spend more than 25 coins, condition 3: have length of openfield larger than 200
+                    # all transactions in the mempool need to be cycled to check for special cases, therefore no while/break loop here
 
-                        mempool_public_key = RSA.importKey(base64.b64decode(mempool_public_key_hashed))  # convert readable key to instance
-                        mempool_signature_dec = base64.b64decode(mempool_signature_enc)
+                    mempool_timestamp = '%.2f' % float(transaction[0])
+                    mempool_address = str(transaction[1])[:56]
+                    mempool_recipient = str(transaction[2])[:56]
+                    mempool_amount = '%.8f' % float(transaction[3])
+                    mempool_signature_enc = str(transaction[4])[:684]
+                    mempool_public_key_hashed = str(transaction[5])[:1068]
+                    mempool_keep = str(transaction[6])[:1]
+                    mempool_openfield = str(transaction[7])[:100000]
 
-                        acceptable = 1
+                    mempool_public_key = RSA.importKey(base64.b64decode(mempool_public_key_hashed))  # convert readable key to instance
+                    mempool_signature_dec = base64.b64decode(mempool_signature_enc)
 
-                        execute_param(m, ("SELECT * FROM transactions WHERE signature = ?;"), (mempool_signature_enc,))  # condition 1)
-                        try:
-                            dummy1 = m.fetchall()[0]
-                            # mempool_result.append("That transaction is already in our mempool")
-                            acceptable = 0
-                            mempool_in = 1
-                        except:
-                            mempool_in = 0
+                    acceptable = 1
 
+                    execute_param(m, ("SELECT * FROM transactions WHERE signature = ?;"), (mempool_signature_enc,))  # condition 1)
+                    try:
+                        dummy1 = m.fetchall()[0]
+                        # mempool_result.append("That transaction is already in our mempool")
+                        acceptable = 0
+                        mempool_in = 1
+                    except:
+                        mempool_in = 0
+
+                    # reject transactions which are already in the ledger
+                    execute_param(c, ("SELECT * FROM transactions WHERE signature = ?;"), (mempool_signature_enc,))  # condition 2
+                    try:
+                        dummy2 = c.fetchall()[0]
+                        mempool_result.append("That transaction is already in our ledger")
                         # reject transactions which are already in the ledger
-                        execute_param(c, ("SELECT * FROM transactions WHERE signature = ?;"), (mempool_signature_enc,))  # condition 2
+                        acceptable = 0
+                        ledger_in = 1
+                    except:
+                        ledger_in = 0
+
+                    if mempool_keep != "1" and mempool_keep != "0":
+                        mempool_result.append = ("Mempool: Wrong keep value {}".format(mempool_keep))
+                        acceptable = 0
+
+                    if mempool_address != hashlib.sha224(base64.b64decode(mempool_public_key_hashed)).hexdigest():
+                        mempool_result.append("Mempool: Attempt to spend from a wrong address")
+                        acceptable = 0
+
+                    if float(mempool_amount) < 0:
+                        acceptable = 0
+                        mempool_result.append("Mempool: Negative balance spend attempt")
+
+                    if float(mempool_timestamp) > time.time() + 30:  # dont accept future txs
+                        acceptable = 0
+
+                    if float(mempool_timestamp) < time.time() - 82800:  # dont accept old txs, mempool needs to be harsher than ledger
+                        acceptable = 0
+
+                    if (mempool_in == 1) and (ledger_in == 1):  # remove from mempool if it's in both ledger and mempool already
                         try:
-                            dummy2 = c.fetchall()[0]
-                            mempool_result.append("That transaction is already in our ledger")
-                            # reject transactions which are already in the ledger
-                            acceptable = 0
-                            ledger_in = 1
-                        except:
-                            ledger_in = 0
-
-                        if mempool_keep != "1" and mempool_keep != "0":
-                            mempool_result.append = ("Mempool: Wrong keep value {}".format(mempool_keep))
-                            acceptable = 0
-
-                        if mempool_address != hashlib.sha224(base64.b64decode(mempool_public_key_hashed)).hexdigest():
-                            mempool_result.append("Mempool: Attempt to spend from a wrong address")
-                            acceptable = 0
-
-                        if float(mempool_amount) < 0:
-                            acceptable = 0
-                            mempool_result.append("Mempool: Negative balance spend attempt")
-
-                        if float(mempool_timestamp) > time.time() + 30:  # dont accept future txs
-                            acceptable = 0
-
-                        if float(mempool_timestamp) < time.time() - 82800:  # dont accept old txs, mempool needs to be harsher than ledger
-                            acceptable = 0
-
-                        if (mempool_in == 1) and (ledger_in == 1):  # remove from mempool if it's in both ledger and mempool already
-                            try:
-                                execute_param(m, ("DELETE FROM transactions WHERE signature = ?;"), (mempool_signature_enc,))
-                                commit(mempool)
-                                mempool_result.append("Mempool: Transaction deleted from our mempool")
-                            except:  # experimental try and except
-                                mempool_result.append("Mempool: Transaction was not present in the pool anymore")
-                                pass  # continue to mempool finished message
-
-                                # verify signatures and balances
-
-                        validate_pem(mempool_public_key_hashed)
-
-                        # verify signature
-                        verifier = PKCS1_v1_5.new(mempool_public_key)
-
-                        hash = SHA.new(str((mempool_timestamp, mempool_address, mempool_recipient, mempool_amount, mempool_keep, mempool_openfield)).encode("utf-8"))
-                        if not verifier.verify(hash, mempool_signature_dec):
-                            acceptable = 0
-                            mempool_result.append("Mempool: Wrong signature in mempool insert attempt: {}".format(transaction))
-
-                        # verify signature
-
-                        if acceptable == 1:
-
-                            # verify balance
-                            # mempool_result.append("Mempool: Verifying balance")
-                            mempool_result.append("Mempool: Received address: {}".format(mempool_address))
-
-                            # include mempool fees
-                            execute_param(m, ("SELECT amount, openfield FROM transactions WHERE address = ?;"), (mempool_address,))
-                            result = m.fetchall()
-
-                            debit_mempool = 0
-
-                            if result != None:
-                                for x in result:
-                                    debit_tx = float(x[0])
-                                    fee = fee_calculate(x[1])
-                                    debit_mempool = debit_mempool + debit_tx + float(fee)
-                            else:
-                                debit_mempool = 0
-                            # include mempool fees
-
-                            # include the new block
-
-                            execute_param(c, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (mempool_address,))
-                            credit_ledger = c.fetchone()[0]
-                            credit_ledger = 0 if credit_ledger is None else float('%.8f' % credit_ledger)
-                            credit = float(credit_ledger)
-
-                            execute_param(c, ("SELECT sum(amount) FROM transactions WHERE address = ?;"), (mempool_address,))
-                            debit_ledger = c.fetchone()[0]
-                            debit_ledger = 0 if debit_ledger is None else float('%.8f' % debit_ledger)
-
-                            debit = float(debit_ledger) + float(debit_mempool)
-
-                            execute_param(c, ("SELECT sum(fee) FROM transactions WHERE address = ?;"), (mempool_address,))
-                            try:
-                                fees = float(c.fetchone()[0])
-                                fees = 0 if fees is None else fees
-                            except:
-                                fees = 0
-                            execute_param(c, ("SELECT sum(reward) FROM transactions WHERE recipient = ?;"), (mempool_address,))
-                            try:
-                                rewards = float(c.fetchone()[0])
-                                rewards = 0 if rewards is None else rewards
-                            except:
-                                rewards = 0
-
-                            # mempool_result.append("Mempool: Total credit: " + str(credit))
-                            # mempool_result.append("Mempool: Total debit: " + str(debit))
-                            balance = float('%.8f' % (float(credit) - float(debit) - float(fees) + float(rewards) - float(mempool_amount)))
-                            balance_pre = float('%.8f' % (float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)))
-                            # mempool_result.append("Mempool: Projected transction address balance: " + str(balance))
-
-                            # fee = '%.8f' % float(0.01 + (float(len(mempool_openfield)) / 100000) + int(mempool_keep))  # 0.01 dust
-                            fee = fee_calculate(mempool_openfield)
-
-                            time_now = time.time()
-                            if float(mempool_timestamp) > float(time_now) + 30:
-                                mempool_result.append("Mempool: Future transaction not allowed, timestamp {} minutes in the future".format((float(mempool_timestamp) - float(time_now)) / 60))
-
-                            elif float(time_now) - 86400 > float(mempool_timestamp):
-                                mempool_result.append("Mempool: Transaction older than 24h not allowed.")
-
-                            elif float(mempool_amount) > float(balance_pre):
-                                mempool_result.append("Mempool: Sending more than owned")
-
-                            elif (float(balance)) - (float(fee)) < 0:
-                                mempool_result.append("Mempool: Cannot afford to pay fees")
+                            execute_param(m, ("DELETE FROM transactions WHERE signature = ?;"), (mempool_signature_enc,))
+                            commit(mempool)
+                            mempool_result.append("Mempool: Transaction deleted from our mempool")
+                        except:  # experimental try and except
+                            mempool_result.append("Mempool: Transaction was not present in the pool anymore")
+                            pass  # continue to mempool finished message
 
                             # verify signatures and balances
-                            else:
-                                execute_param(m, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (str(mempool_timestamp), str(mempool_address), str(mempool_recipient), str(mempool_amount),
-                                                                                                       str(mempool_signature_enc), str(mempool_public_key_hashed), str(mempool_keep), str(mempool_openfield)))
-                                mempool_result.append("Mempool updated with a received transaction from {}".format(peer_ip))
-                                commit(mempool)  # Save (commit) the changes
 
-                                mempool_size = mempool_size + Decimal(sys.getsizeof(str(transaction))) / Decimal(1000000)
+                    validate_pem(mempool_public_key_hashed)
 
-                                # merge mempool
-                                # receive mempool
+                    # verify signature
+                    verifier = PKCS1_v1_5.new(mempool_public_key)
 
-                                # mempool_result.append("Mempool: Finished with {} received transactions from {}".format(len(block_list),peer_ip))
-                                return mempool_result
+                    hash = SHA.new(str((mempool_timestamp, mempool_address, mempool_recipient, mempool_amount, mempool_keep, mempool_openfield)).encode("utf-8"))
+                    if not verifier.verify(hash, mempool_signature_dec):
+                        acceptable = 0
+                        mempool_result.append("Mempool: Wrong signature in mempool insert attempt: {}".format(transaction))
 
-                    else:
-                        mempool_result.append("Local mempool is already full for this tx type, skipping merging")
-                        return mempool_result # avoid spamming of the logs
+                    # verify signature
 
-            except Exception as e:
-                app_log.warning("Mempool: Error processing: {} {}".format(data,e))
-                if debug_conf == 1:
-                    raise
+                    if acceptable == 1:
+
+                        # verify balance
+                        # mempool_result.append("Mempool: Verifying balance")
+                        mempool_result.append("Mempool: Received address: {}".format(mempool_address))
+
+                        # include mempool fees
+                        execute_param(m, ("SELECT amount, openfield FROM transactions WHERE address = ?;"), (mempool_address,))
+                        result = m.fetchall()
+
+                        debit_mempool = 0
+
+                        if result != None:
+                            for x in result:
+                                debit_tx = float(x[0])
+                                fee = fee_calculate(x[1])
+                                debit_mempool = debit_mempool + debit_tx + float(fee)
+                        else:
+                            debit_mempool = 0
+                        # include mempool fees
+
+                        # include the new block
+
+                        execute_param(c, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (mempool_address,))
+                        credit_ledger = c.fetchone()[0]
+                        credit_ledger = 0 if credit_ledger is None else float('%.8f' % credit_ledger)
+                        credit = float(credit_ledger)
+
+                        execute_param(c, ("SELECT sum(amount) FROM transactions WHERE address = ?;"), (mempool_address,))
+                        debit_ledger = c.fetchone()[0]
+                        debit_ledger = 0 if debit_ledger is None else float('%.8f' % debit_ledger)
+
+                        debit = float(debit_ledger) + float(debit_mempool)
+
+                        execute_param(c, ("SELECT sum(fee) FROM transactions WHERE address = ?;"), (mempool_address,))
+                        try:
+                            fees = float(c.fetchone()[0])
+                            fees = 0 if fees is None else fees
+                        except:
+                            fees = 0
+                        execute_param(c, ("SELECT sum(reward) FROM transactions WHERE recipient = ?;"), (mempool_address,))
+                        try:
+                            rewards = float(c.fetchone()[0])
+                            rewards = 0 if rewards is None else rewards
+                        except:
+                            rewards = 0
+
+                        # mempool_result.append("Mempool: Total credit: " + str(credit))
+                        # mempool_result.append("Mempool: Total debit: " + str(debit))
+                        balance = float('%.8f' % (float(credit) - float(debit) - float(fees) + float(rewards) - float(mempool_amount)))
+                        balance_pre = float('%.8f' % (float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)))
+                        # mempool_result.append("Mempool: Projected transction address balance: " + str(balance))
+
+                        # fee = '%.8f' % float(0.01 + (float(len(mempool_openfield)) / 100000) + int(mempool_keep))  # 0.01 dust
+                        fee = fee_calculate(mempool_openfield)
+
+                        time_now = time.time()
+                        if float(mempool_timestamp) > float(time_now) + 30:
+                            mempool_result.append("Mempool: Future transaction not allowed, timestamp {} minutes in the future".format((float(mempool_timestamp) - float(time_now)) / 60))
+
+                        elif float(time_now) - 86400 > float(mempool_timestamp):
+                            mempool_result.append("Mempool: Transaction older than 24h not allowed.")
+
+                        elif float(mempool_amount) > float(balance_pre):
+                            mempool_result.append("Mempool: Sending more than owned")
+
+                        elif (float(balance)) - (float(fee)) < 0:
+                            mempool_result.append("Mempool: Cannot afford to pay fees")
+
+                        # verify signatures and balances
+                        else:
+                            execute_param(m, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (str(mempool_timestamp), str(mempool_address), str(mempool_recipient), str(mempool_amount),
+                                                                                                   str(mempool_signature_enc), str(mempool_public_key_hashed), str(mempool_keep), str(mempool_openfield)))
+                            mempool_result.append("Mempool updated with a received transaction from {}".format(peer_ip))
+                            commit(mempool)  # Save (commit) the changes
+
+                            mempool_size = mempool_size + Decimal(sys.getsizeof(str(transaction))) / Decimal(1000000)
+
+                            # merge mempool
+                            # receive mempool
+
+                            # mempool_result.append("Mempool: Finished with {} received transactions from {}".format(len(block_list),peer_ip))
+                            return mempool_result
+
                 else:
-                    return e, mempool_result
+                    mempool_result.append("Local mempool is already full for this tx type, skipping merging")
+                    return mempool_result # avoid spamming of the logs
 
-            finally:
-                mem_lock.release()
+        except Exception as e:
+            app_log.warning("Mempool: Error processing: {} {}".format(data,e))
+            if debug_conf == 1:
+                raise
+            else:
+                return e, mempool_result
+
+        finally:
+            mem_lock.release()
 
 
 def verify(c):
@@ -1946,9 +1948,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
                         mempool_insert = connections.receive(self.request, 10)
-                        mpinsert_result = None
-                        while mpinsert_result == None:
-                            mpinsert_result = mempool_merge(mempool_insert, peer_ip, c, mempool, m, True, True)
+                        mpinsert_result = mempool_merge(mempool_insert, peer_ip, c, mempool, m, True, True)
                         connections.send(self.request, mpinsert_result, 10)
                     else:
                         app_log.info("{} not whitelisted for mpinsert command".format(peer_ip))
