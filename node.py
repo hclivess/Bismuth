@@ -677,14 +677,16 @@ def mempool_size_calculate(m):
 
 
 def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
+    mempool_result = []
+    
     if not data:
-        app_log.info("Mempool from {} was empty".format(peer_ip))
+        mempool_result.append("Mempool from {} was empty".format(peer_ip))
 
     else:
-        app_log.info("Mempool merging started from {}".format(peer_ip))
+        mempool_result.append("Mempool merging started from {}".format(peer_ip))
 
         while db_lock.locked() == True and lock_respect == True:  # prevent transactions which are just being digested from being added to mempool
-            app_log.info("Waiting for block digestion to finish before merging mempool")
+            mempool_result.append("Waiting for block digestion to finish before merging mempool")
             time.sleep(1)
 
         # merge mempool
@@ -723,7 +725,7 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                         execute_param(m, ("SELECT * FROM transactions WHERE signature = ?;"), (mempool_signature_enc,))  # condition 1)
                         try:
                             dummy1 = m.fetchall()[0]
-                            # app_log.info("That transaction is already in our mempool")
+                            # mempool_result.append("That transaction is already in our mempool")
                             acceptable = 0
                             mempool_in = 1
                         except:
@@ -733,7 +735,7 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                         execute_param(c, ("SELECT * FROM transactions WHERE signature = ?;"), (mempool_signature_enc,))  # condition 2
                         try:
                             dummy2 = c.fetchall()[0]
-                            app_log.info("That transaction is already in our ledger")
+                            mempool_result.append("That transaction is already in our ledger")
                             # reject transactions which are already in the ledger
                             acceptable = 0
                             ledger_in = 1
@@ -741,16 +743,16 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                             ledger_in = 0
 
                         if mempool_keep != "1" and mempool_keep != "0":
-                            app_log.info = ("Mempool: Wrong keep value {}".format(mempool_keep))
+                            mempool_result.append = ("Mempool: Wrong keep value {}".format(mempool_keep))
                             acceptable = 0
 
                         if mempool_address != hashlib.sha224(base64.b64decode(mempool_public_key_hashed)).hexdigest():
-                            app_log.info("Mempool: Attempt to spend from a wrong address")
+                            mempool_result.append("Mempool: Attempt to spend from a wrong address")
                             acceptable = 0
 
                         if float(mempool_amount) < 0:
                             acceptable = 0
-                            app_log.info("Mempool: Negative balance spend attempt")
+                            mempool_result.append("Mempool: Negative balance spend attempt")
 
                         if float(mempool_timestamp) > time.time() + 30:  # dont accept future txs
                             acceptable = 0
@@ -762,9 +764,9 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                             try:
                                 execute_param(m, ("DELETE FROM transactions WHERE signature = ?;"), (mempool_signature_enc,))
                                 commit(mempool)
-                                app_log.info("Mempool: Transaction deleted from our mempool")
+                                mempool_result.append("Mempool: Transaction deleted from our mempool")
                             except:  # experimental try and except
-                                app_log.info("Mempool: Transaction was not present in the pool anymore")
+                                mempool_result.append("Mempool: Transaction was not present in the pool anymore")
                                 pass  # continue to mempool finished message
 
                                 # verify signatures and balances
@@ -777,15 +779,15 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                         hash = SHA.new(str((mempool_timestamp, mempool_address, mempool_recipient, mempool_amount, mempool_keep, mempool_openfield)).encode("utf-8"))
                         if not verifier.verify(hash, mempool_signature_dec):
                             acceptable = 0
-                            app_log.info("Mempool: Wrong signature in mempool insert attempt: {}".format(transaction))
+                            mempool_result.append("Mempool: Wrong signature in mempool insert attempt: {}".format(transaction))
 
                         # verify signature
 
                         if acceptable == 1:
 
                             # verify balance
-                            # app_log.info("Mempool: Verifying balance")
-                            app_log.info("Mempool: Received address: {}".format(mempool_address))
+                            # mempool_result.append("Mempool: Verifying balance")
+                            mempool_result.append("Mempool: Received address: {}".format(mempool_address))
 
                             # include mempool fees
                             execute_param(m, ("SELECT amount, openfield FROM transactions WHERE address = ?;"), (mempool_address,))
@@ -828,33 +830,33 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                             except:
                                 rewards = 0
 
-                            # app_log.info("Mempool: Total credit: " + str(credit))
-                            # app_log.info("Mempool: Total debit: " + str(debit))
+                            # mempool_result.append("Mempool: Total credit: " + str(credit))
+                            # mempool_result.append("Mempool: Total debit: " + str(debit))
                             balance = float('%.8f' % (float(credit) - float(debit) - float(fees) + float(rewards) - float(mempool_amount)))
                             balance_pre = float('%.8f' % (float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)))
-                            # app_log.info("Mempool: Projected transction address balance: " + str(balance))
+                            # mempool_result.append("Mempool: Projected transction address balance: " + str(balance))
 
                             # fee = '%.8f' % float(0.01 + (float(len(mempool_openfield)) / 100000) + int(mempool_keep))  # 0.01 dust
                             fee = fee_calculate(mempool_openfield)
 
                             time_now = time.time()
                             if float(mempool_timestamp) > float(time_now) + 30:
-                                app_log.info("Mempool: Future transaction not allowed, timestamp {} minutes in the future".format((float(mempool_timestamp) - float(time_now)) / 60))
+                                mempool_result.append("Mempool: Future transaction not allowed, timestamp {} minutes in the future".format((float(mempool_timestamp) - float(time_now)) / 60))
 
                             elif float(time_now) - 86400 > float(mempool_timestamp):
-                                app_log.info("Mempool: Transaction older than 24h not allowed.")
+                                mempool_result.append("Mempool: Transaction older than 24h not allowed.")
 
                             elif float(mempool_amount) > float(balance_pre):
-                                app_log.info("Mempool: Sending more than owned")
+                                mempool_result.append("Mempool: Sending more than owned")
 
                             elif (float(balance)) - (float(fee)) < 0:
-                                app_log.info("Mempool: Cannot afford to pay fees")
+                                mempool_result.append("Mempool: Cannot afford to pay fees")
 
                             # verify signatures and balances
                             else:
                                 execute_param(m, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (str(mempool_timestamp), str(mempool_address), str(mempool_recipient), str(mempool_amount),
                                                                                                        str(mempool_signature_enc), str(mempool_public_key_hashed), str(mempool_keep), str(mempool_openfield)))
-                                app_log.info("Mempool updated with a received transaction from {}".format(peer_ip))
+                                mempool_result.append("Mempool updated with a received transaction from {}".format(peer_ip))
                                 commit(mempool)  # Save (commit) the changes
 
                                 mempool_size = mempool_size + Decimal(sys.getsizeof(str(transaction))) / Decimal(1000000)
@@ -862,18 +864,19 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                                 # merge mempool
                                 # receive mempool
 
-                                # app_log.info("Mempool: Finished with {} received transactions from {}".format(len(block_list),peer_ip))
+                                # mempool_result.append("Mempool: Finished with {} received transactions from {}".format(len(block_list),peer_ip))
+                                return mempool_result
 
                     else:
-                        app_log.info("Local mempool is already full for this tx type, skipping merging")
-                        return  # avoid spamming of the logs
+                        mempool_result.append("Local mempool is already full for this tx type, skipping merging")
+                        return mempool_result # avoid spamming of the logs
 
             except Exception as e:
                 app_log.warning("Mempool: Error processing: {} {}".format(data,e))
                 if debug_conf == 1:
                     raise
                 else:
-                    return
+                    return e, mempool_result
 
             finally:
                 mem_lock.release()
@@ -960,7 +963,7 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, mempool, m):
                     while True:
                         try:
                             if tx[9] == 0:
-                                mempool_merge((tx[1], tx[2], tx[3], tx[4], tx[5], tx[6], tx[10], tx[11]), peer_ip, c, mempool, m, False, False)  # strip block_height
+                                app_log.info(mempool_merge((tx[1], tx[2], tx[3], tx[4], tx[5], tx[6], tx[10], tx[11]), peer_ip, c, mempool, m, False, False))  # strip block_height
                                 app_log.warning("Moved tx back to mempool: {}".format(tx))
                                 commit(mempool)
                             break
@@ -1690,7 +1693,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                     # receive theirs
                     segments = connections.receive(self.request, 10)
-                    mempool_merge(segments, peer_ip, c, mempool, m, False, True)
+                    app_log.info(mempool_merge(segments, peer_ip, c, mempool, m, False, True))
 
                     # receive theirs
 
@@ -1943,8 +1946,10 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
                         mempool_insert = connections.receive(self.request, 10)
-                        mempool_merge(mempool_insert, peer_ip, c, mempool, m, True, True)
-                        connections.send(self.request, "Mempool insert finished", 10)
+                        mpinsert_result = None
+                        while mpinsert_result == None:
+                            mpinsert_result = mempool_merge(mempool_insert, peer_ip, c, mempool, m, True, True)
+                        connections.send(self.request, mpinsert_result, 10)
                     else:
                         app_log.info("{} not whitelisted for mpinsert command".format(peer_ip))
 
@@ -2193,7 +2198,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         # insert to mempool, where everything will be verified
                         mempool_data = ((str(remote_tx_timestamp), str(remote_tx_address), str(remote_tx_recipient), '%.8f' % float(remote_tx_amount), str(remote_signature_enc), str(remote_tx_pubkey_hashed), str(remote_tx_keep), str(remote_tx_openfield)))
 
-                        mempool_merge(mempool_data, peer_ip, c, mempool, m, True, True)
+                        app_log.info(mempool_merge(mempool_data, peer_ip, c, mempool, m, True, True))
+
                         connections.send(self.request, str(remote_signature_enc), 10)
                         # wipe variables
                         (tx_remote, remote_tx_privkey, tx_remote_key) = (None, None, None)
@@ -2569,7 +2575,7 @@ def worker(HOST, PORT):
 
                 # receive theirs
                 segments = connections.receive(s, 10)
-                mempool_merge(segments, peer_ip, c, mempool, m, True, True)
+                app_log.info(mempool_merge(segments, peer_ip, c, mempool, m, True, True))
                 # receive theirs
 
                 # receive mempool
