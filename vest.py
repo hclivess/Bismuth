@@ -34,7 +34,6 @@ def delegates_update(file, ledger, mode, app_log):
     result = c.fetchall()
 
 
-
     for delegation in result:
 
         block_height = delegation[0]

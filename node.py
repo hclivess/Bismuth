@@ -511,6 +511,7 @@ def commit(cursor):
         except Exception as e:
             app_log.warning("Database cursor: {}".format(cursor))
             app_log.warning("Database retry reason: {}".format(e))
+            time.sleep(0.1)
 
 
 def execute(cursor, query):
@@ -522,6 +523,7 @@ def execute(cursor, query):
         except Exception as e:
             app_log.warning("Database query: {} {}".format(cursor, query))
             app_log.warning("Database retry reason: {}".format(e))
+            time.sleep(0.1)
     return cursor
 
 
