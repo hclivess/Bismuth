@@ -79,4 +79,4 @@ def keys_load(privkey, pubkey):
     public_key_hashed = base64.b64encode(public_key_readable.encode('utf-8'))
     myaddress = hashlib.sha224(public_key_readable.encode('utf-8')).hexdigest()
 
-    return key, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress
+    return key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress

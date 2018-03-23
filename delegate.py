@@ -14,7 +14,7 @@ block_limit = last_block - 10000
 
 def qualify(database,cursor,escrow,block_limit):
     delegates_list = []
-    cursor.execute("SELECT DISTINCT openfield FROM transactions WHERE recipient = ? AND block_height > ? AND openfield LIKE ?", (escrow, block_limit, "vest:" + '%',))
+    cursor.execute("SELECT DISTINCT openfield FROM transactions WHERE recipient = ? AND block_height > ? AND openfield LIKE ?", (escrow, block_limit, "delegate:add:" + '%',))
     results = c.fetchall()
 
     for transaction in results:
@@ -26,7 +26,7 @@ def qualify(database,cursor,escrow,block_limit):
 
 
     for delegate in delegates_list:
-        cursor.execute("SELECT recipient, amount, openfield FROM transactions WHERE address = ? AND recipient = ? AND block_height > ? AND openfield LIKE ?",(delegate,escrow,block_limit,"vest:" + '%',))
+        cursor.execute("SELECT amount, openfield FROM transactions WHERE address = ? AND recipient = ? AND block_height > ? AND openfield LIKE ?",(delegate,escrow,block_limit,"delegate:add:" + '%',))
         delegations = c.fetchall()
 
         print(delegations)
@@ -34,9 +34,9 @@ def qualify(database,cursor,escrow,block_limit):
         delegated_amount = 0
         for delegation in delegations:
             print("delegation",delegation)
-            address = delegation[0]
-            amount = delegation[1]
-            delegate = delegation[2].split(":")[1]
+            #address = delegation[0]
+            amount = delegation[0]
+            #delegate = delegation[2].split(":")[1]
 
             delegated_amount += amount
             print ("total delegated",delegated_amount)
