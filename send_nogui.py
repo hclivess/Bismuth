@@ -1,15 +1,19 @@
 # this file takes optional arguments, arg1 = amount to spend, arg2 = recipient address, arg3 = keep forever (0/1), arg4=OpenField data
 # args3+4 are not prompted if ran without args
 
+from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
 
+from simplecrypt import encrypt, decrypt
 import base64
 import time
 import sqlite3
-import keys
+import os
+import essentials
 import sys
 import options
+import getpass
 
 config = options.Get()
 config.read()
@@ -17,7 +21,14 @@ full_ledger = config.full_ledger_conf
 ledger_path = config.ledger_path_conf
 hyper_path = config.hyper_path_conf
 
-key, private_key_readable, public_key_readable, public_key_hashed, address = keys.read()
+if os.path.exists("privkey.der"):
+    private_key_load = "privkey.der"
+else:
+    private_key_load = "privkey_encrypted.der"
+
+public_key_load = "pubkey.der"
+key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, address = essentials.keys_load(private_key_load, public_key_load)
+
 print('Number of arguments: %d arguments.' % len(sys.argv))
 print('Argument List: %s' % ', '.join(sys.argv))
 
@@ -89,6 +100,8 @@ try:
 except IndexError:
     openfield_input = input("Enter openfield data (message): ")
 
+
+
 # hardfork fee display
 fee = '%.8f' % float(0.01 + (float(len(openfield_input)) / 100000) + int(keep_input))  # 0.01 dust
 print("Fee: %s" % fee)
@@ -113,6 +126,13 @@ else:
     timestamp = '%.2f' % time.time()
     transaction = (str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input), str(keep_input), str(openfield_input))  # this is signed
     # print transaction
+
+    if key == None:
+        password = getpass.getpass(prompt="Enter password: ", stream=None)
+
+        encrypted_privkey = open(private_key_load, 'rb').read()
+        decrypted_privkey = decrypt(password, base64.b64decode(encrypted_privkey))  # decrypt privkey
+        key = RSA.importKey(decrypted_privkey)  # be able to sign
 
     h = SHA.new(str(transaction).encode("utf-8"))
     signer = PKCS1_v1_5.new(key)
