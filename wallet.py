@@ -349,6 +349,7 @@ def lock_fn(button):
     key = None
     decrypt_b.configure(text="Unlock", state=NORMAL)
     lock_b.configure(text="Locked", state=DISABLED)
+    sign_b.configure(text="Sign (locked)", state=DISABLED)
     password_var_dec.set("")
 
 
@@ -407,7 +408,7 @@ def decrypt_fn(destroy_this):
         # print key
         decrypt_b.configure(text="Unlocked", state=DISABLED)
         lock_b.configure(text="Lock", state=NORMAL)
-        sign_b.configure(state=NORMAL)
+        sign_b.configure(text="Sign Message", state=NORMAL)
         destroy_this.destroy()
     except:
         raise
@@ -1225,7 +1226,7 @@ def encryption_button_refresh():
         decrypt_b.configure(text="Unlocked", state=DISABLED)
     if unlocked == False:
         decrypt_b.configure(text="Unlock", state=NORMAL)
-        sign_b.configure(state=DISABLED)
+        sign_b.configure(text="Sign (locked)", state=DISABLED)
     if encrypted == False:
         encrypt_b.configure(text="Encrypt", state=NORMAL)
     if encrypted == True:
