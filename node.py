@@ -7,7 +7,7 @@
 # rolling back indexes: 1424 and 945
 
 
-VERSION = "4.2.3.5"
+VERSION = "4.2.3.6"
 
 # Bis specific modules
 import log, options, connections, peershandler, apihandler
