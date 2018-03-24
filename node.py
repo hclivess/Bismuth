@@ -678,7 +678,8 @@ def mempool_size_calculate(m):
 
 def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
     mempool_result = []
-    
+    mempool_size = mempool_size_calculate(m)  # caulculate current mempool size before adding txs
+
     if not data:
         mempool_result.append("Mempool from {} was empty".format(peer_ip))
 
@@ -690,9 +691,6 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
             time.sleep(1)
 
         # merge mempool
-
-        mempool_size = mempool_size_calculate(m)  # caulculate current mempool size before adding txs
-
         while mem_lock.locked() == True:
             time.sleep(0.1)
 
