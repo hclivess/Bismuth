@@ -677,6 +677,7 @@ def mempool_size_calculate(m):
 
 
 def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
+
     mempool_result = []
     mempool_size = mempool_size_calculate(m)  # caulculate current mempool size before adding txs
 
@@ -692,7 +693,7 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
 
         # merge mempool
         while mem_lock.locked() == True:
-            time.sleep(0.1)
+            time.sleep(1)
 
         mem_lock.acquire()
 
@@ -865,7 +866,6 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                             # receive mempool
 
                             # mempool_result.append("Mempool: Finished with {} received transactions from {}".format(len(block_list),peer_ip))
-                            return mempool_result
 
                 else:
                     mempool_result.append("Local mempool is already full for this tx type, skipping merging")
@@ -875,11 +875,14 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
             app_log.warning("Mempool: Error processing: {} {}".format(data,e))
             if debug_conf == 1:
                 raise
-            else:
-                return e, mempool_result
 
         finally:
             mem_lock.release()
+
+    try:
+        return e, mempool_result
+    except:
+        return mempool_result
 
 
 def verify(c):
