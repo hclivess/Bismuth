@@ -1,4 +1,5 @@
 import sqlite3
+import time
 
 conn = sqlite3.connect("static/ledger.db")
 conn.text_factory = str
@@ -21,13 +22,42 @@ def removals(database,cursor,escrow,block_limit):
 
     for transaction in removals:
         address = transaction[0]
-        txid = transaction[1].split(":")[2]
+        signature = transaction[1].split(":")[2]
         print("address",address)
-        print("txid", txid)
+        print("signature", signature)
 
-        cursor.execute("SELECT openfield FROM transactions WHERE recipient = ? AND block_height > ? AND openfield LIKE ?", (escrow, block_limit, "delegate:add:" + '%',))
 
-        #todo: check if counter tx exists and has the same sender, if it does, create a counter transaction to this one using direct db input, check for txid dupes
+        try:
+            # check if the source transaction exists
+            cursor.execute("SELECT amount, openfield FROM transactions WHERE recipient = ? AND block_height > ? AND signature = ? AND openfield LIKE ?", (escrow, block_limit, signature, "delegate:add:" + '%',))
+            delegation_verified = (c.fetchall())[0]
+
+            try:
+                amount = delegation_verified[0]
+            except:
+                amount = 0
+
+            print ("delegations_verified",delegation_verified)
+
+            #check if the payout already happened
+            try:
+                cursor.execute("SELECT * FROM transactions WHERE address = ? AND recipient = ? AND openfield = ?", (escrow, address, "delegate:refund:"+signature,))
+                dummy = c.fetchall()[0]
+                print (dummy)
+                print("already paid out")
+            except:
+                #payout if it didnt happen and index it
+                print("payout")
+                timestamp = int(time.time())
+
+                c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", ("0",timestamp, escrow, address,amount,"0","0","0","0","0","0","delegate:refund:" +signature))
+                conn.commit()
+
+
+                print("payout finished")
+        except Exception as e:
+            print(e, "not eligible for payout")
+
 
 
 def additions(database,cursor,escrow,block_limit):
