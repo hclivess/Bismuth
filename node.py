@@ -1161,10 +1161,10 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         block_valid = 0
                         app_log.warning("Negative balance spend attempt")
 
-                    if transaction != transaction_list[-1]:  # non-mining txs
-                        if received_address != hashlib.sha224(base64.b64decode(received_public_key_hashed)).hexdigest():
-                            app_log.warning("Attempt to spend from a wrong address")
-                            block_valid = 0
+                    #if transaction != transaction_list[-1]:  # non-mining txs / disabled (per pool request)
+                    if received_address != hashlib.sha224(base64.b64decode(received_public_key_hashed)).hexdigest():
+                        app_log.warning("Attempt to spend from a wrong address")
+                        block_valid = 0
 
                     if transaction == transaction_list[-1]:  # recognize the last transaction as the mining reward transaction
                         block_timestamp = received_timestamp
@@ -1336,7 +1336,6 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         # decide reward
 
                         if transaction == transaction_list[-1]:
-
                             db_amount = 0  # prevent spending from another address, because mining txs allow delegation
                             if db_block_height <= 10000000:
                                 mining_reward = 15 - (float(block_height_new) / float(1000000))  # one zero less
@@ -1345,6 +1344,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                             reward = '%.8f' % float(mining_reward + sum(fees_block[:-1]))
                             fee = 0
+
                         else:
                             reward = 0
 
