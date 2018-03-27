@@ -15,7 +15,6 @@ block_limit = last_block - 10000
 
 
 def removals(database,cursor,escrow,block_limit):
-    removals_list = []
     cursor.execute("SELECT address, openfield FROM transactions WHERE recipient = ? AND block_height > ? AND openfield LIKE ?", (escrow, block_limit, "delegate:remove:" + '%',))
     removals = c.fetchall()
     print("removals",removals)
@@ -26,41 +25,56 @@ def removals(database,cursor,escrow,block_limit):
         print("address",address)
         print("signature", signature)
 
-
         try:
             # check if the source transaction exists
-            cursor.execute("SELECT amount, openfield FROM transactions WHERE recipient = ? AND block_height > ? AND signature = ? AND openfield LIKE ?", (escrow, block_limit, signature, "delegate:add:" + '%',))
+            cursor.execute("SELECT * FROM delegations WHERE recipient = ? AND signature = ? AND operation = ?", (escrow, signature,"add"))
             delegation_verified = (c.fetchall())[0]
 
             try:
-                amount = delegation_verified[0]
+                amount = delegation_verified[4]
             except:
                 amount = 0
 
-            print ("delegations_verified",delegation_verified)
+            print ("delegations_verified", delegation_verified)
 
             #check if the payout already happened
+
+            timestamp = int(time.time())
+
             try:
                 cursor.execute("SELECT * FROM transactions WHERE address = ? AND recipient = ? AND openfield = ?", (escrow, address, "delegate:refund:"+signature,))
                 dummy = c.fetchall()[0]
                 print (dummy)
-                print("already paid out")
+                print("already paid out in ledger")
+
             except:
                 #payout if it didnt happen and index it
-                print("payout")
-                timestamp = int(time.time())
+                print("payout to ledger")
 
                 c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", ("0",timestamp, escrow, address,amount,"0","0","0","0","0","0","delegate:refund:" +signature))
                 conn.commit()
 
+            try:
+                cursor.execute("SELECT * FROM delegations WHERE address = ? AND recipient = ? AND operation = ? AND signature = ?", (escrow, address, "refund", signature,))
+                dummy = c.fetchall()[0]
+                print (dummy)
+                print("already paid out in index")
 
-                print("payout finished")
+            except:
+                print("payout to index")
+                c.execute("INSERT INTO delegations VALUES (?,?,?,?,?,?,?,?)", ("",timestamp, escrow, address,amount,signature,"refund","")) #index
+                conn.commit()
+
+                print("index payout finished")
+
         except Exception as e:
             print(e, "not eligible for payout")
 
 
 
 def additions(database,cursor,escrow,block_limit):
+    c.execute("CREATE TABLE IF NOT EXISTS delegations (block_height INTEGER, timestamp NUMERIC, address, recipient, amount NUMERIC, signature, operation, delegate)")
+
     delegates_list = []
     cursor.execute("SELECT DISTINCT openfield FROM transactions WHERE recipient = ? AND block_height > ? AND openfield LIKE ?", (escrow, block_limit, "delegate:add:" + '%',))
     additions = c.fetchall()
@@ -71,23 +85,33 @@ def additions(database,cursor,escrow,block_limit):
     print ("delegates_list",delegates_list)
 
     for delegate in delegates_list:
-        cursor.execute("SELECT amount, signature, openfield FROM transactions WHERE address = ? AND recipient = ? AND block_height > ? AND openfield LIKE ?",(delegate,escrow,block_limit,"delegate:add:" + '%',))
+        cursor.execute("SELECT block_height, timestamp, address, recipient, amount, signature, openfield FROM transactions WHERE address = ? AND recipient = ? AND block_height > ? AND openfield LIKE ?",(delegate,escrow,block_limit,"delegate:add:" + '%',))
         delegations = c.fetchall()
 
-        delegated_amount = 0
+        #delegated_amount = 0
         for delegation in delegations:
             print("delegation",delegation)
-            #address = delegation[0]
 
-            amount = delegation[0]
-            txid = delegation[1][:56]
+            block_height = delegation[0]
+            timestamp = delegation[1]
+            address = delegation[2]
+            recipient = delegation[3]
+            amount = delegation[4]
+            signature = delegation[5]
+            operation = delegation[6].split(":")[1]
+            delegate = delegation[6].split(":")[2]
 
-            print("amount", amount)
-            print("txid", txid)
             #delegate = delegation[2].split(":")[1]
 
-            delegated_amount += amount
-        print ("total delegated",delegated_amount)
+            try:
+                cursor.execute("SELECT * FROM delegations WHERE signature = ?",(signature,))
+                dummy = c.fetchall()[0] #index only if it is not yet indexed
+            except:
+                cursor.execute("INSERT INTO delegations VALUES (?,?,?,?,?,?,?,?)",(block_height,timestamp, address, recipient, amount, signature, operation, delegate))
+                conn.commit()
+
+            #delegated_amount += amount
+        #print ("total delegated",delegated_amount)
 
 
 additions(conn,c,"4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed",block_limit)
