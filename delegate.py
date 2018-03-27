@@ -15,6 +15,7 @@ block_limit = last_block - 10000
 
 
 def removals(database,cursor,escrow,block_limit):
+    """cancel all delegations and pay back, to be executed at an end of a phase"""
     cursor.execute("SELECT address, openfield FROM transactions WHERE recipient = ? AND block_height > ? AND openfield LIKE ?", (escrow, block_limit, "delegate:remove:" + '%',))
     removals = c.fetchall()
     print("removals",removals)
@@ -41,18 +42,7 @@ def removals(database,cursor,escrow,block_limit):
 
             timestamp = int(time.time())
 
-            try:
-                cursor.execute("SELECT * FROM transactions WHERE address = ? AND recipient = ? AND openfield = ?", (escrow, address, "delegate:refund:"+signature,))
-                dummy = c.fetchall()[0]
-                print (dummy)
-                print("already paid out in ledger")
 
-            except:
-                #payout if it didnt happen and index it
-                print("payout to ledger")
-
-                c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", ("0",timestamp, escrow, address,amount,"0","0","0","0","0","0","delegate:refund:" +signature))
-                conn.commit()
 
             try:
                 cursor.execute("SELECT * FROM delegations WHERE address = ? AND recipient = ? AND operation = ? AND signature = ?", (escrow, address, "refund", signature,))
@@ -67,12 +57,28 @@ def removals(database,cursor,escrow,block_limit):
 
                 print("index payout finished")
 
+
+                try:
+                    cursor.execute("SELECT * FROM transactions WHERE address = ? AND recipient = ? AND openfield = ?", (escrow, address, "delegate:refund:" + signature,))
+                    dummy = c.fetchall()[0]
+                    print(dummy)
+                    print("already paid out in ledger")
+
+                except:
+                    # payout if it didnt happen and index it
+                    print("payout to ledger")
+
+                    c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", ("0", timestamp, escrow, address, amount, "0", "0", "0", "0", "0", "0", "delegate:refund:" + signature))
+                    conn.commit()
+
         except Exception as e:
             print(e, "not eligible for payout")
 
 
 
 def additions(database,cursor,escrow,block_limit):
+    """register all delegations to the index"""
+
     c.execute("CREATE TABLE IF NOT EXISTS delegations (block_height INTEGER, timestamp NUMERIC, address, recipient, amount NUMERIC, signature, operation, delegate)")
 
     delegates_list = []
@@ -113,7 +119,19 @@ def additions(database,cursor,escrow,block_limit):
             #delegated_amount += amount
         #print ("total delegated",delegated_amount)
 
+def list(database, cursor, block_limit):
+    """determine top masternodes to know which are eligible for PoS rewards"""
+    c.execute("SELECT DISTINCT delegate FROM delegations")
+    delegates = c.fetchall()[0]
+    print ("delegates",delegates)
+
+
+    for delegate in delegates:
+        c.execute("SELECT count(amount) FROM delegations WHERE delegate = ?", (delegate,))
+        amounts = c.fetchall()[0][0]
+        print(delegate, amounts)
+
 
 additions(conn,c,"4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed",block_limit)
 removals(conn,c,"4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed",block_limit)
-
+list(conn,c,block_limit)
