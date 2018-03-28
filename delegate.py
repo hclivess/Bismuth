@@ -30,6 +30,7 @@ def removals(database,cursor,escrow,block_limit):
             # check if the source transaction exists
             cursor.execute("SELECT * FROM delegations WHERE recipient = ? AND signature = ? AND operation = ?", (escrow, signature,"add"))
             delegation_verified = (c.fetchall())[0]
+            block_height = delegation_verified[0]
 
             try:
                 amount = delegation_verified[4]
@@ -52,7 +53,7 @@ def removals(database,cursor,escrow,block_limit):
 
             except:
                 print("payout to index")
-                c.execute("INSERT INTO delegations VALUES (?,?,?,?,?,?,?,?)", ("",timestamp, escrow, address,amount,signature,"refund","")) #index
+                c.execute("INSERT INTO delegations VALUES (?,?,?,?,?,?,?,?)", (block_height,timestamp, escrow, address,amount,signature,"refund","")) #index
                 conn.commit()
 
                 print("index payout finished")
