@@ -15,7 +15,7 @@ block_limit = last_block - 10000
 
 
 def removals(database,cursor,escrow,block_limit):
-    """cancel all delegations and pay back, to be executed at an end of a phase"""
+    """cancel selected delegations and pay back, to be executed at an end of a phase"""
     cursor.execute("SELECT address, openfield FROM transactions WHERE recipient = ? AND block_height > ? AND openfield LIKE ?", (escrow, block_limit, "delegate:remove:" + '%',))
     removals = c.fetchall()
     print("removals",removals)

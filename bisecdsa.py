@@ -44,13 +44,15 @@ def verify(pubkey, message, signature):
     except BadSignatureError:
         print("Invalid signature")
 
-privkey_generate("privkey_ecdsa.pem","pubkey_ecdsa.pem")
-privkey, pubkey, address = keys_load("privkey_ecdsa.pem","pubkey_ecdsa.pem")
-print (address)
 
-message = "message"
-signature = sign(message,privkey, pubkey)
-sign("message",privkey, pubkey)
-verify(pubkey,message,signature)
+if __name__ == "__main__":
+    privkey_generate("privkey_ecdsa.pem","pubkey_ecdsa.pem")
+    privkey, pubkey, address = keys_load("privkey_ecdsa.pem","pubkey_ecdsa.pem")
+    print (address)
+
+    message = "message"
+    signature = sign(message,privkey, pubkey)
+    sign("message",privkey, pubkey)
+    verify(pubkey,message,signature)
 
 

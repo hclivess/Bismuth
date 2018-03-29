@@ -188,6 +188,20 @@ def fee_calculate(openfield):
     return fee
 
 
+def fingerprint():
+    root.filename = filedialog.askopenfilename (multiple=True, initialdir="", title="Select files for fingerprinting", filetypes=[("Files", "*")])
+
+    dict = {}
+
+    for file in root.filename:
+        with open(file, 'rb') as fp:
+            data = hashlib.blake2b(fp.read()).hexdigest()
+            dict[os.path.split(file)[-1]] = data
+
+    openfield.insert (INSERT, dict)
+
+
+
 def keys_load_dialog():
     global key
     global key
@@ -1206,8 +1220,11 @@ backup_b.grid(row=button_row_zero + 6, column=column, sticky=N + E, pady=0, padx
 load_b = Button(f5, text="Load Wallet", command=keys_load_dialog, height=1, width=20, font=("Tahoma", 8))
 load_b.grid(row=button_row_zero + 7, column=column, sticky=N + E, pady=0, padx=15)
 
+fingerprint_b = Button(f5, text="Fingerprint", command=fingerprint, height=1, width=20, font=("Tahoma", 8))
+fingerprint_b.grid(row=button_row_zero + 8, column=column, sticky=N + E, pady=0, padx=15)
+
 tokens_b = Button(f5, text="Tokens", command=tokens, height=1, width=20, font=("Tahoma", 8))
-tokens_b.grid(row=button_row_zero + 8, column=column, sticky=N + E, pady=0, padx=15)
+tokens_b.grid(row=button_row_zero + 9, column=column, sticky=N + E, pady=0, padx=15)
 
 # quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=10, font=("Tahoma", 8))
 # quit_b.grid(row=16, column=0, sticky=W + E + S, pady=0, padx=15)
