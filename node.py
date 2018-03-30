@@ -715,7 +715,7 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                     mempool_amount = '%.8f' % float(transaction[3])
                     mempool_signature_enc = str(transaction[4])[:684]
                     mempool_public_key_hashed = str(transaction[5])[:1068]
-                    mempool_keep = str(transaction[6])[:1]
+                    mempool_keep = str(transaction[6])[:10]
                     mempool_openfield = str(transaction[7])[:100000]
 
                     mempool_public_key = RSA.importKey(base64.b64decode(mempool_public_key_hashed))  # convert readable key to instance
@@ -743,9 +743,9 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                     except:
                         ledger_in = 0
 
-                    if mempool_keep != "1" and mempool_keep != "0":
-                        mempool_result.append = ("Mempool: Wrong keep value {}".format(mempool_keep))
-                        acceptable = 0
+                    #if mempool_keep != "1" and mempool_keep != "0":
+                    #    mempool_result.append = ("Mempool: Wrong keep value {}".format(mempool_keep))
+                    #    acceptable = 0
 
                     if mempool_address != hashlib.sha224(base64.b64decode(mempool_public_key_hashed)).hexdigest():
                         mempool_result.append("Mempool: Attempt to spend from a wrong address")
@@ -1132,7 +1132,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                     received_amount = '%.8f' % float(transaction[3])
                     received_signature_enc = str(transaction[4])[:684]
                     received_public_key_hashed = str(transaction[5])[:1068]
-                    received_keep = str(transaction[6])[:1]
+                    received_keep = str(transaction[6])[:10]
                     received_openfield = str(transaction[7])
 
                     transaction_list_converted.append((received_timestamp, received_address, received_recipient, received_amount, received_signature_enc, received_public_key_hashed, received_keep, received_openfield))
@@ -1152,10 +1152,10 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                     else:
                         app_log.info("Valid signature")
 
-                    if received_keep != "1" and received_keep != "0":
-                        block_valid = 0
-                        # print (type(received_keep))
-                        app_log.warning("Wrong keep value {}".format(received_keep))
+                    #if received_keep != "1" and received_keep != "0":
+                    #    block_valid = 0
+                    #    # print (type(received_keep))
+                    #    app_log.warning("Wrong keep value {}".format(received_keep))
 
                     if float(received_amount) < 0:
                         block_valid = 0
@@ -1264,7 +1264,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         db_amount = '%.8f' % float(transaction[3])
                         db_signature = str(transaction[4])[:684]
                         db_public_key_hashed = str(transaction[5])[:1068]
-                        db_keep = str(transaction[6])[:1]
+                        db_keep = str(transaction[6])[:10]
                         db_openfield = str(transaction[7])
 
                         # print "sync this"
