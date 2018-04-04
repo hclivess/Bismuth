@@ -655,10 +655,10 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                     # condition 1: size limit or bypass, condition 2: spend more than 25 coins, condition 3: have length of openfield larger than 200
                     # all transactions in the mempool need to be cycled to check for special cases, therefore no while/break loop here
 
-                    mempool_timestamp = '%.2f' % float(transaction[0])
+                    mempool_timestamp = str(quantize_two(transaction[0]))
                     mempool_address = str(transaction[1])[:56]
                     mempool_recipient = str(transaction[2])[:56]
-                    mempool_amount = '%.8f' % float(transaction[3])
+                    mempool_amount = str(quantize_eight(transaction[3]))
                     mempool_signature_enc = str(transaction[4])[:684]
                     mempool_public_key_hashed = str(transaction[5])[:1068]
                     mempool_keep = str(transaction[6])[:10]
@@ -789,6 +789,8 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                         # mempool_result.append("Mempool: Total debit: " + str(debit))
                         balance = credit - debit - fees + rewards - quantize_eight(mempool_amount)
                         balance_pre = credit_ledger - debit_ledger - fees + rewards
+
+                        #print("qwertz",credit, debit, fees, rewards, mempool_amount, balance, balance_pre)
                         # mempool_result.append("Mempool: Projected transction address balance: " + str(balance))
 
                         # fee = '%.8f' % float(0.01 + (float(len(mempool_openfield)) / 100000) + int(mempool_keep))  # 0.01 dust
