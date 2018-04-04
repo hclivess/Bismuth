@@ -39,7 +39,8 @@ class Get:
         "whitelist":["list"],
         "nodes_ban_reset":["int"],
         "mempool_allowed": ["list"],
-        "terminal_output": ["str"]
+        "terminal_output": ["str"],
+        "hidpi": ["str"]
     }
  
     def load_file(self,filename):

@@ -38,6 +38,7 @@ port = config.port
 light_ip = config.light_ip_conf
 version = config.version_conf
 terminal_output = config.terminal_output
+hidpi = config.hidpi
 
 if "testnet" in version:
     port = 2829
@@ -1149,6 +1150,9 @@ root.wm_title("Bismuth Light Wallet running on {}".format(light_ip))
 
 img = Image("photo", file="graphics/icon.gif")
 root.tk.call('wm', 'iconphoto', root._w, img)
+
+if hidpi == "yes":
+    root.tk.call("tk", "scaling", 2.0)
 
 password_var_enc = StringVar()
 password_var_con = StringVar()
