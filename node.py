@@ -758,13 +758,19 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                         # include the new block
 
                         execute_param(c, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (mempool_address,))
-                        credit_ledger = quantize_eight(c.fetchone()[0])
-                        credit_ledger = 0 if credit_ledger is None else quantize_eight(credit_ledger)
+                        try:
+                            credit_ledger = quantize_eight(c.fetchone()[0])
+                            credit_ledger = 0 if credit_ledger is None else quantize_eight(credit_ledger)
+                        except:
+                            credit_ledger = 0
                         credit = credit_ledger
 
                         execute_param(c, ("SELECT sum(amount) FROM transactions WHERE address = ?;"), (mempool_address,))
-                        debit_ledger = quantize_eight(c.fetchone()[0])
-                        debit_ledger = 0 if debit_ledger is None else debit_ledger
+                        try:
+                            debit_ledger = quantize_eight(c.fetchone()[0])
+                            debit_ledger = 0 if debit_ledger is None else debit_ledger
+                        except:
+                            debit_ledger = 0
 
                         debit = debit_ledger + debit_mempool
 
