@@ -655,10 +655,10 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                     # condition 1: size limit or bypass, condition 2: spend more than 25 coins, condition 3: have length of openfield larger than 200
                     # all transactions in the mempool need to be cycled to check for special cases, therefore no while/break loop here
 
-                    mempool_timestamp = quantize_two(transaction[0])
+                    mempool_timestamp = '%.2f' % float(transaction[0])
                     mempool_address = str(transaction[1])[:56]
                     mempool_recipient = str(transaction[2])[:56]
-                    mempool_amount = quantize_eight(transaction[3])
+                    mempool_amount = '%.8f' % float(transaction[3])
                     mempool_signature_enc = str(transaction[4])[:684]
                     mempool_public_key_hashed = str(transaction[5])[:1068]
                     mempool_keep = str(transaction[6])[:10]
@@ -701,10 +701,10 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                         acceptable = 0
                         mempool_result.append("Mempool: Negative balance spend attempt")
 
-                    if quantize_two(mempool_timestamp) > quantize_two(time.time() + 30):  # dont accept future txs
+                    if quantize_two(mempool_timestamp) > time.time() + 30:  # dont accept future txs
                         acceptable = 0
 
-                    if quantize_two(mempool_timestamp) < quantize_two(time.time() - 82800):  # dont accept old txs, mempool needs to be harsher than ledger
+                    if quantize_two(mempool_timestamp) < time.time() - 82800:  # dont accept old txs, mempool needs to be harsher than ledger
                         acceptable = 0
 
                     if (mempool_in == 1) and (ledger_in == 1):  # remove from mempool if it's in both ledger and mempool already
@@ -723,14 +723,10 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                     # verify signature
                     verifier = PKCS1_v1_5.new(mempool_public_key)
 
-                    hash = SHA.new(str((mempool_timestamp, mempool_address, mempool_recipient, mempool_amount, mempool_keep, mempool_openfield)).encode("utf-8")) #support signing of decimals
+                    hash = SHA.new(str((mempool_timestamp, mempool_address, mempool_recipient, mempool_amount, mempool_keep, mempool_openfield)).encode("utf-8"))
                     if not verifier.verify(hash, mempool_signature_dec):
-
-                        hash = SHA.new (str ((str(mempool_timestamp), mempool_address, mempool_recipient, str(mempool_amount), mempool_keep, mempool_openfield)).encode ("utf-8")) #old system
-                        if not verifier.verify (hash, mempool_signature_dec):
-
-                            acceptable = 0
-                            mempool_result.append("Mempool: Wrong signature in mempool insert attempt: {}".format(transaction))
+                        acceptable = 0
+                        mempool_result.append("Mempool: Wrong signature in mempool insert attempt: {}".format(transaction))
 
                     # verify signature
 
@@ -748,9 +744,9 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
 
                         if result != None:
                             for x in result:
-                                debit_tx = quantize_eight(x[0])
+                                debit_tx = float(x[0])
                                 fee = fee_calculate(x[1])
-                                debit_mempool = debit_mempool + debit_tx + quantize_eight(fee)
+                                debit_mempool = debit_mempool + debit_tx + float(fee)
                         else:
                             debit_mempool = 0
                         # include mempool fees
@@ -760,9 +756,10 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                         execute_param(c, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (mempool_address,))
                         try:
                             credit_ledger = quantize_eight(c.fetchone()[0])
-                            credit_ledger = 0 if credit_ledger is None else quantize_eight(credit_ledger)
+                            credit_ledger = 0 if credit_ledger is None else credit_ledger
                         except:
                             credit_ledger = 0
+
                         credit = credit_ledger
 
                         execute_param(c, ("SELECT sum(amount) FROM transactions WHERE address = ?;"), (mempool_address,))
@@ -780,6 +777,7 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                             fees = 0 if fees is None else fees
                         except:
                             fees = 0
+
                         execute_param(c, ("SELECT sum(reward) FROM transactions WHERE recipient = ?;"), (mempool_address,))
                         try:
                             rewards = quantize_eight(c.fetchone()[0])
@@ -789,17 +787,18 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
 
                         # mempool_result.append("Mempool: Total credit: " + str(credit))
                         # mempool_result.append("Mempool: Total debit: " + str(debit))
-                        balance = credit - debit - fees + rewards - mempool_amount
+                        balance = credit - debit - fees + rewards - quantize_eight(mempool_amount)
                         balance_pre = credit_ledger - debit_ledger - fees + rewards
                         # mempool_result.append("Mempool: Projected transction address balance: " + str(balance))
 
+                        # fee = '%.8f' % float(0.01 + (float(len(mempool_openfield)) / 100000) + int(mempool_keep))  # 0.01 dust
                         fee = fee_calculate(mempool_openfield)
 
                         time_now = time.time()
-                        if quantize_two(mempool_timestamp) > quantize_two(time_now) + 30:
-                            mempool_result.append("Mempool: Future transaction not allowed, timestamp {} minutes in the future".format((quantize_two(mempool_timestamp) - quantize_two(time_now)) / 60))
+                        if quantize_two(mempool_timestamp) > float(time_now) + 30:
+                            mempool_result.append("Mempool: Future transaction not allowed, timestamp {} minutes in the future".format((float(mempool_timestamp) - float(time_now)) / 60))
 
-                        elif quantize_two(time_now) - 86400 > quantize_two(mempool_timestamp):
+                        elif quantize_two(time_now) - 86400 >  quantize_two(mempool_timestamp):
                             mempool_result.append("Mempool: Transaction older than 24h not allowed.")
 
                         elif quantize_eight(mempool_amount) > quantize_eight(balance_pre):
@@ -838,6 +837,7 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
         return e, mempool_result
     except:
         return mempool_result
+
 
 
 def verify(c):
