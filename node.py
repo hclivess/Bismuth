@@ -27,6 +27,8 @@ from Crypto.Signature import PKCS1_v1_5
 # load config
 # global ban_threshold
 
+getcontext().rounding=ROUND_HALF_EVEN
+
 global hdd_block
 global last_block
 last_block = 0
@@ -430,19 +432,23 @@ def ledger_compress(ledger_path_conf, hyper_path_conf):
             unique_addressess = hyp.fetchall()
 
             for x in set(unique_addressess):
-                hyp.execute("SELECT sum(amount)+sum(reward) FROM transactions WHERE (recipient = ? AND block_height < ?);", (x[0],) + (db_block_height - depth,))
-                try:
-                    credit = Decimal(hyp.fetchone()[0])
-                    credit = 0 if credit is None else credit
-                except:
-                    credit = 0
 
-                hyp.execute("SELECT sum(amount)+sum(fee) FROM transactions WHERE (address = ? AND block_height < ?);", (x[0],) + (db_block_height - depth,))
-                try:
-                    debit = Decimal(hyp.fetchone()[0])
-                    debit = 0 if debit is None else debit
-                except:
-                    debit = 0
+                credit = Decimal ("0")
+                debit = Decimal ("0")
+
+                for entry in hyp.execute("SELECT amount,reward FROM transactions WHERE (recipient = ? AND block_height < ?);", (x[0],) + (db_block_height - depth,)):
+                    try:
+                        credit = credit + Decimal (entry[0]) + Decimal (entry[1])
+                        credit = 0 if credit is None else credit
+                    except Exception as e:
+                        credit = 0
+
+                for entry in hyp.execute("SELECT amount,fee FROM transactions WHERE (address = ? AND block_height < ?);", (x[0],) + (db_block_height - depth,)):
+                    try:
+                        debit = debit + Decimal (entry[0]) + Decimal (entry[1])
+                        debit = 0 if debit is None else debit
+                    except Exception as e:
+                        debit = 0
 
                 end_balance = quantize_eight(credit - debit)
 
