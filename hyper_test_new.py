@@ -76,7 +76,7 @@ def balance_from_cursor(cursor, address):
     for entry in execute_param(cursor, "SELECT amount,reward FROM transactions WHERE recipient = ? ",(address, )):
         try:
             #result = cursor.fetchall()
-            credit = quantize_eight(credit + Decimal(entry[0]) + Decimal(entry[1]))
+            credit = credit + Decimal(entry[0]) + Decimal(entry[1])
             #print (result)
             credit = 0 if credit is None else credit
         except Exception as e:
@@ -87,7 +87,7 @@ def balance_from_cursor(cursor, address):
     for entry in execute_param(cursor, "SELECT amount,fee FROM transactions WHERE address = ? ",(address, )):
         try:
             # result = cursor.fetchall()
-            debit = quantize_eight (debit + Decimal (entry[0]) + Decimal (entry[1]))
+            debit = debit + Decimal (entry[0]) + Decimal (entry[1])
             # print (result)
             debit = 0 if debit is None else debit
         except Exception as e:

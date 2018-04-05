@@ -279,12 +279,12 @@ def db_to_drive(hdd, h, hdd2, h2):
 
     if full_ledger == 1:  # we want to save to ledger.db from hyper.db
         for x in result2:
-            h.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
+            h.execute("INSERT INTO misc VALUES (?,?)", (x[0], str(x[1])))
         commit(hdd)
 
     if ram_conf == 1:  # we want to save to hyper.db from RAM
         for x in result2:
-            h2.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
+            h2.execute("INSERT INTO misc VALUES (?,?)", (x[0], str(x[1])))
         commit(hdd2)
 
     # reward
@@ -434,8 +434,6 @@ def ledger_compress(ledger_path_conf, hyper_path_conf):
             for x in set(unique_addressess):
 
                 credit = Decimal ("0")
-                debit = Decimal ("0")
-
                 for entry in hyp.execute("SELECT amount,reward FROM transactions WHERE (recipient = ? AND block_height < ?);", (x[0],) + (db_block_height - depth,)):
                     try:
                         credit = credit + Decimal (entry[0]) + Decimal (entry[1])
@@ -443,6 +441,7 @@ def ledger_compress(ledger_path_conf, hyper_path_conf):
                     except Exception as e:
                         credit = 0
 
+                debit = Decimal ("0")
                 for entry in hyp.execute("SELECT amount,fee FROM transactions WHERE (address = ? AND block_height < ?);", (x[0],) + (db_block_height - depth,)):
                     try:
                         debit = debit + Decimal (entry[0]) + Decimal (entry[1])
@@ -593,7 +592,7 @@ def difficulty(c, mode):
         app_log.warning("Current hashrate: {}".format(H))
         app_log.warning("New difficulty after adjustment: {}".format(Dnew_adjusted))
         app_log.warning("Difficulty: {} {}".format(difficulty, difficulty2))
-    return (float('%.10f' % difficulty), float('%.10f' % difficulty2))  # need to keep float here for database inserts support
+    return (quantize_ten(difficulty), quantize_ten(difficulty2))  # need to keep float here for database inserts support
 
 
 
@@ -661,10 +660,10 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                     # condition 1: size limit or bypass, condition 2: spend more than 25 coins, condition 3: have length of openfield larger than 200
                     # all transactions in the mempool need to be cycled to check for special cases, therefore no while/break loop here
 
-                    mempool_timestamp = str(quantize_two(transaction[0]))
+                    mempool_timestamp = '%.2f' % (quantize_two(transaction[0]))
                     mempool_address = str(transaction[1])[:56]
                     mempool_recipient = str(transaction[2])[:56]
-                    mempool_amount = str(quantize_eight(transaction[3]))
+                    mempool_amount = '%.8f' % (quantize_eight(transaction[3])) #convert scientific notation
                     mempool_signature_enc = str(transaction[4])[:684]
                     mempool_public_key_hashed = str(transaction[5])[:1068]
                     mempool_keep = str(transaction[6])[:10]
@@ -751,60 +750,64 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                         if result != None:
                             for x in result:
                                 debit_tx = quantize_eight(x[0])
-                                fee = fee_calculate(x[1])
-                                debit_mempool = debit_mempool + debit_tx + quantize_eight(fee)
+                                fee = quantize_eight(fee_calculate(x[1]))
+                                debit_mempool = quantize_eight(debit_mempool + debit_tx + fee)
                         else:
                             debit_mempool = 0
                         # include mempool fees
 
                         # include the new block
 
-                        execute_param(c, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (mempool_address,))
-                        try:
-                            credit_ledger = quantize_eight(c.fetchone()[0])
-                            credit_ledger = 0 if credit_ledger is None else credit_ledger
-                        except:
-                            credit_ledger = 0
+                        credit_ledger = Decimal("0")
+                        for entry in execute_param(c, ("SELECT amount FROM transactions WHERE recipient = ?;"), (mempool_address,)):
+                            try:
+                                credit_ledger = credit_ledger + Decimal(entry[0])
+                                credit_ledger = 0 if credit_ledger is None else credit_ledger
+                            except:
+                                credit_ledger = 0
 
                         credit = credit_ledger
 
-                        execute_param(c, ("SELECT sum(amount) FROM transactions WHERE address = ?;"), (mempool_address,))
-                        try:
-                            debit_ledger = quantize_eight(c.fetchone()[0])
-                            debit_ledger = 0 if debit_ledger is None else debit_ledger
-                        except:
-                            debit_ledger = 0
+                        debit_ledger = Decimal("0")
+                        for entry in execute_param(c, ("SELECT amount FROM transactions WHERE address = ?;"), (mempool_address,)):
+                            try:
+                                debit_ledger = debit_ledger + Decimal(entry[0])
+                                debit_ledger = 0 if debit_ledger is None else debit_ledger
+                            except:
+                                debit_ledger = 0
 
                         debit = debit_ledger + debit_mempool
 
-                        execute_param(c, ("SELECT sum(fee) FROM transactions WHERE address = ?;"), (mempool_address,))
-                        try:
-                            fees = quantize_eight(c.fetchone()[0])
-                            fees = 0 if fees is None else fees
-                        except:
-                            fees = 0
+                        fees = Decimal("0")
+                        for entry in execute_param(c, ("SELECT fee FROM transactions WHERE address = ?;"), (mempool_address,)):
+                            try:
+                                fees = fees + Decimal(entry[0])
+                                fees = 0 if fees is None else fees
+                            except:
+                                fees = 0
 
-                        execute_param(c, ("SELECT sum(reward) FROM transactions WHERE recipient = ?;"), (mempool_address,))
-                        try:
-                            rewards = quantize_eight(c.fetchone()[0])
-                            rewards = 0 if rewards is None else rewards
-                        except:
-                            rewards = 0
+                        rewards =  Decimal("0")
+                        for entry in execute_param(c, ("SELECT sum(reward) FROM transactions WHERE recipient = ?;"), (mempool_address,)):
+                            try:
+                                rewards = rewards + Decimal(entry[0])
+                                rewards = 0 if rewards is None else rewards
+                            except:
+                                rewards = 0
 
                         # mempool_result.append("Mempool: Total credit: " + str(credit))
                         # mempool_result.append("Mempool: Total debit: " + str(debit))
-                        balance = credit - debit - fees + rewards - quantize_eight(mempool_amount)
-                        balance_pre = credit_ledger - debit_ledger - fees + rewards
+                        balance = quantize_eight(credit - debit - fees + rewards - quantize_eight(mempool_amount))
+                        balance_pre = quantize_eight(credit_ledger - debit_ledger - fees + rewards)
 
-                        #print("qwertz",credit, debit, fees, rewards, mempool_amount, balance, balance_pre)
+                        print("qwertz",credit, debit, fees, rewards, mempool_amount, balance, balance_pre)
                         # mempool_result.append("Mempool: Projected transction address balance: " + str(balance))
 
                         # fee = '%.8f' % float(0.01 + (float(len(mempool_openfield)) / 100000) + int(mempool_keep))  # 0.01 dust
                         fee = fee_calculate(mempool_openfield)
 
                         time_now = time.time()
-                        if quantize_two(mempool_timestamp) > float(time_now) + 30:
-                            mempool_result.append("Mempool: Future transaction not allowed, timestamp {} minutes in the future".format((float(mempool_timestamp) - float(time_now)) / 60))
+                        if quantize_two(mempool_timestamp) > quantize_two(time_now) + 30:
+                            mempool_result.append("Mempool: Future transaction not allowed, timestamp {} minutes in the future".format((quantize_two(mempool_timestamp) - quantize_two(time_now)) / 60))
 
                         elif quantize_two(time_now) - 86400 >  quantize_two(mempool_timestamp):
                             mempool_result.append("Mempool: Transaction older than 24h not allowed.")
@@ -867,18 +870,18 @@ def verify(c):
         invalid = 0
         for row in execute(c, ('SELECT * FROM transactions WHERE block_height > 0 and ORDER BY block_height')):
 
-            db_block_height = row[0]
-            db_timestamp = '%.2f' % float(row[1])
-            db_address = row[2]
-            db_recipient = row[3]
-            db_amount = row[4]
-            db_signature_enc = row[5]
-            db_public_key_hashed = row[6]
+            db_block_height = str(row[0])
+            db_timestamp = '%.2f' % (quantize_two(row[1]))
+            db_address = str(row[2])[:56]
+            db_recipient = str(row[3])[:56]
+            db_amount = '%.8f' %(quantize_eight(row[4]))
+            db_signature_enc = str(row[5])[:684]
+            db_public_key_hashed = str(row[6])[:1068]
             db_public_key = RSA.importKey(base64.b64decode(db_public_key_hashed))
-            db_keep = str(row[10])
-            db_openfield = row[11]
+            db_keep = str(row[10])[:10]
+            db_openfield = str(row[11])[:100000]
 
-            db_transaction = (str(db_timestamp), str(db_address), str(db_recipient), '%.8f' % float(db_amount), str(db_keep), str(db_openfield))
+            db_transaction = (db_timestamp, db_address, db_recipient, db_amount, db_keep, db_openfield)
 
             db_signature_dec = base64.b64decode(db_signature_enc)
             verifier = PKCS1_v1_5.new(db_public_key)
@@ -1022,8 +1025,8 @@ def manager(c, mempool, m):
         execute(c, "SELECT block_height, timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
         result = c.fetchall()[0]
         last_block = result[0]
-        last_block_ago = float(result[1])
-        app_log.warning("Status: Last block {} was generated {} minutes ago".format(last_block, '%.2f' % ((time.time() - last_block_ago) / 60)))
+        last_block_ago = quantize_two(result[1])
+        app_log.warning("Status: Last block {} was generated {} minutes ago".format(last_block, '%.2f' % ((quantize_two(time.time()) - last_block_ago) / 60)))
         # last block
 
         # app_log.info(threading.enumerate() all threads)
@@ -1082,21 +1085,21 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                 result = c.fetchall()
                 db_block_hash = result[0][0]
                 db_block_height = result[0][1]
-                db_timestamp_last = float(result[0][2])
+                db_timestamp_last = quantize_two(result[0][2])
                 block_height_new = db_block_height + 1
                 # previous block info
 
                 transaction_list_converted = []  # makes sure all the data are properly converted as in the previous lines
                 for transaction in transaction_list:
                     # verify signatures
-                    received_timestamp = '%.2f' % float(transaction[0])
+                    received_timestamp = '%.2f' % (quantize_two(transaction[0]))
                     received_address = str(transaction[1])[:56]
                     received_recipient = str(transaction[2])[:56]
-                    received_amount = '%.8f' % float(transaction[3])
+                    received_amount = '%.8f' %(quantize_eight(transaction[3]))
                     received_signature_enc = str(transaction[4])[:684]
                     received_public_key_hashed = str(transaction[5])[:1068]
                     received_keep = str(transaction[6])[:10]
-                    received_openfield = str(transaction[7])
+                    received_openfield = str(transaction[7])[:100000]
 
                     transaction_list_converted.append((received_timestamp, received_address, received_recipient, received_amount, received_signature_enc, received_public_key_hashed, received_keep, received_openfield))
 
@@ -1120,7 +1123,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                     #    # print (type(received_keep))
                     #    app_log.warning("Wrong keep value {}".format(received_keep))
 
-                    if float(received_amount) < 0:
+                    if quantize_eight(received_amount) < 0:
                         block_valid = 0
                         app_log.warning("Negative balance spend attempt")
 
@@ -1139,16 +1142,16 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         #    block_valid = 0
 
                     time_now = time.time()
-                    if float(time_now) + 30 < float(received_timestamp):
-                        app_log.warning("Future transaction not allowed, timestamp {} minutes in the future".format((float(received_timestamp) - float(time_now)) / 60))
+                    if quantize_two(time_now) + 30 < quantize_two(received_timestamp):
+                        app_log.warning("Future transaction not allowed, timestamp {} minutes in the future".format((quantize_two(received_timestamp) - quantize_two(time_now)) / 60))
                         block_valid = 0
-                    if float(db_timestamp_last) - 86400 > float(received_timestamp):
+                    if quantize_two(db_timestamp_last) - 86400 > quantize_two(received_timestamp):
                         app_log.warning("Transaction older than 24h not allowed.")
                         block_valid = 0
                         # verify signatures
 
                 # reject blocks older than latest block
-                if float(block_timestamp) <= float(db_timestamp_last):
+                if quantize_two(block_timestamp) <= quantize_two(db_timestamp_last):
                     block_valid = 0
                     app_log.warning("Block is older than the previous one, will be rejected")
                 # reject blocks older than latest block
@@ -1221,14 +1224,14 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                 if block_valid == 1:
                     for transaction in transaction_list:
-                        db_timestamp = '%.2f' % float(transaction[0])
+                        db_timestamp = '%.2f' % quantize_two(transaction[0])
                         db_address = str(transaction[1])[:56]
                         db_recipient = str(transaction[2])[:56]
-                        db_amount = '%.8f' % float(transaction[3])
+                        db_amount = '%.8f' % quantize_eight(transaction[3])
                         db_signature = str(transaction[4])[:684]
                         db_public_key_hashed = str(transaction[5])[:1068]
                         db_keep = str(transaction[6])[:10]
-                        db_openfield = str(transaction[7])
+                        db_openfield = str(transaction[7])[:100000]
 
                         # print "sync this"
                         # print block_timestamp
@@ -1250,50 +1253,56 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                         for x in transaction_list:
                             if x[1] == db_address:  # make calculation relevant to a particular address in the block
-                                block_debit_address = float(block_debit_address) + float(x[3])
+                                block_debit_address = quantize_eight(Decimal(block_debit_address) + Decimal(x[3]))
 
                                 if x != transaction_list[-1]:
-                                    block_fees_address = float(block_fees_address) + float(fee_calculate(db_openfield))  # exclude the mining tx from fees
+                                    block_fees_address = quantize_eight(Decimal(block_fees_address) + Decimal(fee_calculate(db_openfield)))  # exclude the mining tx from fees
                         # print("block_fees_address", block_fees_address, "for", db_address)
 
                         # app_log.info("Digest: Inbound block credit: " + str(block_credit))
                         # app_log.info("Digest: Inbound block debit: " + str(block_debit))
                         # include the new block
 
-                        execute_param(c, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (db_address,))
-                        credit_ledger = c.fetchone()[0]
-                        credit_ledger = 0 if credit_ledger is None else float('%.8f' % credit_ledger)
-                        credit = float(credit_ledger)
+                        credit_ledger = Decimal("0")
+                        for entry in execute_param(c, ("SELECT amount FROM transactions WHERE recipient = ?;"), (db_address,)):
+                            credit_ledger = credit_ledger + Decimal(entry[0])
+                            credit_ledger = 0 if credit_ledger is None else quantize_eight(credit_ledger)
 
-                        execute_param(c, ("SELECT sum(amount) FROM transactions WHERE address = ?;"), (db_address,))
-                        debit_ledger = c.fetchone()[0]
-                        debit_ledger = 0 if debit_ledger is None else float('%.8f' % debit_ledger)
-                        debit = float(debit_ledger) + float(block_debit_address)
+                        credit = credit_ledger
 
-                        execute_param(c, ("SELECT sum(fee) FROM transactions WHERE address = ?;"), (db_address,))
-                        try:
-                            fees = float(c.fetchone()[0])
-                            fees = 0 if fees is None else fees
-                        except:
-                            fees = 0
+                        debit_ledger = Decimal("0")
+                        for entry in execute_param(c, ("SELECT amount FROM transactions WHERE address = ?;"), (db_address,)):
+                            debit_ledger = debit_ledger + Decimal(entry[0])
+                            debit_ledger = 0 if debit_ledger is None else quantize_eight(debit_ledger)
 
-                        execute_param(c, ("SELECT sum(reward) FROM transactions WHERE recipient = ?;"), (db_address,))
-                        try:
-                            rewards = float(c.fetchone()[0])
-                            rewards = 0 if rewards is None else rewards
-                        except:
-                            rewards = 0
+                        debit = quantize_eight(debit_ledger + block_debit_address)
+
+                        fees = Decimal("0")
+                        for entry in execute_param(c, ("SELECT fee FROM transactions WHERE address = ?;"), (db_address,)):
+                            try:
+                                fees = fees + Decimal(entry[0])
+                                fees = 0 if fees is None else fees
+                            except:
+                                fees = 0
+
+                        rewards = Decimal("0")
+                        for entry in execute_param(c, ("SELECT reward FROM transactions WHERE recipient = ?;"), (db_address,)):
+                            try:
+                                rewards = rewards + Decimal(entry[0])
+                                rewards = 0 if rewards is None else rewards
+                            except:
+                                rewards = 0
 
                         # app_log.info("Digest: Total credit: " + str(credit))
                         # app_log.info("Digest: Total debit: " + str(debit))
-                        balance_pre = float('%.8f' % (float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)))  # without projection
-                        balance = float('%.8f' % (float(credit) - float(debit) - float(fees) + float(rewards)))
+                        balance_pre = quantize_eight(credit_ledger - debit_ledger - fees + rewards)  # without projection
+                        balance = quantize_eight(credit - debit - fees + rewards)
                         # app_log.info("Digest: Projected transction address balance: " + str(balance))
 
                         fee = fee_calculate(db_openfield)
                         # fee = '%.8f' % float(0.01 + (float(len(db_openfield)) / 100000) + int(db_keep))  # 0.01 dust
 
-                        fees_block.append(float(fee))
+                        fees_block.append(quantize_eight(fee))
                         # app_log.info("Fee: " + str(fee))
 
                         # decide reward
@@ -1301,11 +1310,11 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         if transaction == transaction_list[-1]:
                             db_amount = 0  # prevent spending from another address, because mining txs allow delegation
                             if db_block_height <= 10000000:
-                                mining_reward = 15 - (float(block_height_new) / float(1000000))  # one zero less
+                                mining_reward = 15 - (quantize_eight(block_height_new) / quantize_eight(1000000))  # one zero less
                             else:
                                 mining_reward = 0
 
-                            reward = '%.8f' % float(mining_reward + sum(fees_block[:-1]))
+                            reward = quantize_eight(mining_reward + sum(fees_block[:-1]))
                             fee = 0
 
                         else:
@@ -1313,11 +1322,11 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                             # dont request a fee for mined block so new accounts can mine
 
-                        if float(balance_pre) < float(db_amount):
+                        if quantize_eight(balance_pre) < quantize_eight(db_amount):
                             app_log.warning("sending more than owned".format(db_address))
                             block_valid = 0
 
-                        elif float(balance) - float(block_fees_address) < 0:  # exclude fee check for the mining/header tx
+                        elif quantize_eight(balance) - quantize_eight(block_fees_address) < 0:  # exclude fee check for the mining/header tx
                             app_log.warning("{} Cannot afford to pay fees".format(db_address))
                             block_valid = 0
 
@@ -1345,7 +1354,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                     if block_valid == 1:
 
                         # save diff
-                        execute_param(c, "INSERT INTO misc VALUES (?, ?)", (block_height_new, diff))
+                        execute_param(c, "INSERT INTO misc VALUES (?, ?)", (block_height_new, str(diff)))
                         commit(conn)
                         # save diff
 
@@ -1941,37 +1950,40 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             debit_mempool = 0
                         # include mempool fees
 
-                        execute_param(h3, ("SELECT sum(amount) FROM transactions WHERE recipient = ?;"), (balance_address,))
-                        try:
-                            credit_ledger = quantize_eight(h3.fetchone()[0])
-                            credit_ledger = 0 if credit_ledger is None else credit_ledger
-                        except:
-                            credit_ledger = 0
+
+                        credit_ledger = Decimal("0")
+                        for entry in execute_param(h3, ("SELECT amount FROM transactions WHERE recipient = ?;"), (balance_address,)):
+                            try:
+                                credit_ledger = credit_ledger + Decimal(entry[0])
+                                credit_ledger = 0 if credit_ledger is None else credit_ledger
+                            except:
+                                credit_ledger = 0
 
 
-                        execute_param(h3, ("SELECT sum(fee),sum(amount) FROM transactions WHERE address = ?;"), (balance_address,))
-                        result = h3.fetchall()[0]
+                        fees = Decimal("0")
+                        debit_ledger = Decimal("0")
+                        for entry in execute_param(h3, ("SELECT fee, amount FROM transactions WHERE address = ?;"), (balance_address,)):
+                            try:
+                                fees = fees + Decimal(entry[0])
+                                fees = 0 if fees is None else fees
+                            except:
+                                fees = 0
 
-                        try:
-                            fees = quantize_eight(result[0])
-                            fees = 0 if fees is None else fees
-                        except:
-                            fees = 0
-
-                        try:
-                            debit_ledger = quantize_eight(result[1])
-                            debit_ledger = 0 if debit_ledger is None else debit_ledger
-                        except:
-                            debit_ledger = 0
+                            try:
+                                debit_ledger = debit_ledger + Decimal(entry[1])
+                                debit_ledger = 0 if debit_ledger is None else debit_ledger
+                            except:
+                                debit_ledger = 0
 
                         debit = quantize_eight(debit_ledger + debit_mempool)
 
-                        execute_param(h3, ("SELECT sum(reward) FROM transactions WHERE recipient = ?;"), (balance_address,))
-                        try:
-                            rewards = quantize_eight(h3.fetchone()[0])
-                            rewards = 0 if rewards is None else rewards
-                        except:
-                            rewards = 0
+                        rewards = Decimal ("0")
+                        for entry in execute_param(h3, ("SELECT reward FROM transactions WHERE recipient = ?;"), (balance_address,)):
+                            try:
+                                rewards = rewards + Decimal(entry[0])
+                                rewards = 0 if rewards is None else rewards
+                            except:
+                                rewards = 0
 
                         balance = quantize_eight(credit_ledger - debit - fees + rewards)
                         # balance_pre = float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)
@@ -2151,7 +2163,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         # derive remaining data
 
                         # construct tx
-                        remote_tx = (str(remote_tx_timestamp), str(remote_tx_address), str(remote_tx_recipient), '%.8f' % float(remote_tx_amount), str(remote_tx_keep), str(remote_tx_openfield))  # this is signed
+                        remote_tx = (str(remote_tx_timestamp), str(remote_tx_address), str(remote_tx_recipient), '%.8f' % quantize_eight(remote_tx_amount), str(remote_tx_keep), str(remote_tx_openfield))  # this is signed
 
                         remote_hash = SHA.new(str(remote_tx).encode("utf-8"))
                         remote_signer = PKCS1_v1_5.new(tx_remote_key)
@@ -2160,7 +2172,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         # construct tx
 
                         # insert to mempool, where everything will be verified
-                        mempool_data = ((str(remote_tx_timestamp), str(remote_tx_address), str(remote_tx_recipient), '%.8f' % float(remote_tx_amount), str(remote_signature_enc), str(remote_tx_pubkey_hashed), str(remote_tx_keep), str(remote_tx_openfield)))
+                        mempool_data = ((str(remote_tx_timestamp), str(remote_tx_address), str(remote_tx_recipient), '%.8f' % quantize_eight(remote_tx_amount), str(remote_signature_enc), str(remote_tx_pubkey_hashed), str(remote_tx_keep), str(remote_tx_openfield)))
 
                         app_log.info(mempool_merge(mempool_data, peer_ip, c, mempool, m, True, True))
 
