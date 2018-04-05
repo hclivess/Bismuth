@@ -424,7 +424,7 @@ def ledger_compress(ledger_path_conf, hyper_path_conf):
             hyp.execute("UPDATE transactions SET address = 'Hypoblock' WHERE address = 'Hyperblock'")
 
             hyp.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
-            db_block_height = hyp.fetchone()[0]
+            db_block_height = int(hyp.fetchone()[0])
 
             hyp.execute("SELECT distinct(recipient) FROM transactions WHERE (block_height < ?) ORDER BY block_height;", (db_block_height - depth,))
             unique_addressess = hyp.fetchall()
@@ -432,19 +432,19 @@ def ledger_compress(ledger_path_conf, hyper_path_conf):
             for x in set(unique_addressess):
                 hyp.execute("SELECT sum(amount)+sum(reward) FROM transactions WHERE (recipient = ? AND block_height < ?);", (x[0],) + (db_block_height - depth,))
                 try:
-                    credit = float(hyp.fetchone()[0])
+                    credit = Decimal(hyp.fetchone()[0])
                     credit = 0 if credit is None else credit
                 except:
                     credit = 0
 
                 hyp.execute("SELECT sum(amount)+sum(fee) FROM transactions WHERE (address = ? AND block_height < ?);", (x[0],) + (db_block_height - depth,))
                 try:
-                    debit = float(hyp.fetchone()[0])
-                    debit = 0 if credit is None else debit
+                    debit = Decimal(hyp.fetchone()[0])
+                    debit = 0 if debit is None else debit
                 except:
                     debit = 0
 
-                end_balance = credit - debit
+                end_balance = quantize_eight(credit - debit)
 
                 # app_log.info("Address: "+ str(x))
                 # app_log.info("Credit: " + str(credit))
@@ -464,7 +464,7 @@ def ledger_compress(ledger_path_conf, hyper_path_conf):
 
                 if end_balance > 0:
                     timestamp = str(time.time())
-                    hyp.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (db_block_height - depth - 1, timestamp, "Hyperblock", x[0], float(end_balance), "0", "0", "0", "0", "0",
+                    hyp.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (db_block_height - depth - 1, timestamp, "Hyperblock", x[0], str(end_balance), "0", "0", "0", "0", "0",
                                                                                               "0", "0"))
             hyper.commit()
 
@@ -472,10 +472,10 @@ def ledger_compress(ledger_path_conf, hyper_path_conf):
 
             # keep recognized openfield data
 
-            hyp.execute("DELETE FROM transactions WHERE block_height < ? AND address != 'Hyperblock';", (str(int(db_block_height) - depth),))
+            hyp.execute("DELETE FROM transactions WHERE block_height < ? AND address != 'Hyperblock';", (db_block_height - depth,))
             hyper.commit()
 
-            hyp.execute("DELETE FROM misc WHERE block_height < ?;", (str(int(db_block_height) - depth),))  # remove diff calc
+            hyp.execute("DELETE FROM misc WHERE block_height < ?;", (db_block_height - depth,))  # remove diff calc
             hyper.commit()
 
             hyp.execute("VACUUM")
@@ -744,9 +744,9 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
 
                         if result != None:
                             for x in result:
-                                debit_tx = float(x[0])
+                                debit_tx = quantize_eight(x[0])
                                 fee = fee_calculate(x[1])
-                                debit_mempool = debit_mempool + debit_tx + float(fee)
+                                debit_mempool = debit_mempool + debit_tx + quantize_eight(fee)
                         else:
                             debit_mempool = 0
                         # include mempool fees

@@ -1,6 +1,15 @@
+
+
 import options
 import os, sqlite3, sys,  time, random
 from decimal import *
+from quantizer import *
+
+print(getcontext())
+#getcontext().prec=120
+#getcontext().rounding=ROUND_CEILING
+#getcontext().Emin=-100
+#getcontext().Emax=100
 
 config = options.Get()
 config.read()
@@ -65,22 +74,20 @@ def balance_from_cursor(cursor, address):
     execute_param(cursor, "SELECT sum(amount)+sum(reward) FROM transactions WHERE recipient = ? ",
         (address, ))
     try:
-        credit = Decimal(cursor.fetchone()[0]).quantize(Decimal('0.00000000'))
+        credit = Decimal(cursor.fetchone()[0])
+        credit = 0 if credit is None else credit
     except Exception as e:
         credit = 0
 
     execute_param(cursor, "SELECT sum(amount)+sum(fee) FROM transactions WHERE address = ? ",
         (address, ))
     try:
-        debit = Decimal(cursor.fetchone()[0]).quantize(Decimal('0.00000000'))
+        debit = Decimal(cursor.fetchone()[0])
+        debit = 0 if debit is None else debit
     except Exception as e:
         debit = 0
 
-    # limiting to .6f to ignore small round errors
-    res =  "{:0.8f}".format(credit-debit)
-    if res == '-0.00000000':
-        res = '0.00000000'
-    return res
+    return quantize_eight(credit-debit)
 
 def check(addresses):
     global ERRORS
