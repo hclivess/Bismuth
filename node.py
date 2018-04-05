@@ -436,7 +436,7 @@ def ledger_compress(ledger_path_conf, hyper_path_conf):
                 credit = Decimal ("0")
                 for entry in hyp.execute("SELECT amount,reward FROM transactions WHERE (recipient = ? AND block_height < ?);", (x[0],) + (db_block_height - depth,)):
                     try:
-                        credit = credit + Decimal (entry[0]) + Decimal (entry[1])
+                        credit = quantize_eight(credit) + quantize_eight(entry[0]) + quantize_eight(entry[1])
                         credit = 0 if credit is None else credit
                     except Exception as e:
                         credit = 0
@@ -444,7 +444,7 @@ def ledger_compress(ledger_path_conf, hyper_path_conf):
                 debit = Decimal ("0")
                 for entry in hyp.execute("SELECT amount,fee FROM transactions WHERE (address = ? AND block_height < ?);", (x[0],) + (db_block_height - depth,)):
                     try:
-                        debit = debit + Decimal (entry[0]) + Decimal (entry[1])
+                        debit = quantize_eight(debit) + quantize_eight(entry[0]) + quantize_eight(entry[1])
                         debit = 0 if debit is None else debit
                     except Exception as e:
                         debit = 0
@@ -761,7 +761,7 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                         credit_ledger = Decimal("0")
                         for entry in execute_param(c, ("SELECT amount FROM transactions WHERE recipient = ?;"), (mempool_address,)):
                             try:
-                                credit_ledger = credit_ledger + Decimal(entry[0])
+                                credit_ledger = quantize_eight(credit_ledger) + quantize_eight(entry[0])
                                 credit_ledger = 0 if credit_ledger is None else credit_ledger
                             except:
                                 credit_ledger = 0
@@ -771,7 +771,7 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                         debit_ledger = Decimal("0")
                         for entry in execute_param(c, ("SELECT amount FROM transactions WHERE address = ?;"), (mempool_address,)):
                             try:
-                                debit_ledger = debit_ledger + Decimal(entry[0])
+                                debit_ledger = quantize_eight(debit_ledger) + quantize_eight(entry[0])
                                 debit_ledger = 0 if debit_ledger is None else debit_ledger
                             except:
                                 debit_ledger = 0
@@ -781,7 +781,7 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                         fees = Decimal("0")
                         for entry in execute_param(c, ("SELECT fee FROM transactions WHERE address = ?;"), (mempool_address,)):
                             try:
-                                fees = fees + Decimal(entry[0])
+                                fees = quantize_eight(fees) + quantize_eight(entry[0])
                                 fees = 0 if fees is None else fees
                             except:
                                 fees = 0
@@ -789,7 +789,7 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                         rewards =  Decimal("0")
                         for entry in execute_param(c, ("SELECT sum(reward) FROM transactions WHERE recipient = ?;"), (mempool_address,)):
                             try:
-                                rewards = rewards + Decimal(entry[0])
+                                rewards = quantize_eight(rewards) + quantize_eight(entry[0])
                                 rewards = 0 if rewards is None else rewards
                             except:
                                 rewards = 0
@@ -1265,14 +1265,14 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                         credit_ledger = Decimal("0")
                         for entry in execute_param(c, ("SELECT amount FROM transactions WHERE recipient = ?;"), (db_address,)):
-                            credit_ledger = credit_ledger + Decimal(entry[0])
+                            credit_ledger = quantize_eight(credit_ledger) + quantize_eight(entry[0])
                             credit_ledger = 0 if credit_ledger is None else quantize_eight(credit_ledger)
 
                         credit = credit_ledger
 
                         debit_ledger = Decimal("0")
                         for entry in execute_param(c, ("SELECT amount FROM transactions WHERE address = ?;"), (db_address,)):
-                            debit_ledger = debit_ledger + Decimal(entry[0])
+                            debit_ledger = quantize_eight(debit_ledger) + quantize_eight(entry[0])
                             debit_ledger = 0 if debit_ledger is None else quantize_eight(debit_ledger)
 
                         debit = quantize_eight(debit_ledger + block_debit_address)
@@ -1280,7 +1280,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         fees = Decimal("0")
                         for entry in execute_param(c, ("SELECT fee FROM transactions WHERE address = ?;"), (db_address,)):
                             try:
-                                fees = fees + Decimal(entry[0])
+                                fees = quantize_eight(fees) + quantize_eight(entry[0])
                                 fees = 0 if fees is None else fees
                             except:
                                 fees = 0
@@ -1288,7 +1288,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         rewards = Decimal("0")
                         for entry in execute_param(c, ("SELECT reward FROM transactions WHERE recipient = ?;"), (db_address,)):
                             try:
-                                rewards = rewards + Decimal(entry[0])
+                                rewards = quantize_eight(rewards) + quantize_eight(entry[0])
                                 rewards = 0 if rewards is None else rewards
                             except:
                                 rewards = 0
@@ -1954,7 +1954,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         credit_ledger = Decimal("0")
                         for entry in execute_param(h3, ("SELECT amount FROM transactions WHERE recipient = ?;"), (balance_address,)):
                             try:
-                                credit_ledger = credit_ledger + Decimal(entry[0])
+                                credit_ledger = quantize_eight(credit_ledger) + quantize_eight(entry[0])
                                 credit_ledger = 0 if credit_ledger is None else credit_ledger
                             except:
                                 credit_ledger = 0
@@ -1964,7 +1964,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         debit_ledger = Decimal("0")
                         for entry in execute_param(h3, ("SELECT fee, amount FROM transactions WHERE address = ?;"), (balance_address,)):
                             try:
-                                fees = fees + Decimal(entry[0])
+                                fees = quantize_eight(fees) + quantize_eight(entry[0])
                                 fees = 0 if fees is None else fees
                             except:
                                 fees = 0
@@ -1980,7 +1980,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         rewards = Decimal ("0")
                         for entry in execute_param(h3, ("SELECT reward FROM transactions WHERE recipient = ?;"), (balance_address,)):
                             try:
-                                rewards = rewards + Decimal(entry[0])
+                                rewards = quantize_eight(rewards) + quantize_eight(entry[0])
                                 rewards = 0 if rewards is None else rewards
                             except:
                                 rewards = 0
