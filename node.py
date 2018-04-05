@@ -279,12 +279,12 @@ def db_to_drive(hdd, h, hdd2, h2):
 
     if full_ledger == 1:  # we want to save to ledger.db from hyper.db
         for x in result2:
-            h.execute("INSERT INTO misc VALUES (?,?)", (x[0], str(x[1])))
+            h.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
         commit(hdd)
 
     if ram_conf == 1:  # we want to save to hyper.db from RAM
         for x in result2:
-            h2.execute("INSERT INTO misc VALUES (?,?)", (x[0], str(x[1])))
+            h2.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
         commit(hdd2)
 
     # reward
@@ -592,7 +592,7 @@ def difficulty(c, mode):
         app_log.warning("Current hashrate: {}".format(H))
         app_log.warning("New difficulty after adjustment: {}".format(Dnew_adjusted))
         app_log.warning("Difficulty: {} {}".format(difficulty, difficulty2))
-    return (quantize_ten(difficulty), quantize_ten(difficulty2))  # need to keep float here for database inserts support
+    return (float('%.10f' % difficulty), float('%.10f' % difficulty2))  # need to keep float here for database inserts support
 
 
 
@@ -1354,7 +1354,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                     if block_valid == 1:
 
                         # save diff
-                        execute_param(c, "INSERT INTO misc VALUES (?, ?)", (block_height_new, str(diff)))
+                        execute_param(c, "INSERT INTO misc VALUES (?, ?)", (block_height_new, diff))
                         commit(conn)
                         # save diff
 
