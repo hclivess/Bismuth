@@ -809,7 +809,7 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                         balance = quantize_eight(credit - debit - fees + rewards - quantize_eight(mempool_amount))
                         balance_pre = quantize_eight(credit_ledger - debit_ledger - fees + rewards)
 
-                        print("qwertz",credit, debit, fees, rewards, mempool_amount, balance, balance_pre)
+                        #print("qwertz",credit, debit, fees, rewards, mempool_amount, balance, balance_pre)
                         # mempool_result.append("Mempool: Projected transction address balance: " + str(balance))
 
                         # fee = '%.8f' % float(0.01 + (float(len(mempool_openfield)) / 100000) + int(mempool_keep))  # 0.01 dust
