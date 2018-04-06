@@ -7,7 +7,7 @@
 # rolling back indexes: 1424 and 945
 
 
-VERSION = "4.2.3.7"
+VERSION = "4.2.3.8"
 
 # Bis specific modules
 import log, options, connections, peershandler, apihandler
@@ -86,6 +86,12 @@ global peers
 
 app_log = log.log("node.log", debug_level_conf, terminal_output)
 app_log.warning("Configuration settings loaded")
+
+def address_validate(address):
+    if re.match ('[abcdef0123456789]{56}', address):
+        return True
+    else:
+        return False
 
 def tokens_rollback(height, app_log):
     """rollback token index"""
@@ -702,6 +708,10 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                         mempool_result.append("Mempool: Attempt to spend from a wrong address")
                         acceptable = 0
 
+                    if not address_validate(mempool_address) or not address_validate(mempool_recipient):
+                        mempool_result.append("Mempool: Not a valid address")
+                        acceptable = 0
+
                     if quantize_eight(mempool_amount) < 0:
                         acceptable = 0
                         mempool_result.append("Mempool: Negative balance spend attempt")
@@ -807,7 +817,7 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
 
                         time_now = time.time()
                         if quantize_two(mempool_timestamp) > quantize_two(time_now) + 30:
-                            mempool_result.append("Mempool: Future transaction not allowed, timestamp {} minutes in the future".format((quantize_two(mempool_timestamp) - quantize_two(time_now)) / 60))
+                            mempool_result.append("Mempool: Future transaction not allowed, timestamp {} minutes in the future".format(quantize_two((mempool_timestamp - time_now) / 60)))
 
                         elif quantize_two(time_now) - 86400 >  quantize_two(mempool_timestamp):
                             mempool_result.append("Mempool: Transaction older than 24h not allowed.")
@@ -1132,6 +1142,10 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         app_log.warning("Attempt to spend from a wrong address")
                         block_valid = 0
 
+                    if not address_validate(received_address) or not address_validate(received_recipient):
+                        app_log.warning("Not a valid address")
+                        block_valid = 0
+
                     if transaction == transaction_list[-1]:  # recognize the last transaction as the mining reward transaction
                         block_timestamp = received_timestamp
                         nonce = received_openfield[:128]
@@ -1143,7 +1157,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                     time_now = time.time()
                     if quantize_two(time_now) + 30 < quantize_two(received_timestamp):
-                        app_log.warning("Future transaction not allowed, timestamp {} minutes in the future".format((quantize_two(received_timestamp) - quantize_two(time_now)) / 60))
+                        app_log.warning("Future transaction not allowed, timestamp {} minutes in the future".format(quantize_two((received_timestamp - time_now) / 60)))
                         block_valid = 0
                     if quantize_two(db_timestamp_last) - 86400 > quantize_two(received_timestamp):
                         app_log.warning("Transaction older than 24h not allowed.")
