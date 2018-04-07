@@ -238,11 +238,11 @@ u = upgrade.cursor()
 try:
     u.execute("select * from transactions where operation = '0' LIMIT 1")
     u.fetchall()[0]
+    upgrade.close ()
 except:
+    upgrade.close ()
     print ("Database needs upgrading, bootstrapping...")
     bootstrap()
-finally:
-    upgrade.close()
 #UPDATE DB
 
 def check_integrity(database):
