@@ -836,7 +836,7 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
 
                         time_now = time.time()
                         if quantize_two(mempool_timestamp) > quantize_two(time_now) + 30:
-                            mempool_result.append("Mempool: Future transaction not allowed, timestamp {} minutes in the future".format(quantize_two((mempool_timestamp - time_now) / 60)))
+                            mempool_result.append("Mempool: Future transaction not allowed, timestamp {} minutes in the future".format(quantize_two((quantize_two(mempool_timestamp) - quantize_two(time_now)) / 60)))
 
                         elif quantize_two(time_now) - 86400 >  quantize_two(mempool_timestamp):
                             mempool_result.append("Mempool: Transaction older than 24h not allowed.")
@@ -1176,7 +1176,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                     time_now = time.time()
                     if quantize_two(time_now) + 30 < quantize_two(received_timestamp):
-                        app_log.warning("Future transaction not allowed, timestamp {} minutes in the future".format(quantize_two((received_timestamp - time_now) / 60)))
+                        app_log.warning("Future transaction not allowed, timestamp {} minutes in the future".format(quantize_two((quantize_two(received_timestamp) - quantize_two(time_now)) / 60)))
                         block_valid = 0
                     if quantize_two(db_timestamp_last) - 86400 > quantize_two(received_timestamp):
                         app_log.warning("Transaction older than 24h not allowed.")
