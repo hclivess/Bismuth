@@ -233,14 +233,16 @@ def bootstrap():
 
 
 #UPDATE DB
-conn = sqlite3.connect(ledger_path_conf)
-c = conn.cursor ()
+upgrade = sqlite3.connect(ledger_path_conf)
+u = upgrade.cursor()
 try:
-    c.execute ("select * from transactions where operation = '0' LIMIT 1")
-    c.fetchall ()[0]
+    u.execute("select * from transactions where operation = '0' LIMIT 1")
+    u.fetchall()[0]
 except:
     print ("Database needs upgrading, bootstrapping...")
     bootstrap()
+finally:
+    upgrade.close()
 #UPDATE DB
 
 def check_integrity(database):
