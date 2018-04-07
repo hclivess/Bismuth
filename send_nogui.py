@@ -16,6 +16,7 @@ import essentials
 import sys
 import options
 import getpass
+import re
 
 config = options.Get()
 config.read()
@@ -77,6 +78,11 @@ print("Transction address: %s" % address)
 print("Transction address balance: %s" % balance)
 
 # get balance
+def address_validate(address):
+    if re.match ('[abcdef0123456789]{56}', address):
+        return True
+    else:
+        return False
 
 try:
     amount_input = sys.argv[1]
@@ -88,8 +94,8 @@ try:
 except IndexError:
     recipient_input = input("Recipient: ")
 
-if len(recipient_input) != 56:
-    print("Wrong address length")
+if not address_validate(recipient_input):
+    print("Wrong address format")
     exit(1)
 
 try:

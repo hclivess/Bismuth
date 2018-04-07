@@ -64,6 +64,11 @@ essentials.db_check(app_log)
 s = socks.socksocket()
 s.settimeout(3)
 
+def address_validate(address):
+    if re.match ('[abcdef0123456789]{56}', address):
+        return True
+    else:
+        return False
 
 def create_url_clicked(app_log, command, recipient, amount, openfield):
     """isolated function so no GUI leftovers are in bisurl.py"""
@@ -535,10 +540,10 @@ def send(amount_input, recipient_input, openfield_input):
 
     # alias check
 
-    if len(recipient_input) != 56:
+    if not address_validate(recipient_input):
         top6 = Toplevel()
         top6.title("Invalid address")
-        Label(top6, text="Wrong address length", width=20).grid(row=0, pady=0)
+        Label(top6, text="Wrong address format", width=20).grid(row=0, pady=0)
         done = Button(top6, text="Cancel", command=top6.destroy)
         done.grid(row=1, column=0, sticky=W + E, padx=15, pady=(5, 5))
     else:
