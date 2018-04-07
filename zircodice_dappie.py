@@ -163,12 +163,12 @@ while True:
 
             payout_amount = Decimal(bet_amount * 2) - percentage(2, bet_amount)
             payout_openfield = "payout for " + tx_signature[:8]
-            payout_keep = 0
+            payout_operation = 0
             fee = fee_calculate(payout_openfield)
 
             #float(0.01 + (float(payout_amount) * 0.001) + (float(len(payout_openfield)) / 100000) + (float(payout_keep) / 10))  # 0.1% + 0.01 dust
 
-            transaction = (str(timestamp), str(address), str(payout_address), '%.8f' % float(payout_amount-fee), str(payout_keep), str(payout_openfield))  # this is signed
+            transaction = (str(timestamp), str(address), str(payout_address), '%.8f' % float(payout_amount-fee), str(payout_operation), str(payout_openfield))  # this is signed
             print(transaction)
 
             h = SHA.new(str(transaction).encode("utf-8"))

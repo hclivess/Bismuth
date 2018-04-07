@@ -4,6 +4,8 @@
 from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
+from decimal import *
+from quantizer import *
 
 from simplecrypt import encrypt, decrypt
 import base64
@@ -91,19 +93,25 @@ if len(recipient_input) != 56:
     exit(1)
 
 try:
-    keep_input = sys.argv[3]
+    operation_input = sys.argv[3]
 except IndexError:
-    keep_input = 0
+    operation_input = 0
 
 try:
     openfield_input = sys.argv[4]
 except IndexError:
     openfield_input = input("Enter openfield data (message): ")
 
-
+def fee_calculate(openfield):
+    fee = Decimal("0.01") + (Decimal(len(openfield)) / Decimal("100000"))  # 0.01 dust
+    if "token:issue:" in openfield:
+        fee = Decimal(fee) + Decimal("10")
+    if "alias=" in openfield:
+        fee = Decimal(fee) + Decimal("1")
+    return quantize_eight(fee)
 
 # hardfork fee display
-fee = '%.8f' % float(0.01 + (float(len(openfield_input)) / 100000) + int(keep_input))  # 0.01 dust
+fee = fee_calculate(openfield_input)
 print("Fee: %s" % fee)
 
 confirm = input("Confirm (y/n): ")
@@ -124,7 +132,7 @@ if len(str(recipient_input)) != 56:
     print("Wrong address length")
 else:
     timestamp = '%.2f' % time.time()
-    transaction = (str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input), str(keep_input), str(openfield_input))  # this is signed
+    transaction = (str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input), str(operation_input), str(openfield_input))  # this is signed
     # print transaction
 
     if key == None:
@@ -157,7 +165,7 @@ else:
             mempool = sqlite3.connect('mempool.db')
             mempool.text_factory = str
             m = mempool.cursor()
-            m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input), str(signature_enc.decode("utf-8")), str(public_key_hashed), str(keep_input), str(openfield_input)))
+            m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input), str(signature_enc.decode("utf-8")), str(public_key_hashed), str(operation_input), str(openfield_input)))
             mempool.commit()  # Save (commit) the changes
             mempool.close()
             print("Mempool updated with a received transaction")

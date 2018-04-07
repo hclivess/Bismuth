@@ -333,7 +333,7 @@ def decrypt_fn(destroy_this):
     return key
 
 
-def send_confirm(amount_input, recipient_input, keep_input, openfield_input):
+def send_confirm(amount_input, recipient_input, operation_input, openfield_input):
     top10 = Toplevel()
     top10.title("Confirm")
 
@@ -378,21 +378,21 @@ def send_confirm(amount_input, recipient_input, keep_input, openfield_input):
     if encrypt_var.get() == 1:
         openfield_input = "enc=" + str(openfield_input)
 
-    fee = '%.8f' % float(0.01 + (float(len(openfield_input)) / 100000) + int(keep_var.get()))  # 0.01 dust
+    fee = '%.8f' % float(0.01 + (float(len(openfield_input)) / 100000) + int(operation_var.get()))  # 0.01 dust
 
     confirmation_dialog = Text(top10, width=100)
-    confirmation_dialog.insert(INSERT, ("Amount: {}\nTo: {}\nFee: {}\nKeep Entry: {}\nOpenField:\n\n{}".format(amount_input, recipient_input, fee, keep_input, openfield_input)))
+    confirmation_dialog.insert(INSERT, ("Amount: {}\nTo: {}\nFee: {}\noperation Entry: {}\nOpenField:\n\n{}".format(amount_input, recipient_input, fee, operation_input, openfield_input)))
 
     confirmation_dialog.grid(row=0, pady=0)
 
-    enter = Button(top10, text="Confirm", command=lambda: send(amount_input, recipient_input, keep_input, openfield_input, top10, fee))
+    enter = Button(top10, text="Confirm", command=lambda: send(amount_input, recipient_input, operation_input, openfield_input, top10, fee))
     enter.grid(row=1, column=0, sticky=W + E, padx=15, pady=(5, 5))
 
     done = Button(top10, text="Cancel", command=top10.destroy)
     done.grid(row=2, column=0, sticky=W + E, padx=15, pady=(5, 5))
 
 
-def send(amount_input, recipient_input, keep_input, openfield_input, top10, fee):
+def send(amount_input, recipient_input, operation_input, openfield_input, top10, fee):
     try:
         key
     except:
@@ -432,11 +432,11 @@ def send(amount_input, recipient_input, keep_input, openfield_input, top10, fee)
 
         app_log.warning("Amount: {}".format(amount_input))
         app_log.warning("Recipient: {}".format(recipient_input))
-        app_log.warning("Keep Forever: {}".format(keep_input))
+        app_log.warning("Operation: {}".format(operation_input))
         app_log.warning("OpenField Data: {}".format(openfield_input))
 
         timestamp = '%.2f' % time.time()
-        transaction = (str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input), str(keep_input), str(openfield_input))  # this is signed
+        transaction = (str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input), str(operation_input), str(openfield_input))  # this is signed
 
         h = SHA.new(str(transaction).encode("utf-8"))
         signer = PKCS1_v1_5.new(key)
@@ -455,8 +455,8 @@ def send(amount_input, recipient_input, keep_input, openfield_input, top10, fee)
             else:
                 app_log.warning("Client: The signature is valid, proceeding to save transaction, signature, new txhash and the public key to mempool")
 
-                # print(str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input),str(signature_enc), str(public_key_hashed), str(keep_input), str(openfield_input))
-                m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input), str(signature_enc.decode("utf-8")), str(public_key_hashed.decode("utf-8")), str(keep_input), str(openfield_input)))
+                # print(str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input),str(signature_enc), str(public_key_hashed), str(operation_input), str(openfield_input))
+                m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input), str(signature_enc.decode("utf-8")), str(public_key_hashed.decode("utf-8")), str(operation_input), str(openfield_input)))
                 mempool.commit()  # Save (commit) the changes
                 app_log.warning("Client: Mempool updated with a received transaction")
                 # refresh() experimentally disabled
@@ -491,7 +491,7 @@ def qr():
 
     photo = PIL.ImageTk.PhotoImage(im.resize((320, 320)))
     label = Label(top, image=photo)
-    label.image = photo  # keep a reference!
+    label.image = photo  # operation a reference!
     label.pack()
 
     # msg = Message(top, text="hi")
@@ -685,7 +685,7 @@ def sign():
 
     Label(top, text="Message:", width=20).grid(row=0, pady=0)
     input_text = Text(top, height=10)
-    # label.image = photo  # keep a reference!
+    # label.image = photo  # operation a reference!
     input_text.grid(row=1, column=0, sticky=N + E, padx=15, pady=(0, 0))
 
     Label(top, text="Public Key:", width=20).grid(row=2, pady=0)
@@ -894,7 +894,7 @@ def refresh():
         else:
             openfield_input = str(openfield.get("1.0", END)).strip()
 
-        fee = '%.8f' % float(0.01 + (float(len(openfield_input)) / 100000) + int(keep_var.get()))  # 0.01 dust
+        fee = '%.8f' % float(0.01 + (float(len(openfield_input)) / 100000) + int(operation_var.get()))  # 0.01 dust
 
         app_log.warning("Fee: {}".format(fee))
 
@@ -1010,7 +1010,7 @@ f6.grid(row=2, column=0, sticky=E, pady=10, padx=10)
 
 # buttons
 
-send_b = Button(f5, text="Send", command=lambda: send_confirm(str(amount.get()).strip(), recipient.get().strip(), str(keep_var.get()).strip(), (openfield.get("1.0", END)).strip()), height=1, width=10, font=("Tahoma", 8))
+send_b = Button(f5, text="Send", command=lambda: send_confirm(str(amount.get()).strip(), recipient.get().strip(), str(operation_var.get()).strip(), (openfield.get("1.0", END)).strip()), height=1, width=10, font=("Tahoma", 8))
 send_b.grid(row=7, column=0, sticky=W + E + S, pady=(45, 0), padx=15)
 
 start_b = Button(f5, text="Generate QR Code", command=qr, height=1, width=10, font=("Tahoma", 8))
@@ -1092,7 +1092,7 @@ sync_msg_var = StringVar()
 sync_msg_label = Label(f5, textvariable=sync_msg_var)
 sync_msg_label.grid(row=7, column=0, sticky=N + E, padx=15)
 
-keep_var = IntVar()
+operation_var = IntVar()
 encode_var = IntVar()
 alias_cb_var = IntVar()
 # encrypt_var = IntVar()
@@ -1133,8 +1133,8 @@ openfield.grid(row=3, column=1, sticky=W)
 alias_cb = Checkbutton(f3, text="Alias", variable=alias_cb_var, command=None)
 alias_cb.grid(row=4, column=1, sticky=E)
 
-keep = Checkbutton(f3, text="Keep Entry", variable=keep_var)
-keep.grid(row=4, column=1, sticky=E, padx=(0, 90))
+operation = Checkbutton(f3, text="operation Entry", variable=operation_var)
+operation.grid(row=4, column=1, sticky=E, padx=(0, 90))
 
 encode = Checkbutton(f3, text="Base64", variable=encode_var)
 encode.grid(row=4, column=1, sticky=E, padx=(0, 170))

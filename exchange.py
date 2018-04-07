@@ -115,10 +115,10 @@ def sendtransaction(socket, arg1, arg2, arg3):
     remote_tx_privkey = private_key_readable 
     remote_tx_recipient = arg1
     remote_tx_amount = arg2
-    remote_tx_keep = '0'
+    remote_tx_operation = '0'
     remote_tx_openfield = arg3
 
-    connections.send(s, (str(remote_tx_timestamp), str(remote_tx_privkey), str(remote_tx_recipient), str(remote_tx_amount), str(remote_tx_keep), str(remote_tx_openfield)), 10)
+    connections.send(s, (str(remote_tx_timestamp), str(remote_tx_privkey), str(remote_tx_recipient), str(remote_tx_amount), str(remote_tx_operation), str(remote_tx_openfield)), 10)
     tx_id = connections.receive(s, 10)
 
     result = {

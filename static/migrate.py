@@ -4,8 +4,8 @@ migrate = sqlite3.connect('ledger.db', timeout=1)
 migrate.text_factory = str
 mig = migrate.cursor()
 
-mig.execute("CREATE TABLE 'transactions2' ( `block_height` INTEGER, `timestamp` NUMERIC, `address` TEXT, `recipient` TEXT, `amount` NUMERIC, `signature` TEXT, `public_key` TEXT, `block_hash` TEXT, `fee` NUMERIC, `reward` NUMERIC, `keep` INTEGER, `openfield` TEXT );")
-mig.execute("INSERT INTO transactions2(block_height,timestamp,address,recipient,amount,signature,public_key,block_hash,fee,reward,keep,openfield) select block_height,timestamp,address,recipient,amount,signature,public_key,block_hash,fee,reward,keep,openfield from transactions;")
+mig.execute("CREATE TABLE 'transactions2' ( `block_height` INTEGER, `timestamp` NUMERIC, `address` TEXT, `recipient` TEXT, `amount` NUMERIC, `signature` TEXT, `public_key` TEXT, `block_hash` TEXT, `fee` NUMERIC, `reward` NUMERIC, `operation` INTEGER, `openfield` TEXT );")
+mig.execute("INSERT INTO transactions2(block_height,timestamp,address,recipient,amount,signature,public_key,block_hash,fee,reward,operation,openfield) select block_height,timestamp,address,recipient,amount,signature,public_key,block_hash,fee,reward,operation,openfield from transactions;")
 mig.execute("DROP TABLE `transactions`;")
 mig.execute("ALTER TABLE `transactions2` RENAME TO `transactions`")
 mig.execute("CREATE INDEX `Address Index` ON `transactions` (`address`);")

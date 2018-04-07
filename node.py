@@ -27,6 +27,10 @@ from Crypto.Signature import PKCS1_v1_5
 # load config
 # global ban_threshold
 
+
+
+
+
 getcontext().rounding=ROUND_HALF_EVEN
 
 global hdd_block
@@ -73,6 +77,7 @@ reveal_address = config.reveal_address
 accept_peers = config.accept_peers
 mempool_allowed = config.mempool_allowed
 terminal_output = config.terminal_output
+
 
 # nodes_ban_reset=config.nodes_ban_reset
 
@@ -226,6 +231,17 @@ def bootstrap():
         app_log.warning("Something went wrong during bootstrapping, aborted")
         raise
 
+
+#UPDATE DB
+conn = sqlite3.connect(ledger_path_conf)
+c = conn.cursor ()
+try:
+    c.execute ("select * from transactions where operation = '0' LIMIT 1")
+    c.fetchall ()[0]
+except:
+    print ("Database needs upgrading, bootstrapping...")
+    bootstrap()
+#UPDATE DB
 
 def check_integrity(database):
     # check ledger integrity
@@ -624,6 +640,7 @@ global syncing
 syncing = []
 
 
+
 # port = 2829 now defined by config
 
 def mempool_size_calculate(m):
@@ -672,7 +689,7 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                     mempool_amount = '%.8f' % (quantize_eight(transaction[3])) #convert scientific notation
                     mempool_signature_enc = str(transaction[4])[:684]
                     mempool_public_key_hashed = str(transaction[5])[:1068]
-                    mempool_keep = str(transaction[6])[:10]
+                    mempool_operation = str(transaction[6])[:10]
                     mempool_openfield = str(transaction[7])[:100000]
 
                     mempool_public_key = RSA.importKey(base64.b64decode(mempool_public_key_hashed))  # convert readable key to instance
@@ -700,8 +717,8 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                     except:
                         ledger_in = 0
 
-                    #if mempool_keep != "1" and mempool_keep != "0":
-                    #    mempool_result.append = ("Mempool: Wrong keep value {}".format(mempool_keep))
+                    #if mempool_operation != "1" and mempool_operation != "0":
+                    #    mempool_result.append = ("Mempool: Wrong keep value {}".format(mempool_operation))
                     #    acceptable = 0
 
                     if mempool_address != hashlib.sha224(base64.b64decode(mempool_public_key_hashed)).hexdigest():
@@ -738,7 +755,7 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                     # verify signature
                     verifier = PKCS1_v1_5.new(mempool_public_key)
 
-                    hash = SHA.new(str((mempool_timestamp, mempool_address, mempool_recipient, mempool_amount, mempool_keep, mempool_openfield)).encode("utf-8"))
+                    hash = SHA.new(str((mempool_timestamp, mempool_address, mempool_recipient, mempool_amount, mempool_operation, mempool_openfield)).encode("utf-8"))
                     if not verifier.verify(hash, mempool_signature_dec):
                         acceptable = 0
                         mempool_result.append("Mempool: Wrong signature in mempool insert attempt: {}".format(transaction))
@@ -812,7 +829,7 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                         #print("qwertz",credit, debit, fees, rewards, mempool_amount, balance, balance_pre)
                         # mempool_result.append("Mempool: Projected transction address balance: " + str(balance))
 
-                        # fee = '%.8f' % float(0.01 + (float(len(mempool_openfield)) / 100000) + int(mempool_keep))  # 0.01 dust
+                        # fee = '%.8f' % float(0.01 + (float(len(mempool_openfield)) / 100000) + int(mempool_operation))  # 0.01 dust
                         fee = fee_calculate(mempool_openfield)
 
                         time_now = time.time()
@@ -831,7 +848,7 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
                         # verify signatures and balances
                         else:
                             execute_param(m, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (str(mempool_timestamp), str(mempool_address), str(mempool_recipient), str(mempool_amount),
-                                                                                                   str(mempool_signature_enc), str(mempool_public_key_hashed), str(mempool_keep), str(mempool_openfield)))
+                                                                                                   str(mempool_signature_enc), str(mempool_public_key_hashed), str(mempool_operation), str(mempool_openfield)))
                             mempool_result.append("Mempool updated with a received transaction from {}".format(peer_ip))
                             commit(mempool)  # Save (commit) the changes
 
@@ -888,10 +905,10 @@ def verify(c):
             db_signature_enc = str(row[5])[:684]
             db_public_key_hashed = str(row[6])[:1068]
             db_public_key = RSA.importKey(base64.b64decode(db_public_key_hashed))
-            db_keep = str(row[10])[:10]
+            db_operation = str(row[10])[:10]
             db_openfield = str(row[11])[:100000]
 
-            db_transaction = (db_timestamp, db_address, db_recipient, db_amount, db_keep, db_openfield)
+            db_transaction = (db_timestamp, db_address, db_recipient, db_amount, db_operation, db_openfield)
 
             db_signature_dec = base64.b64decode(db_signature_enc)
             verifier = PKCS1_v1_5.new(db_public_key)
@@ -1108,10 +1125,10 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                     received_amount = '%.8f' %(quantize_eight(transaction[3]))
                     received_signature_enc = str(transaction[4])[:684]
                     received_public_key_hashed = str(transaction[5])[:1068]
-                    received_keep = str(transaction[6])[:10]
+                    received_operation = str(transaction[6])[:10]
                     received_openfield = str(transaction[7])[:100000]
 
-                    transaction_list_converted.append((received_timestamp, received_address, received_recipient, received_amount, received_signature_enc, received_public_key_hashed, received_keep, received_openfield))
+                    transaction_list_converted.append((received_timestamp, received_address, received_recipient, received_amount, received_signature_enc, received_public_key_hashed, received_operation, received_openfield))
 
                     received_public_key = RSA.importKey(base64.b64decode(received_public_key_hashed))  # convert readable key to instance
 
@@ -1120,18 +1137,18 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
 
                     validate_pem(received_public_key_hashed)
 
-                    hash = SHA.new(str((received_timestamp, received_address, received_recipient, received_amount, received_keep, received_openfield)).encode("utf-8"))
+                    hash = SHA.new(str((received_timestamp, received_address, received_recipient, received_amount, received_operation, received_openfield)).encode("utf-8"))
                     if not verifier.verify(hash, received_signature_dec):
                         app_log.warning("Invalid signature")
-                        # print(received_timestamp +"\n"+ received_address +"\n"+ received_recipient +"\n"+ received_amount +"\n"+ received_keep +"\n"+ received_openfield)
+                        # print(received_timestamp +"\n"+ received_address +"\n"+ received_recipient +"\n"+ received_amount +"\n"+ received_operation +"\n"+ received_openfield)
                         block_valid = 0
                     else:
                         app_log.info("Valid signature")
 
-                    #if received_keep != "1" and received_keep != "0":
+                    #if received_operation != "1" and received_operation != "0":
                     #    block_valid = 0
-                    #    # print (type(received_keep))
-                    #    app_log.warning("Wrong keep value {}".format(received_keep))
+                    #    # print (type(received_operation))
+                    #    app_log.warning("Wrong keep value {}".format(received_operation))
 
                     if quantize_eight(received_amount) < 0:
                         block_valid = 0
@@ -1244,7 +1261,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         db_amount = '%.8f' % quantize_eight(transaction[3])
                         db_signature = str(transaction[4])[:684]
                         db_public_key_hashed = str(transaction[5])[:1068]
-                        db_keep = str(transaction[6])[:10]
+                        db_operation = str(transaction[6])[:10]
                         db_openfield = str(transaction[7])[:100000]
 
                         # print "sync this"
@@ -1314,7 +1331,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         # app_log.info("Digest: Projected transction address balance: " + str(balance))
 
                         fee = fee_calculate(db_openfield)
-                        # fee = '%.8f' % float(0.01 + (float(len(db_openfield)) / 100000) + int(db_keep))  # 0.01 dust
+                        # fee = '%.8f' % float(0.01 + (float(len(db_openfield)) / 100000) + int(db_operation))  # 0.01 dust
 
                         fees_block.append(quantize_eight(fee))
                         # app_log.info("Fee: " + str(fee))
@@ -1347,7 +1364,7 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         else:
                             # append, but do not insert to ledger before whole block is validated, not that it takes already validated values (decimals, length)
                             app_log.info("Digest: Appending transaction back to block with {} transactions in it".format(len(block_transactions)))
-                            block_transactions.append((block_height_new, db_timestamp, db_address, db_recipient, db_amount, db_signature, db_public_key_hashed, block_hash, fee, reward, db_keep, db_openfield))
+                            block_transactions.append((block_height_new, db_timestamp, db_address, db_recipient, db_amount, db_signature, db_public_key_hashed, block_hash, fee, reward, db_operation, db_openfield))
 
                         try:
                             execute_param(m, ("DELETE FROM transactions WHERE signature = ?;"), (db_signature,))  # delete tx from mempool now that it is in the ledger
@@ -1452,7 +1469,7 @@ if len(m.fetchall()) != 8:
     mempool = sqlite3.connect('mempool.db', timeout=1)
     mempool.text_factory = str
     m = mempool.cursor()
-    execute(m, ("CREATE TABLE IF NOT EXISTS transactions (timestamp TEXT, address TEXT, recipient TEXT, amount TEXT, signature TEXT, public_key TEXT, keep TEXT, openfield TEXT)"))
+    execute(m, ("CREATE TABLE IF NOT EXISTS transactions (timestamp TEXT, address TEXT, recipient TEXT, amount TEXT, signature TEXT, public_key TEXT, operation TEXT, openfield TEXT)"))
     #   execute(m, ("CREATE TABLE IF NOT EXISTS transactions (timestamp NUMERIC, address TEXT, recipient TEXT, amount NUMERIC, signature TEXT, public_key TEXT, keep INTEGER, openfield TEXT)")) AFTER EVERYONE UPGRADES TO 4.1.4
     commit(mempool)
     app_log.info("Status: Recreated mempool file")
@@ -1604,7 +1621,8 @@ startup_time = time.time()
 
 
 class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
-    def handle(self):  # server defined here
+    def server(self):
+
         # global banlist
         # global ban_threshold
         global peers
@@ -1824,7 +1842,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                     del blocks_fetched[:]
                                     while len(str(blocks_fetched)) < 500000:  # limited size based on txs in blocks
                                         # execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"),(str(int(client_block)),) + (str(int(client_block + 1)),))
-                                        execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,cast(keep as TEXT),openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"), (str(int(client_block)),) + (str(int(client_block + 1)),))
+                                        execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,cast(operation as TEXT),openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"), (str(int(client_block)),) + (str(int(client_block + 1)),))
                                         result = h3.fetchall()
                                         if not result:
                                             break
@@ -2163,7 +2181,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         remote_tx_privkey = tx_remote[1]
                         remote_tx_recipient = tx_remote[2]
                         remote_tx_amount = tx_remote[3]
-                        remote_tx_keep = tx_remote[4]
+                        remote_tx_operation = tx_remote[4]
                         remote_tx_openfield = tx_remote[5]
                         # receive data necessary for remote tx construction
 
@@ -2177,7 +2195,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         # derive remaining data
 
                         # construct tx
-                        remote_tx = (str(remote_tx_timestamp), str(remote_tx_address), str(remote_tx_recipient), '%.8f' % quantize_eight(remote_tx_amount), str(remote_tx_keep), str(remote_tx_openfield))  # this is signed
+                        remote_tx = (str(remote_tx_timestamp), str(remote_tx_address), str(remote_tx_recipient), '%.8f' % quantize_eight(remote_tx_amount), str(remote_tx_operation), str(remote_tx_openfield))  # this is signed
 
                         remote_hash = SHA.new(str(remote_tx).encode("utf-8"))
                         remote_signer = PKCS1_v1_5.new(tx_remote_key)
@@ -2186,7 +2204,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         # construct tx
 
                         # insert to mempool, where everything will be verified
-                        mempool_data = ((str(remote_tx_timestamp), str(remote_tx_address), str(remote_tx_recipient), '%.8f' % quantize_eight(remote_tx_amount), str(remote_signature_enc), str(remote_tx_pubkey_hashed), str(remote_tx_keep), str(remote_tx_openfield)))
+                        mempool_data = ((str(remote_tx_timestamp), str(remote_tx_address), str(remote_tx_recipient), '%.8f' % quantize_eight(remote_tx_amount), str(remote_signature_enc), str(remote_tx_pubkey_hashed), str(remote_tx_operation), str(remote_tx_openfield)))
 
                         app_log.info(mempool_merge(mempool_data, peer_ip, c, mempool, m, True, True))
 
@@ -2446,7 +2464,7 @@ def worker(HOST, PORT):
                                 blocks_fetched = []
                                 while len(str(blocks_fetched)) < 500000:  # limited size based on txs in blocks
                                     # execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"),(str(int(client_block)),) + (str(int(client_block + 1)),))
-                                    execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,cast(keep as TEXT),openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"), (str(int(client_block)),) + (str(int(client_block + 1)),))
+                                    execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,cast(operation as TEXT),openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"), (str(int(client_block)),) + (str(int(client_block + 1)),))
                                     result = h3.fetchall()
                                     if not result:
                                         break

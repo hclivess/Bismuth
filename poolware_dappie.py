@@ -117,12 +117,12 @@ def payout():
         if claim >= payout_threshold:
             payout_passed = 1
             openfield = "pool"
-            keep = 0
-            fee = float('%.8f' % float(0.01 + (float(claim) * 0.001) + (float(len(openfield)) / 100000) + (float(keep) / 10)))  # 0.1% + 0.01 dust
+            operation = 0
+            fee = float('%.8f' % float(0.01 + (float(claim) * 0.001) + (float(len(openfield)) / 100000) + (float(operation) / 10)))  # 0.1% + 0.01 dust
             #make payout
 
             timestamp = '%.2f' % time.time()
-            transaction = (str(timestamp), str(address), str(recipient), '%.8f' % float(claim - fee), str(keep), str(openfield))  # this is signed
+            transaction = (str(timestamp), str(address), str(recipient), '%.8f' % float(claim - fee), str(operation), str(openfield))  # this is signed
             # print transaction
 
             h = SHA.new(str(transaction).encode("utf-8"))
@@ -139,7 +139,7 @@ def payout():
                 mempool.text_factory = str
                 m = mempool.cursor()
 
-                m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (str(timestamp), str(address), str(recipient), '%.8f' % float(claim - fee), str(signature_enc.decode("utf-8")), str(public_key_hashed), str(keep), str(openfield)))
+                m.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (str(timestamp), str(address), str(recipient), '%.8f' % float(claim - fee), str(signature_enc.decode("utf-8")), str(public_key_hashed), str(operation), str(openfield)))
                 mempool.commit()  # Save (commit) the changes
                 mempool.close()
                 print("Mempool updated with a received transaction")

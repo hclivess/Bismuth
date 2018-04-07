@@ -132,7 +132,7 @@ def help():
     aliases_box.insert(INSERT, "\n\n")
     aliases_box.insert(INSERT, "Base64 Encoding:\n Encode the data with base64, it is a group of binary-to-text encoding scheme that representd binary data in an ASCII string format by translating it into a radix-64 representation.")
     aliases_box.insert(INSERT, "\n\n")
-    aliases_box.insert(INSERT, "Permanent:\n Keep entry in the blockchain forever, resisting hyperblock compression on nodes not running the full ledger.")
+    aliases_box.insert(INSERT, "Permanent:\n Operation entry in the blockchain.")
     aliases_box.insert(INSERT, "\n\n")
     aliases_box.insert(INSERT, "Alias Recipient:\n Use an alias of the recipient in the recipient field if they have one registered")
     aliases_box.insert(INSERT, "\n\n")
@@ -548,8 +548,8 @@ def send(amount_input, recipient_input, openfield_input):
         app_log.warning("OpenField Data: {}".format(openfield_input))
 
         timestamp = '%.2f' % time.time()
-        keep_input = "0"
-        transaction = (str(timestamp), str(myaddress), str(recipient_input), '%.8f' % float(amount_input), str(keep_input), str(openfield_input))  # this is signed, float kept for compatibility
+        operation_input = "0"
+        transaction = (str(timestamp), str(myaddress), str(recipient_input), '%.8f' % float(amount_input), str(operation_input), str(openfield_input))  # this is signed, float kept for compatibility
 
         h = SHA.new(str(transaction).encode("utf-8"))
         signer = PKCS1_v1_5.new(key)
@@ -572,7 +572,7 @@ def send(amount_input, recipient_input, openfield_input):
                 app_log.warning("Client: The signature is valid, proceeding to save transaction, signature, new txhash and the public key to mempool")
 
                 # print(str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input),str(signature_enc), str(public_key_hashed), str(keep_input), str(openfield_input))
-                tx_submit = str(timestamp), str(myaddress), str(recipient_input), '%.8f' % float(amount_input), str(signature_enc.decode("utf-8")), str(public_key_hashed.decode("utf-8")), str(keep_input), str(openfield_input)  # float kept for compatibility
+                tx_submit = str(timestamp), str(myaddress), str(recipient_input), '%.8f' % float(amount_input), str(signature_enc.decode("utf-8")), str(public_key_hashed.decode("utf-8")), str(operation_input), str(openfield_input)  # float kept for compatibility
 
                 while True:
                     connections.send(s, "mpinsert", 10)
