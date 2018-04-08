@@ -1623,7 +1623,7 @@ startup_time = time.time()
 
 
 class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
-    def server(self):
+    def handle(self):
 
         # global banlist
         # global ban_threshold
