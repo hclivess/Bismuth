@@ -601,7 +601,7 @@ def difficulty(c, mode):
     difficulty2 = difficulty
     time_now = time.time()
 
-    if block_time > 90.0:  # keep after fork
+    if block_time > 90.0:
         if time_now > timestamp_last + 300:  # if more than 5 minutes passed
             difficulty2 = difficulty - Decimal(1.0)
 
@@ -2403,7 +2403,7 @@ def worker(HOST, PORT):
                 h3 = h2
 
             data = connections.receive(s, 10)  # receive data, one and the only root point
-            # print(data)
+            #print(data)
 
             if data == "peers":  # REWORK
                 subdata = connections.receive(s, 10)
