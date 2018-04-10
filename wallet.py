@@ -6,7 +6,6 @@ from decimal import *
 from bisurl import *
 from quantizer import quantize_eight
 
-
 # import keys
 
 # globalize
@@ -1063,10 +1062,21 @@ def refresh(address, s):
         bl_height_var.set("Block Height: {}".format(bl_height))
         diff_msg_var.set("Mining Difficulty: {}".format(diff_msg))
         sync_msg_var.set(sync_msg)
-        version_var.set("Version: {}".format(status_version))
+        version_var.set("Local Version: {}".format(status_version))
         hash_var.set("Hash: {}...".format(hash_last[:6]))
-
         mempool_count_var.set("Mempool txs: {}".format(len(mempool_total)))
+
+        connections.send(s, "annverget", 10)
+        annverget = connections.receive(s, 10)
+        current_var.set(annverget)
+        current_var.set("Latest version: {}".format(annverget))
+
+        if status_version != annverget:
+            version_color = "red"
+        else:
+            version_color = "green"
+        version_var_label.config (fg=version_color)
+
 
         connections.send(s, "addlistlim", 10)
         connections.send(s, address, 10)
@@ -1076,6 +1086,14 @@ def refresh(address, s):
 
         table(address, addlist_20, mempool_total)
         # root.after(1000, refresh)
+
+        connections.send(s, "annget", 10)
+        annget = connections.receive(s, 10)
+        ann_var_text.config (state=NORMAL)
+        ann_var_text.delete('1.0', END)
+        ann_var_text.insert (INSERT, annget)
+        ann_var_text.config (state=DISABLED)
+
         all_spend_check()
     except:
         messagebox.showinfo("Connection error", "Connection to node aborted")
@@ -1157,7 +1175,7 @@ root.wm_title("Bismuth Light Wallet running on {}".format(light_ip))
 img = Image("photo", file="graphics/icon.gif")
 root.tk.call('wm', 'iconphoto', root._w, img)
 
-if gui_scaling != "Default":
+if gui_scaling != "default":
     root.tk.call("tk", "scaling", gui_scaling)
 
 password_var_enc = StringVar()
@@ -1312,6 +1330,19 @@ mempool_count_var = StringVar()
 mempool_count_var_label = Label(f5, textvariable=mempool_count_var)
 mempool_count_var_label.grid(row=10, column=0, sticky=N + E, padx=15)
 
+current_var = StringVar()
+current_var_label = Label(f5, textvariable=current_var)
+current_var_label.grid(row=11, column=0, sticky=N + E, padx=15)
+
+ann_var = StringVar()
+ann_var_text = Text(f2, width=40, height=4, font=("Tahoma", 8))
+ann_var_text.grid(row=2, column=0, sticky=N + W, padx=15, pady=15)
+ann_var_text.config(wrap=WORD)
+ann_var_text.config(background="grey75")
+
+
+
+
 encode_var = BooleanVar()
 alias_cb_var = BooleanVar()
 msg_var = BooleanVar()
@@ -1416,7 +1447,7 @@ Label(f3, text="", width=20, anchor=W).grid(row=7, sticky=S)
 
 logo_hash_decoded = base64.b64decode(icons.logo_hash)
 logo = PhotoImage(data=logo_hash_decoded)
-Label(f2, image=logo).grid(column=0, sticky=NE, pady=10, padx=0)
+Label(f2, image=logo).grid(column=0, row=0, sticky=N + E + W, pady=10, padx=0)
 # logo
 
 node_connect()

@@ -19,6 +19,7 @@ from decimal import *
 import tokens
 import aliases
 from quantizer import *
+from ann import ann_get, ann_ver_get
 
 from Crypto.Hash import SHA
 from Crypto.PublicKey import RSA
@@ -2085,7 +2086,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if peers.is_allowed(peer_ip, data):
                         alias_address = connections.receive(self.request, 10)
 
-                        execute_param(h3, ("SELECT openfield FROM transactions WHERE address = ? AND openfield LIKE ?;"), (alias_address,) + ("alias=" + '%',))
+                        execute_param(h3, ("SELECT openfield FROM transactions WHERE address = ? AND openfield LIKE ?;"), (alias_address, "alias=" + '%',))
 
                         result = h3.fetchall()
 
@@ -2232,6 +2233,27 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         app_log.info("{} not whitelisted for addvalidate command".format(peer_ip))
 
 
+                elif data == "annget":
+                    # if (peer_ip in allowed or "any" in allowed):
+                    if peers.is_allowed(peer_ip, data):
+
+                        # with open(peerlist, "r") as peer_list:
+                        #    peers_file = peer_list.read()
+                        connections.send(self.request, ann_get(h3,genesis_conf), 10)
+                    else:
+                        app_log.info("{} not whitelisted for annget command".format(peer_ip))
+
+                elif data == "annverget":
+                    # if (peer_ip in allowed or "any" in allowed):
+                    if peers.is_allowed(peer_ip, data):
+
+                        # with open(peerlist, "r") as peer_list:
+                        #    peers_file = peer_list.read()
+                        connections.send(self.request, ann_ver_get(h3,genesis_conf), 10)
+
+                    else:
+                        app_log.info("{} not whitelisted for annget command".format(peer_ip))
+
                 elif data == "peersget":
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
@@ -2261,6 +2283,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                     else:
                         app_log.info("{} not whitelisted for statusget command".format(peer_ip))
+
 
                 elif data == "statusjson":
                     if peers.is_allowed(peer_ip, data):
