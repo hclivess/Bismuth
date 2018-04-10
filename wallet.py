@@ -1157,8 +1157,8 @@ root.wm_title("Bismuth Light Wallet running on {}".format(light_ip))
 img = Image("photo", file="graphics/icon.gif")
 root.tk.call('wm', 'iconphoto', root._w, img)
 
-
-root.tk.call("tk", "scaling", gui_scaling)
+if gui_scaling != "Default":
+    root.tk.call("tk", "scaling", gui_scaling)
 
 password_var_enc = StringVar()
 password_var_con = StringVar()
