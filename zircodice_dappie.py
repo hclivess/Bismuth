@@ -161,7 +161,7 @@ while True:
             # create transactions for missing payouts
             timestamp = '%.2f' % time.time()
 
-            payout_amount = Decimal(bet_amount * 2) - percentage(2, bet_amount)
+            payout_amount = Decimal(bet_amount * 2) - percentage(5, bet_amount)
             payout_openfield = "payout for " + tx_signature[:8]
             payout_operation = 0
             fee = fee_calculate(payout_openfield)

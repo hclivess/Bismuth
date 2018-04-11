@@ -302,7 +302,7 @@ def url_insert():
 
 def address_copy():
     root.clipboard_clear()
-    root.clipboard_append(myaddress)
+    root.clipboard_append(gui_address.get())
 
 
 def url_copy():
@@ -1324,15 +1324,15 @@ version_var_label.grid(row=8, column=0, sticky=N + E, padx=15)
 
 hash_var = StringVar()
 hash_var_label = Label(f5, textvariable=hash_var)
-hash_var_label.grid(row=9, column=0, sticky=N + E, padx=15)
+hash_var_label.grid(row=10, column=0, sticky=N + E, padx=15)
 
 mempool_count_var = StringVar()
 mempool_count_var_label = Label(f5, textvariable=mempool_count_var)
-mempool_count_var_label.grid(row=10, column=0, sticky=N + E, padx=15)
+mempool_count_var_label.grid(row=11, column=0, sticky=N + E, padx=15)
 
 current_var = StringVar()
 current_var_label = Label(f5, textvariable=current_var)
-current_var_label.grid(row=11, column=0, sticky=N + E, padx=15)
+current_var_label.grid(row=9, column=0, sticky=N + E, padx=15)
 
 ann_var = StringVar()
 ann_var_text = Text(f2, width=40, height=4, font=("Tahoma", 8))

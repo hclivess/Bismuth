@@ -1997,6 +1997,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                         fees = Decimal("0")
                         debit_ledger = Decimal("0")
+
                         for entry in execute_param(h3, ("SELECT fee, amount FROM transactions WHERE address = ?;"), (balance_address,)):
                             try:
                                 fees = quantize_eight(fees) + quantize_eight(entry[0])
