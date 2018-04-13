@@ -1157,11 +1157,18 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         app_log.warning("Negative balance spend attempt")
 
                     #if transaction != transaction_list[-1]:  # non-mining txs / disabled (per pool request)
-                    if received_address != hashlib.sha224(base64.b64decode(received_public_key_hashed)).hexdigest():
-                        app_log.warning("Attempt to spend from a wrong address")
-                        block_valid = 0
 
-                    if db_block_height > 700000:
+                    if db_block_height > 700000: #fix for stuck addresses with capitalized letter
+                        if received_address != hashlib.sha224(base64.b64decode(received_public_key_hashed)).hexdigest() and received_address != hashlib.sha224(base64.b64decode(received_public_key_hashed)).hexdigest().capitalize:
+                            app_log.warning("Attempt to spend from a wrong address")
+                            block_valid = 0
+
+                    else:
+                        if received_address != hashlib.sha224(base64.b64decode(received_public_key_hashed)).hexdigest():
+                            app_log.warning("Attempt to spend from a wrong address")
+                            block_valid = 0
+
+                    if db_block_height > 700000: # start validating
                         if not address_validate(received_address) or not address_validate(received_recipient):
                             app_log.warning("Not a valid address")
                             block_valid = 0
