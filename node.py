@@ -482,7 +482,6 @@ def ledger_compress(ledger_path_conf, hyper_path_conf):
                 # app_log.info("Fees: " + str(fees))
                 # app_log.info("Rewards: " + str(rewards))
                 # app_log.info("Balance: " + str(end_balance))
-
                 # test for keep positivity
                 # hyp.execute("SELECT block_height FROM transactions WHERE address OR recipient = ?", (x,))
                 # keep_is = 1
@@ -1162,9 +1161,10 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         app_log.warning("Attempt to spend from a wrong address")
                         block_valid = 0
 
-                    if not address_validate(received_address) or not address_validate(received_recipient):
-                        app_log.warning("Not a valid address")
-                        block_valid = 0
+                    if db_block_height > 700000:
+                        if not address_validate(received_address) or not address_validate(received_recipient):
+                            app_log.warning("Not a valid address")
+                            block_valid = 0
 
                     if transaction == transaction_list[-1]:  # recognize the last transaction as the mining reward transaction
                         block_timestamp = received_timestamp
