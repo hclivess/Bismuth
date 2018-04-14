@@ -5,6 +5,7 @@ from tokens import *
 from decimal import *
 from bisurl import *
 from quantizer import quantize_eight
+import csv
 
 # import keys
 
@@ -765,6 +766,23 @@ def refresh_auto():
     root.after(0, refresh(gui_address.get(), s))
     root.after(10000, refresh_auto)
 
+def csv_export(s):
+    connections.send (s, "addlist", 10)  # senders
+    connections.send (s, gui_address.get(), 10)
+
+    tx_list = connections.receive (s, 10)
+    print(tx_list)
+
+    root.filename = filedialog.asksaveasfilename(initialdir="", title="Select CSV file", filetypes=(("CSV", "*.csv"),))
+
+    with open (root.filename, 'w', newline='') as csvfile:
+        for transaction in tx_list:
+
+            writer = csv.writer (csvfile, quoting=csv.QUOTE_MINIMAL)
+            writer.writerow ([transaction[0], transaction[1], transaction[3], transaction[4], transaction[5], transaction[6], transaction[7], transaction[8], transaction[9], transaction[10], transaction[11]])
+
+
+    return
 
 def token_transfer(token, amount, window):
     openfield.delete('1.0', END)  # remove previous
@@ -1253,6 +1271,9 @@ fingerprint_b.grid(row=button_row_zero + 8, column=column, sticky=N + E, pady=0,
 
 tokens_b = Button(f5, text="Tokens", command=tokens, height=1, width=20, font=("Tahoma", 8))
 tokens_b.grid(row=button_row_zero + 9, column=column, sticky=N + E, pady=0, padx=15)
+
+csv_export_b = Button(f5, text="CSV Export", command=lambda :csv_export(s), height=1, width=20, font=("Tahoma", 8))
+csv_export_b.grid(row=button_row_zero + 10, column=column, sticky=N + E, pady=0, padx=15)
 
 # quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=10, font=("Tahoma", 8))
 # quit_b.grid(row=16, column=0, sticky=W + E + S, pady=0, padx=15)
