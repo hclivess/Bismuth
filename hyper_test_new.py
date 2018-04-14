@@ -108,6 +108,10 @@ def check(addresses):
             check = '> Ko'
             ERRORS += 1
 
+        if address.lower() != address or len(address) != 56 and (balance1 or balance2) != 0:
+            print (address,'> you dun fukt it up')
+
+
         print(check, address, balance1, balance2)
 
         if (Decimal(balance1) < 0 or Decimal(balance2) < 0):
