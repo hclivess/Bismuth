@@ -14,7 +14,7 @@ def filter_status(record):
         return 0
 
 
-def log(logFile,level_input, terminal_output):
+def log(logFile, level_input="WARNING", terminal_output="no"):
     if level_input == "NOTSET":
         level = logging.NOTSET
     if level_input == "DEBUG":
