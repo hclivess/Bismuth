@@ -7,10 +7,12 @@ from bisurl import *
 from quantizer import quantize_eight
 import csv
 import matplotlib.pyplot as plt
+import matplotlib
 
 # import keys
 
 # globalize
+global block_height_old
 global statusget
 global key
 global private_key_readable
@@ -26,7 +28,13 @@ stats_nodes_count_list = []
 stats_thread_count_list = []
 stats_consensus_list = []
 stats_consensus_percentage_list = []
-stats_diff_list = []
+stats_diff_list_0 = []
+stats_diff_list_1 = []
+stats_diff_list_2 = []
+stats_diff_list_3 = []
+stats_diff_list_4 = []
+stats_diff_list_5 = []
+stats_diff_list_6 = []
 # data for charts
 
 if os.path.exists("privkey.der"):
@@ -899,17 +907,54 @@ def stats():
 
     #stats_diff_list = []
 
-    plt.subplot (4, 1, 1)
+    plt.tight_layout ()
+
+    rows = 4
+    columns = 2
+    font_size = "medium"
+    plt.subplots_adjust (wspace=1, hspace=2)
+
+    plt.subplot (rows, columns, 1)
     plt.plot (range(len(stats_nodes_count_list)), stats_nodes_count_list, 'o-')
+    plt.title("Utilization", fontsize = font_size)
 
-    plt.subplot (4, 1, 2)
+    plt.subplot (rows, columns, 1)
     plt.plot (range(len(stats_thread_count_list)), stats_thread_count_list, '.-')
+    plt.legend (('Nodes', 'Threads'), loc='best', shadow=True)
 
-    plt.subplot (4, 1, 3)
+    plt.subplot (rows, columns, 2)
     plt.plot (range(len(stats_consensus_list)), stats_consensus_list, '.-')
+    plt.legend (('Consensus Block',), loc='best', shadow=True)
 
-    plt.subplot (4, 1, 4)
+    plt.subplot (rows, columns, 3)
     plt.plot (range(len(stats_consensus_percentage_list)), stats_consensus_percentage_list, '.-')
+    plt.legend (('Consensus Level',), loc='best', shadow=True)
+
+    plt.subplot (rows, columns, 4)
+    plt.plot (range(len(stats_diff_list_2)), stats_diff_list_2, '.-')
+    plt.legend (('Time To Generate Block',), loc='best', shadow=True)
+
+    plt.subplot (rows, columns, 5)
+    plt.plot (range(len(stats_diff_list_0)), stats_diff_list_0, '.-')
+
+    plt.subplot (rows, columns, 5)
+    plt.plot (range(len(stats_diff_list_1)), stats_diff_list_1, '.-')
+
+    plt.subplot (rows, columns, 5)
+    plt.plot (range(len(stats_diff_list_3)), stats_diff_list_3, '.-')
+    plt.legend (('Diff 1', 'Diff 2, Diff Current'), loc='best', shadow=True)
+
+    plt.subplot (rows, columns, 6)
+    plt.plot (range(len(stats_diff_list_4)), stats_diff_list_4, '.-')
+    plt.legend (('Block Time',), loc='best', shadow=True)
+
+    plt.subplot (rows, columns, 7)
+    plt.plot (range(len(stats_diff_list_5)), stats_diff_list_5, '.-')
+    plt.legend (('Hashrate',), loc='best', shadow=True)
+
+    plt.subplot (rows, columns, 8)
+    plt.plot (range(len(stats_diff_list_6)), stats_diff_list_6, '.-')
+    plt.legend (('Difficulty Adjustment',), loc='best', shadow=True)
 
 
     plt.show ()
@@ -1182,6 +1227,8 @@ def table(address, addlist_20, mempool_total):
 def refresh(address, s):
     global balance
     global statusget
+    global block_height_old
+
     # print "refresh triggered"
     try:
 
@@ -1190,12 +1237,32 @@ def refresh(address, s):
         status_version = statusget[7]
 
         # data for charts
-        stats_nodes_count_list.append (statusget[1])
-        stats_thread_count_list.append (statusget[3])
-        stats_consensus_list.append (statusget[5])
-        stats_consensus_percentage_list.append (statusget[6])
-        stats_diff_list.append (statusget[7])
-        print(stats_nodes_count_list,stats_thread_count_list,stats_consensus_list,stats_consensus_percentage_list,stats_diff_list)
+        print(statusget)
+        block_height = statusget[8][7] #move chart only if the block height changes, returned from diff 7
+        try:
+            block_height_old
+        except:
+            block_height_old = block_height #init
+            print("init")
+
+        if block_height_old != block_height or not stats_nodes_count_list: #or if list is empty
+            stats_nodes_count_list.append (statusget[1])
+            stats_thread_count_list.append (statusget[3])
+            stats_consensus_list.append (statusget[5])
+            stats_consensus_percentage_list.append (statusget[6])
+
+
+            stats_diff_list_0.append (statusget[8][0])
+            stats_diff_list_1.append (statusget[8][1])
+            stats_diff_list_2.append (statusget[8][2])
+            stats_diff_list_3.append (statusget[8][3])
+            stats_diff_list_4.append (statusget[8][4])
+            stats_diff_list_5.append (statusget[8][5])
+            stats_diff_list_6.append (statusget[8][6])
+
+            block_height_old = block_height
+        else:
+            print("Chart update skipped, block hasn't moved")
         # data for charts
 
         connections.send(s, "balanceget", 10)

@@ -612,7 +612,7 @@ def difficulty(c):
     if difficulty2 < 80:
         difficulty2 = 80
 
-    return (float('%.10f' % difficulty), float('%.10f' % difficulty2), float(time_to_generate), float(diff_block_previous), float(block_time), float(hashrate), float(diff_adjustment))  # need to keep float here for database inserts support
+    return (float('%.10f' % difficulty), float('%.10f' % difficulty2), float(time_to_generate), float(diff_block_previous), float(block_time), float(hashrate), float(diff_adjustment), block_height)  # need to keep float here for database inserts support
 
 
 
