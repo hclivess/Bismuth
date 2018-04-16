@@ -6,7 +6,11 @@ from decimal import *
 from bisurl import *
 from quantizer import quantize_eight
 import csv
-import matplotlib.pyplot as plt
+
+import matplotlib
+matplotlib.use('TkAgg')
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
+from matplotlib.figure import Figure
 
 # import keys
 
@@ -793,59 +797,110 @@ def stats():
 
         # stats_diff_list = []
 
-        plt.figure (figsize=(11, 7))
-        plt.subplots_adjust (left=None, bottom=None, right=None, top=None, wspace=None, hspace=None)
-        plt.tight_layout ()
+        #plt.figure (figsize=(11, 7))
+        #plt.subplots_adjust (left=None, bottom=None, right=None, top=None, wspace=None, hspace=None)
+        #plt.tight_layout ()
 
         rows = 4
         columns = 2
-        font_size = "medium"
+        #font_size = "medium"
 
         # plt.subplots_adjust (wspace=1, hspace=2)
+        f = Figure (figsize=(11, 7), dpi=75)
 
-        plt.subplot (rows, columns, 1)
-        plt.plot (range (len (stats_nodes_count_list)), stats_nodes_count_list, 'o-')
-        plt.title ("Utilization", fontsize=font_size)
+        #plt.subplot (rows, columns, 1)
+        #plt.plot (range (len (stats_nodes_count_list)), stats_nodes_count_list, 'o-')
+        #plt.title ("Utilization", fontsize=font_size)
 
-        plt.subplot (rows, columns, 1)
-        plt.plot (range (len (stats_thread_count_list)), stats_thread_count_list, '.-')
-        plt.legend (('Nodes', 'Threads'), loc='best', shadow=True)
+        first = f.add_subplot (rows, columns, 1)
+        first.plot ((range (len (stats_nodes_count_list))), (stats_nodes_count_list))
 
-        plt.subplot (rows, columns, 2)
-        plt.plot (range (len (stats_consensus_list)), stats_consensus_list, '.-')
-        plt.legend (('Consensus Block',), loc='best', shadow=True)
+        #plt.subplot (rows, columns, 1)
+        #plt.plot (range (len (stats_thread_count_list)), stats_thread_count_list, '.-')
+        #plt.legend (('Nodes', 'Threads'), loc='best', shadow=True)
 
-        plt.subplot (rows, columns, 3)
-        plt.plot (range (len (stats_consensus_percentage_list)), stats_consensus_percentage_list, '.-')
-        plt.legend (('Consensus Level',), loc='best', shadow=True)
+        first_2 = f.add_subplot (rows, columns, 1)
+        first_2.plot ((range (len (stats_thread_count_list))), (stats_thread_count_list))
 
-        plt.subplot (rows, columns, 4)
-        plt.plot (range (len (stats_diff_list_2)), stats_diff_list_2, '.-')
-        plt.legend (('Time To Generate Block',), loc='best', shadow=True)
+        #plt.subplot (rows, columns, 2)
+        #plt.plot (range (len (stats_consensus_list)), stats_consensus_list, '.-')
+        #plt.legend (('Consensus Block',), loc='best', shadow=True)
 
-        plt.subplot (rows, columns, 5)
-        plt.plot (range (len (stats_diff_list_0)), stats_diff_list_0, '.-')
+        second = f.add_subplot (rows, columns, 2)
+        second.plot ((range (len (stats_consensus_list))), (stats_consensus_list))
 
-        plt.subplot (rows, columns, 5)
-        plt.plot (range (len (stats_diff_list_1)), stats_diff_list_1, '.-')
+        #plt.subplot (rows, columns, 3)
+        #plt.plot (range (len (stats_consensus_percentage_list)), stats_consensus_percentage_list, '.-')
+        #plt.legend (('Consensus Level',), loc='best', shadow=True)
 
-        plt.subplot (rows, columns, 5)
-        plt.plot (range (len (stats_diff_list_3)), stats_diff_list_3, '.-')
-        plt.legend (('Diff 1', 'Diff 2', 'Diff Current',), loc='best', shadow=True)
+        third = f.add_subplot (rows, columns, 3)
+        third.plot ((range (len (stats_consensus_percentage_list))), (stats_consensus_percentage_list))
 
-        plt.subplot (rows, columns, 6)
-        plt.plot (range (len (stats_diff_list_4)), stats_diff_list_4, '.-')
-        plt.legend (('Block Time',), loc='best', shadow=True)
+        #plt.subplot (rows, columns, 4)
+        #plt.plot (range (len (stats_diff_list_2)), stats_diff_list_2, '.-')
+        #plt.legend (('Time To Generate Block',), loc='best', shadow=True)
 
-        plt.subplot (rows, columns, 7)
-        plt.plot (range (len (stats_diff_list_5)), stats_diff_list_5, '.-')
-        plt.legend (('Hashrate',), loc='best', shadow=True)
+        fourth = f.add_subplot (rows, columns, 4)
+        fourth.plot ((range (len (stats_diff_list_2))), (stats_diff_list_2))
 
-        plt.subplot (rows, columns, 8)
-        plt.plot (range (len (stats_diff_list_6)), stats_diff_list_6, '.-')
-        plt.legend (('Difficulty Adjustment',), loc='best', shadow=True)
+        #plt.subplot (rows, columns, 5)
+        #plt.plot (range (len (stats_diff_list_0)), stats_diff_list_0, '.-')
 
-        plt.show ()
+        fifth = f.add_subplot (rows, columns, 5)
+        fifth.plot ((range (len (stats_diff_list_0))), (stats_diff_list_0))
+
+        #plt.subplot (rows, columns, 5)
+        #plt.plot (range (len (stats_diff_list_1)), stats_diff_list_1, '.-')
+
+        fifth_2 = f.add_subplot (rows, columns, 5)
+        fifth_2.plot ((range (len (stats_diff_list_1))), (stats_diff_list_1))
+
+        #plt.subplot (rows, columns, 5)
+        #plt.plot (range (len (stats_diff_list_3)), stats_diff_list_3, '.-')
+        #plt.legend (('Diff 1', 'Diff 2', 'Diff Current',), loc='best', shadow=True)
+
+        fifth_3 = f.add_subplot (rows, columns, 5)
+        fifth_3.plot ((range (len (stats_diff_list_3))), (stats_diff_list_3))
+
+        #plt.subplot (rows, columns, 6)
+        #plt.plot (range (len (stats_diff_list_4)), stats_diff_list_4, '.-')
+        #plt.legend (('Block Time',), loc='best', shadow=True)
+
+        sixth = f.add_subplot (rows, columns, 6)
+        sixth.plot ((range (len (stats_diff_list_4))), (stats_diff_list_4))
+
+        #plt.subplot (rows, columns, 7)
+        #plt.plot (range (len (stats_diff_list_5)), stats_diff_list_5, '.-')
+        #plt.legend (('Hashrate',), loc='best', shadow=True)
+
+        seventh = f.add_subplot (rows, columns, 7)
+        seventh.plot ((range (len (stats_diff_list_5))), (stats_diff_list_5))
+
+        #plt.subplot (rows, columns, 8)
+        #plt.plot (range (len (stats_diff_list_6)), stats_diff_list_6, '.-')
+        #plt.legend (('Difficulty Adjustment',), loc='best', shadow=True)
+
+        eigth = f.add_subplot (rows, columns, 8)
+        eigth.plot ((range (len (stats_diff_list_6))), (stats_diff_list_6))
+
+        #plt.show ()
+
+        # a tk.DrawingArea
+        canvas = FigureCanvasTkAgg (f, master=stats_window)
+        canvas.draw ()
+        canvas.get_tk_widget ().grid (row=0, column=1, sticky=W, padx=15, pady=(0, 0), rowspan=999)
+
+        #toolbar = NavigationToolbar2TkAgg (stats_window, root)
+        #toolbar.update ()
+        #canvas._tkcanvas.grid (row=1,sticky=N)
+
+        #def _quit():
+        #    root.quit ()  # stops mainloop
+        #    root.destroy ()  # this is necessary on Windows to prevent
+            # Fatal Python Error: PyEval_RestoreThread: NULL tstate
+
+        #button = Button (master=root, text='Quit', command=_quit)
+        #button.grid (row=1,sticky=S)
         # chart
 
 
@@ -861,8 +916,6 @@ def stats():
         stats_consensus_percentage = statusget[6]
         stats_version = statusget[7]
         stats_diff = statusget[8]
-
-
 
         stats_address_label_var.set ("Node Address: {}".format (stats_address))
         stats_nodes_count_label_var.set ("Number of Nodes: {}".format (stats_nodes_count))
@@ -1236,9 +1289,10 @@ def refresh(address, s):
             block_height_old
         except:
             block_height_old = block_height #init
-            print("init")
 
         if block_height_old != block_height or not stats_nodes_count_list: #or if list is empty
+            print("Chart update in progress")
+
             stats_nodes_count_list.append (statusget[1])
             stats_thread_count_list.append (statusget[3])
             stats_consensus_list.append (statusget[5])
