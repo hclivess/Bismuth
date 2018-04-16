@@ -6,6 +6,7 @@ from decimal import *
 from bisurl import *
 from quantizer import quantize_eight
 import csv
+import matplotlib.pyplot as plt
 
 # import keys
 
@@ -19,6 +20,14 @@ global public_key_hashed
 global myaddress
 global private_key_load
 global public_key_load
+
+# data for charts
+stats_nodes_count_list = []
+stats_thread_count_list = []
+stats_consensus_list = []
+stats_consensus_percentage_list = []
+stats_diff_list = []
+# data for charts
 
 if os.path.exists("privkey.der"):
     private_key_load = "privkey.der"
@@ -771,6 +780,12 @@ def stats():
     stats_window = Toplevel ()
     stats_window.title ("Node Statistics")
 
+
+
+
+
+
+
     def update():
         print("Statistics update triggered")
         stats_address = statusget[0]
@@ -782,6 +797,7 @@ def stats():
         stats_consensus_percentage = statusget[6]
         stats_version = statusget[7]
         stats_diff = statusget[8]
+
 
 
         stats_address_label_var.set ("Node Address: {}".format (stats_address))
@@ -870,10 +886,37 @@ def stats():
 
 
     def refresh_stats_auto():
-        root.after (0, update())
-        root.after (10000, refresh_stats_auto)
+        try:
+            root.after (0, update())
+            root.after (10000, refresh_stats_auto)
+        except:
+            print("Statistics window closed, disabling auto-refresh")
 
     refresh_stats_auto()
+
+
+    # chart
+
+    #stats_diff_list = []
+
+    plt.subplot (4, 1, 1)
+    plt.plot (range(len(stats_nodes_count_list)), stats_nodes_count_list, 'o-')
+
+    plt.subplot (4, 1, 2)
+    plt.plot (range(len(stats_thread_count_list)), stats_thread_count_list, '.-')
+
+    plt.subplot (4, 1, 3)
+    plt.plot (range(len(stats_consensus_list)), stats_consensus_list, '.-')
+
+    plt.subplot (4, 1, 4)
+    plt.plot (range(len(stats_consensus_percentage_list)), stats_consensus_percentage_list, '.-')
+
+
+    plt.show ()
+    #chart
+
+
+
 
 
     #root.after (1000, update ())
@@ -1135,6 +1178,7 @@ def table(address, addlist_20, mempool_total):
                 # refreshables
 
 
+
 def refresh(address, s):
     global balance
     global statusget
@@ -1144,6 +1188,15 @@ def refresh(address, s):
         connections.send(s, "statusget", 10)
         statusget = connections.receive(s, 10)
         status_version = statusget[7]
+
+        # data for charts
+        stats_nodes_count_list.append (statusget[1])
+        stats_thread_count_list.append (statusget[3])
+        stats_consensus_list.append (statusget[5])
+        stats_consensus_percentage_list.append (statusget[6])
+        stats_diff_list.append (statusget[7])
+        print(stats_nodes_count_list,stats_thread_count_list,stats_consensus_list,stats_consensus_percentage_list,stats_diff_list)
+        # data for charts
 
         connections.send(s, "balanceget", 10)
         connections.send(s, address, 10)  # change address here to view other people's transactions
