@@ -10,6 +10,7 @@ import csv
 # import keys
 
 # globalize
+global statusget
 global key
 global private_key_readable
 global encrypted
@@ -766,6 +767,112 @@ def refresh_auto():
     root.after(0, refresh(gui_address.get(), s))
     root.after(10000, refresh_auto)
 
+
+
+def stats():
+    stats_window = Toplevel ()
+    stats_window.title ("Node Statistics")
+
+    def update():
+        stats_address = statusget[0]
+        stats_nodes_count = statusget[1]
+        stats_nodes_list = statusget[2]
+        stats_thread_count = statusget[3]
+        stats_uptime = statusget[4]
+        stats_consensus = statusget[5]
+        stats_consensus_percentage = statusget[6]
+        stats_version = statusget[7]
+        stats_diff = statusget[8]
+
+
+        stats_address_label_var.set ("Node Address: {}".format (stats_address))
+        stats_nodes_count_label_var.set ("Number of Nodes: {}".format (stats_nodes_count))
+        for entry in stats_nodes_list:
+            stats_nodes_list_text_var.insert (END, entry)
+        stats_nodes_list_text_var.grid (row=2, column=0, sticky=W, padx=15, pady=(0, 0))
+        stats_thread_count_var.set ("Number of Threads: {}".format (stats_thread_count))
+        stats_uptime_var.set ("Uptime: {:.2f} hours".format (stats_uptime / 60 / 60))
+        stats_consensus_var.set ("Consensus Block: {}".format (stats_consensus))
+        stats_consensus_consensus_percentage_var.set ("Consensus Level: {:.2f}%".format (stats_consensus_percentage))
+        stats_version_var.set ("Version: {}".format (stats_version))
+        stats_diff_var_0.set ("Difficulty 1: {}".format (stats_diff[0]))
+        stats_diff_var_1.set ("Difficulty 2: {}".format (stats_diff[1]))
+        stats_diff_var_2.set ("Time to Generate Block: {}".format (stats_diff[2]))
+        stats_diff_var_3.set ("Current Block Difficulty: {}".format (stats_diff[3]))
+        stats_diff_var_4.set ("Block Time: {}".format (stats_diff[4]))
+        stats_diff_var_5.set ("Hashrate: {}".format (stats_diff[5]))
+        stats_diff_var_6.set ("Difficulty Adjustment: {}".format (stats_diff[6]))
+
+    stats_address_label_var = StringVar()
+    stats_address_label = Label(stats_window, textvariable=stats_address_label_var)
+    stats_address_label.grid(row=0, column=0, sticky=W, padx=15, pady=(0, 0))
+
+    stats_nodes_count_label_var = StringVar()
+    stats_nodes_count_label = Label(stats_window, textvariable=stats_nodes_count_label_var)
+    stats_nodes_count_label.grid(row=1, column=0, sticky=W, padx=15, pady=(0, 0))
+
+
+    scrollbar = Scrollbar (stats_window)
+    scrollbar.grid (row=2, column=0, sticky=N+S+W, padx=140)
+
+    stats_nodes_list_text_var = Listbox (stats_window, width=20, height=10, font=("Tahoma", 8))
+
+
+    scrollbar.config (command=stats_nodes_list_text_var.yview)
+
+    stats_thread_count_var = StringVar()
+    stats_thread_count_label = Label(stats_window, textvariable=stats_thread_count_var)
+    stats_thread_count_label.grid(row=3, column=0, sticky=W, padx=15, pady=(0, 0))
+
+    stats_uptime_var = StringVar()
+    stats_uptime_label = Label(stats_window, textvariable=stats_uptime_var)
+    stats_uptime_label.grid(row=4, column=0, sticky=W, padx=15, pady=(0, 0))
+
+    stats_consensus_var = StringVar()
+    stats_consensus_label = Label(stats_window, textvariable=stats_consensus_var)
+    stats_consensus_label.grid(row=5, column=0, sticky=W, padx=15, pady=(0, 0))
+
+    stats_consensus_consensus_percentage_var = StringVar()
+    stats_consensus_consensus_percentage_label = Label(stats_window, textvariable=stats_consensus_consensus_percentage_var)
+    stats_consensus_consensus_percentage_label.grid(row=6, column=0, sticky=W, padx=15, pady=(0, 0))
+
+    stats_version_var = StringVar()
+    stats_version_label = Label(stats_window, textvariable=stats_version_var)
+    stats_version_label.grid(row=7, column=0, sticky=W, padx=15, pady=(0, 0))
+
+    stats_diff_var_0 = StringVar()
+    stats_diff_label_0 = Label(stats_window, textvariable=stats_diff_var_0)
+    stats_diff_label_0.grid(row=8, column=0, sticky=W, padx=15, pady=(0, 0))
+
+    stats_diff_var_1 = StringVar()
+    stats_diff_label_1 = Label(stats_window, textvariable=stats_diff_var_1)
+    stats_diff_label_1.grid(row=9, column=0, sticky=W, padx=15, pady=(0, 0))
+
+    stats_diff_var_2 = StringVar()
+    stats_diff_label_2 = Label(stats_window, textvariable=stats_diff_var_2)
+    stats_diff_label_2.grid(row=10, column=0, sticky=W, padx=15, pady=(0, 0))
+
+    stats_diff_var_3 = StringVar()
+    stats_diff_label_3 = Label(stats_window, textvariable=stats_diff_var_3)
+    stats_diff_label_3.grid(row=11, column=0, sticky=W, padx=15, pady=(0, 0))
+
+    stats_diff_var_4 = StringVar()
+    stats_diff_label_4 = Label(stats_window, textvariable=stats_diff_var_4)
+    stats_diff_label_4.grid(row=12, column=0, sticky=W, padx=15, pady=(0, 0))
+
+    stats_diff_var_5 = StringVar()
+    stats_diff_label_5 = Label(stats_window, textvariable=stats_diff_var_5)
+    stats_diff_label_5.grid(row=13, column=0, sticky=W, padx=15, pady=(0, 0))
+
+    stats_diff_var_6 = StringVar()
+    stats_diff_label_6 = Label(stats_window, textvariable=stats_diff_var_6)
+    stats_diff_label_6.grid(row=14, column=0, sticky=W, padx=15, pady=(0, 0))
+
+    update()
+
+    #print (stats_address,stats_nodes_count,stats_nodes_list,stats_threads_count,stats_uptime,stats_consensus,stats_consensus_percentage,stats_version,stats_diff)
+
+
 def csv_export(s):
     connections.send (s, "addlist", 10)  # senders
     connections.send (s, gui_address.get(), 10)
@@ -1022,6 +1129,7 @@ def table(address, addlist_20, mempool_total):
 
 def refresh(address, s):
     global balance
+    global statusget
     # print "refresh triggered"
     try:
 
@@ -1274,6 +1382,9 @@ tokens_b.grid(row=button_row_zero + 9, column=column, sticky=N + E, pady=0, padx
 
 csv_export_b = Button(f5, text="CSV Export", command=lambda :csv_export(s), height=1, width=20, font=("Tahoma", 8))
 csv_export_b.grid(row=button_row_zero + 10, column=column, sticky=N + E, pady=0, padx=15)
+
+stats_b = Button(f5, text="Statistics", command=lambda :stats(), height=1, width=20, font=("Tahoma", 8))
+stats_b.grid(row=button_row_zero + 11, column=column, sticky=N + E, pady=0, padx=15)
 
 # quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=10, font=("Tahoma", 8))
 # quit_b.grid(row=16, column=0, sticky=W + E + S, pady=0, padx=15)

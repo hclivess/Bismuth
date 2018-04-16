@@ -612,7 +612,7 @@ def difficulty(c):
     if difficulty2 < 80:
         difficulty2 = 80
 
-    return (float('%.10f' % difficulty), float('%.10f' % difficulty2), float(time_to_generate), float(diff_block_previous), float(block_time), float(hashrate), float(difficulty_new_adjusted), float(diff_adjustment))  # need to keep float here for database inserts support
+    return (float('%.10f' % difficulty), float('%.10f' % difficulty2), float(time_to_generate), float(diff_block_previous), float(block_time), float(hashrate), float(diff_adjustment))  # need to keep float here for database inserts support
 
 
 
@@ -2279,7 +2279,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         threads_count = threading.active_count()
                         uptime = int(time.time() - startup_time)
                         diff = difficulty(c)
-
 
                         if reveal_address == "yes":
                             revealed_address = address
