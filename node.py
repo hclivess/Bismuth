@@ -568,7 +568,7 @@ def execute_param(cursor, query, param):
     return cursor
 
 
-def difficulty(c, mode):
+def difficulty(c):
     execute(c, "SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 2")
     result = c.fetchone()
     timestamp_last = Decimal(result[1])
@@ -582,22 +582,24 @@ def difficulty(c, mode):
     block_time = Decimal(timestamp_last - timestamp_1440) / 1440
     execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
     diff_block_previous = Decimal(c.fetchone()[0])
-    # Assume current difficulty D is known
-    D = diff_block_previous
-    # Assume current blocktime is known, calculcated from historic data, for example last 1440 blocks
-    T = block_time
+    ## Assume current difficulty D is known
+    ## D = diff_block_previous
+    ## Assume current blocktime is known, calculcated from historic data, for example last 1440 blocks
+    ##T = block_time
     # Calculate network hashrate
-    H = pow(2, D / Decimal(2.0)) / (T * math.ceil(28 - D / Decimal(16.0)))
+    time_to_generate = timestamp_last - timestamp_before_last
+
+    hashrate = pow(2, diff_block_previous / Decimal(2.0)) / (block_time * math.ceil(28 - diff_block_previous / Decimal(16.0)))
     # Calculate new difficulty for desired blocktime of 60 seconds
-    Td = Decimal(60.00)
-    D0 = D
-    Dnew = Decimal((2 / math.log(2)) * math.log(H * Td * math.ceil(28 - D0 / Decimal(16.0))))
+    target = Decimal(60.00)
+    ##D0 = diff_block_previous
+    difficulty_new = Decimal((2 / math.log(2)) * math.log(hashrate * target * math.ceil(28 - diff_block_previous / Decimal(16.0))))
     # Feedback controller
     Kd = 10
-    Dnew = Dnew - Kd * (block_time - block_time_prev)
-    diff_adjustment = (Dnew - D) / 720  # reduce by factor of 720
-    Dnew_adjusted = quantize_ten(D + diff_adjustment)
-    difficulty = Dnew_adjusted
+    difficulty_new = difficulty_new - Kd * (block_time - block_time_prev)
+    diff_adjustment = (difficulty_new - diff_block_previous) / 720  # reduce by factor of 720
+    difficulty_new_adjusted = quantize_ten(diff_block_previous + diff_adjustment)
+    difficulty = difficulty_new_adjusted
     difficulty2 = difficulty
     time_now = time.time()
 
@@ -609,14 +611,8 @@ def difficulty(c, mode):
         difficulty = 80
     if difficulty2 < 80:
         difficulty2 = 80
-    if mode == True:
-        app_log.warning("Time to generate block {}: {:.2f}".format(block_height, timestamp_last - timestamp_before_last))
-        app_log.warning("Current difficulty: {}".format(D))
-        app_log.warning("Current blocktime: {}".format(T))
-        app_log.warning("Current hashrate: {}".format(H))
-        app_log.warning("New difficulty after adjustment: {}".format(Dnew_adjusted))
-        app_log.warning("Difficulty: {} {}".format(difficulty, difficulty2))
-    return (float('%.10f' % difficulty), float('%.10f' % difficulty2))  # need to keep float here for database inserts support
+
+    return (float('%.10f' % difficulty), float('%.10f' % difficulty2), float(time_to_generate), float(diff_block_previous), float(block_time), float(hashrate), float(difficulty_new_adjusted), float(diff_adjustment))  # need to keep float here for database inserts support
 
 
 
@@ -1194,7 +1190,14 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                 if block_valid == 1:
                     # calculate difficulty
 
-                    diff = difficulty(c, True)
+                    diff = difficulty(c)
+
+                    app_log.warning ("Time to generate block {}: {:.2f}".format (db_block_height+1, diff[2]))
+                    app_log.warning ("Current difficulty: {}".format (diff[3]))
+                    app_log.warning ("Current blocktime: {}".format (diff[4]))
+                    app_log.warning ("Current hashrate: {}".format (diff[5]))
+                    app_log.warning ("New difficulty after adjustment: {}".format (diff[6]))
+                    app_log.warning ("Difficulty: {} {}".format (diff[0], diff[1]))
 
                     # app_log.info("Transaction list: {}".format(transaction_list_converted))
                     block_hash = hashlib.sha224((str(transaction_list_converted) + db_block_hash).encode("utf-8")).hexdigest()
@@ -2275,13 +2278,15 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         nodes_list = peers.peer_ip_list
                         threads_count = threading.active_count()
                         uptime = int(time.time() - startup_time)
+                        diff = difficulty(c)
+
 
                         if reveal_address == "yes":
                             revealed_address = address
                         else:
                             revealed_address = "private"
 
-                        connections.send(self.request, (revealed_address, nodes_count, nodes_list, threads_count, uptime, peers.consensus, peers.consensus_percentage, VERSION), 10)
+                        connections.send(self.request, (revealed_address, nodes_count, nodes_list, threads_count, uptime, peers.consensus, peers.consensus_percentage, VERSION, diff), 10)
 
                     else:
                         app_log.info("{} not whitelisted for statusget command".format(peer_ip))
@@ -2290,7 +2295,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "statusjson":
                     if peers.is_allowed(peer_ip, data):
                         uptime = int(time.time() - startup_time)
-                        tempdiff = difficulty(c, False)
+                        tempdiff = difficulty(c)
                         status = {"protocolversion": config.version_conf, "walletversion": VERSION, "testnet": peers.is_testnet,  # config data
                                   "blocks": last_block, "timeoffset": 0, "connections": peers.consensus_size, "difficulty": tempdiff[0],  # live status, bitcoind format
                                   "threads": threading.active_count(), "uptime": uptime, "consensus": peers.consensus, "consensus_percent": peers.consensus_percentage}  # extra data
@@ -2307,7 +2312,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "diffget":
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
-                        diff = difficulty(c, False)
+                        diff = difficulty(c)
                         connections.send(self.request, diff, 10)
                     else:
                         app_log.info("{} not whitelisted for diffget command".format(peer_ip))
