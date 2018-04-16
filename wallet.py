@@ -761,8 +761,6 @@ def msg_dialogue(address):
 
     # popup
 
-
-
 def refresh_auto():
     root.after(0, refresh(gui_address.get(), s))
     root.after(10000, refresh_auto)
@@ -774,6 +772,7 @@ def stats():
     stats_window.title ("Node Statistics")
 
     def update():
+        print("Statistics update triggered")
         stats_address = statusget[0]
         stats_nodes_count = statusget[1]
         stats_nodes_list = statusget[2]
@@ -802,6 +801,7 @@ def stats():
         stats_diff_var_4.set ("Block Time: {}".format (stats_diff[4]))
         stats_diff_var_5.set ("Hashrate: {}".format (stats_diff[5]))
         stats_diff_var_6.set ("Difficulty Adjustment: {}".format (stats_diff[6]))
+
 
     stats_address_label_var = StringVar()
     stats_address_label = Label(stats_window, textvariable=stats_address_label_var)
@@ -868,7 +868,15 @@ def stats():
     stats_diff_label_6 = Label(stats_window, textvariable=stats_diff_var_6)
     stats_diff_label_6.grid(row=14, column=0, sticky=W, padx=15, pady=(0, 0))
 
-    update()
+
+    def refresh_stats_auto():
+        root.after (0, update())
+        root.after (10000, refresh_stats_auto)
+
+    refresh_stats_auto()
+
+
+    #root.after (1000, update ())
 
     #print (stats_address,stats_nodes_count,stats_nodes_list,stats_threads_count,stats_uptime,stats_consensus,stats_consensus_percentage,stats_version,stats_diff)
 
