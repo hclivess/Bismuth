@@ -7,7 +7,6 @@ from bisurl import *
 from quantizer import quantize_eight
 import csv
 import matplotlib.pyplot as plt
-import matplotlib
 
 # import keys
 
@@ -789,8 +788,65 @@ def stats():
     stats_window.title ("Node Statistics")
 
 
+    def chart():
+        # chart
 
+        # stats_diff_list = []
 
+        plt.figure (figsize=(11, 7))
+        plt.subplots_adjust (left=None, bottom=None, right=None, top=None, wspace=None, hspace=None)
+        plt.tight_layout ()
+
+        rows = 4
+        columns = 2
+        font_size = "medium"
+
+        # plt.subplots_adjust (wspace=1, hspace=2)
+
+        plt.subplot (rows, columns, 1)
+        plt.plot (range (len (stats_nodes_count_list)), stats_nodes_count_list, 'o-')
+        plt.title ("Utilization", fontsize=font_size)
+
+        plt.subplot (rows, columns, 1)
+        plt.plot (range (len (stats_thread_count_list)), stats_thread_count_list, '.-')
+        plt.legend (('Nodes', 'Threads'), loc='best', shadow=True)
+
+        plt.subplot (rows, columns, 2)
+        plt.plot (range (len (stats_consensus_list)), stats_consensus_list, '.-')
+        plt.legend (('Consensus Block',), loc='best', shadow=True)
+
+        plt.subplot (rows, columns, 3)
+        plt.plot (range (len (stats_consensus_percentage_list)), stats_consensus_percentage_list, '.-')
+        plt.legend (('Consensus Level',), loc='best', shadow=True)
+
+        plt.subplot (rows, columns, 4)
+        plt.plot (range (len (stats_diff_list_2)), stats_diff_list_2, '.-')
+        plt.legend (('Time To Generate Block',), loc='best', shadow=True)
+
+        plt.subplot (rows, columns, 5)
+        plt.plot (range (len (stats_diff_list_0)), stats_diff_list_0, '.-')
+
+        plt.subplot (rows, columns, 5)
+        plt.plot (range (len (stats_diff_list_1)), stats_diff_list_1, '.-')
+
+        plt.subplot (rows, columns, 5)
+        plt.plot (range (len (stats_diff_list_3)), stats_diff_list_3, '.-')
+        plt.legend (('Diff 1', 'Diff 2', 'Diff Current',), loc='best', shadow=True)
+
+        plt.subplot (rows, columns, 6)
+        plt.plot (range (len (stats_diff_list_4)), stats_diff_list_4, '.-')
+        plt.legend (('Block Time',), loc='best', shadow=True)
+
+        plt.subplot (rows, columns, 7)
+        plt.plot (range (len (stats_diff_list_5)), stats_diff_list_5, '.-')
+        plt.legend (('Hashrate',), loc='best', shadow=True)
+
+        plt.subplot (rows, columns, 8)
+        plt.plot (range (len (stats_diff_list_6)), stats_diff_list_6, '.-')
+        plt.legend (('Difficulty Adjustment',), loc='best', shadow=True)
+
+        plt.show ()
+        # chart
 
 
 
@@ -901,72 +957,9 @@ def stats():
             print("Statistics window closed, disabling auto-refresh")
 
     refresh_stats_auto()
+    chart ()
 
 
-    # chart
-
-    #stats_diff_list = []
-
-    plt.tight_layout ()
-
-    rows = 4
-    columns = 2
-    font_size = "medium"
-    plt.subplots_adjust (wspace=1, hspace=2)
-
-    plt.subplot (rows, columns, 1)
-    plt.plot (range(len(stats_nodes_count_list)), stats_nodes_count_list, 'o-')
-    plt.title("Utilization", fontsize = font_size)
-
-    plt.subplot (rows, columns, 1)
-    plt.plot (range(len(stats_thread_count_list)), stats_thread_count_list, '.-')
-    plt.legend (('Nodes', 'Threads'), loc='best', shadow=True)
-
-    plt.subplot (rows, columns, 2)
-    plt.plot (range(len(stats_consensus_list)), stats_consensus_list, '.-')
-    plt.legend (('Consensus Block',), loc='best', shadow=True)
-
-    plt.subplot (rows, columns, 3)
-    plt.plot (range(len(stats_consensus_percentage_list)), stats_consensus_percentage_list, '.-')
-    plt.legend (('Consensus Level',), loc='best', shadow=True)
-
-    plt.subplot (rows, columns, 4)
-    plt.plot (range(len(stats_diff_list_2)), stats_diff_list_2, '.-')
-    plt.legend (('Time To Generate Block',), loc='best', shadow=True)
-
-    plt.subplot (rows, columns, 5)
-    plt.plot (range(len(stats_diff_list_0)), stats_diff_list_0, '.-')
-
-    plt.subplot (rows, columns, 5)
-    plt.plot (range(len(stats_diff_list_1)), stats_diff_list_1, '.-')
-
-    plt.subplot (rows, columns, 5)
-    plt.plot (range(len(stats_diff_list_3)), stats_diff_list_3, '.-')
-    plt.legend (('Diff 1', 'Diff 2, Diff Current'), loc='best', shadow=True)
-
-    plt.subplot (rows, columns, 6)
-    plt.plot (range(len(stats_diff_list_4)), stats_diff_list_4, '.-')
-    plt.legend (('Block Time',), loc='best', shadow=True)
-
-    plt.subplot (rows, columns, 7)
-    plt.plot (range(len(stats_diff_list_5)), stats_diff_list_5, '.-')
-    plt.legend (('Hashrate',), loc='best', shadow=True)
-
-    plt.subplot (rows, columns, 8)
-    plt.plot (range(len(stats_diff_list_6)), stats_diff_list_6, '.-')
-    plt.legend (('Difficulty Adjustment',), loc='best', shadow=True)
-
-
-    plt.show ()
-    #chart
-
-
-
-
-
-    #root.after (1000, update ())
-
-    #print (stats_address,stats_nodes_count,stats_nodes_list,stats_threads_count,stats_uptime,stats_consensus,stats_consensus_percentage,stats_version,stats_diff)
 
 
 def csv_export(s):
