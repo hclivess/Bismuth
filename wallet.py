@@ -26,6 +26,7 @@ global myaddress
 global private_key_load
 global public_key_load
 
+
 # data for charts
 stats_nodes_count_list = []
 stats_thread_count_list = []
@@ -797,7 +798,6 @@ def stats():
     f.set_facecolor ('silver')
     f.subplots_adjust (left=None, bottom=None, right=None, top=None, wspace=None, hspace=0.5)
 
-
     def chart_fill():
         f.clear()
 
@@ -806,46 +806,55 @@ def stats():
 
         first = f.add_subplot (rows, columns, 1)
         first.plot ((range (len (stats_nodes_count_list))), (stats_nodes_count_list))
+        first.ticklabel_format (useOffset=False)
 
         first_2 = f.add_subplot (rows, columns, 1)
         first_2.plot ((range (len (stats_thread_count_list))), (stats_thread_count_list))
+        first_2.ticklabel_format (useOffset=False)
         first.legend (('Nodes', 'Threads'), loc='best', shadow=True)
 
         second = f.add_subplot (rows, columns, 2)
         second.plot ((range (len (stats_consensus_list))), (stats_consensus_list))
         second.legend (('Consensus Block',), loc='best', shadow=True)
-
+        second.ticklabel_format (useOffset=False)
 
         third = f.add_subplot (rows, columns, 3)
         third.plot ((range (len (stats_consensus_percentage_list))), (stats_consensus_percentage_list))
         third.legend (('Consensus Level',), loc='best', shadow=True)
+        third.ticklabel_format (useOffset=False)
 
         fourth = f.add_subplot (rows, columns, 4)
         fourth.plot ((range (len (stats_diff_list_2))), (stats_diff_list_2))
         fourth.legend (('Time To Generate Block',), loc='best', shadow=True)
+        fourth.ticklabel_format (useOffset=False)
 
         fifth = f.add_subplot (rows, columns, 5)
         fifth.plot ((range (len (stats_diff_list_0))), (stats_diff_list_0))
+        fifth.ticklabel_format (useOffset=False)
 
         fifth_2 = f.add_subplot (rows, columns, 5)
         fifth_2.plot ((range (len (stats_diff_list_1))), (stats_diff_list_1))
+        fifth_2.ticklabel_format (useOffset=False)
 
         fifth_3 = f.add_subplot (rows, columns, 5)
         fifth_3.plot ((range (len (stats_diff_list_3))), (stats_diff_list_3))
+        fifth_3.ticklabel_format (useOffset=False)
         fifth.legend (('Diff 1', 'Diff 2', 'Diff Current',), loc='best', shadow=True)
 
         sixth = f.add_subplot (rows, columns, 6)
         sixth.plot ((range (len (stats_diff_list_4))), (stats_diff_list_4))
         sixth.legend (('Block Time',), loc='best', shadow=True)
+        sixth.ticklabel_format (useOffset=False)
 
         seventh = f.add_subplot (rows, columns, 7)
         seventh.plot ((range (len (stats_diff_list_5))), (stats_diff_list_5))
         seventh.legend (('Hashrate',), loc='best', shadow=True)
+        seventh.ticklabel_format (useOffset=False)
 
         eigth = f.add_subplot (rows, columns, 8)
         eigth.plot ((range (len (stats_diff_list_6))), (stats_diff_list_6))
         eigth.legend (('Difficulty Adjustment',), loc='best', shadow=True)
-
+        eigth.ticklabel_format (useOffset=False)
 
         # a tk.DrawingArea
         canvas = FigureCanvasTkAgg (f, master=frame_chart)
@@ -868,7 +877,8 @@ def stats():
         stats_nodes_count_label_var.set ("Number of Nodes: {}".format (stats_nodes_count))
         for entry in stats_nodes_list:
             stats_nodes_list_text_var.insert (END, entry)
-        stats_nodes_list_text_var.grid (row=2, column=0, sticky=W, padx=15, pady=(0, 0))
+        stats_nodes_list_text_var.grid (row=2, column=0, sticky=E, padx=15, pady=(0, 0))
+
         stats_thread_count_var.set ("Number of Threads: {}".format (stats_thread_count))
         stats_uptime_var.set ("Uptime: {:.2f} hours".format (stats_uptime / 60 / 60))
         stats_consensus_var.set ("Consensus Block: {}".format (stats_consensus))
@@ -885,15 +895,15 @@ def stats():
 
     stats_address_label_var = StringVar()
     stats_address_label = Label(stats_window, textvariable=stats_address_label_var)
-    stats_address_label.grid(row=0, column=0, sticky=W, padx=15, pady=(0, 0))
+    stats_address_label.grid(row=0, column=0, sticky=E, padx=15, pady=(0, 0))
 
     stats_nodes_count_label_var = StringVar()
     stats_nodes_count_label = Label(stats_window, textvariable=stats_nodes_count_label_var)
-    stats_nodes_count_label.grid(row=1, column=0, sticky=W, padx=15, pady=(0, 0))
+    stats_nodes_count_label.grid(row=1, column=0, sticky=E, padx=15, pady=(0, 0))
 
 
     scrollbar = Scrollbar (stats_window)
-    scrollbar.grid (row=2, column=0, sticky=N+S+W, padx=140)
+    scrollbar.grid (row=2, column=0, sticky=N+S+E, padx=140)
 
     stats_nodes_list_text_var = Listbox (stats_window, width=20, height=10, font=("Tahoma", 8))
 
@@ -902,51 +912,51 @@ def stats():
 
     stats_thread_count_var = StringVar()
     stats_thread_count_label = Label(stats_window, textvariable=stats_thread_count_var)
-    stats_thread_count_label.grid(row=3, column=0, sticky=W, padx=15, pady=(0, 0))
+    stats_thread_count_label.grid(row=3, column=0, sticky=E, padx=15, pady=(0, 0))
 
     stats_uptime_var = StringVar()
     stats_uptime_label = Label(stats_window, textvariable=stats_uptime_var)
-    stats_uptime_label.grid(row=4, column=0, sticky=W, padx=15, pady=(0, 0))
+    stats_uptime_label.grid(row=4, column=0, sticky=E, padx=15, pady=(0, 0))
 
     stats_consensus_var = StringVar()
     stats_consensus_label = Label(stats_window, textvariable=stats_consensus_var)
-    stats_consensus_label.grid(row=5, column=0, sticky=W, padx=15, pady=(0, 0))
+    stats_consensus_label.grid(row=5, column=0, sticky=E, padx=15, pady=(0, 0))
 
     stats_consensus_consensus_percentage_var = StringVar()
     stats_consensus_consensus_percentage_label = Label(stats_window, textvariable=stats_consensus_consensus_percentage_var)
-    stats_consensus_consensus_percentage_label.grid(row=6, column=0, sticky=W, padx=15, pady=(0, 0))
+    stats_consensus_consensus_percentage_label.grid(row=6, column=0, sticky=E, padx=15, pady=(0, 0))
 
     stats_version_var = StringVar()
     stats_version_label = Label(stats_window, textvariable=stats_version_var)
-    stats_version_label.grid(row=7, column=0, sticky=W, padx=15, pady=(0, 0))
+    stats_version_label.grid(row=7, column=0, sticky=E, padx=15, pady=(0, 0))
 
     stats_diff_var_0 = StringVar()
     stats_diff_label_0 = Label(stats_window, textvariable=stats_diff_var_0)
-    stats_diff_label_0.grid(row=8, column=0, sticky=W, padx=15, pady=(0, 0))
+    stats_diff_label_0.grid(row=8, column=0, sticky=E, padx=15, pady=(0, 0))
 
     stats_diff_var_1 = StringVar()
     stats_diff_label_1 = Label(stats_window, textvariable=stats_diff_var_1)
-    stats_diff_label_1.grid(row=9, column=0, sticky=W, padx=15, pady=(0, 0))
+    stats_diff_label_1.grid(row=9, column=0, sticky=E, padx=15, pady=(0, 0))
 
     stats_diff_var_2 = StringVar()
     stats_diff_label_2 = Label(stats_window, textvariable=stats_diff_var_2)
-    stats_diff_label_2.grid(row=10, column=0, sticky=W, padx=15, pady=(0, 0))
+    stats_diff_label_2.grid(row=10, column=0, sticky=E, padx=15, pady=(0, 0))
 
     stats_diff_var_3 = StringVar()
     stats_diff_label_3 = Label(stats_window, textvariable=stats_diff_var_3)
-    stats_diff_label_3.grid(row=11, column=0, sticky=W, padx=15, pady=(0, 0))
+    stats_diff_label_3.grid(row=11, column=0, sticky=E, padx=15, pady=(0, 0))
 
     stats_diff_var_4 = StringVar()
     stats_diff_label_4 = Label(stats_window, textvariable=stats_diff_var_4)
-    stats_diff_label_4.grid(row=12, column=0, sticky=W, padx=15, pady=(0, 0))
+    stats_diff_label_4.grid(row=12, column=0, sticky=E, padx=15, pady=(0, 0))
 
     stats_diff_var_5 = StringVar()
     stats_diff_label_5 = Label(stats_window, textvariable=stats_diff_var_5)
-    stats_diff_label_5.grid(row=13, column=0, sticky=W, padx=15, pady=(0, 0))
+    stats_diff_label_5.grid(row=13, column=0, sticky=E, padx=15, pady=(0, 0))
 
     stats_diff_var_6 = StringVar()
     stats_diff_label_6 = Label(stats_window, textvariable=stats_diff_var_6)
-    stats_diff_label_6.grid(row=14, column=0, sticky=W, padx=15, pady=(0, 0))
+    stats_diff_label_6.grid(row=14, column=0, sticky=E, padx=15, pady=(0, 0))
 
     def refresh_stats_auto():
         try:
@@ -1346,6 +1356,7 @@ def refresh(address, s):
         ann_var_text.config (state=DISABLED)
 
         all_spend_check()
+
     except:
         messagebox.showinfo("Connection error", "Connection to node aborted")
         raise
@@ -1422,9 +1433,16 @@ def sign():
 root = Tk()
 
 root.wm_title("Bismuth Light Wallet running on {}".format(light_ip))
+root.geometry("1300x750") #You want the size of the app to be 500x500
+root.resizable(0, 0) #Don't allow resizing in the x or y direction
+
+
+
 
 img = Image("photo", file="graphics/icon.gif")
 root.tk.call('wm', 'iconphoto', root._w, img)
+
+
 
 if gui_scaling != "default":
     root.tk.call("tk", "scaling", gui_scaling)
@@ -1434,26 +1452,30 @@ password_var_con = StringVar()
 password_var_dec = StringVar()
 
 
-
-# frames
-f2 = Frame(root, height=100, width=100)
-f2.grid(row=0, column=1, sticky=N)
-
-f3 = Frame(root, width=500)
-f3.grid(row=0, column=0, sticky=W + E + N, pady=10, padx=10)
-
-f4 = Frame(root, height=100, width=100)
-f4.grid(row=1, column=0, sticky=W + E + N, pady=10, padx=10)
-
-f5 = Frame(root, height=100, width=100)
-f5.grid(row=1, column=1, sticky=W + E + N, pady=10, padx=10)
-
-f6 = Frame(root, height=100, width=100)
-f6.grid(row=2, column=0, sticky=E, pady=10, padx=10)
-
-
+background_image = PhotoImage (file="graphics/brushed.png")
+background_label = Label (root, image=background_image)
+background_label.place (x=0, y=0, relwidth=1, relheight=1)
+background_label.grid (row=0, column=0, rowspan=999,columnspan=999)
 # frames
 
+
+frame_logo = Frame(root, bg="", colormap="new")
+frame_logo.grid(row=0, column=1, sticky=E + N, pady=10, padx=10)
+
+f3 = Frame(root, bg="", colormap="new")
+f3.grid(row=0, column=0, sticky=W + N, pady=10, padx=10)
+
+f4 = Frame(root, bg="", colormap="new")
+f4.grid(row=1, column=0, sticky=W + N, pady=10, padx=10)
+
+f5 = Frame(root, bg="", colormap="new")
+f5.grid(row=1, column=1, sticky=W + N, pady=10, padx=10)
+
+f6 = Frame(root, bg="", colormap="new")
+f6.grid(row=2, column=0, sticky=E + N, pady=10, padx=10)
+
+
+# frames
 # menu
 def hello():
     pass
@@ -1513,7 +1535,6 @@ stats_b.grid(row=button_row_zero + 11, column=column, sticky=N + E, pady=0, padx
 
 # quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=10, font=("Tahoma", 8))
 # quit_b.grid(row=16, column=0, sticky=W + E + S, pady=0, padx=15)
-
 
 encrypt_b = Button(f6, text="Encrypt", command=encrypt_get_password, height=1, width=10)
 encrypt_b.grid(row=1, column=1, sticky=E + N, pady=0, padx=5)
@@ -1592,8 +1613,8 @@ current_var_label = Label(f5, textvariable=current_var)
 current_var_label.grid(row=9, column=0, sticky=N + E, padx=15)
 
 ann_var = StringVar()
-ann_var_text = Text(f2, width=40, height=4, font=("Tahoma", 8))
-ann_var_text.grid(row=2, column=0, sticky=N + W, padx=15, pady=15)
+ann_var_text = Text(frame_logo, width=40, height=4, font=("Tahoma", 8))
+ann_var_text.grid(row=2, column=0, sticky=E + W, padx=5, pady=5)
 ann_var_text.config(wrap=WORD)
 ann_var_text.config(background="grey75")
 
@@ -1626,7 +1647,7 @@ gui_watch = Button(f3, text="Watch", command=watch, font=("Tahoma", 7))
 gui_watch.grid(row=0, column=5, sticky=W + E, padx=(5, 0))
 
 gui_unwatch = Button(f3, text="Unwatch", command=unwatch, font=("Tahoma", 7))
-gui_unwatch.grid(row=0, column=6, sticky=W + E, padx=(5, 0))
+gui_unwatch.grid(row=0, column=6, sticky=W + E, padx=5, pady=5)
 
 gui_copy_recipient = Button(f3, text="Copy", command=recipient_copy, font=("Tahoma", 7))
 gui_copy_recipient.grid(row=1, column=2, sticky=W + E, padx=(5, 0))
@@ -1704,9 +1725,10 @@ Label(f3, text="", width=20, anchor=W).grid(row=7, sticky=S)
 
 logo_hash_decoded = base64.b64decode(icons.logo_hash)
 logo = PhotoImage(data=logo_hash_decoded)
-Label(f2, image=logo).grid(column=0, row=0, sticky=N + E + W, pady=10, padx=0)
+Label(frame_logo, image=logo).grid(column=0, row=0, sticky=E + W, pady=0, padx=0)
 # logo
 
 node_connect()
 refresh_auto()
+
 root.mainloop()
