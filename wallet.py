@@ -1433,7 +1433,7 @@ def sign():
 root = Tk()
 
 root.wm_title("Bismuth Light Wallet running on {}".format(light_ip))
-root.geometry("1300x750") #You want the size of the app to be 500x500
+root.geometry("1310x700") #You want the size of the app to be 500x500
 root.resizable(0, 0) #Don't allow resizing in the x or y direction
 
 
@@ -1460,10 +1460,10 @@ background_label.grid (row=0, column=0, rowspan=999,columnspan=999)
 
 
 frame_logo = Frame(root, relief = 'ridge', borderwidth = 4)
-frame_logo.grid(row=0, column=1, sticky=E + N, pady=5, padx=5)
+frame_logo.grid(row=0, column=1, sticky=W + E + S + N, pady=5, padx=5)
 
 f3 = Frame(root,relief = 'ridge', borderwidth = 4)
-f3.grid(row=0, column=0, sticky=W + N, pady=5, padx=5)
+f3.grid(row=0, column=0, sticky=W + E + N, pady=5, padx=5)
 
 #canvas = Canvas(f3,width=650)
 #canvas.grid(rowspan=999,columnspan=999)
@@ -1471,14 +1471,10 @@ f3.grid(row=0, column=0, sticky=W + N, pady=5, padx=5)
 #canvas.create_image(0,0,anchor=NW, image=img)
 
 f4 = Frame(root,relief = 'ridge', borderwidth = 4)
-f4.grid(row=1, column=0, sticky=W + N, pady=5, padx=5)
+f4.grid(row=1, column=0, sticky=W + E + N, pady=5, padx=5)
 
 f5 = Frame(root, relief = 'ridge', borderwidth = 4)
-f5.grid(row=1, column=1, sticky=W + N, pady=5, padx=5)
-
-f6 = Frame(root, relief = 'ridge', borderwidth = 4)
-f6.grid(row=2, column=0, sticky=E + N, pady=5, padx=5)
-
+f5.grid(row=1, column=1, sticky=W + E + N, pady=5, padx=5)
 
 # frames
 # menu
@@ -1541,12 +1537,12 @@ stats_b.grid(row=button_row_zero + 11, column=column, sticky=N + E, pady=0, padx
 # quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=10, font=("Tahoma", 8))
 # quit_b.grid(row=16, column=0, sticky=W + E + S, pady=0, padx=15)
 
-encrypt_b = Button(f6, text="Encrypt", command=encrypt_get_password, height=1, width=10)
-encrypt_b.grid(row=1, column=1, sticky=E + N, pady=0, padx=5)
-decrypt_b = Button(f6, text="Unlock", command=decrypt_get_password, height=1, width=10)
-decrypt_b.grid(row=1, column=2, sticky=E + N, pady=0, padx=5)
-lock_b = Button(f6, text="Locked", command=lambda: lock_fn(lock_b), height=1, width=10, state=DISABLED)
-lock_b.grid(row=1, column=3, sticky=E + N, pady=0, padx=5)
+encrypt_b = Button(frame_logo, text="Encrypt", command=encrypt_get_password, height=1, width=10)
+encrypt_b.grid(row=5, column=0, sticky=W + S, pady=0, padx=10)
+decrypt_b = Button(frame_logo, text="Unlock", command=decrypt_get_password, height=1, width=10)
+decrypt_b.grid(row=5, column=0, sticky=E + S, pady=0, padx=10)
+lock_b = Button(frame_logo, text="Locked", command=lambda: lock_fn(lock_b), height=1, width=10, state=DISABLED)
+lock_b.grid(row=5, column=0, sticky=N + S, pady=0, padx=10)
 
 
 def encryption_button_refresh():
@@ -1618,8 +1614,8 @@ current_var_label = Label(f5, textvariable=current_var)
 current_var_label.grid(row=9, column=0, sticky=N + E, padx=15)
 
 ann_var = StringVar()
-ann_var_text = Text(frame_logo, width=40, height=4, font=("Tahoma", 8))
-ann_var_text.grid(row=2, column=0, sticky=E + W, padx=5, pady=5)
+ann_var_text = Text(frame_logo, width=60, height=4, font=("Tahoma", 8))
+ann_var_text.grid(row=1, column=0, sticky=E + W, padx=5, pady=5)
 ann_var_text.config(wrap=WORD)
 ann_var_text.config(background="grey75")
 
