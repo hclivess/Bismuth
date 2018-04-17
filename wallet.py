@@ -1061,7 +1061,7 @@ def tokens():
     token_name_label.grid(row=2, column=0, sticky=W, padx=15, pady=(0, 0))
 
     # balance_var = StringVar()
-    # balance_msg_label = Label(f5, textvariable=balance_var)
+    # balance_msg_label = Label(frame_buttons, textvariable=balance_var)
 
     token_amount_var = StringVar()
     token_amount = Entry(tokens_main, textvariable=token_amount_var, width=80, )
@@ -1188,7 +1188,7 @@ def table(address, addlist_20, mempool_total):
     if len(datasheet) > 5:
         k = 0
 
-        for child in f4.winfo_children():  # prevent hangup
+        for child in frame_table.winfo_children():  # prevent hangup
             child.destroy()
 
         for i in range(int(table_limit)):
@@ -1196,27 +1196,27 @@ def table(address, addlist_20, mempool_total):
                 datasheet_compare = [datasheet[k], datasheet[k - 1], datasheet[k - 2], datasheet[k - 3], datasheet[k - 4]]
 
                 if "Time" in datasheet_compare:  # header
-                    e = Entry(f4, width=0)
+                    e = Entry(frame_table, width=0)
                     e.configure(readonlybackground='linen')
 
                 elif j == 0:  # first row
-                    e = Entry(f4, width=0)
+                    e = Entry(frame_table, width=0)
                     e.configure(readonlybackground='linen')
 
                 elif "Unconfirmed" in datasheet_compare:  # unconfirmed txs
-                    e = Entry(f4, width=56)
+                    e = Entry(frame_table, width=56)
                     e.configure(readonlybackground='linen')
 
                 elif j == 3:  # sent
-                    e = Entry(f4, width=0)
+                    e = Entry(frame_table, width=0)
                     e.configure(readonlybackground=colors[i - 1])
 
                 elif j == 4:  # last row
-                    e = Entry(f4, width=0)
+                    e = Entry(frame_table, width=0)
                     e.configure(readonlybackground='bisque')
 
                 else:
-                    e = Entry(f4, width=56)
+                    e = Entry(frame_table, width=56)
                     e.configure(readonlybackground='bisque')
 
                 e.grid(row=i + 1, column=j, sticky=EW)
@@ -1434,67 +1434,88 @@ root = Tk()
 
 
 root.wm_title("Bismuth Light Wallet running on {}".format(light_ip))
-root.geometry("1310x700") #You want the size of the app to be 500x500
-root.resizable(0, 0) #Don't allow resizing in the x or y direction
+#root.geometry("1310x700") #You want the size of the app to be 500x500
+#root.resizable(0, 0) #Don't allow resizing in the x or y direction
 root['bg']="black"
 
 
 
 
 img = Image("photo", file="graphics/icon.gif")
-root.tk.call('wm', 'iconphoto', root._w, img)
-
+root.tk.call('wm', 'iconphoto', root._w, img, )
 
 
 if gui_scaling != "default":
     root.tk.call("tk", "scaling", gui_scaling)
 
+
 password_var_enc = StringVar()
 password_var_con = StringVar()
 password_var_dec = StringVar()
 
-
-background_image = PhotoImage (file="graphics/brushed.png")
-background_label = Label (root, image=background_image)
-background_label.place (x=0, y=0, relwidth=1, relheight=1)
-background_label.grid (row=0, column=0, rowspan=999,columnspan=999)
-# frames
+canvas_bg = Canvas(root)
+canvas_bg.grid(row=0, column=0, rowspan=200,columnspan=200,sticky=W + E + S + N)
 
 
 frame_logo = Frame(root, relief = 'ridge', borderwidth = 4)
-frame_logo.grid(row=0, column=1, sticky=W + E + S + N, pady=5, padx=5)
+frame_logo.grid(row=0, column=1, sticky=W + E, pady=5, padx=5)
 
-frame_main = Frame(root,relief = 'ridge', borderwidth = 4,bg="black")
-frame_main.grid(row=0, column=0, sticky=W + E + N, pady=5, padx=5)
-#root.wm_attributes('-transparentcolor', root['bg'])
+frame_main = Frame(root,relief = 'ridge', borderwidth = 4)
+frame_main.grid(row=0, column=0, pady=5, padx=5)
+#spacer_width=150
+#frame_main_spacer = Frame(frame_main, width=spacer_width).grid(row=0,sticky=NW) #make canvas text visible
 
+canvas_main = Canvas(frame_main,background="yellow")
+canvas_main.grid(row=0, column=0,sticky=W+E, columnspan=50,rowspan=50)
 
-canvas = Canvas(frame_main,width=900)
-canvas.grid(row=0, column=0, rowspan=200,columnspan=200)
-img = PhotoImage(file="graphics/light.png")
-canvas.create_image(0,0,anchor=W, image=img)
+frame_table = Frame(root,relief = 'ridge', borderwidth = 4)
+frame_table.grid(row=1, column=0, sticky=W + E + N, pady=5, padx=5)
 
-offset_x = 140
-offset_y = 3
-text_color="white"
-canvas.create_text(offset_x,offset_y+10,fill=text_color,anchor=E,font="Tahoma 12 bold", text="Your Address:")
-canvas.create_text(offset_x,offset_y+35,fill=text_color,anchor=E,font="Tahoma 12 bold", text="Recipient:")
-canvas.create_text(offset_x,offset_y+55,fill=text_color,anchor=E,font="Tahoma 12 bold", text="Amount:")
-canvas.create_text(offset_x,offset_y+100,fill=text_color,anchor=E,font="Tahoma 12 bold", text="Data:")
-canvas.create_text(offset_x,offset_y+145,fill=text_color,anchor=E,font="Tahoma 12 bold", text="URL:")
+frame_buttons = Frame(root, relief = 'ridge', borderwidth = 4)
+frame_buttons.grid(row=1, column=1, sticky=W + E, pady=5, padx=5)
 
+frame_labels = Frame(frame_main,background="white")
+frame_labels.grid(row=0, column=0, sticky=W, rowspan=50)
 
-f4 = Frame(root,relief = 'ridge', borderwidth = 4)
-f4.grid(row=1, column=0, sticky=W + E + N, pady=5, padx=5)
+canvas_labels = Canvas(frame_labels, width=120,background="red")
+canvas_labels.grid(row=0, column=0,sticky=W)
 
-f5 = Frame(root, relief = 'ridge', borderwidth = 4)
-f5.grid(row=1, column=1, sticky=W + E + N, pady=5, padx=5)
 
 # frames
 # menu
 def hello():
     pass
 
+#
+root.update()
+width_total = root.winfo_width()
+height_total = root.winfo_height()
+print(width_total,height_total)
+
+frame_main.update()
+width_main = frame_main.winfo_width()
+height_main = frame_main.winfo_height()
+print(width_main,height_main)
+#
+
+
+#canvas
+
+img_bg = PhotoImage(file="graphics/brushed.png")
+canvas_bg.create_image(width_total,height_total, image=img_bg)
+
+img_main = PhotoImage(file="graphics/light.png")
+canvas_main.create_image(width_main,height_main, image=img_main)
+
+offset_x = 5
+offset_y = 3
+text_color="white"
+canvas_labels.create_text(offset_x,offset_y+10,fill=text_color,anchor=W,font="Tahoma 12 bold", text="Your Address:")
+canvas_labels.create_text(offset_x,offset_y+35,fill=text_color,anchor=W,font="Tahoma 12 bold", text="Recipient:")
+canvas_labels.create_text(offset_x,offset_y+55,fill=text_color,anchor=W,font="Tahoma 12 bold", text="Amount:")
+canvas_labels.create_text(offset_x,offset_y+100,fill=text_color,anchor=W,font="Tahoma 12 bold", text="Data:")
+canvas_labels.create_text(offset_x,offset_y+145,fill=text_color,anchor=W,font="Tahoma 12 bold", text="URL:")
+#canvas
 
 menubar = Menu(root)
 menubar.add_command(label="Exit", command=root.quit)
@@ -1509,46 +1530,46 @@ root.config(menu=menubar)
 button_row_zero = 0
 column = 1
 
-send_b = Button(f5, text="Send", command=lambda: send_confirm(str(amount.get()).strip(), recipient.get().strip(), (openfield.get("1.0", END)).strip()), height=1, width=20, font=("Tahoma", 8))
+send_b = Button(frame_buttons, text="Send", command=lambda: send_confirm(str(amount.get()).strip(), recipient.get().strip(), (openfield.get("1.0", END)).strip()), height=1, width=20, font=("Tahoma", 8))
 send_b.grid(row=button_row_zero, column=column, sticky=N + E, pady=0, padx=15)
 
-qr_b = Button(f5, text="URL QR", command=lambda: qr(url.get()), height=1, width=20, font=("Tahoma", 8))
+qr_b = Button(frame_buttons, text="URL QR", command=lambda: qr(url.get()), height=1, width=20, font=("Tahoma", 8))
 if "Linux" in platform.system():
     qr_b.configure(text="QR Disabled", state=DISABLED)
 qr_b.grid(row=button_row_zero + 1, column=column, sticky=N + E, pady=0, padx=15)
 
-message_b = Button(f5, text="Manual Refresh", command=lambda: refresh(gui_address.get(), s), height=1, width=20, font=("Tahoma", 8))
+message_b = Button(frame_buttons, text="Manual Refresh", command=lambda: refresh(gui_address.get(), s), height=1, width=20, font=("Tahoma", 8))
 message_b.grid(row=button_row_zero + 2, column=column, sticky=N + E, pady=0, padx=15)
 
-balance_b = Button(f5, text="Messages", command=lambda: msg_dialogue(gui_address.get()), height=1, width=20, font=("Tahoma", 8))
+balance_b = Button(frame_buttons, text="Messages", command=lambda: msg_dialogue(gui_address.get()), height=1, width=20, font=("Tahoma", 8))
 balance_b.grid(row=button_row_zero + 3, column=column, sticky=N + E, pady=0, padx=15)
 # balance_b.configure(state=DISABLED)
 
-sign_b = Button(f5, text="Sign Message", command=sign, height=1, width=20, font=("Tahoma", 8))
+sign_b = Button(frame_buttons, text="Sign Message", command=sign, height=1, width=20, font=("Tahoma", 8))
 sign_b.grid(row=button_row_zero + 4, column=column, sticky=N + E, pady=0, padx=15)
 
-alias_b = Button(f5, text="Alias Registration", command=alias, height=1, width=20, font=("Tahoma", 8))
+alias_b = Button(frame_buttons, text="Alias Registration", command=alias, height=1, width=20, font=("Tahoma", 8))
 alias_b.grid(row=button_row_zero + 5, column=column, sticky=N + E, pady=0, padx=15)
 
-backup_b = Button(f5, text="Backup Wallet", command=keys_backup, height=1, width=20, font=("Tahoma", 8))
+backup_b = Button(frame_buttons, text="Backup Wallet", command=keys_backup, height=1, width=20, font=("Tahoma", 8))
 backup_b.grid(row=button_row_zero + 6, column=column, sticky=N + E, pady=0, padx=15)
 
-load_b = Button(f5, text="Load Wallet", command=keys_load_dialog, height=1, width=20, font=("Tahoma", 8))
+load_b = Button(frame_buttons, text="Load Wallet", command=keys_load_dialog, height=1, width=20, font=("Tahoma", 8))
 load_b.grid(row=button_row_zero + 7, column=column, sticky=N + E, pady=0, padx=15)
 
-fingerprint_b = Button(f5, text="Fingerprint", command=fingerprint, height=1, width=20, font=("Tahoma", 8))
+fingerprint_b = Button(frame_buttons, text="Fingerprint", command=fingerprint, height=1, width=20, font=("Tahoma", 8))
 fingerprint_b.grid(row=button_row_zero + 8, column=column, sticky=N + E, pady=0, padx=15)
 
-tokens_b = Button(f5, text="Tokens", command=tokens, height=1, width=20, font=("Tahoma", 8))
+tokens_b = Button(frame_buttons, text="Tokens", command=tokens, height=1, width=20, font=("Tahoma", 8))
 tokens_b.grid(row=button_row_zero + 9, column=column, sticky=N + E, pady=0, padx=15)
 
-csv_export_b = Button(f5, text="CSV Export", command=lambda :csv_export(s), height=1, width=20, font=("Tahoma", 8))
+csv_export_b = Button(frame_buttons, text="CSV Export", command=lambda :csv_export(s), height=1, width=20, font=("Tahoma", 8))
 csv_export_b.grid(row=button_row_zero + 10, column=column, sticky=N + E, pady=0, padx=15)
 
-stats_b = Button(f5, text="Statistics", command=lambda :stats(), height=1, width=20, font=("Tahoma", 8))
+stats_b = Button(frame_buttons, text="Statistics", command=lambda :stats(), height=1, width=20, font=("Tahoma", 8))
 stats_b.grid(row=button_row_zero + 11, column=column, sticky=N + E, pady=0, padx=15)
 
-# quit_b = Button(f5, text="Quit", command=app_quit, height=1, width=10, font=("Tahoma", 8))
+# quit_b = Button(frame_buttons, text="Quit", command=app_quit, height=1, width=10, font=("Tahoma", 8))
 # quit_b.grid(row=16, column=0, sticky=W + E + S, pady=0, padx=15)
 
 encrypt_b = Button(frame_logo, text="Encrypt", command=encrypt_get_password, height=1, width=10)
@@ -1580,51 +1601,51 @@ encryption_button_refresh()
 balance_raw = StringVar()
 balance_var = StringVar()
 
-balance_msg_label = Label(f5, textvariable=balance_var)
+balance_msg_label = Label(frame_buttons, textvariable=balance_var)
 balance_msg_label.grid(row=0, column=0, sticky=N + E, padx=15)
 
 debit_var = StringVar()
-spent_msg_label = Label(f5, textvariable=debit_var)
+spent_msg_label = Label(frame_buttons, textvariable=debit_var)
 spent_msg_label.grid(row=1, column=0, sticky=N + E, padx=15)
 
 credit_var = StringVar()
-received_msg_label = Label(f5, textvariable=credit_var)
+received_msg_label = Label(frame_buttons, textvariable=credit_var)
 received_msg_label.grid(row=2, column=0, sticky=N + E, padx=15)
 
 fees_var = StringVar()
-fees_paid_msg_label = Label(f5, textvariable=fees_var)
+fees_paid_msg_label = Label(frame_buttons, textvariable=fees_var)
 fees_paid_msg_label.grid(row=3, column=0, sticky=N + E, padx=15)
 
 rewards_var = StringVar()
-rewards_paid_msg_label = Label(f5, textvariable=rewards_var)
+rewards_paid_msg_label = Label(frame_buttons, textvariable=rewards_var)
 rewards_paid_msg_label.grid(row=4, column=0, sticky=N + E, padx=15)
 
 bl_height_var = StringVar()
-block_height_label = Label(f5, textvariable=bl_height_var)
+block_height_label = Label(frame_buttons, textvariable=bl_height_var)
 block_height_label.grid(row=5, column=0, sticky=N + E, padx=15)
 
 diff_msg_var = StringVar()
-diff_msg_label = Label(f5, textvariable=diff_msg_var)
+diff_msg_label = Label(frame_buttons, textvariable=diff_msg_var)
 diff_msg_label.grid(row=6, column=0, sticky=N + E, padx=15)
 
 sync_msg_var = StringVar()
-sync_msg_label = Label(f5, textvariable=sync_msg_var)
+sync_msg_label = Label(frame_buttons, textvariable=sync_msg_var)
 sync_msg_label.grid(row=7, column=0, sticky=N + E, padx=15)
 
 version_var = StringVar()
-version_var_label = Label(f5, textvariable=version_var)
+version_var_label = Label(frame_buttons, textvariable=version_var)
 version_var_label.grid(row=8, column=0, sticky=N + E, padx=15)
 
 hash_var = StringVar()
-hash_var_label = Label(f5, textvariable=hash_var)
+hash_var_label = Label(frame_buttons, textvariable=hash_var)
 hash_var_label.grid(row=10, column=0, sticky=N + E, padx=15)
 
 mempool_count_var = StringVar()
-mempool_count_var_label = Label(f5, textvariable=mempool_count_var)
+mempool_count_var_label = Label(frame_buttons, textvariable=mempool_count_var)
 mempool_count_var_label.grid(row=11, column=0, sticky=N + E, padx=15)
 
 current_var = StringVar()
-current_var_label = Label(f5, textvariable=current_var)
+current_var_label = Label(frame_buttons, textvariable=current_var)
 current_var_label.grid(row=9, column=0, sticky=N + E, padx=15)
 
 ann_var = StringVar()
@@ -1650,63 +1671,58 @@ gui_address.insert(0, myaddress)
 # gui_address.configure(state="readonly")
 
 gui_copy_address = Button(frame_main, text="Copy", command=address_copy, font=("Tahoma", 7))
-gui_copy_address.grid(row=0, column=2, sticky=W + E, padx=(5, 0))
+gui_copy_address.grid(row=0, column=2, sticky=W, padx=(5, 0))
 
 gui_paste_address = Button(frame_main, text="Paste", command=address_insert, font=("Tahoma", 7))
-gui_paste_address.grid(row=0, column=3, sticky=W + E, padx=(5, 0))
+gui_paste_address.grid(row=0, column=3, sticky=W, padx=(5, 0))
 
 gui_list_aliases = Button(frame_main, text="Aliases", command=aliases_list, font=("Tahoma", 7))
-gui_list_aliases.grid(row=0, column=4, sticky=W + E, padx=(5, 0))
+gui_list_aliases.grid(row=0, column=4, sticky=W, padx=(5, 0))
 
 gui_watch = Button(frame_main, text="Watch", command=watch, font=("Tahoma", 7))
-gui_watch.grid(row=0, column=5, sticky=W + E, padx=(5, 0))
+gui_watch.grid(row=0, column=5, sticky=W, padx=(5, 0))
 
 gui_unwatch = Button(frame_main, text="Unwatch", command=unwatch, font=("Tahoma", 7))
-gui_unwatch.grid(row=0, column=6, sticky=W + E, padx=5, pady=5)
+gui_unwatch.grid(row=0, column=6, sticky=W, padx=(5), pady=(5))
 
 gui_copy_recipient = Button(frame_main, text="Copy", command=recipient_copy, font=("Tahoma", 7))
-gui_copy_recipient.grid(row=1, column=2, sticky=W + E, padx=(5, 0))
+gui_copy_recipient.grid(row=1, column=2, sticky=W, padx=(5, 0))
 
 gui_insert_recipient = Button(frame_main, text="Paste", command=recipient_insert, font=("Tahoma", 7))
-gui_insert_recipient.grid(row=1, column=3, sticky=W + E, padx=(5, 0))
+gui_insert_recipient.grid(row=1, column=3, sticky=W, padx=(5, 0))
 
 # gui_help = Button(frame_main, text="Help", command=help, font=("Tahoma", 7))
 # gui_help.grid(row=4, column=2, sticky=W + E, padx=(5, 0))
 
 gui_all_spend = Checkbutton(frame_main, text="All", variable=all_spend_var, command=all_spend, font=("Tahoma", 7))
-gui_all_spend.grid(row=2, column=2, sticky=W + E, padx=(5, 0))
+gui_all_spend.grid(row=2, column=2, sticky=W, padx=(5, 0))
 
 gui_all_spend_clear = Button(frame_main, text="Clear", command=all_spend_clear, font=("Tahoma", 7))
-gui_all_spend_clear.grid(row=2, column=3, sticky=W + E, padx=(5, 0))
+gui_all_spend_clear.grid(row=2, column=3, sticky=W, padx=(5, 0))
 
 data_insert_clipboard = Button(frame_main, text="Paste", command=data_insert, font=("Tahoma", 7))
-data_insert_clipboard.grid(row=3, column=2, sticky=W + E, padx=(5, 0))
+data_insert_clipboard.grid(row=3, column=2, sticky=W, padx=(5, 0))
 
 data_insert_clear = Button(frame_main, text="Clear", command=data_insert_clear, font=("Tahoma", 7))
-data_insert_clear.grid(row=3, column=3, sticky=W + E, padx=(5, 0))
+data_insert_clear.grid(row=3, column=3, sticky=W, padx=(5, 0))
 
 gui_copy_address = Button(frame_main, text="Copy", command=url_copy, font=("Tahoma", 7))
-gui_copy_address.grid(row=4, column=2, sticky=W + E, padx=(5, 0))
+gui_copy_address.grid(row=4, column=2, sticky=W, padx=(5, 0))
 
 url_insert_clipboard = Button(frame_main, text="Paste", command=url_insert, font=("Tahoma", 7))
-url_insert_clipboard.grid(row=4, column=3, sticky=W + E, padx=(5, 0))
+url_insert_clipboard.grid(row=4, column=3, sticky=W, padx=(5, 0))
 
 read_url_b = Button(frame_main, text="Read", command=lambda: read_url_clicked(app_log, url.get()), font=("Tahoma", 7))
-read_url_b.grid(row=4, column=4, sticky=W + E, padx=(5, 0))
+read_url_b.grid(row=4, column=4, sticky=W, padx=(5, 0))
 
 create_url_b = Button(frame_main, text="Create", command=lambda: create_url_clicked(app_log, "pay", recipient.get(), amount.get(), openfield.get("1.0", END).strip()), font=("Tahoma", 7))
-create_url_b.grid(row=4, column=5, sticky=W + E, padx=(5, 0))
-
-#Label(frame_main, text="Your Address:", width=20, anchor="e").grid(row=0)
-#Label(frame_main, text="Recipient:", width=20, anchor="e").grid(row=1)
-#Label(frame_main, text="Amount:", width=20, anchor="e").grid(row=2)
-#Label(frame_main, text="Data:", width=20, anchor="e").grid(row=3)
-#Label(frame_main, text="URL:", width=20, anchor="e").grid(row=4)
+create_url_b.grid(row=4, column=5, sticky=W)
 
 recipient = Entry(frame_main, width=60)
 recipient.grid(row=1, column=1, sticky=W)
 amount = Entry(frame_main, width=60)
-amount.insert(0, 0)
+amount.insert(0, "0.00000000")
+
 amount.grid(row=2, column=1, sticky=W)
 openfield = Text(frame_main, width=60, height=5, font=("Tahoma", 8))
 openfield.grid(row=3, column=1, sticky=W)
@@ -1714,6 +1730,7 @@ openfield.grid(row=3, column=1, sticky=W)
 url = Entry(frame_main, width=60)
 url.grid(row=4, column=1, sticky=W)
 url.insert(0, "bis://")
+
 
 encode = Checkbutton(frame_main, text="Base64 Encoding", variable=encode_var, command=all_spend_check, width=14, anchor=W)
 encode.grid(row=5, column=1, sticky=W, padx=(120, 0))
@@ -1732,7 +1749,7 @@ alias_cb.grid(row=6, column=1, sticky=W, padx=(0, 0))
 
 balance_enumerator = Entry(frame_main, width=5)
 # address and amount
-frame_main_spacer = Frame(frame_main, width=150).grid(row=0,sticky=NW)
+
 # logo
 
 logo_hash_decoded = base64.b64decode(icons.logo_hash)
