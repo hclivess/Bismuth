@@ -794,111 +794,63 @@ def stats():
     frame_chart = Frame (stats_window, height=100, width=100)
     frame_chart.grid (row=0, column=1, rowspan=999)
     f = Figure (figsize=(11, 7), dpi=100)
-    f.subplots_adjust (left=None, bottom=None, right=None, top=None, wspace=None, hspace=None)
+    f.set_facecolor ('silver')
+    f.subplots_adjust (left=None, bottom=None, right=None, top=None, wspace=None, hspace=0.5)
 
 
     def chart_fill():
         f.clear()
 
-        #plt.subplot (rows, columns, 1)
-        #plt.plot (range (len (stats_nodes_count_list)), stats_nodes_count_list, 'o-')
-        #plt.title ("Utilization", fontsize=font_size)
         rows = 4
         columns = 2
 
         first = f.add_subplot (rows, columns, 1)
         first.plot ((range (len (stats_nodes_count_list))), (stats_nodes_count_list))
 
-        #plt.subplot (rows, columns, 1)
-        #plt.plot (range (len (stats_thread_count_list)), stats_thread_count_list, '.-')
-        #plt.legend (('Nodes', 'Threads'), loc='best', shadow=True)
-
         first_2 = f.add_subplot (rows, columns, 1)
         first_2.plot ((range (len (stats_thread_count_list))), (stats_thread_count_list))
-
-        #plt.subplot (rows, columns, 2)
-        #plt.plot (range (len (stats_consensus_list)), stats_consensus_list, '.-')
-        #plt.legend (('Consensus Block',), loc='best', shadow=True)
+        first.legend (('Nodes', 'Threads'), loc='best', shadow=True)
 
         second = f.add_subplot (rows, columns, 2)
         second.plot ((range (len (stats_consensus_list))), (stats_consensus_list))
+        second.legend (('Consensus Block',), loc='best', shadow=True)
 
-        #plt.subplot (rows, columns, 3)
-        #plt.plot (range (len (stats_consensus_percentage_list)), stats_consensus_percentage_list, '.-')
-        #plt.legend (('Consensus Level',), loc='best', shadow=True)
 
         third = f.add_subplot (rows, columns, 3)
         third.plot ((range (len (stats_consensus_percentage_list))), (stats_consensus_percentage_list))
-
-        #plt.subplot (rows, columns, 4)
-        #plt.plot (range (len (stats_diff_list_2)), stats_diff_list_2, '.-')
-        #plt.legend (('Time To Generate Block',), loc='best', shadow=True)
+        third.legend (('Consensus Level',), loc='best', shadow=True)
 
         fourth = f.add_subplot (rows, columns, 4)
         fourth.plot ((range (len (stats_diff_list_2))), (stats_diff_list_2))
-
-        #plt.subplot (rows, columns, 5)
-        #plt.plot (range (len (stats_diff_list_0)), stats_diff_list_0, '.-')
+        fourth.legend (('Time To Generate Block',), loc='best', shadow=True)
 
         fifth = f.add_subplot (rows, columns, 5)
         fifth.plot ((range (len (stats_diff_list_0))), (stats_diff_list_0))
 
-        #plt.subplot (rows, columns, 5)
-        #plt.plot (range (len (stats_diff_list_1)), stats_diff_list_1, '.-')
-
         fifth_2 = f.add_subplot (rows, columns, 5)
         fifth_2.plot ((range (len (stats_diff_list_1))), (stats_diff_list_1))
 
-        #plt.subplot (rows, columns, 5)
-        #plt.plot (range (len (stats_diff_list_3)), stats_diff_list_3, '.-')
-        #plt.legend (('Diff 1', 'Diff 2', 'Diff Current',), loc='best', shadow=True)
-
         fifth_3 = f.add_subplot (rows, columns, 5)
         fifth_3.plot ((range (len (stats_diff_list_3))), (stats_diff_list_3))
-
-        #plt.subplot (rows, columns, 6)
-        #plt.plot (range (len (stats_diff_list_4)), stats_diff_list_4, '.-')
-        #plt.legend (('Block Time',), loc='best', shadow=True)
+        fifth.legend (('Diff 1', 'Diff 2', 'Diff Current',), loc='best', shadow=True)
 
         sixth = f.add_subplot (rows, columns, 6)
         sixth.plot ((range (len (stats_diff_list_4))), (stats_diff_list_4))
-
-        #plt.subplot (rows, columns, 7)
-        #plt.plot (range (len (stats_diff_list_5)), stats_diff_list_5, '.-')
-        #plt.legend (('Hashrate',), loc='best', shadow=True)
+        sixth.legend (('Block Time',), loc='best', shadow=True)
 
         seventh = f.add_subplot (rows, columns, 7)
         seventh.plot ((range (len (stats_diff_list_5))), (stats_diff_list_5))
-
-        #plt.subplot (rows, columns, 8)
-        #plt.plot (range (len (stats_diff_list_6)), stats_diff_list_6, '.-')
-        #plt.legend (('Difficulty Adjustment',), loc='best', shadow=True)
+        seventh.legend (('Hashrate',), loc='best', shadow=True)
 
         eigth = f.add_subplot (rows, columns, 8)
         eigth.plot ((range (len (stats_diff_list_6))), (stats_diff_list_6))
+        eigth.legend (('Difficulty Adjustment',), loc='best', shadow=True)
 
-        #plt.show ()
 
         # a tk.DrawingArea
         canvas = FigureCanvasTkAgg (f, master=frame_chart)
         canvas.draw ()
         canvas.get_tk_widget ().grid (row=0, column=1, sticky=W, padx=15, pady=(0, 0))
-
-        #toolbar = NavigationToolbar2TkAgg (stats_window, root)
-        #toolbar.update ()
-        #canvas._tkcanvas.grid (row=1,sticky=N)
-
-        #def _quit():
-        #    root.quit ()  # stops mainloop
-        #    root.destroy ()  # this is necessary on Windows to prevent
-            # Fatal Python Error: PyEval_RestoreThread: NULL tstate
-
-        #button = Button (master=root, text='Quit', command=_quit)
-        #button.grid (row=1,sticky=S)
-        # chart
-
-
-
 
     def update():
         print("Statistics update triggered")
