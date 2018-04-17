@@ -1459,25 +1459,25 @@ background_label.grid (row=0, column=0, rowspan=999,columnspan=999)
 # frames
 
 
-frame_logo = Frame(root, bg="", colormap="new")
-frame_logo.grid(row=0, column=1, sticky=E + N, pady=10, padx=10)
+frame_logo = Frame(root, relief = 'ridge', borderwidth = 4)
+frame_logo.grid(row=0, column=1, sticky=E + N, pady=5, padx=5)
 
-f3 = Frame(root, bg="", colormap="new")
-f3.grid(row=0, column=0, sticky=W + N, pady=10, padx=10)
+f3 = Frame(root,relief = 'ridge', borderwidth = 4)
+f3.grid(row=0, column=0, sticky=W + N, pady=5, padx=5)
 
 #canvas = Canvas(f3,width=650)
 #canvas.grid(rowspan=999,columnspan=999)
 #img = PhotoImage(file="graphics/light.png")
 #canvas.create_image(0,0,anchor=NW, image=img)
 
-f4 = Frame(root, bg="", colormap="new")
-f4.grid(row=1, column=0, sticky=W + N, pady=10, padx=10)
+f4 = Frame(root,relief = 'ridge', borderwidth = 4)
+f4.grid(row=1, column=0, sticky=W + N, pady=5, padx=5)
 
-f5 = Frame(root, bg="", colormap="new")
-f5.grid(row=1, column=1, sticky=W + N, pady=10, padx=10)
+f5 = Frame(root, relief = 'ridge', borderwidth = 4)
+f5.grid(row=1, column=1, sticky=W + N, pady=5, padx=5)
 
-f6 = Frame(root, bg="", colormap="new")
-f6.grid(row=2, column=0, sticky=E + N, pady=10, padx=10)
+f6 = Frame(root, relief = 'ridge', borderwidth = 4)
+f6.grid(row=2, column=0, sticky=E + N, pady=5, padx=5)
 
 
 # frames
