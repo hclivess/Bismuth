@@ -1458,26 +1458,28 @@ canvas_bg.grid(row=0, column=0, rowspan=200,columnspan=200,sticky=W + E + S + N)
 
 
 frame_logo = Frame(root, relief = 'ridge', borderwidth = 4)
-frame_logo.grid(row=0, column=1, sticky=W + E, pady=5, padx=5)
+frame_logo.grid(row=0, column=1, sticky=W + E + S + N, pady=5, padx=5)
 
 frame_main = Frame(root,relief = 'ridge', borderwidth = 4)
 frame_main.grid(row=0, column=0, pady=5, padx=5)
+
 #spacer_width=150
 #frame_main_spacer = Frame(frame_main, width=spacer_width).grid(row=0,sticky=NW) #make canvas text visible
 
-canvas_main = Canvas(frame_main,background="yellow")
+canvas_main = Canvas(frame_main,highlightthickness=0, relief='ridge')
 canvas_main.grid(row=0, column=0,sticky=W+E, columnspan=50,rowspan=50)
 
 frame_table = Frame(root,relief = 'ridge', borderwidth = 4)
 frame_table.grid(row=1, column=0, sticky=W + E + N, pady=5, padx=5)
 
 frame_buttons = Frame(root, relief = 'ridge', borderwidth = 4)
-frame_buttons.grid(row=1, column=1, sticky=W + E, pady=5, padx=5)
+frame_buttons.grid(row=1, column=1, sticky=W + E + N + S, pady=5, padx=5)
 
-frame_labels = Frame(frame_main,background="white")
+frame_labels = Frame(frame_main)
 frame_labels.grid(row=0, column=0, sticky=W, rowspan=50)
 
-canvas_labels = Canvas(frame_labels, width=120,background="red")
+
+canvas_labels = Canvas(frame_labels, width=120,highlightthickness=0, relief='ridge')
 canvas_labels.grid(row=0, column=0,sticky=W)
 
 
@@ -1490,12 +1492,10 @@ def hello():
 root.update()
 width_total = root.winfo_width()
 height_total = root.winfo_height()
-print(width_total,height_total)
 
 frame_main.update()
 width_main = frame_main.winfo_width()
 height_main = frame_main.winfo_height()
-print(width_main,height_main)
 #
 
 
@@ -1506,15 +1506,16 @@ canvas_bg.create_image(width_total,height_total, image=img_bg)
 
 img_main = PhotoImage(file="graphics/light.png")
 canvas_main.create_image(width_main,height_main, image=img_main)
+canvas_labels.create_image(width_main,height_main, image=img_main)
 
-offset_x = 5
+offset_x = 120
 offset_y = 3
 text_color="white"
-canvas_labels.create_text(offset_x,offset_y+10,fill=text_color,anchor=W,font="Tahoma 12 bold", text="Your Address:")
-canvas_labels.create_text(offset_x,offset_y+35,fill=text_color,anchor=W,font="Tahoma 12 bold", text="Recipient:")
-canvas_labels.create_text(offset_x,offset_y+55,fill=text_color,anchor=W,font="Tahoma 12 bold", text="Amount:")
-canvas_labels.create_text(offset_x,offset_y+100,fill=text_color,anchor=W,font="Tahoma 12 bold", text="Data:")
-canvas_labels.create_text(offset_x,offset_y+145,fill=text_color,anchor=W,font="Tahoma 12 bold", text="URL:")
+canvas_labels.create_text(offset_x,offset_y+10,fill=text_color,anchor=E,font="Tahoma 12 bold", text="Your Address:")
+canvas_labels.create_text(offset_x,offset_y+35,fill=text_color,anchor=E,font="Tahoma 12 bold", text="Recipient:")
+canvas_labels.create_text(offset_x,offset_y+55,fill=text_color,anchor=E,font="Tahoma 12 bold", text="Amount:")
+canvas_labels.create_text(offset_x,offset_y+100,fill=text_color,anchor=E,font="Tahoma 12 bold", text="Data:")
+canvas_labels.create_text(offset_x,offset_y+145,fill=text_color,anchor=E,font="Tahoma 12 bold", text="URL:")
 #canvas
 
 menubar = Menu(root)
