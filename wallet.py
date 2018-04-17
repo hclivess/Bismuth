@@ -791,26 +791,17 @@ def stats():
     stats_window = Toplevel ()
     stats_window.title ("Node Statistics")
 
+    frame_chart = Frame (stats_window, height=100, width=100)
+    frame_chart.grid (row=0, column=1, sticky=N, rowspan=999)
+    f = Figure (figsize=(11, 7), dpi=75)
 
-    def chart():
-        # chart
 
-        # stats_diff_list = []
-
-        #plt.figure (figsize=(11, 7))
-        #plt.subplots_adjust (left=None, bottom=None, right=None, top=None, wspace=None, hspace=None)
-        #plt.tight_layout ()
-
-        rows = 4
-        columns = 2
-        #font_size = "medium"
-
-        # plt.subplots_adjust (wspace=1, hspace=2)
-        f = Figure (figsize=(11, 7), dpi=75)
-
+    def chart_fill():
         #plt.subplot (rows, columns, 1)
         #plt.plot (range (len (stats_nodes_count_list)), stats_nodes_count_list, 'o-')
         #plt.title ("Utilization", fontsize=font_size)
+        rows = 4
+        columns = 2
 
         first = f.add_subplot (rows, columns, 1)
         first.plot ((range (len (stats_nodes_count_list))), (stats_nodes_count_list))
@@ -886,9 +877,9 @@ def stats():
         #plt.show ()
 
         # a tk.DrawingArea
-        canvas = FigureCanvasTkAgg (f, master=stats_window)
+        canvas = FigureCanvasTkAgg (f, master=frame_chart)
         canvas.draw ()
-        canvas.get_tk_widget ().grid (row=0, column=1, sticky=W, padx=15, pady=(0, 0), rowspan=999)
+        canvas.get_tk_widget ().grid (row=0, column=1, sticky=W, padx=15, pady=(0, 0))
 
         #toolbar = NavigationToolbar2TkAgg (stats_window, root)
         #toolbar.update ()
@@ -902,6 +893,7 @@ def stats():
         #button = Button (master=root, text='Quit', command=_quit)
         #button.grid (row=1,sticky=S)
         # chart
+
 
 
 
@@ -1001,16 +993,19 @@ def stats():
     stats_diff_label_6 = Label(stats_window, textvariable=stats_diff_var_6)
     stats_diff_label_6.grid(row=14, column=0, sticky=W, padx=15, pady=(0, 0))
 
-
     def refresh_stats_auto():
         try:
+            #global frame_chart
             root.after (0, update())
             root.after (10000, refresh_stats_auto)
+
+            #frame_chart.destroy()
+            chart_fill()
         except:
             print("Statistics window closed, disabling auto-refresh")
 
     refresh_stats_auto()
-    chart ()
+
 
 
 
