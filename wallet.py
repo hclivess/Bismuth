@@ -1469,10 +1469,20 @@ frame_main['bg'] = frame_main.master['bg']
 #root.wm_attributes('-transparentcolor', root['bg'])
 
 
-#canvas = Canvas(frame_main,width=650)
-#canvas.grid(rowspan=999,columnspan=999)
-#img = PhotoImage(file="graphics/light.png")
-#canvas.create_image(0,0,anchor=NW, image=img)
+canvas = Canvas(frame_main,width=900)
+canvas.grid(row=0, column=0, rowspan=20,columnspan=20)
+img = PhotoImage(file="graphics/light.png")
+canvas.create_image(0,0,anchor=CENTER, image=img)
+
+offset_x = 140
+offset_y = 7
+text_color="black"
+canvas.create_text(offset_x,offset_y+10,fill=text_color,anchor=E,font="Tahoma 12 bold", text="Your Address:")
+canvas.create_text(offset_x,offset_y+35,fill=text_color,anchor=E,font="Tahoma 12 bold", text="Recipient:")
+canvas.create_text(offset_x,offset_y+60,fill=text_color,anchor=E,font="Tahoma 12 bold", text="Amount:")
+canvas.create_text(offset_x,offset_y+100,fill=text_color,anchor=E,font="Tahoma 12 bold", text="Data:")
+canvas.create_text(offset_x,offset_y+152,fill=text_color,anchor=E,font="Tahoma 12 bold", text="URL:")
+
 
 f4 = Frame(root,relief = 'ridge', borderwidth = 4)
 f4.grid(row=1, column=0, sticky=W + E + N, pady=5, padx=5)
@@ -1687,11 +1697,11 @@ read_url_b.grid(row=4, column=4, sticky=W + E, padx=(5, 0))
 create_url_b = Button(frame_main, text="Create", command=lambda: create_url_clicked(app_log, "pay", recipient.get(), amount.get(), openfield.get("1.0", END).strip()), font=("Tahoma", 7))
 create_url_b.grid(row=4, column=5, sticky=W + E, padx=(5, 0))
 
-Label(frame_main, text="Your Address:", width=20, anchor="e").grid(row=0)
-Label(frame_main, text="Recipient:", width=20, anchor="e").grid(row=1)
-Label(frame_main, text="Amount:", width=20, anchor="e").grid(row=2)
-Label(frame_main, text="Data:", width=20, anchor="e").grid(row=3)
-Label(frame_main, text="URL:", width=20, anchor="e").grid(row=4)
+#Label(frame_main, text="Your Address:", width=20, anchor="e").grid(row=0)
+#Label(frame_main, text="Recipient:", width=20, anchor="e").grid(row=1)
+#Label(frame_main, text="Amount:", width=20, anchor="e").grid(row=2)
+#Label(frame_main, text="Data:", width=20, anchor="e").grid(row=3)
+#Label(frame_main, text="URL:", width=20, anchor="e").grid(row=4)
 
 recipient = Entry(frame_main, width=60)
 recipient.grid(row=1, column=1, sticky=W)
@@ -1705,27 +1715,24 @@ url = Entry(frame_main, width=60)
 url.grid(row=4, column=1, sticky=W)
 url.insert(0, "bis://")
 
-encode = Checkbutton(frame_main, text="Base64 Encoding", variable=encode_var, command=all_spend_check)
+encode = Checkbutton(frame_main, text="Base64 Encoding", variable=encode_var, command=all_spend_check, width=13, anchor=W)
 encode.grid(row=5, column=1, sticky=W, padx=(120, 0))
 
-msg = Checkbutton(frame_main, text="Mark as Message", variable=msg_var, command=all_spend_check)
+msg = Checkbutton(frame_main, text="Mark as Message", variable=msg_var, command=all_spend_check, width=13, anchor=W)
 msg.grid(row=5, column=1, sticky=W, padx=(240, 0))
 
-encr = Checkbutton(frame_main, text="Encrypt with PK", variable=encrypt_var, command=all_spend_check)
+encr = Checkbutton(frame_main, text="Encrypt with PK", variable=encrypt_var, command=all_spend_check, width=13, anchor=W)
 encr.grid(row=5, column=1, sticky=W, padx=(0, 0))
 
-resolve = Checkbutton(frame_main, text="Resolve Aliases", variable=resolve_var, command=lambda: refresh(gui_address.get(), s))
+resolve = Checkbutton(frame_main, text="Resolve Aliases", variable=resolve_var, command=lambda: refresh(gui_address.get(), s), width=13, anchor=W)
 resolve.grid(row=6, column=1, sticky=W, padx=(120, 0))
 
-alias_cb = Checkbutton(frame_main, text="Alias Recipient", variable=alias_cb_var, command=None)
+alias_cb = Checkbutton(frame_main, text="Alias Recipient", variable=alias_cb_var, command=None, width=13, anchor=W)
 alias_cb.grid(row=6, column=1, sticky=W, padx=(0, 0))
 
 balance_enumerator = Entry(frame_main, width=5)
 # address and amount
-
-Label(frame_main, text="Your Latest Transactions:", width=20, anchor="w").grid(row=8, sticky=S)
-Label(frame_main, text="", width=20, anchor=W).grid(row=7, sticky=S)
-
+frame_main_spacer = Frame(frame_main, width=150).grid(row=0,sticky=NW)
 # logo
 
 logo_hash_decoded = base64.b64decode(icons.logo_hash)
