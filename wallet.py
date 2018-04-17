@@ -792,8 +792,9 @@ def stats():
     stats_window.title ("Node Statistics")
 
     frame_chart = Frame (stats_window, height=100, width=100)
-    frame_chart.grid (row=0, column=1, sticky=N, rowspan=999)
-    f = Figure (figsize=(11, 7), dpi=75)
+    frame_chart.grid (row=0, column=1, rowspan=999)
+    f = Figure (figsize=(11, 7), dpi=100)
+    f.subplots_adjust (left=None, bottom=None, right=None, top=None, wspace=None, hspace=None)
 
 
     def chart_fill():

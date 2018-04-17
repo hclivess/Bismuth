@@ -957,7 +957,7 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, mempool, m):
                     while True:
                         try:
                             if tx[9] == 0:
-                                app_log.info(mempool_merge((tx[1], tx[2], tx[3], tx[4], tx[5], tx[6], tx[10], tx[11]), peer_ip, c, mempool, m, False, True))  # strip block_height
+                                app_log.info(mempool_merge((tx[1], tx[2], tx[3], tx[4], tx[5], tx[6], tx[10], tx[11]), peer_ip, c, mempool, m, False, False))  # will get stuck if you change it to respect db_lock
                                 app_log.warning("Moved tx back to mempool: {}".format(tx))
                                 commit(mempool)
                             break
@@ -1008,7 +1008,7 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, mempool, m):
                 aliases_rollback(str(db_block_height), app_log)
                 # rollback indices
 
-        except:
+        except Exception as e:
             pass
         finally:
             db_lock.release()
