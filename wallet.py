@@ -798,6 +798,8 @@ def stats():
 
 
     def chart_fill():
+        f.clear()
+
         #plt.subplot (rows, columns, 1)
         #plt.plot (range (len (stats_nodes_count_list)), stats_nodes_count_list, 'o-')
         #plt.title ("Utilization", fontsize=font_size)
