@@ -1465,6 +1465,11 @@ frame_logo.grid(row=0, column=1, sticky=E + N, pady=10, padx=10)
 f3 = Frame(root, bg="", colormap="new")
 f3.grid(row=0, column=0, sticky=W + N, pady=10, padx=10)
 
+#canvas = Canvas(f3,width=650)
+#canvas.grid(rowspan=999,columnspan=999)
+#img = PhotoImage(file="graphics/light.png")
+#canvas.create_image(0,0,anchor=NW, image=img)
+
 f4 = Frame(root, bg="", colormap="new")
 f4.grid(row=1, column=0, sticky=W + N, pady=10, padx=10)
 
