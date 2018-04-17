@@ -1436,6 +1436,7 @@ root = Tk()
 root.wm_title("Bismuth Light Wallet running on {}".format(light_ip))
 root.geometry("1310x700") #You want the size of the app to be 500x500
 root.resizable(0, 0) #Don't allow resizing in the x or y direction
+root['bg']="black"
 
 
 
@@ -1463,25 +1464,24 @@ background_label.grid (row=0, column=0, rowspan=999,columnspan=999)
 frame_logo = Frame(root, relief = 'ridge', borderwidth = 4)
 frame_logo.grid(row=0, column=1, sticky=W + E + S + N, pady=5, padx=5)
 
-frame_main = Frame(root,relief = 'ridge', borderwidth = 4)
+frame_main = Frame(root,relief = 'ridge', borderwidth = 4,bg="black")
 frame_main.grid(row=0, column=0, sticky=W + E + N, pady=5, padx=5)
-frame_main['bg'] = frame_main.master['bg']
 #root.wm_attributes('-transparentcolor', root['bg'])
 
 
 canvas = Canvas(frame_main,width=900)
-canvas.grid(row=0, column=0, rowspan=20,columnspan=20)
+canvas.grid(row=0, column=0, rowspan=200,columnspan=200)
 img = PhotoImage(file="graphics/light.png")
-canvas.create_image(0,0,anchor=CENTER, image=img)
+canvas.create_image(0,0,anchor=W, image=img)
 
 offset_x = 140
-offset_y = 7
-text_color="black"
+offset_y = 3
+text_color="white"
 canvas.create_text(offset_x,offset_y+10,fill=text_color,anchor=E,font="Tahoma 12 bold", text="Your Address:")
 canvas.create_text(offset_x,offset_y+35,fill=text_color,anchor=E,font="Tahoma 12 bold", text="Recipient:")
-canvas.create_text(offset_x,offset_y+60,fill=text_color,anchor=E,font="Tahoma 12 bold", text="Amount:")
+canvas.create_text(offset_x,offset_y+55,fill=text_color,anchor=E,font="Tahoma 12 bold", text="Amount:")
 canvas.create_text(offset_x,offset_y+100,fill=text_color,anchor=E,font="Tahoma 12 bold", text="Data:")
-canvas.create_text(offset_x,offset_y+152,fill=text_color,anchor=E,font="Tahoma 12 bold", text="URL:")
+canvas.create_text(offset_x,offset_y+145,fill=text_color,anchor=E,font="Tahoma 12 bold", text="URL:")
 
 
 f4 = Frame(root,relief = 'ridge', borderwidth = 4)
@@ -1715,19 +1715,19 @@ url = Entry(frame_main, width=60)
 url.grid(row=4, column=1, sticky=W)
 url.insert(0, "bis://")
 
-encode = Checkbutton(frame_main, text="Base64 Encoding", variable=encode_var, command=all_spend_check, width=13, anchor=W)
+encode = Checkbutton(frame_main, text="Base64 Encoding", variable=encode_var, command=all_spend_check, width=14, anchor=W)
 encode.grid(row=5, column=1, sticky=W, padx=(120, 0))
 
-msg = Checkbutton(frame_main, text="Mark as Message", variable=msg_var, command=all_spend_check, width=13, anchor=W)
+msg = Checkbutton(frame_main, text="Mark as Message", variable=msg_var, command=all_spend_check, width=14, anchor=W)
 msg.grid(row=5, column=1, sticky=W, padx=(240, 0))
 
-encr = Checkbutton(frame_main, text="Encrypt with PK", variable=encrypt_var, command=all_spend_check, width=13, anchor=W)
+encr = Checkbutton(frame_main, text="Encrypt with PK", variable=encrypt_var, command=all_spend_check, width=14, anchor=W)
 encr.grid(row=5, column=1, sticky=W, padx=(0, 0))
 
-resolve = Checkbutton(frame_main, text="Resolve Aliases", variable=resolve_var, command=lambda: refresh(gui_address.get(), s), width=13, anchor=W)
+resolve = Checkbutton(frame_main, text="Resolve Aliases", variable=resolve_var, command=lambda: refresh(gui_address.get(), s), width=14, anchor=W)
 resolve.grid(row=6, column=1, sticky=W, padx=(120, 0))
 
-alias_cb = Checkbutton(frame_main, text="Alias Recipient", variable=alias_cb_var, command=None, width=13, anchor=W)
+alias_cb = Checkbutton(frame_main, text="Alias Recipient", variable=alias_cb_var, command=None, width=14, anchor=W)
 alias_cb.grid(row=6, column=1, sticky=W, padx=(0, 0))
 
 balance_enumerator = Entry(frame_main, width=5)
