@@ -25,6 +25,7 @@ global public_key_hashed
 global myaddress
 global private_key_load
 global public_key_load
+global s
 
 
 # data for charts
@@ -83,8 +84,7 @@ app_log = log.log("gui.log", debug_level, terminal_output)
 essentials.keys_check(app_log)
 essentials.db_check(app_log)
 
-s = socks.socksocket()
-s.settimeout(3)
+
 
 def address_validate(address):
     if re.match ('[abcdef0123456789]{56}', address):
@@ -115,11 +115,15 @@ def read_url_clicked(app_log, url):
 def node_connect():
     while True:
         try:
+            global s
+            s = socks.socksocket ()
+            s.settimeout (3)
+
             s.connect((light_ip, int(port)))
             app_log.warning("Status: Wallet connected")
             break
-        except:
-            app_log.warning("Status: Wallet cannot connect to the node, perhaps it is still starting up, retrying")
+        except Exception as e:
+            app_log.warning("Status: Wallet cannot connect to the node ({}), perhaps it is still starting up, retrying".format(e))
             time.sleep(1)
 
 
@@ -1372,9 +1376,7 @@ def refresh(address, s):
         all_spend_check()
 
     except:
-        messagebox.showinfo("Connection error", "Connection to node aborted")
-        raise
-        sys.exit(1)
+        node_connect()
 
 
 def sign():
