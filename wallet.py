@@ -1462,6 +1462,9 @@ root.tk.call('wm', 'iconphoto', root._w, img, )
 if gui_scaling != "default":
     root.tk.call("tk", "scaling", gui_scaling)
 
+else:
+    dpi_value = root.winfo_fpixels('1i')
+    root.tk.call ('tk', 'scaling', dpi_value / 72)
 
 password_var_enc = StringVar()
 password_var_con = StringVar()
