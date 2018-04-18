@@ -1218,7 +1218,7 @@ def table(address, addlist_20, mempool_total):
                     e.configure(readonlybackground='linen')
 
                 elif "Unconfirmed" in datasheet_compare:  # unconfirmed txs
-                    e = Entry(frame_table, width=56)
+                    e = Entry(frame_table, width=0)
                     e.configure(readonlybackground='linen')
 
                 elif j == 3:  # sent
@@ -1525,7 +1525,7 @@ canvas_labels.create_image(width_main,height_main, image=img_main)
 offset_x = 120
 offset_y = 3
 text_color="white"
-canvas_labels.create_text(offset_x,offset_y+10,fill=text_color,anchor=E,font="Tahoma 12 bold", text="Your Address:")
+canvas_labels.create_text(offset_x,offset_y+10,fill=text_color,anchor=E,font="Tahoma 12 bold", text="Address:")
 canvas_labels.create_text(offset_x,offset_y+35,fill=text_color,anchor=E,font="Tahoma 12 bold", text="Recipient:")
 canvas_labels.create_text(offset_x,offset_y+55,fill=text_color,anchor=E,font="Tahoma 12 bold", text="Amount:")
 canvas_labels.create_text(offset_x,offset_y+100,fill=text_color,anchor=E,font="Tahoma 12 bold", text="Data:")

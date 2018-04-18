@@ -648,7 +648,7 @@ def mempool_size_calculate(m):
     return mempool_size  # return Decimal
 
 
-def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
+def mempool_merge(data, peer_ip, c, mempool, m, size_bypass):
 
     mempool_result = []
     mempool_size = mempool_size_calculate(m)  # caulculate current mempool size before adding txs
@@ -659,7 +659,7 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass, lock_respect):
     else:
         mempool_result.append("Mempool merging started from {}".format(peer_ip))
 
-        while db_lock.locked() == True and lock_respect == True:  # prevent transactions which are just being digested from being added to mempool
+        while db_lock.locked() == True:  # prevent transactions which are just being digested from being added to mempool
             mempool_result.append("Waiting for block digestion to finish before merging mempool")
             time.sleep(1)
 
@@ -952,18 +952,9 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, mempool, m):
 
                 execute_param(c, ("SELECT * FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
                 backup_data = c.fetchall()
+                #this code continues at the bottom because of ledger presence check
 
-                for tx in backup_data:
-                    while True:
-                        try:
-                            if tx[9] == 0:
-                                app_log.info(mempool_merge((tx[1], tx[2], tx[3], tx[4], tx[5], tx[6], tx[10], tx[11]), peer_ip, c, mempool, m, False, False))  # will get stuck if you change it to respect db_lock
-                                app_log.warning("Moved tx back to mempool: {}".format(tx))
-                                commit(mempool)
-                            break
-                        except Exception as e:
-                            app_log.info(e)
-                            pass
+
 
                 # delete followups
                 execute_param(c, ("DELETE FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
@@ -1008,12 +999,24 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2, mempool, m):
                 aliases_rollback(str(db_block_height), app_log)
                 # rollback indices
 
+
+
         except Exception as e:
             pass
         finally:
             db_lock.release()
 
-            # delete followups
+            for tx in backup_data:
+                while True:
+                    try:
+                        if tx[9] == 0:
+                            app_log.info (mempool_merge ((tx[1], tx[2], tx[3], tx[4], tx[5], tx[6], tx[10], tx[11]), peer_ip, c, mempool, m, False))  # will get stuck if you change it to respect db_lock
+                            app_log.warning ("Moved tx back to mempool: {}".format (tx))
+                            commit (mempool)
+                        break
+                    except Exception as e:
+                        app_log.info (e)
+                        pass
 
 
 def manager(c, mempool, m):
@@ -1063,8 +1066,14 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
     block_size = Decimal(sys.getsizeof(str(data))) / Decimal(1000000)
     app_log.warning("Block size: {} MB".format(block_size))
 
+
     if db_lock.locked() == False:
         db_lock.acquire()
+
+        while mem_lock.locked () == True:
+            time.sleep (0.1)
+            app_log.info ("Waiting for mempool to unlock {}".format (peer_ip))
+
         block_valid = 1  # init
 
         app_log.info("Digesting started from {}".format(peer_ip))
@@ -1707,7 +1716,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                     # receive theirs
                     segments = connections.receive(self.request, 10)
-                    app_log.info(mempool_merge(segments, peer_ip, c, mempool, m, False, True))
+                    app_log.info(mempool_merge(segments, peer_ip, c, mempool, m, False))
 
                     # receive theirs
 
@@ -1960,7 +1969,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
                         mempool_insert = connections.receive(self.request, 10)
-                        mpinsert_result = mempool_merge(mempool_insert, peer_ip, c, mempool, m, True, True)
+                        mpinsert_result = mempool_merge(mempool_insert, peer_ip, c, mempool, m, True)
                         connections.send(self.request, mpinsert_result, 10)
                     else:
                         app_log.info("{} not whitelisted for mpinsert command".format(peer_ip))
@@ -2214,7 +2223,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         # insert to mempool, where everything will be verified
                         mempool_data = ((str(remote_tx_timestamp), str(remote_tx_address), str(remote_tx_recipient), '%.8f' % quantize_eight(remote_tx_amount), str(remote_signature_enc), str(remote_tx_pubkey_hashed), str(remote_tx_operation), str(remote_tx_openfield)))
 
-                        app_log.info(mempool_merge(mempool_data, peer_ip, c, mempool, m, True, True))
+                        app_log.info(mempool_merge(mempool_data, peer_ip, c, mempool, m, True))
 
                         connections.send(self.request, str(remote_signature_enc), 10)
                         # wipe variables
@@ -2614,7 +2623,7 @@ def worker(HOST, PORT):
 
                 # receive theirs
                 segments = connections.receive(s, 10)
-                app_log.info(mempool_merge(segments, peer_ip, c, mempool, m, True, True))
+                app_log.info(mempool_merge(segments, peer_ip, c, mempool, m, True))
                 # receive theirs
 
                 # receive mempool
