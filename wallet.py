@@ -791,6 +791,20 @@ def refresh_auto():
 def stats():
     stats_window = Toplevel ()
     stats_window.title ("Node Statistics")
+    stats_window.resizable (0, 0)
+
+
+    #canvas_stats_bg = Canvas (root, highlightthickness=0)
+    #canvas_stats_bg.grid (row=0, column=0, rowspan=200, columnspan=200, sticky=W + E + S + N)
+
+    #stats_window.update ()
+    #width_stats = stats_window.winfo_width ()
+    #height_stats = stats_window.winfo_height ()
+
+    #img_stats_bg = PhotoImage (file="graphics/brushed.png")
+    #canvas_bg.create_image (width_stats, height_stats, image=img_stats_bg)
+
+
 
     frame_chart = Frame (stats_window, height=100, width=100)
     frame_chart.grid (row=0, column=1, rowspan=999)
@@ -1435,7 +1449,7 @@ root = Tk()
 
 root.wm_title("Bismuth Light Wallet running on {}".format(light_ip))
 #root.geometry("1310x700") #You want the size of the app to be 500x500
-#root.resizable(0, 0) #Don't allow resizing in the x or y direction
+root.resizable(0, 0) #Don't allow resizing in the x or y direction
 root['bg']="black"
 
 
@@ -1453,7 +1467,7 @@ password_var_enc = StringVar()
 password_var_con = StringVar()
 password_var_dec = StringVar()
 
-canvas_bg = Canvas(root)
+canvas_bg = Canvas(root,highlightthickness=0)
 canvas_bg.grid(row=0, column=0, rowspan=200,columnspan=200,sticky=W + E + S + N)
 
 
@@ -1466,8 +1480,8 @@ frame_main.grid(row=0, column=0, pady=5, padx=5)
 #spacer_width=150
 #frame_main_spacer = Frame(frame_main, width=spacer_width).grid(row=0,sticky=NW) #make canvas text visible
 
-canvas_main = Canvas(frame_main,highlightthickness=0, relief='ridge')
-canvas_main.grid(row=0, column=0,sticky=W+E, columnspan=50,rowspan=50)
+canvas_main = Canvas(frame_main,highlightthickness=0)
+canvas_main.grid(row=0, column=0, sticky=W + E + N + S, columnspan=50,rowspan=50)
 
 frame_table = Frame(root,relief = 'ridge', borderwidth = 4)
 frame_table.grid(row=1, column=0, sticky=W + E + N, pady=5, padx=5)
@@ -1479,8 +1493,8 @@ frame_labels = Frame(frame_main)
 frame_labels.grid(row=0, column=0, sticky=W, rowspan=50)
 
 
-canvas_labels = Canvas(frame_labels, width=120,highlightthickness=0, relief='ridge')
-canvas_labels.grid(row=0, column=0,sticky=W)
+canvas_labels = Canvas(frame_labels, width=120,highlightthickness=0)
+canvas_labels.grid(row=0, column=0, sticky=W + E + N + S)
 
 
 # frames
