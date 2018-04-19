@@ -1451,7 +1451,7 @@ root = Tk()
 
 root.wm_title("Bismuth Light Wallet running on {}".format(light_ip))
 #root.geometry("1310x700") #You want the size of the app to be 500x500
-root.resizable(0, 0) #Don't allow resizing in the x or y direction
+root.resizable(0, 0) #Don't allow resizing in the x or y direction / resize
 root['bg']="black"
 
 
@@ -1466,8 +1466,9 @@ if gui_scaling != "default":
 
 else:
     dpi_value = root.winfo_fpixels('1i')
-    dpi_value = 1
     root.tk.call ('tk', 'scaling', dpi_value / 72)
+
+#root.tk.call("tk", "scaling", 2)#test
 
 password_var_enc = StringVar()
 password_var_con = StringVar()
@@ -1476,12 +1477,13 @@ password_var_dec = StringVar()
 canvas_bg = Canvas(root,highlightthickness=0)
 canvas_bg.grid(row=0, column=0, rowspan=200,columnspan=200,sticky=W + E + S + N)
 
-
 frame_logo = Frame(root, relief = 'ridge', borderwidth = 4)
 frame_logo.grid(row=0, column=1, pady=5, padx=5)
 
 frame_main = Frame(root,relief = 'ridge', borderwidth = 4)
 frame_main.grid(row=0, column=0, pady=5, padx=5)
+canvas_main = Canvas(frame_main,highlightthickness=0,height=0) #height=0 = hack to prevent resizing
+canvas_main.grid(row=0, column=0, sticky=W + E + N + S, columnspan=3,rowspan=2)
 
 frame_labels = Frame(frame_main,relief = 'ridge', borderwidth = 4)
 frame_labels.grid(row=0, column=0, pady=5, padx=5, sticky=N+W+E+S)
@@ -1494,9 +1496,6 @@ frame_tick.grid(row=0, column=2, pady=5, padx=5)
 
 #spacer_width=150
 #frame_entries_spacer = Frame(frame_entries, width=spacer_width).grid(row=0,sticky=NW) #make canvas text visible
-
-canvas_main = Canvas(frame_entries,highlightthickness=0)
-canvas_main.grid(row=0, column=0, sticky=W + E + N + S, columnspan=50,rowspan=50)
 
 frame_table = Frame(root,relief = 'ridge', borderwidth = 4)
 frame_table.grid(row=1, column=0, sticky=W + E + N, pady=5, padx=5)
@@ -1512,28 +1511,34 @@ def hello():
 
 #
 root.update()
-width_total = root.winfo_width()
-height_total = root.winfo_height()
+width_root = root.winfo_width()
+height_root = root.winfo_height()
 
-frame_entries.update()
-width_main = frame_entries.winfo_width()
-height_main = frame_entries.winfo_height()
+frame_main.update()
+width_main = frame_main.winfo_width()
+height_main = frame_main.winfo_height()
+
+print(height_main, width_main)
+print(height_root, width_root)
 #
 
 
 #canvas
 
-img_bg = PhotoImage(file="graphics/brushed.png")
-canvas_bg.create_image(width_total,height_total, image=img_bg)
+img_bg = PIL.Image.open("graphics/bg.jpg")
 
-img_main = PhotoImage(file="graphics/light.png")
-canvas_main.create_image(width_main,height_main, image=img_main)
+photo_bg = PIL.ImageTk.PhotoImage(img_bg)
+canvas_bg.create_image(0,0, image=photo_bg, anchor=NW)
 
-Label(frame_labels, text="Address:", anchor="e").grid(row=0,sticky=E, padx=(5,5),pady=(5,0))
-Label(frame_labels, text="Recipient:", anchor="e").grid(row=1,sticky=E, padx=(5,5),pady=(20,0))
-Label(frame_labels, text="Amount:", anchor="e").grid(row=2,sticky=E, padx=(5,5),pady=(20,0))
-Label(frame_labels, text="Data:", anchor="e").grid(row=3,sticky=E, padx=(5,5),pady=(20,0))
-Label(frame_labels, text="URL:", anchor="e").grid(row=4,sticky=E, padx=(5,5),pady=(60,5))
+main_bg = PIL.Image.open("graphics/main.jpg")
+photo_main = PIL.ImageTk.PhotoImage(main_bg)
+canvas_main.create_image(0,0, image=photo_main, anchor=NW)
+
+Label(frame_labels, text="Address:").grid(row=0,sticky=E)
+Label(frame_labels, text="Recipient:").grid(row=1,sticky=E)
+Label(frame_labels, text="Amount:").grid(row=2,sticky=E)
+Label(frame_labels, text="Data:",height=4).grid(row=3,sticky=E)
+Label(frame_labels, text="URL:").grid(row=4,sticky=E)
 #canvas
 
 menubar = Menu(root)
@@ -1595,11 +1600,11 @@ frame_logo_buttons = Frame(frame_logo, relief = 'ridge', borderwidth = 4)
 frame_logo_buttons.grid(row=2, column=0, sticky=W + E, pady=5, padx=5)
 
 encrypt_b = Button(frame_logo_buttons, text="Encrypt", command=encrypt_get_password, height=1, width=10)
-encrypt_b.grid(row=0, column=0, sticky=E+W, pady=0, padx=10)
+encrypt_b.grid(row=0, column=0, sticky=E+W)
 decrypt_b = Button(frame_logo_buttons, text="Unlock", command=decrypt_get_password, height=1, width=10)
-decrypt_b.grid(row=0, column=1, sticky=E+W, pady=0, padx=10)
+decrypt_b.grid(row=0, column=1, sticky=E+W)
 lock_b = Button(frame_logo_buttons, text="Locked", command=lambda: lock_fn(lock_b), height=1, width=10, state=DISABLED)
-lock_b.grid(row=0, column=2, sticky=E+W, pady=0, padx=10)
+lock_b.grid(row=0, column=2, sticky=E+W)
 
 
 def encryption_button_refresh():
@@ -1691,50 +1696,49 @@ all_spend_var = BooleanVar()
 # gui_address.configure(state="readonly")
 
 gui_copy_address = Button(frame_entries, text="Copy", command=address_copy, font=("Tahoma", 7))
-gui_copy_address.grid(row=0, column=2, sticky=W, padx=(5, 0))
+gui_copy_address.grid(row=0, column=2, sticky=W)
 
 gui_paste_address = Button(frame_entries, text="Paste", command=address_insert, font=("Tahoma", 7))
-gui_paste_address.grid(row=0, column=3, sticky=W, padx=(5, 0))
+gui_paste_address.grid(row=0, column=3, sticky=W)
 
 gui_list_aliases = Button(frame_entries, text="Aliases", command=aliases_list, font=("Tahoma", 7))
-gui_list_aliases.grid(row=0, column=4, sticky=W, padx=(5, 0))
+gui_list_aliases.grid(row=0, column=4, sticky=W)
 
 gui_watch = Button(frame_entries, text="Watch", command=watch, font=("Tahoma", 7))
-gui_watch.grid(row=0, column=5, sticky=W, padx=(5, 0))
+gui_watch.grid(row=0, column=5, sticky=W)
 
 gui_unwatch = Button(frame_entries, text="Unwatch", command=unwatch, font=("Tahoma", 7))
-gui_unwatch.grid(row=0, column=6, sticky=W, padx=(5, 5), pady=(5, 5))
+gui_unwatch.grid(row=0, column=6, sticky=W)
 
 gui_copy_recipient = Button(frame_entries, text="Copy", command=recipient_copy, font=("Tahoma", 7))
-gui_copy_recipient.grid(row=1, column=2, sticky=W, padx=(5, 0), pady=(5, 5))
+gui_copy_recipient.grid(row=1, column=2, sticky=W)
 
 gui_insert_recipient = Button(frame_entries, text="Paste", command=recipient_insert, font=("Tahoma", 7))
-gui_insert_recipient.grid(row=1, column=3, sticky=W, padx=(5, 0), pady=(5, 5))
+gui_insert_recipient.grid(row=1, column=3, sticky=W)
 
 # gui_help = Button(frame_entries, text="Help", command=help, font=("Tahoma", 7))
 # gui_help.grid(row=4, column=2, sticky=W + E, padx=(5, 0))
 
 gui_all_spend = Checkbutton(frame_entries, text="All", variable=all_spend_var, command=all_spend, font=("Tahoma", 7))
-gui_all_spend.grid(row=2, column=2, sticky=W, padx=(5, 5), pady=(5, 5))
+gui_all_spend.grid(row=2, column=2, sticky=W)
 
 gui_all_spend_clear = Button(frame_entries, text="Clear", command=all_spend_clear, font=("Tahoma", 7))
-gui_all_spend_clear.grid(row=2, column=3, sticky=W, padx=(5, 0))
+gui_all_spend_clear.grid(row=2, column=3, sticky=W)
 
 data_insert_clipboard = Button(frame_entries, text="Paste", command=data_insert, font=("Tahoma", 7))
-data_insert_clipboard.grid(row=3, column=2, sticky=W, padx=(5, 0))
-data_insert_clipboard.grid(row=3, column=2, sticky=W, padx=(5, 0))
+data_insert_clipboard.grid(row=3, column=2)
 
 data_insert_clear = Button(frame_entries, text="Clear", command=data_insert_clear, font=("Tahoma", 7))
-data_insert_clear.grid(row=3, column=3, sticky=W, padx=(5, 0), pady=(5, 5))
+data_insert_clear.grid(row=3, column=3, sticky=W)
 
 gui_copy_address = Button(frame_entries, text="Copy", command=url_copy, font=("Tahoma", 7))
-gui_copy_address.grid(row=4, column=2, sticky=W, padx=(5, 0), pady=(5, 5))
+gui_copy_address.grid(row=4, column=2, sticky=W)
 
 url_insert_clipboard = Button(frame_entries, text="Paste", command=url_insert, font=("Tahoma", 7))
-url_insert_clipboard.grid(row=4, column=3, sticky=W, padx=(5, 0))
+url_insert_clipboard.grid(row=4, column=3, sticky=W)
 
 read_url_b = Button(frame_entries, text="Read", command=lambda: read_url_clicked(app_log, url.get()), font=("Tahoma", 7))
-read_url_b.grid(row=4, column=4, sticky=W, padx=(5, 0), pady=(5, 5))
+read_url_b.grid(row=4, column=4, sticky=W)
 
 create_url_b = Button(frame_entries, text="Create", command=lambda: create_url_clicked(app_log, "pay", recipient.get(), amount.get(), openfield.get("1.0", END).strip()), font=("Tahoma", 7))
 create_url_b.grid(row=4, column=5, sticky=W)
@@ -1743,47 +1747,48 @@ create_url_b.grid(row=4, column=5, sticky=W)
 
 
 gui_address = Entry(frame_entries, width=60)
-gui_address.grid(row=0, column=1, sticky=W, padx = (5,5))
+gui_address.grid(row=0, column=1, sticky=W)
 gui_address.insert(0, myaddress)
 
 recipient = Entry(frame_entries, width=60)
-recipient.grid(row=1, column=1, sticky=W, padx = (5,5))
+recipient.grid(row=1, column=1, sticky=W)
 
 amount = Entry(frame_entries, width=60)
-amount.grid(row=2, column=1, sticky=W, padx = (5,5))
+amount.grid(row=2, column=1, sticky=W)
 amount.insert(0, "0.00000000")
 
 openfield = Text(frame_entries, width=60, height=5, font=("Tahoma", 8))
-openfield.grid(row=3, column=1, sticky=W, padx = (5,5))
+openfield.grid(row=3, column=1, sticky=W)
 
 url = Entry(frame_entries, width=60)
-url.grid(row=4, column=1, sticky=W, padx = (5,5))
+url.grid(row=4, column=1, sticky=W)
 url.insert(0, "bis://")
 
 
 encode = Checkbutton(frame_tick, text="Base64 Encoding", variable=encode_var, command=all_spend_check, width=14, anchor=W)
-encode.grid(row=0, column=0, sticky=W, padx=(5))
+encode.grid(row=0, column=0, sticky=W)
 
 msg = Checkbutton(frame_tick, text="Mark as Message", variable=msg_var, command=all_spend_check, width=14, anchor=W)
-msg.grid(row=1, column=0, sticky=W, padx=(5))
+msg.grid(row=1, column=0, sticky=W)
 
 encr = Checkbutton(frame_tick, text="Encrypt with PK", variable=encrypt_var, command=all_spend_check, width=14, anchor=W)
-encr.grid(row=2, column=0, sticky=W, padx=(5))
+encr.grid(row=2, column=0, sticky=W)
 
 resolve = Checkbutton(frame_tick, text="Resolve Aliases", variable=resolve_var, command=lambda: refresh(gui_address.get(), s), width=14, anchor=W)
-resolve.grid(row=0, column=1, sticky=W, padx=(5))
+resolve.grid(row=3, column=0, sticky=W)
 
 alias_cb = Checkbutton(frame_tick, text="Alias Recipient", variable=alias_cb_var, command=None, width=14, anchor=W)
-alias_cb.grid(row=1, column=1, sticky=W, padx=(5))
+alias_cb.grid(row=4, column=0, sticky=W)
 
 balance_enumerator = Entry(frame_entries, width=5)
 # address and amount
 
 # logo
 
-logo_hash_decoded = base64.b64decode(icons.logo_hash)
-logo = PhotoImage(data=logo_hash_decoded)
-Label(frame_logo, image=logo).grid(column=0, row=0, pady=0, padx=0)
+#logo_hash_decoded = base64.b64decode(icons.logo_hash)
+#logo = PhotoImage(data="graphics/logo.png")
+logo = PhotoImage(file="graphics/logo.png")
+Label(frame_logo, image=logo).grid(column=0, row=0)
 # logo
 
 node_connect()
