@@ -1536,11 +1536,13 @@ main_bg = PIL.Image.open("graphics/main.jpg")
 photo_main = PIL.ImageTk.PhotoImage(main_bg)
 canvas_main.create_image(0,0, image=photo_main, anchor=NW)
 
-Label(frame_labels, text="Address:",bg="yellow", height=2).grid(row=0,sticky=E+N)
-Label(frame_labels, text="Recipient:", height=2).grid(row=1,sticky=E)
-Label(frame_labels, text="Amount:",bg="yellow", height=2).grid(row=2,sticky=E)
-Label(frame_labels, text="Data:",height=4).grid(row=3,sticky=E)
-Label(frame_labels, text="URL:",bg="yellow", height=2).grid(row=4,sticky=E+S)
+
+
+Label(frame_labels, text="Address:").grid(row=0,sticky=E+N,pady=5, padx=5)
+Label(frame_labels, text="Recipient:").grid(row=1,sticky=E,pady=5, padx=5)
+Label(frame_labels, text="Amount:").grid(row=2,sticky=E,pady=5, padx=5)
+Label(frame_labels, text="Data:",height=4).grid(row=3,sticky=E,pady=5, padx=5)
+Label(frame_labels, text="URL:").grid(row=4,sticky=E+S,pady=5, padx=5)
 #canvas
 
 menubar = Menu(root)
@@ -1710,7 +1712,7 @@ gui_watch = Button(frame_entries, text="Watch", command=watch, font=("Tahoma", 7
 gui_watch.grid(row=0, column=5, sticky=W)
 
 gui_unwatch = Button(frame_entries, text="Unwatch", command=unwatch, font=("Tahoma", 7))
-gui_unwatch.grid(row=0, column=6, sticky=W)
+gui_unwatch.grid(row=0, column=6, sticky=W, padx = (0,5))
 
 gui_copy_recipient = Button(frame_entries, text="Copy", command=recipient_copy, font=("Tahoma", 7))
 gui_copy_recipient.grid(row=1, column=2, sticky=W)
@@ -1749,21 +1751,21 @@ create_url_b.grid(row=4, column=5, sticky=W)
 
 
 gui_address = Entry(frame_entries, width=60)
-gui_address.grid(row=0, column=1, sticky=W)
+gui_address.grid(row=0, column=1, sticky=W, pady=5, padx = 5)
 gui_address.insert(0, myaddress)
 
 recipient = Entry(frame_entries, width=60)
-recipient.grid(row=1, column=1, sticky=W)
+recipient.grid(row=1, column=1, sticky=W, pady=5, padx = 5)
 
 amount = Entry(frame_entries, width=60)
-amount.grid(row=2, column=1, sticky=W)
+amount.grid(row=2, column=1, sticky=W, pady=5, padx = 5)
 amount.insert(0, "0.00000000")
 
 openfield = Text(frame_entries, width=60, height=5, font=("Tahoma", 8))
-openfield.grid(row=3, column=1, sticky=W)
+openfield.grid(row=3, column=1, sticky=W, pady=5, padx = 5)
 
 url = Entry(frame_entries, width=60)
-url.grid(row=4, column=1, sticky=W)
+url.grid(row=4, column=1, sticky=W, pady=5, padx = 5)
 url.insert(0, "bis://")
 
 
