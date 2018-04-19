@@ -1503,7 +1503,7 @@ frame_table = Frame(root,relief = 'ridge', borderwidth = 4)
 frame_table.grid(row=1, column=0, sticky=W + E + N, pady=5, padx=5)
 
 frame_buttons = Frame(root, relief = 'ridge', borderwidth = 4)
-frame_buttons.grid(row=1, column=1, sticky=W + E + N + S, pady=5, padx=5)
+frame_buttons.grid(row=1, column=1, sticky=W + E + N, pady=5, padx=5)
 
 
 # frames
