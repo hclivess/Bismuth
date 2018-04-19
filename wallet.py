@@ -1461,12 +1461,14 @@ img = Image("photo", file="graphics/icon.gif")
 root.tk.call('wm', 'iconphoto', root._w, img, )
 
 
-if gui_scaling != "default":
-    root.tk.call("tk", "scaling", gui_scaling)
 
-else:
+
+if gui_scaling == "adapt":
     dpi_value = root.winfo_fpixels('1i')
     root.tk.call ('tk', 'scaling', dpi_value / 72)
+
+elif gui_scaling != "default":
+    root.tk.call("tk", "scaling", gui_scaling)
 
 #root.tk.call("tk", "scaling", 2)#test
 
@@ -1534,11 +1536,11 @@ main_bg = PIL.Image.open("graphics/main.jpg")
 photo_main = PIL.ImageTk.PhotoImage(main_bg)
 canvas_main.create_image(0,0, image=photo_main, anchor=NW)
 
-Label(frame_labels, text="Address:").grid(row=0,sticky=E)
-Label(frame_labels, text="Recipient:").grid(row=1,sticky=E)
-Label(frame_labels, text="Amount:").grid(row=2,sticky=E)
+Label(frame_labels, text="Address:",bg="yellow", height=2).grid(row=0,sticky=E+N)
+Label(frame_labels, text="Recipient:", height=2).grid(row=1,sticky=E)
+Label(frame_labels, text="Amount:",bg="yellow", height=2).grid(row=2,sticky=E)
 Label(frame_labels, text="Data:",height=4).grid(row=3,sticky=E)
-Label(frame_labels, text="URL:").grid(row=4,sticky=E)
+Label(frame_labels, text="URL:",bg="yellow", height=2).grid(row=4,sticky=E+S)
 #canvas
 
 menubar = Menu(root)

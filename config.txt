@@ -33,4 +33,4 @@ whitelist=127.0.0.1
 nodes_ban_reset=5
 mempool_allowed=edf2d63cdf0b6275ead22c9e6d66aa8ea31dc0ccb367fad2e7c08a25,4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed
 terminal_output=no
-gui_scaling=default
+gui_scaling=adapt
