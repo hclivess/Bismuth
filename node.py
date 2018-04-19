@@ -2115,10 +2115,10 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "aliasesget":  # only gets the first one, for multiple addresses
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
-                        aliases = connections.receive(self.request, 10)
+                        aliases_request = connections.receive(self.request, 10)
 
                         results = []
-                        for x in aliases:
+                        for x in aliases_request:
                             execute_param(h3, ("SELECT openfield FROM transactions WHERE address = ? AND openfield LIKE ? ORDER BY block_height ASC LIMIT 1;"), (x,) + ("alias=" + '%',))
                             try:
                                 result = h3.fetchall()[0][0]
@@ -2134,7 +2134,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "addfromalias":
                     if peers.is_allowed(peer_ip, data):
 
-                        aliases_update("static/index.db", ledger_path_conf, "normal", app_log)
+                        aliases.aliases_update("static/index.db", ledger_path_conf, "normal", app_log)
 
                         ali = sqlite3.connect("static/index.db")
                         ali.text_factory = str
