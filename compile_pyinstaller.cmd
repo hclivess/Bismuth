@@ -17,6 +17,7 @@ pyinstaller.exe --uac-admin --noconsole --log-level=INFO %var%\legacy_gui.py
 pyinstaller.exe --uac-admin --log-level=INFO %var%\node.py --icon=%var%\graphics\icon.ico
 
 robocopy %var%\graphics %var%\dist\graphics
+robocopy %var%\themes %var%\dist\themes
 robocopy %var%\dist\wallet %var%\dist\ /move /E
 rmdir /s /q %var%\dist\wallet
 robocopy %var%\dist\node %var%\dist\ /move /E

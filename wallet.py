@@ -1540,33 +1540,29 @@ def themes(theme, canvas_bg, canvas_main):
         canvas_main.delete("all")
 
     else:
-        img_bg = PIL.Image.open ("graphics/{}_bg.jpg".format(theme))
+        img_bg = PIL.Image.open ("themes/{}_bg.jpg".format(theme))
         photo_bg = PIL.ImageTk.PhotoImage (img_bg)
         canvas_bg.create_image (0, 0, image=photo_bg, anchor=NW)
 
-        main_bg = PIL.Image.open ("graphics/{}_main.jpg".format(theme))
+        main_bg = PIL.Image.open ("themes/{}_main.jpg".format(theme))
         photo_main = PIL.ImageTk.PhotoImage (main_bg)
         canvas_main.create_image (0, 0, image=photo_main, anchor=NW)
 
     with open("theme", "w") as theme_file:
         theme_file.write (theme)
 
-themes(open("theme", "r").read(), canvas_bg, canvas_main)
+themes(open("theme", "r").read(), canvas_bg, canvas_main) #load last selected theme
 
 
 theme_menu = Menu(menubar, tearoff=0)
 
 theme_list=[]
-for theme_picture in glob.glob('graphics/*_main.jpg'):
+for theme_picture in glob.glob('themes/*_main.jpg'):
     theme_picture = os.path.basename(theme_picture).split('_')[0]
     theme_list.append(theme_picture)
     theme_menu.add_command(label=theme_picture, command=lambda theme_picture=theme_picture:themes(theme_picture, canvas_bg, canvas_main)) #wow this lambda is amazing
 
-
-#theme_menu.add_command(label="Huracan", command=lambda :themes("Huracan", canvas_bg, canvas_main))
 theme_menu.add_command(label="Barebone", command=lambda :themes("Barebone", canvas_bg, canvas_main))
-
-
 menubar.add_cascade(label="Themes", menu=theme_menu)
 
 
