@@ -1535,7 +1535,7 @@ menubar.add_command(label="Help", command=help)
 def themes(theme, canvas_bg, canvas_main):
     global photo_bg, photo_main
 
-    if theme == "Barebone":
+    if theme == "Barebone" or None:
         canvas_bg.delete("all")
         canvas_main.delete("all")
 
@@ -1551,6 +1551,9 @@ def themes(theme, canvas_bg, canvas_main):
     with open("theme", "w") as theme_file:
         theme_file.write (theme)
 
+if not os.path.exists("theme"):
+    with open("theme", "w") as theme_file:
+        theme_file.write ("Barebone")
 themes(open("theme", "r").read(), canvas_bg, canvas_main) #load last selected theme
 
 
