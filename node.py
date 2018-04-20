@@ -1702,6 +1702,68 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                 app_log.info("Inbound: Received: {} from {}".format(data, peer_ip))  # will add custom ports later
 
+                #node function definitions go here
+                def balanceget(balance_address):
+                    # verify balance
+
+                    # app_log.info("Mempool: Verifying balance")
+                    # app_log.info("Mempool: Received address: " + str(balance_address))
+
+                    # include mempool fees
+                    execute_param (m, ("SELECT amount, openfield FROM transactions WHERE address = ?;"), (balance_address,))
+                    result = m.fetchall ()
+
+                    debit_mempool = 0
+                    if result != None:
+                        for x in result:
+                            debit_tx = Decimal (x[0])
+                            fee = fee_calculate (x[1])
+                            debit_mempool = quantize_eight (debit_mempool + debit_tx + fee)
+                    else:
+                        debit_mempool = 0
+                    # include mempool fees
+
+                    credit_ledger = Decimal ("0")
+                    for entry in execute_param (h3, ("SELECT amount FROM transactions WHERE recipient = ?;"), (balance_address,)):
+                        try:
+                            credit_ledger = quantize_eight (credit_ledger) + quantize_eight (entry[0])
+                            credit_ledger = 0 if credit_ledger is None else credit_ledger
+                        except:
+                            credit_ledger = 0
+
+                    fees = Decimal ("0")
+                    debit_ledger = Decimal ("0")
+
+                    for entry in execute_param (h3, ("SELECT fee, amount FROM transactions WHERE address = ?;"), (balance_address,)):
+                        try:
+                            fees = quantize_eight (fees) + quantize_eight (entry[0])
+                            fees = 0 if fees is None else fees
+                        except:
+                            fees = 0
+
+                        try:
+                            debit_ledger = debit_ledger + Decimal (entry[1])
+                            debit_ledger = 0 if debit_ledger is None else debit_ledger
+                        except:
+                            debit_ledger = 0
+
+                    debit = quantize_eight (debit_ledger + debit_mempool)
+
+                    rewards = Decimal ("0")
+                    for entry in execute_param (h3, ("SELECT reward FROM transactions WHERE recipient = ?;"), (balance_address,)):
+                        try:
+                            rewards = quantize_eight (rewards) + quantize_eight (entry[0])
+                            rewards = 0 if rewards is None else rewards
+                        except:
+                            rewards = 0
+
+                    balance = quantize_eight (credit_ledger - debit - fees + rewards)
+                    # balance_pre = float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)
+                    # app_log.info("Mempool: Projected transction address balance: " + str(balance))
+                    return str (balance), str (credit_ledger), str (debit), str (fees), str (rewards)
+                #node function definitions go here
+
+
                 if data == 'version':
                     data = connections.receive(self.request, 10)
                     if data not in version_allow and version != "testnet":
@@ -1979,66 +2041,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if peers.is_allowed(peer_ip, data):
                         balance_address = connections.receive(self.request, 10)  # for which address
 
-                        # verify balance
+                        balanceget_result = balanceget(balance_address)
 
-                        # app_log.info("Mempool: Verifying balance")
-                        # app_log.info("Mempool: Received address: " + str(balance_address))
-
-                        # include mempool fees
-                        execute_param(m, ("SELECT amount, openfield FROM transactions WHERE address = ?;"), (balance_address,))
-                        result = m.fetchall()
-
-                        debit_mempool = 0
-                        if result != None:
-                            for x in result:
-                                debit_tx = Decimal(x[0])
-                                fee = fee_calculate(x[1])
-                                debit_mempool = quantize_eight(debit_mempool + debit_tx + fee)
-                        else:
-                            debit_mempool = 0
-                        # include mempool fees
-
-
-                        credit_ledger = Decimal("0")
-                        for entry in execute_param(h3, ("SELECT amount FROM transactions WHERE recipient = ?;"), (balance_address,)):
-                            try:
-                                credit_ledger = quantize_eight(credit_ledger) + quantize_eight(entry[0])
-                                credit_ledger = 0 if credit_ledger is None else credit_ledger
-                            except:
-                                credit_ledger = 0
-
-
-                        fees = Decimal("0")
-                        debit_ledger = Decimal("0")
-
-                        for entry in execute_param(h3, ("SELECT fee, amount FROM transactions WHERE address = ?;"), (balance_address,)):
-                            try:
-                                fees = quantize_eight(fees) + quantize_eight(entry[0])
-                                fees = 0 if fees is None else fees
-                            except:
-                                fees = 0
-
-                            try:
-                                debit_ledger = debit_ledger + Decimal(entry[1])
-                                debit_ledger = 0 if debit_ledger is None else debit_ledger
-                            except:
-                                debit_ledger = 0
-
-                        debit = quantize_eight(debit_ledger + debit_mempool)
-
-                        rewards = Decimal ("0")
-                        for entry in execute_param(h3, ("SELECT reward FROM transactions WHERE recipient = ?;"), (balance_address,)):
-                            try:
-                                rewards = quantize_eight(rewards) + quantize_eight(entry[0])
-                                rewards = 0 if rewards is None else rewards
-                            except:
-                                rewards = 0
-
-                        balance = quantize_eight(credit_ledger - debit - fees + rewards)
-                        # balance_pre = float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)
-                        # app_log.info("Mempool: Projected transction address balance: " + str(balance))
-
-                        connections.send(self.request, (str(balance), str(credit_ledger), str(debit), str(fees), str(rewards)), 10)  # return balance of the address to the client, including mempool
+                        connections.send(self.request, balanceget_result, 10)  # return balance of the address to the client, including mempool
                         # connections.send(self.request, balance_pre, 10)  # return balance of the address to the client, no mempool
                     else:
                         app_log.info("{} not whitelisted for balanceget command".format(peer_ip))
