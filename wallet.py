@@ -6,6 +6,7 @@ from decimal import *
 from bisurl import *
 from quantizer import quantize_eight
 import csv
+import glob
 
 import matplotlib
 matplotlib.use('TkAgg')
@@ -1526,16 +1527,47 @@ print(height_root, width_root)
 
 
 #canvas
+menubar = Menu(root)
+menubar.add_command(label="Exit", command=root.quit)
+menubar.add_command(label="Help", command=help)
 
-img_bg = PIL.Image.open("graphics/bg.jpg")
 
-photo_bg = PIL.ImageTk.PhotoImage(img_bg)
-canvas_bg.create_image(0,0, image=photo_bg, anchor=NW)
+def themes(theme, canvas_bg, canvas_main):
+    global photo_bg, photo_main
 
-main_bg = PIL.Image.open("graphics/main.jpg")
-photo_main = PIL.ImageTk.PhotoImage(main_bg)
-canvas_main.create_image(0,0, image=photo_main, anchor=NW)
+    if theme == "Barebone":
+        canvas_bg.delete("all")
+        canvas_main.delete("all")
 
+    else:
+        img_bg = PIL.Image.open ("graphics/{}_bg.jpg".format(theme))
+        photo_bg = PIL.ImageTk.PhotoImage (img_bg)
+        canvas_bg.create_image (0, 0, image=photo_bg, anchor=NW)
+
+        main_bg = PIL.Image.open ("graphics/{}_main.jpg".format(theme))
+        photo_main = PIL.ImageTk.PhotoImage (main_bg)
+        canvas_main.create_image (0, 0, image=photo_main, anchor=NW)
+
+    with open("theme", "w") as theme_file:
+        theme_file.write (theme)
+
+themes(open("theme", "r").read(), canvas_bg, canvas_main)
+
+
+theme_menu = Menu(menubar, tearoff=0)
+
+theme_list=[]
+for theme_picture in glob.glob('graphics/*_main.jpg'):
+    theme_picture = os.path.basename(theme_picture).split('_')[0]
+    theme_list.append(theme_picture)
+    theme_menu.add_command(label=theme_picture, command=lambda theme_picture=theme_picture:themes(theme_picture, canvas_bg, canvas_main)) #wow this lambda is amazing
+
+
+#theme_menu.add_command(label="Huracan", command=lambda :themes("Huracan", canvas_bg, canvas_main))
+theme_menu.add_command(label="Barebone", command=lambda :themes("Barebone", canvas_bg, canvas_main))
+
+
+menubar.add_cascade(label="Themes", menu=theme_menu)
 
 
 Label(frame_labels, text="Address:").grid(row=0,sticky=E+N,pady=5, padx=5)
@@ -1545,9 +1577,9 @@ Label(frame_labels, text="Data:",height=4).grid(row=3,sticky=E,pady=5, padx=5)
 Label(frame_labels, text="URL:").grid(row=4,sticky=E+S,pady=5, padx=5)
 #canvas
 
-menubar = Menu(root)
-menubar.add_command(label="Exit", command=root.quit)
-menubar.add_command(label="Help", command=help)
+
+
+
 
 # display the menu
 root.config(menu=menubar)
