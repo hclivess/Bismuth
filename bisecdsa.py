@@ -9,7 +9,7 @@ def keys_load(privkey_file, pubkey_file):
     pubkey_loaded = open(pubkey_file, 'rb').read()
     pubkey = VerifyingKey.from_string(pubkey_loaded, curve=SECP256k1)
 
-    address = blake2b(privkey.to_string(), digest_size=20).hexdigest()
+    address = blake2b(pubkey.to_string(), digest_size=20).hexdigest()
 
     return privkey, pubkey, address
 
