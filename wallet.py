@@ -817,12 +817,17 @@ def stats():
     f.set_facecolor ('silver')
     f.subplots_adjust (left=None, bottom=None, right=None, top=None, wspace=None, hspace=0.5)
 
+    canvas = FigureCanvasTkAgg (f, master=frame_chart)
+    canvas.get_tk_widget ().grid (row=0, column=1, sticky=W, padx=15, pady=(0, 0))
+
     def chart_fill():
+        print("Filling the chart")
         f.clear()
 
         rows = 4
         columns = 2
 
+        #f.remove(first)
         first = f.add_subplot (rows, columns, 1)
         first.plot ((range (len (stats_nodes_count_list))), (stats_nodes_count_list))
         first.ticklabel_format (useOffset=False)
@@ -876,9 +881,8 @@ def stats():
         eigth.ticklabel_format (useOffset=False)
 
         # a tk.DrawingArea
-        canvas = FigureCanvasTkAgg (f, master=frame_chart)
         canvas.draw ()
-        canvas.get_tk_widget ().grid (row=0, column=1, sticky=W, padx=15, pady=(0, 0))
+
 
     def update():
         print("Statistics update triggered")
@@ -923,10 +927,7 @@ def stats():
 
     scrollbar = Scrollbar (stats_window)
     scrollbar.grid (row=2, column=0, sticky=N+S+E, padx=140)
-
     stats_nodes_list_text_var = Listbox (stats_window, width=20, height=10, font=("Tahoma", 8))
-
-
     scrollbar.config (command=stats_nodes_list_text_var.yview)
 
     stats_thread_count_var = StringVar()
@@ -983,10 +984,9 @@ def stats():
             root.after (0, update())
             root.after (10000, refresh_stats_auto)
 
-            #frame_chart.destroy()
             chart_fill()
-        except:
-            print("Statistics window closed, disabling auto-refresh")
+        except Exception as e:
+            print("Statistics window closed, disabling auto-refresh ({})".format(e))
 
     refresh_stats_auto()
 

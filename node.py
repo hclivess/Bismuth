@@ -28,8 +28,10 @@ from Crypto.Signature import PKCS1_v1_5
 # load config
 # global ban_threshold
 
-
-
+# remove after hf
+global drift_limit
+drift_limit = 30
+#remove after hf
 
 
 getcontext().rounding=ROUND_HALF_EVEN
@@ -892,7 +894,9 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass):
                         fee = fee_calculate(mempool_openfield)
 
                         time_now = time.time()
-                        if quantize_two(mempool_timestamp) > quantize_two(time_now) + 30:
+
+                        global drift_limit
+                        if quantize_two(mempool_timestamp) > quantize_two(time_now) + drift_limit:
                             mempool_result.append("Mempool: Future transaction not allowed, timestamp {} minutes in the future".format(quantize_two((quantize_two(mempool_timestamp) - quantize_two(time_now)) / 60)))
 
                         elif quantize_two(time_now) - 86400 >  quantize_two(mempool_timestamp):
@@ -1243,7 +1247,9 @@ def digest_block(data, sdef, peer_ip, conn, c, mempool, m, hdd, h, hdd2, h2, h3)
                         #    block_valid = 0
 
                     time_now = time.time()
-                    if quantize_two(time_now) + 30 < quantize_two(received_timestamp):
+
+                    global drift_limit
+                    if quantize_two(time_now) + drift_limit < quantize_two(received_timestamp):
                         app_log.warning("Future transaction not allowed, timestamp {} minutes in the future".format(quantize_two((quantize_two(received_timestamp) - quantize_two(time_now)) / 60)))
                         block_valid = 0
                     if quantize_two(db_timestamp_last) - 86400 > quantize_two(received_timestamp):
