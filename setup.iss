@@ -29,10 +29,6 @@ Name: "{group}\Uninstall Bismuth"; Filename: "{uninstallexe}"
 Name: "{commondesktop}\Start Node"; Filename: "{app}\node.exe"
 Name: "{commondesktop}\Wallet"; Filename: "{app}\wallet.exe"
 
-[Run]
-Filename: "{app}\node.exe"; Description: "Node"; Flags: postinstall shellexec skipifsilent
-Filename: "{app}\wallet.exe"; Description: "Wallet"; Flags: postinstall nowait skipifsilent unchecked
-
 [Registry]
 ; keys for 32-bit systems
 Root: HKCU32; Subkey: "SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"; ValueType: String; ValueName: "{app}\wallet.exe"; ValueData: "RUNASADMIN"; Flags: uninsdeletekeyifempty uninsdeletevalue; Check: not IsWin64
@@ -48,3 +44,6 @@ Root: HKLM64; Subkey: "SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFla
 Root: HKCU64; Subkey: "SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"; ValueType: String; ValueName: "{app}\node.exe"; ValueData: "RUNASADMIN"; Flags: uninsdeletekeyifempty uninsdeletevalue; Check: IsWin64
 Root: HKLM64; Subkey: "SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"; ValueType: String; ValueName: "{app}\node.exe"; ValueData: "RUNASADMIN"; Flags: uninsdeletekeyifempty uninsdeletevalue; Check: IsWin64
 
+[Run]
+Filename: "{app}\node.exe"; Description: "Node"; Flags: shellexec postinstall skipifsilent
+Filename: "{app}\wallet.exe"; Description: "Wallet"; Flags: shellexec postinstall skipifsilent
