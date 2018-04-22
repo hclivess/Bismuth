@@ -124,6 +124,8 @@ def node_connect():
             app_log.warning("Status: Wallet connected")
             break
         except Exception as e:
+
+
             app_log.warning("Status: Wallet cannot connect to the node ({}), perhaps it is still starting up, retrying".format(e))
             time.sleep(1)
 
@@ -1448,7 +1450,6 @@ def sign():
     # popup
 
 root = Tk()
-
 
 root.wm_title("Bismuth Light Wallet running on {}".format(light_ip))
 #root.geometry("1310x700") #You want the size of the app to be 500x500
