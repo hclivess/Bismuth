@@ -1824,6 +1824,7 @@ balance_enumerator = Entry(frame_entries, width=5)
 #logo_hash_decoded = base64.b64decode(icons.logo_hash)
 #logo = PhotoImage(data="graphics/logo.png")
 
+
 logo_img = PIL.Image.open("graphics/logo.png")
 logo = PIL.ImageTk.PhotoImage(logo_img)
 
