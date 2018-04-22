@@ -80,7 +80,7 @@ from tkinter import filedialog, messagebox
 from tkinter import *
 
 # app_log = log.log("gui.log", debug_level)
-app_log = log.log("gui.log", debug_level, terminal_output)
+app_log = log.log("wallet.log", debug_level, terminal_output)
 
 essentials.keys_check(app_log)
 essentials.db_check(app_log)
