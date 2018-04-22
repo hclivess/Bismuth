@@ -1457,12 +1457,9 @@ root.resizable(0, 0) #Don't allow resizing in the x or y direction / resize
 root['bg']="black"
 
 
-
-
-img = Image("photo", file="graphics/icon.gif")
-root.tk.call('wm', 'iconphoto', root._w, img, )
-
-
+img_icon = PIL.Image.open ("graphics/icon.gif")
+photo_icon = PIL.ImageTk.PhotoImage (img_icon)
+root.tk.call('wm', 'iconphoto', root._w, photo_icon, )
 
 
 if gui_scaling == "adapt":
