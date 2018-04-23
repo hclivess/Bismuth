@@ -148,13 +148,7 @@ def alias_register(alias_desired):
         send("0", myaddress, "alias=" + alias_desired)
         pass
     else:
-        top9 = Toplevel()
-        top9.title("Name already registered")
-
-        registered_label = Label(top9, text="Name already registered")
-        registered_label.grid(row=0, column=0, sticky=N + W, padx=15, pady=(5, 0))
-        dismiss = Button(top9, text="Dismiss", command=top9.destroy)
-        dismiss.grid(row=3, column=0, sticky=W + E, padx=15, pady=(5, 5))
+        messagebox.showinfo ("Conflict", "Name already registered")
 
 
 def help():
@@ -197,17 +191,17 @@ def all_spend():
 
 
 def all_spend_check():
-    if all_spend_var.get() == True:
+    if all_spend_var.get():
         openfield_fee_calc = openfield.get("1.0", END).strip()
 
-        if encode_var.get() == True and msg_var.get() == False:
+        if encode_var.get() and msg_var.get() == False:
             openfield_fee_calc = base64.b64encode(openfield_fee_calc.encode("utf-8")).decode("utf-8")
 
-        if msg_var.get() == True and encode_var.get() == True:
+        if msg_var.get() and encode_var.get():
             openfield_fee_calc = "bmsg=" + base64.b64encode(openfield_fee_calc.encode("utf-8")).decode("utf-8")
-        if msg_var.get() == True and encode_var.get() == False:
+        if msg_var.get() and encode_var.get() == False:
             openfield_fee_calc = "msg=" + openfield_fee_calc
-        if encrypt_var.get() == True:
+        if encrypt_var.get():
             openfield_fee_calc = "enc=" + str(openfield_fee_calc)
 
         fee_from_all = fee_calculate(openfield_fee_calc)
@@ -469,12 +463,7 @@ def decrypt_fn(destroy_this):
 
         destroy_this.destroy()
     except:
-        raise
-        top6 = Toplevel()
-        top6.title("Locked")
-        Label(top6, text="Wrong password", width=20).grid(row=0, pady=0)
-        cancel = Button(top6, text="Cancel", command=top6.destroy)
-        cancel.grid(row=1, column=0, sticky=W + E, padx=15, pady=(5, 5))
+        messagebox.showwarning("Locked", "Wrong password")
 
     return key
 
@@ -491,13 +480,13 @@ def send_confirm(amount_input, recipient_input, openfield_input):
     top10 = Toplevel()
     top10.title("Confirm")
 
-    if alias_cb_var.get() == True:  # alias check
+    if alias_cb_var.get():  # alias check
         connections.send(s, "addfromalias", 10)
         connections.send(s, recipient_input, 10)
         recipient_input = connections.receive(s, 10)
 
     # encr check
-    if encrypt_var.get() == True:
+    if encrypt_var.get():
         # get recipient's public key
 
         connections.send(s, "pubkeyget", 10)
@@ -523,13 +512,13 @@ def send_confirm(amount_input, recipient_input, openfield_input):
 
     # encr check
 
-    if encode_var.get() == True and msg_var.get() == False:
+    if encode_var.get() and msg_var.get() == False:
         openfield_input = base64.b64encode(openfield_input.encode("utf-8")).decode("utf-8")
-    if msg_var.get() == True and encode_var.get() == True:
+    if msg_var.get() and encode_var.get():
         openfield_input = "bmsg=" + base64.b64encode(openfield_input.encode("utf-8")).decode("utf-8")
-    if msg_var.get() == True and encode_var.get() == False:
+    if msg_var.get() and encode_var.get() == False:
         openfield_input = "msg=" + openfield_input
-    if encrypt_var.get() == True:
+    if encrypt_var.get():
         openfield_input = "enc=" + str(openfield_input)
 
     fee = fee_calculate(openfield_input)
@@ -555,35 +544,21 @@ def send(amount_input, recipient_input, openfield_input):
     all_spend_check()
 
     if key is None:
-        top5 = Toplevel()
-        top5.title("Locked")
-
-        Label(top5, text="Wallet is locked", width=20).grid(row=0, pady=0)
-
-        done = Button(top5, text="Cancel", command=top5.destroy)
-        done.grid(row=1, column=0, sticky=W + E, padx=15, pady=(5, 5))
+        messagebox.showerror ("Locked", "Wallet is locked")
 
     app_log.warning("Received tx command")
 
     try:
         Decimal(amount_input)
     except:
-        top7 = Toplevel()
-        top7.title("Invalid amount")
-        Label(top7, text="Amount must be a number", width=20).grid(row=0, pady=0)
-        done = Button(top7, text="Cancel", command=top7.destroy)
-        done.grid(row=1, column=0, sticky=W + E, padx=15, pady=(5, 5))
+        messagebox.showerror ("Invalid Amount", "Amount must be a number")
 
     # alias check
 
     # alias check
 
     if not address_validate(recipient_input):
-        top6 = Toplevel()
-        top6.title("Invalid address")
-        Label(top6, text="Wrong address format", width=20).grid(row=0, pady=0)
-        done = Button(top6, text="Cancel", command=top6.destroy)
-        done.grid(row=1, column=0, sticky=W + E, padx=15, pady=(5, 5))
+        messagebox.showerror ("Invalid Address", "Invalid address format")
     else:
 
         app_log.warning("Amount: {}".format(amount_input))
@@ -601,7 +576,7 @@ def send(amount_input, recipient_input, openfield_input):
         app_log.warning("Client: Encoded Signature: {}".format(signature_enc.decode("utf-8")))
 
         verifier = PKCS1_v1_5.new(key)
-        if verifier.verify(h, signature) == True:
+        if verifier.verify(h, signature):
             fee = fee_calculate(openfield_input)
 
             if Decimal(amount_input) < 0:
@@ -1170,14 +1145,14 @@ def table(address, addlist_20, mempool_total):
         db_timestamp = row[1]
         datasheet.append(datetime.fromtimestamp(Decimal(db_timestamp)).strftime('%Y-%m-%d %H:%M:%S'))
 
-        if resolve_var.get() == True:
+        if resolve_var.get():
             db_address = replace_regex(aliases_address_results[i], "alias=")
         else:
             db_address = row[2]
 
         datasheet.append(db_address)
 
-        if resolve_var.get() == True:
+        if resolve_var.get():
             db_recipient = replace_regex(aliases_rec_results[i], "alias=")
 
         else:
@@ -1399,22 +1374,12 @@ def sign():
             h = SHA.new(input_text.get("1.0", END).encode("utf-8"))
             received_signature_dec = base64.b64decode(output_signature.get("1.0", END))
 
-            if verifier.verify(h, received_signature_dec) == True:
-                top2 = Toplevel()
-                top2.title("Validation results")
-                msg = Message(top2, text="Signature Valid", width=50)
-                msg.pack()
-                button = Button(top2, text="Dismiss", command=top2.destroy)
-                button.pack()
+            if verifier.verify(h, received_signature_dec):
+                messagebox.showinfo ("Validation Result", "Signature valid")
             else:
                 raise
         except:
-            top2 = Toplevel()
-            top2.title("Validation results")
-            msg = Message(top2, text="Signature Invalid", width=50)
-            msg.pack()
-            button = Button(top2, text="Dismiss", command=top2.destroy)
-            button.pack()
+            messagebox.showerror("Validation Result", "Signature invalid")
 
     def sign_this():
         h = SHA.new(input_text.get("1.0", END).encode("utf-8"))
@@ -1653,7 +1618,7 @@ lock_b.grid(row=0, column=2, sticky=E+W)
 
 
 def encryption_button_refresh():
-    if unlocked == True:
+    if unlocked:
         decrypt_b.configure(text="Unlocked", state=DISABLED)
     if unlocked == False:
         decrypt_b.configure(text="Unlock", state=NORMAL)
@@ -1661,7 +1626,7 @@ def encryption_button_refresh():
         recover_b.configure (text="Recover (locked)", state=DISABLED)
     if encrypted == False:
         encrypt_b.configure(text="Encrypt", state=NORMAL)
-    if encrypted == True:
+    if encrypted:
         encrypt_b.configure(text="Encrypted", state=DISABLED)
 
 
