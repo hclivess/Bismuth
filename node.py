@@ -379,9 +379,8 @@ def db_m_define():
 
 def mempool_purge(mempool, m):
     """Purge mempool from too old txs"""
-    m.execute("DELETE FROM transactions WHERE timestamp <= strftime('%s', 'now', '-1 day');")
-    mempool.commit()
-
+    execute(m, ("DELETE FROM transactions WHERE timestamp <= strftime('%s', 'now', '-1 day')"))
+    commit(mempool)
 
 def ledger_compress(ledger_path_conf, hyper_path_conf):
     """conversion of normal blocks into hyperblocks from ledger.db or hyper.db to hyper.db"""
@@ -1100,12 +1099,9 @@ def manager(c, mempool, m):
         # random.shuffle(peer_dict.items())
         if until_purge == 0:
             # will purge once at start, then about every hour (120 * 30 sec)
-            try:
-                mempool_purge(mempool, m)
-                until_purge = 120
-            except:
-                app_log.warning("Mempool purging failed, will retry later")
-                pass
+            mempool_purge(mempool, m)
+            until_purge = 120
+
         until_purge -= 1
 
         # peer management
