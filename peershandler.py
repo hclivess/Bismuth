@@ -355,7 +355,7 @@ class Peers:
                     if self.is_testnet:
                         PORT = 2829
 
-                    if threading.active_count() < self.config.thread_limit_conf and str(HOST + ":" + str(PORT)) not in self.tried and str(HOST + ":" + str(PORT)) not in self.connection_pool and str(HOST) not in self.banlist:
+                    if threading.active_count()/3 < self.config.thread_limit_conf and str(HOST + ":" + str(PORT)) not in self.tried and str(HOST + ":" + str(PORT)) not in self.connection_pool and str(HOST) not in self.banlist:
                         self.app_log.info("Will attempt to connect to {}:{}".format(HOST, PORT))
                         self.tried.append(HOST + ":" + str(PORT))
                         t = threading.Thread(target=target, args=(HOST, PORT))  # threaded connectivity to nodes here

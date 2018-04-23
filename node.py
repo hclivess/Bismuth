@@ -1715,7 +1715,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
         # if threading.active_count() < thread_limit_conf or peer_ip == "127.0.0.1":
         # Always keep a slot for whitelisted (wallet could be there)
-        if threading.active_count() < thread_limit_conf or peers.is_whitelisted(peer_ip):
+        if threading.active_count() < thread_limit_conf/3*2 or peers.is_whitelisted(peer_ip): #inbound
             capacity = 1
         else:
             capacity = 0
