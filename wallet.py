@@ -463,6 +463,10 @@ def decrypt_fn(destroy_this):
         lock_b.configure(text="Lock", state=NORMAL)
         sign_b.configure(text="Sign Message", state=NORMAL)
         recover_b.configure (text="Recover", state=NORMAL)
+
+        if key.publickey().exportKey().decode("utf-8") != public_key_readable:
+            messagebox.showerror ("Mismatch","Public key of this private key does not match the public key in pubkey.der")
+
         destroy_this.destroy()
     except:
         raise
