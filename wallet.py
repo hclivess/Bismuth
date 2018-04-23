@@ -7,6 +7,7 @@ from bisurl import *
 from quantizer import quantize_eight
 import csv
 import glob
+import recovery
 
 import matplotlib
 matplotlib.use('TkAgg')
@@ -85,7 +86,9 @@ app_log = log.log("wallet.log", debug_level, terminal_output)
 essentials.keys_check(app_log)
 essentials.db_check(app_log)
 
-
+def recover():
+    result = recovery.recover(key)
+    messagebox.showinfo ("Recovery Result", result)
 
 def address_validate(address):
     if re.match ('[abcdef0123456789]{56}', address):
@@ -399,6 +402,7 @@ def lock_fn(button):
     decrypt_b.configure(text="Unlock", state=NORMAL)
     lock_b.configure(text="Locked", state=DISABLED)
     sign_b.configure(text="Sign (locked)", state=DISABLED)
+    recover_b.configure(text="Recover (locked)", state=DISABLED)
     password_var_dec.set("")
 
 
@@ -458,6 +462,7 @@ def decrypt_fn(destroy_this):
         decrypt_b.configure(text="Unlocked", state=DISABLED)
         lock_b.configure(text="Lock", state=NORMAL)
         sign_b.configure(text="Sign Message", state=NORMAL)
+        recover_b.configure (text="Recover", state=NORMAL)
         destroy_this.destroy()
     except:
         raise
@@ -1626,6 +1631,9 @@ csv_export_b.grid(row=button_row_zero + 10, column=column, sticky=N + E, pady=0,
 stats_b = Button(frame_buttons, text="Statistics", command=lambda :stats(), height=1, width=20, font=("Tahoma", 8))
 stats_b.grid(row=button_row_zero + 11, column=column, sticky=N + E, pady=0, padx=15)
 
+recover_b = Button(frame_buttons, text="Recovery", command=lambda :recover(), height=1, width=20, font=("Tahoma", 8))
+recover_b.grid(row=button_row_zero + 11, column=column, sticky=N + E, pady=0, padx=15)
+
 # quit_b = Button(frame_buttons, text="Quit", command=app_quit, height=1, width=10, font=("Tahoma", 8))
 # quit_b.grid(row=16, column=0, sticky=W + E + S, pady=0, padx=15)
 
@@ -1646,6 +1654,7 @@ def encryption_button_refresh():
     if unlocked == False:
         decrypt_b.configure(text="Unlock", state=NORMAL)
         sign_b.configure(text="Sign (locked)", state=DISABLED)
+        recover_b.configure (text="Recover (locked)", state=DISABLED)
     if encrypted == False:
         encrypt_b.configure(text="Encrypt", state=NORMAL)
     if encrypted == True:
@@ -1796,7 +1805,6 @@ openfield.grid(row=3, column=1, sticky=W, pady=5, padx = 5)
 url = Entry(frame_entries, width=60)
 url.grid(row=4, column=1, sticky=W, pady=5, padx = 5)
 url.insert(0, "bis://")
-
 
 encode = Checkbutton(frame_tick, text="Base64 Encoding", variable=encode_var, command=all_spend_check, width=14, anchor=W)
 encode.grid(row=0, column=0, sticky=W)

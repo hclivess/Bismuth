@@ -1100,8 +1100,12 @@ def manager(c, mempool, m):
         # random.shuffle(peer_dict.items())
         if until_purge == 0:
             # will purge once at start, then about every hour (120 * 30 sec)
-            mempool_purge(mempool, m)
-            until_purge = 120
+            try:
+                mempool_purge(mempool, m)
+                until_purge = 120
+            except:
+                app_log.warning("Mempool purging failed, will retry later")
+                pass
         until_purge -= 1
 
         # peer management

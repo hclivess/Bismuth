@@ -13,7 +13,7 @@ def generate():
     address = hashlib.sha224(public_key_readable.encode("utf-8")).hexdigest()  # hashed public key
     return private_key_readable, public_key_readable, address
 
-def read():
+def read(): #OUTDATED
     # import keys
     if not os.path.exists('privkey_encrypted.der'):
         # password = "" # Not used here
