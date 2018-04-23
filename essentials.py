@@ -56,6 +56,7 @@ def keys_check(app_log):
         pem_file.close()
 
 def keys_load(privkey, pubkey):
+    # print ("loaded",privkey, pubkey)
     # import keys
     try: #unencrypted
         key = RSA.importKey(open(privkey).read())

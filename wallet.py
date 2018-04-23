@@ -245,14 +245,11 @@ def keys_load_dialog():
     global private_key_load
     global public_key_load
 
-    root.filename = filedialog.askopenfilename(multiple=True, initialdir="", title="Select wallet files", filetypes=[("Wallet keys", "*key*.der")])
-    for file in root.filename:
-        if "priv" in file:
-            private_key_load = file
-        if "pub" in file:
-            public_key_load = file
+    private_key_load = filedialog.askopenfilename(multiple=True, initialdir="", title="Select private key", filetypes=[("Private key", ".der")])
+    public_key_load = filedialog.askopenfilename (multiple=True, initialdir="", title="Select public key", filetypes=[("Public key", ".der")])
 
-    key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress = essentials.keys_load(private_key_load, public_key_load)
+    print (private_key_load, public_key_load)
+    key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress = essentials.keys_load(private_key_load[0], public_key_load[0])
 
     encryption_button_refresh()
 
@@ -453,15 +450,15 @@ def decrypt_fn(destroy_this):
         key = RSA.importKey(decrypted_privkey)  # be able to sign
 
         # print key
-        decrypt_b.configure(text="Unlocked", state=DISABLED)
-        lock_b.configure(text="Lock", state=NORMAL)
-        sign_b.configure(text="Sign Message", state=NORMAL)
-        recover_b.configure (text="Recover", state=NORMAL)
-
         if key.publickey().exportKey().decode("utf-8") != public_key_readable:
             messagebox.showerror ("Mismatch","Public key of this private key does not match the public key in pubkey.der")
 
         destroy_this.destroy()
+
+        decrypt_b.configure(text="Unlocked", state=DISABLED)
+        lock_b.configure(text="Lock", state=NORMAL)
+        sign_b.configure(text="Sign Message", state=NORMAL)
+        recover_b.configure (text="Recover", state=NORMAL)
     except:
         messagebox.showwarning("Locked", "Wrong password")
 
@@ -1620,11 +1617,11 @@ lock_b.grid(row=0, column=2, sticky=E+W)
 def encryption_button_refresh():
     if unlocked:
         decrypt_b.configure(text="Unlocked", state=DISABLED)
-    if unlocked == False:
+    if not unlocked:
         decrypt_b.configure(text="Unlock", state=NORMAL)
         sign_b.configure(text="Sign (locked)", state=DISABLED)
         recover_b.configure (text="Recover (locked)", state=DISABLED)
-    if encrypted == False:
+    if not encrypted:
         encrypt_b.configure(text="Encrypt", state=NORMAL)
     if encrypted:
         encrypt_b.configure(text="Encrypted", state=DISABLED)
