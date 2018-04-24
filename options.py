@@ -40,7 +40,8 @@ class Get:
         "nodes_ban_reset":["int"],
         "mempool_allowed": ["list"],
         "terminal_output": ["str"],
-        "gui_scaling": ["str"]
+        "gui_scaling": ["str"],
+        "mempool_ram_conf": ["str"]
     }
  
     def load_file(self,filename):

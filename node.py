@@ -80,6 +80,7 @@ reveal_address = config.reveal_address
 accept_peers = config.accept_peers
 mempool_allowed = config.mempool_allowed
 terminal_output = config.terminal_output
+mempool_ram_conf = config.mempool_ram_conf
 
 
 # nodes_ban_reset=config.nodes_ban_reset
@@ -281,7 +282,7 @@ def db_to_drive(hdd, h, hdd2, h2):
     app_log.warning("Moving new data to HDD")
 
     if ram_conf == 1:  # select RAM as source database
-        source_db = sqlite3.connect('file::memory:?cache=shared', uri=True, timeout=1)
+        source_db = sqlite3.connect('file:ledger?mode=memory&cache=shared', uri=True, timeout=1)
     else:  # select hyper.db as source database
         source_db = sqlite3.connect(hyper_path_conf, timeout=1)
 
@@ -355,7 +356,7 @@ def db_c_define():
 
     try:
         if ram_conf == 1:
-            conn = sqlite3.connect('file::memory:?cache=shared', uri=True, timeout=1, isolation_level=None)
+            conn = sqlite3.connect('file:ledger?mode=memory&cache=shared', uri=True, timeout=1, isolation_level=None)
         else:
             conn = sqlite3.connect(hyper_path_conf, uri=True, timeout=1, isolation_level=None)
 
@@ -371,9 +372,20 @@ def db_c_define():
 
 
 def db_m_define():
-    mempool = sqlite3.connect('mempool.db', timeout=1)
-    mempool.text_factory = str
-    m = mempool.cursor()
+    if mempool_ram_conf == "no":
+        #app_log.warning("Opening file mempool")
+        mempool = sqlite3.connect('mempool.db', timeout=1)
+        mempool.text_factory = str
+        m = mempool.cursor()
+    else:
+        #app_log.warning ("Opening RAM mempool")
+        mempool = sqlite3.connect ('file:mempool?mode=memory&cache=shared', uri=True, timeout=1, isolation_level=None)
+        mempool.execute ('PRAGMA journal_mode = WAL;')
+        mempool.execute ("PRAGMA page_size = 4096;")
+        mempool.text_factory = str
+        m = mempool.cursor ()
+        m.execute("CREATE TABLE IF NOT EXISTS transactions (timestamp TEXT, address TEXT, recipient TEXT, amount TEXT, signature TEXT, public_key TEXT, operation TEXT, openfield TEXT)")
+
     return mempool, m
 
 
@@ -1656,7 +1668,7 @@ try:
 
     if ram_conf == 1:
         app_log.warning("Status: Moving database to RAM")
-        to_ram = sqlite3.connect('file::memory:?cache=shared', uri=True, timeout=1, isolation_level=None)
+        to_ram = sqlite3.connect('file:ledger?mode=memory&cache=shared', uri=True, timeout=1, isolation_level=None)
         to_ram.text_factory = str
         tr = to_ram.cursor()
 
