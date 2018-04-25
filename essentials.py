@@ -8,6 +8,7 @@ from Crypto.PublicKey import RSA
 from decimal import *
 import re
 import time
+import json
 
 from quantizer import *
 
@@ -77,9 +78,21 @@ def keys_check(app_log):
                 app_log.warning("Keys do not match, recreating")
             else:
                 app_log.warning ("Keys match, continuing")
+
+                # verify
+                # export to single file
+                wallet_dict = {}
+                wallet_dict['Private Key'] = private_key_readable
+                wallet_dict['Public Key'] = public_key_readable
+                wallet_dict['Address'] = address
+
+                with open ("wallet.der", 'w') as wallet_file:
+                    json.dump(wallet_dict,wallet_file)
+                # export to single file
+
                 break
 
-            # verify
+
 
 
 def keys_load(privkey, pubkey):
@@ -109,6 +122,39 @@ def keys_load(privkey, pubkey):
 
     return key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress
 
+
+def keys_load_new(wallet_file):
+    # import keys
+
+    with open (wallet_file, 'r') as wallet_file:
+        wallet_dict = json.load (wallet_file)
+
+    private_key_readable = wallet_dict['Private Key']
+    public_key_readable = wallet_dict['Public Key']
+    address = wallet_dict['Address']
+
+    try:  # unencrypted
+        key = RSA.importKey(private_key_readable)
+        private_key_readable = key.exportKey().decode("utf-8")
+        # public_key = key.publickey()
+        encrypted = False
+        unlocked = True
+
+    except:  # encrypted
+        encrypted = True
+        unlocked = False
+        key = None
+        private_key_readable = None
+
+    # public_key_readable = str(key.publickey().exportKey())
+
+
+    if (len(public_key_readable)) != 271 and (len(public_key_readable)) != 799:
+        raise ValueError("Invalid public key length: {}".format(len(public_key_readable)))
+
+    public_key_hashed = base64.b64encode(public_key_readable.encode('utf-8'))
+
+    return key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, address
 
 # Dup code, not pretty, but would need address module to avoid dup
 def address_validate(address):
