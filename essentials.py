@@ -66,13 +66,7 @@ def keys_check(app_log):
         app_log.info("Your public key: {}".format(public_key_readable))
 
         # export to single file
-        wallet_dict = {}
-        wallet_dict['Private Key'] = private_key_readable
-        wallet_dict['Public Key'] = public_key_readable
-        wallet_dict['Address'] = address
-
-        with open ("wallet.der", 'w') as wallet_file:
-            json.dump(wallet_dict,wallet_file)
+        keys_save(private_key_readable, public_key_readable, address)
         # export to single file
 
 
@@ -95,7 +89,7 @@ def keys_load(privkey, pubkey):
         # import keys
         try:  # unencrypted
             key = RSA.importKey(open(privkey).read())
-            private_key_readable = key.exportKey().decode("utf-8")
+            private_key_readable = key.exportKey ().decode ("utf-8")
             # public_key = key.publickey()
             encrypted = False
             unlocked = True
@@ -104,7 +98,7 @@ def keys_load(privkey, pubkey):
             encrypted = True
             unlocked = False
             key = None
-            private_key_readable = None
+            private_key_readable = open(privkey).read()
 
         # public_key_readable = str(key.publickey().exportKey())
         public_key_readable = open(pubkey.encode('utf-8')).read()
@@ -113,9 +107,12 @@ def keys_load(privkey, pubkey):
             raise ValueError("Invalid public key length: {}".format(len(public_key_readable)))
 
         public_key_hashed = base64.b64encode(public_key_readable.encode('utf-8'))
-        myaddress = hashlib.sha224(public_key_readable.encode('utf-8')).hexdigest()
+        address = hashlib.sha224(public_key_readable.encode('utf-8')).hexdigest()
 
-        return key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress
+        print("Upgrading wallet")
+        keys_save (private_key_readable, public_key_readable, address)
+
+        return key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, address
 
 
 def keys_load_new(wallet_file):

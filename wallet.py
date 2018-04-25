@@ -440,10 +440,6 @@ def decrypt_fn(destroy_this):
 
         key = RSA.importKey(decrypted_privkey)  # be able to sign
 
-        # print key
-        if key.publickey().exportKey().decode("utf-8") != public_key_readable:
-            messagebox.showerror ("Mismatch","Public key of this private key does not match the public key in pubkey.der")
-
         destroy_this.destroy()
 
         decrypt_b.configure(text="Unlocked", state=DISABLED)
