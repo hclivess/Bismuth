@@ -2312,16 +2312,7 @@ if __name__ == "__main__":
     essentials.keys_check(app_log)
     essentials.db_check(app_log)
 
-    # import keys
-    # key = RSA.importKey(open('privkey.der').read())
-    # private_key_readable = str(key.exportKey())
-    public_key_readable = open('pubkey.der'.encode('utf-8')).read()
-
-    if (len(public_key_readable)) != 271 and (len(public_key_readable)) != 799:
-        raise ValueError("Invalid public key length: {}".format(len(public_key_readable)))
-
-    public_key_hashed = base64.b64encode(public_key_readable.encode('utf-8'))
-    address = hashlib.sha224(public_key_readable.encode('utf-8')).hexdigest()
+    _, public_key_readable, _, _, _, public_key_hashed, address = essentials.keys_load ("privkey.der", "pubkey.der")
 
     app_log.warning("Status: Local address: {}".format(address))
 

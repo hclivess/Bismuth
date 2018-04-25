@@ -50,77 +50,72 @@ def keys_check(app_log):
         app_log.warning("privkey.der found")
     elif os.path.isfile("privkey_encrypted.der") is True:
         app_log.warning("privkey_encrypted.der found")
+    elif os.path.isfile ("wallet.der") is True:
+        app_log.warning ("wallet.der found")
     else:
-        while True:
-            # generate key pair and an address
-            key = RSA.generate(4096)
-            #public_key = key.publickey()
+        # generate key pair and an address
+        key = RSA.generate(4096)
+        #public_key = key.publickey()
 
-            private_key_readable = key.exportKey().decode("utf-8")
-            public_key_readable = key.publickey().exportKey().decode("utf-8")
-            address = hashlib.sha224(public_key_readable.encode("utf-8")).hexdigest()  # hashed public key
-            # generate key pair and an address
+        private_key_readable = key.exportKey().decode("utf-8")
+        public_key_readable = key.publickey().exportKey().decode("utf-8")
+        address = hashlib.sha224(public_key_readable.encode("utf-8")).hexdigest()  # hashed public key
+        # generate key pair and an address
 
-            app_log.info("Your address: {}".format(address))
-            app_log.info("Your public key: {}".format(public_key_readable))
+        app_log.info("Your address: {}".format(address))
+        app_log.info("Your public key: {}".format(public_key_readable))
 
-            with open ("privkey.der", 'w') as privkey_file:
-                privkey_file.write(str(private_key_readable))
+        # export to single file
+        wallet_dict = {}
+        wallet_dict['Private Key'] = private_key_readable
+        wallet_dict['Public Key'] = public_key_readable
+        wallet_dict['Address'] = address
 
-            with open ("pubkey.der", 'w') as pubkey_file:
-                pubkey_file.write(str(public_key_readable))
-
-            # verify
-            key_test = RSA.importKey (open ("privkey.der").read ())
-            public_key_test = open ("pubkey.der".encode ('utf-8')).read()
-
-            if key_test.publickey().exportKey().decode("utf-8") != public_key_test:
-                app_log.warning("Keys do not match, recreating")
-            else:
-                app_log.warning ("Keys match, continuing")
-
-                # verify
-                # export to single file
-                wallet_dict = {}
-                wallet_dict['Private Key'] = private_key_readable
-                wallet_dict['Public Key'] = public_key_readable
-                wallet_dict['Address'] = address
-
-                with open ("wallet.der", 'w') as wallet_file:
-                    json.dump(wallet_dict,wallet_file)
-                # export to single file
-
-                break
+        with open ("wallet.der", 'w') as wallet_file:
+            json.dump(wallet_dict,wallet_file)
+        # export to single file
 
 
+def keys_save(private_key_readable, public_key_readable, address):
+    wallet_dict = {}
+    wallet_dict['Private Key'] = private_key_readable
+    wallet_dict['Public Key'] = public_key_readable
+    wallet_dict['Address'] = address
 
+    with open ("wallet.der", 'w') as wallet_file:
+        json.dump (wallet_dict, wallet_file)
 
 def keys_load(privkey, pubkey):
-    # print ("loaded",privkey, pubkey)
-    # import keys
-    try:  # unencrypted
-        key = RSA.importKey(open(privkey).read())
-        private_key_readable = key.exportKey().decode("utf-8")
-        # public_key = key.publickey()
-        encrypted = False
-        unlocked = True
+    if os.path.exists("wallet.der"):
+        print("Using modern wallet method")
+        return keys_load_new ("wallet.der")
 
-    except:  # encrypted
-        encrypted = True
-        unlocked = False
-        key = None
-        private_key_readable = None
+    else:
+        # print ("loaded",privkey, pubkey)
+        # import keys
+        try:  # unencrypted
+            key = RSA.importKey(open(privkey).read())
+            private_key_readable = key.exportKey().decode("utf-8")
+            # public_key = key.publickey()
+            encrypted = False
+            unlocked = True
 
-    # public_key_readable = str(key.publickey().exportKey())
-    public_key_readable = open(pubkey.encode('utf-8')).read()
+        except:  # encrypted
+            encrypted = True
+            unlocked = False
+            key = None
+            private_key_readable = None
 
-    if (len(public_key_readable)) != 271 and (len(public_key_readable)) != 799:
-        raise ValueError("Invalid public key length: {}".format(len(public_key_readable)))
+        # public_key_readable = str(key.publickey().exportKey())
+        public_key_readable = open(pubkey.encode('utf-8')).read()
 
-    public_key_hashed = base64.b64encode(public_key_readable.encode('utf-8'))
-    myaddress = hashlib.sha224(public_key_readable.encode('utf-8')).hexdigest()
+        if (len(public_key_readable)) != 271 and (len(public_key_readable)) != 799:
+            raise ValueError("Invalid public key length: {}".format(len(public_key_readable)))
 
-    return key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress
+        public_key_hashed = base64.b64encode(public_key_readable.encode('utf-8'))
+        myaddress = hashlib.sha224(public_key_readable.encode('utf-8')).hexdigest()
+
+        return key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress
 
 
 def keys_load_new(wallet_file):
@@ -135,8 +130,6 @@ def keys_load_new(wallet_file):
 
     try:  # unencrypted
         key = RSA.importKey(private_key_readable)
-        private_key_readable = key.exportKey().decode("utf-8")
-        # public_key = key.publickey()
         encrypted = False
         unlocked = True
 
@@ -144,7 +137,6 @@ def keys_load_new(wallet_file):
         encrypted = True
         unlocked = False
         key = None
-        private_key_readable = None
 
     # public_key_readable = str(key.publickey().exportKey())
 
@@ -159,6 +151,9 @@ def keys_load_new(wallet_file):
 # Dup code, not pretty, but would need address module to avoid dup
 def address_validate(address):
     return re.match('[abcdef0123456789]{56}', address)
+
+
+
 
 
 # Dup code, not pretty, but would need address module to avoid dup

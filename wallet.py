@@ -404,24 +404,15 @@ def encrypt_fn(destroy_this):
     if password == password_conf:
 
         ciphertext = encrypt(password, private_key_readable)
-
-        pem_file = open(private_key_load, 'wb')
-
-        pem_file.write(base64.b64encode(ciphertext))
-        pem_file.close()
+        ciphertext_export = base64.b64encode(ciphertext).decode()
+        essentials.keys_save(ciphertext_export,public_key_readable,myaddress)
 
         # encrypt_b.configure(text="Encrypted", state=DISABLED)
         destroy_this.destroy()
         # lock_b.configure(text="Lock", state=NORMAL)
     else:
-        mismatch = Toplevel()
-        mismatch.title("Bismuth")
+        messagebox.showwarning("Mismatch", "Password Mismatch")
 
-        mismatch_msg = Message(mismatch, text="Password mismatch", width=100)
-        mismatch_msg.pack()
-
-        mismatch_button = Button(mismatch, text="Continue", command=mismatch.destroy)
-        mismatch_button.pack(padx=15, pady=(5, 5))
 
 
 def decrypt_get_password():
@@ -444,8 +435,8 @@ def decrypt_fn(destroy_this):
     global key
     try:
         password = password_var_dec.get()
-        encrypted_privkey = open(private_key_load, 'rb').read()
-        decrypted_privkey = decrypt(password, base64.b64decode(encrypted_privkey))  # decrypt privkey
+
+        decrypted_privkey = decrypt(password, base64.b64decode(private_key_readable))  # decrypt privkey
 
         key = RSA.importKey(decrypted_privkey)  # be able to sign
 
