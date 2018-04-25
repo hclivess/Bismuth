@@ -236,7 +236,6 @@ def fingerprint():
 
 def keys_load_dialog():
     global key
-    global key
     global private_key_readable
     global encrypted
     global unlocked
@@ -245,11 +244,9 @@ def keys_load_dialog():
     global private_key_load
     global public_key_load
 
-    private_key_load = filedialog.askopenfilename(multiple=False, initialdir="", title="Select private key", filetypes=[("Private key", ".der")])
-    public_key_load = filedialog.askopenfilename (multiple=False, initialdir="", title="Select public key", filetypes=[("Public key", ".der")])
+    wallet_load = filedialog.askopenfilename(multiple=False, initialdir="", title="Select private key", filetypes=[("Wallet", ".der")])
 
-    print (private_key_load, public_key_load)
-    key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress = essentials.keys_load(private_key_load, public_key_load)
+    key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress = essentials.keys_load_new(wallet_load) #upgrade later, remove blanks
 
     encryption_button_refresh()
 
