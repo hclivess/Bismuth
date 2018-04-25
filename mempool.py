@@ -28,7 +28,7 @@ drift_limit = 30
 
 # If set to true, will always send empty Tx to other peers (but will accept theirs)
 # Only to be used for debug/testing purposes
-DEBUG_DO_NOT_SEND_TX = True
+DEBUG_DO_NOT_SEND_TX = False
 
 """
 Common Sql requests
