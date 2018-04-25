@@ -1164,6 +1164,8 @@ def table(address, addlist_20, mempool_total):
 
     if len(datasheet) == 5:
         app_log.warning("Looks like a new address")
+        table_limit = 0
+        frame_table.configure(height=1)
 
     elif len(datasheet) < 20 * 5:
         app_log.warning(len(datasheet))
@@ -1171,48 +1173,48 @@ def table(address, addlist_20, mempool_total):
     else:
         table_limit = 20
 
-    if len(datasheet) > 5:
-        k = 0
 
-        for child in frame_table.winfo_children():  # prevent hangup
-            child.destroy()
+    k = 0
 
-        for i in range(int(table_limit)):
-            for j in range(5):
-                datasheet_compare = [datasheet[k], datasheet[k - 1], datasheet[k - 2], datasheet[k - 3], datasheet[k - 4]]
+    for child in frame_table.winfo_children():  # prevent hangup
+        child.destroy()
 
-                if "Time" in datasheet_compare:  # header
-                    e = Entry(frame_table, width=0)
-                    e.configure(readonlybackground='linen')
+    for i in range(int(table_limit)):
+        for j in range(5):
+            datasheet_compare = [datasheet[k], datasheet[k - 1], datasheet[k - 2], datasheet[k - 3], datasheet[k - 4]]
 
-                elif j == 0:  # first row
-                    e = Entry(frame_table, width=0)
-                    e.configure(readonlybackground='linen')
+            if "Time" in datasheet_compare:  # header
+                e = Entry(frame_table, width=0)
+                e.configure(readonlybackground='linen')
 
-                elif "Unconfirmed" in datasheet_compare:  # unconfirmed txs
-                    e = Entry(frame_table, width=0)
-                    e.configure(readonlybackground='linen')
+            elif j == 0:  # first row
+                e = Entry(frame_table, width=0)
+                e.configure(readonlybackground='linen')
 
-                elif j == 3:  # sent
-                    e = Entry(frame_table, width=0)
-                    e.configure(readonlybackground=colors[i - 1])
+            elif "Unconfirmed" in datasheet_compare:  # unconfirmed txs
+                e = Entry(frame_table, width=0)
+                e.configure(readonlybackground='linen')
 
-                elif j == 4:  # last row
-                    e = Entry(frame_table, width=0)
-                    e.configure(readonlybackground='bisque')
+            elif j == 3:  # sent
+                e = Entry(frame_table, width=0)
+                e.configure(readonlybackground=colors[i - 1])
 
-                else:
-                    e = Entry(frame_table, width=56)
-                    e.configure(readonlybackground='bisque')
+            elif j == 4:  # last row
+                e = Entry(frame_table, width=0)
+                e.configure(readonlybackground='bisque')
 
-                e.grid(row=i + 1, column=j, sticky=EW)
-                e.insert(END, datasheet[k])
-                e.configure(state="readonly")
+            else:
+                e = Entry(frame_table, width=56)
+                e.configure(readonlybackground='bisque')
 
-                k = k + 1
+            e.grid(row=i + 1, column=j, sticky=EW)
+            e.insert(END, datasheet[k])
+            e.configure(state="readonly")
 
-                # transaction table
-                # refreshables
+            k = k + 1
+
+            # transaction table
+            # refreshables
 
 
 
@@ -1329,9 +1331,9 @@ def refresh(address, s):
         connections.send(s, address, 10)
         connections.send(s, "20", 10)
         addlist = connections.receive(s, 10)
-        addlist_20 = addlist[:20]  # limit
 
-        table(address, addlist_20, mempool_total)
+
+        table(address, addlist, mempool_total)
         # root.after(1000, refresh)
 
         connections.send(s, "annget", 10)
@@ -1462,8 +1464,6 @@ frame_buttons.grid(row=1, column=1, sticky=W + E + N, pady=5, padx=5)
 
 # frames
 # menu
-def hello():
-    pass
 
 #
 root.update()
@@ -1582,7 +1582,7 @@ stats_b = Button(frame_buttons, text="Statistics", command=lambda :stats(), heig
 stats_b.grid(row=button_row_zero + 11, column=column, sticky=N + E, pady=0, padx=15)
 
 recover_b = Button(frame_buttons, text="Recovery", command=lambda :recover(), height=1, width=20, font=("Tahoma", 8))
-recover_b.grid(row=button_row_zero + 11, column=column, sticky=N + E, pady=0, padx=15)
+recover_b.grid(row=button_row_zero + 12, column=column, sticky=N + E, pady=0, padx=15)
 
 # quit_b = Button(frame_buttons, text="Quit", command=app_quit, height=1, width=10, font=("Tahoma", 8))
 # quit_b.grid(row=16, column=0, sticky=W + E + S, pady=0, padx=15)
