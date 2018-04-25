@@ -50,25 +50,36 @@ def keys_check(app_log):
     elif os.path.isfile("privkey_encrypted.der") is True:
         app_log.warning("privkey_encrypted.der found")
     else:
-        # generate key pair and an address
-        key = RSA.generate(4096)
-        # public_key = key.publickey()
+        while True:
+            # generate key pair and an address
+            key = RSA.generate(4096)
+            #public_key = key.publickey()
 
-        private_key_readable = key.exportKey().decode("utf-8")
-        public_key_readable = key.publickey().exportKey().decode("utf-8")
-        address = hashlib.sha224(public_key_readable.encode("utf-8")).hexdigest()  # hashed public key
-        # generate key pair and an address
+            private_key_readable = key.exportKey().decode("utf-8")
+            public_key_readable = key.publickey().exportKey().decode("utf-8")
+            address = hashlib.sha224(public_key_readable.encode("utf-8")).hexdigest()  # hashed public key
+            # generate key pair and an address
 
-        app_log.info("Your address: {}".format(address))
-        app_log.info("Your public key: {}".format(public_key_readable))
+            app_log.info("Your address: {}".format(address))
+            app_log.info("Your public key: {}".format(public_key_readable))
 
-        pem_file = open("privkey.der", 'a')
-        pem_file.write(str(private_key_readable))
-        pem_file.close()
+            with open ("privkey.der", 'w') as privkey_file:
+                privkey_file.write(str(private_key_readable))
 
-        pem_file = open("pubkey.der", 'a')
-        pem_file.write(str(public_key_readable))
-        pem_file.close()
+            with open ("pubkey.der", 'w') as pubkey_file:
+                pubkey_file.write(str(public_key_readable))
+
+            # verify
+            key_test = RSA.importKey (open ("privkey.der").read ())
+            public_key_test = open ("pubkey.der".encode ('utf-8')).read()
+
+            if key_test.publickey().exportKey().decode("utf-8") != public_key_test:
+                app_log.warning("Keys do not match, recreating")
+            else:
+                app_log.warning ("Keys match, continuing")
+                break
+
+            # verify
 
 
 def keys_load(privkey, pubkey):
