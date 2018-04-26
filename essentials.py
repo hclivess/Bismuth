@@ -50,6 +50,8 @@ def keys_check(app_log):
         app_log.warning("privkey.der found")
     elif os.path.isfile("privkey_encrypted.der") is True:
         app_log.warning("privkey_encrypted.der found")
+        os.rename("privkey_encrypted.der","privkey.der")
+
     elif os.path.isfile ("wallet.der") is True:
         app_log.warning ("wallet.der found")
     else:
