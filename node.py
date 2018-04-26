@@ -2087,12 +2087,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # send own
                     connections.send(self.request, mempool_txs, 10)
 
-                elif data == "mpclear" and peer_ip == "127.0.0.1": #reserved for localhost
-                    execute (m, ('DELETE FROM transactions'))
-                    commit(mempool)
-
-                    connections.send(self.request, mempool_txs, 10)
-
                 elif data == "keygen":
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
