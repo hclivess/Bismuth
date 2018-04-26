@@ -1942,16 +1942,16 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                     del blocks_fetched[:]
                                     while len(str(blocks_fetched)) < 500000:  # limited size based on txs in blocks
                                         # execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"),(str(int(client_block)),) + (str(int(client_block + 1)),))
-                                        execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,cast(operation as TEXT),openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"), (str(int(client_block)),) + (str(int(client_block + 1)),))
+                                        execute_param(h3, ("SELECT timestamp,address,recipient,amount,signature,public_key,cast(operation as TEXT),openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"), (str(int(client_block)),str(int(client_block + 1)),))
                                         result = h3.fetchall()
                                         if not result:
                                             break
                                         blocks_fetched.extend(result)
                                         client_block = int(client_block) + 1
 
-                                    blocks_send = [[l[1:] for l in group] for _, group in groupby(blocks_fetched, key=itemgetter(0))]  # remove block number
+                                    #blocks_send = [[l[1:] for l in group] for _, group in groupby(blocks_fetched, key=itemgetter(0))]  # remove block number
 
-                                    app_log.info("Inbound: Selected " + str(blocks_send) + " to send")
+                                    app_log.info("Inbound: Selected " + str(blocks_fetched) + " to send")
 
                                     connections.send(self.request, "blocksfnd", 10)
 
@@ -1959,7 +1959,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                                     if confirmation == "blockscf":
                                         app_log.info("Inbound: Client confirmed they want to sync from us")
-                                        connections.send(self.request, blocks_send, 10)
+                                        connections.send(self.request, blocks_fetched, 10)
 
                                     elif confirmation == "blocksrj":
                                         app_log.info("Inbound: Client rejected to sync from us because we're don't have the latest block")
@@ -2532,16 +2532,16 @@ def worker(HOST, PORT):
                                 blocks_fetched = []
                                 while len(str(blocks_fetched)) < 500000:  # limited size based on txs in blocks
                                     # execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"),(str(int(client_block)),) + (str(int(client_block + 1)),))
-                                    execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,cast(operation as TEXT),openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"), (str(int(client_block)),) + (str(int(client_block + 1)),))
+                                    execute_param(h3, ("SELECT timestamp,address,recipient,amount,signature,public_key,cast(operation as TEXT),openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"), (str(int(client_block)),str(int(client_block + 1)),))
                                     result = h3.fetchall()
                                     if not result:
                                         break
                                     blocks_fetched.extend(result)
                                     client_block = int(client_block) + 1
 
-                                blocks_send = [[l[1:] for l in group] for _, group in groupby(blocks_fetched, key=itemgetter(0))]  # remove block number
+                                #blocks_send = [[l[1:] for l in group] for _, group in groupby(blocks_fetched, key=itemgetter(0))]  # remove block number
 
-                                app_log.info("Outbound: Selected {}".format(blocks_send))
+                                app_log.info("Outbound: Selected {}".format(blocks_fetched))
 
                                 connections.send(s, "blocksfnd", 10)
 
@@ -2549,7 +2549,7 @@ def worker(HOST, PORT):
 
                                 if confirmation == "blockscf":
                                     app_log.info("Outbound: Client confirmed they want to sync from us")
-                                    connections.send(s, blocks_send, 10)
+                                    connections.send(s, blocks_fetched, 10)
 
                                 elif confirmation == "blocksrj":
                                     app_log.info("Outbound: Client rejected to sync from us because we're dont have the latest block")
