@@ -922,7 +922,7 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass):
 
                         # verify signatures and balances
                         else:
-                            execute_param(m, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?)", (str(mempool_timestamp), str(mempool_address), str(mempool_recipient), str(mempool_amount),
+                            execute_param(m, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (str(mempool_timestamp), str(mempool_address), str(mempool_recipient), str(mempool_amount),
                                                                                                    str(mempool_signature_enc), str(mempool_public_key_hashed), str(mempool_operation), str(mempool_openfield)))
                             mempool_result.append("Mempool updated with a received transaction from {}".format(peer_ip))
                             commit(mempool)  # Save (commit) the changes
@@ -1805,8 +1805,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if state_mempool != mempool_txs:
                         connections.send(self.request, mempool_txs, 10)
 
-                        for tx in mempool_txs:
-                            execute_param (m, ('UPDATE transactions SET timeout = ? WHERE signature = ?'), (time.time (), tx[4],))
+                        #for tx in mempool_txs:
+                        #    execute_param (m, ('UPDATE transactions SET timeout = ? WHERE signature = ?'), (time.time (), tx[4],))
                     else:
                         connections.send (self.request, "", 10)
 
@@ -1946,7 +1946,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                         result = h3.fetchall()
                                         if not result:
                                             break
-                                        blocks_fetched.extend(result)
+                                        blocks_fetched.extend([result])
                                         client_block = int(client_block) + 1
 
                                     #blocks_send = [[l[1:] for l in group] for _, group in groupby(blocks_fetched, key=itemgetter(0))]  # remove block number
@@ -1959,7 +1959,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                                     if confirmation == "blockscf":
                                         app_log.info("Inbound: Client confirmed they want to sync from us")
-                                        connections.send(self.request, [blocks_fetched], 10)
+                                        connections.send(self.request, blocks_fetched, 10)
 
                                     elif confirmation == "blocksrj":
                                         app_log.info("Inbound: Client rejected to sync from us because we're don't have the latest block")
@@ -2536,7 +2536,7 @@ def worker(HOST, PORT):
                                     result = h3.fetchall()
                                     if not result:
                                         break
-                                    blocks_fetched.extend(result)
+                                    blocks_fetched.extend([result])
                                     client_block = int(client_block) + 1
 
                                 #blocks_send = [[l[1:] for l in group] for _, group in groupby(blocks_fetched, key=itemgetter(0))]  # remove block number
@@ -2549,7 +2549,7 @@ def worker(HOST, PORT):
 
                                 if confirmation == "blockscf":
                                     app_log.info("Outbound: Client confirmed they want to sync from us")
-                                    connections.send(s, [blocks_fetched], 10)
+                                    connections.send(s, blocks_fetched, 10)
 
                                 elif confirmation == "blocksrj":
                                     app_log.info("Outbound: Client rejected to sync from us because we're dont have the latest block")
@@ -2642,14 +2642,13 @@ def worker(HOST, PORT):
                 execute (m, ('SELECT timestamp,address,recipient,amount,signature,public_key,operation,openfield FROM transactions ORDER BY amount DESC;'))
                 mempool_txs = m.fetchall()
 
+                connections.send (s, "mempool", 10)
                 if state_mempool != mempool_txs:
-                    connections.send (s, "mempool", 10)
                     connections.send (s, mempool_txs, 10)
 
-                    for tx in mempool_txs:
-                        execute_param (m, ('UPDATE transactions SET timeout = ? WHERE signature = ?'),(time.time(), tx[4],))
+                    #for tx in mempool_txs:
+                    #    execute_param (m, ('UPDATE transactions SET timeout = ? WHERE signature = ?'),(time.time(), tx[4],))
                 else:
-                    connections.send (s, "mempool", 10)
                     connections.send (s, "", 10)
 
                 state_mempool = mempool_txs
