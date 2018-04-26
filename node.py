@@ -923,7 +923,7 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass):
                         # verify signatures and balances
                         else:
                             execute_param(m, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?)", (str(mempool_timestamp), str(mempool_address), str(mempool_recipient), str(mempool_amount),
-                                                                                                   str(mempool_signature_enc), str(mempool_public_key_hashed), str(mempool_operation), str(mempool_openfield), 0))
+                                                                                                   str(mempool_signature_enc), str(mempool_public_key_hashed), str(mempool_operation), str(mempool_openfield)))
                             mempool_result.append("Mempool updated with a received transaction from {}".format(peer_ip))
                             commit(mempool)  # Save (commit) the changes
 
@@ -1959,7 +1959,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                                     if confirmation == "blockscf":
                                         app_log.info("Inbound: Client confirmed they want to sync from us")
-                                        connections.send(self.request, blocks_fetched, 10)
+                                        connections.send(self.request, [blocks_fetched], 10)
 
                                     elif confirmation == "blocksrj":
                                         app_log.info("Inbound: Client rejected to sync from us because we're don't have the latest block")
@@ -2549,7 +2549,7 @@ def worker(HOST, PORT):
 
                                 if confirmation == "blockscf":
                                     app_log.info("Outbound: Client confirmed they want to sync from us")
-                                    connections.send(s, blocks_fetched, 10)
+                                    connections.send(s, [blocks_fetched], 10)
 
                                 elif confirmation == "blocksrj":
                                     app_log.info("Outbound: Client rejected to sync from us because we're dont have the latest block")
