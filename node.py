@@ -12,8 +12,6 @@ VERSION = "4.2.4.0"
 # Bis specific modules
 import log, options, connections, peershandler, apihandler
 
-from itertools import groupby
-from operator import itemgetter
 import shutil, socketserver, base64, hashlib, os, re, sqlite3, sys, threading, time, socks, random, keys, math, requests, tarfile, essentials
 from decimal import *
 import tokens
@@ -1716,7 +1714,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         global peers
         global apihandler
 
-        state_mempool = ""
+        state_mempool = []
+        mempool_txs_new = []
+
         peer_ip = self.request.getpeername()[0]
 
         # if threading.active_count() < thread_limit_conf or peer_ip == "127.0.0.1":
@@ -1803,13 +1803,20 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
 
                     if state_mempool != mempool_txs:
-                        connections.send(self.request, mempool_txs, 10)
+                        del mempool_txs_new[:]
+                        for tx in mempool_txs:
+                            if tx not in state_mempool:
+                                mempool_txs_new.append(tx)
+                            #print ("yay", mempool_txs_new)
+
+
+                        connections.send(self.request, mempool_txs_new, 10)
 
                         #for tx in mempool_txs:
                         #    execute_param (m, ('UPDATE transactions SET timeout = ? WHERE signature = ?'), (time.time (), tx[4],))
                     else:
                         connections.send (self.request, "", 10)
-
+                        #print ("nay", mempool_txs)
 
                     state_mempool = mempool_txs
 
@@ -2412,7 +2419,8 @@ def worker(HOST, PORT):
     global peers
     timeout_operation = 60  # timeout
     timer_operation = time.time()  # start counting
-    state_mempool = ""
+    state_mempool = []
+    mempool_txs_new = []
 
     try:
         this_client = (HOST + ":" + str(PORT))
@@ -2644,12 +2652,20 @@ def worker(HOST, PORT):
 
                 connections.send (s, "mempool", 10)
                 if state_mempool != mempool_txs:
-                    connections.send (s, mempool_txs, 10)
+                    del mempool_txs_new [:]
+                    for tx in mempool_txs:
+                        if tx not in state_mempool:
+                            mempool_txs_new.append(tx)
+
+                        #print ("yay",mempool_txs_new)
+
+                    connections.send (s, mempool_txs_new, 10)
 
                     #for tx in mempool_txs:
                     #    execute_param (m, ('UPDATE transactions SET timeout = ? WHERE signature = ?'),(time.time(), tx[4],))
                 else:
                     connections.send (s, "", 10)
+                    #print ("nay", mempool_txs)
 
                 state_mempool = mempool_txs
 
