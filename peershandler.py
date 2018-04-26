@@ -8,7 +8,7 @@ import threading
 
 import socks
 
-__version__ = "0.0.4"
+__version__ = "0.0.5"
 
 
 # TODO : some config options are _conf and others without => clean up later on
@@ -63,7 +63,7 @@ class Peers:
 
     def status_dict(self):
         """Returns a status as a dict"""
-        status={"version":VERSION,"stats":self.stats}
+        status={"version":self.config.VERSION,"stats":self.stats}
         return status
 
     def peers_save(self, peerlist, peer_ip):
@@ -103,7 +103,7 @@ class Peers:
     def append_client(self, client):
         # TODO: thread safe?
         self.connection_pool.append(client)
-        
+
     def remove_client(self, client):
         # TODO: thread safe?
         self.connection_pool.remove(client)
@@ -154,7 +154,7 @@ class Peers:
         with open(peerlist, "r") as peer_list:
             peers = peer_list.read()
         return peers
-    
+
     @property
     def consensus_most_common(self):
         """Consensus vote"""
@@ -180,6 +180,9 @@ class Peers:
     def is_allowed(self, peer_ip, command=''):
         """Tells if the given peer is allowed for that command"""
         # TODO: more granularity here later
+        # Always allow whitelisted ip to post as block
+        if 'block' == command and self.is_whitelisted(peer_ip):
+            return True
         return peer_ip in self.config.allowed_conf or "any" in self.config.allowed_conf
 
     def is_whitelisted(self, peer_ip, command=''):
@@ -331,7 +334,7 @@ class Peers:
         except:
             self.app_log.info("IP of {} not present in the consensus pool".format(peer_ip))
             pass
-            
+
     def manager_loop(self, target=None):
         """Manager loop called every 30 sec. Handles maintenance"""
         variability = [] #prevent ip range attack (excluding inc conns)
