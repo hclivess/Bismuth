@@ -740,7 +740,7 @@ def msg_dialogue(address):
 
                     except:
                         msg_sent_digest = "Could not decrypt message"
-                        raise
+
 
                 elif x[11].startswith("enc=bmsg="):
                     msg_sent_digest = replace_regex(x[11], "enc=bmsg=")
@@ -762,12 +762,12 @@ def msg_dialogue(address):
                     try:
                         msg_sent_digest = base64.b64decode(msg_sent_digest).decode("utf-8")
                     except:
-                        msg_received_digest = "Could not decode message"
+                        msg_sent_digest = "Could not decode message"
 
                 elif x[11].startswith("msg="):
                     msg_sent_digest = replace_regex(x[11], "msg=")
 
-                msg_sent.insert(INSERT, ((time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(Decimal(x[1])))) + " To " + replace_regex(msg_recipient, "alias=") + ": " + msg_received_digest) + "\n")
+                msg_sent.insert(INSERT, ((time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(Decimal(x[1])))) + " To " + replace_regex(msg_recipient, "alias=") + ": " + msg_sent_digest) + "\n")
 
     # popup
     top11 = Toplevel()
