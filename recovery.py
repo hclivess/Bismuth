@@ -1,28 +1,19 @@
 from Crypto.PublicKey import RSA
 import hashlib
-
+import json
 
 def recover(key):
     private_key_readable = key.exportKey().decode("utf-8")
     public_key_readable = key.publickey().exportKey().decode("utf-8")
-    address = hashlib.sha224(public_key_readable.encode("utf-8")).hexdigest()  # hashed public key
-    print ("Address: {}".format(address))
+    address = hashlib.sha224(public_key_readable.encode("utf-8")).hexdigest()
 
-    recovery_file_priv = "privkey_recovered.der"
-    recovery_priv = open(recovery_file_priv, 'w')
-    recovery_priv.write(str(private_key_readable))
-    recovery_priv.close()
-    print ("Private key recovered to: {}".format(recovery_file_priv))
+    wallet_dict = {}
+    wallet_dict['Private Key'] = private_key_readable
+    wallet_dict['Public Key'] = public_key_readable
+    wallet_dict['Address'] = address
 
-    recovery_file_pub = "pubkey_recovered.der"
-    recovery_pub = open(recovery_file_pub, 'w')
-    recovery_pub.write(str(public_key_readable))
-    recovery_pub.close()
-    print ("Public key recovered to: {}".format(recovery_file_pub))
+    with open ("wallet_recovered.der", 'w') as wallet_file:
+        json.dump (wallet_dict, wallet_file)
 
-    return (address, recovery_file_priv, recovery_file_pub)
-
-
-
-
-
+    print ("Wallet recovered to: wallet_recovered.der")
+    return (address, "wallet_recovered.der")
