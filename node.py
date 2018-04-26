@@ -384,7 +384,7 @@ def db_m_define():
         mempool.execute ("PRAGMA page_size = 4096;")
         mempool.text_factory = str
         m = mempool.cursor ()
-        m.execute("CREATE TABLE IF NOT EXISTS transactions (timestamp TEXT, address TEXT, recipient TEXT, amount TEXT, signature TEXT, public_key TEXT, operation TEXT, openfield TEXT)")
+        m.execute("CREATE TABLE IF NOT EXISTS transactions (timestamp TEXT, address TEXT, recipient TEXT, amount TEXT, signature TEXT, public_key TEXT, operation TEXT, openfield TEXT, timeout INTEGER)")
 
     return mempool, m
 
@@ -578,6 +578,7 @@ def execute_param(cursor, query, param):
         except Exception as e:
             app_log.warning("Database query: {} {} {}".format(cursor, query, param))
             app_log.warning("Database retry reason: {}".format(e))
+            raise
     return cursor
 
 
@@ -740,7 +741,6 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass):
         # merge mempool
         while mem_lock.locked() == True:
             time.sleep(1)
-
         mem_lock.acquire()
 
         try:  # only if mempool was unlocked and we locked it
@@ -921,8 +921,8 @@ def mempool_merge(data, peer_ip, c, mempool, m, size_bypass):
 
                         # verify signatures and balances
                         else:
-                            execute_param(m, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?)", (str(mempool_timestamp), str(mempool_address), str(mempool_recipient), str(mempool_amount),
-                                                                                                   str(mempool_signature_enc), str(mempool_public_key_hashed), str(mempool_operation), str(mempool_openfield)))
+                            execute_param(m, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?)", (str(mempool_timestamp), str(mempool_address), str(mempool_recipient), str(mempool_amount),
+                                                                                                   str(mempool_signature_enc), str(mempool_public_key_hashed), str(mempool_operation), str(mempool_openfield), 0))
                             mempool_result.append("Mempool updated with a received transaction from {}".format(peer_ip))
                             commit(mempool)  # Save (commit) the changes
 
@@ -1556,8 +1556,8 @@ if len(m.fetchall()) != 8:
     mempool = sqlite3.connect('mempool.db', timeout=1)
     mempool.text_factory = str
     m = mempool.cursor()
-    execute(m, ("CREATE TABLE IF NOT EXISTS transactions (timestamp TEXT, address TEXT, recipient TEXT, amount TEXT, signature TEXT, public_key TEXT, operation TEXT, openfield TEXT)"))
-    #   execute(m, ("CREATE TABLE IF NOT EXISTS transactions (timestamp NUMERIC, address TEXT, recipient TEXT, amount NUMERIC, signature TEXT, public_key TEXT, keep INTEGER, openfield TEXT)")) AFTER EVERYONE UPGRADES TO 4.1.4
+    #execute(m, ("CREATE TABLE IF NOT EXISTS transactions (timestamp TEXT, address TEXT, recipient TEXT, amount TEXT, signature TEXT, public_key TEXT, operation TEXT, openfield TEXT, "))
+    execute(m, ("CREATE TABLE IF NOT EXISTS transactions (timestamp NUMERIC, address TEXT, recipient TEXT, amount NUMERIC, signature TEXT, public_key TEXT, operation INTEGER, openfield TEXT, timeout INTEGER)"))
     commit(mempool)
     app_log.info("Status: Recreated mempool file")
 
@@ -1791,15 +1791,18 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                     # receive theirs
 
-                    execute(m, ('SELECT * FROM transactions ORDER BY amount DESC;'))
-
+                    execute_param (m, ('SELECT timestamp,address,recipient,amount,signature,public_key,operation,openfield FROM transactions WHERE timeout < ? ORDER BY amount DESC;'), (int(time.time () - 5),))
                     mempool_txs = m.fetchall()
+
 
                     # send own
                     # app_log.info("Inbound: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
 
-                    # if len(mempool_txs) > 0: same as the other
                     connections.send(self.request, mempool_txs, 10)
+
+                    for tx in mempool_txs:
+                        execute_param (m, ('UPDATE transactions SET timeout = ? WHERE signature = ?'), (time.time (), tx[4],))
+
                     # send own
 
                 elif data == 'hello':
@@ -2058,7 +2061,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         app_log.info("{} not whitelisted for balanceget command".format(peer_ip))
 
                 elif data == "mpget" and peers.is_allowed(peer_ip, data):
-                    execute(m, ('SELECT * FROM transactions ORDER BY amount DESC;'))
+                    execute (m, ('SELECT timestamp,address,recipient,amount,signature,public_key,operation,openfield FROM transactions WHERE timeout < ? ORDER BY amount DESC;'))
                     mempool_txs = m.fetchall()
 
                     # app_log.info("Outbound: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
@@ -2624,8 +2627,11 @@ def worker(HOST, PORT):
 
             elif data == "nonewblk":
                 # send and receive mempool
-                execute(m, ('SELECT * FROM transactions ORDER BY amount DESC;'))
+                execute_param (m, ('SELECT timestamp,address,recipient,amount,signature,public_key,operation,openfield FROM transactions WHERE timeout < ? ORDER BY amount DESC;'), (int(time.time () - 5),))
                 mempool_txs = m.fetchall()
+
+                for tx in mempool_txs:
+                    execute_param (m, ('UPDATE transactions SET timeout = ? WHERE signature = ?'),(time.time(), tx[4],))
 
                 # app_log.info("Outbound: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
 
