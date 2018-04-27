@@ -1,4 +1,5 @@
-import time, options, log, sqlite3, ast, os, keys, base64, re
+import time, options, log, sqlite3, ast, os, base64, re
+import essentials
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
 from Crypto.PublicKey import RSA
@@ -16,7 +17,10 @@ terminal_output=config.terminal_output
 
 
 
-(key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read() #import keys
+#(key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read() #import keys
+key, public_key_readable, private_key_readable, _, _, public_key_hashed, address = essentials.keys_load_new("wallet.der")
+
+
 app_log = log.log("anon.log",debug_level,terminal_output)
 
 def fee_calculate(openfield):

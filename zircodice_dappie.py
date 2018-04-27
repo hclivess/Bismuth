@@ -1,10 +1,11 @@
-import sqlite3, keys, base64, options
+import sqlite3, base64, options
 
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
 import time
 from decimal import *
 from random import randint
+import essentials
 
 block_anchor = 547989 #no payouts previous to this block
 
@@ -39,7 +40,9 @@ def fee_calculate(openfield):
         fee = Decimal(fee) + Decimal(1)
     return fee
 
-(key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read()
+#(key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read()
+key, public_key_readable, private_key_readable, _, _, public_key_hashed, address = essentials.keys_load_new("wallet.der")
+
 
 config = options.Get()
 config.read()
