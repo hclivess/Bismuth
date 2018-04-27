@@ -1631,7 +1631,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         app_log.warning("mpinsert command")
                         print(mempool_insert)
 
-                        mpinsert_result = mp.MEMPOOL.merge(mempool_insert, peer_ip, c, True)
+                        mpinsert_result = mp.MEMPOOL.merge(mempool_insert, peer_ip, c, True, True)
                         app_log.warning("mpinsert result: {}".format(mpinsert_result))
                         connections.send(self.request, mpinsert_result, 10)
                     else:
@@ -1833,7 +1833,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         # insert to mempool, where everything will be verified
                         mempool_data = ((str(remote_tx_timestamp), str(remote_tx_address), str(remote_tx_recipient), '%.8f' % quantize_eight(remote_tx_amount), str(remote_signature_enc), str(remote_tx_pubkey_hashed), str(remote_tx_operation), str(remote_tx_openfield)))
 
-                        app_log.info(mp.MEMPOOL.merge(mempool_data, peer_ip, c, True))
+                        app_log.info(mp.MEMPOOL.merge(mempool_data, peer_ip, c, True, True))
 
                         connections.send(self.request, str(remote_signature_enc), 10)
                         # wipe variables
