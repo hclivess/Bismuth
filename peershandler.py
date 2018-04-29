@@ -370,7 +370,7 @@ class Peers:
         if int(time.time() - self.startup_time) > 15: #refreshes peers from drive
             self.peer_dict.update(self.peers_get(self.peerlist))
 
-        if len(self.consensus_blockheight_list) < 3 and int(time.time() - self.startup_time) > 15 and self.is_testnet: #join in random peers after x seconds
+        if len(self.consensus_blockheight_list) < 3 and int(time.time() - self.startup_time) > 15 and not self.is_testnet: #join in random peers after x seconds
             self.app_log.warning("Not enough peers in consensus, joining in peers suggested by other nodes")
             self.peer_dict.update(self.peers_get("suggested_peers.txt"))
 

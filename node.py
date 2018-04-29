@@ -212,7 +212,7 @@ def check_integrity(database):
         redownload = 1
 
     if len(l.fetchall()) != 12:
-        app_log.warning("Status: Integrity check on database failed, bootstrapping from the website")
+        app_log.warning("Status: Integrity check on database {} failed, bootstrapping from the website".format(database))
         redownload = 1
     else:
         ledger_check.close()
@@ -545,9 +545,9 @@ def difficulty(c,timestamp_block = time.time()):
         difficulty_new_adjusted = quantize_ten(diff_block_previous + diff_adjustment)
         difficulty = difficulty_new_adjusted
 
-        time_difference = Decimal(timestamp_block) - Decimal(timestamp_last)
+        time_difference = quantize_two(Decimal(timestamp_block) - Decimal(timestamp_last))
         if time_difference > 600:  # if more than 10 minutes passed
-            difficulty = difficulty - (time_difference/600)
+            difficulty = difficulty - (quantize_two(time_difference/600))
 
         if difficulty < 80:
             difficulty = 80
@@ -2363,7 +2363,11 @@ if __name__ == "__main__":
         ledger_ram_file = "file:ledger?mode=memory&cache=shared"
 
     # UPDATE DB
-    upgrade = sqlite3.connect(ledger_path_conf)
+    if "testnet" in version:
+        upgrade = sqlite3.connect (hyper_path_conf)
+    else:
+        upgrade = sqlite3.connect (ledger_path_conf)
+
     u = upgrade.cursor()
     try:
         u.execute("select * from transactions where operation = '0' LIMIT 1")
@@ -2392,10 +2396,11 @@ if __name__ == "__main__":
     check_integrity(hyper_path_conf)
     coherence_check()
 
-    app_log.warning("Status: Indexing tokens")
-    tokens.tokens_update("static/index.db", ledger_path_conf, "normal", app_log)
-    app_log.warning("Status: Indexing aliases")
-    aliases.aliases_update("static/index.db", ledger_path_conf, "normal", app_log)
+    if "testnet" not in version:
+        app_log.warning("Status: Indexing tokens")
+        tokens.tokens_update("static/index.db", ledger_path_conf, "normal", app_log)
+        app_log.warning("Status: Indexing aliases")
+        aliases.aliases_update("static/index.db", ledger_path_conf, "normal", app_log)
 
     ledger_compress(ledger_path_conf, hyper_path_conf)
 
