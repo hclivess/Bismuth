@@ -545,7 +545,7 @@ def difficulty(c,timestamp_block = time.time()):
         difficulty_new_adjusted = quantize_ten(diff_block_previous + diff_adjustment)
         difficulty = difficulty_new_adjusted
 
-        time_difference = timestamp_block - timestamp_last
+        time_difference = Decimal(timestamp_block) - Decimal(timestamp_last)
         if time_difference > 600:  # if more than 10 minutes passed
             difficulty = difficulty - (time_difference/600)
 
