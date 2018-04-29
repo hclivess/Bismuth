@@ -543,17 +543,15 @@ def difficulty(c,timestamp_block = time.time()):
             diff_adjustment = Decimal(1.0)
         difficulty_new_adjusted = quantize_ten(diff_block_previous + diff_adjustment)
         difficulty = difficulty_new_adjusted
-        difficulty2 = difficulty
 
+        time_difference = timestamp_block - timestamp_last
         if timestamp_block > timestamp_last + 600:  # if more than 5 minutes passed
-            difficulty2 = difficulty - Decimal(1.0)
+            difficulty = difficulty - (time_difference/600)
 
         if difficulty < 80:
             difficulty = 80
-        if difficulty2 < 80:
-            difficulty2 = 80
 
-        return (float('%.10f' % difficulty), float('%.10f' % difficulty2), float(time_to_generate), float(diff_block_previous), float(block_time), float(hashrate), float(diff_adjustment), block_height)  # need to keep float here for database inserts support
+        return (float('%.10f' % difficulty), float('%.10f' % difficulty), float(time_to_generate), float(diff_block_previous), float(block_time), float(hashrate), float(diff_adjustment), block_height)  # need to keep float here for database inserts support
 
 
 
@@ -1028,7 +1026,8 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
                     mining_hash = bin_convert(hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
 
                     diff_drop_time = 300
-
+                    if "testnet" in version:
+                        diff_drop_time = 600
 
                     mining_condition = bin_convert(db_block_hash)[0:int(diff[0])]
                     if mining_condition in mining_hash:  # simplified comparison, no backwards mining
