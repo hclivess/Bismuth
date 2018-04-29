@@ -546,7 +546,7 @@ def difficulty(c,timestamp_block = time.time()):
         difficulty2 = difficulty
 
         if timestamp_block > timestamp_last + 600:  # if more than 5 minutes passed
-            difficulty2 = difficulty - Decimal("1.0")
+            difficulty2 = difficulty - Decimal(1.0)
 
         if difficulty < 80:
             difficulty = 80
