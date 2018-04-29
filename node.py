@@ -539,8 +539,8 @@ def difficulty(c,timestamp_block = time.time()):
         Kd = 10
         difficulty_new = difficulty_new - Kd * (block_time - block_time_prev)
         diff_adjustment = (difficulty_new - diff_block_previous) / 720  # reduce by factor of 720
-        if diff_adjustment > Decimal("1.0"):
-            diff_adjustment = Decimal("1.0")
+        if diff_adjustment > Decimal(1.0):
+            diff_adjustment = Decimal(1.0)
         difficulty_new_adjusted = quantize_ten(diff_block_previous + diff_adjustment)
         difficulty = difficulty_new_adjusted
         difficulty2 = difficulty
