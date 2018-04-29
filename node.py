@@ -536,15 +536,17 @@ def difficulty(c):
         Kd = 10
         difficulty_new = difficulty_new - Kd * (block_time - block_time_prev)
         diff_adjustment = (difficulty_new - diff_block_previous) / 720  # reduce by factor of 720
+
         if diff_adjustment > Decimal(1.0):
             diff_adjustment = Decimal(1.0)
+
         difficulty_new_adjusted = quantize_ten(diff_block_previous + diff_adjustment)
         difficulty = difficulty_new_adjusted
 
         if difficulty < 80:
             difficulty = 80
 
-        return (float('%.10f' % difficulty), float(time_to_generate), float(diff_block_previous), float(block_time), float(hashrate), float(diff_adjustment), block_height)  # need to keep float here for database inserts support
+        return (float('%.10f' % difficulty),float('%.10f' % difficulty), float(time_to_generate), float(diff_block_previous), float(block_time), float(hashrate), float(diff_adjustment), block_height)  # need to keep float here for database inserts support
 
 
 
@@ -1039,7 +1041,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
                                 diff = diff[0] #lie about what diff was matched not to mess up the diff algo
                             else:
                                 # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
-                                app_log.warning ("Readjusted difficulty too low for block {} from {}, should be at least {}".format (block_height_new, peer_ip, diff[1]))
+                                app_log.warning ("Readjusted difficulty too low for block {} from {}, should be at least {}".format (block_height_new, peer_ip, diff[0]))
                                 block_valid = 0
 
 
