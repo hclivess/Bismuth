@@ -95,6 +95,7 @@ terminal_output = config.terminal_output
 
 global peers
 
+
 def tokens_rollback(height, app_log):
     """rollback token index"""
     tok = sqlite3.connect("static/index.db")
@@ -230,7 +231,7 @@ def db_to_drive(hdd, h, hdd2, h2):
     app_log.warning("Moving new data to HDD")
 
     if ram_conf == 1:  # select RAM as source database
-        source_db = sqlite3.connect('file:ledger?mode=memory&cache=shared', uri=True, timeout=1)
+        source_db = sqlite3.connect(ledger_ram_file, uri=True, timeout=1)
     else:  # select hyper.db as source database
         source_db = sqlite3.connect(hyper_path_conf, timeout=1)
 
@@ -304,7 +305,7 @@ def db_c_define():
 
     try:
         if ram_conf == 1:
-            conn = sqlite3.connect('file:ledger?mode=memory&cache=shared', uri=True, timeout=1, isolation_level=None)
+            conn = sqlite3.connect(ledger_ram_file, uri=True, timeout=1, isolation_level=None)
         else:
             conn = sqlite3.connect(hyper_path_conf, uri=True, timeout=1, isolation_level=None)
 
@@ -545,7 +546,7 @@ def difficulty(c,timestamp_block = time.time()):
         difficulty = difficulty_new_adjusted
 
         time_difference = timestamp_block - timestamp_last
-        if timestamp_block > timestamp_last + 600:  # if more than 5 minutes passed
+        if time_difference > 600:  # if more than 10 minutes passed
             difficulty = difficulty - (time_difference/600)
 
         if difficulty < 80:
@@ -2346,6 +2347,7 @@ if __name__ == "__main__":
         port = 2829
         full_ledger = 0
         hyper_path_conf = "static/test.db"
+        ledger_ram_file = "file:ledger_testnet?mode=memory&cache=shared"
         hyper_recompress_conf = 0
         peerlist = "peers_test.txt"
 
@@ -2358,6 +2360,7 @@ if __name__ == "__main__":
     # TODO : move this to peers also.
     else:
         peerlist = "peers.txt"  # might be better to keep peer.txt for better performance (provides filtering)
+        ledger_ram_file = "file:ledger?mode=memory&cache=shared"
 
     # UPDATE DB
     upgrade = sqlite3.connect(ledger_path_conf)
@@ -2406,7 +2409,7 @@ if __name__ == "__main__":
 
         if ram_conf == 1:
             app_log.warning("Status: Moving database to RAM")
-            to_ram = sqlite3.connect('file:ledger?mode=memory&cache=shared', uri=True, timeout=1, isolation_level=None)
+            to_ram = sqlite3.connect(ledger_ram_file, uri=True, timeout=1, isolation_level=None)
             to_ram.text_factory = str
             tr = to_ram.cursor()
 
@@ -2437,9 +2440,15 @@ if __name__ == "__main__":
     startup_time = time.time()
 
     try:
+        if "testnet" in version:
+            is_testnet = True
+        else:
+            is_testnet = False
+        app_log.warning ("Testnet: {}".format (is_testnet))
+
         peers = peershandler.Peers(app_log, config)
         apihandler = apihandler.ApiHandler(app_log, config)
-        mp.MEMPOOL = mp.Mempool(app_log, config, db_lock)
+        mp.MEMPOOL = mp.Mempool(app_log, config, db_lock, is_testnet)
 
         if rebuild_db_conf == 1:
             db_maintenance(conn)

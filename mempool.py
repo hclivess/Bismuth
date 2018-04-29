@@ -73,7 +73,7 @@ SQL_SELECT_TX_TO_SEND_SINCE = 'SELECT * FROM transactions where timestamp > ? OR
 class Mempool:
     """The mempool manager. Thread safe"""
 
-    def __init__(self, app_log, config=None, db_lock=None):
+    def __init__(self, app_log, config=None, db_lock=None, testnet=False):
         try:
             self.app_log = app_log
             self.config = config
@@ -85,9 +85,21 @@ class Mempool:
             self.peers_sent= dict()
             self.db = None
             self.cursor = None
+
+            self.testnet = testnet
+            if not self.testnet:
+                self.mempool_ram_file = "file:mempool?mode=memory&cache=shared"
+            else:
+                app_log.warning("Starting mempool in testnet mode")
+                self.mempool_ram_file = "file:mempool_testnet?mode=memory&cache=shared"
+
+
             self.check()
+
+
         except Exception as e:
             self.app_log.error("Error creating mempool: {}".format(e))
+            raise
 
     def check(self):
         """
@@ -97,7 +109,7 @@ class Mempool:
         self.app_log.info("Mempool Check")
         with self.lock:
             if self.ram:
-                self.db = sqlite3.connect('file:mempool?mode=memory&cache=shared',
+                self.db = sqlite3.connect(self.mempool_ram_file,
                                           uri=True, timeout=1, isolation_level=None,
                                           check_same_thread=False
                                           )
