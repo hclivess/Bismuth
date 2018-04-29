@@ -122,7 +122,7 @@ def sendsync(sdef, peer_ip, status, provider):
     app_log.warning("Outbound: Synchronization with {} finished after: {}, sending new sync request".format(peer_ip, status))
 
     if provider:
-        peers.peers_save("peers.txt", peer_ip)
+        peers.peers_save(peerlist, peer_ip)
 
     time.sleep(Decimal(pause_conf))
     while db_lock.locked():
@@ -509,8 +509,8 @@ def execute_param(cursor, query, param):
     return cursor
 
 
-def difficulty(c,timestamp_block = time.time()):
-    if "testnet" in version:
+def difficulty(c):
+    if is_testnet:
         execute(c, "SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 2")
         result = c.fetchone()
         timestamp_last = Decimal(result[1])
@@ -524,11 +524,7 @@ def difficulty(c,timestamp_block = time.time()):
         block_time = Decimal(timestamp_last - timestamp_1440) / 1440
         execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
         diff_block_previous = Decimal(c.fetchone()[0])
-        ## Assume current difficulty D is known
-        ## D = diff_block_previous
-        ## Assume current blocktime is known, calculcated from historic data, for example last 1440 blocks
-        ##T = block_time
-        # Calculate network hashrate
+
         time_to_generate = timestamp_last - timestamp_before_last
 
         hashrate = pow(2, diff_block_previous / Decimal(2.0)) / (block_time * math.ceil(28 - diff_block_previous / Decimal(16.0)))
@@ -545,14 +541,10 @@ def difficulty(c,timestamp_block = time.time()):
         difficulty_new_adjusted = quantize_ten(diff_block_previous + diff_adjustment)
         difficulty = difficulty_new_adjusted
 
-        time_difference = quantize_two(Decimal(timestamp_block) - Decimal(timestamp_last))
-        if time_difference > 600:  # if more than 10 minutes passed
-            difficulty = difficulty - (quantize_two(time_difference/600))
-
         if difficulty < 80:
             difficulty = 80
 
-        return (float('%.10f' % difficulty), float('%.10f' % difficulty), float(time_to_generate), float(diff_block_previous), float(block_time), float(hashrate), float(diff_adjustment), block_height)  # need to keep float here for database inserts support
+        return (float('%.10f' % difficulty), float(time_to_generate), float(diff_block_previous), float(block_time), float(hashrate), float(diff_adjustment), block_height)  # need to keep float here for database inserts support
 
 
 
@@ -998,7 +990,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
                 if block_valid == 1:
                     # calculate difficulty
 
-                    diff = difficulty(c,received_timestamp)
+                    diff = difficulty(c)
 
                     app_log.warning ("Time to generate block {}: {:.2f}".format (db_block_height+1, diff[2]))
                     app_log.warning ("Current difficulty: {}".format (diff[3]))
@@ -1027,24 +1019,47 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
                     mining_hash = bin_convert(hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
 
                     diff_drop_time = 300
-                    if "testnet" in version:
+                    if is_testnet:
                         diff_drop_time = 600
 
                     mining_condition = bin_convert(db_block_hash)[0:int(diff[0])]
-                    if mining_condition in mining_hash:  # simplified comparison, no backwards mining
-                        app_log.info("Difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
-                        diff = diff[0]
 
-                    elif time_now > db_timestamp_last + diff_drop_time:
 
-                        mining_condition = bin_convert(db_block_hash)[0:int(diff[1])]
+                    if "testnet" in version:
                         if mining_condition in mining_hash:  # simplified comparison, no backwards mining
-                            app_log.info("Readjusted difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
-                            diff = diff[1]
-                        else:
-                            # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
-                            app_log.warning("Readjusted difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[1]))
-                            block_valid = 0
+                            app_log.info ("Difficulty requirement satisfied for block {} from {}".format (block_height_new, peer_ip))
+                            diff = diff[0]
+
+                        elif Decimal(received_timestamp) > Decimal(db_timestamp_last) + Decimal(diff_drop_time):
+                            time_difference = quantize_two(Decimal(received_timestamp) - Decimal(db_timestamp_last))
+                            mining_condition = bin_convert (db_block_hash)[0:int (Decimal(diff[0])-quantize_two(time_difference/600))]
+
+                            if mining_condition in mining_hash:  # simplified comparison, no backwards mining
+                                app_log.info ("Readjusted difficulty requirement satisfied for block {} from {}".format (block_height_new, peer_ip))
+                                diff = diff[0]
+                            else:
+                                # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
+                                app_log.warning ("Readjusted difficulty too low for block {} from {}, should be at least {}".format (block_height_new, peer_ip, diff[1]))
+                                block_valid = 0
+
+
+                    else:
+
+
+                        if mining_condition in mining_hash:  # simplified comparison, no backwards mining
+                            app_log.info("Difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
+                            diff = diff[0]
+
+                        elif time_now > db_timestamp_last + diff_drop_time:
+
+                            mining_condition = bin_convert(db_block_hash)[0:int(diff[1])]
+                            if mining_condition in mining_hash:  # simplified comparison, no backwards mining
+                                app_log.info("Readjusted difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
+                                diff = diff[1]
+                            else:
+                                # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
+                                app_log.warning("Readjusted difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[1]))
+                                block_valid = 0
 
 
                     else:
@@ -1406,7 +1421,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                 if data == 'version':
                     data = connections.receive(self.request, 10)
-                    if data not in version_allow and version != "testnet":
+                    if data not in version_allow:
                         app_log.warning("Protocol version mismatch: {}, should be {}".format(data, version_allow))
                         connections.send(self.request, "notok", 10)
                         return
@@ -2359,24 +2374,22 @@ if __name__ == "__main__":
 
     # TODO : move this to peers also.
     else:
-        peerlist = "peers.txt"  # might be better to keep peer.txt for better performance (provides filtering)
+        peerlist = "peers.txt"
         ledger_ram_file = "file:ledger?mode=memory&cache=shared"
 
     # UPDATE DB
-    if "testnet" in version:
-        upgrade = sqlite3.connect (hyper_path_conf)
-    else:
-        upgrade = sqlite3.connect (ledger_path_conf)
 
-    u = upgrade.cursor()
-    try:
-        u.execute("select * from transactions where operation = '0' LIMIT 1")
-        u.fetchall()[0]
-        upgrade.close()
-    except:
-        upgrade.close()
-        print("Database needs upgrading, bootstrapping...")
-        bootstrap()
+    if "testnet" not in version:
+        upgrade = sqlite3.connect (ledger_path_conf)
+        u = upgrade.cursor()
+        try:
+            u.execute("select * from transactions where operation = '0' LIMIT 1")
+            u.fetchall()[0]
+            upgrade.close()
+        except:
+            upgrade.close()
+            print("Database needs upgrading, bootstrapping...")
+            bootstrap()
     # UPDATE DB
 
     # This one too?

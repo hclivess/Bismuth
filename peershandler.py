@@ -22,7 +22,7 @@ class Peers:
     """The peers manager. A thread safe peers manager"""
 
     __slots__ = ('app_log','config','logstats','peersync_lock','startup_time','reset_time','warning_list','stats','connection_pool',
-                'peer_ip_list','consensus_blockheight_list','consensus_percentage','consensus','tried','peer_dict','connection_pool','peerlist','banlist','whitelist','ban_threshold')
+                'peer_ip_list','consensus_blockheight_list','consensus_percentage','consensus','tried','peer_dict','connection_pool','peerlist','suggested_peerlist','banlist','whitelist','ban_threshold')
 
     def __init__(self, app_log, config=None, logstats=True):
         self.app_log = app_log
@@ -47,14 +47,17 @@ class Peers:
         self.whitelist = config.whitelist
         self.ban_threshold = config.ban_threshold
 
-        # From manager(), init
-        self.peer_dict.update(self.peers_get("peers.txt"))
-        self.peers_test("peers.txt")
-        self.peers_test("suggested_peers.txt")
-
         self.peerlist = "peers.txt"
+        self.suggested_peerlist = "suggested_peers.txt"
         if self.is_testnet: #overwrite for testnet
             self.peerlist = "peers_test.txt"
+            self.suggested_peerlist = "suggested_peers_test.txt"
+
+        # From manager(), init
+        self.peer_dict.update(self.peers_get(self.peerlist))
+        self.peers_test(self.peerlist)
+        self.peers_test(self.suggested_peerlist)
+
 
     @property
     def is_testnet(self):
@@ -262,8 +265,8 @@ class Peers:
                         s_purge.close()
 
                         peer_formatted = "('" + x[0] + "', '" + x[1] + "')"
-                        if peer_formatted not in open('suggested_peers.txt').read():
-                            peer_list_file = open("suggested_peers.txt", 'a')
+                        if peer_formatted not in open(self.suggested_peerlist).read():
+                            peer_list_file = open(self.suggested_peerlist, 'a')
                             peer_list_file.write(peer_formatted+"\n")
                             peer_list_file.close()
                     except:
@@ -370,9 +373,9 @@ class Peers:
         if int(time.time() - self.startup_time) > 15: #refreshes peers from drive
             self.peer_dict.update(self.peers_get(self.peerlist))
 
-        if len(self.consensus_blockheight_list) < 3 and int(time.time() - self.startup_time) > 15 and not self.is_testnet: #join in random peers after x seconds
+        if len(self.consensus_blockheight_list) < 3 and int(time.time() - self.startup_time) > 15: #join in random peers after x seconds
             self.app_log.warning("Not enough peers in consensus, joining in peers suggested by other nodes")
-            self.peer_dict.update(self.peers_get("suggested_peers.txt"))
+            self.peer_dict.update(self.peers_get(self.suggested_peerlist))
 
         if len(self.connection_pool) < self.config.nodes_ban_reset and int(time.time() - self.startup_time) > 15: #do not reset before 30 secs have passed
             self.app_log.warning("Only {} connections active, resetting banlist".format(len(self.connection_pool)))
