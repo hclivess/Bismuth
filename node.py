@@ -1061,11 +1061,10 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
                                 app_log.warning("Readjusted difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[1]))
                                 block_valid = 0
 
-
-                    else:
-                        # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
-                        app_log.warning("Difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[0]))
-                        block_valid = 0
+                        else:
+                            # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
+                            app_log.warning("Difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[0]))
+                            block_valid = 0
 
                         # print data
                         # print transaction_list
