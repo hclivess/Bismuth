@@ -1053,9 +1053,13 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
                             if mining_condition in mining_hash:  # simplified comparison, no backwards mining
                                 app_log.info ("Readjusted difficulty requirement satisfied for block {} from {}".format (block_height_new, peer_ip))
                                 diff_save = diff[0] #lie about what diff was matched not to mess up the diff algo
+                            else:
+                                # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
+                                app_log.warning ("Readjusted difficulty too low for block {} from {}, should be at least {}".format (block_height_new, peer_ip, diff_dropped))
+                                block_valid = 0
                         else:
                             # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
-                            app_log.warning ("Readjusted difficulty too low for block {} from {}, should be at least {}".format (block_height_new, peer_ip, diff_dropped))
+                            app_log.warning("Difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[0]))
                             block_valid = 0
 
 
