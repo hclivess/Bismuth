@@ -543,10 +543,20 @@ def difficulty(c):
         difficulty_new_adjusted = quantize_ten(diff_block_previous + diff_adjustment)
         difficulty = difficulty_new_adjusted
 
+        diff_drop_time = 600
+
+        if Decimal (time.time()) > Decimal (timestamp_last) + Decimal (diff_drop_time):
+            time_difference = quantize_two (Decimal (time.time()) - Decimal (timestamp_last))
+            difficulty_dropped = Decimal(difficulty)-quantize_two(time_difference/600)
+        else:
+            difficulty_dropped = difficulty
+
         if difficulty < 80:
             difficulty = 80
+        if difficulty_dropped < 80:
+            difficulty_dropped = 80
 
-        return (float('%.10f' % difficulty),float('%.10f' % difficulty), float(time_to_generate), float(diff_block_previous), float(block_time), float(hashrate), float(diff_adjustment), block_height)  # need to keep float here for database inserts support
+        return (float('%.10f' % difficulty),float('%.10f' % difficulty_dropped), float(time_to_generate), float(diff_block_previous), float(block_time), float(hashrate), float(diff_adjustment), block_height)  # need to keep float here for database inserts support
 
 
 
