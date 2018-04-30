@@ -1745,6 +1745,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     execute (m, ('DELETE FROM transactions'))
                     commit(mempool)
 
+
                 elif data == "keygen":
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):

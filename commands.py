@@ -1,4 +1,8 @@
 import socks, connections, time, sys
+import options
+config = options.Get()
+config.read()
+version = config.version_conf
 
 #print ('Number of arguments:', len(sys.argv), 'arguments.')
 #print ('Argument List:', str(sys.argv))
@@ -64,8 +68,18 @@ except:
 
 s = socks.socksocket()
 s.settimeout(10)
-s.connect(("127.0.0.1", 5658))
+
+
+
+if "testnet" in version:
+    s.connect (("127.0.0.1", 2829))
+    print("tesnet mode")
+else:
+    s.connect(("127.0.0.1", 5658))
 #s.connect(("94.113.207.67", 5658))
+
+def shutdown(socket):
+    connections.send(s, "shutdown", 10)
 
 def diffget(socket):
     #check difficulty
@@ -295,6 +309,9 @@ elif command == "addlistlim":
 
 elif command == "listlim":
     listlim(s, arg1)
+
+elif command == "shutdown":
+    shutdown(s)
 
 elif command == "addfromalias":
     addfromalias(s, arg1)
