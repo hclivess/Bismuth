@@ -548,13 +548,14 @@ def difficulty(c):
         if Decimal (time.time()) > Decimal (timestamp_last) + Decimal (diff_drop_time):
             time_difference = quantize_two (Decimal (time.time()) - Decimal (timestamp_last))
             difficulty_dropped = Decimal(difficulty)-quantize_two(time_difference/600)
+
         else:
             difficulty_dropped = difficulty
 
-        if difficulty < 80:
-            difficulty = 80
-        if difficulty_dropped < 80:
-            difficulty_dropped = 80
+        if difficulty < 20:
+            difficulty = 20
+        if difficulty_dropped < 20:
+            difficulty_dropped = 20
 
         return (float('%.10f' % difficulty),float('%.10f' % difficulty_dropped), float(time_to_generate), float(diff_block_previous), float(block_time), float(hashrate), float(diff_adjustment), block_height)  # need to keep float here for database inserts support
 
@@ -1042,7 +1043,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
                             app_log.info ("Difficulty requirement satisfied for block {} from {}".format (block_height_new, peer_ip))
                             diff = diff[0]
 
-                        elif Decimal(received_timestamp) > Decimal(db_timestamp_last) + Decimal(diff_drop_time):
+                        elif Decimal(received_timestamp) > Decimal(db_timestamp_last) + Decimal(diff_drop_time): #uses block timestamp, dont merge with diff() for security reasons
                             time_difference = quantize_two(Decimal(received_timestamp) - Decimal(db_timestamp_last))
                             mining_condition = bin_convert (db_block_hash)[0:int (Decimal(diff[0])-quantize_two(time_difference/600))]
 

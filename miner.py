@@ -1,4 +1,5 @@
-import base64, sqlite3, hashlib, time, socks, keys, sys, connections, ast, re, options
+import base64, sqlite3, hashlib, time, socks, essentials, sys, connections, ast, re, options, getpass
+from simplecrypt import *
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
 from Crypto import Random
@@ -147,11 +148,13 @@ def execute_param(cursor, what, param):
 def miner(q, privatekey_readable, public_key_hashed, address):
     from Crypto.PublicKey import RSA
     Random.atfork()
-    key = RSA.importKey(privatekey_readable)
     rndfile = Random.new()
     tries = 0
     firstrun = True
     begin = time.time()
+    key = RSA.importKey(privatekey_readable)
+
+
 
     if pool_conf == 1:
         #do not use pools public key to sign, signature will be invalid
@@ -336,7 +339,10 @@ def miner(q, privatekey_readable, public_key_hashed, address):
 if __name__ == '__main__':
     freeze_support()  # must be this line, dont move ahead
 
-    (key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read()
+    key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, address = essentials.keys_load_new ("wallet.der")
+    if not unlocked:
+        key, private_key_readable = essentials.keys_unlock(private_key_readable)
+
 
     connected = 0
     while connected == 0:

@@ -5,10 +5,11 @@ import os, db, sqlite3, hashlib, base64
 
 # from Crypto import Random
 from Crypto.PublicKey import RSA
-from decimal import *
+import getpass
 import re
 import time
 import json
+from simplecrypt import *
 
 from quantizer import *
 
@@ -116,6 +117,14 @@ def keys_load(privkey, pubkey):
 
         return key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, address
 
+
+def keys_unlock(private_key_encrypted):
+    password = getpass.getpass ()
+    encrypted_privkey = private_key_encrypted
+    decrypted_privkey = decrypt (password, base64.b64decode (encrypted_privkey))
+    key = RSA.importKey (decrypted_privkey)  # be able to sign
+    private_key_readable = key.exportKey ().decode ("utf-8")
+    return key, private_key_readable
 
 def keys_load_new(wallet_file):
     # import keys
