@@ -10,11 +10,12 @@ div.gallery:hover {
 }
 
 div.gallery img {
-    width: 100%;
+    width: 128px;
     height: auto;
 }
 
-div.desc {
+div {
     padding: 15px;
     text-align: center;
+    align: center;
 }

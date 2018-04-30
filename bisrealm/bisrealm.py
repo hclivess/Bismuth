@@ -27,7 +27,7 @@ class MainHandler(tornado.web.RequestHandler):
         richest = float(rich[0]['balance'])
 
         for key in rich:
-            address = (key['address'][:10])
+            address = ("{} {}".format(key['alias'],key['address'][:10]))
             balance = float ((key['balance']))
             whale_factor = int(percentage_of (balance, richest))
             print(whale_factor)

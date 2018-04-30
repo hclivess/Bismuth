@@ -1041,7 +1041,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
                     if "testnet" in version:
                         if mining_condition in mining_hash:  # simplified comparison, no backwards mining
                             app_log.info ("Difficulty requirement satisfied for block {} from {}".format (block_height_new, peer_ip))
-                            diff = diff[0]
+                            diff_save = diff[0]
 
                         elif Decimal(received_timestamp) > Decimal(db_timestamp_last) + Decimal(diff_drop_time): #uses block timestamp, dont merge with diff() for security reasons
                             time_difference = quantize_two(Decimal(received_timestamp) - Decimal(db_timestamp_last))
@@ -1053,7 +1053,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
 
                             if mining_condition in mining_hash:  # simplified comparison, no backwards mining
                                 app_log.info ("Readjusted difficulty requirement satisfied for block {} from {}".format (block_height_new, peer_ip))
-                                diff = diff[0] #lie about what diff was matched not to mess up the diff algo
+                                diff_save = diff[0] #lie about what diff was matched not to mess up the diff algo
                             else:
                                 # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
                                 app_log.warning ("Readjusted difficulty too low for block {} from {}, should be at least {}".format (block_height_new, peer_ip, diff_dropped))
@@ -1065,14 +1065,14 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
 
                         if mining_condition in mining_hash:  # simplified comparison, no backwards mining
                             app_log.info("Difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
-                            diff = diff[0]
+                            diff_save = diff[0]
 
                         elif time_now > db_timestamp_last + diff_drop_time:
 
                             mining_condition = bin_convert(db_block_hash)[0:int(diff[1])]
                             if mining_condition in mining_hash:  # simplified comparison, no backwards mining
                                 app_log.info("Readjusted difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
-                                diff = diff[1]
+                                diff_save = diff[1]
                             else:
                                 # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
                                 app_log.warning("Readjusted difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[1]))
@@ -1231,7 +1231,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
                     if block_valid == 1:
 
                         # save diff
-                        execute_param(c, "INSERT INTO misc VALUES (?, ?)", (block_height_new, diff))
+                        execute_param(c, "INSERT INTO misc VALUES (?, ?)", (block_height_new, diff_save))
                         commit(conn)
                         # save diff
 
