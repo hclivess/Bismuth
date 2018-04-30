@@ -101,10 +101,10 @@ def tokens_rollback(height, app_log):
     tok = sqlite3.connect("static/index.db")
     tok.text_factory = str
     t = tok.cursor()
-    execute_param(t, ("DELETE FROM tokens WHERE block_height >= ?;"), (height,))
+    execute_param(t, ("DELETE FROM tokens WHERE block_height >= ?;"), (height-1,))
     commit(tok)
     t.close()
-    app_log.warning("Rolled back the token index to {}".format(height))
+    app_log.warning("Rolled back the token index to {}".format(height-1))
 
 
 def aliases_rollback(height, app_log):
@@ -112,10 +112,10 @@ def aliases_rollback(height, app_log):
     ali = sqlite3.connect("static/index.db")
     ali.text_factory = str
     a = ali.cursor()
-    execute_param(a, ("DELETE FROM aliases WHERE block_height >= ?;"), (height,))
+    execute_param(a, ("DELETE FROM aliases WHERE block_height >= ?;"), (height-1,))
     commit(ali)
     a.close()
-    app_log.warning("Rolled back the alias index to {}".format(height))
+    app_log.warning("Rolled back the alias index to {}".format(height-1))
 
 def sendsync(sdef, peer_ip, status, provider):
 
@@ -1037,7 +1037,6 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
 
                     mining_condition = bin_convert(db_block_hash)[0:int(diff[0])]
 
-
                     if "testnet" in version:
                         if mining_condition in mining_hash:  # simplified comparison, no backwards mining
                             app_log.info ("Difficulty requirement satisfied for block {} from {}".format (block_height_new, peer_ip))
@@ -1054,10 +1053,10 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
                             if mining_condition in mining_hash:  # simplified comparison, no backwards mining
                                 app_log.info ("Readjusted difficulty requirement satisfied for block {} from {}".format (block_height_new, peer_ip))
                                 diff_save = diff[0] #lie about what diff was matched not to mess up the diff algo
-                            else:
-                                # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
-                                app_log.warning ("Readjusted difficulty too low for block {} from {}, should be at least {}".format (block_height_new, peer_ip, diff_dropped))
-                                block_valid = 0
+                        else:
+                            # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
+                            app_log.warning ("Readjusted difficulty too low for block {} from {}, should be at least {}".format (block_height_new, peer_ip, diff_dropped))
+                            block_valid = 0
 
 
                     else:
