@@ -37,6 +37,7 @@ if "testnet" in version:
     port = 2829
     peerlist = "peers_test.txt"
     ledger_path_conf = "static/test.db"
+    print("Mining on testnet")
 else:
     peerlist = "peers.txt"
 
@@ -276,7 +277,7 @@ def miner(q, privatekey_readable, public_key_hashed, address):
                     if signer.verify(h, signature) == True:
                         print("Signature valid")
 
-                        block_send.append((str(block_timestamp), str(address[:56]), str(address[:56]), '%.8f' % float(0), str(signature_enc.decode("utf-8")), str(public_key_hashed), "0", str(nonce)))  # mining reward tx
+                        block_send.append((str(block_timestamp), str(address[:56]), str(address[:56]), '%.8f' % float(0), str(signature_enc.decode("utf-8")), str(public_key_hashed.decode("utf-8")), "0", str(nonce)))  # mining reward tx
                         print("Block to send: {}".format(block_send))
 
                         if not any(isinstance(el, list) for el in block_send):  # if it's not a list of lists (only the mining tx and no others)

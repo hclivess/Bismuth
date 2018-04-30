@@ -552,10 +552,10 @@ def difficulty(c):
         else:
             difficulty_dropped = difficulty
 
-        if difficulty < 20:
-            difficulty = 20
-        if difficulty_dropped < 20:
-            difficulty_dropped = 20
+        if difficulty < 50:
+            difficulty = 50
+        if difficulty_dropped < 50:
+            difficulty_dropped = 50
 
         return (float('%.10f' % difficulty),float('%.10f' % difficulty_dropped), float(time_to_generate), float(diff_block_previous), float(block_time), float(hashrate), float(diff_adjustment), block_height)  # need to keep float here for database inserts support
 
@@ -1045,14 +1045,18 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
 
                         elif Decimal(received_timestamp) > Decimal(db_timestamp_last) + Decimal(diff_drop_time): #uses block timestamp, dont merge with diff() for security reasons
                             time_difference = quantize_two(Decimal(received_timestamp) - Decimal(db_timestamp_last))
-                            mining_condition = bin_convert (db_block_hash)[0:int (Decimal(diff[0])-quantize_two(time_difference/600))]
+                            diff_dropped = Decimal(diff[0])-quantize_two(time_difference/600)
+                            if diff_dropped < 50:
+                                diff_dropped = 50
+
+                            mining_condition = bin_convert (db_block_hash)[0:int (diff_dropped)]
 
                             if mining_condition in mining_hash:  # simplified comparison, no backwards mining
                                 app_log.info ("Readjusted difficulty requirement satisfied for block {} from {}".format (block_height_new, peer_ip))
                                 diff = diff[0] #lie about what diff was matched not to mess up the diff algo
                             else:
                                 # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
-                                app_log.warning ("Readjusted difficulty too low for block {} from {}, should be at least {}".format (block_height_new, peer_ip, diff[0]))
+                                app_log.warning ("Readjusted difficulty too low for block {} from {}, should be at least {}".format (block_height_new, peer_ip, diff_dropped))
                                 block_valid = 0
 
 
