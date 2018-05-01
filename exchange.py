@@ -99,7 +99,7 @@ def gettransactions(socket):
 				u"blockhash": row[0],
 				u"blockindex": row[0],
 				u"blocktime": int(float(row[1])),
-				u"txid": row[5][:64],
+				u"txid": row[5][:56],
 				u"time": int(float(row[1])),
 				u"timereceived": int(float(row[1]))
         })
@@ -122,7 +122,7 @@ def sendtransaction(socket, arg1, arg2, arg3):
     tx_id = connections.receive(s, 10)
 
     result = {
-		u"txid": tx_id[:64] 
+		u"txid": tx_id[:56]
 	}
     print(json.dumps(result, indent=2))
     #generate transaction

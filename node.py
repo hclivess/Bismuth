@@ -2412,11 +2412,10 @@ if __name__ == "__main__":
             u.execute("PRAGMA table_info(transactions);")
             result = u.fetchall()[10][2]
             if result != "TEXT":
-                raise ValueError("Database")
+                raise ValueError("Database column type outdated for Command field")
 
             upgrade.close()
 
-            print(result)
         except Exception as e:
             print (e)
             upgrade.close()
