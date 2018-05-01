@@ -2409,10 +2409,16 @@ if __name__ == "__main__":
         upgrade = sqlite3.connect (ledger_path_conf)
         u = upgrade.cursor()
         try:
-            u.execute("select * from transactions where operation = '0' LIMIT 1")
-            u.fetchall()[0]
+            u.execute("PRAGMA table_info(transactions);")
+            result = u.fetchall()[10][2]
+            if result != "TEXT":
+                raise ValueError("Database")
+
             upgrade.close()
-        except:
+
+            print(result)
+        except Exception as e:
+            print (e)
             upgrade.close()
             print("Database needs upgrading, bootstrapping...")
             bootstrap()
