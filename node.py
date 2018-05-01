@@ -2388,6 +2388,7 @@ if __name__ == "__main__":
         port = 2829
         full_ledger = 0
         hyper_path_conf = "static/test.db"
+        ledger_path_conf = "static/test.db" #for tokens
         ledger_ram_file = "file:ledger_testnet?mode=memory&cache=shared"
         hyper_recompress_conf = 0
         peerlist = "peers_test.txt"
