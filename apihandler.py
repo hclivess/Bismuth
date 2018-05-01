@@ -13,8 +13,9 @@ import dbhandler, connections, peershandler
 import threading
 import os, sys
 #import math
+import mempool as mp
 
-__version__ = "0.0.3"
+__version__ = "0.0.4"
 
 
 class ApiHandler:
@@ -54,6 +55,28 @@ class ApiHandler:
             self.app_log.warning("API Method <{}> does not exist.".format(method))
             return False
 
+    def api_mempool(self, socket_handler, ledger_db, peers):
+        """
+        Returns all the TX from mempool
+        :param socket_handler:
+        :param ledger_db:
+        :param peers:
+        :return: list of mempool tx
+        """
+        txs = mp.MEMPOOL.fetchall(mp.SQL_SELECT_TX_TO_SEND)
+        connections.send(socket_handler, txs)
+
+    def api_clearmempool(self, socket_handler, ledger_db, peers):
+        """
+        Empty the current mempool
+        :param socket_handler:
+        :param ledger_db:
+        :param peers:
+        :return: 'ok'
+        """
+        mp.MEMPOOL.clear()
+        connections.send(socket_handler, 'ok')        
+        
     def api_ping(self, socket_handler, ledger_db, peers):
         """
         Void, just to allow the client to keep the socket open (avoids timeout)
