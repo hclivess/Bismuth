@@ -1309,10 +1309,10 @@ def coherence_check():
                 for chain2 in chains_to_check:
                     conn2 = sqlite3.connect(chain2)
                     c2 = conn2.cursor()
-                    app_log.warning("Status: Chain {} transaction coherence error at: {}".format(chain, y-1))
-                    c2.execute("DELETE FROM transactions WHERE block_height >= ?", (y-1,))
+                    app_log.warning("Status: Chain {} transaction coherence error at: {}".format(chain, row[0]-1))
+                    c2.execute("DELETE FROM transactions WHERE block_height >= ?", (row[0]-1,))
                     conn2.commit()
-                    c2.execute("DELETE FROM misc WHERE block_height >= ?", (y-1,))
+                    c2.execute("DELETE FROM misc WHERE block_height >= ?", (row[0]-1,))
                     conn2.commit()
                     conn2.close()
 
@@ -1338,13 +1338,14 @@ def coherence_check():
                 # print (row[0], y)
 
             if row[0] != y:
+                #print(row[0], y)
                 for chain2 in chains_to_check:
                     conn2 = sqlite3.connect(chain2)
                     c2 = conn2.cursor()
-                    app_log.warning("Status: Chain {} difficulty coherence error at: {}".format(chain, y-1))
-                    c2.execute("DELETE FROM transactions WHERE block_height >= ?", (y-1,))
+                    app_log.warning("Status: Chain {} difficulty coherence error at: {}".format(chain, row[0]-1))
+                    c2.execute("DELETE FROM transactions WHERE block_height >= ?", (row[0]-1,))
                     conn2.commit()
-                    c2.execute("DELETE FROM misc WHERE block_height >= ?", (y-1,))
+                    c2.execute("DELETE FROM misc WHERE block_height >= ?", (row[0]-1,))
                     conn2.commit()
                     conn2.close()
 
