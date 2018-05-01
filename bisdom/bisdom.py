@@ -14,7 +14,7 @@ class MainHandler(tornado.web.RequestHandler):
         html.append ("<!DOCTYPE html>")
         html.append ("<html>")
         html.append ("<head>")
-        html.append ("<link rel='stylesheet' type='text/css' href='static/mana.css'>")
+        html.append ("<link rel='stylesheet' type='text/css' href='static/bisdom.css'>")
         html.append ("<title>Page Title</title>")
         html.append ("</head>")
         html.append ("<body>")

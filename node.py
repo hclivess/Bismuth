@@ -1831,9 +1831,14 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "addfromalias":
                     if peers.is_allowed(peer_ip, data):
 
-                        aliases.aliases_update("static/index.db", ledger_path_conf, "normal", app_log)
+                        if "testnet" in version:
+                            index_db = "static/index_test.db"
+                        else:
+                            index_db = "static/index.db"
 
-                        ali = sqlite3.connect("static/index.db")
+                        aliases.aliases_update(index_db, ledger_path_conf, "normal", app_log)
+
+                        ali = sqlite3.connect(index_db)
                         ali.text_factory = str
                         a = ali.cursor()
 
@@ -2430,11 +2435,15 @@ if __name__ == "__main__":
     check_integrity(hyper_path_conf)
     coherence_check()
 
-    if "testnet" not in version:
-        app_log.warning("Status: Indexing tokens")
-        tokens.tokens_update("static/index.db", ledger_path_conf, "normal", app_log)
-        app_log.warning("Status: Indexing aliases")
-        aliases.aliases_update("static/index.db", ledger_path_conf, "normal", app_log)
+    if "testnet" in version:
+        index_db = "static/index_test.db"
+    else:
+        index_db = "static/index.db"
+
+    app_log.warning("Status: Indexing tokens")
+    tokens.tokens_update(index_db, ledger_path_conf, "normal", app_log)
+    app_log.warning("Status: Indexing aliases")
+    aliases.aliases_update(index_db, ledger_path_conf, "normal", app_log)
 
     ledger_compress(ledger_path_conf, hyper_path_conf)
 
