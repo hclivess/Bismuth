@@ -546,18 +546,20 @@ def difficulty(c):
         diff_drop_time = 600
 
         if Decimal (time.time()) > Decimal (timestamp_last) + Decimal (diff_drop_time):
-            time_difference = quantize_two (Decimal (time.time()) - Decimal (timestamp_last))
-            difficulty_dropped = Decimal(difficulty)-quantize_two(time_difference/600)
+            time_difference = quantize_two (time.time()) - quantize_two (timestamp_last)
+            diff_dropped = quantize_ten (difficulty) - quantize_ten (time_difference / 600)
+
+
 
         else:
-            difficulty_dropped = difficulty
+            diff_dropped = difficulty
 
         if difficulty < 50:
             difficulty = 50
-        if difficulty_dropped < 50:
-            difficulty_dropped = 50
+        if diff_dropped < 50:
+            diff_dropped = 50
 
-        return (float('%.10f' % difficulty),float('%.10f' % difficulty_dropped), float(time_to_generate), float(diff_block_previous), float(block_time), float(hashrate), float(diff_adjustment), block_height)  # need to keep float here for database inserts support
+        return (float('%.10f' % difficulty),float('%.10f' % diff_dropped), float(time_to_generate), float(diff_block_previous), float(block_time), float(hashrate), float(diff_adjustment), block_height)  # need to keep float here for database inserts support
 
 
 
@@ -1044,7 +1046,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
 
 
                             ###
-                            time_difference = quantize_two(Decimal(received_timestamp) - Decimal(db_timestamp_last))
+                            time_difference = quantize_two(received_timestamp) - quantize_two(db_timestamp_last)
 
                             diff_dropped = quantize_ten(diff[0])-quantize_ten(time_difference/600)
                             if diff_dropped < 50:
@@ -1053,7 +1055,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
                             ###
 
                         elif Decimal(received_timestamp) > Decimal(db_timestamp_last) + Decimal(diff_drop_time): #uses block timestamp, dont merge with diff() for security reasons
-                            time_difference = quantize_two(Decimal(received_timestamp) - Decimal(db_timestamp_last))
+                            time_difference = quantize_two(received_timestamp) - quantize_two(db_timestamp_last)
                             diff_dropped = quantize_ten(diff[0])-quantize_ten(time_difference/600)
                             if diff_dropped < 50:
                                 diff_dropped = 50
