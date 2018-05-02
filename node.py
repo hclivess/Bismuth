@@ -702,7 +702,7 @@ def verify(c):
             db_signature_enc = str(row[5])[:684]
             db_public_key_hashed = str(row[6])[:1068]
             db_public_key = RSA.importKey(base64.b64decode(db_public_key_hashed))
-            db_operation = str(row[10])[:10]
+            db_operation = str(row[10])[:30]
             db_openfield = str(row[11])[:100000]
 
             db_transaction = (db_timestamp, db_address, db_recipient, db_amount, db_operation, db_openfield)
@@ -936,7 +936,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
                     received_amount = '%.8f' %(quantize_eight(transaction[3]))
                     received_signature_enc = str(transaction[4])[:684]
                     received_public_key_hashed = str(transaction[5])[:1068]
-                    received_operation = str(transaction[6])[:10]
+                    received_operation = str(transaction[6])[:30]
                     received_openfield = str(transaction[7])[:100000]
 
                     transaction_list_converted.append((received_timestamp, received_address, received_recipient, received_amount, received_signature_enc, received_public_key_hashed, received_operation, received_openfield))
@@ -1123,7 +1123,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
                         db_amount = '%.8f' % quantize_eight(transaction[3])
                         db_signature = str(transaction[4])[:684]
                         db_public_key_hashed = str(transaction[5])[:1068]
-                        db_operation = str(transaction[6])[:10]
+                        db_operation = str(transaction[6])[:30]
                         db_openfield = str(transaction[7])[:100000]
 
                         # print "sync this"
@@ -1758,7 +1758,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     connections.send(self.request, mempool_txs, 10)
 
                 elif data == "mpclear" and peer_ip == "127.0.0.1": #reserved for localhost
-                    execute (m, ('DELETE FROM transactions'))
+                    mp.MEMPOOL.clear()
                     commit(mempool)
 
 
