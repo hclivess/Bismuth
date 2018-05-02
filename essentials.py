@@ -195,6 +195,10 @@ def execute_param_c(cursor, query, param, app_log):
         try:
             cursor.execute(query, param)
             break
+        except UnicodeEncodeError as e:
+            app_log.warning("Database query: {} {} {}".format(cursor, query, param))
+            app_log.warning("Database skip reason: {}".format(e))
+            break
         except Exception as e:
             app_log.warning("Database query: {} {} {}".format(cursor, query, param))
             app_log.warning("Database retry reason: {}".format(e))
