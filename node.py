@@ -12,7 +12,7 @@ VERSION = "4.2.4.2"
 # Bis specific modules
 import log, options, connections, peershandler, apihandler
 
-import shutil, socketserver, base64, hashlib, os, re, sqlite3, sys, threading, time, socks, random, keys, math, requests, tarfile, essentials
+import shutil, socketserver, base64, hashlib, os, re, sqlite3, sys, threading, time, socks, random, keys, math, requests, tarfile, essentials, glob
 from decimal import *
 import tokens
 import aliases
@@ -187,6 +187,12 @@ def most_common(lst):
 
 def bootstrap():
     try:
+        types = ['static/*.db-wal', 'static/*.db-shm']
+        for type in types:
+            for file in glob.glob (type):
+                os.remove (file)
+                print(file,"deleted")
+
         archive_path = ledger_path_conf + ".tar.gz"
         download_file("https://bismuth.cz/ledger.tar.gz", archive_path)
 
