@@ -6,6 +6,7 @@ import time
 from decimal import *
 from random import randint
 import essentials
+from essentials import fee_calculate
 
 block_anchor = 547989 #no payouts previous to this block
 
@@ -30,15 +31,6 @@ def roll(block_height, txid):
 def percentage(percent, whole):
     getcontext().prec = 2
     return ((Decimal (percent) * Decimal(whole)) / 100)
-
-def fee_calculate(openfield):
-    getcontext().prec = 8
-    fee = Decimal("0.01") + (Decimal(len(openfield)) / 100000)  # 0.01 dust
-    if "token:issue:" in openfield:
-        fee = Decimal(fee) + Decimal(10)
-    if "alias=" in openfield:
-        fee = Decimal(fee) + Decimal(1)
-    return fee
 
 #(key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read()
 key, public_key_readable, private_key_readable, _, _, public_key_hashed, address = essentials.keys_load_new("wallet.der")

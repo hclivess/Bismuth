@@ -5,6 +5,7 @@ from Crypto.Hash import SHA
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import AES, PKCS1_OAEP
 from decimal import *
+from essentials import fee_calculate
 
 config = options.Get()
 config.read()
@@ -23,14 +24,6 @@ key, public_key_readable, private_key_readable, _, _, public_key_hashed, address
 
 app_log = log.log("anon.log",debug_level,terminal_output)
 
-def fee_calculate(openfield):
-    getcontext().prec = 8
-    fee = Decimal("0.01") + (Decimal(len(openfield)) / 100000)  # 0.01 dust
-    if "token:issue:" in openfield:
-        fee = Decimal(fee) + Decimal(10)
-    if "alias=" in openfield:
-        fee = Decimal(fee) + Decimal(1)
-    return float(fee) #float temporarily
 
 def replace_regex(string,replace):
     replaced_string = re.sub(r'^{}'.format(replace), "", string)

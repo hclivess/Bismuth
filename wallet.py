@@ -9,6 +9,7 @@ from quantizer import quantize_eight
 import csv
 import glob
 import recovery
+from essentials import fee_calculate
 
 import matplotlib
 matplotlib.use('TkAgg')
@@ -265,16 +266,6 @@ def all_spend_check():
         amount.delete(0, END)
         amount.insert(0, (Decimal(balance_raw.get()) - Decimal(fee_from_all)))
 
-
-def fee_calculate(openfield):
-    fee = Decimal("0.01") + (Decimal(len(openfield)) / Decimal("100000"))  # 0.01 dust
-    if "token:issue:" in openfield:
-        fee = Decimal(fee) + Decimal("10")
-    if "alias=" in openfield:
-        fee = Decimal(fee) + Decimal("1")
-    fee = quantize_eight(fee)
-
-    return fee
 
 
 def fingerprint():

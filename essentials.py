@@ -182,9 +182,9 @@ def validate_pem(public_key):
 
 def fee_calculate(openfield):
     fee = Decimal("0.01") + (Decimal(len(openfield)) / Decimal("100000"))  # 0.01 dust
-    if "token:issue:" in openfield:
+    if openfield.startswith("token:issue:"):
         fee = Decimal(fee) + Decimal("10")
-    if "alias=" in openfield:
+    if openfield.startswith("alias="):
         fee = Decimal(fee) + Decimal("1")
     return quantize_eight(fee)
 

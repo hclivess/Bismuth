@@ -18,6 +18,7 @@ import tokens
 import aliases
 from quantizer import *
 from ann import ann_get, ann_ver_get
+from essentials import fee_calculate
 
 from Crypto.Hash import SHA
 from Crypto.PublicKey import RSA
@@ -146,15 +147,6 @@ def validate_pem(public_key):
     if not match or match.group(1) != marker:
         raise ValueError("Not a valid PEM post boundary")
         # verify pem as cryptodome does
-
-
-def fee_calculate(openfield):
-    fee = Decimal("0.01") + (Decimal(len(openfield)) / Decimal("100000"))  # 0.01 dust
-    if "token:issue:" in openfield:
-        fee = Decimal(fee) + Decimal("10")
-    if "alias=" in openfield:
-        fee = Decimal(fee) + Decimal("1")
-    return quantize_eight(fee)
 
 
 def download_file(url, filename):
@@ -624,6 +616,7 @@ def balanceget(balance_address, h3):
 
     # app_log.info("Mempool: Verifying balance")
     # app_log.info("Mempool: Received address: " + str(balance_address))
+
 
     base = mp.MEMPOOL.fetchall ("SELECT amount, openfield FROM transactions WHERE address = ?;", (balance_address,))
 

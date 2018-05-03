@@ -4,8 +4,7 @@
 from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
-from decimal import *
-from quantizer import *
+from essentials import fee_calculate
 
 from simplecrypt import encrypt, decrypt
 import base64
@@ -106,13 +105,6 @@ try:
 except IndexError:
     openfield_input = input("Enter openfield data (message): ")
 
-def fee_calculate(openfield):
-    fee = Decimal("0.01") + (Decimal(len(openfield)) / Decimal("100000"))  # 0.01 dust
-    if "token:issue:" in openfield:
-        fee = Decimal(fee) + Decimal("10")
-    if "alias=" in openfield:
-        fee = Decimal(fee) + Decimal("1")
-    return quantize_eight(fee)
 
 # hardfork fee display
 fee = fee_calculate(openfield_input)
