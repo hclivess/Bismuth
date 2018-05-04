@@ -911,6 +911,7 @@ def stats():
 
         stats_address_label_var.set ("Node Address: {}".format (stats_address))
         stats_nodes_count_label_var.set ("Number of Nodes: {}".format (stats_nodes_count))
+        stats_nodes_list_text_var.delete (0, END)
         for entry in stats_nodes_list:
             stats_nodes_list_text_var.insert (END, entry)
         stats_nodes_list_text_var.grid (row=2, column=0, sticky=E, padx=15, pady=(0, 0))

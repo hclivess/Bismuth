@@ -1043,15 +1043,14 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
                             app_log.info ("Difficulty requirement satisfied for block {} from {}".format (block_height_new, peer_ip))
                             diff_save = diff[0]
 
-
-                            ###
+                            """
                             time_difference = quantize_two(received_timestamp) - quantize_two(db_timestamp_last)
 
                             diff_dropped = quantize_ten(diff[0])-quantize_ten(time_difference/600)
                             if diff_dropped < 50:
                                 diff_dropped = 50
                             app_log.warning(diff_dropped)
-                            ###
+                            """
 
                         elif Decimal(received_timestamp) > Decimal(db_timestamp_last) + Decimal(diff_drop_time): #uses block timestamp, dont merge with diff() for security reasons
                             time_difference = quantize_two(received_timestamp) - quantize_two(db_timestamp_last)

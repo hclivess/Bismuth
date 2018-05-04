@@ -158,9 +158,6 @@ def masternodes_payout(c,m,block_height,timestamp,app_log):
 def masternodes_revalidate(c,m,app_log):
     "remove nodes that removed balance, to be run every 10k blocks"
 
-
-
-
     m.execute("SELECT * FROM masternodes")
     masternodes = m.fetchall()
 
@@ -168,8 +165,14 @@ def masternodes_revalidate(c,m,app_log):
         print (masternode)
         address = masternode[2]
         print ("address", address)
+        balance_savings = masternode[3]
+        print("balance_savings",balance_savings)
         balance = balanceget (address, c)[0]
         print ("balance", balance)
+        if balance < balance_savings:
+            m.execute("DELETE FROM transactions WHERE address = ?",(address,))
+            mas.commit()
+
 
 
 if __name__ == "__main__":
@@ -188,12 +191,11 @@ if __name__ == "__main__":
     conn.text_factory = str
     c = conn.cursor()
 
-    mas = sqlite3.connect("static/index.db")
+    mas = sqlite3.connect("static/index_test.db")
     mas.text_factory = str
     m = mas.cursor()
 
     address = "4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed"
     masternodes_update(c,m, "normal", 626580, app_log)
-
     masternodes_payout(c,m,70000, 1525304875, app_log)
     masternodes_revalidate (c, m, app_log)
