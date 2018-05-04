@@ -1,21 +1,21 @@
-div.gallery {
-    margin: 5px;
-    border: 1px solid #ccc;
-    float: left;
-    width: 180px;
-}
-
-div.gallery:hover {
+td.gallery:hover {
     border: 1px solid #777;
 }
 
-div.gallery img {
+td.gallery img {
     width: 128px;
     height: auto;
+    padding: 15px;
 }
 
-div {
+td {
+    border: 1px solid transparent;
     padding: 15px;
     text-align: center;
     align: center;
+}
+
+table {
+    width: 100%;
+
 }

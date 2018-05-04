@@ -133,13 +133,15 @@ def masternodes_payout(c,m,block_height,timestamp,app_log):
     m.execute("SELECT * FROM masternodes")
     masternodes = m.fetchall()
     print("masternodes",masternodes)
+    masternodes_total = len(masternodes)
 
     for masternode in masternodes:
 
         address = masternode[2]
         balance_savings = masternode[3]
         print("balance_savings",balance_savings)
-        stake = str(percentage(2.5/52,balance_savings)) #divide by number of 10k blocks per year
+        stake = str(quantize_eight(percentage(25/52/masternodes_total,balance_savings))) #divide by number of 10k blocks per year
+        print("stake",stake)
 
         try:
             c.execute ("SELECT * from transactions WHERE block_height = ? AND recipient = ?", (-block_height,address,))
