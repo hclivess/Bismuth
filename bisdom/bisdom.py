@@ -46,7 +46,7 @@ class MainHandler(tornado.web.RequestHandler):
                 print (whale_factor)
 
                 html.append ('<td class="gallery">')
-                html.append ('<img src="static/house{}.png" alt="Modest House">'.format(whale_factor))
+                html.append ('<img src="static/holders/house{}.png" alt="{}">'.format(whale_factor,balance))
                 html.append ('<div class="desc">{}</div>'.format(address))
                 html.append ('</td>')
 
@@ -90,7 +90,7 @@ class MainHandler(tornado.web.RequestHandler):
 
                 html.append ('<td class="gallery">')
 
-                html.append ('<img src="static/miners/mine{}.png" alt="Modest House">'.format(whale_factor))
+                html.append ('<img src="static/miners/mine{}.png" alt="{}">'.format(whale_factor, rewards))
                 html.append ('<div class="desc">{}</div>'.format(address))
                 html.append ('</td>')
 
