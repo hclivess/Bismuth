@@ -4,6 +4,9 @@ from quantizer import *
 import mempool as mp
 from essentials import fee_calculate
 
+def percentage(percent, whole):
+    return ((Decimal(percent) * Decimal(whole)) / 100)
+
 def execute_param(cursor, query, param):
     """Secure execute w/ param for slow nodes"""
     while True:
@@ -15,13 +18,8 @@ def execute_param(cursor, query, param):
             app_log.warning("Database retry reason: {}".format(e))
     return cursor
 
-def balanceget(balance_address, h3):
-    print("balanceget")
-
-
+def balanceget(balance_address, c):
     base = mp.MEMPOOL.fetchall ("SELECT amount, openfield FROM transactions WHERE address = ?;", (balance_address,))
-
-
 
     # include mempool fees
     debit_mempool = 0
@@ -35,7 +33,7 @@ def balanceget(balance_address, h3):
     # include mempool fees
 
     credit_ledger = Decimal ("0")
-    for entry in execute_param (h3, ("SELECT amount FROM transactions WHERE recipient = ?;"), (balance_address,)):
+    for entry in execute_param (c, ("SELECT amount FROM transactions WHERE recipient = ?;"), (balance_address,)):
         try:
             credit_ledger = quantize_eight (credit_ledger) + quantize_eight (entry[0])
             credit_ledger = 0 if credit_ledger is None else credit_ledger
@@ -45,7 +43,7 @@ def balanceget(balance_address, h3):
     fees = Decimal ("0")
     debit_ledger = Decimal ("0")
 
-    for entry in execute_param (h3, ("SELECT fee, amount FROM transactions WHERE address = ?;"), (balance_address,)):
+    for entry in execute_param (c, ("SELECT fee, amount FROM transactions WHERE address = ?;"), (balance_address,)):
         try:
             fees = quantize_eight (fees) + quantize_eight (entry[0])
             fees = 0 if fees is None else fees
@@ -61,7 +59,7 @@ def balanceget(balance_address, h3):
     debit = quantize_eight (debit_ledger + debit_mempool)
 
     rewards = Decimal ("0")
-    for entry in execute_param (h3, ("SELECT reward FROM transactions WHERE recipient = ?;"), (balance_address,)):
+    for entry in execute_param (c, ("SELECT reward FROM transactions WHERE recipient = ?;"), (balance_address,)):
         try:
             rewards = quantize_eight (rewards) + quantize_eight (entry[0])
             rewards = 0 if rewards is None else rewards
@@ -73,25 +71,22 @@ def balanceget(balance_address, h3):
     # app_log.info("Mempool: Projected transction address balance: " + str(balance))
     return str (balance), str (credit_ledger), str (debit), str (fees), str (rewards)
 
-def masternodes_update(file, mode, reg_phase_end, app_log):
+
+
+def masternodes_update(c,m, mode, reg_phase_end, app_log):
     """update register of masternodes based on the current phase (10000 block intervals)"""
     if mode not in ("normal","reindex"):
         raise ValueError ("Wrong value for masternodes_update function")
 
-    mas = sqlite3.connect(file)
-    mas.text_factory = str
-    m = mas.cursor()
+
     m.execute("CREATE TABLE IF NOT EXISTS masternodes (block_height INTEGER, timestamp NUMERIC, address, balance)")
     mas.commit()
+
 
     if mode == "reindex":
         app_log.warning("Masternodes database will be reindexed")
         m.execute("DELETE FROM masternodes")
         mas.commit()
-
-    conn = sqlite3.connect('static/ledger.db')
-    conn.text_factory = str
-    c = conn.cursor()
 
     c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
     block_last = c.fetchone()[0] #get last block
@@ -120,23 +115,85 @@ def masternodes_update(file, mode, reg_phase_end, app_log):
             app_log.warning("Masternode already registered: {}".format(address))
         except:
             print("address",address)
-            balance = balanceget(address,c)[0]
-            print("balance",balance)
-            m.execute("INSERT INTO masternodes VALUES (?, ?, ?, ?)", (block_height, timestamp, address, balance))
-            mas.commit()
+            balance = balanceget(address, c)[0]
 
-    c.close()
-    m.close()
+            if quantize_eight(balance) >= 10000:
+                m.execute("INSERT INTO masternodes VALUES (?, ?, ?, ?)", (block_height, timestamp, address, balance))
+                mas.commit()
+            else:
+                app_log.warning("Insufficient balance for masternode")
 
     return reg_phase_start, reg_phase_end
 
+
+
+def masternodes_payout(c,m,block_height,timestamp,app_log):
+    "payout, to be run every 10k blocks"
+
+    m.execute("SELECT * FROM masternodes")
+    masternodes = m.fetchall()
+    print("masternodes",masternodes)
+
+    for masternode in masternodes:
+
+        address = masternode[2]
+        balance_savings = masternode[3]
+        print("balance_savings",balance_savings)
+        stake = str(percentage(2.5/52,balance_savings)) #divide by number of 10k blocks per year
+
+        try:
+            c.execute ("SELECT * from transactions WHERE block_height = ? AND recipient = ?", (-block_height,address,))
+            dummy = c.fetchall ()[0]  # check for uniqueness
+            app_log.warning ("Masternode operation already processed: {} {}".format(block_height,address))
+
+        except:
+            c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",(-block_height,timestamp,"masternode",address,stake,"0","0","0","0","0","0","0",))
+            conn.commit()
+
+
+
+
+
+
+def masternodes_revalidate(c,m,app_log):
+    "remove nodes that removed balance, to be run every 10k blocks"
+
+
+
+
+    m.execute("SELECT * FROM masternodes")
+    masternodes = m.fetchall()
+
+    for masternode in masternodes:
+        print (masternode)
+        address = masternode[2]
+        print ("address", address)
+        balance = balanceget (address, c)[0]
+        print ("balance", balance)
+
+
 if __name__ == "__main__":
+
+
     import options
     config = options.Get ()
     config.read ()
 
+
     app_log = log.log ("solvency.log", "WARNING", "yes")
     mp.MEMPOOL = mp.Mempool (app_log,config,None,False)
 
+
+    conn = sqlite3.connect('static/test.db')
+    conn.text_factory = str
+    c = conn.cursor()
+
+    mas = sqlite3.connect("static/index.db")
+    mas.text_factory = str
+    m = mas.cursor()
+
     address = "4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed"
-    masternodes_update ("static/index.db", "normal", 626580, app_log)
+    masternodes_update(c,m, "normal", 626580, app_log)
+
+    masternodes_payout(c,m,70000, 1525304875, app_log)
+    masternodes_revalidate (c, m, app_log)

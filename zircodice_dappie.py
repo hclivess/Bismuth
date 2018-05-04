@@ -29,7 +29,6 @@ def roll(block_height, txid):
     return roll_number
 
 def percentage(percent, whole):
-    getcontext().prec = 2
     return ((Decimal (percent) * Decimal(whole)) / 100)
 
 #(key, private_key_readable, public_key_readable, public_key_hashed, address) = keys.read()
