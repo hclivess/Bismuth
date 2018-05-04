@@ -169,9 +169,14 @@ def masternodes_revalidate(c,m,app_log):
         print("balance_savings",balance_savings)
         balance = balanceget (address, c)[0]
         print ("balance", balance)
-        if balance < balance_savings:
-            m.execute("DELETE FROM transactions WHERE address = ?",(address,))
+        if quantize_eight(balance) < 10000:
+            m.execute("DELETE FROM masternodes WHERE address = ?",(address,))
             mas.commit()
+        else: #update balance
+            m.execute("UPDATE masternodes SET balance = ? WHERE address = ?",(balance,address))
+            mas.commit ()
+            app_log.warning("Masternode balance updated from {} to {} for {}".format(balance_savings,balance,address))
+
 
 
 
