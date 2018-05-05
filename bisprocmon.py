@@ -113,6 +113,17 @@ class MainHandler(tornado.web.RequestHandler):
             self.write("</font>")
             self.write("<br>")
 
+        if "bisdom.py" in str(pnames):
+            self.write("<font color='green'>")
+            self.write("Bisdom: <strong>OK</strong>")
+            self.write("</font>")
+            self.write("<br>")
+        else:
+            self.write("<font color='red'>")
+            self.write("Bisdom: <strong>Not running</strong>")
+            self.write("</font>")
+            self.write("<br>")
+
         self.write("<br>")
         self.write("Last updated: {}".format(time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(time.time()))))
         #time.sleep(5)
