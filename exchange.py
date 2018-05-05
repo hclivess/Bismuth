@@ -150,7 +150,7 @@ elif command == "gettransactions":
 
 elif command == "sendtransaction":
     try:
-        arg3
+        arg3.encode().decode()
     except:
         arg3=""
 

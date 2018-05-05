@@ -55,7 +55,6 @@ public_key_load = "pubkey.der"
 
 key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress = essentials.keys_load(private_key_load, public_key_load)
 
-
 print(getcontext())
 
 config = options.Get()
