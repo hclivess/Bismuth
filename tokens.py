@@ -36,35 +36,37 @@ def tokens_update(file, ledger, mode, app_log):
     tokens_processed = []
 
     for x in results:
+        token_name = x[5].split (":")[2].lower ().strip ()
         try:
-            token_name = x[5].split(":")[2].lower().strip()
             t.execute ("SELECT * from tokens WHERE token = ?", (token_name,))
             dummy = t.fetchall ()[0]  # check for uniqueness
             app_log.warning ("Token issuance already processed: {}".format (token_name,))
         except:
-            block_height = x[0]
-            app_log.warning("Block height {}".format(block_height))
+            if token_name not in tokens_processed:
+                block_height = x[0]
+                app_log.warning("Block height {}".format(block_height))
 
-            timestamp = x[1]
-            app_log.warning("Timestamp {}".format(timestamp))
-
-            token = x[5].split(":")[2].lower().strip()
-            tokens_processed.append(token)
-            app_log.warning("Token: {}".format(token))
-
-            issued_by = x[3]
-            app_log.warning("Issued by: {}".format(issued_by))
-
-            txid = x[4][:56]
-            app_log.warning("Txid: {}".format(txid))
-
-            total = x[5].split(":")[3]
-            app_log.warning("Total amount: {}".format(total))
-
-            t.execute("INSERT INTO tokens VALUES (?,?,?,?,?,?,?)", (block_height, timestamp, token, "issued", issued_by, txid, total))
+                timestamp = x[1]
+                app_log.warning("Timestamp {}".format(timestamp))
 
 
-    #tok.commit()
+                tokens_processed.append(token_name)
+                app_log.warning("Token: {}".format(token_name))
+
+                issued_by = x[3]
+                app_log.warning("Issued by: {}".format(issued_by))
+
+                txid = x[4][:56]
+                app_log.warning("Txid: {}".format(txid))
+
+                total = x[5].split(":")[3]
+                app_log.warning("Total amount: {}".format(total))
+
+                t.execute("INSERT INTO tokens VALUES (?,?,?,?,?,?,?)", (block_height, timestamp, token_name, "issued", issued_by, txid, total))
+            else:
+                app_log.warning("This token is already registered: {}".format(x[1]))
+
+    tok.commit()
     # app_log.warning all token issuances
 
     #app_log.warning("---")
