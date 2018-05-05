@@ -25,18 +25,12 @@ full_ledger = config.full_ledger_conf
 ledger_path = config.ledger_path_conf
 hyper_path = config.hyper_path_conf
 
-def keys_unlock(private_key_encrypted):
-    password = getpass.getpass ()
-    encrypted_privkey = private_key_encrypted
-    decrypted_privkey = decrypt (password, base64.b64decode (encrypted_privkey))
-    key = RSA.importKey (decrypted_privkey)  # be able to sign
-    private_key_readable = key.exportKey ().decode ("utf-8")
-    return key, private_key_readable
+
 
 key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, address = essentials.keys_load("privkey.der", "pubkey.der")
 
 if encrypted:
-    key, private_key_readable = keys_unlock(private_key_readable)
+    key, private_key_readable = essentials.keys_unlock(private_key_readable)
 
 print('Number of arguments: %d arguments.' % len(sys.argv))
 print('Argument List: %s' % ', '.join(sys.argv))
