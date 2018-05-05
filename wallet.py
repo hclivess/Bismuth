@@ -184,6 +184,7 @@ def node_connect():
 
             s.connect((ip, int(port)))
             app_log.warning("Status: Wallet connected to {}".format(ip))
+            time.sleep(1)
             break
 
         except Exception as e:
