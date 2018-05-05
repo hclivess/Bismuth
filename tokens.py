@@ -36,7 +36,12 @@ def tokens_update(file, ledger, mode, app_log):
     tokens_processed = []
 
     for x in results:
-        if x[5].split(":")[2].lower().strip() not in tokens_processed:
+        try:
+            token_name = x[5].split(":")[2].lower().strip()
+            t.execute ("SELECT * from tokens WHERE token = ?", (token_name,))
+            dummy = t.fetchall ()[0]  # check for uniqueness
+            app_log.warning ("Token issuance already processed: {}".format (token_name,))
+        except:
             block_height = x[0]
             app_log.warning("Block height {}".format(block_height))
 
@@ -57,10 +62,9 @@ def tokens_update(file, ledger, mode, app_log):
             app_log.warning("Total amount: {}".format(total))
 
             t.execute("INSERT INTO tokens VALUES (?,?,?,?,?,?,?)", (block_height, timestamp, token, "issued", issued_by, txid, total))
-        else:
-            app_log.warning("Issuance already processed: {}".format(x[1]))
 
-    tok.commit()
+
+    #tok.commit()
     # app_log.warning all token issuances
 
     #app_log.warning("---")
@@ -74,8 +78,9 @@ def tokens_update(file, ledger, mode, app_log):
 
     tokens_transferred = []
     for transfer in openfield_transfers:
-        if transfer[0].split(":")[2].lower().strip() not in tokens_transferred:
-            tokens_transferred.append(transfer[0].split(":")[2].lower().strip())
+        token_name = transfer[0].split(":")[2].lower().strip()
+        if token_name not in tokens_transferred:
+            tokens_transferred.append(token_name)
 
     if tokens_transferred:
         app_log.warning("Token transferred: {}".format(tokens_transferred))
@@ -154,5 +159,5 @@ def tokens_update(file, ledger, mode, app_log):
 
 if __name__ == "__main__":
     app_log = log.log("tokens.log", "WARNING", "yes")
-    tokens_update("index.db","static/ledger.db","normal",app_log)
+    tokens_update("static/index.db","static/ledger.db","normal",app_log)
     #tokens_update("tokens.db","reindex")

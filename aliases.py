@@ -56,4 +56,4 @@ def aliases_update(file,ledger,mode,app_log):
 
 if __name__ == "__main__":
     app_log = log.log("tokens.log", "WARNING", "yes")
-    aliases_update("index.db","static/ledger.db","normal",app_log)
+    aliases_update("static/index.db","static/ledger.db","normal",app_log)
