@@ -793,8 +793,8 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2):
                     # roll back reward too
 
                 # rollback indices
-                tokens_rollback(str(db_block_height), app_log)
-                aliases_rollback(str(db_block_height), app_log)
+                tokens_rollback(db_block_height, app_log)
+                aliases_rollback(db_block_height, app_log)
                 # rollback indices
 
 
@@ -804,19 +804,20 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2):
         finally:
             db_lock.release()
 
-            for tx in backup_data:
-                while True:
-                    try:
-                        if tx[9] == 0:
-                            #app_log.info (mempool_merge ((tx[1], tx[2], tx[3], tx[4], tx[5], tx[6], tx[10], tx[11]), peer_ip, c, mempool, m, False))  # will get stuck if you change it to respect db_lock
-                            # commit (mempool)
-                            app_log.info(mp.MEMPOOL.merge((tx[1], tx[2], tx[3], tx[4], tx[5], tx[6], tx[10], tx[11]), peer_ip, c, False, revert=True))  # will get stuck if you change it to respect db_lock
-                            tx_short = "{} - {} to {}: {} ({})".format(tx[1], tx[2], tx[3], tx[4], tx[11])
-                            app_log.warning("Moved tx back to mempool: {}".format (tx_short))
-                        break
-                    except Exception as e:
-                        app_log.info (e)
-                        pass
+            if backup_data:
+                for tx in backup_data:
+                    while True:
+                        try:
+                            if tx[9] == 0:
+                                #app_log.info (mempool_merge ((tx[1], tx[2], tx[3], tx[4], tx[5], tx[6], tx[10], tx[11]), peer_ip, c, mempool, m, False))  # will get stuck if you change it to respect db_lock
+                                # commit (mempool)
+                                app_log.info(mp.MEMPOOL.merge((tx[1], tx[2], tx[3], tx[4], tx[5], tx[6], tx[10], tx[11]), peer_ip, c, False, revert=True))  # will get stuck if you change it to respect db_lock
+                                tx_short = "{} - {} to {}: {} ({})".format(tx[1], tx[2], tx[3], tx[4], tx[11])
+                                app_log.warning("Moved tx back to mempool: {}".format (tx_short))
+                            break
+                        except Exception as e:
+                            app_log.info (e)
+                            pass
 
 
 def manager(c):
