@@ -31,7 +31,6 @@ global private_key_load
 global public_key_load
 global s
 
-
 # data for charts
 stats_nodes_count_list = []
 stats_thread_count_list = []
@@ -53,7 +52,7 @@ else:
 
 public_key_load = "pubkey.der"
 
-key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress = essentials.keys_load(private_key_load, public_key_load)
+
 
 print(getcontext())
 
@@ -62,7 +61,8 @@ config.read()
 debug_level = config.debug_level_conf
 full_ledger = config.full_ledger_conf
 port = config.port
-light_ip = config.light_ip_conf
+light_ip = config.light_ip
+
 version = config.version_conf
 terminal_output = config.terminal_output
 gui_scaling = config.gui_scaling
@@ -82,12 +82,13 @@ from simplecrypt import encrypt, decrypt
 from tkinter import filedialog, messagebox, ttk
 from tkinter import *
 
+
 # app_log = log.log("gui.log", debug_level)
 app_log = log.log("wallet.log", debug_level, terminal_output)
 
 essentials.keys_check(app_log)
 essentials.db_check(app_log)
-
+key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress = essentials.keys_load(private_key_load, public_key_load)
 
 def mempool_clear(s):
     connections.send (s, "mpclear", 10)
@@ -174,19 +175,19 @@ def read_url_clicked(app_log, url):
 
 
 def node_connect():
-    while True:
+    for ip in light_ip:
+
         try:
             global s
             s = socks.socksocket ()
             s.settimeout (3)
 
-            s.connect((light_ip, int(port)))
-            app_log.warning("Status: Wallet connected")
+            s.connect((ip, int(port)))
+            app_log.warning("Status: Wallet connected to {}".format(ip))
             break
+
         except Exception as e:
-
-
-            app_log.warning("Status: Wallet cannot connect to the node ({}), perhaps it is still starting up, retrying".format(e))
+            app_log.warning("Status: Cannot connect to {}".format(ip))
             time.sleep(1)
 
 
@@ -1459,7 +1460,7 @@ def sign():
 
 root = Tk()
 
-root.wm_title("Bismuth Light Wallet running on {}".format(light_ip))
+root.wm_title("Bismuth Light Wallet")
 #root.geometry("1310x700") #You want the size of the app to be 500x500
 root.resizable(0, 0) #Don't allow resizing in the x or y direction / resize
 root['bg']="black"

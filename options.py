@@ -32,7 +32,7 @@ class Get:
         "ram":["int","ram_conf"],
         "pool_percentage":["int","pool_percentage_conf"],
         "node_ip":["str","node_ip_conf"],
-        "light_ip":["str","light_ip_conf"],
+        "light_ip":["list"],
         "reveal_address":["str"],
         "accept_peers":["str"],
         "banlist":["list"],
