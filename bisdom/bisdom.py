@@ -13,24 +13,24 @@ def percentage_of(part, whole):
 
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
-        html = []
-        html.append ("<!DOCTYPE html>")
-        html.append ("<html>")
-        html.append ("<head>")
-        html.append ("<link rel='stylesheet' type='text/css' href='static/bisdom.css'>")
-        html.append ("<title>Page Title</title>")
-        html.append ("</head>")
-        html.append ("<body>")
 
-        html.append ("<body background = 'static/grass.jpg'>")
+        self.write ("<!DOCTYPE html>")
+        self.write ("<html>")
+        self.write ("<head>")
+        self.write ("<link rel='stylesheet' type='text/css' href='static/bisdom.css'>")
+        self.write ("<title>Page Title</title>")
+        self.write ("</head>")
+        self.write ("<body>")
+
+        self.write ("<body background = 'static/grass.jpg'>")
 
         #build homes
         rich_raw = requests.get ('https://bismuth.online/api/richlist/all').text
         rich = json.loads (rich_raw)
         richest = float(rich[0]['balance'])
 
-        html.append ('<table class="headline">')
-        html.append ('<h1>Residential District</h1>')
+        self.write ('<table class="headline">')
+        self.write ('<h1>Residential District</h1>')
 
         tds = 0
         for key in rich:
@@ -41,22 +41,22 @@ class MainHandler(tornado.web.RequestHandler):
 
             if whale_factor > 0:
                 if tds == 0:
-                    html.append ('<tr>')
+                    self.write ('<tr>')
 
                 print (whale_factor)
 
-                html.append ('<td class="gallery">')
-                html.append ('<img src="static/holders/house{}.png" alt="{}">'.format(whale_factor,balance))
-                html.append ('<div class="desc">{}</div>'.format(address))
-                html.append ('</td>')
+                self.write ('<td class="gallery">')
+                self.write ('<img src="static/holders/house{}.png" alt="{}">'.format(whale_factor,balance))
+                self.write ('<div class="desc">{}</div>'.format(address))
+                self.write ('</td>')
 
                 tds = tds + 1
                 print ("tds", tds)
                 if tds == 5:
-                    html.append ('</tr>')
+                    self.write ('</tr>')
                     tds = 0
 
-        html.append ('</table>')
+        self.write ('</table>')
 
         # build homes
 
@@ -71,8 +71,8 @@ class MainHandler(tornado.web.RequestHandler):
         miners = json.loads (miners_raw)
         miner_top = float(miners[0]['rewards'])
 
-        html.append ('<table class="headline">')
-        html.append ('<h1>Industrial District</h1>')
+        self.write ('<table class="headline">')
+        self.write ('<h1>Industrial District</h1>')
 
         tds = 0
         for key in miners:
@@ -84,28 +84,27 @@ class MainHandler(tornado.web.RequestHandler):
 
             if whale_factor > 0:
                 if tds == 0:
-                    html.append ('<tr>')
+                    self.write ('<tr>')
 
                 print (whale_factor)
 
-                html.append ('<td class="gallery">')
+                self.write ('<td class="gallery">')
 
-                html.append ('<img src="static/miners/mine{}.png" alt="{}">'.format(whale_factor, rewards))
-                html.append ('<div class="desc">{}</div>'.format(address))
-                html.append ('</td>')
+                self.write ('<img src="static/miners/mine{}.png" alt="{}">'.format(whale_factor, rewards))
+                self.write ('<div class="desc">{}</div>'.format(address))
+                self.write ('</td>')
 
                 tds = tds + 1
                 print ("tds", tds)
                 if tds == 5:
-                    html.append ('</tr>')
+                    self.write ('</tr>')
                     tds = 0
 
-        html.append ('</table>')
+        self.write ('</table>')
 
 
-        html.append ("</body>")
-        html.append ("</html>")
-        self.write(''.join(html))
+        self.write ("</body>")
+        self.write ("</html>")
 
 def make_app():
 
