@@ -1748,7 +1748,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         app_log.info("{} not whitelisted for balanceget command".format(peer_ip))
 
                 elif data == "mpget" and peers.is_allowed(peer_ip, data):
-                    mempool_txs = mp.MEMPOOL.tx_to_send(peer_ip)
+                    mempool_txs = mp.MEMPOOL.fetchall (mp.SQL_SELECT_TX_TO_SEND)
 
                     # app_log.info("Outbound: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
 
