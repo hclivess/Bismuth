@@ -798,18 +798,13 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2):
                 # rollback indices
 
 
+                db_lock.release()
 
-        except Exception as e:
-            pass
-        finally:
-            db_lock.release()
 
-            if backup_data:
                 for tx in backup_data:
                     while True:
                         try:
                             if tx[9] == 0:
-                                #app_log.info (mempool_merge ((tx[1], tx[2], tx[3], tx[4], tx[5], tx[6], tx[10], tx[11]), peer_ip, c, mempool, m, False))  # will get stuck if you change it to respect db_lock
                                 # commit (mempool)
                                 app_log.info(mp.MEMPOOL.merge((tx[1], tx[2], tx[3], tx[4], tx[5], tx[6], tx[10], tx[11]), peer_ip, c, False, revert=True))  # will get stuck if you change it to respect db_lock
                                 tx_short = "{} - {} to {}: {} ({})".format(tx[1], tx[2], tx[3], tx[4], tx[11])
@@ -818,6 +813,10 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2):
                         except Exception as e:
                             app_log.info (e)
                             pass
+
+        except Exception as e:
+            pass
+
 
 
 def manager(c):
