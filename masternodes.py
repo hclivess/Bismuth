@@ -231,7 +231,7 @@ if __name__ == "__main__":
     address = "4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed"
     delegate = "4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed"
 
-    app_log = log.log("masternodes.log", "WARNING", "yes")
+    app_log = log.log("masternodes.log", "WARNING", True)
     reg_phase_start, reg_phase_end = masternodes_update("static/index.db","normal",app_log)
 
     masternode_count("static/index.db")

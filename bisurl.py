@@ -33,7 +33,7 @@ def read_url(app_log, url):
 if __name__ == "__main__":
     #test
     import log
-    app_log = log.log("node.log", "WARNING", "yes")
+    app_log = log.log("node.log", "WARNING", True)
 
     print ("create_url", create_url (app_log, "pay", "recipient", "10", "dd611"))
     print ("read_url", read_url(app_log, "bis://pay/recipient/10/WMnomF#/`W4$&s&qu}j&z@EM@>rV"))

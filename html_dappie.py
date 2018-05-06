@@ -106,7 +106,7 @@ def make_app():
     ])
 
 if __name__ == "__main__":
-    app_log = log.log("html.log", "WARNING", "yes")
+    app_log = log.log("html.log", "WARNING", True)
     html_update("html.db","normal",app_log)
 
     app = make_app()

@@ -169,7 +169,7 @@ while True:
             signer = PKCS1_v1_5.new(key)
             signature = signer.sign(h)
             signature_enc = base64.b64encode(signature)
-            print("Encoded Signature: {}".format(signature_enc))
+            print("Encoded Signature: {}".format(signature_enc.decode()))
 
             verifier = PKCS1_v1_5.new(key)
             if verifier.verify(h, base64.b64decode(signature_enc)) == True:

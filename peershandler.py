@@ -198,7 +198,7 @@ class Peers:
     def peers_test(self, peerlist):
         """Tests all peers from a list."""
         # TODO: lengthy, no need to test everyone at once?
-        if self.peersync_lock.locked() == False and self.config.accept_peers == "yes":
+        if self.peersync_lock.locked() == False and self.config.accept_peers == True:
             self.peersync_lock.acquire()
 
             drop_peer_dict = []
@@ -234,7 +234,7 @@ class Peers:
 
     def peersync(self, subdata):
         """Got a peers list from a peer, process. From worker()."""
-        if self.peersync_lock.locked() == False and self.config.accept_peers == "yes":
+        if self.peersync_lock.locked() == False and self.config.accept_peers == True:
             self.peersync_lock.acquire()
 
             # get remote peers into tuples (actually list)

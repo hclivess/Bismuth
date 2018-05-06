@@ -190,7 +190,7 @@ if __name__ == "__main__":
     config.read ()
 
 
-    app_log = log.log ("solvency.log", "WARNING", "yes")
+    app_log = log.log ("solvency.log", "WARNING", True)
     mp.MEMPOOL = mp.Mempool (app_log,config,None,False)
 
 
