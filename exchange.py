@@ -1,4 +1,4 @@
-import socks, connections, time, sys, json
+import socks, connections, time, sys, json, re
 from Crypto.PublicKey import RSA
 
 #define private key
@@ -8,6 +8,10 @@ exchange_address = "MAIN_EXCHANGE_ADDRESS"
 
 #print ('Number of arguments:', len(sys.argv), 'arguments.')
 #print ('Argument List:', str(sys.argv))
+
+def replace_regex(string, replace):
+    replaced_string = re.sub(r'^{}'.format(replace), "", string)
+    return replaced_string
 
 try:
     command = sys.argv[1]
@@ -150,7 +154,10 @@ elif command == "gettransactions":
 
 elif command == "sendtransaction":
     try:
+        arg3.replace("token:issue:","")
+        arg3.replace ("alias=", "")
         arg3.encode().decode()
+
     except:
         arg3=""
 
