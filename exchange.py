@@ -154,8 +154,8 @@ elif command == "gettransactions":
 
 elif command == "sendtransaction":
     try:
-        arg3 = arg3.replace_regex("token:issue:","")
-        arg3 = arg3.replace_regex ("alias=", "")
+        arg3 = replace_regex(arg3, "token:issue:")
+        arg3 = replace_regex (arg3, "alias=")
         arg3.encode().decode()
 
     except:
