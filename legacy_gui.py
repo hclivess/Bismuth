@@ -445,7 +445,7 @@ def send(amount_input, recipient_input, operation_input, openfield_input, top10,
         app_log.warning("Client: Encoded Signature: {}".format(signature_enc.decode("utf-8")))
 
         verifier = PKCS1_v1_5.new(key)
-        if verifier.verify(h, signature) == True:
+        if verifier.verify(h, signature):
             if float(amount_input) < 0:
                 app_log.warning("Client: Signature OK, but cannot use negative amounts")
 
@@ -651,7 +651,7 @@ def sign():
             h = SHA.new(input_text.get("1.0", END).encode("utf-8"))
             received_signature_dec = base64.b64decode(output_signature.get("1.0", END))
 
-            if verifier.verify(h, received_signature_dec) == True:
+            if verifier.verify(h, received_signature_dec):
                 top2 = Toplevel()
                 top2.title("Validation results")
                 msg = Message(top2, text="Signature Valid", width=50)

@@ -184,7 +184,9 @@ def node_connect():
 
             s.connect((ip, int(port)))
             app_log.warning("Status: Wallet connected to {}".format(ip))
-            time.sleep(1)
+
+            connections.send(s, "statusget", 10)
+            result = connections.receive (s, 10) #validate the connection
             break
 
         except Exception as e:
@@ -253,12 +255,12 @@ def all_spend_check():
     if all_spend_var.get():
         openfield_fee_calc = openfield.get("1.0", END).strip()
 
-        if encode_var.get() and msg_var.get() == False:
+        if encode_var.get() and not msg_var.get():
             openfield_fee_calc = base64.b64encode(openfield_fee_calc.encode("utf-8")).decode("utf-8")
 
         if msg_var.get() and encode_var.get():
             openfield_fee_calc = "bmsg=" + base64.b64encode(openfield_fee_calc.encode("utf-8")).decode("utf-8")
-        if msg_var.get() and encode_var.get() == False:
+        if msg_var.get() and not encode_var.get():
             openfield_fee_calc = "msg=" + openfield_fee_calc
         if encrypt_var.get():
             openfield_fee_calc = "enc=" + str(openfield_fee_calc)
@@ -542,11 +544,11 @@ def send_confirm(amount_input, recipient_input, openfield_input):
 
     # encr check
 
-    if encode_var.get() and msg_var.get() == False:
+    if encode_var.get() and not msg_var.get():
         openfield_input = base64.b64encode(openfield_input.encode("utf-8")).decode("utf-8")
     if msg_var.get() and encode_var.get():
         openfield_input = "bmsg=" + base64.b64encode(openfield_input.encode("utf-8")).decode("utf-8")
-    if msg_var.get() and encode_var.get() == False:
+    if msg_var.get() and not encode_var.get():
         openfield_input = "msg=" + openfield_input
     if encrypt_var.get():
         openfield_input = "enc=" + str(openfield_input)

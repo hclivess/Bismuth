@@ -132,7 +132,7 @@ def payout():
             app_log.warning("Encoded Signature: {}".format(signature_enc.decode("utf-8")))
 
             verifier = PKCS1_v1_5.new(key)
-            if verifier.verify(h, signature) == True:
+            if verifier.verify(h, signature):
                 print("The signature is valid, proceeding to save transaction to mempool")
 
                 mempool = sqlite3.connect('mempool.db')

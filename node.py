@@ -2002,7 +2002,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         uptime = int(time.time() - startup_time)
                         diff = difficulty(c)
 
-                        if reveal_address == True:
+                        if reveal_address:
                             revealed_address = address
                         else:
                             revealed_address = "private"

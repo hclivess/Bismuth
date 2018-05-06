@@ -198,7 +198,7 @@ class Peers:
     def peers_test(self, peerlist):
         """Tests all peers from a list."""
         # TODO: lengthy, no need to test everyone at once?
-        if self.peersync_lock.locked() == False and self.config.accept_peers == True:
+        if not self.peersync_lock.locked() and self.config.accept_peers:
             self.peersync_lock.acquire()
 
             drop_peer_dict = []
@@ -234,7 +234,7 @@ class Peers:
 
     def peersync(self, subdata):
         """Got a peers list from a peer, process. From worker()."""
-        if self.peersync_lock.locked() == False and self.config.accept_peers == True:
+        if not self.peersync_lock.locked() and self.config.accept_peers:
             self.peersync_lock.acquire()
 
             # get remote peers into tuples (actually list)
@@ -318,7 +318,7 @@ class Peers:
                 self.consensus_blockheight_list.count(self.consensus) / float(len(self.consensus_blockheight_list)))) * 100
 
             if int(consensus_blockheight) > int(self.consensus) + 30 and self.consensus_percentage > 50 and len(self.consensus_blockheight_list) > 10:
-                if self.warning(sdef, peer_ip, "Consensus deviation too high", 10) == True:
+                if self.warning(sdef, peer_ip, "Consensus deviation too high", 10):
                     raise ValueError("{} banned".format(peer_ip))
 
             return

@@ -172,7 +172,7 @@ while True:
             print("Encoded Signature: {}".format(signature_enc.decode()))
 
             verifier = PKCS1_v1_5.new(key)
-            if verifier.verify(h, base64.b64decode(signature_enc)) == True:
+            if verifier.verify(h, base64.b64decode(signature_enc)):
                 print("Signature OK")
 
             mempool = sqlite3.connect('mempool.db')

@@ -79,11 +79,6 @@ class Mempool:
             self.config = config
             self.db_lock = db_lock
             self.ram = self.config.mempool_ram_conf
-
-            print(self.ram)
-            if self.ram:
-                print("not FALSE!!!")
-
             self.lock = threading.Lock()
             self.peers_lock = threading.Lock()
             # ip: last time sent

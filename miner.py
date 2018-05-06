@@ -274,7 +274,7 @@ def miner(q, privatekey_readable, public_key_hashed, address):
                     signature = signer.sign(h)
                     signature_enc = base64.b64encode(signature)
 
-                    if signer.verify(h, signature) == True:
+                    if signer.verify(h, signature):
                         print("Signature valid")
 
                         block_send.append((str(block_timestamp), str(address[:56]), str(address[:56]), '%.8f' % float(0), str(signature_enc.decode("utf-8")), str(public_key_hashed.decode("utf-8")), "0", str(nonce)))  # mining reward tx
