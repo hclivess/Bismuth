@@ -9,8 +9,8 @@ exchange_address = "MAIN_EXCHANGE_ADDRESS"
 #print ('Number of arguments:', len(sys.argv), 'arguments.')
 #print ('Argument List:', str(sys.argv))
 
-def replace_regex(string, replace):
-    replaced_string = re.sub(r'^{}'.format(replace), "", string)
+def replace_regex_all(string, replace):
+    replaced_string = re.sub(r'{}'.format(replace), "", string)
     return replaced_string
 
 try:
@@ -154,8 +154,8 @@ elif command == "gettransactions":
 
 elif command == "sendtransaction":
     try:
-        arg3 = replace_regex(arg3, "token:issue:")
-        arg3 = replace_regex (arg3, "alias=")
+        arg3 = replace_regex_all(arg3, "token:issue:")
+        arg3 = replace_regex_all(arg3, "alias=")
         arg3.encode().decode()
 
     except:
