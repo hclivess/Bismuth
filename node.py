@@ -1036,7 +1036,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
 
                     diff_drop_time = 300
                     if is_testnet:
-                        diff_drop_time = 600
+                        diff_drop_time = 180
 
                     mining_condition = bin_convert(db_block_hash)[0:int(diff[0])]
 
@@ -1056,7 +1056,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
 
                         elif Decimal(received_timestamp) > Decimal(db_timestamp_last) + Decimal(diff_drop_time): #uses block timestamp, dont merge with diff() for security reasons
                             time_difference = quantize_two(received_timestamp) - quantize_two(db_timestamp_last)
-                            diff_dropped = quantize_ten(diff[0])-quantize_ten(time_difference/600)
+                            diff_dropped = quantize_ten(diff[0])-quantize_ten(time_difference/diff_drop_time)
                             if diff_dropped < 50:
                                 diff_dropped = 50
 
