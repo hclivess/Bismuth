@@ -361,7 +361,8 @@ class Mempool:
             # TEMP
             #print("raw for", peer_ip, len(raw))
             #print("peers_sig", peer_ip, len(peers_sig))
-            filtered = [tx for tx in raw if raw[4] not in peers_sig]
+
+            filtered = [tx for tx in raw if tx[4] not in peers_sig]
             # TEMP
             #print("filtered", peer_ip, len(filtered))
             return filtered
