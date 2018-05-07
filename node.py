@@ -844,6 +844,10 @@ def manager(c):
         app_log.warning("Status: Threads at {} / {}".format(threading.active_count(), thread_limit_conf))
         app_log.info("Status: Syncing nodes: {}".format(syncing))
         app_log.info("Status: Syncing nodes: {}/3".format(len(syncing)))
+        if db_lock.locked():
+            app_log.info ("Status: Database Locked")
+        if mp.MEMPOOL.lock.locked():
+            app_log.info ("Status: Mempool Locked")
 
         # Status display for Peers related info
         peers.status_log()
