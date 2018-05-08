@@ -731,6 +731,7 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2):
 
     if not db_lock.locked():
         db_lock.acquire()
+
         try:
             execute(c, ('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1'))
             results = c.fetchone()
@@ -798,22 +799,20 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2):
                 # rollback indices
 
 
-                db_lock.release()
+        except Exception as e:
+            app_log.info (e)
 
+        finally:
+            db_lock.release ()
 
+            try:
                 for tx in backup_data:
                     tx_short = "{} - {} to {}: {} ({})".format (tx[1], tx[2], tx[3], tx[4], tx[11])
-                    try:
-                        if tx[9] == 0:
-                            app_log.info(mp.MEMPOOL.merge((tx[1], tx[2], tx[3], tx[4], tx[5], tx[6], tx[10], tx[11]), peer_ip, c, False, revert=True))  # will get stuck if you change it to respect db_lock
-                            app_log.warning("Moved tx back to mempool: {}".format (tx_short))
-                    except Exception as e:
-                        app_log.warning ("Failed to move tx back to mempool: {}".format (tx_short))
-                        app_log.info (e)
-                        pass
-
-        except Exception as e:
-            pass
+                    if tx[9] == 0:
+                        app_log.info (mp.MEMPOOL.merge ((tx[1], tx[2], tx[3], tx[4], tx[5], tx[6], tx[10], tx[11]), peer_ip, c, False, revert=True))  # will get stuck if you change it to respect db_lock
+                        app_log.warning ("Moved tx back to mempool: {}".format (tx_short))
+            except Exception as e:
+                app_log.warning ("Error during moving txs back to mempool: {}".format(e))
 
 
 

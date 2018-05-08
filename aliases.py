@@ -48,6 +48,7 @@ def aliases_update(file,ledger,mode,app_log):
         except:
             a.execute("INSERT INTO aliases VALUES (?,?,?)", (openfield[0],openfield[1],alias))
             ali.commit()
+            app_log.warning ("Added alias to the database: {}".format (alias))
 
     conn.close()
     ali.close()
