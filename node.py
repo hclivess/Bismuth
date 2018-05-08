@@ -814,6 +814,9 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2):
             except Exception as e:
                 app_log.warning ("Error during moving txs back to mempool: {}".format(e))
 
+    else:
+        app_log.info("Skipping rollback, other ledger operation in progress")
+
 
 
 def manager(c):
