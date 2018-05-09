@@ -987,6 +987,9 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
                     time_now = time.time()
 
                     global drift_limit
+                    if "testnet" in version:
+                        drift_limit = 5
+
                     if quantize_two(time_now) + drift_limit < quantize_two(received_timestamp):
                         app_log.warning("Future transaction not allowed, timestamp {} minutes in the future".format(quantize_two((quantize_two(received_timestamp) - quantize_two(time_now)) / 60)))
                         block_valid = 0
