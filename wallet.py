@@ -1366,7 +1366,7 @@ def refresh(address, s):
         bl_height_var.set("Block Height: {}".format(bl_height))
         diff_msg_var.set("Mining Difficulty: {}".format(diff_msg))
         sync_msg_var.set(sync_msg)
-        version_var.set("Local Version: {}".format(status_version))
+        version_var.set("Active Version: {}".format(status_version))
         hash_var.set("Hash: {}...".format(hash_last[:6]))
         mempool_count_var.set("Mempool txs: {}".format(len(mempool_total)))
 
