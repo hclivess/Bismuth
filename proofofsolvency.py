@@ -96,7 +96,7 @@ def masternodes_update(c,m, mode, reg_phase_end, app_log):
     print("reg_phase_start", reg_phase_start)
     print("reg_phase_end", reg_phase_end)
 
-    c.execute("SELECT block_height, timestamp, address, recipient, openfield FROM transactions WHERE block_height >= ? AND block_height <= ? AND openfield = ?", (reg_phase_start,) + (reg_phase_end,) + ("masternode:register",))
+    c.execute("SELECT block_height, timestamp, address, recipient, openfield FROM transactions WHERE block_height >= ? AND block_height <= ? AND openfield = ? ORDER BY block_height, timestamp LIMIT 100", (reg_phase_start,) + (reg_phase_end,) + ("masternode:register",))
     results = c.fetchall() #more efficient than "for row in"
 
     for row in results:

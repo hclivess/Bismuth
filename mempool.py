@@ -24,7 +24,7 @@ __version__ = "0.0.4"
 MEMPOOL = None
 
 # remove after hf
-drift_limit = 30
+drift_limit = 0
 
 # If set to true, will always send empty Tx to other peers (but will accept theirs)
 # Only to be used for debug/testing purposes

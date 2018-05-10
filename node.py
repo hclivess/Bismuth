@@ -7,7 +7,7 @@
 # rolling back indexes: 1424 and 945
 
 
-VERSION = "4.2.4.3"
+VERSION = "4.2.4.4"
 
 # Bis specific modules
 import log, options, connections, peershandler, apihandler
@@ -691,7 +691,7 @@ def verify(c):
         # verify genesis
 
         invalid = 0
-        for row in execute(c, ('SELECT * FROM transactions WHERE block_height > 0 and ORDER BY block_height')):
+        for row in execute(c, ('SELECT * FROM transactions WHERE block_height > 0 ORDER BY block_height')):
 
             db_block_height = str(row[0])
             db_timestamp = '%.2f' % (quantize_two(row[1]))
