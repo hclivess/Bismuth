@@ -674,27 +674,28 @@ def balanceget(balance_address, h3):
 
 
 
-def verify(c):
+def verify(h3):
     try:
         app_log.warning("Blockchain verification started...")
         # verify blockchain
-        execute(c, ("SELECT Count(*) FROM transactions"))
-        db_rows = c.fetchone()[0]
+        execute(h3, ("SELECT Count(*) FROM transactions"))
+        db_rows = h3.fetchone()[0]
         app_log.warning("Total steps: {}".format(db_rows))
 
         # verify genesis
-        execute(c, ("SELECT block_height, recipient FROM transactions ORDER BY block_height ASC LIMIT 1"))
-        result = c.fetchall()[0]
-        block_height = result[0]
-        genesis = result[1]
-        app_log.warning("Genesis: {}".format(genesis))
-        if str(genesis) != genesis_conf and int(block_height) == 0:  # change this line to your genesis address if you want to clone
-            app_log.warning("Invalid genesis address")
-            sys.exit(1)
+        if full_ledger:
+            execute(h3, ("SELECT block_height, recipient FROM transactions WHERE block_height = 1"))
+            result = h3.fetchall()[0]
+            block_height = result[0]
+            genesis = result[1]
+            app_log.warning("Genesis: {}".format(genesis))
+            if str(genesis) != genesis_conf and int(block_height) == 0:  # change this line to your genesis address if you want to clone
+                app_log.warning("Invalid genesis address")
+                sys.exit(1)
         # verify genesis
 
         invalid = 0
-        for row in execute(c, ('SELECT * FROM transactions WHERE block_height > 0 AND public_key != 0 ORDER BY block_height')):
+        for row in execute(h3, ('SELECT * FROM transactions WHERE block_height > 1 and reward = 0 ORDER BY block_height')):
 
             db_block_height = str(row[0])
             db_timestamp = '%.2f' % (quantize_two(row[1]))
@@ -705,7 +706,8 @@ def verify(c):
             db_public_key_hashed = str(row[6])[:1068]
             db_public_key = RSA.importKey(base64.b64decode(db_public_key_hashed))
             db_operation = str(row[10])[:30]
-            db_openfield = str(row[11])[:100000]
+            db_openfield = str(row[11]) #no limit for backward compatibility
+
 
             db_transaction = (db_timestamp, db_address, db_recipient, db_amount, db_operation, db_openfield)
 
@@ -715,11 +717,8 @@ def verify(c):
             if verifier.verify(hash, db_signature_dec):
                 pass
             else:
-                app_log.warning("The following transaction is invalid: {}".format(row))
+                app_log.warning("Signature validation problem: {} {}".format(db_block_height,db_transaction))
                 invalid = invalid + 1
-                if db_block_height == str(1):
-                    app_log.warning("Your genesis signature is invalid, someone meddled with the database")
-                    sys.exit(1)
 
         if invalid == 0:
             app_log.warning("All transacitons in the local ledger are valid")
@@ -2525,7 +2524,7 @@ if __name__ == "__main__":
         # connectivity to self node
 
         if verify_conf == 1:
-            verify(c)
+            verify(h3)
 
         if tor_conf == 0:
             # Port 0 means to select an arbitrary unused port
