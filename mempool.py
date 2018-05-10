@@ -614,7 +614,7 @@ class Mempool:
 
                             time_now = time.time()
 
-                            if quantize_two(mempool_timestamp) > quantize_two(time_now) + drift_limit:
+                            if quantize_two(mempool_timestamp) > quantize_two(time_now):
                                 mempool_result.append(
                                     "Mempool: Future transaction not allowed, timestamp {} minutes in the future".
                                     format(quantize_two((quantize_two(mempool_timestamp) - quantize_two(time_now))

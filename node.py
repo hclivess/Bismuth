@@ -676,22 +676,25 @@ def balanceget(balance_address, h3):
 
 def verify(c):
     try:
+        app_log.warning("Blockchain verification started...")
         # verify blockchain
         execute(c, ("SELECT Count(*) FROM transactions"))
         db_rows = c.fetchone()[0]
         app_log.warning("Total steps: {}".format(db_rows))
 
         # verify genesis
-        execute(c, ("SELECT recipient FROM transactions ORDER BY block_height ASC LIMIT 1"))
-        genesis = c.fetchone()[0]
+        execute(c, ("SELECT block_height, recipient FROM transactions ORDER BY block_height ASC LIMIT 1"))
+        result = c.fetchall()[0]
+        block_height = result[0]
+        genesis = result[1]
         app_log.warning("Genesis: {}".format(genesis))
-        if str(genesis) != genesis_conf:  # change this line to your genesis address if you want to clone
-            app_log.info("Invalid genesis address")
+        if str(genesis) != genesis_conf and int(block_height) == 0:  # change this line to your genesis address if you want to clone
+            app_log.warning("Invalid genesis address")
             sys.exit(1)
         # verify genesis
 
         invalid = 0
-        for row in execute(c, ('SELECT * FROM transactions WHERE block_height > 0 ORDER BY block_height')):
+        for row in execute(c, ('SELECT * FROM transactions WHERE block_height > 0 AND public_key != 0 ORDER BY block_height')):
 
             db_block_height = str(row[0])
             db_timestamp = '%.2f' % (quantize_two(row[1]))
@@ -721,9 +724,9 @@ def verify(c):
         if invalid == 0:
             app_log.warning("All transacitons in the local ledger are valid")
 
-    except sqlite3.Error as e:
-        app_log.info("Error %s:" % e.args[0])
-        sys.exit(1)
+    except Exception as e:
+        app_log.warning("Error: {}".format(e))
+        raise
 
 
 def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2):
@@ -2523,7 +2526,6 @@ if __name__ == "__main__":
 
         if verify_conf == 1:
             verify(c)
-
 
         if tor_conf == 0:
             # Port 0 means to select an arbitrary unused port
