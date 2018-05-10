@@ -23,9 +23,6 @@ __version__ = "0.0.4"
 
 MEMPOOL = None
 
-# remove after hf
-drift_limit = 0
-
 # If set to true, will always send empty Tx to other peers (but will accept theirs)
 # Only to be used for debug/testing purposes
 DEBUG_DO_NOT_SEND_TX = False
@@ -327,7 +324,7 @@ class Mempool:
         if peer_ip not in self.peers_sent:
             # New peer
             return True
-        sendable = self.peers_sent[peer_ip] < time.time() - drift_limit
+        sendable = self.peers_sent[peer_ip] < time.time() - 30
         # Temp
         if not sendable:
             pass
@@ -517,7 +514,7 @@ class Mempool:
                             mempool_result.append("Mempool: Negative balance spend attempt")
                             # self.app_log.warning("Mempool: Negative balance spend attempt")
 
-                        if quantize_two(mempool_timestamp) > time.time() + drift_limit:  # dont accept future txs
+                        if quantize_two(mempool_timestamp) > time.time():  # dont accept future txs
                             acceptable = False
 
                         # dont accept old txs, mempool needs to be harsher than ledger
