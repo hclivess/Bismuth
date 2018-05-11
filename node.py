@@ -2410,6 +2410,11 @@ if __name__ == "__main__":
 
         redownload_test = input("Status: Welcome to the testnet. Redownload test ledger? y/n")
         if redownload_test == "y" or not os.path.exists("static/test.db"):
+            types = ['static/test.db-wal', 'static/test.db-shm']
+            for type in types:
+                for file in glob.glob(type):
+                    os.remove(file)
+                    print(file, "deleted")
             download_file("https://bismuth.cz/test.db", "static/test.db")
         else:
             print("Not redownloading test db")
