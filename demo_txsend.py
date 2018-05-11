@@ -1,9 +1,11 @@
 import socks, connections, time
-from Crypto.PublicKey import RSA
+import json
 
 #define private key
-key = RSA.importKey(open('privkey.der').read())
-private_key_readable = str(key.exportKey().decode("utf-8")) #private key must be decoded
+with open ("wallet.der", 'r') as wallet_file:
+    wallet_dict = json.load (wallet_file)
+
+private_key_readable = wallet_dict['Private Key']
 
 #define connection and connect
 s = socks.socksocket()
