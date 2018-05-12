@@ -272,7 +272,7 @@ def all_spend_check():
 
 
 def fingerprint():
-    root.filename = filedialog.askopenfilename (multiple=True, initialdir="", title="Select files for fingerprinting", filetypes=[("Files", "*")])
+    root.filename = filedialog.askopenfilename (multiple=True, initialdir="", title="Select files for fingerprinting")
 
     dict = {}
 
@@ -295,7 +295,7 @@ def keys_load_dialog():
     global private_key_load
     global public_key_load
 
-    wallet_load = filedialog.askopenfilename(multiple=False, initialdir="", title="Select private key", filetypes=[("Wallet", ".der")])
+    wallet_load = filedialog.askopenfilename(multiple=False, initialdir="", title="Select wallet")
 
     key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress = essentials.keys_load_new(wallet_load) #upgrade later, remove blanks
 
@@ -308,7 +308,7 @@ def keys_load_dialog():
 
 
 def keys_backup():
-    root.filename = filedialog.asksaveasfilename(initialdir="", title="Select backup file", filetypes=(("gzip", "*.gz"),))
+    root.filename = filedialog.asksaveasfilename(initialdir="", title="Select backup file")
 
     if not root.filename == "":
         if not root.filename.endswith(".tar.gz"):
@@ -1018,7 +1018,7 @@ def csv_export(s):
     tx_list = connections.receive (s, 10)
     print(tx_list)
 
-    root.filename = filedialog.asksaveasfilename(initialdir="", title="Select CSV file", filetypes=(("CSV", "*.csv"),))
+    root.filename = filedialog.asksaveasfilename(initialdir="", title="Select CSV file")
 
     with open (root.filename, 'w', newline='') as csvfile:
         for transaction in tx_list:
