@@ -18,7 +18,7 @@ class MainHandler(tornado.web.RequestHandler):
         self.write ("<html>")
         self.write ("<head>")
         self.write ("<link rel='stylesheet' type='text/css' href='static/bisdom.css'>")
-        self.write ("<title>Page Title</title>")
+        self.write ("<title>Bisdom</title>")
         self.write ("</head>")
         self.write ("<body>")
 
