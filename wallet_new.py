@@ -1492,12 +1492,9 @@ password_var_dec = StringVar()
 canvas_bg = Canvas(root,highlightthickness=0)
 canvas_bg.grid(row=0, column=0, rowspan=200,columnspan=200,sticky=W + E + S + N)
 
-frame_logo = Frame(root, relief = 'ridge', borderwidth = 4)
-frame_logo.grid(row=0, column=3, pady=5, padx=5)
-
 #frame_main = Frame(root,relief = 'ridge', borderwidth = 4)
 #frame_main.grid(row=0, column=0, pady=5, padx=5)
-#canvas_main = Canvas(tab1,highlightthickness=0,height=0) #height=0 = hack to prevent resizing
+#canvas_main = Canvas(tab_main,highlightthickness=0,height=0) #height=0 = hack to prevent resizing
 #canvas_main.grid(row=0, column=0, sticky=W + E + N + S, columnspan=3,rowspan=2)
 
 
@@ -1506,21 +1503,24 @@ frame_logo.grid(row=0, column=3, pady=5, padx=5)
 #frame_entries_spacer = Frame(frame_entries, width=spacer_width).grid(row=0,sticky=NW) #make canvas text visible
 
 frame_bottom = Frame(root, relief = 'sunken', borderwidth = 1)
-frame_bottom.grid(row=5, column=1, sticky=E+W, pady=5, padx=5)
+frame_bottom.grid(row=5, column=0, sticky='NESW', pady=5, padx=5)
 
 #notebook widget
 nbtabs = ttk.Notebook(root)
-nbtabs.grid(row=1, column=0, columnspan=2, rowspan=4, sticky='NESW')
+nbtabs.grid(row=1, column=0, sticky='NESW', pady=5, padx=5)
 
-#tab1 Main
-tab1 = ttk.Frame(nbtabs)
-nbtabs.add(tab1, text='Main')
+#tab_main Main
+tab_main = ttk.Frame(nbtabs)
+nbtabs.add(tab_main, text='Main')
 
-frame_coins = Frame(tab1, relief = 'flat', borderwidth = 4)
-frame_coins.grid(row=1, column=0, sticky=W + E + N, pady=5, padx=5)
+frame_logo = Frame(tab_main, relief = 'ridge', borderwidth = 4)
+frame_logo.grid(row=0, column=1, pady=5, padx=5 , sticky=E)
+
+frame_coins = Frame(tab_main, relief = 'flat', borderwidth = 4)
+frame_coins.grid(row=0, column=0, sticky=W + E + N, pady=5, padx=5)
 
 
-#frame_mainstats = Frame(tab1, relief = 'ridge', borderwidth = 4)
+#frame_mainstats = Frame(tab_main, relief = 'ridge', borderwidth = 4)
 #frame_mainstats.grid(row=5, column=1, sticky=W + E + N, pady=5, padx=5)
 
 
@@ -1543,26 +1543,26 @@ frame_table.grid(row=1, column=0, sticky=W + E + N, pady=5, padx=5)
 
 #refresh(myaddress, s)
 
-#tab3 sendcoin tab
-tab3 = ttk.Frame(nbtabs)
-nbtabs.add(tab3, text='Send Bismuth')
+#tab_send sendcoin tab
+tab_send = ttk.Frame(nbtabs)
+nbtabs.add(tab_send, text='Send Bismuth')
 
-frame_tick = Frame(tab3,relief = 'ridge', borderwidth = 0)
+frame_tick = Frame(tab_send,relief = 'ridge', borderwidth = 0)
 frame_tick.grid(row=0, column=6, pady=5, padx=5, sticky = S)
 
-frame_entries = Frame(tab3,relief = 'ridge', borderwidth = 0)
+frame_entries = Frame(tab_send,relief = 'ridge', borderwidth = 0)
 frame_entries.grid(row=0, column=1, pady=5, padx=5)
 
-frame_labels = Frame(tab3,relief = 'ridge', borderwidth = 0)
+frame_labels = Frame(tab_send,relief = 'ridge', borderwidth = 0)
 frame_labels.grid(row=0, column=0, pady=5, padx=5, sticky=N+W+E+S)
 
-frame_help = Frame(tab3,relief = 'ridge', borderwidth = 2)
+frame_help = Frame(tab_send,relief = 'ridge', borderwidth = 2)
 frame_help.grid(row=1, column=1, pady=5, padx=5, sticky=N+W+E+S)
 
-frame_helplabel = Frame(tab3,relief = 'ridge', borderwidth = 0)
+frame_helplabel = Frame(tab_send,relief = 'ridge', borderwidth = 0)
 frame_helplabel.grid(row=1, column=0, pady=5, padx=5, sticky=N+W+E+S)
 
-frame_sendbal = Frame(tab3,relief = 'ridge', borderwidth = 0)
+frame_sendbal = Frame(tab_send,relief = 'ridge', borderwidth = 0)
 frame_sendbal.grid(row=0, column=2, pady=5, padx=5, sticky=N+W+E+S)
 
 #tab4 receive
@@ -1731,8 +1731,8 @@ stats_b.grid(row=0, column=0, sticky=N + E, pady=0, padx=15)
 # quit_b = Button(frame_buttons, text="Quit", command=app_quit, height=1, width=10, font=("Tahoma", 8))
 # quit_b.grid(row=16, column=0, sticky=W + E + S, pady=0, padx=15)
 
-frame_logo_buttons = Frame(root, relief = 'ridge', borderwidth = 4)
-frame_logo_buttons.grid(row=0, column=1, sticky=E, pady=5, padx=5)
+frame_logo_buttons = Frame(tab_send, relief = 'ridge', borderwidth = 4)
+frame_logo_buttons.grid(row=5, column=1, sticky=E, pady=5, padx=5)
 
 encrypt_b = Button(frame_logo_buttons, text="Encrypt", command=encrypt_get_password, height=1, width=10)
 encrypt_b.grid(row=0, column=0, sticky=E+W)
@@ -1874,7 +1874,7 @@ data_insert_clear.grid(row=3, column=3, sticky=W)
 gui_copy_address_r = Button(frame_entries_r, text="Copy", command=url_copy, font=("Tahoma", 7))
 gui_copy_address_r.grid(row=4, column=3, sticky=W)
 
-create_url_b = Button(frame_entries_r, text="Create", command=lambda: create_url_clicked(app_log, "pay", myaddress, amount_r.get(), openfield_r.get("1.0", END).strip()), font=("Tahoma", 7))
+create_url_b = Button(frame_entries_r, text="Create", command=lambda: create_url_clicked(app_log, "pay", gui_address_t.get(), amount_r.get(), openfield_r.get("1.0", END).strip()), font=("Tahoma", 7))
 create_url_b.grid(row=4, column=2, sticky=W)
 
 gui_paste_address = Button(frame_entries_t, text="Paste", command=address_insert, font=("Tahoma", 7))
@@ -1933,7 +1933,7 @@ balance_enumerator = Entry(frame_entries, width=5)
 #logo = PhotoImage(data="graphics/logo.png")
 
 
-logo_img = PIL.Image.open("graphics/logo.png")
+logo_img = PIL.Image.open("graphics/logo.jpg")
 logo = PIL.ImageTk.PhotoImage(logo_img)
 
 Label(frame_logo, image=logo).grid(column=0, row=0)
