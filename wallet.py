@@ -1489,7 +1489,7 @@ root.resizable(0, 0) #Don't allow resizing in the x or y direction / resize
 #root['bg']="black"
 
 
-img_icon = PIL.Image.open ("graphics/icon.gif")
+img_icon = PIL.Image.open ("graphics/icon.jpg")
 photo_icon = PIL.ImageTk.PhotoImage (img_icon)
 root.tk.call('wm', 'iconphoto', root._w, photo_icon, )
 
@@ -1701,16 +1701,19 @@ Label(frame_labels, text="Amount:").grid(row=2,sticky=W,pady=5, padx=5)
 Label(frame_labels, text="Data:",height=4).grid(row=3,sticky=W,pady=5, padx=5)
 Label(frame_labels, text="URL:").grid(row=4,sticky=W+S,pady=5, padx=5)
 Label(frame_helplabel, text="Help:").grid(row=0,sticky=W+S,pady=5, padx=5)
-Label(frame_help, text="If you found a BIS-URL, copy it, click paste-button on field URL and then click read.").grid(row=0,sticky=W+S,pady=1, padx=1)
-Label(frame_help, text="If you want to send Bismuth to the shown recipient, click send and then ").grid(row=1,sticky=W+S,pady=1, padx=1)
-Label(frame_help, text="the confirm-dialogue opens. ").grid(row=2,sticky=W+S,pady=1, padx=1)
+Label(frame_help, text="If you have a BIS URL, copy it, click paste-button on URL field and then click 'read'. \n"
+                       "If you want to send Bismuth to the shown recipient, click send and then \n"
+                       "the confirmation dialog opens.", justify=LEFT).grid(row=0,sticky=W+S,pady=1, padx=1)
+
 Label(frame_labels_r, text="Recipient:").grid(row=1,sticky=W,pady=5, padx=5)
 Label(frame_labels_r, text="Amount:").grid(row=2,sticky=W,pady=5, padx=5)
 Label(frame_labels_r, text="Data:",height=4).grid(row=3,sticky=W,pady=5, padx=5)
 Label(frame_labels_r, text="URL:").grid(row=4,sticky=W+S,pady=5, padx=5)
 Label(frame_helplabel_r, text="Help:").grid(row=0,sticky=W+S,pady=5, padx=5)
-Label(frame_help_r, text="Enter amount and if wanted, a message in field Data. Your address is automatically used.").grid(row=0,sticky=W+S,pady=1, padx=1)
-Label(frame_help_r, text="Click create and copy the url. ").grid(row=1,sticky=W+S,pady=1, padx=1)
+
+Label(frame_help_r, text="Enter amount and if wanted, a message in field Data. Your address is automatically used. \n"
+                         "Click create and copy the url.", justify=LEFT).grid(row=0,sticky=W+S,pady=1, padx=1)
+
 
 Label(frame_entries_t, text="Watch Transactions of Address:").grid(row=0, column=0, sticky=W+N,pady=5, padx=5)
 
@@ -1879,8 +1882,11 @@ data_insert_clipboard.grid(row=3, column=2)
 data_insert_clear = Button(frame_entries_r, text="Clear", command=data_insert_clear, font=("Tahoma", 7))
 data_insert_clear.grid(row=3, column=3, sticky=W)
 
-gui_copy_address_r = Button(frame_entries_r, text="Copy", command=url_copy, font=("Tahoma", 7))
-gui_copy_address_r.grid(row=4, column=3, sticky=W)
+gui_copy_address_r = Button(frame_entries_r, text="Copy", command=address_copy, font=("Tahoma", 7))
+gui_copy_address_r.grid(row=0, column=2, sticky=W)
+
+gui_copy_url_r = Button(frame_entries_r, text="Copy", command=url_copy, font=("Tahoma", 7))
+gui_copy_url_r.grid(row=4, column=3, sticky=W)
 
 create_url_b = Button(frame_entries_r, text="Create", command=lambda: create_url_clicked(app_log, "pay", gui_address_t.get(), amount_r.get(), openfield_r.get("1.0", END).strip()), font=("Tahoma", 7))
 create_url_b.grid(row=4, column=2, sticky=W)
