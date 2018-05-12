@@ -1548,6 +1548,7 @@ def themes(theme, canvas_bg, canvas_main):
         canvas_main.delete("all")
 
     else:
+        return #hack
         img_bg = PIL.Image.open ("themes/{}_bg.jpg".format(theme))
         photo_bg = PIL.ImageTk.PhotoImage (img_bg)
         canvas_bg.create_image (0, 0, image=photo_bg, anchor=NW)
@@ -1838,7 +1839,7 @@ balance_enumerator = Entry(frame_entries, width=5)
 #logo = PhotoImage(data="graphics/logo.png")
 
 
-logo_img = PIL.Image.open("graphics/logo.png")
+logo_img = PIL.Image.open("graphics/logo.jpg")
 logo = PIL.ImageTk.PhotoImage(logo_img)
 
 Label(frame_logo, image=logo).grid(column=0, row=0)
