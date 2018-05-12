@@ -1506,7 +1506,7 @@ frame_logo.grid(row=0, column=3, pady=5, padx=5)
 #frame_entries_spacer = Frame(frame_entries, width=spacer_width).grid(row=0,sticky=NW) #make canvas text visible
 
 frame_bottom = Frame(root, relief = 'sunken', borderwidth = 1)
-frame_bottom.grid(row=5, column=1, sticky=E, pady=5, padx=5)
+frame_bottom.grid(row=5, column=1, sticky=E+W, pady=5, padx=5)
 
 #notebook widget
 nbtabs = ttk.Notebook(root)
@@ -1640,7 +1640,7 @@ walletmenu.add_command(label = "Exit", command = root.quit)
 
 messagemenu = Menu(menubar, tearoff=0)
 menubar.add_cascade(label = "Message", menu = messagemenu)
-messagemenu.add_command(label = "Show messages", command = lambda: msg_dialogue(myaddress))
+messagemenu.add_command(label = "Show messages", command = lambda: msg_dialogue(gui_address_t.get()))
 messagemenu.add_command(label = "Sign Messages", command = sign)																						   
 
 def themes(theme, canvas_bg):
