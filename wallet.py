@@ -1049,44 +1049,28 @@ def token_issue(token, amount, window):
 
 
 def tokens():
-    if "testnet" not in version:
-        index_db = "static/index_test.db"
-    else:
-        index_db = "static/index.db"
 
-    tokens_update(index_db, "static/ledger.db", "normal", app_log)  # catch up with the chain
-
-
-    address = myaddress
     tokens_main = Toplevel()
     tokens_main.title("Tokens")
-
-    """
-    tok = sqlite3.connect(index_db)
-    tok.text_factory = str
-    t = tok.cursor()
-
-    t.execute("SELECT DISTINCT token FROM tokens WHERE address OR recipient = ?", (address,))
-    tokens_user = t.fetchall()
-    print("tokens_user", tokens_user)
 
     token_box = Listbox(tokens_main, width=100)
     token_box.grid(row=0, pady=0)
 
-    for token in tokens_user:
-        token = token[0]
-        t.execute("SELECT sum(amount) FROM tokens WHERE recipient = ? AND token = ?;", (address,) + (token,))
-        credit = t.fetchone()[0]
-        t.execute("SELECT sum(amount) FROM tokens WHERE address = ? AND token = ?;", (address,) + (token,))
-        debit = t.fetchone()[0]
 
-        debit = 0 if debit is None else debit
-        credit = 0 if credit is None else credit
 
-        balance = Decimal(credit) - Decimal(debit)
 
-        token_box.insert(END, (token, ":", balance))
-"""
+
+    connections.send(s, "tokensget", 10)
+    connections.send(s, gui_address_t.get(), 10)
+    tokens_results = connections.receive(s, 10)
+    print(tokens_results)
+
+    for pair in tokens_results:
+        token = pair[0]
+        balance = pair[1]
+        token_box.insert (END, (token, ":", balance))
+
+
     # callback
     def callback(event):
         token_select = (token_box.get(token_box.curselection()[0]))
