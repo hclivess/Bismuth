@@ -1159,12 +1159,42 @@ def table(address, addlist_20, mempool_total):
 
         if tx[1] == address:
             tx_tree.insert ('', 'end', text=datetime.fromtimestamp(float(tx[0])).strftime('%y-%m-%d %H:%M'), values=(tx[1], tx[2], tx[3], "?"), tags = tag)
+
+
+#aliases
+    addlist_addressess = []
+    reclist_addressess = []
+
     for tx in addlist_20:
+        addlist_addressess.append(tx[2])  # append address
+        reclist_addressess.append(tx[3])  # append recipient
+
+    if resolve_var.get() == 1:
+        connections.send(s, "aliasesget", 10)  # senders
+        connections.send(s, addlist_addressess, 10)
+        aliases_address_results = connections.receive(s, 10)
+        print(aliases_address_results)
+
+        connections.send(s, "aliasesget", 10)  # recipients
+        connections.send(s, reclist_addressess, 10)
+        aliases_rec_results = connections.receive(s, 10)
+
+
+        for index, tx in enumerate (addlist_20):
+            print(index, tx)
+            tx[2] = aliases_address_results[index]
+            tx[3] = aliases_rec_results[index]
+# aliases
+
+
+    for tx in addlist_20:
+
 
         if tx[3] == gui_address_t.get():
             tag = "received"
         else:
             tag = "sent"
+
 
         if Decimal(tx[9]) > 0:
             symbol = "MIN"

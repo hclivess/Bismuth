@@ -1822,11 +1822,13 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "aliasget":  # all for a single address, no protection against overlapping
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
+                        aliases.aliases_update (index_db, ledger_path_conf, "normal", app_log)
+
                         alias_address = connections.receive(self.request, 10)
 
-                        execute_param(h3, ("SELECT openfield FROM transactions WHERE address = ? AND openfield LIKE ?;"), (alias_address, "alias=" + '%',))
+                        execute_param(index_cursor, ("SELECT alias FROM aliases WHERE address = ? "), (alias_address,))
 
-                        result = h3.fetchall()
+                        result = index_cursor.fetchall()
 
                         if not result:
                             result = [[alias_address]]
@@ -1835,6 +1837,27 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     else:
                         app_log.info("{} not whitelisted for aliasget command".format(peer_ip))
 
+
+                elif data == "aliasesget":  # only gets the first one, for multiple addresses
+                    # if (peer_ip in allowed or "any" in allowed):
+                    if peers.is_allowed(peer_ip, data):
+                        aliases.aliases_update (index_db, ledger_path_conf, "normal", app_log)
+
+                        aliases_request = connections.receive(self.request, 10)
+
+                        results = []
+                        for alias_address in aliases_request:
+                            execute_param (index_cursor, ("SELECT alias FROM aliases WHERE address = ? ORDER BY block_height ASC LIMIT 1"), (alias_address,))
+                            try:
+                                result = index_cursor.fetchall()[0][0]
+                            except:
+                                result = alias_address
+                            results.append(result)
+                            print(result)
+
+                        connections.send(self.request, results, 10)
+                    else:
+                        app_log.info("{} not whitelisted for aliasesget command".format(peer_ip))
 
                 elif data == "tokensget":
                     # if (peer_ip in allowed or "any" in allowed):
@@ -1865,39 +1888,16 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     else:
                         app_log.info("{} not whitelisted for tokensget command".format(peer_ip))
 
-
-                elif data == "aliasesget":  # only gets the first one, for multiple addresses
-                    # if (peer_ip in allowed or "any" in allowed):
-                    if peers.is_allowed(peer_ip, data):
-                        aliases_request = connections.receive(self.request, 10)
-
-                        results = []
-                        for x in aliases_request:
-                            execute_param(h3, ("SELECT openfield FROM transactions WHERE address = ? AND openfield LIKE ? ORDER BY block_height ASC LIMIT 1;"), (x,) + ("alias=" + '%',))
-                            try:
-                                result = h3.fetchall()[0][0]
-                            except:
-                                result = x
-                            results.append(result)
-
-                        connections.send(self.request, results, 10)
-                    else:
-                        app_log.info("{} not whitelisted for aliasesget command".format(peer_ip))
-
-
                 elif data == "addfromalias":
                     if peers.is_allowed(peer_ip, data):
 
                         aliases.aliases_update(index_db, ledger_path_conf, "normal", app_log)
 
-                        ali = sqlite3.connect(index_db)
-                        ali.text_factory = str
-                        a = ali.cursor()
 
                         alias_address = connections.receive(self.request, 10)
-                        a.execute("SELECT address FROM aliases WHERE alias = ? ORDER BY block_height ASC LIMIT 1;", (alias_address,))  # asc for first entry
+                        index_cursor.execute("SELECT address FROM aliases WHERE alias = ? ORDER BY block_height ASC LIMIT 1;", (alias_address,))  # asc for first entry
                         try:
-                            address_fetch = a.fetchone()[0]
+                            address_fetch = index_cursor.fetchone()[0]
                         except:
                             address_fetch = "No alias"
                         app_log.warning("Fetched the following alias address: {}".format(address_fetch))
