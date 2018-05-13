@@ -281,6 +281,16 @@ def db_to_drive(hdd, h, hdd2, h2):
 
     app_log.warning("Ledger updated successfully")
 
+def index_define():
+    if "testnet" in version:
+        index_db = "static/index_test.db"
+    else:
+        index_db = "static/index.db"
+    index = sqlite3.connect(index_db, timeout=1)
+    index.text_factory = str
+    index_cursor = index.cursor()
+    index.execute("PRAGMA page_size = 4096;")
+    return index, index_cursor
 
 def db_h_define():
     hdd = sqlite3.connect(ledger_path_conf, timeout=1)
@@ -1439,6 +1449,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     hdd, h = None, None
                     h3 = h2
 
+                index, index_cursor = index_define()
+
                 # Failsafe
                 if self.request == -1:
                     raise ValueError("Inbound: Closed socket from {}".format(peer_ip))
@@ -1824,6 +1836,36 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         app_log.info("{} not whitelisted for aliasget command".format(peer_ip))
 
 
+                elif data == "tokensget":
+                    # if (peer_ip in allowed or "any" in allowed):
+
+                    if peers.is_allowed(peer_ip, data):
+                        tokens.tokens_update (index_db, ledger_path_conf, "normal", app_log)
+                        tokens_address = connections.receive(self.request, 10)
+
+                        index_cursor.execute ("SELECT DISTINCT token FROM tokens WHERE address OR recipient = ?", (tokens_address,))
+                        tokens_user = index_cursor.fetchall ()
+
+                        tokens_list = []
+                        for token in tokens_user:
+                            token = token[0]
+                            index_cursor.execute ("SELECT sum(amount) FROM tokens WHERE recipient = ? AND token = ?;", (tokens_address,) + (token,))
+                            credit = index_cursor.fetchone ()[0]
+                            index_cursor.execute ("SELECT sum(amount) FROM tokens WHERE address = ? AND token = ?;", (tokens_address,) + (token,))
+                            debit = index_cursor.fetchone ()[0]
+
+                            debit = 0 if debit is None else debit
+                            credit = 0 if credit is None else credit
+
+                            balance = str(Decimal (credit) - Decimal (debit))
+
+                            tokens_list.append((token,balance))
+
+                        connections.send(self.request, tokens_list, 10)
+                    else:
+                        app_log.info("{} not whitelisted for tokensget command".format(peer_ip))
+
+
                 elif data == "aliasesget":  # only gets the first one, for multiple addresses
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
@@ -1845,11 +1887,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                 elif data == "addfromalias":
                     if peers.is_allowed(peer_ip, data):
-
-                        if "testnet" in version:
-                            index_db = "static/index_test.db"
-                        else:
-                            index_db = "static/index.db"
 
                         aliases.aliases_update(index_db, ledger_path_conf, "normal", app_log)
 

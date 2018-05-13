@@ -1,4 +1,4 @@
-#add manual refresh, message announcement, move resolve aliases, move watch and add functionality, rename!!!!!!!!
+#add manual refresh, move resolve aliases, move watch and add functionality, rename!!!!!!!!, add block browser, add remote token support
 
 # icons created using http://www.winterdrache.de/freeware/png2ico/
 
@@ -1056,10 +1056,12 @@ def tokens():
 
     tokens_update(index_db, "static/ledger.db", "normal", app_log)  # catch up with the chain
 
+
     address = myaddress
     tokens_main = Toplevel()
     tokens_main.title("Tokens")
 
+    """
     tok = sqlite3.connect(index_db)
     tok.text_factory = str
     t = tok.cursor()
@@ -1084,7 +1086,7 @@ def tokens():
         balance = Decimal(credit) - Decimal(debit)
 
         token_box.insert(END, (token, ":", balance))
-
+"""
     # callback
     def callback(event):
         token_select = (token_box.get(token_box.curselection()[0]))

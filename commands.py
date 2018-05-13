@@ -215,6 +215,12 @@ def aliasget(socket, arg1):
     alias_results = connections.receive(s, 10)
     print (alias_results)
 
+def tokensget(socket, arg1):
+    connections.send(s, "tokensget", 10)
+    connections.send(s, arg1, 10)
+    tokens_results = connections.receive(s, 10)
+    print (tokens_results)
+
 def addfromalias(socket, arg1):
     connections.send(s, "addfromalias", 10)
     connections.send(s, arg1, 10)
@@ -267,6 +273,9 @@ if command == "mpinsert":
 
 if command == "aliasget":
     aliasget(s, arg1)
+
+if command == "tokensget":
+    tokensget(s, arg1)
 
 if command == "addvalidate":
     addvalidate(s, arg1)
