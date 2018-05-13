@@ -1200,11 +1200,11 @@ def table(address, addlist_20, mempool_total):
         db_openfield = row[11]
 
         datasheet.append(db_amount + db_reward)
-        if Decimal(db_reward) > 0:
+        if Decimal(row[4]) > 0:
             symbol = "Mined"
-        elif db_openfield.startswith("bmsg"):
+        elif row[11].startswith("bmsg"):
             symbol = "b64 Message"
-        elif db_openfield.startswith("msg"):
+        elif row[11].startswith("msg"):
             symbol = "Message"
         else:
             symbol = "Transaction"

@@ -126,9 +126,8 @@ def mempool_get(s):
         mp_tree.grid (sticky=N+S+W+E)
         #table
 
-        for transaction in mempool_total:
-            mp_tree.insert('', 'end',text=transaction[0], values=(transaction[1],transaction[2],transaction[3]))
-            print("transaction",transaction)
+        for tx in mempool_total:
+            mp_tree.insert('', 'end',text=datetime.fromtimestamp(float(tx[0])).strftime('%y-%m-%d %H:%M'), values=(tx[1],tx[2],tx[3]))
 
         clear_mempool_b = Button (mempool_window, text="Clear Mempool", command=lambda: mempool_clear (s), height=1, width=20, font=("Tahoma", 8))
         clear_mempool_b.grid (row=1, column=0, sticky=N + S + W + E)
@@ -1131,149 +1130,53 @@ def table(address, addlist_20, mempool_total):
     # transaction table
     # data
 
-    datasheet = ["Time", "From", "To", "Amount", "Type"]
 
-    # show mempool txs
+    tx_tree = ttk.Treeview (tab_transactions, selectmode="extended", columns=('sender', 'recipient', 'amount', 'type'),height=20)
+    tx_tree.grid(row=1, column=0)
 
-    colors = []
+    # table
+    tx_tree.heading ("#0", text='time')
+    tx_tree.column ("#0", anchor='center', width=100)
+
+    tx_tree.heading ("#1", text='sender')
+    tx_tree.column ("#1", anchor='center', width=347)
+
+    tx_tree.heading ("#2", text='recipient')
+    tx_tree.column ("#2", anchor='center', width=347)
+
+    tx_tree.heading ("#3", text='amount')
+    tx_tree.column ("#3", anchor='center', width=35)
+
+    tx_tree.heading ("#4", text='type')
+    tx_tree.column ("#4", anchor='center', width=40)
+
+    tx_tree.grid (sticky=N + S + W + E)
 
     for tx in mempool_total:
         if tx[1] == address:
-            datasheet.append("Unconfirmed")
-            datasheet.append(tx[1])
-            datasheet.append(tx[2])
-            datasheet.append(tx[3])
-            datasheet.append("Transaction")
-            colors.append("bisque")
+            tx_tree.insert ('', 'end', text=datetime.fromtimestamp(float(tx[0])).strftime('%y-%m-%d %H:%M'), values=(tx[1], tx[2], tx[3], "unconfirmed"), tags = tag)
+    for tx in addlist_20:
 
-    # show mempool txs
-
-    # retrieve aliases in bulk
-
-    addlist_addressess = []
-    reclist_addressess = []
-
-    for x in addlist_20:
-        addlist_addressess.append(x[2])  # append address
-        reclist_addressess.append(x[3])  # append recipient
-    # print(addlist_addressess)
-
-    # define row color
-
-    for x in addlist_20:
-        if x[3] == address:
-            colors.append("green4")
+        if tx[3] == gui_address_t.get():
+            tag = "received"
         else:
-            colors.append("indianred")
-    # define row color
+            tag = "sent"
 
-    if resolve_var.get() == 1:
-        connections.send(s, "aliasesget", 10)  # senders
-        connections.send(s, addlist_addressess, 10)
-        aliases_address_results = connections.receive(s, 10)
-        # print(aliases_address_results)
-
-        connections.send(s, "aliasesget", 10)  # recipients
-        connections.send(s, reclist_addressess, 10)
-        aliases_rec_results = connections.receive(s, 10)
-        # print(aliases_rec_results)
-    # retrieve aliases in bulk
-
-    i = 0
-    for row in addlist_20:
-
-        db_timestamp = row[1]
-        datasheet.append(datetime.fromtimestamp(Decimal(db_timestamp)).strftime('%Y-%m-%d %H:%M:%S'))
-
-        if resolve_var.get():
-            db_address = replace_regex(aliases_address_results[i], "alias=")
+        if Decimal(tx[9]) > 0:
+            symbol = "MIN"
+        elif tx[11].startswith("bmsg"):
+            symbol = "B64M"
+        elif tx[11].startswith("msg"):
+            symbol = "MSG"
         else:
-            db_address = row[2]
+            symbol = "TX"
 
-        datasheet.append(db_address)
+        tx_tree.insert ('', 'end', text=datetime.fromtimestamp(float(tx[1])).strftime('%y-%m-%d %H:%M'), values=(tx[2], tx[3], tx[4],symbol), tags = tag)
 
-        if resolve_var.get():
-            db_recipient = replace_regex(aliases_rec_results[i], "alias=")
+    tx_tree.tag_configure ("received", background='palegreen1')
+    tx_tree.tag_configure ("sent", background='chocolate1')
 
-        else:
-            db_recipient = row[3]
-
-        datasheet.append(db_recipient)
-
-        db_amount = row[4]
-        db_reward = row[9]
-        db_openfield = row[11]
-
-        datasheet.append(db_amount + db_reward)
-        if Decimal(db_reward) > 0:
-            symbol = "Mined"
-        elif db_openfield.startswith("bmsg"):
-            symbol = "b64 Message"
-        elif db_openfield.startswith("msg"):
-            symbol = "Message"
-        else:
-            symbol = "Transaction"
-        datasheet.append(symbol)
-
-        i = i + 1
-    # data
-
-    app_log.warning(datasheet)
-    app_log.warning(len(datasheet))
-
-    if len(datasheet) == 5:
-        app_log.warning("Looks like a new address")
-        table_limit = 0
-        frame_table.configure(height=1)
-
-    elif len(datasheet) < 20 * 5:
-        app_log.warning(len(datasheet))
-        table_limit = len(datasheet) / 5
-    else:
-        table_limit = 20
-
-
-    k = 0
-
-    for child in frame_table.winfo_children():  # prevent hangup
-        child.destroy()
-
-    for i in range(int(table_limit)):
-        for j in range(5):
-            datasheet_compare = [datasheet[k], datasheet[k - 1], datasheet[k - 2], datasheet[k - 3], datasheet[k - 4]]
-
-            if "Time" in datasheet_compare:  # header
-                e = Entry(frame_table, width=0)
-                e.configure(readonlybackground='linen')
-
-            elif j == 0:  # first row
-                e = Entry(frame_table, width=0)
-                e.configure(readonlybackground='linen')
-
-            elif "Unconfirmed" in datasheet_compare:  # unconfirmed txs
-                e = Entry(frame_table, width=0)
-                e.configure(readonlybackground='linen')
-
-            elif j == 3:  # sent
-                e = Entry(frame_table, width=0)
-                e.configure(readonlybackground=colors[i - 1])
-
-            elif j == 4:  # last row
-                e = Entry(frame_table, width=0)
-                e.configure(readonlybackground='bisque')
-
-            else:
-                e = Entry(frame_table, width=56)
-                e.configure(readonlybackground='bisque')
-
-            e.grid(row=i + 1, column=j, sticky=EW)
-            e.insert(END, datasheet[k])
-            e.configure(state="readonly")
-
-            k = k + 1
-
-            # transaction table
-            # refreshables
+    # table
 
 
 
@@ -1419,8 +1322,12 @@ def refresh(address, s):
         all_spend_check()
 
 
-    except:
-        node_connect()
+    except Exception as e:
+        app_log.warning(e)
+        if debug_level:
+            raise
+        else:
+            node_connect()
 
 
 def sign():
