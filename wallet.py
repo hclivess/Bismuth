@@ -186,6 +186,7 @@ def node_connect():
 
             s.connect((ip, int(port)))
             app_log.warning("Status: Wallet connected to {}".format(ip))
+            ip_connected_var.set("Node: {}".format(ip))
 
             connections.send(s, "statusget", 10)
             result = connections.receive (s, 10) #validate the connection
@@ -1369,20 +1370,19 @@ def refresh(address, s):
         bl_height_var.set("Block Height: {}".format(bl_height))
         diff_msg_var.set("Mining Difficulty: {}".format(diff_msg))
         sync_msg_var.set(sync_msg)
-        version_var.set("Active Version: {}".format(status_version))
+
         hash_var.set("Hash: {}...".format(hash_last[:6]))
         mempool_count_var.set("Mempool txs: {}".format(len(mempool_total)))
 
         connections.send(s, "annverget", 10)
         annverget = connections.receive(s, 10)
-        current_var.set(annverget)
-        current_var.set("Latest version: {}".format(annverget))
+        version_var.set ("Version: {}/{}".format (status_version,annverget))
 
-        if status_version != annverget:
-            version_color = "red"
-        else:
-            version_color = "green"
-        version_var_label.config (fg=version_color)
+        #if status_version != annverget:
+        #    version_color = "red"
+        #else:
+        #    version_color = "green"
+        #version_var_label.config (fg=version_color)
 
 
         connections.send(s, "addlistlim", 10)
@@ -1803,6 +1803,10 @@ bl_height_var = StringVar()
 block_height_label = Label(frame_bottom, textvariable=bl_height_var)
 block_height_label.grid(row=0, column=7, sticky=S + E, padx=5)
 
+ip_connected_var = StringVar()
+ip_connected_label = Label(frame_bottom, textvariable=ip_connected_var)
+ip_connected_label.grid(row=0, column=8, sticky=S + E, padx=5)
+
 diff_msg_var = StringVar()
 diff_msg_label = Label(frame_bottom, textvariable=diff_msg_var)
 diff_msg_label.grid(row=0, column=5, sticky=S + E, padx=5)
@@ -1823,9 +1827,6 @@ mempool_count_var = StringVar()
 mempool_count_var_label = Label(frame_bottom, textvariable=mempool_count_var)
 mempool_count_var_label.grid(row=0, column=3, sticky=S + E, padx=5)
 
-current_var = StringVar()
-current_var_label = Label(frame_bottom, textvariable=current_var)
-current_var_label.grid(row=0, column=1, sticky=N + E, padx=15)
 
 ann_var = StringVar()
 ann_var_text = Text(frame_logo, width=20, height=4, font=("Tahoma", 8))
