@@ -1166,35 +1166,44 @@ def table(address, addlist_20, mempool_total):
     reclist_addressess = []
 
     for tx in addlist_20:
-        addlist_addressess.append(tx[2])  # append address
-        reclist_addressess.append(tx[3])  # append recipient
 
-    if resolve_var.get() == 1:
+
+        addlist_addressess.append (tx[2])  # append address
+        reclist_addressess.append (tx[3])  # append recipient
+
+    if resolve_var.get():
         connections.send(s, "aliasesget", 10)  # senders
         connections.send(s, addlist_addressess, 10)
         aliases_address_results = connections.receive(s, 10)
-        print(aliases_address_results)
 
         connections.send(s, "aliasesget", 10)  # recipients
         connections.send(s, reclist_addressess, 10)
         aliases_rec_results = connections.receive(s, 10)
 
-
         for index, tx in enumerate (addlist_20):
-            print(index, tx)
             tx[2] = aliases_address_results[index]
             tx[3] = aliases_rec_results[index]
 # aliases
 
+    #bind local address to local alias
+    if resolve_var.get():
+        connections.send (s, "aliasesget", 10)  # local
+        connections.send (s, [gui_address_t.get()], 10)
+        alias_local_result = connections.receive (s, 10)[0]
+    # bind local address to local alias
 
     for tx in addlist_20:
-
-
         if tx[3] == gui_address_t.get():
             tag = "received"
         else:
             tag = "sent"
 
+        #case for alias = this address
+        if resolve_var.get ():
+            print (tx[3], alias_local_result)
+            if tx[3] == alias_local_result:
+                tag = "received"
+        # case for alias = this address
 
         if Decimal(tx[9]) > 0:
             symbol = "MIN"
@@ -1207,8 +1216,8 @@ def table(address, addlist_20, mempool_total):
 
         tx_tree.insert ('', 'end', text=datetime.fromtimestamp(float(tx[1])).strftime('%y-%m-%d %H:%M'), values=(tx[2], tx[3], tx[4],symbol), tags = tag)
 
-    tx_tree.tag_configure ("received", background='palegreen1')
-    tx_tree.tag_configure ("sent", background='chocolate1')
+        tx_tree.tag_configure ("received", background='palegreen1')
+        tx_tree.tag_configure ("sent", background='chocolate1')
 
     # table
 
