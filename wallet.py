@@ -1153,8 +1153,10 @@ def table(address, addlist_20, mempool_total):
     tx_tree.grid (sticky=N + S + W + E)
 
     for tx in mempool_total:
+        tag = "mempool"
+
         if tx[1] == address:
-            tx_tree.insert ('', 'end', text=datetime.fromtimestamp(float(tx[0])).strftime('%y-%m-%d %H:%M'), values=(tx[1], tx[2], tx[3], "unconfirmed"), tags = tag)
+            tx_tree.insert ('', 'end', text=datetime.fromtimestamp(float(tx[0])).strftime('%y-%m-%d %H:%M'), values=(tx[1], tx[2], tx[3], "?"), tags = tag)
     for tx in addlist_20:
 
         if tx[3] == gui_address_t.get():
