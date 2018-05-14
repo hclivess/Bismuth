@@ -179,9 +179,10 @@ def node_connect():
     for ip in light_ip:
 
         try:
+            app_log.warning("Status: Attempting to connect to {} our of {}".format(ip,light_ip))
             global s
             s = socks.socksocket ()
-            s.settimeout (3)
+            s.settimeout (0.3)
 
             s.connect((ip, int(port)))
             app_log.warning("Status: Wallet connected to {}".format(ip))
@@ -193,7 +194,7 @@ def node_connect():
 
         except Exception as e:
             app_log.warning("Status: Cannot connect to {}".format(ip))
-            time.sleep(1)
+
 
 
 def replace_regex(string, replace):
@@ -1351,10 +1352,7 @@ def refresh(address, s):
 
     except Exception as e:
         app_log.warning(e)
-        if debug_level:
-            raise
-        else:
-            node_connect()
+        node_connect()
 
 
 def sign():
