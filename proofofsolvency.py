@@ -79,7 +79,7 @@ def masternodes_update(c,m, mode, reg_phase_end, app_log):
         raise ValueError ("Wrong value for masternodes_update function")
 
 
-    m.execute("CREATE TABLE IF NOT EXISTS masternodes (block_height INTEGER, timestamp NUMERIC, address, balance)")
+    m.execute("CREATE TABLE IF NOT EXISTS masternodes (block_height INTEGER, timestamp NUMERIC, address, balance, ip)")
     mas.commit()
 
 
@@ -96,7 +96,7 @@ def masternodes_update(c,m, mode, reg_phase_end, app_log):
     print("reg_phase_start", reg_phase_start)
     print("reg_phase_end", reg_phase_end)
 
-    c.execute("SELECT block_height, timestamp, address, recipient, openfield FROM transactions WHERE block_height >= ? AND block_height <= ? AND openfield = ? ORDER BY block_height, timestamp LIMIT 100", (reg_phase_start,) + (reg_phase_end,) + ("masternode:register",))
+    c.execute("SELECT block_height, timestamp, address, recipient,operation, openfield FROM transactions WHERE block_height >= ? AND block_height <= ? AND command = ? ORDER BY block_height, timestamp LIMIT 100", (reg_phase_start,) + (reg_phase_end,) + ("masternode:register",))
     results = c.fetchall() #more efficient than "for row in"
 
     for row in results:
@@ -105,9 +105,8 @@ def masternodes_update(c,m, mode, reg_phase_end, app_log):
         address = row[2]
         openfield_split = row[4].split(":")
 
-        #ip = openfield_split[1]
-        print("openfield_split",openfield_split)
-        #print("ip",ip)
+        print("operation_split",openfield_split)
+        ip = row[5] #openfield
 
         try:
             m.execute("SELECT * from masternodes WHERE address = ?", (address,))
@@ -118,7 +117,7 @@ def masternodes_update(c,m, mode, reg_phase_end, app_log):
             balance = balanceget(address, c)[0]
 
             if quantize_eight(balance) >= 10000:
-                m.execute("INSERT INTO masternodes VALUES (?, ?, ?, ?)", (block_height, timestamp, address, balance))
+                m.execute("INSERT INTO masternodes VALUES (?, ?, ?, ?, ?)", (block_height, timestamp, address, balance, ip))
                 mas.commit()
             else:
                 app_log.warning("Insufficient balance for masternode")
@@ -149,7 +148,7 @@ def masternodes_payout(c,m,block_height,timestamp,app_log):
             app_log.warning ("Masternode operation already processed: {} {}".format(block_height,address))
 
         except:
-            c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",(-block_height,timestamp,"masternode",address,stake,"0","0","0","0","0","0","0",))
+            c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",(-block_height,timestamp,"masternode",address,stake,"0","0","0","0","0","Masternode Payout","0",))
             conn.commit()
 
 

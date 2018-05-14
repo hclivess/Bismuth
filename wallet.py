@@ -1648,7 +1648,11 @@ Label(frame_help_r, text="Enter amount and if wanted, a message in field Data. Y
                          "Click create and copy the url.", justify=LEFT).grid(row=0,sticky=W+S,pady=1, padx=1)
 
 
-Label(frame_entries_t, text="Watch Transactions of Address:").grid(row=0, column=0, sticky=W+N,pady=5, padx=5)
+Label(frame_entries_t, text="Address:").grid(row=0, column=0, sticky=W+N,pady=5, padx=5)
+
+resolve_var = BooleanVar()
+resolve = Checkbutton(frame_entries_t, text="Aliases", variable=resolve_var, command=lambda: refresh(gui_address_t.get(), s), width=14, anchor=W)
+resolve.grid(row=0, column=5, sticky=W)
 
 #canvas
 
@@ -1773,7 +1777,6 @@ encode_var = BooleanVar()
 alias_cb_var = BooleanVar()
 msg_var = BooleanVar()
 encrypt_var = BooleanVar()
-resolve_var = BooleanVar()
 all_spend_var = BooleanVar()
 
 # address and amount
@@ -1832,7 +1835,7 @@ gui_watch = Button(frame_entries_t, text="Watch", command=watch, font=("Tahoma",
 gui_watch.grid(row=0, column=3, sticky=W)
 
 
-gui_unwatch = Button(frame_entries_t, text="Unwatch", command=unwatch, font=("Tahoma", 7))
+gui_unwatch = Button(frame_entries_t, text="Reset", command=unwatch, font=("Tahoma", 7))
 gui_unwatch.grid(row=0, column=4, sticky=W, padx = (0,5))
 
 
@@ -1868,8 +1871,6 @@ msg.grid(row=1, column=0, sticky=W)
 encr = Checkbutton(frame_tick, text="Encrypt with PK", variable=encrypt_var, command=all_spend_check, width=14, anchor=W)
 encr.grid(row=2, column=0, sticky=W)
 
-resolve = Checkbutton(frame_tick, text="Resolve Aliases", variable=resolve_var, command=lambda: refresh(gui_address_t.get(), s), width=14, anchor=W)
-resolve.grid(row=3, column=0, sticky=W)
 
 alias_cb = Checkbutton(frame_tick, text="Alias Recipient", variable=alias_cb_var, command=None, width=14, anchor=W)
 alias_cb.grid(row=4, column=0, sticky=W)
