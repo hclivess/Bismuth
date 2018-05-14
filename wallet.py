@@ -304,8 +304,8 @@ def keys_load_dialog():
 
     encryption_button_refresh()
 
-    gui_address.delete(0, END)
-    gui_address.insert(INSERT, myaddress)
+    gui_address_t.delete(0, END)
+    gui_address_t.insert(INSERT, myaddress)
 
     refresh(myaddress, s)
 
@@ -1330,14 +1330,14 @@ def refresh(address, s):
         width_root = root.winfo_width ()
         height_root = root.winfo_height ()
 
-        # frame_main.update()
+        #frame_main.update()
         width_main = tab_main.winfo_width ()
         height_main = tab_main.winfo_height ()
 
-        print (height_main, width_main)
-        print (height_root, width_root)
-
         canvas_main.configure (width=width_main, height=height_main)
+        #photo_main.resize (width_main,height_main)
+
+
         #canvas bg
 
         connections.send(s, "annget", 10)
@@ -1590,7 +1590,10 @@ def themes(theme):
         #photo_bg = PIL.ImageTk.PhotoImage (img_bg)
         #canvas_bg.create_image (0, 0, image=photo_bg, anchor=NW)
 
-        main_bg = PIL.Image.open ("themes/{}.jpg".format(theme))
+        width_main = tab_main.winfo_width ()
+        height_main = tab_main.winfo_height ()
+
+        main_bg = PIL.Image.open ("themes/{}.jpg".format(theme)).resize((width_main,height_main), PIL.Image.ANTIALIAS)
         photo_main = PIL.ImageTk.PhotoImage (main_bg)
         canvas_main.create_image (0, 0, image=photo_main, anchor=NW)
 
@@ -1600,13 +1603,6 @@ def themes(theme):
 if not os.path.exists("theme"):
     with open("theme", "w") as theme_file:
         theme_file.write ("Barebone")
-try:
-    themes(open("theme", "r").read()) #load last selected theme
-except:
-    with open("theme", "w") as theme_file:
-        theme_file.write ("Barebone")
-
-
 
 theme_menu = Menu(menubar, tearoff=0)
 
@@ -1892,5 +1888,11 @@ Label(frame_logo, image=logo).grid(column=0, row=0)
 
 node_connect()
 refresh_auto()
+
+try:
+    themes(open("theme", "r").read()) #load last selected theme
+except:
+    with open("theme", "w") as theme_file:
+        theme_file.write ("Barebone")
 
 root.mainloop()
