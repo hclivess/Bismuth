@@ -79,7 +79,7 @@ def masternodes_update(c,m, mode, reg_phase_end, app_log):
         raise ValueError ("Wrong value for masternodes_update function")
 
 
-    m.execute("CREATE TABLE IF NOT EXISTS masternodes (block_height INTEGER, timestamp NUMERIC, address, balance, ip)")
+    m.execute("CREATE TABLE IF NOT EXISTS masternodes (block_height INTEGER, timestamp NUMERIC, address, balance, ip, delegate)")
     mas.commit()
 
 
@@ -106,7 +106,8 @@ def masternodes_update(c,m, mode, reg_phase_end, app_log):
         openfield_split = row[4].split(":")
 
         print("operation_split",openfield_split)
-        ip = row[5] #openfield
+        ip = openfield_split[0] #openfield
+        delegate = openfield_split[1]
 
         try:
             m.execute("SELECT * from masternodes WHERE address = ?", (address,))
@@ -117,7 +118,7 @@ def masternodes_update(c,m, mode, reg_phase_end, app_log):
             balance = balanceget(address, c)[0]
 
             if quantize_eight(balance) >= 10000:
-                m.execute("INSERT INTO masternodes VALUES (?, ?, ?, ?, ?)", (block_height, timestamp, address, balance, ip))
+                m.execute("INSERT INTO masternodes VALUES (?, ?, ?, ?, ?, ?)", (block_height, timestamp, address, balance, ip, delegate))
                 mas.commit()
             else:
                 app_log.warning("Insufficient balance for masternode")
