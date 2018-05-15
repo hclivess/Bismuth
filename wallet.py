@@ -1294,7 +1294,7 @@ def refresh(address, s):
         # fees_current_var.set("Current Fee: {}".format('%.8f' % float(fee)))
         balance_var.set("Balance: {:.8f} BIS".format(Decimal(balance)))
         balance_raw.set(balance)
-        debit_var.set("Spent Total: {:.8f} BIS".format(Decimal(debit)))
+        debit_var.set("Sent Total: {:.8f} BIS".format(Decimal(debit)))
         credit_var.set("Received Total: {:.8f} BIS".format(Decimal(credit)))
         fees_var.set("Fees Paid: {:.8f} BIS".format(Decimal(fees)))
         rewards_var.set("Rewards: {:.8f} BIS".format(Decimal(rewards)))

@@ -518,13 +518,13 @@ def execute_param(cursor, query, param):
 
 
 def difficulty(c):
-    if is_testnet:
-        execute(c, "SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 2")
-        result = c.fetchone()
-        timestamp_last = Decimal(result[1])
-        block_height = int(result[0])
-        timestamp_before_last = Decimal(c.fetchone()[1])
+    execute (c, "SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 2")
+    result = c.fetchone ()
+    timestamp_last = Decimal (result[1])
+    block_height = int (result[0])
+    timestamp_before_last = Decimal (c.fetchone ()[1])
 
+    if is_testnet or block_height > 700000:
         execute_param(c, ("SELECT timestamp FROM transactions WHERE CAST(block_height AS INTEGER) > ? AND reward != 0 ORDER BY timestamp ASC LIMIT 2"), (block_height - 1441,))
         timestamp_1441 = Decimal(c.fetchone()[0])
         block_time_prev = (timestamp_before_last - timestamp_1441) / 1440
@@ -574,12 +574,6 @@ def difficulty(c):
 
 
     else:
-        execute (c, "SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 2")
-        result = c.fetchone ()
-        timestamp_last = Decimal (result[1])
-        block_height = int (result[0])
-        timestamp_before_last = Decimal (c.fetchone ()[1])
-
         execute_param (c, ("SELECT timestamp FROM transactions WHERE CAST(block_height AS INTEGER) > ? AND reward != 0 ORDER BY timestamp ASC LIMIT 2"), (block_height - 1441,))
         timestamp_1441 = Decimal (c.fetchone ()[0])
         block_time_prev = (timestamp_before_last - timestamp_1441) / 1440
@@ -999,7 +993,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
                     time_now = time.time()
 
                     global drift_limit
-                    if "testnet" in version:
+                    if "testnet" in version or db_block_height > 700000:
                         drift_limit = 0
 
                     if quantize_two(time_now) + drift_limit < quantize_two(received_timestamp):
@@ -1048,12 +1042,12 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
                     mining_hash = bin_convert(hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
 
                     diff_drop_time = 300
-                    if is_testnet:
+                    if is_testnet or db_block_height > 700000:
                         diff_drop_time = 180
 
                     mining_condition = bin_convert(db_block_hash)[0:int(diff[0])]
 
-                    if "testnet" in version:
+                    if "testnet" in version or db_block_height > 700000:
                         if mining_condition in mining_hash:  # simplified comparison, no backwards mining
                             app_log.info ("Difficulty requirement satisfied for block {} from {}".format (block_height_new, peer_ip))
                             diff_save = diff[0]
