@@ -445,8 +445,8 @@ def lock_fn(button):
     key = None
     decrypt_b.configure(text="Unlock", state=NORMAL)
     lock_b.configure(text="Locked", state=DISABLED)
-    sign_b.configure(text="Sign (locked)", state=DISABLED)
-    recover_b.configure(text="Recover (locked)", state=DISABLED)
+    messagemenu.entryconfig ("Sign Messages", state=DISABLED)  # messages
+    walletmenu.entryconfig ("Recovery", state=DISABLED)  # recover
     password_var_dec.set("")
 
 
