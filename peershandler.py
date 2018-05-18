@@ -3,12 +3,16 @@ Peers handler module for Bismuth nodes
 @EggPoolNet
 """
 
-import json, time, re, os
+# import json
+import time
+import re
+import os
+import sys
 import threading
 
 import socks
 
-__version__ = "0.0.5"
+__version__ = "0.0.6"
 
 
 # TODO : some config options are _conf and others without => clean up later on
@@ -39,7 +43,7 @@ class Peers:
         self.consensus_blockheight_list = []
         self.consensus_percentage = 0
         self.consensus = None
-        self.tried = []
+        self.tried = {}
         self.peer_dict = {}
         self.connection_pool = []
         # We store them apart from the initial config, could diverge somehow later on.
@@ -49,7 +53,7 @@ class Peers:
 
         self.peerlist = "peers.txt"
         self.suggested_peerlist = "suggested_peers.txt"
-        if self.is_testnet: #overwrite for testnet
+        if self.is_testnet:  # overwrite for testnet
             self.peerlist = "peers_test.txt"
             self.suggested_peerlist = "suggested_peers_test.txt"
 
@@ -58,7 +62,6 @@ class Peers:
         self.peers_test(self.peerlist)
         self.peers_test(self.suggested_peerlist)
 
-
     @property
     def is_testnet(self):
         """Helper to check if testnet or not. Only one place to change variable names and test"""
@@ -66,7 +69,7 @@ class Peers:
 
     def status_dict(self):
         """Returns a status as a dict"""
-        status={"version":self.config.VERSION,"stats":self.stats}
+        status = {"version": self.config.VERSION, "stats": self.stats}
         return status
 
     def peers_save(self, peerlist, peer_ip):
@@ -104,8 +107,13 @@ class Peers:
             pass
 
     def append_client(self, client):
+        """
+        :param client: a string "ip:port"
+        :return:
+        """
         # TODO: thread safe?
         self.connection_pool.append(client)
+        self.del_try(client)
 
     def remove_client(self, client):
         # TODO: thread safe?
@@ -150,7 +158,6 @@ class Peers:
                     self.app_log.warning("Skipping peerlist entry because of wrong format: {}".format(line))
         return peer_dict
 
-
     def peer_list(self, peerlist):
         """Returns a peerlist as is, simple text format"""
         # TODO: caching and format to handle here
@@ -190,7 +197,7 @@ class Peers:
 
     def is_whitelisted(self, peer_ip, command=''):
         # TODO: could be handled later on via "allowed" and rights.
-        return peer_ip in self.whitelist or "127.0.0.1" ==peer_ip
+        return peer_ip in self.whitelist or "127.0.0.1" == peer_ip
 
     def is_banned(self, peer_ip):
         return peer_ip in self.banlist
@@ -205,23 +212,21 @@ class Peers:
             peer_dict = self.peers_get(peerlist)
 
             for key, value in peer_dict.items():
-                HOST = key
-                PORT = int(value)
-
+                host, port = key, int(value)
                 try:
                     s = socks.socksocket()
                     s.settimeout(0.6)
                     if self.config.tor_conf == 1:
                         s.settimeout(5)
                         s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                    s.connect((HOST, PORT))
+                    s.connect((host, port))
                     s.close()
-                    self.app_log.info("Connection to {} {} successful, keeping the peer".format(HOST ,PORT))
+                    self.app_log.info("Connection to {} {} successful, keeping the peer".format(host, port))
                 except:
                     if self.config.purge_conf == 1 and not self.is_testnet:
                         # remove from peerlist if not connectible
                         drop_peer_dict.append(key)
-                        self.app_log.info("Removed formerly active peer {} {}".format(HOST, PORT))
+                        self.app_log.info("Removed formerly active peer {} {}".format(host, port))
                     pass
 
             output = open(peerlist, 'w')
@@ -230,7 +235,6 @@ class Peers:
                     output.write("('" + key + "', '" + value + "')\n")
             output.close()
             self.peersync_lock.release()
-
 
     def peersync(self, subdata):
         """Got a peers list from a peer, process. From worker()."""
@@ -279,7 +283,6 @@ class Peers:
         else:
             self.app_log.info("Outbound: Peer sync occupied")
 
-
     def consensus_add(self, peer_ip, consensus_blockheight, sdef, last_block):
         # obviously too old blocks, we have half a day worth of validated blocks after them
         # no ban, they can (should) be syncing but they can't possibly be in consensus list.
@@ -288,7 +291,7 @@ class Peers:
             if peer_ip not in self.peer_ip_list:
                 if consensus_blockheight < too_old:
                     # should change to .info later on
-                    self.app_log.warning("{} got too old a block ({}) for consensus".format(peer_ip,consensus_blockheight));
+                    self.app_log.warning("{} got too old a block ({}) for consensus".format(peer_ip, consensus_blockheight))
                     return
                 self.app_log.info("Adding {} to consensus peer list".format(peer_ip))
                 self.peer_ip_list.append(peer_ip)
@@ -306,7 +309,7 @@ class Peers:
                     del self.consensus_blockheight_list[consensus_index]  # remove ip's opinion
                     if consensus_blockheight < too_old:
                         # should change to .info later on
-                        self.app_log.warning("{} got too old a block ({})for consensus".format(peer_ip,consensus_blockheight));
+                        self.app_log.warning("{} got too old a block ({})for consensus".format(peer_ip, consensus_blockheight))
                         return
                     self.app_log.info("Updating {} in consensus".format(peer_ip))
                     self.peer_ip_list.append(peer_ip)
@@ -326,7 +329,6 @@ class Peers:
             self.app_log.info(e)
             raise
 
-
     def consensus_remove(self, peer_ip):
         try:
             self.app_log.info("Consensus opinion list: {}".format(self.consensus_blockheight_list))
@@ -338,61 +340,129 @@ class Peers:
             self.app_log.info("IP of {} not present in the consensus pool".format(peer_ip))
             pass
 
+    def can_connect_to(self, host, port):
+        """
+        Tells if we can connect to this host
+        :param host:
+        :param port:
+        :return:
+        """
+        if host in self.banlist:
+            return False  # Banned IP
+        host_port = host + ":" + str(port)
+        if host_port in self.connection_pool:
+            return False  # Already connected to
+        try:
+            tries, timeout = self.tried[host_port]
+        except:
+            tries, timeout = 0, 0  # unknown host for now, never tried.
+        if timeout > time.time():
+            return False  # We tried before, timeout is not expired.
+        if self.is_whitelisted(host):
+            return True  # whitelisted peers are always connectible, without variability condition.
+        # variability test.
+        c_class = '.'.join(host.split('.')[:-1]) + '.'
+        matching = [ip_port for ip_port in self.connection_pool if c_class in ip_port]
+        # If we already have 2 peers from that C ip class in our connection pool, ignore.
+        if len(matching) >= 2:
+            # Temp debug
+            self.app_log.warning("Ignoring {} since we already have 2 ips of that C Class in our pool.".format(host_port))
+            return False
+        # Else we can
+        return True
+
+    def add_try(self, host, port):
+        """
+        Add the host to the tried dict with matching timeout depending on its state.
+        :param host:
+        :param port:
+        :return:
+        """
+        host_port = host + ":" + str(port)
+        try:
+            tries, timeout = self.tried[host_port]
+        except:
+            tries, timeout = 0, 0
+        if tries <= 0:  # First time can be temp, retry again
+            delay = 30
+        elif tries == 1:  # second time, give it 5 minutes
+            delay = 5*60
+        elif tries == 2:  # third time, give it 15 minutes
+            delay = 15 * 60
+        else:  # 30 minutes before trying again
+            delay = 30*60
+        tries += 1
+        if tries > 3:
+            tries = 3
+        self.tried[host_port] = (tries, time.time() + delay)
+        # Temp
+        self.app_log.warning("Set timeout {} try {} for {}".format(delay, tries, host_port))
+
+    def del_try(self, host, port=None):
+        """
+        Remove the peer from tried list. To be called when we successfully connected.
+        :param host: an ip as a string, or an "ip:port" string
+        :param port: optional, port as an int
+        :return:
+        """
+        try:
+            if port:
+                host_port = host + ":" + str(port)
+            else:
+                host_port = host
+            if host_port in self.tried:
+                del self.tried[host_port]
+        except Exception as e:
+            print(e)
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+            print(exc_type, fname, exc_tb.tb_lineno)
+
     def manager_loop(self, target=None):
         """Manager loop called every 30 sec. Handles maintenance"""
-        variability = [] #prevent ip range attack (excluding inc conns)
-        del variability [:]
-        variable = []
-        del variable [:]
 
         for key, value in self.peer_dict.items():
-            variability.append(key.split(".")[:-1])
-
-        for x in variability:
-            if variability.count(x) < 3:
-                variable.append(".".join(x))
-
-        for key, value in self.peer_dict.items():
-            HOST = key
-            PORT = int(value)
-
-            for x in variable:
-                if x in HOST:
-                    if self.is_testnet:
-                        PORT = 2829
-
-                    if threading.active_count()/3 < self.config.thread_limit_conf and str(HOST + ":" + str(PORT)) not in self.tried and str(HOST + ":" + str(PORT)) not in self.connection_pool and str(HOST) not in self.banlist:
-                        self.app_log.info("Will attempt to connect to {}:{}".format(HOST, PORT))
-                        self.tried.append(HOST + ":" + str(PORT))
-                        t = threading.Thread(target=target, args=(HOST, PORT))  # threaded connectivity to nodes here
-                        self.app_log.info("---Starting a client thread " + str(threading.currentThread()) + "---")
-                        t.daemon = True
-                        t.start()
+            host = key
+            port = int(value)
+            if self.is_testnet:
+                port = 2829
+            if threading.active_count()/3 < self.config.thread_limit_conf and self.can_connect_to(host, port):
+                self.app_log.warning("Will attempt to connect to {}:{}".format(host, port))
+                self.add_try(host, port)
+                t = threading.Thread(target=target, args=(host, port))  # threaded connectivity to nodes here
+                self.app_log.info("---Starting a client thread " + str(threading.currentThread()) + "---")
+                t.daemon = True
+                t.start()
 
         # TODO: 15 s after start is too short for all peers to have been tested, rework needed.
-        if int(time.time() - self.startup_time) > 15: #refreshes peers from drive
+        if int(time.time() - self.startup_time) > 15:  # refreshes peers from drive
             self.peer_dict.update(self.peers_get(self.peerlist))
 
-        if len(self.consensus_blockheight_list) < 3 and int(time.time() - self.startup_time) > 15: #join in random peers after x seconds
+        if len(self.consensus_blockheight_list) < 3 and int(time.time() - self.startup_time) > 15:
+            # join in random peers after x seconds
             self.app_log.warning("Not enough peers in consensus, joining in peers suggested by other nodes")
             self.peer_dict.update(self.peers_get(self.suggested_peerlist))
 
-        if len(self.connection_pool) < self.config.nodes_ban_reset and int(time.time() - self.startup_time) > 15: #do not reset before 30 secs have passed
+        if len(self.connection_pool) < self.config.nodes_ban_reset and int(time.time() - self.startup_time) > 15:
+            # do not reset before 30 secs have passed
             self.app_log.warning("Only {} connections active, resetting banlist".format(len(self.connection_pool)))
             del self.banlist[:]
-            self.banlist.extend(self.config.banlist) # reset to config version
+            self.banlist.extend(self.config.banlist)  # reset to config version
             del self.warning_list[:]
 
         if len(self.connection_pool) < 10:
             self.app_log.warning("Only {} connections active, resetting the connection history".format(len(self.connection_pool)))
-            del self.tried[:]
+            # TODO: only reset large timeouts, or we end up trying the sames over and over if we never get to 10.
+            # self.
+            self.tried.clear()
 
-        if self.config.nodes_ban_reset and len(self.connection_pool) <= len(self.banlist) and int(time.time() - self.reset_time) > 60*10: #do not reset too often. 10 minutes here
+        if self.config.nodes_ban_reset and len(self.connection_pool) <= len(self.banlist) and int(time.time() - self.reset_time) > 60*10:
+            # do not reset too often. 10 minutes here
             self.app_log.warning("Less active connections ({}) than banlist ({}), resetting banlist and tried" .format(len(self.connection_pool), len(self.banlist)))
             del self.banlist[:]
-            self.banlist.extend(self.config.banlist) # reset to config version
+            self.banlist.extend(self.config.banlist)  # reset to config version
             del self.warning_list[:]
-            del self.tried[:]
+            self.tried.clear()
             self.reset_time = time.time()
 
     def status_log(self):
