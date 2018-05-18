@@ -425,7 +425,8 @@ class Peers:
         """
         limit = time.time() + 12*60  # matches 2.5 tries :)
         remove = [client for client in self.tried if self.tried[client][1] > limit]
-        for client in remove: del self.tried[client]
+        for client in remove: 
+            del self.tried[client]
 
     def manager_loop(self, target=None):
         """Manager loop called every 30 sec. Handles maintenance"""
