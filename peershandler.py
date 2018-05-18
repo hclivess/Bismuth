@@ -418,6 +418,15 @@ class Peers:
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
             print(exc_type, fname, exc_tb.tb_lineno)
 
+    def reset_tried(self):
+        """
+        Remove the older timeouts from the tried list. Keep the recent ones or we end up trying the first ones again and again
+        :return:
+        """
+        limit = time.time() + 12*60  # matches 2.5 tries :)
+        remove = [client for client in self.tried if self.tried[client][1] > limit]
+        for client in remove: del self.tried[client]
+
     def manager_loop(self, target=None):
         """Manager loop called every 30 sec. Handles maintenance"""
 
@@ -454,7 +463,7 @@ class Peers:
             self.app_log.warning("Only {} connections active, resetting the connection history".format(len(self.connection_pool)))
             # TODO: only reset large timeouts, or we end up trying the sames over and over if we never get to 10.
             # self.
-            self.tried.clear()
+            self.reset_tried()
 
         if self.config.nodes_ban_reset and len(self.connection_pool) <= len(self.banlist) and int(time.time() - self.reset_time) > 60*10:
             # do not reset too often. 10 minutes here
@@ -462,7 +471,7 @@ class Peers:
             del self.banlist[:]
             self.banlist.extend(self.config.banlist)  # reset to config version
             del self.warning_list[:]
-            self.tried.clear()
+            self.reset_tried()
             self.reset_time = time.time()
 
     def status_log(self):
