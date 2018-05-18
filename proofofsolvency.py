@@ -18,13 +18,20 @@ def execute_param(cursor, query, param):
             app_log.warning("Database retry reason: {}".format(e))
     return cursor
 
-def balanceget(balance_address, c):
-    base = mp.MEMPOOL.fetchall ("SELECT amount, openfield FROM transactions WHERE address = ?;", (balance_address,))
+def balanceget(balance_address, h3):
+    # verify balance
+
+    # app_log.info("Mempool: Verifying balance")
+    # app_log.info("Mempool: Received address: " + str(balance_address))
+
+
+    base_mempool = mp.MEMPOOL.fetchall ("SELECT amount, openfield FROM transactions WHERE address = ?;", (balance_address,))
 
     # include mempool fees
+
     debit_mempool = 0
-    if base:
-        for x in base:
+    if base_mempool:
+        for x in base_mempool:
             debit_tx = Decimal(x[0])
             fee = fee_calculate(x[1])
             debit_mempool = quantize_eight(debit_mempool + debit_tx + fee)
@@ -33,7 +40,7 @@ def balanceget(balance_address, c):
     # include mempool fees
 
     credit_ledger = Decimal ("0")
-    for entry in execute_param (c, ("SELECT amount FROM transactions WHERE recipient = ?;"), (balance_address,)):
+    for entry in execute_param (h3, ("SELECT amount FROM transactions WHERE recipient = ?;"), (balance_address,)):
         try:
             credit_ledger = quantize_eight (credit_ledger) + quantize_eight (entry[0])
             credit_ledger = 0 if credit_ledger is None else credit_ledger
@@ -43,7 +50,7 @@ def balanceget(balance_address, c):
     fees = Decimal ("0")
     debit_ledger = Decimal ("0")
 
-    for entry in execute_param (c, ("SELECT fee, amount FROM transactions WHERE address = ?;"), (balance_address,)):
+    for entry in execute_param (h3, ("SELECT fee, amount FROM transactions WHERE address = ?;"), (balance_address,)):
         try:
             fees = quantize_eight (fees) + quantize_eight (entry[0])
             fees = 0 if fees is None else fees
@@ -59,7 +66,7 @@ def balanceget(balance_address, c):
     debit = quantize_eight (debit_ledger + debit_mempool)
 
     rewards = Decimal ("0")
-    for entry in execute_param (c, ("SELECT reward FROM transactions WHERE recipient = ?;"), (balance_address,)):
+    for entry in execute_param (h3, ("SELECT reward FROM transactions WHERE recipient = ?;"), (balance_address,)):
         try:
             rewards = quantize_eight (rewards) + quantize_eight (entry[0])
             rewards = 0 if rewards is None else rewards
@@ -67,9 +74,9 @@ def balanceget(balance_address, c):
             rewards = 0
 
     balance = quantize_eight (credit_ledger - debit - fees + rewards)
-    # balance_pre = float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)
+    balance_no_mempool = float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)
     # app_log.info("Mempool: Projected transction address balance: " + str(balance))
-    return str (balance), str (credit_ledger), str (debit), str (fees), str (rewards)
+    return str (balance), str (credit_ledger), str (debit), str (fees), str (rewards), str(balance_no_mempool)
 
 
 
@@ -115,7 +122,7 @@ def masternodes_update(c,m, mode, reg_phase_end, app_log):
             app_log.warning("Masternode already registered: {}".format(address))
         except:
             print("address",address)
-            balance = balanceget(address, c)[0]
+            balance = balanceget(address, c)[5]
 
             if quantize_eight(balance) >= 10000:
                 m.execute("INSERT INTO masternodes VALUES (?, ?, ?, ?, ?, ?)", (block_height, timestamp, address, balance, ip, delegate))
@@ -169,7 +176,7 @@ def masternodes_revalidate(c,m,app_log):
         print ("address", address)
         balance_savings = masternode[3]
         print("balance_savings",balance_savings)
-        balance = balanceget (address, c)[0]
+        balance = balanceget (address, c)[5]
         print ("balance", balance)
         if quantize_eight(balance) < 10000:
             m.execute("DELETE FROM masternodes WHERE address = ?",(address,))

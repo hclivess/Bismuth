@@ -622,13 +622,13 @@ def balanceget(balance_address, h3):
     # app_log.info("Mempool: Received address: " + str(balance_address))
 
 
-    base = mp.MEMPOOL.fetchall ("SELECT amount, openfield FROM transactions WHERE address = ?;", (balance_address,))
+    base_mempool = mp.MEMPOOL.fetchall ("SELECT amount, openfield FROM transactions WHERE address = ?;", (balance_address,))
 
     # include mempool fees
 
     debit_mempool = 0
-    if base:
-        for x in base:
+    if base_mempool:
+        for x in base_mempool:
             debit_tx = Decimal(x[0])
             fee = fee_calculate(x[1])
             debit_mempool = quantize_eight(debit_mempool + debit_tx + fee)
@@ -671,9 +671,9 @@ def balanceget(balance_address, h3):
             rewards = 0
 
     balance = quantize_eight (credit_ledger - debit - fees + rewards)
-    # balance_pre = float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)
+    balance_no_mempool = float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)
     # app_log.info("Mempool: Projected transction address balance: " + str(balance))
-    return str (balance), str (credit_ledger), str (debit), str (fees), str (rewards)
+    return str (balance), str (credit_ledger), str (debit), str (fees), str (rewards), str(balance_no_mempool)
 
 
 
