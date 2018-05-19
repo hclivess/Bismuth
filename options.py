@@ -58,7 +58,7 @@ class Get:
                 elif params[0] == "list":
                     right = [item.strip() for item in right.split(",")]
                 elif params[0] == "bool":
-                    if right == "False":
+                    if right.lower() in ["false", "0", "", "no"]:
                         right = False
                     else:
                         right = True
