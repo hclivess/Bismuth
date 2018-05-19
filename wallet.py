@@ -1117,6 +1117,9 @@ def table(address, addlist_20, mempool_total):
     # transaction table
     # data
 
+    for child in tab_transactions.winfo_children():  # prevent hangup
+        if type(child) == ttk.Treeview:
+            child.destroy()
 
     tx_tree = ttk.Treeview (tab_transactions, selectmode="extended", columns=('sender', 'recipient', 'amount', 'type'),height=20)
     tx_tree.grid(row=1, column=0)
