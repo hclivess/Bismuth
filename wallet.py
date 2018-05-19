@@ -1,4 +1,4 @@
-#add manual refresh, move resolve aliases, move watch and add functionality, rename!!!!!!!!, add block browser, add remote token support
+#add manual refresh, objectify
 
 # icons created using http://www.winterdrache.de/freeware/png2ico/
 
@@ -179,7 +179,7 @@ def node_connect():
     for ip in light_ip:
 
         try:
-            app_log.warning("Status: Attempting to connect to {} our of {}".format(ip,light_ip))
+            app_log.warning("Status: Attempting to connect to {} out of {}".format(ip,light_ip))
             global s
             s = socks.socksocket ()
             s.settimeout (0.3)
@@ -370,7 +370,7 @@ def data_insert():
     openfield.insert(INSERT, root.clipboard_get())
 def data_insert_r():
     openfield_r.delete('1.0', END)  # remove previous
-    openfield_r.insert(INSERT, root.clipboard_get())																 
+    openfield_r.insert(INSERT, root.clipboard_get())
 
 def url_insert():
     url.delete(0, END)  # remove previous
@@ -1492,40 +1492,21 @@ frame_table.grid(row=1, column=0, sticky=W + E + N, pady=5, padx=5)
 tab_send = ttk.Frame(nbtabs)
 nbtabs.add(tab_send, text='Send Bismuth')
 
-frame_tick = Frame(tab_send,relief = 'ridge', borderwidth = 0)
-frame_tick.grid(row=1, column=2, pady=5, padx=5, sticky = S)
+frame_entries = Frame(tab_send)
+frame_entries.grid(row=0, column=0, pady=5, padx=5, sticky=N+W+E+S)
 
-frame_entries = Frame(tab_send,relief = 'ridge', borderwidth = 0)
-frame_entries.grid(row=0, column=1, pady=5, padx=5)
+frame_send = Frame(tab_send,relief = 'ridge', borderwidth = 1)
+frame_send.grid(row=0, column=2, pady=5, padx=5, sticky = N)
 
-frame_labels = Frame(tab_send,relief = 'ridge', borderwidth = 0)
-frame_labels.grid(row=0, column=0, pady=5, padx=5, sticky=N+W+E+S)
-
-frame_help = Frame(tab_send,relief = 'ridge', borderwidth = 2)
-frame_help.grid(row=1, column=1, pady=5, padx=5, sticky=N+W+E+S)
-
-frame_helplabel = Frame(tab_send,relief = 'ridge', borderwidth = 0)
-frame_helplabel.grid(row=1, column=0, pady=5, padx=5, sticky=N+W+E+S)
-
-frame_sendbal = Frame(tab_send,relief = 'ridge', borderwidth = 0)
-frame_sendbal.grid(row=0, column=2, pady=5, padx=5, sticky=N+W+E+S)
+frame_tick = Frame(frame_send,relief = 'ridge', borderwidth = 1)
+frame_tick.grid(row=4, column=0, pady=5, padx=5, sticky = S)
 
 #tab_receive receive
 tab_receive = ttk.Frame(nbtabs)
 nbtabs.add(tab_receive, text='Receive Bismuth')
 
 frame_entries_r = Frame(tab_receive,relief = 'ridge', borderwidth = 0)
-frame_entries_r.grid(row=0, column=1, pady=5, padx=5)
-
-frame_labels_r = Frame(tab_receive,relief = 'ridge', borderwidth = 0)
-frame_labels_r.grid(row=0, column=0, pady=5, padx=5, sticky=N+W+E+S)
-
-frame_help_r = Frame(tab_receive,relief = 'ridge', borderwidth = 2)
-frame_help_r.grid(row=1, column=1, pady=5, padx=5, sticky=N+W+E+S)
-
-frame_helplabel_r = Frame(tab_receive,relief = 'ridge', borderwidth = 0)
-frame_helplabel_r.grid(row=1, column=0, pady=5, padx=5, sticky=N+W+E+S)
-
+frame_entries_r.grid(row=0, column=0, pady=5, padx=5, sticky=N+W+E+S)
 
 recipient_address = Entry(frame_entries_r, width=60, text = myaddress)
 recipient_address.insert(0, myaddress)
@@ -1627,24 +1608,26 @@ miscmenu.add_command(label = "Tokens", command = tokens)
 miscmenu.add_command(label="Help", command=help)
 
 #labels
-Label(frame_labels, text="My Address:").grid(row=0,sticky=W+N,pady=5, padx=5)
-Label(frame_labels, text="Recipient:").grid(row=1,sticky=W,pady=5, padx=5)
-Label(frame_labels, text="Amount:").grid(row=2,sticky=W,pady=5, padx=5)
-Label(frame_labels, text="Data:",height=4).grid(row=3,sticky=W,pady=5, padx=5)
-Label(frame_labels, text="URL:").grid(row=4,sticky=W+S,pady=5, padx=5)
-Label(frame_helplabel, text="Help:").grid(row=0,sticky=W+S,pady=5, padx=5)
-Label(frame_help, text="If you have a BIS URL, copy it, click paste-button on URL field and then click 'read'. \n"
-                       "If you want to send Bismuth to the shown recipient, click send and then \n"
-                       "the confirmation dialog opens.", justify=LEFT).grid(row=0,sticky=W+S,pady=1, padx=1)
+Label(frame_entries, text="My Address:").grid(row=0,sticky=W+N,pady=5, padx=5)
+Label(frame_entries, text="Recipient:").grid(row=1,sticky=W,pady=5, padx=5)
+Label(frame_entries, text="Amount:").grid(row=2,sticky=W,pady=5, padx=5)
+Label(frame_entries, text="Data:",height=4).grid(row=3,sticky=W,pady=5, padx=5)
+Label(frame_entries, text="Command:",height=4).grid(row=4,sticky=W,pady=5, padx=5)
+Label(frame_entries, text="URL:").grid(row=5,sticky=W+S,pady=5, padx=5)
+Label(frame_entries, text="If you have a BIS URL, copy it, click paste-button  \n"
+                          "on URL field and then click 'read'."
+                          "If you want to send Bismuth \n"
+                          " to the shown recipient, click send and then \n"
+                          "the confirmation dialog opens.", justify=LEFT).grid(row=6,column=1,sticky=W+S,pady=1, padx=1,columnspan=2)
 
-Label(frame_labels_r, text="Recipient:").grid(row=1,sticky=W,pady=5, padx=5)
-Label(frame_labels_r, text="Amount:").grid(row=2,sticky=W,pady=5, padx=5)
-Label(frame_labels_r, text="Data:",height=4).grid(row=3,sticky=W,pady=5, padx=5)
-Label(frame_labels_r, text="URL:").grid(row=4,sticky=W+S,pady=5, padx=5)
-Label(frame_helplabel_r, text="Help:").grid(row=0,sticky=W+S,pady=5, padx=5)
+Label(frame_entries_r, text="Recipient:").grid(row=0,sticky=W,pady=5, padx=5)
+Label(frame_entries_r, text="Amount:").grid(row=2,sticky=W,pady=5, padx=5)
+Label(frame_entries_r, text="Data:",height=4).grid(row=3,sticky=W,pady=5, padx=5)
+Label(frame_entries_r, text="URL:").grid(row=4,sticky=W+S,pady=5, padx=5)
 
-Label(frame_help_r, text="Enter amount and if wanted, a message in field Data. Your address is automatically used. \n"
-                         "Click create and copy the url.", justify=LEFT).grid(row=0,sticky=W+S,pady=1, padx=1)
+
+Label(frame_entries_r, text="Enter amount and if wanted, a message in field Data.\n"
+                            "Your address is automatically used. Click create and copy the url.", justify=LEFT).grid(row=5,column=1,sticky=W+S,pady=1, padx=1,columnspan=2)
 
 
 Label(frame_entries_t, text="Address:").grid(row=0, column=0, sticky=W+N,pady=5, padx=5)
@@ -1666,27 +1649,18 @@ root.config(menu=menubar)
 # buttons
 
 
-send_b = Button(frame_sendbal, text="Send Bismuth", command=lambda: send_confirm(str(amount.get()).strip(), recipient.get().strip(), (openfield.get("1.0", END)).strip()), height=2, width=20, font=("Tahoma", 12))
-send_b.grid(row=0, column=0, sticky=N + E, pady=5, padx=15)
+send_b = Button(frame_send, text="Send Bismuth", command=lambda: send_confirm(str(amount.get()).strip(), recipient.get().strip(), (openfield.get("1.0", END)).strip()), height=2, width=22, font=("Tahoma", 12))
+send_b.grid(row=0, column=0)
 
-#tokens_b = Button(tab5, text="Tokens", command=tokens, height=1, width=20, font=("Tahoma", 8))
-#tokens_b.grid(row=0, column=0, sticky=N + E, pady=0, padx=15)
+frame_logo_buttons = Frame(frame_send)
+frame_logo_buttons.grid(row=5, column=0)
 
-#stats_b = Button(tab_statistics, text="Statistics", command=lambda :stats(), height=1, width=20, font=("Tahoma", 8))
-#stats_b.grid(row=0, column=0, sticky=N + E, pady=0, padx=15)
-
-# quit_b = Button(frame_buttons, text="Quit", command=app_quit, height=1, width=10, font=("Tahoma", 8))
-# quit_b.grid(row=16, column=0, sticky=W + E + S, pady=0, padx=15)
-
-frame_logo_buttons = Frame(tab_send, relief = 'ridge', borderwidth = 4)
-frame_logo_buttons.grid(row=5, column=1, sticky=E, pady=5, padx=5)
-
-encrypt_b = Button(frame_logo_buttons, text="Encrypt", command=encrypt_get_password, height=1, width=10)
-encrypt_b.grid(row=0, column=0, sticky=E+W)
-decrypt_b = Button(frame_logo_buttons, text="Unlock", command=decrypt_get_password, height=1, width=10)
-decrypt_b.grid(row=0, column=1, sticky=E+W)
-lock_b = Button(frame_logo_buttons, text="Locked", command=lambda: lock_fn(lock_b), height=1, width=10, state=DISABLED)
-lock_b.grid(row=0, column=2, sticky=E+W)
+encrypt_b = Button(frame_logo_buttons, text="Encrypt", command=encrypt_get_password, height=1, width=8)
+encrypt_b.grid(row=0, column=0)
+decrypt_b = Button(frame_logo_buttons, text="Unlock", command=decrypt_get_password, height=1, width=8)
+decrypt_b.grid(row=0, column=1)
+lock_b = Button(frame_logo_buttons, text="Locked", command=lambda: lock_fn(lock_b), height=1, width=8, state=DISABLED)
+lock_b.grid(row=0, column=2)
 
 
 
@@ -1715,8 +1689,8 @@ balance_var = StringVar()
 balance_msg_label = Label(frame_coins, textvariable=balance_var, font=("Tahoma", 16, "bold"))
 balance_msg_label.grid(row=0, column=0, sticky=S, padx=15)
 
-balance_msg_label_sendtab = Label(frame_sendbal, textvariable=balance_var, font=("Tahoma", 10))
-balance_msg_label_sendtab.grid(row=1, column=0, sticky=N + S, padx=15)
+balance_msg_label_sendtab = Label(frame_send, textvariable=balance_var, font=("Tahoma", 10))
+balance_msg_label_sendtab.grid(row=3, column=0, sticky=N + S)
 
 debit_var = StringVar()
 spent_msg_label = Label(frame_coins, textvariable=debit_var, font=("Tahoma", 12))
@@ -1807,10 +1781,10 @@ data_insert_clear = Button(frame_entries, text="Clear", command=data_insert_clea
 data_insert_clear.grid(row=3, column=3, sticky=W)
 
 url_insert_clipboard = Button(frame_entries, text="Paste", command=url_insert, font=("Tahoma", 7))
-url_insert_clipboard.grid(row=4, column=2, sticky=W)
+url_insert_clipboard.grid(row=5, column=2, sticky=W)
 
 read_url_b = Button(frame_entries, text="Read", command=lambda: read_url_clicked(app_log, url.get()), font=("Tahoma", 7))
-read_url_b.grid(row=4, column=3, sticky=W)
+read_url_b.grid(row=5, column=3, sticky=W)
 
 data_insert_clipboard = Button(frame_entries_r, text="Paste", command=data_insert_r, font=("Tahoma", 7))
 data_insert_clipboard.grid(row=3, column=2)
@@ -1857,8 +1831,11 @@ amount.insert(0, "0.00000000")
 openfield = Text(frame_entries, width=60, height=5, font=("Tahoma", 8))
 openfield.grid(row=3, column=1, sticky=W, pady=5, padx = 5)
 
+command = Entry(frame_entries, width=60)
+command.grid(row=4, column=1, sticky=W, pady=5, padx = 5)
+
 url = Entry(frame_entries, width=60)
-url.grid(row=4, column=1, sticky=W, pady=5, padx = 5)
+url.grid(row=5, column=1, sticky=W, pady=5, padx = 5)
 url.insert(0, "bis://")
 
 encode = Checkbutton(frame_tick, text="Base64 Encoding", variable=encode_var, command=all_spend_check, width=14, anchor=W)
