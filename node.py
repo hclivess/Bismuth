@@ -239,12 +239,12 @@ def db_to_drive(hdd, h, hdd2, h2):
     execute_param(sc, ("SELECT * FROM transactions WHERE block_height > ? ORDER BY block_height ASC"), (hdd_block,))
     result1 = sc.fetchall()
 
-    if full_ledger == 1:  # we want to save to ledger.db from RAM
+    if full_ledger == 1:  # we want to save to ledger.db
         for x in result1:
             h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
         commit(hdd)
 
-    if ram_conf == 1:  # we want to save to hyper.db from RAM
+    if ram_conf == 1:  # we want to save to hyper.db from RAM/hyper.db depending on ram conf
         for x in result1:
             h2.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
         commit(hdd2)
@@ -252,7 +252,7 @@ def db_to_drive(hdd, h, hdd2, h2):
     execute_param(sc, ("SELECT * FROM misc WHERE block_height > ? ORDER BY block_height ASC"), (hdd_block,))
     result2 = sc.fetchall()
 
-    if full_ledger == 1:  # we want to save to ledger.db from RAM
+    if full_ledger == 1:  # we want to save to ledger.db from RAM/hyper.db depending on ram conf
         for x in result2:
             h.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
         commit(hdd)
@@ -1333,6 +1333,9 @@ def coherence_check():
                     conn2.commit()
                     c2.execute("DELETE FROM misc WHERE block_height >= ?", (row[0]-1,))
                     conn2.commit()
+
+                    execute_param(conn2, ('DELETE FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) >= ?'), (row[0]-1,))
+                    commit(conn2)
                     conn2.close()
 
                     # rollback indices
@@ -1340,8 +1343,7 @@ def coherence_check():
                     aliases_rollback(y, app_log)
                     # rollback indices
 
-                    execute_param(conn2, ('DELETE FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) >= ?'), (row[0]-1,))
-                    commit(conn2)
+
 
                     app_log.warning("Status: Due to a coherence issue at block {}, {} has been rolled back and will be resynchronized".format(y, chain))
                 break
@@ -1369,15 +1371,15 @@ def coherence_check():
                     conn2.commit()
                     c2.execute("DELETE FROM misc WHERE block_height >= ?", (row[0]-1,))
                     conn2.commit()
+
+                    execute_param(conn2, ('DELETE FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) >= ?'), (row[0]-1,))
+                    commit(conn2)
                     conn2.close()
 
                     # rollback indices
                     tokens_rollback(y, app_log)
                     aliases_rollback(y, app_log)
                     # rollback indices
-
-                    execute_param(conn2, ('DELETE FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) >= ?'), (row[0]-1,))
-                    commit(conn2)
 
                     app_log.warning("Status: Due to a coherence issue at block {}, {} has been rolled back and will be resynchronized".format(y, chain))
                 break
