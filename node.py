@@ -239,7 +239,7 @@ def db_to_drive(hdd, h, hdd2, h2):
     execute_param(sc, ("SELECT * FROM transactions WHERE block_height > ? ORDER BY block_height ASC"), (hdd_block,))
     result1 = sc.fetchall()
 
-    if full_ledger == 1:  # we want to save to ledger.db from hyper.db
+    if full_ledger == 1:  # we want to save to ledger.db from RAM
         for x in result1:
             h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
         commit(hdd)
@@ -252,7 +252,7 @@ def db_to_drive(hdd, h, hdd2, h2):
     execute_param(sc, ("SELECT * FROM misc WHERE block_height > ? ORDER BY block_height ASC"), (hdd_block,))
     result2 = sc.fetchall()
 
-    if full_ledger == 1:  # we want to save to ledger.db from hyper.db
+    if full_ledger == 1:  # we want to save to ledger.db from RAM
         for x in result2:
             h.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
         commit(hdd)
@@ -797,7 +797,7 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2):
                 if ram_conf == 1:  # rollback hyper.db
                     execute_param(h2, ('DELETE FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) >= ?'), (str(db_block_height),))
                     commit(hdd2)
-                    # roll back reward too
+                # roll back reward too
 
                 # rollback indices
                 tokens_rollback(db_block_height, app_log)
@@ -1340,6 +1340,9 @@ def coherence_check():
                     aliases_rollback(y, app_log)
                     # rollback indices
 
+                    execute_param(conn2, ('DELETE FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) >= ?'), (row[0]-1,))
+                    commit(conn2)
+
                     app_log.warning("Status: Due to a coherence issue at block {}, {} has been rolled back and will be resynchronized".format(y, chain))
                 break
 
@@ -1372,6 +1375,9 @@ def coherence_check():
                     tokens_rollback(y, app_log)
                     aliases_rollback(y, app_log)
                     # rollback indices
+
+                    execute_param(conn2, ('DELETE FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) >= ?'), (row[0]-1,))
+                    commit(conn2)
 
                     app_log.warning("Status: Due to a coherence issue at block {}, {} has been rolled back and will be resynchronized".format(y, chain))
                 break

@@ -1653,7 +1653,7 @@ send_b = Button(frame_send, text="Send Bismuth", command=lambda: send_confirm(st
 send_b.grid(row=0, column=0)
 
 frame_logo_buttons = Frame(frame_send)
-frame_logo_buttons.grid(row=5, column=0)
+frame_logo_buttons.grid(row=5, column=0, padx=5, pady=5)
 
 encrypt_b = Button(frame_logo_buttons, text="Encrypt", command=encrypt_get_password, height=1, width=8)
 encrypt_b.grid(row=0, column=0)
