@@ -603,7 +603,7 @@ def send(amount_input, recipient_input, openfield_input):
         app_log.warning("OpenField Data: {}".format(openfield_input))
 
         timestamp = '%.2f' % time.time()
-        operation_input = "0"
+        operation_input = operation.get()
         transaction = (str(timestamp), str(myaddress), str(recipient_input), '%.8f' % float(amount_input), str(operation_input), str(openfield_input))  # this is signed, float kept for compatibility
 
         h = SHA.new(str(transaction).encode("utf-8"))
@@ -1612,7 +1612,7 @@ Label(frame_entries, text="My Address:").grid(row=0,sticky=W+N,pady=5, padx=5)
 Label(frame_entries, text="Recipient:").grid(row=1,sticky=W,pady=5, padx=5)
 Label(frame_entries, text="Amount:").grid(row=2,sticky=W,pady=5, padx=5)
 Label(frame_entries, text="Data:",height=4).grid(row=3,sticky=W,pady=5, padx=5)
-Label(frame_entries, text="Command:",height=4).grid(row=4,sticky=W,pady=5, padx=5)
+Label(frame_entries, text="Operation:",height=4).grid(row=4,sticky=W,pady=5, padx=5)
 Label(frame_entries, text="URL:").grid(row=5,sticky=W+S,pady=5, padx=5)
 Label(frame_entries, text="If you have a BIS URL, copy it, click paste-button  \n"
                           "on URL field and then click 'read'."
@@ -1831,8 +1831,8 @@ amount.insert(0, "0.00000000")
 openfield = Text(frame_entries, width=60, height=5, font=("Tahoma", 8))
 openfield.grid(row=3, column=1, sticky=W, pady=5, padx = 5)
 
-command = Entry(frame_entries, width=60)
-command.grid(row=4, column=1, sticky=W, pady=5, padx = 5)
+operation = Entry(frame_entries, width=60)
+operation.grid(row=4, column=1, sticky=W, pady=5, padx = 5)
 
 url = Entry(frame_entries, width=60)
 url.grid(row=5, column=1, sticky=W, pady=5, padx = 5)
