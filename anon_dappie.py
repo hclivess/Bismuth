@@ -120,7 +120,6 @@ if full_ledger == 1:
     conn = sqlite3.connect(ledger_path)
 else:
     conn = sqlite3.connect(hyper_path)
-
 conn.text_factory = str
 c = conn.cursor()
 
@@ -130,7 +129,7 @@ m = mempool.cursor()
 
 while True:
     try:
-        for row in c.execute("SELECT * FROM transactions WHERE recipient = ? and openfield LIKE ? LIMIT 500", (address,)+("enc="+'%',)):
+        for row in c.execute("SELECT * FROM transactions WHERE recipient = ? and openfield LIKE ? LIMIT 500", (address,"enc="+'%',)):
             anon_sender = row[2]
 
             try:
