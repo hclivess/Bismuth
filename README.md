@@ -4,6 +4,7 @@ Bismuth Readme
 [![Build Status](https://travis-ci.org/hclivess/Bismuth.svg?branch=master)](https://travis-ci.org/hclivess/Bismuth)
 
 http://bismuth.cz
+For basic instructions, please refer to https://github.com/EggPool/BismuthHowto
 
 License:
 
