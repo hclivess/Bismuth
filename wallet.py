@@ -1112,35 +1112,40 @@ def tokens():
     cancel = Button(tokens_main, text="Cancel", command=tokens_main.destroy)
     cancel.grid(row=6, column=0, sticky=W + E, padx=5)
 
+def tx_tree_define():
+    global tx_tree
 
-def table(address, addlist_20, mempool_total):
-    # transaction table
-    # data
-
-    for child in tab_transactions.winfo_children():  # prevent hangup
-        if type(child) == ttk.Treeview:
-            child.destroy()
-
-    tx_tree = ttk.Treeview (tab_transactions, selectmode="extended", columns=('sender', 'recipient', 'amount', 'type'),height=20)
+    tx_tree = ttk.Treeview(tab_transactions, selectmode="extended", columns=('sender', 'recipient', 'amount', 'type'), height=20)
     tx_tree.grid(row=1, column=0)
 
     # table
-    tx_tree.heading ("#0", text='time')
-    tx_tree.column ("#0", anchor='center', width=100)
+    tx_tree.heading("#0", text='time')
+    tx_tree.column("#0", anchor='center', width=100)
 
-    tx_tree.heading ("#1", text='sender')
-    tx_tree.column ("#1", anchor='center', width=347)
+    tx_tree.heading("#1", text='sender')
+    tx_tree.column("#1", anchor='center', width=347)
 
-    tx_tree.heading ("#2", text='recipient')
-    tx_tree.column ("#2", anchor='center', width=347)
+    tx_tree.heading("#2", text='recipient')
+    tx_tree.column("#2", anchor='center', width=347)
 
-    tx_tree.heading ("#3", text='amount')
-    tx_tree.column ("#3", anchor='center', width=35)
+    tx_tree.heading("#3", text='amount')
+    tx_tree.column("#3", anchor='center', width=35)
 
-    tx_tree.heading ("#4", text='type')
-    tx_tree.column ("#4", anchor='center', width=40)
+    tx_tree.heading("#4", text='type')
+    tx_tree.column("#4", anchor='center', width=40)
 
-    tx_tree.grid (sticky=N + S + W + E)
+    tx_tree.grid(sticky=N + S + W + E)
+
+
+def table(address, addlist_20, mempool_total):
+    global tx_tree
+    # transaction table
+    # data
+    try:
+        tx_tree.destroy()
+    except:
+        pass
+    tx_tree_define()
 
     for tx in mempool_total:
         tag = "mempool"
@@ -1472,6 +1477,7 @@ frame_coins.grid(row=0, column=0, sticky=W + E + N, pady=5, padx=5)
 
 #tab_transactions transactions
 tab_transactions = ttk.Frame(nbtabs)
+
 nbtabs.add(tab_transactions, text='Transactions')
 
 frame_entries_t = Frame(tab_transactions,relief = 'ridge', borderwidth = 0)
