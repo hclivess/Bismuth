@@ -45,5 +45,5 @@ Root: HKCU64; Subkey: "SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFla
 Root: HKLM64; Subkey: "SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"; ValueType: String; ValueName: "{app}\node.exe"; ValueData: "RUNASADMIN"; Flags: uninsdeletekeyifempty uninsdeletevalue; Check: IsWin64
 
 [Run]
-Filename: "{app}\node.exe"; Description: "Node"; Flags: shellexec postinstall skipifsilent
+Filename: "{app}\node.exe"; Description: "Full Node"; Flags: shellexec skipifsilent
 Filename: "{app}\wallet.exe"; Description: "Wallet"; Flags: shellexec postinstall skipifsilent
