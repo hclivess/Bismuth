@@ -1,8 +1,11 @@
+#this file is marginally dynamic, make sure you know what you run it against
+
 import tarfile
 import sys
 import sqlite3
 from decimal import *
 from quantizer import *
+import process_search
 
 
 def balance_from_cursor(cursor, address):
@@ -76,21 +79,28 @@ def errors():
 
 
 
-if not errors():
-    files = ["ledger.db-wal","ledger.db-shm","ledger.db","hyper.db-shm", "hyper.db-wal", "hyper.db", "index.db"]
-
-    tar = tarfile.open("ledger.tar.gz", "w:gz")
-
-    for file in files:
-        try:
-            print ("Compressing", file)
-            tar.add(file, arcname=file)
-        except:
-            "Error compressing {}".format(file)
-
-    print("Compression finished for", files)
-    tar.close()
-
-else:
+if errors():
     print("There were errors in the hyperblocks, cannot continue")
-    input("Press any key to continue")
+else:
+
+    if not process_search.proccess_presence ("node.py"):
+        files = ["ledger.db-wal","ledger.db-shm","ledger.db","hyper.db-shm", "hyper.db-wal", "hyper.db", "index.db"]
+
+        tar = tarfile.open("ledger.tar.gz", "w:gz")
+
+        for file in files:
+            try:
+                print ("Compressing", file)
+                tar.add(file, arcname=file)
+            except:
+                "Error compressing {}".format(file)
+
+        print("Compression finished for", files)
+        tar.close()
+
+    else:
+        print ("Node is running, cannot continue")
+
+input("Press any key to continue")
+
+
