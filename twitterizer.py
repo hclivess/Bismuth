@@ -44,19 +44,22 @@ def tweet_saved(tweet):
     return return_value
 
 def tweet_qualify(tweet_id, exposure=10):
-    open_status = api.get_status(tweet_id)
-    parsed = open_status._json
+    try:
+        open_status = api.get_status(tweet_id)
+        parsed = open_status._json
 
-    parsed_name = parsed ['user']['name'] #add this
-    favorite_count = parsed ['favorite_count']
-    retweet_count = parsed ['retweet_count']
-    parsed_text = parsed['text']
+        parsed_name = parsed ['user']['name'] #add this
+        favorite_count = parsed ['favorite_count']
+        retweet_count = parsed ['retweet_count']
+        parsed_text = parsed['text']
 
 
-    if "#bismuth" and "$bis" in parsed_text.lower() and retweet_count + favorite_count > exposure:
-        qualifies = True
-    else:
-        qualifies = False
+        if "#bismuth" and "$bis" in parsed_text.lower() and retweet_count + favorite_count > exposure:
+            qualifies = True
+        else:
+            qualifies = False
+    except:
+        qualifies, parsed_text, parsed_name = False,False,False
 
     return qualifies, parsed_text, parsed_name
 
