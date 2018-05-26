@@ -613,30 +613,22 @@ def send(amount_input, recipient_input, openfield_input):
         app_log.warning("Client: Encoded Signature: {}".format(signature_enc.decode("utf-8")))
 
         verifier = PKCS1_v1_5.new(key)
+
         if verifier.verify(h, signature):
-            fee = fee_calculate(openfield_input)
 
-            if Decimal(amount_input) < 0:
-                app_log.warning("Client: Signature OK, but cannot use negative amounts")
+            app_log.warning("Client: The signature is valid, proceeding to save transaction, signature, new txhash and the public key to mempool")
 
-            elif (Decimal(amount_input) + Decimal(fee) > Decimal(balance)):
-                print(amount_input, fee, balance)
-                app_log.warning("Mempool: Sending more than owned")
+            # print(str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input),str(signature_enc), str(public_key_hashed), str(keep_input), str(openfield_input))
+            tx_submit = str(timestamp), str(myaddress), str(recipient_input), '%.8f' % float(amount_input), str(signature_enc.decode("utf-8")), str(public_key_hashed.decode("utf-8")), str(operation_input), str(openfield_input)  # float kept for compatibility
 
-            else:
-                app_log.warning("Client: The signature is valid, proceeding to save transaction, signature, new txhash and the public key to mempool")
+            while True:
+                connections.send(s, "mpinsert", 10)
+                connections.send(s, tx_submit, 10)
+                reply = connections.receive(s, 10)
+                app_log.warning("Client: {}".format(reply))
+                break
 
-                # print(str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input),str(signature_enc), str(public_key_hashed), str(keep_input), str(openfield_input))
-                tx_submit = str(timestamp), str(myaddress), str(recipient_input), '%.8f' % float(amount_input), str(signature_enc.decode("utf-8")), str(public_key_hashed.decode("utf-8")), str(operation_input), str(openfield_input)  # float kept for compatibility
-
-                while True:
-                    connections.send(s, "mpinsert", 10)
-                    connections.send(s, tx_submit, 10)
-                    reply = connections.receive(s, 10)
-                    app_log.warning("Client: {}".format(reply))
-                    break
-
-                refresh(gui_address_t.get(), s)
+            refresh(gui_address_t.get(), s)
         else:
             app_log.warning("Client: Invalid signature")
         # enter transaction end

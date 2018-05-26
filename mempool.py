@@ -445,7 +445,7 @@ class Mempool:
                         mempool_amount = '%.8f' % (quantize_eight(transaction[3]))  # convert scientific notation
                         mempool_signature_enc = str(transaction[4])[:684]
                         mempool_public_key_hashed = str(transaction[5])[:1068]
-                        mempool_operation = str(transaction[6])[:10]
+                        mempool_operation = str(transaction[6])[:30]
                         mempool_openfield = str(transaction[7])[:100000]
 
                         # convert readable key to instance
@@ -538,12 +538,13 @@ class Mempool:
                         # verify signature
                         verifier = PKCS1_v1_5.new(mempool_public_key)
 
-                        my_hash = SHA.new(str((mempool_timestamp, mempool_address, mempool_recipient, mempool_amount,
-                                               mempool_operation, mempool_openfield)).encode("utf-8"))
+                        tx_signed = mempool_timestamp, mempool_address, mempool_recipient, mempool_amount, mempool_operation, mempool_openfield
+                        my_hash = SHA.new(str((tx_signed)).encode("utf-8"))
                         if not verifier.verify(my_hash, mempool_signature_dec):
                             acceptable = False
-                            mempool_result.append("Mempool: Wrong signature in mempool insert attempt: {}".
-                                                  format(transaction))
+                            mempool_result.append("Mempool: Wrong signature ({}) for data {} in mempool insert attempt".
+                                                  format(mempool_signature_enc,tx_signed))
+
                             # self.app_log.warning("Mempool: Wrong signature in mempool insert attempt")
 
                         # verify signature

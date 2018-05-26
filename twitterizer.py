@@ -6,6 +6,7 @@ import sqlite3
 import essentials
 import connections
 import socks
+import time
 
 config = options.Get()
 config.read()
@@ -96,14 +97,17 @@ if __name__ == "__main__":
             print ("Tweet qualifies")
 
             recipient = row[1]
-            amount = "0"
+            amount = 0
             operation = "twitter_payout"
-            openfield = ""
-            tx_submit = essentials.sign_rsa(myaddress, recipient, amount, operation, openfield, key, public_key_hashed)
+            openfield = "test"
+
+            timestamp = '%.2f' % time.time ()
+            tx_submit = essentials.sign_rsa(timestamp, myaddress, recipient, amount, operation, openfield, key, public_key_hashed)
 
             if tx_submit:
                 s = socks.socksocket ()
                 s.settimeout (0.3)
+                print(tx_submit)
 
                 s.connect (("127.0.0.1", int (2829)))
                 print ("Status: Connected to node")
