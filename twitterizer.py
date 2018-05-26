@@ -47,14 +47,17 @@ def tweet_qualify(tweet_id, exposure=10):
     try:
         open_status = api.get_status(tweet_id)
         parsed = open_status._json
+        #print(parsed)
+        #time.sleep(900)
 
         parsed_name = parsed ['user']['name'] #add this
         favorite_count = parsed ['favorite_count']
         retweet_count = parsed ['retweet_count']
         parsed_text = parsed['text']
+        parsed_followers = parsed['user']['followers_count']
 
 
-        if "#bismuth" and "$bis" in parsed_text.lower() and retweet_count + favorite_count > exposure:
+        if "#bismuth" and "$bis" in parsed_text.lower() and retweet_count + favorite_count > exposure and parsed_followers > 30:
             qualifies = True
         else:
             qualifies = False
@@ -103,7 +106,7 @@ if __name__ == "__main__":
                 print ("Tweet qualifies")
 
                 recipient = row[1]
-                amount = 1
+                amount = 3
                 operation = "payout_tw"
                 openfield = ""
 
