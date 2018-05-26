@@ -1743,9 +1743,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "mpinsert":
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
-                        mempool_insert = str(connections.receive(self.request, 10))
+                        mempool_insert = list(connections.receive(self.request, 10))
                         app_log.warning("mpinsert command")
-                        print(mempool_insert)
 
                         mpinsert_result = mp.MEMPOOL.merge(mempool_insert, peer_ip, c, True, True)
                         app_log.warning("mpinsert result: {}".format(mpinsert_result))

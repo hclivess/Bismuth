@@ -4,6 +4,8 @@ import options
 import os
 import sqlite3
 import essentials
+import connections
+import socks
 
 config = options.Get()
 config.read()
@@ -92,13 +94,28 @@ if __name__ == "__main__":
 
         if tweet_qualified[0] and not tweet_saved(tweet_qualified[1]):
             print ("Tweet qualifies")
-            t.execute("INSERT INTO tweets VALUES (?, ?, ?, ?)", (row[0],row[1],row[2],tweet_qualified[1]))
-            twitter.commit ()
 
             recipient = row[1]
-            amount = 0
+            amount = "0"
             operation = "twitter_payout"
             openfield = ""
-            print(essentials.sign_rsa(myaddress, recipient, amount, operation, openfield, key, public_key_hashed))
+            tx_submit = essentials.sign_rsa(myaddress, recipient, amount, operation, openfield, key, public_key_hashed)
+
+            if tx_submit:
+                s = socks.socksocket ()
+                s.settimeout (0.3)
+
+                s.connect (("127.0.0.1", int (2829)))
+                print ("Status: Connected to node")
+                while True:
+                    connections.send (s, "mpinsert", 10)
+                    connections.send (s, tx_submit, 10)
+                    reply = connections.receive (s, 10)
+                    print ("Payout result: {}".format (reply))
+                    break
+
+                t.execute ("INSERT INTO tweets VALUES (?, ?, ?, ?)", (row[0], row[1], row[2], tweet_qualified[1]))
+                twitter.commit ()
+                print ("Tweet saved to database")
 
             break

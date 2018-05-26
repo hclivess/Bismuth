@@ -45,9 +45,11 @@ def db_check(app_log):
     """
 
 def sign_rsa(address, recipient, amount, operation, openfield, key, public_key_hashed):
-
     from Crypto.Signature import PKCS1_v1_5
     from Crypto.Hash import SHA
+
+    if not key:
+        raise BaseException("The wallet is locked, you need to provide a decrypted key")
 
     timestamp = '%.2f' % time.time ()
     transaction = (str (timestamp), str (address), str (recipient), '%.8f' % float (amount), str (operation), str (openfield))  # this is signed, float kept for compatibility
