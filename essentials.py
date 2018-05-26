@@ -44,6 +44,28 @@ def db_check(app_log):
         # create empty mempool
     """
 
+def sign_rsa(address, recipient, amount, operation, openfield, key, public_key_hashed):
+
+    from Crypto.Signature import PKCS1_v1_5
+    from Crypto.Hash import SHA
+
+    timestamp = '%.2f' % time.time ()
+    transaction = (str (timestamp), str (address), str (recipient), '%.8f' % float (amount), str (operation), str (openfield))  # this is signed, float kept for compatibility
+
+    h = SHA.new (str(transaction).encode())
+    signer = PKCS1_v1_5.new (key)
+    signature = signer.sign (h)
+    signature_enc = base64.b64encode(signature)
+
+    verifier = PKCS1_v1_5.new (key)
+    if verifier.verify (h, signature):
+        return_value = str (timestamp), str (address), str (recipient), '%.8f' % float (amount), str (signature_enc.decode ("utf-8")), str (public_key_hashed.decode ("utf-8")), str (operation), str (openfield)  # float kept for compatibility
+    else:
+        return_value = False
+
+    return return_value
+
+
 
 def keys_check(app_log):
     # key maintenance
@@ -82,7 +104,7 @@ def keys_save(private_key_readable, public_key_readable, address):
     with open ("wallet.der", 'w') as wallet_file:
         json.dump (wallet_dict, wallet_file)
 
-def keys_load(privkey, pubkey):
+def keys_load(privkey="privkey.der", pubkey="pubkey.der"):
     if os.path.exists("wallet.der"):
         print("Using modern wallet method")
         return keys_load_new ("wallet.der")

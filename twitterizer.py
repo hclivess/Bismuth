@@ -3,6 +3,7 @@ import json
 import options
 import os
 import sqlite3
+import essentials
 
 config = options.Get()
 config.read()
@@ -13,6 +14,8 @@ ledger_path = config.ledger_path_conf
 hyper_path = config.hyper_path_conf
 terminal_output=config.terminal_output
 version = config.version_conf
+
+key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress = essentials.keys_load()
 
 def tweet_saved(tweet):
     try:
@@ -91,4 +94,11 @@ if __name__ == "__main__":
             print ("Tweet qualifies")
             t.execute("INSERT INTO tweets VALUES (?, ?, ?, ?)", (row[0],row[1],row[2],tweet_qualified[1]))
             twitter.commit ()
+
+            recipient = row[1]
+            amount = 0
+            operation = "twitter_payout"
+            openfield = ""
+            print(essentials.sign_rsa(myaddress, recipient, amount, operation, openfield, key, public_key_hashed))
+
             break
