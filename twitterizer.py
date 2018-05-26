@@ -88,7 +88,7 @@ if __name__ == "__main__":
 
 
     while True:
-        for row in c.execute ("SELECT block_height, address, openfield FROM transactions WHERE operation = ? ORDER BY block_height DESC LIMIT 50", ("twitter",)):
+        for row in c.execute ("SELECT block_height, address, openfield FROM transactions WHERE operation = ? ORDER BY block_height ASC LIMIT 50", ("twitter",)):
             tweet_id = row[2]
 
             tweet_qualified = tweet_qualify (tweet_id)
@@ -122,6 +122,7 @@ if __name__ == "__main__":
                         t.execute ("INSERT INTO tweets VALUES (?, ?, ?, ?)", (row[0], row[1], row[2], tweet_qualified[1]))
                         twitter.commit ()
                         print ("Tweet saved to database")
+                        api.retweet(tweet_id)
                         api.update_status ("Bismuth address {} wins giveaway of {} $BIS for https://twitter.com/i/web/status/{}".format(recipient, amount,tweet_id))
 
                 break
