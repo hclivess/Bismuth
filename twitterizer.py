@@ -1,4 +1,6 @@
 #add additional info to the tweet: address that is allowed to withdraw
+sleep_interval = 900
+payout_level = 3
 
 import tweepy
 import json
@@ -107,7 +109,7 @@ if __name__ == "__main__":
                 print ("Tweet qualifies")
 
                 recipient = row[1]
-                amount = 3
+                amount = payout_level
                 operation = "payout_tw"
                 openfield = ""
 
@@ -137,5 +139,6 @@ if __name__ == "__main__":
 
                 break
 
-        print ("Run finished, sleeping for 10 minutes")
-        time.sleep(900)
+
+        print ("Run finished, sleeping for {} minutes".format(sleep_interval/60))
+        time.sleep(sleep_interval)
