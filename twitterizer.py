@@ -58,7 +58,8 @@ def tweet_qualify(tweet_id, exposure=10):
             qualifies = True
         else:
             qualifies = False
-    except:
+    except Exception as e:
+        print ("Exception with {}: {}".format(tweet_id,e))
         qualifies, parsed_text, parsed_name = False,False,False
 
     return qualifies, parsed_text, parsed_name
@@ -93,7 +94,7 @@ if __name__ == "__main__":
 
 
     while True:
-        for row in c.execute ("SELECT block_height, address, openfield FROM transactions WHERE operation = ? ORDER BY block_height ASC LIMIT 50", ("twitter",)):
+        for row in c.execute ("SELECT * FROM (SELECT block_height, address, openfield FROM transactions WHERE operation = ? ORDER BY block_height DESC LIMIT 250) ORDER BY block_height ASC", ("twitter",)): #select top 250, but order them ascendingly so older have priority
             tweet_id = row[2]
 
             tweet_qualified = tweet_qualify (tweet_id)
@@ -114,7 +115,7 @@ if __name__ == "__main__":
                     s.settimeout (0.3)
                     print(tx_submit)
 
-                    s.connect (("127.0.0.1", int (2829)))
+                    s.connect (("127.0.0.1", int (5658)))
                     print ("Status: Connected to node")
                     while True:
                         connections.send (s, "mpinsert", 10)
