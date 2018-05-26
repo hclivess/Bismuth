@@ -97,7 +97,8 @@ if __name__ == "__main__":
 
 
     while True:
-        for row in c.execute ("SELECT * FROM (SELECT block_height, address, openfield FROM transactions WHERE operation = ? ORDER BY block_height DESC LIMIT 250) ORDER BY block_height ASC", ("twitter",)): #select top 250, but order them ascendingly so older have priority
+        #twitter limits: 180 requests per 15m
+        for row in c.execute ("SELECT * FROM (SELECT block_height, address, openfield FROM transactions WHERE operation = ? ORDER BY block_height DESC LIMIT 100) ORDER BY block_height ASC", ("twitter",)): #select top 250, but order them ascendingly so older have priority
             tweet_id = row[2]
 
             tweet_qualified = tweet_qualify (tweet_id)
@@ -137,4 +138,4 @@ if __name__ == "__main__":
                 break
 
         print ("Run finished, sleeping for 10 minutes")
-        time.sleep(600)
+        time.sleep(900)
