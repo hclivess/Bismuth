@@ -1,3 +1,5 @@
+#add additional info to the tweet: address that is allowed to withdraw
+
 import tweepy
 import json
 import options
