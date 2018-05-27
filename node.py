@@ -1947,7 +1947,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "txsend":
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
-                        tx_remote = str(connections.receive(self.request, 10))
+                        tx_remote = list(connections.receive(self.request, 10))
 
                         # receive data necessary for remote tx construction
                         remote_tx_timestamp = tx_remote[0]
