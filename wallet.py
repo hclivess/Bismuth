@@ -176,24 +176,30 @@ def read_url_clicked(app_log, url):
 
 
 def node_connect():
-    for ip in light_ip:
 
-        try:
-            app_log.warning("Status: Attempting to connect to {} out of {}".format(ip,light_ip))
-            global s
-            s = socks.socksocket ()
-            s.settimeout (0.3)
+    keep_trying = True
+    while keep_trying:
+        for ip in light_ip:
 
-            s.connect((ip, int(port)))
-            app_log.warning("Status: Wallet connected to {}".format(ip))
-            ip_connected_var.set("Node: {}".format(ip))
+            try:
+                app_log.warning("Status: Attempting to connect to {} out of {}".format(ip,light_ip))
+                global s
+                s = socks.socksocket ()
+                s.settimeout (1)
 
-            connections.send(s, "statusget", 10)
-            result = connections.receive (s, 10) #validate the connection
-            break
+                s.connect((ip, int(port)))
+                app_log.warning("Status: Wallet connected to {}".format(ip))
+                ip_connected_var.set("Node: {}".format(ip))
 
-        except Exception as e:
-            app_log.warning("Status: Cannot connect to {}".format(ip))
+                connections.send(s, "statusget", 10)
+                result = connections.receive (s, 10) #validate the connection
+                app_log.warning("Connection OK")
+
+                keep_trying = False
+                break
+
+            except Exception as e:
+                app_log.warning("Status: Cannot connect to {}".format(ip))
 
 
 
@@ -1027,18 +1033,25 @@ def csv_export(s):
     return
 
 def token_transfer(token, amount, window):
+    operation.delete (0, END)
+    operation.insert(0, "token:transfer:{}".format(token))
+
     openfield.delete('1.0', END)  # remove previous
-    openfield.insert(INSERT, "token:transfer:{}:{}".format(token, amount))
+    openfield.insert(INSERT, amount)
     window.destroy()
 
 
 def token_issue(token, amount, window):
+    operation.delete (0, END)
+    operation.insert(0, "token:issue")
+
     openfield.delete('1.0', END)  # remove previous
-    openfield.insert(INSERT, "token:issue:{}:{}".format(token, amount))
+    openfield.insert(INSERT, "{}:{}".format(token, amount))
     recipient.delete(0, END)
     recipient.insert(INSERT, myaddress)
     window.destroy()
-    send_confirm(amount, 0, "token:issue:{}:{}".format(token, amount))
+
+    send_confirm(amount, 0, "{}:{}".format(token, amount))
 
 
 def tokens():
@@ -1048,10 +1061,6 @@ def tokens():
 
     token_box = Listbox(tokens_main, width=100)
     token_box.grid(row=0, pady=0)
-
-
-
-
 
     connections.send(s, "tokensget", 10)
     connections.send(s, gui_address_t.get(), 10)
