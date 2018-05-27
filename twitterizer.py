@@ -52,7 +52,7 @@ def tweet_qualify(tweet_id, exposure=10):
         #print(parsed)
         #time.sleep(900)
 
-        parsed_name = parsed ['user']['name'] #add this
+        parsed_id = parsed ['user']['id'] #add this
         favorite_count = parsed ['favorite_count']
         retweet_count = parsed ['retweet_count']
         parsed_text = parsed['text']
@@ -65,9 +65,9 @@ def tweet_qualify(tweet_id, exposure=10):
             qualifies = False
     except Exception as e:
         print ("Exception with {}: {}".format(tweet_id,e))
-        qualifies, parsed_text, parsed_name = False,False,False
+        qualifies, parsed_text, parsed_id = False,False,False
 
-    return qualifies, parsed_text, parsed_name
+    return qualifies, parsed_text, parsed_id
 
 
 if __name__ == "__main__":
@@ -76,7 +76,7 @@ if __name__ == "__main__":
         twitter = sqlite3.connect ('twitter.db')
         twitter.text_factory = str
         t = twitter.cursor()
-        t.execute ("CREATE TABLE IF NOT EXISTS tweets (block_height, address, openfield, tweet)")
+        t.execute ("CREATE TABLE IF NOT EXISTS tweets (block_height, address, openfield, tweet, user)")
         twitter.commit ()
         print ("Created twitter database")
     else:
@@ -101,11 +101,16 @@ if __name__ == "__main__":
     while True:
         #twitter limits: 180 requests per 15m
         for row in c.execute ("SELECT * FROM (SELECT block_height, address, openfield FROM transactions WHERE operation = ? ORDER BY block_height DESC LIMIT 100) ORDER BY block_height ASC", ("twitter",)): #select top 250, but order them ascendingly so older have priority
+
             tweet_id = row[2]
-
             tweet_qualified = tweet_qualify (tweet_id)
+            name = tweet_qualified[2]
 
-            if tweet_qualified[0] and not tweet_saved(tweet_qualified[1]):
+            t.execute("SELECT COUNT() FROM (SELECT * FROM tweets ORDER BY block_height DESC LIMIT 3) WHERE name = ?",(name,))
+            name_count = t.fetchone()[0]
+
+
+            if tweet_qualified[0] and not tweet_saved(tweet_qualified[1]) and name_count < 1:
                 print ("Tweet qualifies")
 
                 recipient = row[1]
@@ -131,7 +136,7 @@ if __name__ == "__main__":
                         break
 
                     if "Mempool updated with a received transaction" in str(reply[-1]):
-                        t.execute ("INSERT INTO tweets VALUES (?, ?, ?, ?)", (row[0], row[1], row[2], tweet_qualified[1]))
+                        t.execute ("INSERT INTO tweets VALUES (?, ?, ?, ?, ?)", (row[0], row[1], row[2], tweet_qualified[1], name))
                         twitter.commit ()
                         print ("Tweet saved to database")
                         api.retweet(tweet_id)
