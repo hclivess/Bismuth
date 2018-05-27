@@ -1,8 +1,8 @@
 #operation: token:issue
 #openfield: token_name:total_number
 
-#operation: token:transfer:token_name
-#openfield: amount
+#operation: token:transfer
+#openfield: token_name:amount
 
 import sqlite3
 import log
@@ -84,12 +84,12 @@ def tokens_update(file, ledger, mode, app_log):
     # token = "worthless"
 
 
-    c.execute("SELECT operation, openfield FROM transactions WHERE block_height >= ? AND operation LIKE ? and reward = 0 ORDER BY block_height ASC;", (token_last_block, "token:transfer",))
+    c.execute("SELECT operation, openfield FROM transactions WHERE block_height >= ? AND operation = ? and reward = 0 ORDER BY block_height ASC;", (token_last_block, "token:transfer",))
     openfield_transfers = c.fetchall()
 
     tokens_transferred = []
     for transfer in openfield_transfers:
-        token_name = transfer[1].split(":")[2].lower().strip()
+        token_name = transfer[1].split(":")[0].lower().strip()
         if token_name not in tokens_transferred:
             tokens_transferred.append(token_name)
 
@@ -98,7 +98,7 @@ def tokens_update(file, ledger, mode, app_log):
 
     for token in tokens_transferred:
         app_log.warning("processing {}".format(token))
-        c.execute("SELECT block_height, timestamp, address, recipient, signature, operation, openfield FROM transactions WHERE block_height >= ? AND operation LIKE ? AND openfield LIKE ? AND reward = 0 ORDER BY block_height ASC;", (token_last_block, "token:transfer:"+token,))
+        c.execute("SELECT block_height, timestamp, address, recipient, signature, operation, openfield FROM transactions WHERE block_height >= ? AND operation = ? AND openfield LIKE ? AND reward = 0 ORDER BY block_height ASC;", (token_last_block, "token:transfer:",token + '%',))
         results2 = c.fetchall()
         app_log.warning(results2)
 
@@ -109,7 +109,7 @@ def tokens_update(file, ledger, mode, app_log):
             timestamp = r[1]
             app_log.warning("Timestamp {}".format(timestamp))
 
-            token = r[6].split(":")[2]
+            token = r[6].split(":")[0]
             app_log.warning("Token {} operation".format(token))
 
             sender = r[2]
@@ -122,7 +122,7 @@ def tokens_update(file, ledger, mode, app_log):
             app_log.warning("Txid: {}".format(txid))
 
             try:
-                transfer_amount = int(r[6])
+                transfer_amount = int(r[6].split(":")[1])
             except:
                 transfer_amount = 0
 

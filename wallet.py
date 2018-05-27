@@ -185,15 +185,15 @@ def node_connect():
                 app_log.warning("Status: Attempting to connect to {} out of {}".format(ip,light_ip))
                 global s
                 s = socks.socksocket ()
-                s.settimeout (1)
+                s.settimeout (3)
 
                 s.connect((ip, int(port)))
-                app_log.warning("Status: Wallet connected to {}".format(ip))
-                ip_connected_var.set("Node: {}".format(ip))
 
                 connections.send(s, "statusget", 10)
                 result = connections.receive (s, 10) #validate the connection
                 app_log.warning("Connection OK")
+                app_log.warning("Status: Wallet connected to {}".format(ip))
+                ip_connected_var.set("Node: {}".format(ip))
 
                 keep_trying = False
                 break
@@ -245,7 +245,6 @@ def help():
 
 def data_insert_clear():
     openfield.delete('1.0', END)  # remove previous
-
 
 def all_spend_clear():
     all_spend_var.set(False)
@@ -566,7 +565,7 @@ def send_confirm(amount_input, recipient_input, openfield_input):
     fee = fee_calculate(openfield_input)
 
     confirmation_dialog = Text(top10, width=100)
-    confirmation_dialog.insert(INSERT, ("Amount: {}\nFee: {}\nTotal: {}\nTo: {}\nOpenField:\n\n{}".format('{:.8f}'.format(amount_input), '{:.8f}'.format(fee), '{:.8f}'.format(Decimal(amount_input) + Decimal(fee)), recipient_input, openfield_input)))
+    confirmation_dialog.insert(INSERT, ("Amount: {}\nFee: {}\nTotal: {}\nTo: {}\nOperation: {}\nData: {}".format('{:.8f}'.format(amount_input), '{:.8f}'.format(fee), '{:.8f}'.format(Decimal(amount_input) + Decimal(fee)), recipient_input, operation.get(),openfield_input)))
     confirmation_dialog.configure(state="disabled")
     confirmation_dialog.grid(row=0, pady=0)
 
@@ -605,7 +604,7 @@ def send(amount_input, recipient_input, openfield_input):
 
         app_log.warning("Amount: {}".format(amount_input))
         app_log.warning("Recipient: {}".format(recipient_input))
-        app_log.warning("OpenField Data: {}".format(openfield_input))
+        app_log.warning("Data: {}".format(openfield_input))
 
         timestamp = '%.2f' % time.time()
         operation_input = operation.get()
@@ -1033,11 +1032,13 @@ def csv_export(s):
 
 def token_transfer(token, amount, window):
     operation.delete (0, END)
-    operation.insert(0, "token:transfer:{}".format(token))
+    operation.insert(0, "token:transfer")
 
     openfield.delete('1.0', END)  # remove previous
-    openfield.insert(INSERT, amount)
+    openfield.insert(INSERT, "{}:{}".format(token,amount))
     window.destroy()
+
+    send_confirm(0, recipient.get(), "{}:{}".format(token, amount))
 
 
 def token_issue(token, amount, window):
@@ -1050,7 +1051,7 @@ def token_issue(token, amount, window):
     recipient.insert(INSERT, myaddress)
     window.destroy()
 
-    send_confirm(amount, 0, "{}:{}".format(token, amount))
+    send_confirm(0, recipient.get(), "{}:{}".format(token, amount))
 
 
 def tokens():

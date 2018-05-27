@@ -14,7 +14,7 @@ import log, options, connections, peershandler, apihandler
 
 import shutil, socketserver, base64, hashlib, os, re, sqlite3, sys, threading, time, socks, random, keys, math, requests, tarfile, essentials, glob
 from decimal import *
-import tokens
+import tokensv2
 import aliases
 from quantizer import *
 from ann import ann_get, ann_ver_get
