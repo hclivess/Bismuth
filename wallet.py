@@ -202,7 +202,6 @@ def node_connect():
                 app_log.warning("Status: Cannot connect to {}".format(ip))
 
 
-
 def replace_regex(string, replace):
     replaced_string = re.sub(r'^{}'.format(replace), "", string)
     return replaced_string

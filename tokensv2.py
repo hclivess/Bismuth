@@ -39,8 +39,8 @@ def tokens_update(file, ledger, mode, app_log):
     results = c.fetchall()
     app_log.warning(results)
 
-    import time
-    time.sleep(1000)
+    #import time
+    #time.sleep(1000)
 
     tokens_processed = []
 
@@ -98,7 +98,7 @@ def tokens_update(file, ledger, mode, app_log):
 
     for token in tokens_transferred:
         app_log.warning("processing {}".format(token))
-        c.execute("SELECT block_height, timestamp, address, recipient, signature, operation, openfield FROM transactions WHERE block_height >= ? AND operation LIKE ? AND openfield LIKE ? AND reward = 0 ORDER BY block_height ASC;", (token_last_block, "token:transfer"+token,))
+        c.execute("SELECT block_height, timestamp, address, recipient, signature, operation, openfield FROM transactions WHERE block_height >= ? AND operation LIKE ? AND openfield LIKE ? AND reward = 0 ORDER BY block_height ASC;", (token_last_block, "token:transfer:"+token,))
         results2 = c.fetchall()
         app_log.warning(results2)
 
@@ -122,7 +122,6 @@ def tokens_update(file, ledger, mode, app_log):
             app_log.warning("Txid: {}".format(txid))
 
             try:
-                app_log.warning(r[6])
                 transfer_amount = int(r[6])
             except:
                 transfer_amount = 0
