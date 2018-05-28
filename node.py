@@ -498,6 +498,10 @@ def execute(cursor, query):
         try:
             cursor.execute(query)
             break
+        except TypeError as e:
+            app_log.warning ("Database query to abort: {} {}".format (cursor, query))
+            app_log.warning ("Database abortion reason: {}".format (e))
+            break
         except Exception as e:
             app_log.warning("Database query: {} {}".format(cursor, query))
             app_log.warning("Database retry reason: {}".format(e))
@@ -510,6 +514,10 @@ def execute_param(cursor, query, param):
     while True:
         try:
             cursor.execute(query, param)
+            break
+        except TypeError as e:
+            app_log.warning("Database query to abort: {} {} {}".format(cursor, query, param))
+            app_log.warning("Database abortion reason: {}".format(e))
             break
         except Exception as e:
             app_log.warning("Database query: {} {} {}".format(cursor, query, param))
@@ -1731,7 +1739,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "blockget":
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
-                        block_desired = str(connections.receive(self.request, 10))
+                        block_desired = connections.receive(self.request, 10)
 
                         execute_param(h3, ("SELECT * FROM transactions WHERE block_height = ?;"), (block_desired,))
                         block_desired_result = h3.fetchall()
@@ -1743,7 +1751,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "mpinsert":
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
-                        mempool_insert = list(connections.receive(self.request, 10))
+                        mempool_insert = connections.receive(self.request, 10)
                         app_log.warning("mpinsert command")
 
                         mpinsert_result = mp.MEMPOOL.merge(mempool_insert, peer_ip, c, True, True)
@@ -1755,7 +1763,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "balanceget":
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
-                        balance_address = str(connections.receive(self.request, 10))  # for which address
+                        balance_address = connections.receive(self.request, 10)  # for which address
 
                         balanceget_result = balanceget(balance_address, h3)
 
@@ -1790,7 +1798,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "addlist":
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
-                        address_tx_list = str(connections.receive(self.request, 10))
+                        address_tx_list = connections.receive(self.request, 10)
                         execute_param(h3, ("SELECT * FROM transactions WHERE (address = ? OR recipient = ?) ORDER BY block_height DESC"), (address_tx_list, address_tx_list,))
                         result = h3.fetchall()
                         connections.send(self.request, result, 10)
@@ -1800,7 +1808,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "listlim":
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
-                        list_limit = str(connections.receive(self.request, 10))
+                        list_limit = connections.receive(self.request, 10)
                         # print (address_tx_list_limit)
                         execute_param(h3, ("SELECT * FROM transactions ORDER BY block_height DESC LIMIT ?"), (list_limit,))
                         result = h3.fetchall()
@@ -1811,11 +1819,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "addlistlim":
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
-                        address_tx_list = str(connections.receive(self.request, 10))
-                        try:
-                            address_tx_list_limit = int(connections.receive(self.request, 10))
-                        except:
-                            address_tx_list_limit = 1
+                        address_tx_list = connections.receive(self.request, 10)
+                        address_tx_list_limit = connections.receive(self.request, 10)
 
                         # print (address_tx_list_limit)
                         execute_param(h3, ("SELECT * FROM transactions WHERE (address = ? OR recipient = ?) ORDER BY block_height DESC LIMIT ?"), (address_tx_list,address_tx_list,address_tx_list_limit,))
@@ -1829,7 +1834,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if peers.is_allowed(peer_ip, data):
                         aliases.aliases_update (index_db, ledger_path_conf, "normal", app_log)
 
-                        alias_address = str(connections.receive(self.request, 10))
+                        alias_address = connections.receive(self.request, 10)
 
                         execute_param(index_cursor, ("SELECT alias FROM aliases WHERE address = ? "), (alias_address,))
 
@@ -1848,7 +1853,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if peers.is_allowed(peer_ip, data):
                         aliases.aliases_update (index_db, ledger_path_conf, "normal", app_log)
 
-                        aliases_request = list(connections.receive(self.request, 10))
+                        aliases_request = connections.receive(self.request, 10)
 
                         results = []
                         for alias_address in aliases_request:
@@ -1869,7 +1874,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                     if peers.is_allowed(peer_ip, data):
                         tokens.tokens_update (index_db, ledger_path_conf, "normal", app_log)
-                        tokens_address = str(connections.receive(self.request, 10))
+                        tokens_address = connections.receive(self.request, 10)
 
                         index_cursor.execute ("SELECT DISTINCT token FROM tokens WHERE address OR recipient = ?", (tokens_address,))
                         tokens_user = index_cursor.fetchall ()
@@ -1899,7 +1904,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         aliases.aliases_update(index_db, ledger_path_conf, "normal", app_log)
 
 
-                        alias_address = str(connections.receive(self.request, 10))
+                        alias_address = connections.receive(self.request, 10)
                         index_cursor.execute("SELECT address FROM aliases WHERE alias = ? ORDER BY block_height ASC LIMIT 1;", (alias_address,))  # asc for first entry
                         try:
                             address_fetch = index_cursor.fetchone()[0]
@@ -1917,7 +1922,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "pubkeyget":
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
-                        pub_key_address = str(connections.receive(self.request, 10))
+                        pub_key_address = connections.receive(self.request, 10)
 
                         c.execute("SELECT public_key FROM transactions WHERE address = ? and reward = 0", (pub_key_address,))
                         target_public_key_hashed = c.fetchone()[0]
@@ -1931,7 +1936,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "aliascheck":
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
-                        reg_string = str(connections.receive(self.request, 10))
+                        reg_string = connections.receive(self.request, 10)
 
                         registered_pending = mp.MEMPOOL.fetchone(
                             "SELECT timestamp FROM transactions WHERE openfield = ?;",
@@ -1951,7 +1956,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "txsend":
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
-                        tx_remote = list(connections.receive(self.request, 10))
+                        tx_remote = connections.receive(self.request, 10)
 
                         # receive data necessary for remote tx construction
                         remote_tx_timestamp = tx_remote[0]
@@ -1996,7 +2001,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
 
-                        address_to_validate = str(connections.receive(self.request, 10))
+                        address_to_validate = connections.receive(self.request, 10)
                         if essentials.address_validate(address_to_validate):
                             result = "valid"
                         else:
