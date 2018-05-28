@@ -14,7 +14,7 @@ import log, options, connections, peershandler, apihandler
 
 import shutil, socketserver, base64, hashlib, os, re, sqlite3, sys, threading, time, socks, random, keys, math, requests, tarfile, essentials, glob
 from decimal import *
-import tokensv2
+import tokensv2 as tokens
 import aliases
 from quantizer import *
 from ann import ann_get, ann_ver_get
@@ -1812,7 +1812,11 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
                         address_tx_list = str(connections.receive(self.request, 10))
-                        address_tx_list_limit = str(connections.receive(self.request, 10))
+                        try:
+                            address_tx_list_limit = int(connections.receive(self.request, 10))
+                        except:
+                            address_tx_list_limit = 1
+
                         # print (address_tx_list_limit)
                         execute_param(h3, ("SELECT * FROM transactions WHERE (address = ? OR recipient = ?) ORDER BY block_height DESC LIMIT ?"), (address_tx_list,address_tx_list,address_tx_list_limit,))
                         result = h3.fetchall()
