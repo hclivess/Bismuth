@@ -149,7 +149,7 @@ def keys_unlock(private_key_encrypted):
     private_key_readable = key.exportKey ().decode ("utf-8")
     return key, private_key_readable
 
-def keys_load_new(wallet_file):
+def keys_load_new(wallet_file="wallet.der"):
     # import keys
 
     with open (wallet_file, 'r') as wallet_file:
