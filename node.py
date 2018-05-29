@@ -25,6 +25,7 @@ from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 
 import mempool as mp
+import plugins
 
 
 # load config
@@ -870,9 +871,20 @@ def manager(c):
         execute(c, "SELECT block_height, timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
         result = c.fetchall()[0]
         last_block = result[0]
-        last_block_ago = quantize_two(result[1])
-        app_log.warning("Status: Last block {} was generated {} minutes ago".format(last_block, '%.2f' % ((quantize_two(time.time()) - last_block_ago) / 60)))
+        last_block_ago = int(time.time() - result[1])
+        app_log.warning("Status: Last block {} was generated {} minutes ago".format(last_block, '%.2f' % (last_block_ago / 60)))
         # last block
+        # status Hook
+        uptime = int(time.time() - startup_time)
+        tempdiff = difficulty(c)  # Can we avoid recalc that ?
+        status = {"protocolversion": config.version_conf, "walletversion": VERSION, "testnet": peers.is_testnet,
+                  # config data
+                  "blocks": last_block, "timeoffset": 0, "connections": peers.consensus_size,
+                  "difficulty": tempdiff[0],  # live status, bitcoind format
+                  "threads": threading.active_count(), "uptime": uptime, "consensus": peers.consensus,
+                  "consensus_percent": peers.consensus_percentage, "last_block_ago": last_block_ago}  # extra data
+        plugin_manager.execute_action_hook('status', status)
+        # end status hook
 
         # app_log.info(threading.enumerate() all threads)
         time.sleep(30)
@@ -1265,6 +1277,14 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
                         commit(conn)
                         # save diff
 
+                        plugin_manager.execute_action_hook('block',
+                                                           {'height': block_height_new, 'diff': diff_save,
+                                                            'hash': block_hash})
+
+                        plugin_manager.execute_action_hook('fullblock',
+                                                           {'height': block_height_new, 'diff': diff_save,
+                                                            'hash': block_hash, 'transactions': block_transactions})                        
+                        
                         for transaction in block_transactions:
                             execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
                                 str(transaction[0]), str(transaction[1]),
@@ -2440,6 +2460,9 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 if __name__ == "__main__":
     app_log = log.log("node.log", debug_level_conf, terminal_output)
     app_log.warning("Configuration settings loaded")
+
+    # create a plugin manager, load all plugin modules and init
+    plugin_manager = plugins.PluginManager(app_log=app_log, init=True)
 
     if os.path.exists("fresh_sync"):
         app_log.warning("Status: Fresh sync required, bootstrapping from the website")
