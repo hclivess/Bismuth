@@ -311,6 +311,16 @@ def keys_load_dialog():
     gui_address_t.delete(0, END)
     gui_address_t.insert(INSERT, myaddress)
 
+    recipient_address.config(state=NORMAL)
+    recipient_address.delete(0, END)
+    recipient_address.insert(INSERT, myaddress)
+    recipient_address.config(state=DISABLED)
+
+    sender_address.config(state=NORMAL)
+    sender_address.delete(0, END)
+    sender_address.insert(INSERT, myaddress)
+    sender_address.config(state=DISABLED)
+
     refresh(myaddress, s)
 
 
@@ -1517,6 +1527,7 @@ frame_entries_r.grid(row=0, column=0, pady=5, padx=5, sticky=N+W+E+S)
 
 recipient_address = Entry(frame_entries_r, width=60, text = myaddress)
 recipient_address.insert(0, myaddress)
+
 recipient_address.grid(row=0, column=1, sticky=W, pady=5, padx = 5)
 recipient_address.configure(state=DISABLED)
 
@@ -1621,10 +1632,10 @@ Label(frame_entries, text="Amount:").grid(row=2,sticky=W,pady=5, padx=5)
 Label(frame_entries, text="Data:",height=4).grid(row=3,sticky=W,pady=5, padx=5)
 Label(frame_entries, text="Operation:",height=4).grid(row=4,sticky=W,pady=5, padx=5)
 Label(frame_entries, text="URL:").grid(row=5,sticky=W+S,pady=5, padx=5)
-Label(frame_entries, text="If you have a BIS URL, copy it, click paste-button  \n"
+Label(frame_entries, text="If you have a BIS URL, copy it, click paste-button\n"
                           "on URL field and then click 'read'."
-                          "If you want to send Bismuth \n"
-                          " to the shown recipient, click send and then \n"
+                          "If you want to send Bismuth\n"
+                          "to the shown recipient, click send and then\n"
                           "the confirmation dialog opens.", justify=LEFT).grid(row=6,column=1,sticky=W+S,pady=1, padx=1,columnspan=2)
 
 Label(frame_entries_r, text="Recipient:").grid(row=0,sticky=W,pady=5, padx=5)
