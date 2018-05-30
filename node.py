@@ -206,17 +206,17 @@ def check_integrity(database):
 
     try:
         l.execute("PRAGMA table_info('transactions')")
-        redownload = 0
+        redownload = False
     except:
-        redownload = 1
+        redownload = True
 
     if len(l.fetchall()) != 12:
         app_log.warning("Status: Integrity check on database {} failed, bootstrapping from the website".format(database))
-        redownload = 1
+        redownload = True
     else:
         ledger_check.close()
 
-    if redownload == 1:
+    if redownload:
         bootstrap()
 
 
@@ -229,7 +229,7 @@ def db_to_drive(hdd, h, hdd2, h2):
 
     app_log.warning("Moving new data to HDD")
 
-    if ram_conf == 1:  # select RAM as source database
+    if ram_conf:  # select RAM as source database
         source_db = sqlite3.connect(ledger_ram_file, uri=True, timeout=1)
     else:  # select hyper.db as source database
         source_db = sqlite3.connect(hyper_path_conf, timeout=1)
@@ -240,12 +240,12 @@ def db_to_drive(hdd, h, hdd2, h2):
     execute_param(sc, ("SELECT * FROM transactions WHERE block_height > ? ORDER BY block_height ASC"), (hdd_block,))
     result1 = sc.fetchall()
 
-    if full_ledger == 1:  # we want to save to ledger.db
+    if full_ledger:  # we want to save to ledger.db
         for x in result1:
             h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
         commit(hdd)
 
-    if ram_conf == 1:  # we want to save to hyper.db from RAM/hyper.db depending on ram conf
+    if ram_conf:  # we want to save to hyper.db from RAM/hyper.db depending on ram conf
         for x in result1:
             h2.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
         commit(hdd2)
@@ -253,12 +253,12 @@ def db_to_drive(hdd, h, hdd2, h2):
     execute_param(sc, ("SELECT * FROM misc WHERE block_height > ? ORDER BY block_height ASC"), (hdd_block,))
     result2 = sc.fetchall()
 
-    if full_ledger == 1:  # we want to save to ledger.db from RAM/hyper.db depending on ram conf
+    if full_ledger:  # we want to save to ledger.db from RAM/hyper.db depending on ram conf
         for x in result2:
             h.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
         commit(hdd)
 
-    if ram_conf == 1:  # we want to save to hyper.db from RAM
+    if ram_conf:  # we want to save to hyper.db from RAM
         for x in result2:
             h2.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
         commit(hdd2)
@@ -266,12 +266,12 @@ def db_to_drive(hdd, h, hdd2, h2):
     # reward
     execute_param(sc, ('SELECT * FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) > ?'), (hdd_block,))
     result3 = sc.fetchall()
-    if full_ledger == 1:  # we want to save to ledger.db from RAM
+    if full_ledger:  # we want to save to ledger.db from RAM
         for x in result3:
             h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
         commit(hdd)
 
-    if ram_conf == 1:  # we want to save to hyper.db from RAM
+    if ram_conf:  # we want to save to hyper.db from RAM
         for x in result3:
             h2.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
         commit(hdd2)
@@ -313,7 +313,7 @@ def db_c_define():
     global hdd_block
 
     try:
-        if ram_conf == 1:
+        if ram_conf:
             conn = sqlite3.connect(ledger_ram_file, uri=True, timeout=1, isolation_level=None)
         else:
             conn = sqlite3.connect(hyper_path_conf, uri=True, timeout=1, isolation_level=None)
@@ -342,7 +342,7 @@ def ledger_compress(ledger_path_conf, hyper_path_conf):
 
         if os.path.exists(hyper_path_conf):
 
-            if full_ledger == 1:
+            if full_ledger:
                 # cross-integrity check
                 hdd = sqlite3.connect(ledger_path_conf, timeout=1)
                 hdd.text_factory = str
@@ -359,34 +359,34 @@ def ledger_compress(ledger_path_conf, hyper_path_conf):
                 hdd2.close()
                 # cross-integrity check
 
-                if hdd_block_last == hdd2_block_last and hyper_recompress_conf == 1:  # cross-integrity check
+                if hdd_block_last == hdd2_block_last and hyper_recompress_conf:  # cross-integrity check
                     ledger_path_conf = hyper_path_conf  # only valid within the function, this temporarily sets hyper.db as source
                     app_log.warning("Status: Recompressing hyperblocks (keeping full ledger)")
-                    recompress = 1
-                elif hdd_block_last == hdd2_block_last and hyper_recompress_conf == 0:
+                    recompress = True
+                elif hdd_block_last == hdd2_block_last and hyper_recompress_conf:
                     app_log.warning("Status: Hyperblock recompression skipped")
-                    recompress = 0
+                    recompress = False
                 else:
                     app_log.warning("Status: Cross-integrity check failed, hyperblocks will be rebuilt from full ledger")
-                    recompress = 1
+                    recompress = True
             else:
-                if hyper_recompress_conf == 1:
+                if hyper_recompress_conf:
                     app_log.warning("Status: Recompressing hyperblocks (without full ledger)")
-                    recompress = 1
+                    recompress = True
                 else:
                     app_log.warning("Status: Hyperblock recompression skipped")
-                    recompress = 0
+                    recompress = False
         else:
             app_log.warning("Status: Compressing ledger to Hyperblocks")
-            recompress = 1
+            recompress = True
 
-        if recompress == 1:
+        if recompress:
             depth = 10000  # REWORK TO REFLECT TIME INSTEAD OF BLOCKS
 
             # if os.path.exists(ledger_path_conf + '.temp'):
             #    os.remove(ledger_path_conf + '.temp')
 
-            if full_ledger == 1:
+            if full_ledger:
                 shutil.copy(ledger_path_conf, ledger_path_conf + '.temp')
                 hyper = sqlite3.connect(ledger_path_conf + '.temp')
             else:
@@ -783,13 +783,13 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2):
                 app_log.warning("Node {} didn't find block {}({}), rolled back".format(peer_ip, db_block_height, db_block_hash))
 
                 # roll back hdd too
-                if full_ledger == 1:  # rollback ledger.db
+                if full_ledger:  # rollback ledger.db
                     execute_param(h, ("DELETE FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
                     commit(hdd)
                     execute_param(h, ("DELETE FROM misc WHERE block_height >= ?;"), (str(db_block_height),))
                     commit(hdd)
 
-                if ram_conf == 1:  # rollback hyper.db
+                if ram_conf:  # rollback hyper.db
                     execute_param(h2, ("DELETE FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
                     commit(hdd2)
                     execute_param(h2, ("DELETE FROM misc WHERE block_height >= ?;"), (str(db_block_height),))
@@ -799,11 +799,11 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2):
                 # roll back hdd too
 
                 # roll back reward too
-                if full_ledger == 1:  # rollback ledger.db
+                if full_ledger:  # rollback ledger.db
                     execute_param(h, ('DELETE FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) >= ?'), (str(db_block_height),))
                     commit(hdd)
 
-                if ram_conf == 1:  # rollback hyper.db
+                if ram_conf:  # rollback hyper.db
                     execute_param(h2, ('DELETE FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) >= ?'), (str(db_block_height),))
                     commit(hdd2)
                 # roll back reward too
@@ -903,7 +903,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
             time.sleep (0.1)
             app_log.info ("Waiting for mempool to unlock {}".format (peer_ip))
 
-        block_valid = 1  # init
+        block_valid = True  # init
 
         app_log.info("Digesting started from {}".format(peer_ip))
 
@@ -927,18 +927,18 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
                         try:
                             result = h3.fetchall()[0]
                             app_log.warning("That transaction is already in our ledger, row {}".format(result[0]))
-                            block_valid = 0
+                            block_valid = False
 
                         except:
                             pass
                             # reject block with transactions which are already in the ledger
                     else:
-                        block_valid = 0
+                        block_valid = False
                         app_log.warning("Empty signature from {}".format(peer_ip))
 
                 if len(signature_list) != len(set(signature_list)):
                     app_log.warning("There are duplicate transactions in this block, rejected")
-                    block_valid = 0  # dont really need this one
+                    block_valid = False  # dont really need this one
                 del signature_list[:]
 
                 # reject block with duplicate transactions
@@ -977,29 +977,29 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
                     if not verifier.verify(hash, received_signature_dec):
                         app_log.warning("Invalid signature")
                         # print(received_timestamp +"\n"+ received_address +"\n"+ received_recipient +"\n"+ received_amount +"\n"+ received_operation +"\n"+ received_openfield)
-                        block_valid = 0
+                        block_valid = False
                     else:
                         app_log.info("Valid signature")
 
                     #if received_operation != "1" and received_operation != "0":
-                    #    block_valid = 0
+                    #    block_valid = False
                     #    # print (type(received_operation))
                     #    app_log.warning("Wrong keep value {}".format(received_operation))
 
                     if quantize_eight(received_amount) < 0:
-                        block_valid = 0
+                        block_valid = False
                         app_log.warning("Negative balance spend attempt")
 
                     #if transaction != transaction_list[-1]:  # non-mining txs / disabled (per pool request)
 
                     if received_address != hashlib.sha224(base64.b64decode(received_public_key_hashed)).hexdigest():
                         app_log.warning("Attempt to spend from a wrong address")
-                        block_valid = 0
+                        block_valid = False
 
                     if db_block_height > 700000: # start validating
                         if not essentials.address_validate(received_address) or not essentials.address_validate(received_recipient):
                             app_log.warning("Not a valid address")
-                            block_valid = 0
+                            block_valid = False
 
                     if transaction == transaction_list[-1]:  # recognize the last transaction as the mining reward transaction
                         block_timestamp = received_timestamp
@@ -1008,7 +1008,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
 
                         # if float(db_timestamp_last) + 30 > float(block_timestamp): #if block comes 0-30 seconds after the previous one
                         #    error_msg = "The mined block is too close to the previous one"
-                        #    block_valid = 0
+                        #    block_valid = False
 
                     time_now = time.time()
 
@@ -1018,19 +1018,19 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
 
                     if quantize_two(time_now) + drift_limit < quantize_two(received_timestamp):
                         app_log.warning("Future transaction not allowed, timestamp {} minutes in the future".format(quantize_two((quantize_two(received_timestamp) - quantize_two(time_now)) / 60)))
-                        block_valid = 0
+                        block_valid = False
                     if quantize_two(db_timestamp_last) - 86400 > quantize_two(received_timestamp):
                         app_log.warning("Transaction older than 24h not allowed.")
-                        block_valid = 0
+                        block_valid = False
                         # verify signatures
 
                 # reject blocks older than latest block
                 if quantize_two(block_timestamp) <= quantize_two(db_timestamp_last):
-                    block_valid = 0
+                    block_valid = False
                     app_log.warning("Block is older than the previous one, will be rejected")
                 # reject blocks older than latest block
 
-                if block_valid == 1:
+                if block_valid:
                     # calculate difficulty
 
                     diff = difficulty(c)
@@ -1052,13 +1052,13 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
                     execute_param(h3, ("SELECT block_hash FROM transactions WHERE block_hash = ?;"), (block_hash,))
                     try:
                         dummy = c.fetchone()[0]
-                        block_valid = 0
+                        block_valid = False
                         app_log.warning("Skipping digestion of block {} from {}, because we already have it".format(peer_ip,dummy))
                     except:
                         pass
                     # check if we already have the hash
 
-                if block_valid == 1:
+                if block_valid:
                     mining_hash = bin_convert(hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
 
                     diff_drop_time = 300
@@ -1095,11 +1095,11 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
                             else:
                                 # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
                                 app_log.warning ("Readjusted difficulty too low for block {} from {}, should be at least {}".format (block_height_new, peer_ip, diff_dropped))
-                                block_valid = 0
+                                block_valid = False
                         else:
                             # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
                             app_log.warning("Difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[0]))
-                            block_valid = 0
+                            block_valid = False
 
 
                     else:
@@ -1118,12 +1118,12 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
                             else:
                                 # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
                                 app_log.warning("Readjusted difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[1]))
-                                block_valid = 0
+                                block_valid = False
 
                         else:
                             # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
                             app_log.warning("Difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[0]))
-                            block_valid = 0
+                            block_valid = False
 
                         # print data
                         # print transaction_list
@@ -1132,17 +1132,17 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
                     fees_block = []
 
                     if peers.is_banned(peer_ip):
-                        block_valid = 0
+                        block_valid = False
                         app_log.warning("Cannot accept blocks form a banned peer")
 
-                if block_valid == 0:
+                if not block_valid:
                     #app_log.warning("Check 1: A part of the block is invalid, rejected: {}".format(error_msg))
                     #app_log.info("Check 1: Complete rejected data: {}".format(data))
                     if peers.warning(sdef, peer_ip, "Rejected block", 2):
                         raise ValueError("{} banned".format(peer_ip))
                     raise ValueError ("Block digestion aborted")
 
-                if block_valid == 1:
+                if block_valid:
                     for transaction in transaction_list:
                         db_timestamp = '%.2f' % quantize_two(transaction[0])
                         db_address = str(transaction[1])[:56]
@@ -1244,11 +1244,11 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
 
                         if quantize_eight(balance_pre) < quantize_eight(db_amount):
                             app_log.warning("sending more than owned".format(db_address))
-                            block_valid = 0
+                            block_valid = False
 
                         elif quantize_eight(balance) - quantize_eight(block_fees_address) < 0:  # exclude fee check for the mining/header tx
                             app_log.warning("{} Cannot afford to pay fees".format(db_address))
-                            block_valid = 0
+                            block_valid = False
 
                         else:
                             # append, but do not insert to ledger before whole block is validated, not that it takes already validated values (decimals, length)
@@ -1263,14 +1263,14 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
                             pass
 
                     # whole block validation
-                    if block_valid == 0:
+                    if not block_valid:
                         #app_log.info("Check 2: A part of the block is invalid, rejected: {}".format(error_msg))
                         #app_log.info("Check 2: Complete rejected block: {}".format(data))
                         if peers.warning(sdef, peer_ip, "Rejected block", 2):
                             raise ValueError("{} banned".format(peer_ip))
                         raise ValueError("Block digestion aborted")
 
-                    if block_valid == 1:
+                    if block_valid:
 
                         # save diff
                         execute_param(c, "INSERT INTO misc VALUES (?, ?)", (block_height_new, diff_save))
@@ -1318,13 +1318,13 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
         except Exception as e:
             app_log.warning("Block processing failed: {}".format(e))
 
-            if debug_conf == 1:
+            if debug_conf:
                 raise  # major debug client
             else:
                 pass
 
         finally:
-            if full_ledger == 1 or ram_conf == 1:  # first case move stuff from hyper.db to ledger.db; second case move stuff from ram to both
+            if full_ledger or ram_conf:  # first case move stuff from hyper.db to ledger.db; second case move stuff from ram to both
                 db_to_drive(hdd, h, hdd2, h2)
             app_log.info("Digesting complete")
             db_lock.release()
@@ -1335,7 +1335,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
 
 def coherence_check():
     app_log.warning("Status: Testing chain coherence")
-    if full_ledger == 1:
+    if full_ledger:
         chains_to_check = [ledger_path_conf, hyper_path_conf]
     else:
         chains_to_check = [hyper_path_conf]
@@ -1442,9 +1442,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         # if threading.active_count() < thread_limit_conf or peer_ip == "127.0.0.1":
         # Always keep a slot for whitelisted (wallet could be there)
         if threading.active_count() < thread_limit_conf/3*2 or peers.is_whitelisted(peer_ip): #inbound
-            capacity = 1
+            capacity = True
         else:
-            capacity = 0
+            capacity = False
             try:
                 self.request.close()
                 app_log.info("Free capacity for {} unavailable, disconnected".format(peer_ip))
@@ -1454,9 +1454,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
             finally:
                 return
 
-        banned = 0
+        banned = False
         if peers.is_banned(peer_ip):
-            banned = 1
+            banned = True
             try:
                 self.request.close()
                 app_log.info("IP {} banned, disconnected".format(peer_ip))
@@ -1468,11 +1468,11 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         timeout_operation = 120  # timeout
         timer_operation = time.time()  # start counting
 
-        while banned == 0 and capacity == 1:
+        while not banned and capacity:
             try:
                 hdd2, h2 = db_h2_define()
                 conn, c = db_c_define()
-                if full_ledger == 1:
+                if full_ledger:
                     hdd, h = db_h_define()
                     h3 = h
                 else:
@@ -2148,7 +2148,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 if self.request:
                     self.request.close()
 
-                if debug_conf == 1:
+                if debug_conf:
                     raise  # major debug client
                 else:
                     return
@@ -2173,7 +2173,7 @@ def worker(HOST, PORT):
     try:
         this_client = (HOST + ":" + str(PORT))
         s = socks.socksocket()
-        if tor_conf == 1:
+        if tor_conf:
             s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
         # s.setblocking(0)
         s.connect((HOST, PORT))
@@ -2199,14 +2199,14 @@ def worker(HOST, PORT):
         app_log.info("Could not connect to {}: {}".format(this_client, e))
         return  # can return here, because no lists are affected yet
 
-    banned = 0
+    banned = False
     peer_ip = s.getpeername()[0]
     if peers.is_banned(peer_ip):
-        banned = 1
+        banned = True
         s.close()
         app_log.warning("IP {} banned, disconnected".format(peer_ip))
 
-    while banned == 0:
+    while not banned:
         try:
             if this_client not in peers.connection_pool:
                 peers.append_client(this_client)
@@ -2216,7 +2216,7 @@ def worker(HOST, PORT):
             hdd2, h2 = db_h2_define()
             conn, c = db_c_define()
 
-            if full_ledger == 1:
+            if full_ledger:
                 hdd, h = db_h_define()
                 h3 = h
             else:
@@ -2440,7 +2440,7 @@ def worker(HOST, PORT):
             if s:
                 s.close()
             # properly end the connection
-            if debug_conf == 1:
+            if debug_conf:
                 raise  # major debug client
             else:
                 app_log.info("Ending thread, because {}".format(e))
@@ -2551,7 +2551,7 @@ if __name__ == "__main__":
         sc.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
         hdd_block = sc.fetchone()[0]
 
-        if ram_conf == 1:
+        if ram_conf:
             app_log.warning("Status: Moving database to RAM")
             to_ram = sqlite3.connect(ledger_ram_file, uri=True, timeout=1, isolation_level=None)
             to_ram.text_factory = str
@@ -2569,7 +2569,7 @@ if __name__ == "__main__":
     # mempool, m = db_m_define()
     conn, c = db_c_define()
     hdd2, h2 = db_h2_define()
-    if full_ledger == 1:
+    if full_ledger:
         hdd, h = db_h_define()
         h3 = h
     else:
@@ -2594,14 +2594,14 @@ if __name__ == "__main__":
         apihandler = apihandler.ApiHandler(app_log, config)
         mp.MEMPOOL = mp.Mempool(app_log, config, db_lock, is_testnet)
 
-        if rebuild_db_conf == 1:
+        if rebuild_db_conf:
             db_maintenance(conn)
         # connectivity to self node
 
-        if verify_conf == 1:
+        if verify_conf:
             verify(h3)
 
-        if tor_conf == 0:
+        if not tor_conf:
             # Port 0 means to select an arbitrary unused port
             HOST, PORT = "0.0.0.0", int(port)
 
