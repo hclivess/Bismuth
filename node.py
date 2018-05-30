@@ -499,7 +499,7 @@ def execute(cursor, query):
         try:
             cursor.execute(query)
             break
-        except TypeError as e:
+        except sqlite3.InterfaceError as e:
             app_log.warning ("Database query to abort: {} {}".format (cursor, query))
             app_log.warning ("Database abortion reason: {}".format (e))
             break
@@ -516,7 +516,7 @@ def execute_param(cursor, query, param):
         try:
             cursor.execute(query, param)
             break
-        except TypeError as e:
+        except sqlite3.InterfaceError as e:
             app_log.warning("Database query to abort: {} {} {}".format(cursor, query, param))
             app_log.warning("Database abortion reason: {}".format(e))
             break
