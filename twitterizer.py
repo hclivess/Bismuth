@@ -1,6 +1,8 @@
 #add additional info to the tweet: address that is allowed to withdraw
 sleep_interval = 900
-payout_level = 3
+payout_level = 1
+payout_gap = 6
+month = 2629743
 
 import tweepy
 import json
@@ -41,6 +43,8 @@ def tweet_saved(tweet):
         return_value = True
     except:
         return_value = False
+
+    print(return_value)
     return return_value
 
 def tweet_qualify(tweet_id, exposure=10):
@@ -55,14 +59,14 @@ def tweet_qualify(tweet_id, exposure=10):
         retweet_count = parsed ['retweet_count']
         parsed_text = parsed['text']
         parsed_followers = parsed['user']['followers_count']
+        acc_age = time.mktime (time.strptime (parsed['user']['created_at'], '%a %b %d %H:%M:%S +0000 %Y'))
 
-
-        if "#bismuth" and "$bis" in parsed_text.lower() and retweet_count + favorite_count > exposure and parsed_followers > 30:
+        if "#bismuth" and "$bis" in parsed_text.lower() and retweet_count + favorite_count > exposure and parsed_followers > 30 and acc_age < time.time() - month:
             qualifies = True
         else:
             qualifies = False
 
-        print (parsed_id, favorite_count, retweet_count, parsed_text, parsed_followers, qualifies)
+        print (parsed_id, favorite_count, retweet_count, parsed_text, parsed_followers, acc_age, qualifies)
 
     except Exception as e:
         print ("Exception with {}: {}".format(tweet_id,e))
@@ -107,7 +111,7 @@ if __name__ == "__main__":
             tweet_qualified = tweet_qualify (tweet_id)
             name = tweet_qualified[2]
 
-            t.execute("SELECT COUNT() FROM (SELECT * FROM tweets ORDER BY block_height DESC LIMIT 3) WHERE name = ?",(name,))
+            t.execute("SELECT COUNT() FROM (SELECT * FROM tweets ORDER BY block_height DESC LIMIT ?) WHERE name = ?",(payout_gap, name,))
             name_count = t.fetchone()[0]
 
 
