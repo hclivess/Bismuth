@@ -41,8 +41,6 @@ def tweet_saved(tweet):
         return_value = True
     except:
         return_value = False
-
-    print(return_value)
     return return_value
 
 def tweet_qualify(tweet_id, exposure=10):
@@ -63,6 +61,9 @@ def tweet_qualify(tweet_id, exposure=10):
             qualifies = True
         else:
             qualifies = False
+
+        print (parsed_id, favorite_count, retweet_count, parsed_text, parsed_followers, qualifies)
+
     except Exception as e:
         print ("Exception with {}: {}".format(tweet_id,e))
         qualifies, parsed_text, parsed_id = False,False,False
