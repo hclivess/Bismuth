@@ -264,7 +264,7 @@ def db_to_drive(hdd, h, hdd2, h2):
         commit(hdd2)
 
     # reward
-    execute_param(sc, ('SELECT * FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) > ?'), (hdd_block,))
+    execute_param(sc, ('SELECT * FROM transactions WHERE address = "Development Reward" AND block_height < ?'), (-hdd_block,))
     result3 = sc.fetchall()
     if full_ledger:  # we want to save to ledger.db from RAM
         for x in result3:
@@ -777,7 +777,7 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2):
                 execute_param(c, ("DELETE FROM misc WHERE block_height >= ?;"), (str(db_block_height),))
                 commit(conn)
 
-                execute_param(c, ('DELETE FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) >= ?'), (str(db_block_height),))
+                execute_param(c, ('DELETE FROM transactions WHERE address = "Development Reward" AND block_height <= ?'), (-db_block_height,))
                 commit(conn)
 
                 app_log.warning("Node {} didn't find block {}({}), rolled back".format(peer_ip, db_block_height, db_block_hash))
@@ -800,11 +800,11 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2):
 
                 # roll back reward too
                 if full_ledger:  # rollback ledger.db
-                    execute_param(h, ('DELETE FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) >= ?'), (str(db_block_height),))
+                    execute_param(h, ('DELETE FROM transactions WHERE address = "Development Reward" AND block_height <= ?'), (-db_block_height,))
                     commit(hdd)
 
                 if ram_conf:  # rollback hyper.db
-                    execute_param(h2, ('DELETE FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) >= ?'), (str(db_block_height),))
+                    execute_param(h2, ('DELETE FROM transactions WHERE address = "Development Reward" AND block_height <= ?'), (-db_block_height,))
                     commit(hdd2)
                 # roll back reward too
 
@@ -1300,8 +1300,8 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
                             if int(block_height_new) % 10 == 0:  # every 10 blocks
                                 if transaction == block_transactions[-1]:  # put at the end
                                     execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                                                  ("0", str(time_now), "Development Reward", str(genesis_conf), str(mining_reward),
-                                                   "0", "0", "0", "0", "0", "0", str(block_height_new)))
+                                                  (-block_height_new, str(time_now), "Development Reward", str(genesis_conf), str(mining_reward),
+                                                   "0", "0", "0", "0", "0", "0", "0"))
                                     commit(conn)
                             # dev reward
 
@@ -1362,7 +1362,7 @@ def coherence_check():
                     c2.execute("DELETE FROM misc WHERE block_height >= ?", (row[0]-1,))
                     conn2.commit()
 
-                    execute_param(conn2, ('DELETE FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) >= ?'), (row[0]-1,))
+                    execute_param(conn2, ('DELETE FROM transactions WHERE address = "Development Reward" AND block_height <= ?'), (-(row[0]+1),))
                     commit(conn2)
                     conn2.close()
 
@@ -1400,7 +1400,7 @@ def coherence_check():
                     c2.execute("DELETE FROM misc WHERE block_height >= ?", (row[0]-1,))
                     conn2.commit()
 
-                    execute_param(conn2, ('DELETE FROM transactions WHERE address = "Development Reward" AND CAST(openfield AS INTEGER) >= ?'), (row[0]-1,))
+                    execute_param(conn2, ('DELETE FROM transactions WHERE address = "Development Reward" AND block_height <= ?'), (-(row[0]+1),))
                     commit(conn2)
                     conn2.close()
 
