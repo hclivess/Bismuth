@@ -503,10 +503,14 @@ def execute(cursor, query):
             app_log.warning ("Database query to abort: {} {}".format (cursor, query))
             app_log.warning ("Database abortion reason: {}".format (e))
             break
+        except sqlite3.IntegrityError as e:
+            app_log.warning ("Database query to abort: {} {}".format (cursor, query))
+            app_log.warning ("Database abortion reason: {}".format (e))
+            break
         except Exception as e:
             app_log.warning("Database query: {} {}".format(cursor, query))
             app_log.warning("Database retry reason: {}".format(e))
-            time.sleep(0.1)
+            time.sleep(1)
     return cursor
 
 
@@ -520,9 +524,14 @@ def execute_param(cursor, query, param):
             app_log.warning("Database query to abort: {} {} {}".format(cursor, query, param))
             app_log.warning("Database abortion reason: {}".format(e))
             break
+        except sqlite3.IntegrityError as e:
+            app_log.warning ("Database query to abort: {} {}".format (cursor, query))
+            app_log.warning ("Database abortion reason: {}".format (e))
+            break
         except Exception as e:
             app_log.warning("Database query: {} {} {}".format(cursor, query, param))
             app_log.warning("Database retry reason: {}".format(e))
+            time.sleep(1)
     return cursor
 
 
