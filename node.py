@@ -1355,6 +1355,7 @@ def coherence_check():
 
         # perform test on transaction table
         y = None
+        # Egg: not sure block_height != (0 OR 1)  gives the proper result, 0 or 1  = 1. not in (0, 1) could be better.
         for row in c.execute("SELECT block_height FROM transactions WHERE reward != 0 AND block_height != (0 OR 1) ORDER BY block_height ASC"):
             y_init = row[0]
 
@@ -1953,7 +1954,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if peers.is_allowed(peer_ip, data):
                         pub_key_address = connections.receive(self.request, 10)
 
-                        c.execute("SELECT public_key FROM transactions WHERE address = ? and reward = 0", (pub_key_address,))
+                        c.execute("SELECT public_key FROM transactions WHERE address = ? and reward = 0 LIMIT 1", (pub_key_address,))
                         target_public_key_hashed = c.fetchone()[0]
                         connections.send(self.request, target_public_key_hashed, 10)
 
