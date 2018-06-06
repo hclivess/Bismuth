@@ -514,11 +514,13 @@ class Mempool:
                             mempool_result.append("Mempool: Negative balance spend attempt")
                             # self.app_log.warning("Mempool: Negative balance spend attempt")
 
-                        if quantize_two(mempool_timestamp) > time.time():  # dont accept future txs
+                        if quantize_two(mempool_timestamp) > time.time() + 5:  # dont accept future txs
+                            mempool_result.append ("Mempool: Future transaction rejected")
                             acceptable = False
 
                         # dont accept old txs, mempool needs to be harsher than ledger
                         if quantize_two(mempool_timestamp) < time.time() - 82800:
+                            mempool_result.append ("Mempool: Transaction too old")
                             acceptable = 0
                         # remove from mempool if it's in both ledger and mempool already
                         if mempool_in and ledger_in:
@@ -615,15 +617,17 @@ class Mempool:
 
                             time_now = time.time()
 
+                            """
+                            DOUBLE CHECK
                             if quantize_two(mempool_timestamp) > quantize_two(time_now):
                                 mempool_result.append(
                                     "Mempool: Future transaction not allowed, timestamp {} minutes in the future".
                                     format(quantize_two((quantize_two(mempool_timestamp) - quantize_two(time_now))
                                     / 60)))
                                 # self.app_log.warning("Mempool: Future transaction not allowed, timestamp {} minutes in the future.")
+                            """
 
-
-                            elif quantize_two(time_now) - 86400 > quantize_two(mempool_timestamp):
+                            if quantize_two(time_now) - 86400 > quantize_two(mempool_timestamp):
                                 mempool_result.append("Mempool: Transaction older than 24h not allowed.")
                                 # self.app_log.warning("Mempool: Transaction older than 24h not allowed.")
 
@@ -649,7 +653,7 @@ class Mempool:
                     else:
                         mempool_result.append("Local mempool is already full for this tx type, skipping merging")
                         # self.app_log.warning("Local mempool is already full for this tx type, skipping merging")
-                        return mempool_result  # avoid spamming of the logs
+                    return mempool_result
                 # TODO: Here maybe commit() on c to release the write lock?
             except Exception as e:
                 self.app_log.warning("Mempool: Error processing: {} {}".format(data, e))

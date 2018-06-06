@@ -1024,7 +1024,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
 
                     global drift_limit
                     if "testnet" in version or db_block_height > 700000:
-                        drift_limit = 0
+                        drift_limit = 5
 
                     if quantize_two(time_now) + drift_limit < quantize_two(received_timestamp):
                         app_log.warning("Future transaction not allowed, timestamp {} minutes in the future".format(quantize_two((quantize_two(received_timestamp) - quantize_two(time_now)) / 60)))
@@ -1666,6 +1666,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                         app_log.warning ("Outbound: Egress disabled".format (peer_ip))
                                     else:
                                         app_log.info("Inbound: Client {} has the latest block".format(peer_ip))
+
                                     time.sleep(int(pause_conf))  # reduce CPU usage
                                     connections.send(self.request, "nonewblk", 10)
 
