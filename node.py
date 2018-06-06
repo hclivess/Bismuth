@@ -1024,7 +1024,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
 
                     global drift_limit
                     if "testnet" in version or db_block_height > 700000:
-                        drift_limit = 5
+                        drift_limit = 0
 
                     if quantize_two(time_now) + drift_limit < quantize_two(received_timestamp):
                         app_log.warning("Future transaction not allowed, timestamp {} minutes in the future".format(quantize_two((quantize_two(received_timestamp) - quantize_two(time_now)) / 60)))
@@ -2088,13 +2088,14 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         threads_count = threading.active_count()
                         uptime = int(time.time() - startup_time)
                         diff = difficulty(c)
+                        server_timestamp = time.time()
 
                         if reveal_address:
                             revealed_address = address
                         else:
                             revealed_address = "private"
 
-                        connections.send(self.request, (revealed_address, nodes_count, nodes_list, threads_count, uptime, peers.consensus, peers.consensus_percentage, VERSION, diff), 10)
+                        connections.send(self.request, (revealed_address, nodes_count, nodes_list, threads_count, uptime, peers.consensus, peers.consensus_percentage, VERSION, diff, server_timestamp), 10)
 
                     else:
                         app_log.info("{} not whitelisted for statusget command".format(peer_ip))

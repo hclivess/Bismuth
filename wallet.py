@@ -926,6 +926,7 @@ def stats():
         stats_consensus_percentage = statusget[6]
         stats_version = statusget[7]
         stats_diff = statusget[8]
+        stats_timestamp = statusget[9]
 
         stats_address_label_var.set ("Node Address: {}".format (stats_address))
         stats_nodes_count_label_var.set ("Number of Nodes: {}".format (stats_nodes_count))
@@ -1046,7 +1047,7 @@ def token_transfer(token, amount, window):
     openfield.insert (INSERT, "{}:{}".format (token, amount))
     window.destroy ()
 
-    send_confirm (0, recipient.get (), "{}:{}".format (token, amount))
+    send_confirm (0, recipient.get (),"token:transfer", "{}:{}".format (token, amount))
 
 
 def token_issue(token, amount, window):
@@ -1059,7 +1060,7 @@ def token_issue(token, amount, window):
     recipient.insert (INSERT, myaddress)
     window.destroy ()
 
-    send_confirm (0, recipient.get (), "{}:{}".format (token, amount))
+    send_confirm (0, recipient.get (),"token:issue", "{}:{}".format (token, amount))
 
 
 def tokens():

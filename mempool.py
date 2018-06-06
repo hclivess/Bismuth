@@ -514,7 +514,7 @@ class Mempool:
                             mempool_result.append("Mempool: Negative balance spend attempt")
                             # self.app_log.warning("Mempool: Negative balance spend attempt")
 
-                        if quantize_two(mempool_timestamp) > time.time() + 5:  # dont accept future txs
+                        if quantize_two(mempool_timestamp) > time.time():  # dont accept future txs
                             mempool_result.append ("Mempool: Future transaction rejected")
                             acceptable = False
 
