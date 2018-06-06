@@ -85,6 +85,7 @@ accept_peers = config.accept_peers
 #mempool_allowed = config.mempool_allowed
 terminal_output = config.terminal_output
 #mempool_ram_conf = config.mempool_ram_conf
+egress = config.egress
 
 
 # nodes_ban_reset=config.nodes_ban_reset
@@ -1660,8 +1661,11 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                                 execute(h3, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
                                 db_block_hash = h3.fetchone()[0]  # get latest block_hash
-                                if db_block_hash == data:
-                                    app_log.info("Inbound: Client {} has the latest block".format(peer_ip))
+                                if db_block_hash == data or not egress:
+                                    if egress:
+                                        app_log.warning ("Outbound: Egress disabled".format (peer_ip))
+                                    else:
+                                        app_log.info("Inbound: Client {} has the latest block".format(peer_ip))
                                     time.sleep(int(pause_conf))  # reduce CPU usage
                                     connections.send(self.request, "nonewblk", 10)
 
@@ -2289,8 +2293,12 @@ def worker(HOST, PORT):
                             execute(h3, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
                             db_block_hash = h3.fetchone()[0]  # get latest block_hash
 
-                            if db_block_hash == data:
-                                app_log.info("Outbound: Node {} has the latest block".format(peer_ip))
+                            if db_block_hash == data or not egress:
+                                if not egress:
+                                    app_log.warning ("Outbound: Egress disabled for {}".format (peer_ip))
+                                    time.sleep (int (pause_conf))  # reduce CPU usage
+                                else:
+                                    app_log.info("Outbound: Node {} has the latest block".format(peer_ip))
                                 connections.send(s, "nonewblk", 10)
 
                             else:

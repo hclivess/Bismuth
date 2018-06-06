@@ -41,7 +41,8 @@ class Get:
         "mempool_allowed": ["list"],
         "terminal_output": ["bool"],
         "gui_scaling": ["str"],
-        "mempool_ram_conf": ["bool"]
+        "mempool_ram_conf": ["bool"],
+        "egress": ["bool"]
     }
  
     def load_file(self,filename):
