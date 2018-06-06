@@ -625,8 +625,7 @@ def send(amount_input, recipient_input, operation_input, openfield_input):
         app_log.warning ("Recipient: {}".format (recipient_input))
         app_log.warning ("Data: {}".format (openfield_input))
 
-        timestamp = '%.2f' % time.time ()
-        transaction = (str (timestamp), str (myaddress), str (recipient_input), '%.8f' % float (amount_input), str (operation_input), str (openfield_input))  # this is signed, float kept for compatibility
+        transaction = (str (stats_timestamp), str (myaddress), str (recipient_input), '%.8f' % float (amount_input), str (operation_input), str (openfield_input))  # this is signed, float kept for compatibility
 
         h = SHA.new (str (transaction).encode ("utf-8"))
         signer = PKCS1_v1_5.new (key)
@@ -641,7 +640,7 @@ def send(amount_input, recipient_input, operation_input, openfield_input):
             app_log.warning ("Client: The signature is valid, proceeding to save transaction, signature, new txhash and the public key to mempool")
 
             # print(str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input),str(signature_enc), str(public_key_hashed), str(keep_input), str(openfield_input))
-            tx_submit = str (timestamp), str (myaddress), str (recipient_input), '%.8f' % float (amount_input), str (signature_enc.decode ("utf-8")), str (public_key_hashed.decode ("utf-8")), str (operation_input), str (openfield_input)  # float kept for compatibility
+            tx_submit = str (stats_timestamp), str (myaddress), str (recipient_input), '%.8f' % float (amount_input), str (signature_enc.decode ("utf-8")), str (public_key_hashed.decode ("utf-8")), str (operation_input), str (openfield_input)  # float kept for compatibility
 
             while True:
                 connections.send (s, "mpinsert", 10)
@@ -926,7 +925,7 @@ def stats():
         stats_consensus_percentage = statusget[6]
         stats_version = statusget[7]
         stats_diff = statusget[8]
-        stats_timestamp = statusget[9]
+
 
         stats_address_label_var.set ("Node Address: {}".format (stats_address))
         stats_nodes_count_label_var.set ("Number of Nodes: {}".format (stats_nodes_count))
@@ -1226,12 +1225,15 @@ def refresh(address, s):
     global statusget
     global block_height_old
     global mempool_total
+    global stats_timestamp
 
     # print "refresh triggered"
     try:
         connections.send (s, "statusget", 10)
         statusget = connections.receive (s, 10)
         status_version = statusget[7]
+        stats_timestamp = statusget[9]
+        server_timestamp_var.set("GMT: {}".format(time.strftime ("%H:%M:%S", time.gmtime (int(float(stats_timestamp))))))
 
         # data for charts
         print (statusget)
@@ -1310,8 +1312,8 @@ def refresh(address, s):
         credit_var.set ("Received Total: {:.8f} BIS".format (Decimal (credit)))
         fees_var.set ("Fees Paid: {:.8f} BIS".format (Decimal (fees)))
         rewards_var.set ("Rewards: {:.8f} BIS".format (Decimal (rewards)))
-        bl_height_var.set ("Block Height: {}".format (bl_height))
-        diff_msg_var.set ("Mining Difficulty: {}".format (diff_msg))
+        bl_height_var.set ("Block: {}".format (bl_height))
+        diff_msg_var.set ("Difficulty: {}".format (diff_msg))
         sync_msg_var.set (sync_msg)
 
         hash_var.set ("Hash: {}...".format (hash_last[:6]))
@@ -1756,6 +1758,11 @@ hash_var_label.grid (row=0, column=4, sticky=S + E, padx=5)
 mempool_count_var = StringVar ()
 mempool_count_var_label = Label (frame_bottom, textvariable=mempool_count_var)
 mempool_count_var_label.grid (row=0, column=3, sticky=S + E, padx=5)
+
+server_timestamp_var = StringVar ()
+server_timestamp_label = Label (frame_bottom, textvariable=server_timestamp_var)
+server_timestamp_label.grid (row=0, column=9, sticky=S + E, padx=5)
+
 
 ann_var = StringVar ()
 ann_var_text = Text (frame_logo, width=20, height=4, font=("Tahoma", 8))

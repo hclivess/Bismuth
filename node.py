@@ -7,7 +7,7 @@
 # rolling back indexes: 1424 and 945
 
 
-VERSION = "4.2.4.8"
+VERSION = "4.2.4.9"
 
 # Bis specific modules
 import log, options, connections, peershandler, apihandler
@@ -2088,7 +2088,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         threads_count = threading.active_count()
                         uptime = int(time.time() - startup_time)
                         diff = difficulty(c)
-                        server_timestamp = time.time()
+                        server_timestamp = '%.2f' % time.time ()
 
                         if reveal_address:
                             revealed_address = address
