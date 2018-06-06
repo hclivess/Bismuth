@@ -625,13 +625,14 @@ class Mempool:
                                     format(quantize_two((quantize_two(mempool_timestamp) - quantize_two(time_now))
                                     / 60)))
                                 # self.app_log.warning("Mempool: Future transaction not allowed, timestamp {} minutes in the future.")
-                            """
+                            
 
                             if quantize_two(time_now) - 86400 > quantize_two(mempool_timestamp):
                                 mempool_result.append("Mempool: Transaction older than 24h not allowed.")
                                 # self.app_log.warning("Mempool: Transaction older than 24h not allowed.")
+                            """
 
-                            elif quantize_eight(mempool_amount) > quantize_eight(balance_pre):
+                            if quantize_eight(mempool_amount) > quantize_eight(balance_pre):
                                 mempool_result.append("Mempool: Sending more than owned")
                                 # self.app_log.warning("Mempool: Sending more than owned")
                             elif quantize_eight(balance) - quantize_eight(fee) < 0:
