@@ -140,12 +140,14 @@ if __name__ == "__main__":
                         print ("Payout result: {}".format (reply))
                         break
 
-                    if "Mempool updated with a received transaction" in str(reply[-1]):
+                    if reply[-1] == "Success":
                         t.execute ("INSERT INTO tweets VALUES (?, ?, ?, ?, ?)", (row[0], row[1], row[2], tweet_qualified[1], name))
                         twitter.commit ()
                         print ("Tweet saved to database")
                         api.retweet(tweet_id)
                         api.update_status ("Bismuth address {} wins giveaway of {} $BIS for https://twitter.com/i/web/status/{}".format(recipient, amount,tweet_id))
+                    else:
+                        print("Mempool insert failure")
 
                 break
 

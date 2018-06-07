@@ -657,6 +657,10 @@ def send(amount_input, recipient_input, operation_input, openfield_input):
                 connections.send (s, tx_submit, 10)
                 reply = connections.receive (s, 10)
                 app_log.warning ("Client: {}".format (reply))
+                if reply[-1] == "Success":
+                    messagebox.showinfo("OK","Transaction accepted to mempool")
+                else:
+                    messagebox.showerror("Error","There was a problem with transaction processing. Full message: {}".format(reply))
                 break
 
             refresh (gui_address_t.get (), s)

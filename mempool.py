@@ -648,6 +648,7 @@ class Mempool:
                                               str(mempool_operation), str(mempool_openfield)))
                                 mempool_result.append("Mempool updated with a received transaction from {}".
                                                       format(peer_ip))
+                                mempool_result.append("Success")
                                 self.commit()  # Save (commit) the changes
 
                                 mempool_size = mempool_size + sys.getsizeof(str(transaction)) / 1000000.0
