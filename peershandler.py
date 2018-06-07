@@ -75,12 +75,12 @@ class Peers:
     def peers_save(self, peerlist, peer_ip):
         """Validates then adds a peer to the peer list on disk"""
         # called by Sync, should not be an issue, but check if needs to be thread safe or not.
-        peer_file = open(peerlist, 'r')
-        peer_tuples = []
-        for line in peer_file:
-            extension = re.findall("'([\d\.]+)', '([\d]+)'", line)
-            peer_tuples.extend(extension)
-        peer_file.close()
+        with open (peerlist, "r") as peer_file:
+            peer_tuples = []
+            for line in peer_file:
+                extension = re.findall("'([\d\.]+)', '([\d]+)'", line)
+                peer_tuples.extend(extension)
+
         peer_tuple = ("('" + peer_ip + "', '" + str(self.config.port) + "')")
 
         try:
@@ -96,10 +96,10 @@ class Peers:
                 peer_test.close()
                 # properly end the connection
 
-                peer_list_file = open(peerlist, 'a')
-                peer_list_file.write((peer_tuple) + "\n")
-                self.app_log.info("Inbound: Distant peer saved to peer list")
-                peer_list_file.close()
+                with open (peerlist, "a") as peer_list_file:
+                    peer_list_file.write((peer_tuple) + "\n")
+                    self.app_log.info("Inbound: Distant peer saved to peer list")
+
             else:
                 self.app_log.info("Distant peer already in peer list")
         except:
@@ -147,7 +147,8 @@ class Peers:
         """Returns a peerlist from disk as a dict {ip:port}"""
         peer_dict = {}
         if not os.path.exists(peerlist):
-            open(peerlist, "a").close()
+            with open (peerlist, "a"):
+                self.app_log.warning ("Peer file created")
 
         with open(peerlist, "r") as f:
             for line in f:
@@ -229,11 +230,11 @@ class Peers:
                         self.app_log.info("Removed formerly active peer {} {}".format(host, port))
                     pass
 
-            output = open(peerlist, 'w')
-            for key, value in peer_dict.items():
-                if key not in drop_peer_dict:
-                    output.write("('" + key + "', '" + value + "')\n")
-            output.close()
+            with open (peerlist, "w") as output:
+                for key, value in peer_dict.items():
+                    if key not in drop_peer_dict:
+                        output.write("('" + key + "', '" + value + "')\n")
+
             self.peersync_lock.release()
 
     def peersync(self, subdata):
@@ -247,12 +248,11 @@ class Peers:
             # get remote peers into tuples (actually list)
 
             # get local peers into tuples
-            peer_file = open(self.peerlist, 'r')
-            peer_tuples = []
-            for line in peer_file:
-                extension = re.findall("'([\d\.]+)', '([\d]+)'", line)
-                peer_tuples.extend(extension)
-            peer_file.close()
+            with open (self.peerlist, "r") as peer_file:
+                peer_tuples = []
+                for line in peer_file:
+                    extension = re.findall("'([\d\.]+)', '([\d]+)'", line)
+                    peer_tuples.extend(extension)
             # get local peers into tuples
 
             for x in set(server_peer_tuples):  # set removes duplicates
@@ -270,9 +270,8 @@ class Peers:
 
                         peer_formatted = "('" + x[0] + "', '" + x[1] + "')"
                         if peer_formatted not in open(self.suggested_peerlist).read():
-                            peer_list_file = open(self.suggested_peerlist, 'a')
-                            peer_list_file.write(peer_formatted+"\n")
-                            peer_list_file.close()
+                            with open (self.suggested_peerlist, "a") as peer_list_file:
+                                peer_list_file.write(peer_formatted+"\n")
                     except:
                         pass
                         self.app_log.info("Not connectible")

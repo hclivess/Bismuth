@@ -125,6 +125,7 @@ def sendsync(sdef, peer_ip, status, provider):
     app_log.warning("Outbound: Synchronization with {} finished after: {}, sending new sync request".format(peer_ip, status))
 
     if provider:
+        app_log.info ("Outbound: Saving peer {}".format(peer_ip))
         peers.peers_save(peerlist, peer_ip)
 
     time.sleep(Decimal(pause_conf))
@@ -1662,7 +1663,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                 execute(h3, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
                                 db_block_hash = h3.fetchone()[0]  # get latest block_hash
                                 if db_block_hash == data or not egress:
-                                    if egress:
+                                    if not egress:
                                         app_log.warning ("Outbound: Egress disabled".format (peer_ip))
                                     else:
                                         app_log.info("Inbound: Client {} has the latest block".format(peer_ip))
@@ -1685,7 +1686,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                                     #blocks_send = [[l[1:] for l in group] for _, group in groupby(blocks_fetched, key=itemgetter(0))]  # remove block number
 
-                                    app_log.info("Inbound: Selected " + str(blocks_fetched) + " to send")
+                                    #app_log.info("Inbound: Selected " + str(blocks_fetched) + " to send")
 
                                     connections.send(self.request, "blocksfnd", 10)
 
