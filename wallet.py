@@ -182,30 +182,40 @@ def read_url_clicked(app_log, url):
     openfield.insert (INSERT, result[3])  # openfield
 
 
+def convert_ip_port(ip, some_port):
+    """
+    Get ip and port, but extract port from ip if ip was as ip:port
+    :param ip:
+    :param some_port: default port
+    :return: (ip, port)
+    """
+    if ':' in ip:
+        ip, some_port = ip.split(':')
+    return ip, some_port
+
+
 def node_connect():
+    global s
+    global port
     keep_trying = True
     while keep_trying:
         for ip in light_ip:
-
             try:
-                app_log.warning ("Status: Attempting to connect to {} out of {}".format (ip, light_ip))
-                global s
-                s = socks.socksocket ()
-                s.settimeout (3)
-
-                s.connect ((ip, int (port)))
-
-                connections.send (s, "statusget", 10)
-                result = connections.receive (s, 10)  # validate the connection
-                app_log.warning ("Connection OK")
-                app_log.warning ("Status: Wallet connected to {}".format (ip))
-                ip_connected_var.set ("Node: {}".format (ip))
-
+                ip, local_port = convert_ip_port(ip, port)
+                app_log.warning("Status: Attempting to connect to {}:{} out of {}".format (ip, local_port, light_ip))
+                s = socks.socksocket()
+                s.settimeout(3)
+                s.connect((ip, int(local_port)))
+                connections.send(s, "statusget", 10)
+                result = connections.receive(s, 10)  # validate the connection
+                app_log.warning("Connection OK")
+                app_log.warning("Status: Wallet connected to {}:{}".format (ip, local_port))
+                ip_connected_var.set("Node: {}".format (ip))
                 keep_trying = False
                 break
-
             except Exception as e:
-                app_log.warning ("Status: Cannot connect to {}".format (ip))
+                app_log.warning("Status: Cannot connect to {}:{}".format (ip, local_port))
+                time.sleep(1)
 
 
 def replace_regex(string, replace):
