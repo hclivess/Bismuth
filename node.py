@@ -1899,7 +1899,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             except:
                                 result = alias_address
                             results.append(result)
-                            print(result)
 
                         connections.send(self.request, results, 10)
                     else:

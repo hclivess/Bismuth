@@ -1250,7 +1250,6 @@ def refresh(address, s):
         server_timestamp_var.set("GMT: {}".format(time.strftime ("%H:%M:%S", time.gmtime (int(float(stats_timestamp))))))
 
         # data for charts
-        print (statusget)
         block_height = statusget[8][7]  # move chart only if the block height changes, returned from diff 7
         try:
             block_height_old
