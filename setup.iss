@@ -22,11 +22,11 @@ WizardSmallImageFile=graphics\mini.bmp
 Source: "Dist\*" ; DestDir: "{app}"; Flags: recursesubdirs;
 
 [Icons]
-Name: "{group}\Start"; Filename: "{app}\node.exe"
+Name: "{group}\Full Node"; Filename: "{app}\node.exe"
 Name: "{group}\Wallet"; Filename: "{app}\wallet.exe"
 Name: "{group}\Uninstall Bismuth"; Filename: "{uninstallexe}"
 
-Name: "{commondesktop}\Start Node"; Filename: "{app}\node.exe"
+Name: "{commondesktop}\Full Node"; Filename: "{app}\node.exe"
 Name: "{commondesktop}\Wallet"; Filename: "{app}\wallet.exe"
 
 [Registry]
