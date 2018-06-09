@@ -2245,6 +2245,7 @@ def worker(HOST, PORT):
 
             if data == "peers":  # REWORK
                 subdata = connections.receive(s, 10)
+
                 peers.peersync(subdata)
 
             elif data == "sync":

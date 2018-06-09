@@ -269,9 +269,11 @@ class Peers:
                         s_purge.close()
 
                         peer_formatted = "('" + x[0] + "', '" + x[1] + "')"
-                        if peer_formatted not in open(self.suggested_peerlist).read():
-                            with open (self.suggested_peerlist, "a") as peer_list_file:
-                                peer_list_file.write(peer_formatted+"\n")
+
+                        with open(self.suggested_peerlist) as peers_existing:
+                            if peer_formatted not in peers_existing.read():
+                                with open (self.suggested_peerlist, "a") as peer_list_file:
+                                    peer_list_file.write(peer_formatted+"\n")
                     except:
                         pass
                         self.app_log.info("Not connectible")
