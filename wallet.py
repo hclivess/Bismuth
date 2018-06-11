@@ -1546,7 +1546,7 @@ frame_support.grid (row=98, column=98, pady=5, padx=5, sticky=W+N)
 # tab_transactions transactions
 tab_transactions = ttk.Frame (nbtabs)
 
-nbtabs.add (tab_transactions, text='Transactions')
+nbtabs.add (tab_transactions, text='History')
 
 frame_entries_t = Frame (tab_transactions, relief='ridge', borderwidth=0)
 frame_entries_t.grid (row=0, column=0, pady=5, padx=5)
@@ -1561,7 +1561,7 @@ frame_table.grid (row=1, column=0, sticky=W + E + N, pady=5, padx=5)
 
 # tab_send sendcoin tab
 tab_send = ttk.Frame (nbtabs)
-nbtabs.add (tab_send, text='Send Bismuth')
+nbtabs.add (tab_send, text='Send')
 
 frame_entries = Frame (tab_send)
 frame_entries.grid (row=0, column=0, pady=5, padx=5, sticky=N + W + E + S)
@@ -1574,7 +1574,7 @@ frame_tick.grid (row=4, column=0, pady=5, padx=5, sticky=S)
 
 # tab_receive receive
 tab_receive = ttk.Frame (nbtabs)
-nbtabs.add (tab_receive, text='Receive Bismuth')
+nbtabs.add (tab_receive, text='Receive')
 
 frame_entries_r = Frame (tab_receive, relief='ridge', borderwidth=0)
 frame_entries_r.grid (row=0, column=0, pady=5, padx=5, sticky=N + W + E + S)
