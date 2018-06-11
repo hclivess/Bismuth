@@ -1691,7 +1691,7 @@ root.config (menu=menubar)
 # buttons
 
 
-send_b = Button (frame_send, text="Send Bismuth", command=lambda: send_confirm (str (amount.get ()).strip(), recipient.get().strip (), operation_r.get().strip (), (openfield.get ("1.0", END)).strip ()), height=2, width=22, font=("Tahoma", 12))
+send_b = Button (frame_send, text="Send Bismuth", command=lambda: send_confirm (str (amount.get ()).strip(), recipient.get().strip (), operation.get().strip (), (openfield.get ("1.0", END)).strip ()), height=2, width=22, font=("Tahoma", 12))
 send_b.grid (row=0, column=0)
 
 frame_logo_buttons = Frame (frame_send)
