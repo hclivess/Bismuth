@@ -1522,7 +1522,7 @@ nbtabs.grid (row=1, column=0, sticky='NESW', pady=5, padx=5)
 
 # tab_main Main
 tab_main = ttk.Frame (nbtabs)
-nbtabs.add (tab_main, text='Main')
+nbtabs.add (tab_main, text='Overview')
 
 canvas_main = Canvas (tab_main, highlightthickness=0)
 canvas_main.grid (row=0, column=0, sticky=W + E + N + S, columnspan=99, rowspan=99)
