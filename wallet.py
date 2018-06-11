@@ -197,6 +197,7 @@ def convert_ip_port(ip, some_port):
 def node_connect():
     global s
     global port
+    global ip
     keep_trying = True
     while keep_trying:
         for ip in light_ip:
@@ -1460,6 +1461,31 @@ def hyperlink_BISGit():
 def hyperlink_bct():
     url = "https://bitcointalk.org/index.php?topic=1896497.0"
     webbrowser.open (url, new=1)
+	
+def support_collection(sync_msg_var, version_var):
+    sup_col = Toplevel ()
+    sup_col.title ("Collection of Basic Information")
+    collection_box = Text (sup_col, width=100)
+    collection_box.grid (row=0, pady=0)
+
+    version = statusget[7]
+    stats_timestamp = statusget[9]
+    connections.send (s, "blocklast", 10)
+    block_get = connections.receive (s, 10)
+    db_timestamp_last = block_get[1]
+    time_now = str (time.time ())
+    last_block_ago = Decimal (time_now) - Decimal (db_timestamp_last)
+
+    collection_box.insert (INSERT, "If you have questions for support or want to report a problem, please provide the Info given below by copy and paste!")
+    collection_box.insert (INSERT, "\n\n")
+    collection_box.insert (INSERT, "Your OS: " + platform.system() + " " + platform.release())
+    collection_box.insert (INSERT, "\nlocal Bismuth Version: " + version)
+    collection_box.insert (INSERT, "\nConnected to: " + ip )
+    collection_box.insert (INSERT, "\nLast Block: " + str(last_block_ago))
+    collection_box.insert (INSERT, "\nTime on node GMT: {}".format(time.strftime ("%H:%M:%S", time.gmtime (int(float(stats_timestamp))))))
+
+    close = Button (sup_col, text="Close", command=sup_col.destroy)
+    close.grid (row=3, column=0, sticky=W + E, padx=15, pady=(5, 5))
 
 
 root = Tk ()
@@ -1510,6 +1536,9 @@ frame_coins.grid (row=0, column=0, sticky=W + E + N, pady=5, padx=5)
 
 frame_hyperlinks = Frame (tab_main, relief='ridge', borderwidth=4)
 frame_hyperlinks.grid (row=0, column=98, pady=5, padx=5, sticky=W+N)
+
+frame_support = Frame (tab_main, relief='ridge', borderwidth=4)
+frame_support.grid (row=98, column=98, pady=5, padx=5, sticky=W+N)
 
 # frame_mainstats = Frame(tab_main, relief = 'ridge', borderwidth = 4)
 # frame_mainstats.grid(row=5, column=1, sticky=W + E + N, pady=5, padx=5)
@@ -1865,6 +1894,11 @@ hyperlink_howto.grid (row=2, column=0, sticky=N + E + S + W, padx=1, pady=1)
 hyperlink_bct = Button (frame_hyperlinks, text="BIS@Bitcointalk", command=hyperlink_bct, font=("Tahoma", 7))
 hyperlink_bct.grid (row=3, column=0, sticky=N + E + S + W, padx=1, pady=1)
 #hyperlinks
+
+#supportbutton
+dev_support = Button (frame_support, text="Collect Info for support", command=lambda: support_collection (str(sync_msg_var), str(version_var)), font=("Tahoma", 7))
+dev_support.grid (row=98, column=98, sticky=N + E + S + W, padx=1, pady=1)
+#supportbutton
 
 gui_address_t = Entry (frame_entries_t, width=60)
 gui_address_t.grid (row=0, column=1, sticky=W, pady=5, padx=5)
