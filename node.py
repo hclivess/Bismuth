@@ -4,10 +4,9 @@
 # must unify node and client now that connections parameters are function parameters
 # if you have a block of data and want to insert it into sqlite, you must use a single "commit" for the whole batch, it's 100x faster
 # do not isolation_level=None/WAL hdd levels, it makes saving slow
-# rolling back indexes: 1424 and 945
 
 
-VERSION = "4.2.4.9"
+VERSION = "4.2.5.0"
 
 # Bis specific modules
 import log, options, connections, peershandler, apihandler

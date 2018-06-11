@@ -1472,20 +1472,19 @@ def support_collection(sync_msg_var, version_var):
     stats_timestamp = statusget[9]
     connections.send (s, "blocklast", 10)
     block_get = connections.receive (s, 10)
-    db_timestamp_last = block_get[1]
-    time_now = str (time.time ())
-    last_block_ago = Decimal (time_now) - Decimal (db_timestamp_last)
+    bl_height = block_get[0]
 
-    collection_box.insert (INSERT, "If you have questions for support or want to report a problem, please provide the Info given below by copy and paste!")
+    collection_box.config(wrap=WORD)
+    collection_box.insert (INSERT, "If you have questions or want to report a problem, please copy the information below to provide it.")
     collection_box.insert (INSERT, "\n\n")
-    collection_box.insert (INSERT, "Your OS: " + platform.system() + " " + platform.release())
-    collection_box.insert (INSERT, "\nlocal Bismuth Version: " + version)
-    collection_box.insert (INSERT, "\nConnected to: " + ip )
-    collection_box.insert (INSERT, "\nLast Block: " + str(last_block_ago))
-    collection_box.insert (INSERT, "\nTime on node GMT: {}".format(time.strftime ("%H:%M:%S", time.gmtime (int(float(stats_timestamp))))))
+    collection_box.insert (INSERT, "Your OS: {} {}".format(platform.system(), platform.release()))
+    collection_box.insert (INSERT, "\nNode Version: {}".format(version))
+    collection_box.insert (INSERT, "\nConnected to: {}".format(ip))
+    collection_box.insert (INSERT, "\nLast Block: {}".format(bl_height))
+    collection_box.insert (INSERT, "\nNode GMT: {}".format(time.strftime ("%H:%M:%S", time.gmtime (int(float(stats_timestamp))))))
 
     close = Button (sup_col, text="Close", command=sup_col.destroy)
-    close.grid (row=3, column=0, sticky=W + E, padx=15, pady=(5, 5))
+    close.grid (row=3, column=0, sticky=W + E)
 
 
 root = Tk ()
@@ -1896,7 +1895,7 @@ hyperlink_bct.grid (row=3, column=0, sticky=N + E + S + W, padx=1, pady=1)
 #hyperlinks
 
 #supportbutton
-dev_support = Button (frame_support, text="Collect Info for support", command=lambda: support_collection (str(sync_msg_var), str(version_var)), font=("Tahoma", 7))
+dev_support = Button (frame_support, text="Collect Info for Support", command=lambda: support_collection (str(sync_msg_var), str(version_var)), font=("Tahoma", 7))
 dev_support.grid (row=98, column=98, sticky=N + E + S + W, padx=1, pady=1)
 #supportbutton
 
