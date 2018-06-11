@@ -1664,7 +1664,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                 db_block_hash = h3.fetchone()[0]  # get latest block_hash
                                 if db_block_hash == data or not egress:
                                     if not egress:
-                                        app_log.warning ("Outbound: Egress disabled".format (peer_ip))
+                                        app_log.warning ("Outbound: Egress disabled for {}".format (peer_ip))
                                     else:
                                         app_log.info("Inbound: Client {} has the latest block".format(peer_ip))
 

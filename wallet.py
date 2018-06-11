@@ -485,6 +485,7 @@ def lock_fn(button):
 
 
 def encrypt_fn(destroy_this):
+    global key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress
     password = password_var_enc.get ()
     password_conf = password_var_con.get ()
 
@@ -495,6 +496,10 @@ def encrypt_fn(destroy_this):
         essentials.keys_save (ciphertext_export, public_key_readable, myaddress)
 
         # encrypt_b.configure(text="Encrypted", state=DISABLED)
+
+        key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress = essentials.keys_load (private_key_load, public_key_load)
+        encryption_button_refresh ()
+
         destroy_this.destroy ()
         # lock_b.configure(text="Lock", state=NORMAL)
     else:
