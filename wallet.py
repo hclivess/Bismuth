@@ -1474,6 +1474,13 @@ def support_collection(sync_msg_var, version_var):
     block_get = connections.receive (s, 10)
     bl_height = block_get[0]
 
+    connections.send(s, "blocklast", 10)
+    blocklast = connections.receive(s, 10)
+    db_timestamp_last = blocklast[1]
+    time_now = float(time.time())
+    last_block_ago = int(time_now - db_timestamp_last)
+
+
     collection_box.config(wrap=WORD)
     collection_box.insert (INSERT, "If you have questions or want to report a problem, please copy the information below to provide it.")
     collection_box.insert (INSERT, "\n\n")
@@ -1481,6 +1488,7 @@ def support_collection(sync_msg_var, version_var):
     collection_box.insert (INSERT, "\nNode Version: {}".format(version))
     collection_box.insert (INSERT, "\nConnected to: {}".format(ip))
     collection_box.insert (INSERT, "\nLast Block: {}".format(bl_height))
+    collection_box.insert (INSERT, "\nSeconds since Last Block: {}".format(last_block_ago))
     collection_box.insert (INSERT, "\nNode GMT: {}".format(time.strftime ("%H:%M:%S", time.gmtime (int(float(stats_timestamp))))))
 
     close = Button (sup_col, text="Close", command=sup_col.destroy)
