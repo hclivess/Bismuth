@@ -15,4 +15,4 @@ address.txt
 mempool.db
 ledger.db
 peers.txt
-theme
+/theme
