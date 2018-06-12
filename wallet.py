@@ -172,14 +172,14 @@ def read_url_clicked(app_log, url):
 
     recipient.delete (0, END)
     amount.delete (0, END)
-    operation.delete ("1.0", END)
+    operation.delete (0, END)
     openfield.delete ("1.0", END)
 
     recipient.insert (0, result[1])  # amount
     amount.insert (0, result[2])  # recipient
 
-    operation.insert (INSERT, result[2])  # operation
-    openfield.insert (INSERT, result[3])  # openfield
+    operation.insert (INSERT, result[3])  # operation
+    openfield.insert (INSERT, result[4])  # openfield
 
 
 def convert_ip_port(ip, some_port):
