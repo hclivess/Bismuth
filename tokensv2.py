@@ -86,6 +86,7 @@ def tokens_update(file, ledger, mode, app_log):
 
     c.execute("SELECT operation, openfield FROM transactions WHERE block_height >= ? AND operation = ? and reward = 0 ORDER BY block_height ASC;", (token_last_block, "token:transfer",))
     openfield_transfers = c.fetchall()
+    print (openfield_transfers)
 
     tokens_transferred = []
     for transfer in openfield_transfers:
@@ -169,5 +170,5 @@ def tokens_update(file, ledger, mode, app_log):
 
 if __name__ == "__main__":
     app_log = log.log("tokens.log", "WARNING", True)
-    tokens_update("static/index_test.db","static/test.db","normal",app_log)
+    tokens_update("static/index.db","static/ledger.db","normal",app_log)
     #tokens_update("tokens.db","reindex")
