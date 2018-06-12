@@ -1638,7 +1638,7 @@ walletmenu.add_command (label="Exit", command=root.quit)
 
 messagemenu = Menu (menubar, tearoff=0)
 menubar.add_cascade (label="Message", menu=messagemenu)
-messagemenu.add_command (label="Show messages", command=lambda: msg_dialogue (gui_address_t.get ()))
+messagemenu.add_command (label="Show Messages", command=lambda: msg_dialogue (gui_address_t.get ()))
 messagemenu.add_command (label="Sign Messages", command=sign)
 
 
