@@ -635,13 +635,14 @@ def difficulty(c):
 
 
 def balanceget(balance_address, h3):
+    global last_block  # temp
     # verify balance
 
     # app_log.info("Mempool: Verifying balance")
     # app_log.info("Mempool: Received address: " + str(balance_address))
 
 
-    base_mempool = mp.MEMPOOL.fetchall ("SELECT amount, openfield FROM transactions WHERE address = ?;", (balance_address,))
+    base_mempool = mp.MEMPOOL.fetchall ("SELECT amount, openfield, operation FROM transactions WHERE address = ?;", (balance_address,))
 
     # include mempool fees
 
@@ -649,7 +650,7 @@ def balanceget(balance_address, h3):
     if base_mempool:
         for x in base_mempool:
             debit_tx = Decimal(x[0])
-            fee = fee_calculate(x[1])
+            fee = fee_calculate(x[1], x[2], last_block)
             debit_mempool = quantize_eight(debit_mempool + debit_tx + fee)
     else:
         debit_mempool = 0
@@ -902,6 +903,7 @@ def manager(c):
 
 def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
     global hdd_block
+    global last_block
     block_size = Decimal(sys.getsizeof(str(data))) / Decimal(1000000)
     app_log.warning("Block size: {} MB".format(block_size))
 
@@ -1186,7 +1188,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
                                 block_debit_address = quantize_eight(Decimal(block_debit_address) + Decimal(x[3]))
 
                                 if x != transaction_list[-1]:
-                                    block_fees_address = quantize_eight(Decimal(block_fees_address) + Decimal(fee_calculate(db_openfield)))  # exclude the mining tx from fees
+                                    block_fees_address = quantize_eight(Decimal(block_fees_address) + Decimal(fee_calculate(db_openfield, db_operation, last_block)))  # exclude the mining tx from fees
                         # print("block_fees_address", block_fees_address, "for", db_address)
 
                         # app_log.info("Digest: Inbound block credit: " + str(block_credit))
@@ -1229,7 +1231,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3):
                         balance = quantize_eight(credit - debit - fees + rewards)
                         # app_log.info("Digest: Projected transction address balance: " + str(balance))
 
-                        fee = fee_calculate(db_openfield)
+                        fee = fee_calculate(db_openfield, db_operation, last_block)
                         # fee = '%.8f' % float(0.01 + (float(len(db_openfield)) / 100000) + int(db_operation))  # 0.01 dust
 
                         fees_block.append(quantize_eight(fee))
