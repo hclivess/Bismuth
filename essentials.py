@@ -13,7 +13,7 @@ from simplecrypt import *
 
 from quantizer import *
 
-__version__ = "0.0.2"
+__version__ = "0.0.3"
 
 
 def db_check(app_log):
@@ -30,19 +30,6 @@ def db_check(app_log):
         backup.close()
         # create empty backup file
 
-    """
-    # Now done via mempool module
-    if not os.path.exists('mempool.db'):
-        # create empty mempool
-        mempool = sqlite3.connect('mempool.db', timeout=1)
-        mempool.text_factory = str
-        m = mempool.cursor()
-        db.execute(m, ("CREATE TABLE IF NOT EXISTS transactions (timestamp, address, recipient, amount, signature, public_key, operation, openfield)"), app_log)
-        db.commit(mempool, app_log)
-        app_log.warning("Created mempool file")
-        mempool.close()
-        # create empty mempool
-    """
 
 def sign_rsa(timestamp, address, recipient, amount, operation, openfield, key, public_key_hashed):
     from Crypto.Signature import PKCS1_v1_5
@@ -65,7 +52,6 @@ def sign_rsa(timestamp, address, recipient, amount, operation, openfield, key, p
         return_value = False
 
     return return_value
-
 
 
 def keys_check(app_log):
@@ -105,6 +91,7 @@ def keys_save(private_key_readable, public_key_readable, address):
     with open ("wallet.der", 'w') as wallet_file:
         json.dump (wallet_dict, wallet_file)
 
+        
 def keys_load(privkey="privkey.der", pubkey="pubkey.der"):
     if os.path.exists("wallet.der"):
         print("Using modern wallet method")
@@ -149,6 +136,7 @@ def keys_unlock(private_key_encrypted):
     private_key_readable = key.exportKey ().decode ("utf-8")
     return key, private_key_readable
 
+
 def keys_load_new(wallet_file="wallet.der"):
     # import keys
 
@@ -170,8 +158,6 @@ def keys_load_new(wallet_file="wallet.der"):
         key = None
 
     # public_key_readable = str(key.publickey().exportKey())
-
-
     if (len(public_key_readable)) != 271 and (len(public_key_readable)) != 799:
         raise ValueError("Invalid public key length: {}".format(len(public_key_readable)))
 
@@ -179,12 +165,10 @@ def keys_load_new(wallet_file="wallet.der"):
 
     return key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, address
 
+
 # Dup code, not pretty, but would need address module to avoid dup
 def address_validate(address):
     return re.match('[abcdef0123456789]{56}', address)
-
-
-
 
 
 # Dup code, not pretty, but would need address module to avoid dup
@@ -203,9 +187,9 @@ def validate_pem(public_key):
         # verify pem as cryptodome does
 
 
-def fee_calculate(openfield):
+def fee_calculate(openfield, operation=''):
     fee = Decimal("0.01") + (Decimal(len(openfield)) / Decimal("100000"))  # 0.01 dust
-    if openfield.startswith("token:issue:"):
+    if openfield.startswith("token:issue:") or operation == "token:issue":
         fee = Decimal(fee) + Decimal("10")
     if openfield.startswith("alias="):
         fee = Decimal(fee) + Decimal("1")
@@ -227,6 +211,7 @@ def execute_param_c(cursor, query, param, app_log):
             app_log.warning("Database retry reason: {}".format(e))
             time.sleep(0.1)
     return cursor
+
 
 def is_sequence(arg):
     return (not hasattr(arg, "strip") and
