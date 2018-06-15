@@ -211,7 +211,7 @@ def node_connect():
                 result = connections.receive(s, 10)  # validate the connection
                 app_log.warning("Connection OK")
                 app_log.warning("Status: Wallet connected to {}:{}".format (ip, local_port))
-                ip_connected_var.set("Node: {}".format (ip))
+                ip_connected_var.set("Node: {}.{}".format (ip.split(".")[-2],ip.split(".")[-1]))
                 keep_trying = False
                 break
             except Exception as e:
@@ -259,7 +259,7 @@ def help():
     aliases_box.insert (INSERT, "\n\n")
 
     close = Button (top13, text="Close", command=top13.destroy)
-    close.grid (row=3, column=0, sticky=W + E, padx=15, pady=(5, 5))
+    close.grid (row=3, column=0, sticky=W + E)
 
 
 def data_insert_clear():
@@ -641,7 +641,8 @@ def send(amount_input, recipient_input, operation_input, openfield_input):
         app_log.warning ("Recipient: {}".format (recipient_input))
         app_log.warning ("Data: {}".format (openfield_input))
 
-        transaction = (str (stats_timestamp), str (myaddress), str (recipient_input), '%.8f' % float (amount_input), str (operation_input), str (openfield_input))  # this is signed, float kept for compatibility
+        tx_timestamp = '%.2f' % (float(stats_timestamp) - abs(float(stats_timestamp) - time.time())) #randomize timestamp for unique signatures
+        transaction = (str (tx_timestamp), str (myaddress), str (recipient_input), '%.8f' % float (amount_input), str (operation_input), str (openfield_input))  # this is signed, float kept for compatibility
 
         h = SHA.new (str (transaction).encode ("utf-8"))
         signer = PKCS1_v1_5.new (key)
@@ -656,7 +657,7 @@ def send(amount_input, recipient_input, operation_input, openfield_input):
             app_log.warning ("Client: The signature is valid, proceeding to save transaction, signature, new txhash and the public key to mempool")
 
             # print(str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input),str(signature_enc), str(public_key_hashed), str(keep_input), str(openfield_input))
-            tx_submit = str (stats_timestamp), str (myaddress), str (recipient_input), '%.8f' % float (amount_input), str (signature_enc.decode ("utf-8")), str (public_key_hashed.decode ("utf-8")), str (operation_input), str (openfield_input)  # float kept for compatibility
+            tx_submit = str (tx_timestamp), str (myaddress), str (recipient_input), '%.8f' % float (amount_input), str (signature_enc.decode ("utf-8")), str (public_key_hashed.decode ("utf-8")), str (operation_input), str (openfield_input)  # float kept for compatibility
 
             while True:
                 connections.send (s, "mpinsert", 10)
