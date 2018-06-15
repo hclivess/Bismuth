@@ -518,6 +518,10 @@ class Mempool:
                         if mempool_in:
                             mempool_result.append("That transaction is already in our mempool")
 
+                        # Temp: get last block for HF reason
+                        essentials.execute_param_c(c, "SELECT block_height FROM transactions WHERE 1 ORDER by block_height DESC limit ?",
+                                                   (1,), self.app_log)
+                        last_block = c.fetchone()[0]
                         # reject transactions which are already in the ledger
                         # TODO: not clean, will need to have ledger as a module too.
                         essentials.execute_param_c(c, "SELECT timestamp FROM transactions WHERE signature = ?",
@@ -550,13 +554,13 @@ class Mempool:
                         # verify balance
                         mempool_result.append("Mempool: Received address: {}".format(mempool_address))
                         # include mempool fees
-                        result = self.fetchall("SELECT amount, openfield FROM transactions WHERE address = ?",
+                        result = self.fetchall("SELECT amount, openfield, operation FROM transactions WHERE address = ?",
                                                (mempool_address,))
                         debit_mempool = 0
                         if result:
                             for x in result:
                                 debit_tx = quantize_eight(x[0])
-                                fee = quantize_eight(essentials.fee_calculate(x[1]))
+                                fee = quantize_eight(essentials.fee_calculate(x[1], x[2], last_block))
                                 debit_mempool = quantize_eight(debit_mempool + debit_tx + fee)
 
                         credit = 0
@@ -587,7 +591,7 @@ class Mempool:
                         balance = quantize_eight(credit - debit - fees + rewards - quantize_eight(mempool_amount))
                         balance_pre = quantize_eight(credit - debit_ledger - fees + rewards)
 
-                        fee = essentials.fee_calculate(mempool_openfield)
+                        fee = essentials.fee_calculate(mempool_openfield, mempool_operation, last_block)
 
                         if quantize_eight(mempool_amount) > quantize_eight(balance_pre):
                             mempool_result.append("Mempool: Sending more than owned")
