@@ -33,7 +33,7 @@ def balanceget(balance_address, h3):
     if base_mempool:
         for x in base_mempool:
             debit_tx = Decimal(x[0])
-            fee = fee_calculate(x[1])
+            fee = fee_calculate (x[1], x[2], 700000)
             debit_mempool = quantize_eight(debit_mempool + debit_tx + fee)
     else:
         debit_mempool = 0
@@ -80,30 +80,30 @@ def balanceget(balance_address, h3):
 
 
 
-def masternodes_update(c,m, mode, reg_phase_end, app_log):
+def masternodes_update(c,index,index_cursor, mode, reg_phase_end, app_log):
     """update register of masternodes based on the current phase (10000 block intervals)"""
     if mode not in ("normal","reindex"):
         raise ValueError ("Wrong value for masternodes_update function")
 
 
-    m.execute("CREATE TABLE IF NOT EXISTS masternodes (block_height INTEGER, timestamp NUMERIC, address, balance, ip, delegate)")
-    mas.commit()
+    index_cursor.execute("CREATE TABLE IF NOT EXISTS masternodes (block_height INTEGER, timestamp NUMERIC, address, balance, ip, delegate)")
+    index.commit()
 
 
     if mode == "reindex":
         app_log.warning("Masternodes database will be reindexed")
-        m.execute("DELETE FROM masternodes")
-        mas.commit()
+        index_cursor.execute("DELETE FROM masternodes")
+        index.commit()
 
     c.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
     block_last = c.fetchone()[0] #get last block
-    print ("block_last",block_last)
+    app_log.warning ("block_last: {}".format(block_last))
 
     reg_phase_start = reg_phase_end - 10000
-    print("reg_phase_start", reg_phase_start)
-    print("reg_phase_end", reg_phase_end)
+    app_log.warning("reg_phase_start: {}".format(reg_phase_start))
+    app_log.warning("reg_phase_end: {}".format(reg_phase_end))
 
-    c.execute("SELECT block_height, timestamp, address, recipient,operation, openfield FROM transactions WHERE block_height >= ? AND block_height <= ? AND command = ? ORDER BY block_height, timestamp LIMIT 100", (reg_phase_start,) + (reg_phase_end,) + ("masternode:register",))
+    c.execute("SELECT block_height, timestamp, address, recipient,operation, openfield FROM transactions WHERE block_height >= ? AND block_height <= ? AND operation = ? ORDER BY block_height, timestamp LIMIT 100", (reg_phase_start,) + (reg_phase_end,) + ("masternode:register",))
     results = c.fetchall() #more efficient than "for row in"
 
     for row in results:
@@ -112,21 +112,21 @@ def masternodes_update(c,m, mode, reg_phase_end, app_log):
         address = row[2]
         openfield_split = row[4].split(":")
 
-        print("operation_split",openfield_split)
+        app_log.warning("operation_split: {}".format(openfield_split))
         ip = openfield_split[0] #openfield
         delegate = openfield_split[1]
 
         try:
-            m.execute("SELECT * from masternodes WHERE address = ?", (address,))
-            dummy = m.fetchall()[0] #check for uniqueness
+            index_cursor.execute("SELECT * from masternodes WHERE address = ?", (address,))
+            dummy = index_cursor.fetchall()[0] #check for uniqueness
             app_log.warning("Masternode already registered: {}".format(address))
         except:
-            print("address",address)
+            app_log.warning("address: {}".format(address))
             balance = balanceget(address, c)[5]
 
             if quantize_eight(balance) >= 10000:
-                m.execute("INSERT INTO masternodes VALUES (?, ?, ?, ?, ?, ?)", (block_height, timestamp, address, balance, ip, delegate))
-                mas.commit()
+                index_cursor.execute("INSERT INTO masternodes VALUES (?, ?, ?, ?, ?, ?)", (block_height, timestamp, address, balance, ip, delegate))
+                index.commit()
             else:
                 app_log.warning("Insufficient balance for masternode")
 
@@ -134,21 +134,21 @@ def masternodes_update(c,m, mode, reg_phase_end, app_log):
 
 
 
-def masternodes_payout(c,m,block_height,timestamp,app_log):
+def masternodes_payout(c,index,index_cursor,block_height,timestamp,app_log):
     "payout, to be run every 10k blocks"
 
-    m.execute("SELECT * FROM masternodes")
-    masternodes = m.fetchall()
-    print("masternodes",masternodes)
+    index_cursor.execute("SELECT * FROM masternodes")
+    masternodes = index_cursor.fetchall()
+    app_log.warning("masternodes: {}".format(masternodes))
     masternodes_total = len(masternodes)
 
     for masternode in masternodes:
 
         address = masternode[2]
         balance_savings = masternode[3]
-        print("balance_savings",balance_savings)
+        app_log.warning("balance_savings: {}",format(balance_savings))
         stake = str(quantize_eight(percentage(25/52/masternodes_total,balance_savings))) #divide by number of 10k blocks per year
-        print("stake",stake)
+        app_log.warning("stake: {}".format(stake))
 
         try:
             c.execute ("SELECT * from transactions WHERE block_height = ? AND recipient = ?", (-block_height,address,))
@@ -164,26 +164,26 @@ def masternodes_payout(c,m,block_height,timestamp,app_log):
 
 
 
-def masternodes_revalidate(c,m,app_log):
+def masternodes_revalidate(c,index,index_cursor,app_log):
     "remove nodes that removed balance, to be run every 10k blocks"
 
-    m.execute("SELECT * FROM masternodes")
-    masternodes = m.fetchall()
+    index_cursor.execute("SELECT * FROM masternodes")
+    masternodes = index_cursor.fetchall()
 
     for masternode in masternodes:
-        print (masternode)
+        app_log.warning (masternode)
         address = masternode[2]
-        print ("address", address)
+        app_log.warning ("address: {}".format(address))
         balance_savings = masternode[3]
-        print("balance_savings",balance_savings)
+        app_log.warning("balance_savings: {}".format(balance_savings))
         balance = balanceget (address, c)[5]
-        print ("balance", balance)
+        app_log.warning ("balance: {}".format(balance))
         if quantize_eight(balance) < 10000:
-            m.execute("DELETE FROM masternodes WHERE address = ?",(address,))
-            mas.commit()
+            index_cursor.execute("DELETE FROM masternodes WHERE address = ?",(address,))
+            index.commit()
         else: #update balance
-            m.execute("UPDATE masternodes SET balance = ? WHERE address = ?",(balance,address))
-            mas.commit ()
+            index_cursor.execute("UPDATE masternodes SET balance = ? WHERE address = ?",(balance,address))
+            index.commit ()
             app_log.warning("Masternode balance updated from {} to {} for {}".format(balance_savings,balance,address))
 
 
@@ -205,11 +205,11 @@ if __name__ == "__main__":
     conn.text_factory = str
     c = conn.cursor()
 
-    mas = sqlite3.connect("static/index_test.db")
-    mas.text_factory = str
-    m = mas.cursor()
+    index = sqlite3.connect("static/index_test.db")
+    index.text_factory = str
+    index_cursor = index.cursor()
 
     address = "4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed"
-    masternodes_update(c,m, "normal", 626580, app_log)
-    masternodes_payout(c,m,70000, 1525304875, app_log)
-    masternodes_revalidate (c, m, app_log)
+    masternodes_update(c,index,index_cursor, "normal", 626580, app_log)
+    masternodes_payout(c,index,index_cursor,70000, 1525304875, app_log)
+    masternodes_revalidate (c,index, index_cursor, app_log)
