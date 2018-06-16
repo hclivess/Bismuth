@@ -146,7 +146,7 @@ def masternodes_payout(c,index,index_cursor,block_height,timestamp,app_log):
 
         address = masternode[2]
         balance_savings = masternode[3]
-        app_log.warning("balance_savings: {}",format(balance_savings))
+        app_log.warning("balance_savings: {}".format(balance_savings))
         stake = str(quantize_eight(percentage(25/52/masternodes_total,balance_savings))) #divide by number of 10k blocks per year
         app_log.warning("stake: {}".format(stake))
 
