@@ -1,15 +1,18 @@
-#operation: token:issue
-#openfield: token_name:total_number
+# operation: token:issue
+# openfield: token_name:total_number
 
-#operation: token:transfer
-#openfield: token_name:amount
+# operation: token:transfer
+# openfield: token_name:amount
 
 import sqlite3
 import log
 
-def tokens_update(file, ledger, mode, app_log):
-    if mode not in ("normal","reindex"):
-        raise ValueError ("Wrong value for tokens_update function")
+__version__ = '0.0.2'
+
+
+def tokens_update(file, ledger, mode, app_log, plugin_manager=None):
+    if mode not in ("normal", "reindex"):
+        raise ValueError("Wrong value for tokens_update function")
 
     conn = sqlite3.connect(ledger)
     conn.text_factory = str
@@ -39,17 +42,14 @@ def tokens_update(file, ledger, mode, app_log):
     results = c.fetchall()
     app_log.warning(results)
 
-    #import time
-    #time.sleep(1000)
-
     tokens_processed = []
 
     for x in results:
-        token_name = x[6].split (":")[0].lower().strip()
+        token_name = x[6].split(":")[0].lower().strip()
         try:
-            t.execute ("SELECT * from tokens WHERE token = ?", (token_name,))
-            dummy = t.fetchall ()[0]  # check for uniqueness
-            app_log.warning ("Token issuance already processed: {}".format (token_name,))
+            t.execute("SELECT * from tokens WHERE token = ?", (token_name,))
+            dummy = t.fetchall()[0]  # check for uniqueness
+            app_log.warning("Token issuance already processed: {}".format(token_name,))
         except:
             if token_name not in tokens_processed:
                 block_height = x[0]
@@ -71,22 +71,29 @@ def tokens_update(file, ledger, mode, app_log):
                 total = x[6].split(":")[1]
                 app_log.warning("Total amount: {}".format(total))
 
-                t.execute("INSERT INTO tokens VALUES (?,?,?,?,?,?,?)", (block_height, timestamp, token_name, "issued", issued_by, txid, total))
+                t.execute("INSERT INTO tokens VALUES (?,?,?,?,?,?,?)",
+                          (block_height, timestamp, token_name, "issued", issued_by, txid, total))
+
+                if plugin_manager:
+                    plugin_manager.execute_action_hook('token_issue',
+                                                       {'token': token_name, 'issuer': issued_by,
+                                                        'txid': txid, 'total': total})
+
             else:
                 app_log.warning("This token is already registered: {}".format(x[1]))
 
     tok.commit()
     # app_log.warning all token issuances
 
-    #app_log.warning("---")
+    # app_log.warning("---")
 
     # app_log.warning all transfers of a given token
     # token = "worthless"
 
-
-    c.execute("SELECT operation, openfield FROM transactions WHERE block_height >= ? AND operation = ? and reward = 0 ORDER BY block_height ASC;", (token_last_block, "token:transfer",))
+    c.execute("SELECT operation, openfield FROM transactions WHERE block_height > ? AND operation = ? and reward = 0 ORDER BY block_height ASC;",
+              (token_last_block, "token:transfer",))
     openfield_transfers = c.fetchall()
-    #print (openfield_transfers)
+    # print(openfield_transfers)
 
     tokens_transferred = []
     for transfer in openfield_transfers:
@@ -99,7 +106,8 @@ def tokens_update(file, ledger, mode, app_log):
 
     for token in tokens_transferred:
         app_log.warning("processing {}".format(token))
-        c.execute("SELECT block_height, timestamp, address, recipient, signature, operation, openfield FROM transactions WHERE block_height >= ? AND operation = ? AND openfield LIKE ? AND reward = 0 ORDER BY block_height ASC;", (token_last_block, "token:transfer",token + '%',))
+        c.execute("SELECT block_height, timestamp, address, recipient, signature, operation, openfield FROM transactions WHERE block_height > ? AND operation = ? AND openfield LIKE ? AND reward = 0 ORDER BY block_height ASC;",
+                  (token_last_block, "token:transfer",token + '%',))
         results2 = c.fetchall()
         app_log.warning(results2)
 
@@ -130,14 +138,16 @@ def tokens_update(file, ledger, mode, app_log):
             app_log.warning("Transfer amount {}".format(transfer_amount))
 
             # calculate balances
-            t.execute("SELECT sum(amount) FROM tokens WHERE recipient = ? AND block_height < ? AND token = ?", (sender,block_height,token,))
+            t.execute("SELECT sum(amount) FROM tokens WHERE recipient = ? AND block_height < ? AND token = ?",
+                      (sender,block_height,token,))
             try:
                 credit_sender = int(t.fetchone()[0])
             except:
                 credit_sender = 0
             app_log.warning("Sender's credit {}".format(credit_sender))
 
-            t.execute("SELECT sum(amount) FROM tokens WHERE address = ? AND block_height <= ? AND token = ?", (sender,block_height,token,))
+            t.execute("SELECT sum(amount) FROM tokens WHERE address = ? AND block_height <= ? AND token = ?",
+                      (sender,block_height,token,))
             try:
                 debit_sender = int(t.fetchone()[0])
             except:
@@ -148,17 +158,25 @@ def tokens_update(file, ledger, mode, app_log):
             # app_log.warning all token transfers
             balance_sender = credit_sender - debit_sender
             app_log.warning("Sender's balance {}".format(balance_sender))
-
             try:
-                t.execute("SELECT * from tokens WHERE txid = ?", (txid,))
-                dummy = t.fetchall()[0]  # check for uniqueness
-                app_log.warning("Token operation already processed: {} {}".format(token, txid))
-            except:
-                if balance_sender - transfer_amount >= 0 and transfer_amount > 0:
-                    t.execute("INSERT INTO tokens VALUES (?,?,?,?,?,?,?)", (block_height, timestamp, token, sender, recipient, txid, transfer_amount))
-                else: #save block height and txid so that we do not have to process the invalid transactions again
-                    app_log.warning("Invalid transaction by {}".format(sender))
-                    t.execute("INSERT INTO tokens VALUES (?,?,?,?,?,?,?)", (block_height, "", "", "", "", txid, ""))
+                t.execute("SELECT txid from tokens WHERE txid = ?", (txid,))
+                dummy = t.fetchone()  # check for uniqueness
+                if dummy:
+                    app_log.warning("Token operation already processed: {} {}".format(token, txid))
+                else:
+                    if balance_sender - transfer_amount >= 0 and transfer_amount > 0:
+                        t.execute("INSERT INTO tokens VALUES (?,?,?,?,?,?,?)",
+                                  (block_height, timestamp, token, sender, recipient, txid, transfer_amount))
+                        if plugin_manager:
+                            plugin_manager.execute_action_hook('token_transfer',
+                                                               {'token': token, 'from': sender,
+                                                                'to': recipient, 'txid': txid, 'amount': transfer_amount})
+
+                    else:  # save block height and txid so that we do not have to process the invalid transactions again
+                        app_log.warning("Invalid transaction by {}".format(sender))
+                        t.execute("INSERT INTO tokens VALUES (?,?,?,?,?,?,?)", (block_height, "", "", "", "", txid, ""))
+            except Exception as e:
+                app_log.warning("Exception {}".format(e))
 
             app_log.warning("Processing of {} finished".format(token))
 
@@ -170,5 +188,5 @@ def tokens_update(file, ledger, mode, app_log):
 
 if __name__ == "__main__":
     app_log = log.log("tokens.log", "WARNING", True)
-    tokens_update("static/index.db","static/ledger.db","normal",app_log)
-    #tokens_update("tokens.db","reindex")
+    tokens_update("static/index.db", "static/ledger.db", "normal", app_log)
+    # tokens_update("tokens.db","reindex")
