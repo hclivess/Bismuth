@@ -1,3 +1,6 @@
+#operation: masternode:register
+#openfield: ip:delegate
+
 import sqlite3
 import log
 from quantizer import *
@@ -110,7 +113,7 @@ def masternodes_update(c,index,index_cursor, mode, reg_phase_end, app_log):
         block_height = row[0]
         timestamp = row[1]
         address = row[2]
-        openfield_split = row[4].split(":")
+        openfield_split = row[5].split(":")
 
         app_log.warning("operation_split: {}".format(openfield_split))
         ip = openfield_split[0] #openfield
