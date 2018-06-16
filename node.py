@@ -239,7 +239,7 @@ def db_to_drive(hdd, h, hdd2, h2):
     source_db.text_factory = str
     sc = source_db.cursor()
 
-    execute_param(sc, ("SELECT * FROM transactions WHERE block_height > ? ORDER BY block_height ASC"), (hdd_block,))
+    execute_param(sc, ("SELECT * FROM transactions WHERE block_height > ? OR block_height < ? ORDER BY block_height ASC"), (hdd_block,-hdd_block))
     result1 = sc.fetchall()
 
     if full_ledger:  # we want to save to ledger.db
@@ -265,6 +265,8 @@ def db_to_drive(hdd, h, hdd2, h2):
             h2.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
         commit(hdd2)
 
+    """
+    old way
     # reward
     execute_param(sc, ('SELECT * FROM transactions WHERE address = "Development Reward" AND block_height < ?'), (-hdd_block,))
     result3 = sc.fetchall()
@@ -278,6 +280,7 @@ def db_to_drive(hdd, h, hdd2, h2):
             h2.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
         commit(hdd2)
     # reward
+    """
 
     h2.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
     hdd_block = h2.fetchone()[0]
@@ -1311,11 +1314,12 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
 
                         # savings
                         if "testnet" in version:
-                            if int (block_height_new) % 1 == 0:  # every x blocks
+                            if int (block_height_new) % 100 == 0:  # every x blocks
                                 savings.masternodes_update (conn, c, index, index_cursor, "normal", block_height_new, app_log)
                                 savings.masternodes_payout (conn, c, index, index_cursor, block_height_new, block_timestamp, app_log)
                                 savings.masternodes_revalidate (conn, c, index, index_cursor, app_log)
                             # savings
+
                         # dev reward
                         if int(block_height_new) % 10 == 0:  # every 10 blocks
                                 execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",

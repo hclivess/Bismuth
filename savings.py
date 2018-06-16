@@ -165,6 +165,7 @@ def masternodes_payout(conn,c,index,index_cursor,block_height,timestamp,app_log)
         except:
             c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",(-block_height,timestamp,"masternode",address,stake,"0","0","0","0","0","Masternode Payout","0",))
             conn.commit()
+            app_log.warning ("Masternode payout added: {} {}".format (block_height, address))
 
 
 
@@ -218,5 +219,5 @@ if __name__ == "__main__":
 
     address = "4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed"
     masternodes_update(conn, c,index,index_cursor, "normal", 626580, app_log)
-    masternodes_payout(conn, c,index,index_cursor,70000, 1525304875, app_log)
+    masternodes_payout(conn, c,index,index_cursor,70002, 1525304875, app_log)
     masternodes_revalidate (conn, c,index, index_cursor, app_log)
