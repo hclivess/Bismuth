@@ -83,7 +83,7 @@ def balanceget(balance_address, h3):
 
 
 
-def masternodes_update(c,index,index_cursor, mode, reg_phase_end, app_log):
+def masternodes_update(conn,c,index,index_cursor, mode, reg_phase_end, app_log):
     """update register of masternodes based on the current phase (10000 block intervals)"""
     if mode not in ("normal","reindex"):
         raise ValueError ("Wrong value for masternodes_update function")
@@ -113,7 +113,11 @@ def masternodes_update(c,index,index_cursor, mode, reg_phase_end, app_log):
         block_height = row[0]
         timestamp = row[1]
         address = row[2]
+
         openfield_split = row[5].split(":")
+        if not isinstance(openfield_split, list) or len(openfield_split) != 2:
+            openfield_split = [None, None]
+
 
         app_log.warning("operation_split: {}".format(openfield_split))
         ip = openfield_split[0] #openfield
@@ -137,7 +141,7 @@ def masternodes_update(c,index,index_cursor, mode, reg_phase_end, app_log):
 
 
 
-def masternodes_payout(c,index,index_cursor,block_height,timestamp,app_log):
+def masternodes_payout(conn,c,index,index_cursor,block_height,timestamp,app_log):
     "payout, to be run every 10k blocks"
 
     index_cursor.execute("SELECT * FROM masternodes")
@@ -167,7 +171,7 @@ def masternodes_payout(c,index,index_cursor,block_height,timestamp,app_log):
 
 
 
-def masternodes_revalidate(c,index,index_cursor,app_log):
+def masternodes_revalidate(conn,c,index,index_cursor,app_log):
     "remove nodes that removed balance, to be run every 10k blocks"
 
     index_cursor.execute("SELECT * FROM masternodes")
@@ -213,6 +217,6 @@ if __name__ == "__main__":
     index_cursor = index.cursor()
 
     address = "4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed"
-    masternodes_update(c,index,index_cursor, "normal", 626580, app_log)
-    masternodes_payout(c,index,index_cursor,70000, 1525304875, app_log)
-    masternodes_revalidate (c,index, index_cursor, app_log)
+    masternodes_update(conn, c,index,index_cursor, "normal", 626580, app_log)
+    masternodes_payout(conn, c,index,index_cursor,70000, 1525304875, app_log)
+    masternodes_revalidate (conn, c,index, index_cursor, app_log)

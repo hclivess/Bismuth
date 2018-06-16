@@ -1309,21 +1309,20 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                             # secure commit for slow nodes
                             commit(conn)
 
+                        # savings
+                        if "testnet" in version:
+                            if int (block_height_new) % 1 == 0:  # every x blocks
+                                savings.masternodes_update (conn, c, index, index_cursor, "normal", block_height_new, app_log)
+                                savings.masternodes_payout (conn, c, index, index_cursor, block_height_new, block_timestamp, app_log)
+                                savings.masternodes_revalidate (conn, c, index, index_cursor, app_log)
                             # savings
-                            if "testnet" in version:
-                                if int (block_height_new) % 1 == 0:  # every x blocks
-                                    savings.masternodes_update (c, index, index_cursor, "normal", block_height_new, app_log)
-                                    savings.masternodes_payout (c, index, index_cursor, block_height_new, block_timestamp, app_log)
-                                    savings.masternodes_revalidate (c, index, index_cursor, app_log)
-                                # savings
-                            # dev reward
-                            if int(block_height_new) % 10 == 0:  # every 10 blocks
-                                if transaction == block_transactions[-1]:  # put at the end
-                                    execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                                                  (-block_height_new, str(time_now), "Development Reward", str(genesis_conf), str(mining_reward),
-                                                   "0", "0", "0", "0", "0", "0", "0"))
-                                    commit(conn)
-                            # dev reward
+                        # dev reward
+                        if int(block_height_new) % 10 == 0:  # every 10 blocks
+                                execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                                              (-block_height_new, str(time_now), "Development Reward", str(genesis_conf), str(mining_reward),
+                                               "0", "0", "0", "0", "0", "0", "0"))
+                                commit(conn)
+                        # dev reward
 
                         app_log.warning("Block {} valid and saved from {}".format(block_height_new, peer_ip))
 
