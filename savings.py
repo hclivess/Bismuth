@@ -1,3 +1,6 @@
+#todo: make sure registrations newer than latest block are ignored
+#todo: rollbacks inside node
+
 #operation: masternode:register
 #openfield: ip:delegate
 
