@@ -90,7 +90,7 @@ def tokens_update(file, ledger, mode, app_log, plugin_manager=None):
     # app_log.warning all transfers of a given token
     # token = "worthless"
 
-    c.execute("SELECT operation, openfield FROM transactions WHERE block_height > ? AND operation = ? and reward = 0 ORDER BY block_height ASC;",
+    c.execute("SELECT operation, openfield FROM transactions WHERE block_height >= ? AND operation = ? and reward = 0 ORDER BY block_height ASC;",
               (token_last_block, "token:transfer",))
     openfield_transfers = c.fetchall()
     # print(openfield_transfers)
@@ -106,7 +106,7 @@ def tokens_update(file, ledger, mode, app_log, plugin_manager=None):
 
     for token in tokens_transferred:
         app_log.warning("processing {}".format(token))
-        c.execute("SELECT block_height, timestamp, address, recipient, signature, operation, openfield FROM transactions WHERE block_height > ? AND operation = ? AND openfield LIKE ? AND reward = 0 ORDER BY block_height ASC;",
+        c.execute("SELECT block_height, timestamp, address, recipient, signature, operation, openfield FROM transactions WHERE block_height >= ? AND operation = ? AND openfield LIKE ? AND reward = 0 ORDER BY block_height ASC;",
                   (token_last_block, "token:transfer",token + '%',))
         results2 = c.fetchall()
         app_log.warning(results2)
