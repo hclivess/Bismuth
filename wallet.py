@@ -4,7 +4,7 @@
 
 import sqlite3
 import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, time, base64, connections, icons, log, socks, ast, options, tarfile, glob, essentials, re, platform
-from tokens import *
+from tokensv2 import *
 from decimal import *
 from bisurl import *
 from quantizer import quantize_eight
