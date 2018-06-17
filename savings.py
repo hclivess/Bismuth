@@ -9,6 +9,7 @@ import log
 from quantizer import *
 import mempool as mp
 from essentials import fee_calculate
+from hashlib import blake2b
 
 def percentage(percent, whole):
     return ((Decimal(percent) * Decimal(whole)) / 100)
@@ -152,6 +153,13 @@ def masternodes_payout(conn,c,index,index_cursor,block_height,timestamp,app_log)
     app_log.warning("masternodes: {}".format(masternodes))
     masternodes_total = len(masternodes)
 
+    # new hash
+    c.execute("SELECT * FROM transactions WHERE block_height = (SELECT block_height FROM transactions ORDER BY block_height ASC LIMIT 1)")
+    result = c.fetchall()
+    print(result)
+    mirror_hash = blake2b (result, digest_size=20).hexdigest ()
+    # new hash
+
     for masternode in masternodes:
         block_masternode = masternode[0]
         if block_masternode <= block_height:
@@ -167,7 +175,7 @@ def masternodes_payout(conn,c,index,index_cursor,block_height,timestamp,app_log)
                 app_log.warning ("Masternode operation already processed: {} {}".format(block_height,address))
 
             except:
-                c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",(-block_height,timestamp,"masternode",address,stake,"0","0","0","0","0","Masternode Payout","0",))
+                c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",(-block_height,timestamp,"masternode",address,stake,"0","0",mirror_hash,"0","0","Masternode Payout","0",))
                 conn.commit()
                 app_log.warning ("Masternode payout added: {} {}".format (block_height, address))
         else:
