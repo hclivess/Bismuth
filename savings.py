@@ -1,5 +1,5 @@
 #todo: make sure registrations newer than latest block are ignored
-#todo: rollbacks inside node
+#todo: rollbacks inside node; make sure delagete/ip is only allowed characters
 
 #operation: masternode:register
 #openfield: ip:delegate
@@ -153,22 +153,25 @@ def masternodes_payout(conn,c,index,index_cursor,block_height,timestamp,app_log)
     masternodes_total = len(masternodes)
 
     for masternode in masternodes:
+        block_masternode = masternode[0]
+        if block_masternode <= block_height:
+            address = masternode[2]
+            balance_savings = masternode[3]
+            app_log.warning("balance_savings: {}".format(balance_savings))
+            stake = str(quantize_eight(percentage(25/52/masternodes_total,balance_savings))) #divide by number of 10k blocks per year
+            app_log.warning("stake: {}".format(stake))
 
-        address = masternode[2]
-        balance_savings = masternode[3]
-        app_log.warning("balance_savings: {}".format(balance_savings))
-        stake = str(quantize_eight(percentage(25/52/masternodes_total,balance_savings))) #divide by number of 10k blocks per year
-        app_log.warning("stake: {}".format(stake))
+            try:
+                c.execute ("SELECT * from transactions WHERE block_height = ? AND recipient = ?", (-block_height,address,))
+                dummy = c.fetchall ()[0]  # check for uniqueness
+                app_log.warning ("Masternode operation already processed: {} {}".format(block_height,address))
 
-        try:
-            c.execute ("SELECT * from transactions WHERE block_height = ? AND recipient = ?", (-block_height,address,))
-            dummy = c.fetchall ()[0]  # check for uniqueness
-            app_log.warning ("Masternode operation already processed: {} {}".format(block_height,address))
-
-        except:
-            c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",(-block_height,timestamp,"masternode",address,stake,"0","0","0","0","0","Masternode Payout","0",))
-            conn.commit()
-            app_log.warning ("Masternode payout added: {} {}".format (block_height, address))
+            except:
+                c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",(-block_height,timestamp,"masternode",address,stake,"0","0","0","0","0","Masternode Payout","0",))
+                conn.commit()
+                app_log.warning ("Masternode payout added: {} {}".format (block_height, address))
+        else:
+            app_log.warning("Masternode is registered ahead of current block")
 
 
 

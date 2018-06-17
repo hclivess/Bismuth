@@ -779,33 +779,33 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2):
             else:
                 # backup
 
-                execute_param(c, ("SELECT * FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
+                execute_param(c, ("SELECT * FROM transactions WHERE block_height >= ?;"), (db_block_height,))
                 backup_data = c.fetchall()
                 #this code continues at the bottom because of ledger presence check
 
 
 
                 # delete followups
-                execute_param(c, ("DELETE FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
+                execute_param(c, ("DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?"), (db_block_height,-db_block_height))
                 commit(conn)
 
                 execute_param(c, ("DELETE FROM misc WHERE block_height >= ?;"), (str(db_block_height),))
                 commit(conn)
 
-                execute_param(c, ('DELETE FROM transactions WHERE address = "Development Reward" AND block_height <= ?'), (-db_block_height,))
-                commit(conn)
+                #execute_param(c, ('DELETE FROM transactions WHERE address = "Development Reward" AND block_height <= ?'), (-db_block_height,))
+                #commit(conn)
 
                 app_log.warning("Node {} didn't find block {}({}), rolled back".format(peer_ip, db_block_height, db_block_hash))
 
                 # roll back hdd too
                 if full_ledger:  # rollback ledger.db
-                    execute_param(h, ("DELETE FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
+                    execute_param(h, ("DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?"), (db_block_height,-db_block_height))
                     commit(hdd)
                     execute_param(h, ("DELETE FROM misc WHERE block_height >= ?;"), (str(db_block_height),))
                     commit(hdd)
 
                 if ram_conf:  # rollback hyper.db
-                    execute_param(h2, ("DELETE FROM transactions WHERE block_height >= ?;"), (str(db_block_height),))
+                    execute_param(h2, ("DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?"), (db_block_height,-db_block_height))
                     commit(hdd2)
                     execute_param(h2, ("DELETE FROM misc WHERE block_height >= ?;"), (str(db_block_height),))
                     commit(hdd2)
@@ -813,6 +813,7 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2):
                 hdd_block = int(db_block_height) - 1
                 # roll back hdd too
 
+                """
                 # roll back reward too
                 if full_ledger:  # rollback ledger.db
                     execute_param(h, ('DELETE FROM transactions WHERE address = "Development Reward" AND block_height <= ?'), (-db_block_height,))
@@ -822,6 +823,7 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2):
                     execute_param(h2, ('DELETE FROM transactions WHERE address = "Development Reward" AND block_height <= ?'), (-db_block_height,))
                     commit(hdd2)
                 # roll back reward too
+                """
 
                 # rollback indices
                 tokens_rollback(db_block_height, app_log)
@@ -1370,25 +1372,26 @@ def coherence_check():
         # perform test on transaction table
         y = None
         # Egg: not sure block_height != (0 OR 1)  gives the proper result, 0 or 1  = 1. not in (0, 1) could be better.
-        for row in c.execute("SELECT block_height FROM transactions WHERE reward != 0 AND block_height != (0 OR 1) ORDER BY block_height ASC"):
+        for row in c.execute("SELECT block_height FROM transactions WHERE reward != 0 AND block_height != (0 OR 1) AND block_height > 0 ORDER BY block_height ASC"):
             y_init = row[0]
 
             if y is None:
                 y = y_init
 
             if row[0] != y:
+
                 for chain2 in chains_to_check:
                     conn2 = sqlite3.connect(chain2)
                     c2 = conn2.cursor()
                     app_log.warning("Status: Chain {} transaction coherence error at: {}".format(chain, row[0]-1))
-                    c2.execute("DELETE FROM transactions WHERE block_height >= ?", (row[0]-1,))
+                    c2.execute("DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?", (row[0]-1,-(row[0]+1)))
                     conn2.commit()
                     c2.execute("DELETE FROM misc WHERE block_height >= ?", (row[0]-1,))
                     conn2.commit()
 
-                    execute_param(conn2, ('DELETE FROM transactions WHERE address = "Development Reward" AND block_height <= ?'), (-(row[0]+1),))
-                    commit(conn2)
-                    conn2.close()
+                    #execute_param(conn2, ('DELETE FROM transactions WHERE address = "Development Reward" AND block_height <= ?'), (-(row[0]+1),))
+                    #commit(conn2)
+                    #conn2.close()
 
                     # rollback indices
                     tokens_rollback(y, app_log)
