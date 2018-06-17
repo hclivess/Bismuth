@@ -18,7 +18,7 @@ import json
 from quantizer import *
 import essentials
 
-__version__ = "0.0.5"
+__version__ = "0.0.5b"
 
 MEMPOOL = None
 
@@ -464,6 +464,8 @@ class Mempool:
                         mempool_amount_float = float(transaction[3])
                         mempool_signature_enc = str(transaction[4])[:684]
                         mempool_public_key_hashed = str(transaction[5])[:1068]
+                        if "b'" == mempool_public_key_hashed[:2]:
+                            mempool_public_key_hashed = transaction[5][2:1070]                        
                         mempool_operation = str(transaction[6])[:30]
                         mempool_openfield = str(transaction[7])[:100000]
 
