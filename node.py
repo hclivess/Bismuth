@@ -101,7 +101,7 @@ global peers
 
 def tokens_rollback(height, app_log):
     """rollback token index"""
-    tok = sqlite3.connect("static/index.db")
+    tok = sqlite3.connect(index_db)
     tok.text_factory = str
     t = tok.cursor()
     execute_param(t, ("DELETE FROM tokens WHERE block_height >= ?;"), (height-1,))
@@ -110,9 +110,19 @@ def tokens_rollback(height, app_log):
     app_log.warning("Rolled back the token index to {}".format(height-1))
 
 
+def masternodes_rollback(height, app_log):
+    """rollback alias index"""
+    ali = sqlite3.connect (index_db)
+    ali.text_factory = str
+    a = ali.cursor ()
+    execute_param (a, ("DELETE FROM masternodes WHERE block_height >= ?;"), (height - 1,))
+    commit (ali)
+    a.close ()
+    app_log.warning ("Rolled back the masternode index to {}".format (height - 1))
+
 def aliases_rollback(height, app_log):
     """rollback alias index"""
-    ali = sqlite3.connect("static/index.db")
+    ali = sqlite3.connect(index_db)
     ali.text_factory = str
     a = ali.cursor()
     execute_param(a, ("DELETE FROM aliases WHERE block_height >= ?;"), (height-1,))
@@ -828,6 +838,7 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2):
                 # rollback indices
                 tokens_rollback(db_block_height, app_log)
                 aliases_rollback(db_block_height, app_log)
+                masternodes_rollback (db_block_height, app_log)
                 # rollback indices
 
 
@@ -1411,6 +1422,8 @@ def coherence_check():
                     # rollback indices
                     tokens_rollback(y, app_log)
                     aliases_rollback(y, app_log)
+                    masternodes_rollback (y, app_log)
+
                     # rollback indices
 
 
@@ -1449,6 +1462,7 @@ def coherence_check():
                     # rollback indices
                     tokens_rollback(y, app_log)
                     aliases_rollback(y, app_log)
+                    masternodes_rollback (y, app_log)
                     # rollback indices
 
                     app_log.warning("Status: Due to a coherence issue at block {}, {} has been rolled back and will be resynchronized".format(y, chain))
