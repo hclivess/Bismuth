@@ -12,7 +12,7 @@ VERSION = "4.2.5.2"
 import log, options, connections, peershandler, apihandler
 
 import shutil, socketserver, base64, hashlib, os, re, sqlite3, sys, threading, time, socks, random, keys, math, requests, tarfile, essentials, glob
-from decimal import *
+from hashlib import blake2b
 import tokensv2 as tokens
 import aliases
 from quantizer import *
@@ -1325,10 +1325,17 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                             # savings
 
                         # dev reward
+                        # new hash
+                        c.execute ("SELECT * FROM transactions WHERE block_height = (SELECT block_height FROM transactions ORDER BY block_height ASC LIMIT 1)")
+                        result = c.fetchall ()
+                        print (result)
+                        mirror_hash = blake2b (str (result).encode (), digest_size=20).hexdigest ()
+                        # new hash
+
                         if int(block_height_new) % 10 == 0:  # every 10 blocks
                                 execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                                               (-block_height_new, str(time_now), "Development Reward", str(genesis_conf), str(mining_reward),
-                                               "0", "0", "0", "0", "0", "0", "0"))
+                                               "0", "0", mirror_hash, "0", "0", "0", "0"))
                                 commit(conn)
                         # dev reward
 
@@ -2160,13 +2167,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         connections.send(self.request, difflast)
                     else:
                         app_log.info("{} not whitelisted for difflastget command".format(peer_ip))
-
-                # elif data == "*":
-                #    app_log.info(">> inbound sending ping to {}".format(peer_ip))
-                #    connections.send(self.request, "ping")
-
-                # elif data == "ping":
-                #    app_log.info(">> Inbound got ping from {}".format(peer_ip))
 
                 else:
                     if data == '*':

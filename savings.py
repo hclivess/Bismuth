@@ -157,7 +157,7 @@ def masternodes_payout(conn,c,index,index_cursor,block_height,timestamp,app_log)
     c.execute("SELECT * FROM transactions WHERE block_height = (SELECT block_height FROM transactions ORDER BY block_height ASC LIMIT 1)")
     result = c.fetchall()
     print(result)
-    mirror_hash = blake2b (result, digest_size=20).hexdigest ()
+    mirror_hash = blake2b (str (result).encode (), digest_size=20).hexdigest ()
     # new hash
 
     for masternode in masternodes:
@@ -172,7 +172,7 @@ def masternodes_payout(conn,c,index,index_cursor,block_height,timestamp,app_log)
             try:
                 c.execute ("SELECT * from transactions WHERE block_height = ? AND recipient = ?", (-block_height,address,))
                 dummy = c.fetchall ()[0]  # check for uniqueness
-                app_log.warning ("Masternode operation already processed: {} {}".format(block_height,address))
+                app_log.warning ("Masternode payout already processed: {} {}".format(block_height,address))
 
             except:
                 c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",(-block_height,timestamp,"masternode",address,stake,"0","0",mirror_hash,"0","0","Masternode Payout","0",))
