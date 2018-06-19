@@ -838,7 +838,8 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2):
                 # rollback indices
                 tokens_rollback(db_block_height, app_log)
                 aliases_rollback(db_block_height, app_log)
-                masternodes_rollback (db_block_height, app_log)
+                if "testnet" in version:
+                    masternodes_rollback (db_block_height, app_log)
                 # rollback indices
 
 
@@ -1339,7 +1340,6 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                         # new hash
                         c.execute ("SELECT * FROM transactions WHERE block_height = (SELECT block_height FROM transactions ORDER BY block_height ASC LIMIT 1)")
                         result = c.fetchall ()
-                        print (result)
                         mirror_hash = blake2b (str (result).encode (), digest_size=20).hexdigest ()
                         # new hash
 
@@ -1422,7 +1422,8 @@ def coherence_check():
                     # rollback indices
                     tokens_rollback(y, app_log)
                     aliases_rollback(y, app_log)
-                    masternodes_rollback (y, app_log)
+                    if "testnet" in version:
+                        masternodes_rollback (y, app_log)
 
                     # rollback indices
 
@@ -1462,7 +1463,8 @@ def coherence_check():
                     # rollback indices
                     tokens_rollback(y, app_log)
                     aliases_rollback(y, app_log)
-                    masternodes_rollback (y, app_log)
+                    if "testnet" in version:
+                        masternodes_rollback (y, app_log)
                     # rollback indices
 
                     app_log.warning("Status: Due to a coherence issue at block {}, {} has been rolled back and will be resynchronized".format(y, chain))
@@ -2540,12 +2542,13 @@ if __name__ == "__main__":
 
         redownload_test = input("Status: Welcome to the testnet. Redownload test ledger? y/n")
         if redownload_test == "y" or not os.path.exists("static/test.db"):
-            types = ['static/test.db-wal', 'static/test.db-shm']
+            types = ['static/test.db-wal', 'static/test.db-shm','static/index_test.db']
             for type in types:
                 for file in glob.glob(type):
                     os.remove(file)
                     print(file, "deleted")
             download_file("https://bismuth.cz/test.db", "static/test.db")
+            download_file("https://bismuth.cz/index_test.db", "static/index_test.db")
         else:
             print("Not redownloading test db")
 
