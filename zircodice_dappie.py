@@ -1,4 +1,4 @@
-import sqlite3, base64, options
+import sqlite3, base64, options, os
 
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
@@ -7,6 +7,10 @@ from decimal import *
 from random import randint
 import essentials
 from essentials import fee_calculate
+
+if not os.path.exists("roll.db"):
+    print("Roll database does not exist, if you run this on an existing casino, all bets will be re-rolled and payouts processed")
+    input("Press any key to continue")
 
 block_anchor = 547989 #no payouts previous to this block
 
