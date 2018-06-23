@@ -557,95 +557,49 @@ def difficulty(c):
     block_height = int(result[0])
     timestamp_before_last = Decimal(c.fetchone()[1])
 
-    if is_testnet or block_height > 700000:
-        execute_param(c, ("SELECT timestamp FROM transactions WHERE CAST(block_height AS INTEGER) > ? AND reward != 0 ORDER BY timestamp ASC LIMIT 2"), (block_height - 1441,))
-        timestamp_1441 = Decimal(c.fetchone()[0])
-        block_time_prev = (timestamp_before_last - timestamp_1441) / 1440
-        timestamp_1440 = Decimal(c.fetchone()[0])
-        block_time = Decimal(timestamp_last - timestamp_1440) / 1440
-        execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
-        diff_block_previous = Decimal(c.fetchone()[0])
+    execute_param(c, ("SELECT timestamp FROM transactions WHERE CAST(block_height AS INTEGER) > ? AND reward != 0 ORDER BY timestamp ASC LIMIT 2"), (block_height - 1441,))
+    timestamp_1441 = Decimal(c.fetchone()[0])
+    block_time_prev = (timestamp_before_last - timestamp_1441) / 1440
+    timestamp_1440 = Decimal(c.fetchone()[0])
+    block_time = Decimal(timestamp_last - timestamp_1440) / 1440
+    execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
+    diff_block_previous = Decimal(c.fetchone()[0])
 
-        time_to_generate = timestamp_last - timestamp_before_last
+    time_to_generate = timestamp_last - timestamp_before_last
 
-        hashrate = pow(2, diff_block_previous / Decimal(2.0)) / (block_time * math.ceil(28 - diff_block_previous / Decimal(16.0)))
-        # Calculate new difficulty for desired blocktime of 60 seconds
-        target = Decimal(60.00)
-        ##D0 = diff_block_previous
-        difficulty_new = Decimal((2 / math.log(2)) * math.log(hashrate * target * math.ceil(28 - diff_block_previous / Decimal(16.0))))
-        # Feedback controller
-        Kd = 10
-        difficulty_new = difficulty_new - Kd * (block_time - block_time_prev)
-        diff_adjustment = (difficulty_new - diff_block_previous) / 720  # reduce by factor of 720
+    hashrate = pow(2, diff_block_previous / Decimal(2.0)) / (block_time * math.ceil(28 - diff_block_previous / Decimal(16.0)))
+    # Calculate new difficulty for desired blocktime of 60 seconds
+    target = Decimal(60.00)
+    ##D0 = diff_block_previous
+    difficulty_new = Decimal((2 / math.log(2)) * math.log(hashrate * target * math.ceil(28 - diff_block_previous / Decimal(16.0))))
+    # Feedback controller
+    Kd = 10
+    difficulty_new = difficulty_new - Kd * (block_time - block_time_prev)
+    diff_adjustment = (difficulty_new - diff_block_previous) / 720  # reduce by factor of 720
 
-        if diff_adjustment > Decimal(1.0):
-            diff_adjustment = Decimal(1.0)
+    if diff_adjustment > Decimal(1.0):
+        diff_adjustment = Decimal(1.0)
 
-        difficulty_new_adjusted = quantize_ten(diff_block_previous + diff_adjustment)
-        difficulty = difficulty_new_adjusted
+    difficulty_new_adjusted = quantize_ten(diff_block_previous + diff_adjustment)
+    difficulty = difficulty_new_adjusted
 
-        diff_drop_time = 180
+    diff_drop_time = 180
 
-        if Decimal(time.time()) > Decimal(timestamp_last) + Decimal(diff_drop_time):
-            time_difference = quantize_two(time.time()) - quantize_two(timestamp_last)
-            diff_dropped = quantize_ten(difficulty) - quantize_ten(time_difference / diff_drop_time)
-
-
-
-        else:
-            diff_dropped = difficulty
-
-        if difficulty < 50:
-            difficulty = 50
-        if diff_dropped < 50:
-            diff_dropped = 50
-
-        return (float('%.10f' % difficulty),float('%.10f' % diff_dropped), float(time_to_generate), float(diff_block_previous), float(block_time), float(hashrate), float(diff_adjustment), block_height)  # need to keep float here for database inserts support
-
-
+    if Decimal(time.time()) > Decimal(timestamp_last) + Decimal(diff_drop_time):
+        time_difference = quantize_two(time.time()) - quantize_two(timestamp_last)
+        diff_dropped = quantize_ten(difficulty) - quantize_ten(time_difference / diff_drop_time)
 
 
 
     else:
-        execute_param(c, ("SELECT timestamp FROM transactions WHERE CAST(block_height AS INTEGER) > ? AND reward != 0 ORDER BY timestamp ASC LIMIT 2"), (block_height - 1441,))
-        timestamp_1441 = Decimal(c.fetchone ()[0])
-        block_time_prev = (timestamp_before_last - timestamp_1441) / 1440
-        timestamp_1440 = Decimal(c.fetchone()[0])
-        block_time = Decimal(timestamp_last - timestamp_1440) / 1440
-        execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
-        diff_block_previous = Decimal(c.fetchone()[0])
-        ## Assume current difficulty D is known
-        ## D = diff_block_previous
-        ## Assume current blocktime is known, calculcated from historic data, for example last 1440 blocks
-        ##T = block_time
-        # Calculate network hashrate
-        time_to_generate = timestamp_last - timestamp_before_last
+        diff_dropped = difficulty
 
-        hashrate = pow(2, diff_block_previous / Decimal(2.0)) / (block_time * math.ceil(28 - diff_block_previous / Decimal(16.0)))
-        # Calculate new difficulty for desired blocktime of 60 seconds
-        target = Decimal(60.00)
-        ##D0 = diff_block_previous
-        difficulty_new = Decimal((2 / math.log(2)) * math.log(hashrate * target * math.ceil(28 - diff_block_previous / Decimal(16.0))))
-        # Feedback controller
-        Kd = 10
-        difficulty_new = difficulty_new - Kd * (block_time - block_time_prev)
-        diff_adjustment = (difficulty_new - diff_block_previous) / 720  # reduce by factor of 720
-        # limit here
-        difficulty_new_adjusted = quantize_ten(diff_block_previous + diff_adjustment)
-        difficulty = difficulty_new_adjusted
-        difficulty2 = difficulty
-        time_now = time.time()
+    if difficulty < 50:
+        difficulty = 50
+    if diff_dropped < 50:
+        diff_dropped = 50
 
-        if block_time > 90.0:
-            if time_now > timestamp_last + 300:  # if more than 5 minutes passed
-                difficulty2 = difficulty - Decimal(1.0)
-
-        if difficulty < 80:
-            difficulty = 80
-        if difficulty2 < 80:
-            difficulty2 = 80
-
-        return (float('%.10f' % difficulty), float('%.10f' % difficulty2), float(time_to_generate), float(diff_block_previous), float(block_time), float(hashrate), float(diff_adjustment), block_height)  # need to keep float here for database inserts support
+    return (float('%.10f' % difficulty),float('%.10f' % diff_dropped), float(time_to_generate), float(diff_block_previous), float(block_time), float(hashrate), float(diff_adjustment), block_height)  # need to keep float here for database inserts support
 
 
 def balanceget(balance_address, h3):
@@ -1026,10 +980,9 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                         app_log.warning("Attempt to spend from a wrong address")
                         block_valid = False
 
-                    if db_block_height > 700000: # start validating
-                        if not essentials.address_validate(received_address) or not essentials.address_validate(received_recipient):
-                            app_log.warning("Not a valid address")
-                            block_valid = False
+                    if not essentials.address_validate(received_address) or not essentials.address_validate(received_recipient):
+                        app_log.warning("Not a valid address")
+                        block_valid = False
 
                     if transaction == transaction_list[-1]:  # recognize the last transaction as the mining reward transaction
                         block_timestamp = received_timestamp
@@ -1042,11 +995,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
 
                     time_now = time.time()
 
-                    global drift_limit
-                    if "testnet" in version or db_block_height > 700000:
-                        drift_limit = 0
-
-                    if quantize_two(time_now) + drift_limit < quantize_two(received_timestamp):
+                    if quantize_two(time_now) < quantize_two(received_timestamp):
                         app_log.warning("Future transaction not allowed, timestamp {} minutes in the future".format(quantize_two((quantize_two(received_timestamp) - quantize_two(time_now)) / 60)))
                         block_valid = False
                     if quantize_two(db_timestamp_last) - 86400 > quantize_two(received_timestamp):
@@ -1091,69 +1040,34 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                 if block_valid:
                     mining_hash = bin_convert(hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
 
-                    diff_drop_time = 300
-                    if is_testnet or db_block_height > 700000:
-                        diff_drop_time = 180
+                    diff_drop_time = 180
 
                     mining_condition = bin_convert(db_block_hash)[0:int(diff[0])]
 
-                    if "testnet" in version or db_block_height > 700000:
+                    if mining_condition in mining_hash:  # simplified comparison, no backwards mining
+                        app_log.info("Difficulty requirement satisfied for block {} from {}".format (block_height_new, peer_ip))
+                        diff_save = diff[0]
+
+                    elif Decimal(received_timestamp) > Decimal(db_timestamp_last) + Decimal(diff_drop_time): #uses block timestamp, dont merge with diff() for security reasons
+                        time_difference = quantize_two(received_timestamp) - quantize_two(db_timestamp_last)
+                        diff_dropped = quantize_ten(diff[0])-quantize_ten(time_difference/diff_drop_time)
+                        if diff_dropped < 50:
+                            diff_dropped = 50
+
+                        mining_condition = bin_convert(db_block_hash)[0:int(diff_dropped)]
+
                         if mining_condition in mining_hash:  # simplified comparison, no backwards mining
-                            app_log.info("Difficulty requirement satisfied for block {} from {}".format (block_height_new, peer_ip))
-                            diff_save = diff[0]
-
-                            """
-                            time_difference = quantize_two(received_timestamp) - quantize_two(db_timestamp_last)
-
-                            diff_dropped = quantize_ten(diff[0])-quantize_ten(time_difference/600)
-                            if diff_dropped < 50:
-                                diff_dropped = 50
-                            app_log.warning(diff_dropped)
-                            """
-
-                        elif Decimal(received_timestamp) > Decimal(db_timestamp_last) + Decimal(diff_drop_time): #uses block timestamp, dont merge with diff() for security reasons
-                            time_difference = quantize_two(received_timestamp) - quantize_two(db_timestamp_last)
-                            diff_dropped = quantize_ten(diff[0])-quantize_ten(time_difference/diff_drop_time)
-                            if diff_dropped < 50:
-                                diff_dropped = 50
-
-                            mining_condition = bin_convert(db_block_hash)[0:int(diff_dropped)]
-
-                            if mining_condition in mining_hash:  # simplified comparison, no backwards mining
-                                app_log.info("Readjusted difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
-                                diff_save = diff[0] #lie about what diff was matched not to mess up the diff algo
-                            else:
-                                # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
-                                app_log.warning("Readjusted difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff_dropped))
-                                block_valid = False
+                            app_log.info("Readjusted difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
+                            diff_save = diff[0] #lie about what diff was matched not to mess up the diff algo
                         else:
                             # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
-                            app_log.warning("Difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[0]))
+                            app_log.warning("Readjusted difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff_dropped))
                             block_valid = False
-
-
                     else:
+                        # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
+                        app_log.warning("Difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[0]))
+                        block_valid = False
 
-
-                        if mining_condition in mining_hash:  # simplified comparison, no backwards mining
-                            app_log.info("Difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
-                            diff_save = diff[0]
-
-                        elif time_now > db_timestamp_last + diff_drop_time:
-
-                            mining_condition = bin_convert(db_block_hash)[0:int(diff[1])]
-                            if mining_condition in mining_hash:  # simplified comparison, no backwards mining
-                                app_log.info("Readjusted difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
-                                diff_save = diff[1]
-                            else:
-                                # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
-                                app_log.warning("Readjusted difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[1]))
-                                block_valid = False
-
-                        else:
-                            # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
-                            app_log.warning("Difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[0]))
-                            block_valid = False
 
                         # print data
                         # print transaction_list
