@@ -574,7 +574,7 @@ def difficulty(c):
         difficulty_new_adjusted = quantize_ten(diff_block_previous + diff_adjustment)
         difficulty = difficulty_new_adjusted
 
-        diff_drop_time = 180
+        diff_drop_time = quantize_two(180)
 
         if Decimal(time.time()) > Decimal(timestamp_last) + Decimal(diff_drop_time):
             time_difference = quantize_two(time.time()) - quantize_two(timestamp_last)
