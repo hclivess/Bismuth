@@ -124,6 +124,28 @@ class MainHandler(tornado.web.RequestHandler):
             self.write("</font>")
             self.write("<br>")
 
+        if "twitterizer.py" in str(pnames):
+            self.write("<font color='green'>")
+            self.write("Twitter Bot: <strong>OK</strong>")
+            self.write("</font>")
+            self.write("<br>")
+        else:
+            self.write("<font color='red'>")
+            self.write("Twitter Bot: <strong>Not running</strong>")
+            self.write("</font>")
+            self.write("<br>")
+
+        if "wallet_server.py" in str(pnames):
+            self.write("<font color='green'>")
+            self.write("Wallet Server: <strong>OK</strong>")
+            self.write("</font>")
+            self.write("<br>")
+        else:
+            self.write("<font color='red'>")
+            self.write("Wallet Server: <strong>Not running</strong>")
+            self.write("</font>")
+            self.write("<br>")
+
         self.write("<br>")
         self.write("Last updated: {}".format(time.strftime("%Y/%m/%d,%H:%M:%S", time.gmtime(time.time()))))
         #time.sleep(5)

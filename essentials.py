@@ -190,7 +190,7 @@ def validate_pem(public_key):
 def fee_calculate(openfield, operation='', block=0):
     # block var will be removed after HF
     fee = Decimal("0.01") + (Decimal(len(openfield)) / Decimal("100000"))  # 0.01 dust
-    if openfield.startswith("token:issue:") or (operation == "token:issue" and block > 700000):
+    if operation == "token:issue":
         fee = Decimal(fee) + Decimal("10")
     if openfield.startswith("alias="):
         fee = Decimal(fee) + Decimal("1")
