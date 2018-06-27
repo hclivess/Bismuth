@@ -1040,7 +1040,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                 if block_valid:
                     mining_hash = bin_convert(hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
 
-                    diff_drop_time = 180
+                    diff_drop_time = Decimal(180)
 
                     mining_condition = bin_convert(db_block_hash)[0:int(diff[0])]
 
