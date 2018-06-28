@@ -1,5 +1,5 @@
 import base64, hashlib, json
-from Crypto.PublicKey import RSA
+from Cryptodome.PublicKey import RSA
 
 def generate():
     # generate key pair and an address

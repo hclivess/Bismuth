@@ -1,4 +1,4 @@
-from Crypto.PublicKey import RSA
+from Cryptodome.PublicKey import RSA
 import hashlib
 import json
 

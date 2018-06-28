@@ -1,7 +1,7 @@
 import sqlite3, base64, options, os
 
-from Crypto.Signature import PKCS1_v1_5
-from Crypto.Hash import SHA
+from Cryptodome.Signature import PKCS1_v1_5
+from Cryptodome.Hash import SHA
 import time
 from decimal import *
 from random import randint

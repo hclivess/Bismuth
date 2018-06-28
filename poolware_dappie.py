@@ -1,6 +1,6 @@
 import socketserver, connections, time, options, log, sqlite3, ast, socks, hashlib, os, random, re, keys, base64
-from Crypto.Signature import PKCS1_v1_5
-from Crypto.Hash import SHA
+from Cryptodome.Signature import PKCS1_v1_5
+from Cryptodome.Hash import SHA
 
 config = options.Get()
 config.read()

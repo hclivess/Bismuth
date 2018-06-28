@@ -10,11 +10,11 @@ node_ip_conf = config.node_ip_conf
 terminal_output=config.terminal_output
 
 from datetime import datetime
-from Crypto.PublicKey import RSA
-from Crypto.Signature import PKCS1_v1_5
-from Crypto.Hash import SHA
-from Crypto.Random import get_random_bytes
-from Crypto.Cipher import AES, PKCS1_OAEP
+from Cryptodome.PublicKey import RSA
+from Cryptodome.Signature import PKCS1_v1_5
+from Cryptodome.Hash import SHA
+from Cryptodome.Random import get_random_bytes
+from Cryptodome.Cipher import AES, PKCS1_OAEP
 
 from simplecrypt import encrypt, decrypt
 from tkinter import filedialog

@@ -1,7 +1,7 @@
 import base64, sqlite3, hashlib, time, socks, essentials, sys, connections, ast, re, options, getpass
 from simplecrypt import *
-from Crypto.Signature import PKCS1_v1_5
-from Crypto.Hash import SHA
+from Cryptodome.Signature import PKCS1_v1_5
+from Cryptodome.Hash import SHA
 from Crypto import Random
 from multiprocessing import Process, freeze_support
 
@@ -147,7 +147,7 @@ def execute_param(cursor, what, param):
 
 
 def miner(q, privatekey_readable, public_key_hashed, address):
-    from Crypto.PublicKey import RSA
+    from Cryptodome.PublicKey import RSA
     Random.atfork()
     rndfile = Random.new()
     tries = 0

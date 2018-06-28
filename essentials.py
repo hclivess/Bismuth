@@ -4,7 +4,7 @@ Common helpers for Bismuth
 import os, db, sqlite3, hashlib, base64
 
 # from Crypto import Random
-from Crypto.PublicKey import RSA
+from Cryptodome.PublicKey import RSA
 import getpass
 import re
 import time
@@ -32,8 +32,8 @@ def db_check(app_log):
 
 
 def sign_rsa(timestamp, address, recipient, amount, operation, openfield, key, public_key_hashed):
-    from Crypto.Signature import PKCS1_v1_5
-    from Crypto.Hash import SHA
+    from Cryptodome.Signature import PKCS1_v1_5
+    from Cryptodome.Hash import SHA
 
     if not key:
         raise BaseException("The wallet is locked, you need to provide a decrypted key")

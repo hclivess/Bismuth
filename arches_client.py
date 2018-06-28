@@ -8,8 +8,8 @@ import psutil
 import pyping
 import socket
 
-from Crypto.Signature import PKCS1_v1_5 as PKCS
-from Crypto.Hash import SHA
+from Cryptodome.Signature import PKCS1_v1_5 as PKCS
+from Cryptodome.Hash import SHA
     
 app_log = logging.getLoger("arches.log")
 

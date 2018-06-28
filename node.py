@@ -19,9 +19,9 @@ from quantizer import *
 from ann import ann_get, ann_ver_get
 from essentials import fee_calculate
 
-from Crypto.Hash import SHA
-from Crypto.PublicKey import RSA
-from Crypto.Signature import PKCS1_v1_5
+from Cryptodome.Hash import SHA
+from Cryptodome.PublicKey import RSA
+from Cryptodome.Signature import PKCS1_v1_5
 
 import mempool as mp
 import plugins

@@ -1,5 +1,5 @@
 import socks, connections, time, sys, json, re
-from Crypto.PublicKey import RSA
+from Cryptodome.PublicKey import RSA
 
 #define private key
 key = RSA.importKey(open('/privkey.der').read())

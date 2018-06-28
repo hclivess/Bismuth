@@ -1,7 +1,7 @@
 from simplecrypt import decrypt
 import base64
 import hashlib
-from Crypto.PublicKey import RSA
+from Cryptodome.PublicKey import RSA
 
 try:
     with open("secret.txt", "r") as encrypted_privkey_file:

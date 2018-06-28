@@ -1,10 +1,10 @@
 #locally stored to prevent an even of abandoned repository removal
 
-from Crypto.Cipher import AES
-from Crypto.Hash import SHA256, HMAC
-from Crypto.Protocol.KDF import PBKDF2
-from Crypto.Random.random import getrandbits
-from Crypto.Util import Counter
+from Cryptodome.Cipher import AES
+from Cryptodome.Hash import SHA256, HMAC
+from Cryptodome.Protocol.KDF import PBKDF2
+from Cryptodome.Random.random import getrandbits
+from Cryptodome.Util import Counter
 
 # see: http://www.daemonology.net/blog/2009-06-11-cryptographic-right-answers.html
 
