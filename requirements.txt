@@ -6,7 +6,7 @@
 # Now the minimal modules needed for a full install
 
 PySocks
-pycryptodome
+pycryptodomex
 pillow
 pyqrcode
 matplotlib

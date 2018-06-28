@@ -6,5 +6,5 @@
 # Now the minimal modules needed for a node only install
 
 PySocks
-pycryptodome
+pycryptodomex
 requests
