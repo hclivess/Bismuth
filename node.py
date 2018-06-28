@@ -228,7 +228,7 @@ def check_integrity(database):
     else:
         ledger_check.close()
 
-    if redownload:
+    if redownload and "testnet" not in version:
         bootstrap()
 
 
@@ -906,7 +906,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                     if entry_signature:  # prevent empty signature database retry hack
                         signature_list.append(entry_signature)
 
-                        # reject block with transactions which are already in the ledger
+                        # reject block with transactions which are already in the ledger RAM
                         execute_param(h3, ("SELECT block_height FROM transactions WHERE signature = ?;"), (entry_signature,))
                         try:
                             result = h3.fetchall()[0]
@@ -915,7 +915,19 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
 
                         except:
                             pass
+                            # reject block with transactions which are already in the ledger RAM
+
+                        # reject block with transactions which are already in the ledger
+                        execute_param(c, ("SELECT block_height FROM transactions WHERE signature = ?;"), (entry_signature,))
+                        try:
+                            result = c.fetchall()[0]
+                            app_log.warning("That transaction is already in our ledger, row {}".format(result[0]))
+                            block_valid = False
+
+                        except:
+                            pass
                             # reject block with transactions which are already in the ledger
+
                     else:
                         block_valid = False
                         app_log.warning("Empty signature from {}".format(peer_ip))
