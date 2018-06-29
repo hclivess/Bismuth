@@ -104,7 +104,7 @@ def tokens_rollback(height, app_log):
     tok = sqlite3.connect(index_db)
     tok.text_factory = str
     t = tok.cursor()
-    execute_param(t, ("DELETE FROM tokens WHERE block_height >= ?;"), (height-1,))
+    execute_param(t, "DELETE FROM tokens WHERE block_height >= ?;", (height-1,))
     commit(tok)
     t.close()
     app_log.warning("Rolled back the token index to {}".format(height-1))
@@ -115,24 +115,26 @@ def masternodes_rollback(height, app_log):
     ali = sqlite3.connect (index_db)
     ali.text_factory = str
     a = ali.cursor ()
-    execute_param (a, ("DELETE FROM masternodes WHERE block_height >= ?;"), (height - 1,))
+    execute_param (a, "DELETE FROM masternodes WHERE block_height >= ?;", (height - 1,))
     commit (ali)
     a.close ()
     app_log.warning ("Rolled back the masternode index to {}".format (height - 1))
+
 
 def aliases_rollback(height, app_log):
     """rollback alias index"""
     ali = sqlite3.connect(index_db)
     ali.text_factory = str
     a = ali.cursor()
-    execute_param(a, ("DELETE FROM aliases WHERE block_height >= ?;"), (height-1,))
+    execute_param(a, "DELETE FROM aliases WHERE block_height >= ?;", (height-1,))
     commit(ali)
     a.close()
     app_log.warning("Rolled back the alias index to {}".format(height-1))
 
+
 def sendsync(sdef, peer_ip, status, provider):
 
-    app_log.warning("Outbound: Synchronization with {} finished after: {}, sending new sync request".format(peer_ip, status))
+    app_log.info("Outbound: Synchronization with {} finished after: {}, sending new sync request".format(peer_ip, status))
 
     if provider:
         app_log.info("Outbound: Saving peer {}".format(peer_ip))
@@ -209,6 +211,7 @@ def bootstrap():
         app_log.warning("Something went wrong during bootstrapping, aborted")
         raise
 
+
 def check_integrity(database):
     # check ledger integrity
     ledger_check = sqlite3.connect(database)
@@ -238,75 +241,73 @@ def percentage(percent, whole):
 
 def db_to_drive(hdd, h, hdd2, h2):
     global hdd_block
+    app_log.warning("Block: Moving new data to HDD")
+    try:
+        if ram_conf:  # select RAM as source database
+            source_db = sqlite3.connect(ledger_ram_file, uri=True, timeout=1)
+        else:  # select hyper.db as source database
+            source_db = sqlite3.connect(hyper_path_conf, timeout=1)
 
-    app_log.warning("Moving new data to HDD")
+        source_db.text_factory = str
+        sc = source_db.cursor()
 
-    if ram_conf:  # select RAM as source database
-        source_db = sqlite3.connect(ledger_ram_file, uri=True, timeout=1)
-    else:  # select hyper.db as source database
-        source_db = sqlite3.connect(hyper_path_conf, timeout=1)
+        execute_param(sc, ("SELECT * FROM transactions WHERE block_height > ? OR block_height < ? ORDER BY block_height ASC"), (hdd_block, -hdd_block))
+        result1 = sc.fetchall()
 
-    source_db.text_factory = str
-    sc = source_db.cursor()
+        if full_ledger:  # we want to save to ledger.db
+            for x in result1:
+                h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
+            commit(hdd)
 
-    execute_param(sc, ("SELECT * FROM transactions WHERE block_height > ? OR block_height < ? ORDER BY block_height ASC"), (hdd_block, -hdd_block))
-    result1 = sc.fetchall()
+        if ram_conf:  # we want to save to hyper.db from RAM/hyper.db depending on ram conf
+            for x in result1:
+                h2.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
+            commit(hdd2)
 
-    if full_ledger:  # we want to save to ledger.db
-        for x in result1:
-            h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
-        commit(hdd)
+        execute_param(sc, ("SELECT * FROM misc WHERE block_height > ? ORDER BY block_height ASC"), (hdd_block,))
+        result2 = sc.fetchall()
 
-    if ram_conf:  # we want to save to hyper.db from RAM/hyper.db depending on ram conf
-        for x in result1:
-            h2.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
-        commit(hdd2)
+        if full_ledger:  # we want to save to ledger.db from RAM/hyper.db depending on ram conf
+            for x in result2:
+                h.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
+            commit(hdd)
 
-    execute_param(sc, ("SELECT * FROM misc WHERE block_height > ? ORDER BY block_height ASC"), (hdd_block,))
-    result2 = sc.fetchall()
+        if ram_conf:  # we want to save to hyper.db from RAM
+            for x in result2:
+                h2.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
+            commit(hdd2)
 
-    if full_ledger:  # we want to save to ledger.db from RAM/hyper.db depending on ram conf
-        for x in result2:
-            h.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
-        commit(hdd)
+        """
+        old way
+        # reward
+        execute_param(sc, ('SELECT * FROM transactions WHERE address = "Development Reward" AND block_height < ?'), (-hdd_block,))
+        result3 = sc.fetchall()
+        if full_ledger:  # we want to save to ledger.db from RAM
+            for x in result3:
+                h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
+            commit(hdd)
 
-    if ram_conf:  # we want to save to hyper.db from RAM
-        for x in result2:
-            h2.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
-        commit(hdd2)
+        if ram_conf:  # we want to save to hyper.db from RAM
+            for x in result3:
+                h2.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
+            commit(hdd2)
+        # reward
+        """
 
-    """
-    old way
-    # reward
-    execute_param(sc, ('SELECT * FROM transactions WHERE address = "Development Reward" AND block_height < ?'), (-hdd_block,))
-    result3 = sc.fetchall()
-    if full_ledger:  # we want to save to ledger.db from RAM
-        for x in result3:
-            h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
-        commit(hdd)
+        h2.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
+        hdd_block = h2.fetchone()[0]
+    except Exception as e:
+        app_log.warning("Block: Exception Moving new data to HDD: {}".format(e))
+    # app_log.warning("Ledger digestion ended")  # dup with more informative digest_block notice.
 
-    if ram_conf:  # we want to save to hyper.db from RAM
-        for x in result3:
-            h2.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
-        commit(hdd2)
-    # reward
-    """
-
-    h2.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
-    hdd_block = h2.fetchone()[0]
-
-    app_log.warning("Ledger digestion ended")
 
 def index_define():
-    if "testnet" in version:
-        index_db = "static/index_test.db"
-    else:
-        index_db = "static/index.db"
     index = sqlite3.connect(index_db, timeout=1)
     index.text_factory = str
     index_cursor = index.cursor()
     index.execute("PRAGMA page_size = 4096;")
     return index, index_cursor
+
 
 def db_h_define():
     hdd = sqlite3.connect(ledger_path_conf, timeout=1)
@@ -342,8 +343,6 @@ def db_c_define():
         app_log.info(e)
 
     return conn, c
-
-
 
 
 def ledger_compress(ledger_path_conf, hyper_path_conf):
@@ -589,8 +588,6 @@ def difficulty(c):
         time_difference = quantize_two(time.time()) - quantize_two(timestamp_last)
         diff_dropped = quantize_ten(difficulty) - quantize_ten(time_difference / diff_drop_time)
 
-
-
     else:
         diff_dropped = difficulty
 
@@ -608,7 +605,6 @@ def balanceget(balance_address, h3):
 
     # app_log.info("Mempool: Verifying balance")
     # app_log.info("Mempool: Received address: " + str(balance_address))
-
 
     base_mempool = mp.MEMPOOL.fetchall("SELECT amount, openfield, operation FROM transactions WHERE address = ?;", (balance_address,))
 
@@ -662,8 +658,6 @@ def balanceget(balance_address, h3):
     balance_no_mempool = float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)
     # app_log.info("Mempool: Projected transction address balance: " + str(balance))
     return str(balance), str(credit_ledger), str(debit), str(fees), str(rewards), str(balance_no_mempool)
-
-
 
 
 def verify(h3):
@@ -722,38 +716,43 @@ def verify(h3):
 
 def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2):
     global hdd_block
+    global plugin_manager
+    my_time = time.time()
 
     if not db_lock.locked():
         db_lock.acquire()
+        backup_data = None  # used in "finally" section
+        skip = False
+        reason = ""
 
         try:
-            execute(c, ('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1'))
+            execute(c, 'SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1')
             results = c.fetchone()
             db_block_height = results[0]
             db_block_hash = results[7]
 
             if db_block_height < 2:
-                app_log.info("Will not roll back this block")
+                reason = "Will not roll back this block"
+                skip = True
 
-            elif (db_block_hash != block_hash_delete):
+            elif db_block_hash != block_hash_delete:
                 # print db_block_hash
                 # print block_hash_delete
-                app_log.info("We moved away from the block to rollback, skipping")
+                reason = "We moved away from the block to rollback, skipping"
+                skip = True
 
             else:
                 # backup
 
-                execute_param(c, ("SELECT * FROM transactions WHERE block_height >= ?;"), (db_block_height,))
+                execute_param(c, "SELECT * FROM transactions WHERE block_height >= ?;", (db_block_height,))
                 backup_data = c.fetchall()
                 #this code continues at the bottom because of ledger presence check
 
-
-
                 # delete followups
-                execute_param(c, ("DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?"), (db_block_height,-db_block_height))
+                execute_param(c, "DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?", (db_block_height,-db_block_height))
                 commit(conn)
 
-                execute_param(c, ("DELETE FROM misc WHERE block_height >= ?;"), (str(db_block_height),))
+                execute_param(c, "DELETE FROM misc WHERE block_height >= ?;", (str(db_block_height),))
                 commit(conn)
 
                 #execute_param(c, ('DELETE FROM transactions WHERE address = "Development Reward" AND block_height <= ?'), (-db_block_height,))
@@ -763,19 +762,19 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2):
 
                 # roll back hdd too
                 if full_ledger:  # rollback ledger.db
-                    execute_param(h, ("DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?"), (db_block_height,-db_block_height))
+                    execute_param(h, "DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?", (db_block_height,-db_block_height))
                     commit(hdd)
-                    execute_param(h, ("DELETE FROM misc WHERE block_height >= ?;"), (str(db_block_height),))
+                    execute_param(h, "DELETE FROM misc WHERE block_height >= ?;", (str(db_block_height),))
                     commit(hdd)
 
                 if ram_conf:  # rollback hyper.db
-                    execute_param(h2, ("DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?"), (db_block_height,-db_block_height))
+                    execute_param(h2, "DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?", (db_block_height,-db_block_height))
                     commit(hdd2)
-                    execute_param(h2, ("DELETE FROM misc WHERE block_height >= ?;"), (str(db_block_height),))
+                    execute_param(h2, "DELETE FROM misc WHERE block_height >= ?;", (str(db_block_height),))
                     commit(hdd2)
 
                 hdd_block = int(db_block_height) - 1
-                # roll back hdd too
+                # /roll back hdd too
 
                 """
                 # roll back reward too
@@ -794,27 +793,45 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2):
                 aliases_rollback(db_block_height, app_log)
                 if "testnet" in version:
                     masternodes_rollback (db_block_height, app_log)
-                # rollback indices
-
+                # /rollback indices
 
         except Exception as e:
             app_log.info(e)
 
         finally:
             db_lock.release()
+            if skip:
+                rollback = {"timestamp": my_time, "height": db_block_height,  "ip": peer_ip,
+                            "hash": db_block_hash, "skipped": True, "reason": reason}
+                plugin_manager.execute_action_hook('rollback', rollback)
+                app_log.info("Skipping rollback: {}".format(reason))
+            else:
+                try:
+                    nb_tx = 0
+                    for tx in backup_data:
+                        tx_short = "{} - {} to {}: {} ({})".format(tx[1], tx[2], tx[3], tx[4], tx[11])
+                        if tx[9] == 0:
+                            try:
+                                nb_tx += 1
+                                app_log.info(mp.MEMPOOL.merge((tx[1], tx[2], tx[3], tx[4], tx[5], tx[6], tx[10], tx[11]), peer_ip, c, False, revert=True))  # will get stuck if you change it to respect db_lock
+                                app_log.warning("Moved tx back to mempool: {}".format(tx_short))
+                            except Exception as e:
+                                app_log.warning("Error during moving tx back to mempool: {}".format(e))
+                        else:
+                            # It's the coinbase tx, so we get the miner address
+                            miner = tx[3]
+                            height = tx[0]
+                    rollback = {"timestamp": my_time, "height": height, "ip": peer_ip, "miner": miner, "hash": db_block_hash, "tx_count": nb_tx, "skipped":False, "reason":""}
+                    plugin_manager.execute_action_hook('rollback', rollback)
 
-            try:
-                for tx in backup_data:
-                    tx_short = "{} - {} to {}: {} ({})".format (tx[1], tx[2], tx[3], tx[4], tx[11])
-                    if tx[9] == 0:
-                        app_log.info(mp.MEMPOOL.merge((tx[1], tx[2], tx[3], tx[4], tx[5], tx[6], tx[10], tx[11]), peer_ip, c, False, revert=True))  # will get stuck if you change it to respect db_lock
-                        app_log.warning("Moved tx back to mempool: {}".format(tx_short))
-            except Exception as e:
-                app_log.warning("Error during moving txs back to mempool: {}".format(e))
+                except Exception as e:
+                    app_log.warning("Error during moving txs back to mempool: {}".format(e))
 
     else:
-        app_log.info("Skipping rollback, other ledger operation in progress")
-
+        reason = "Skipping rollback, other ledger operation in progress"
+        rollback = {"timestamp": my_time, "ip": peer_ip, "skipped": True, "reason": reason}
+        plugin_manager.execute_action_hook('rollback', rollback)
+        app_log.info(reason)
 
 
 def manager(c):
@@ -873,441 +890,361 @@ def manager(c):
         time.sleep(30)
 
 
+def ledger_balance3(address, c, cache):
+    # Many heavy blocks are pool payouts, same address.
+    # Cache pre_balance instead of recalc for every tx
+    if address in cache:
+        return cache[address]
+    credit_ledger = Decimal(0)
+    for entry in execute_param(c, "SELECT amount, reward FROM transactions WHERE recipient = ?;", (address,)):
+        credit_ledger += quantize_eight(entry[0]) + quantize_eight(entry[1])
+
+    debit_ledger = Decimal(0)
+    for entry in execute_param(c, "SELECT amount, fee FROM transactions WHERE address = ?;", (address,)):
+        debit_ledger += quantize_eight(entry[0]) + quantize_eight(entry[1])
+
+    cache[address] = quantize_eight(credit_ledger - debit_ledger)
+    return cache[address]
+
+
 def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, index_cursor):
     global hdd_block
     global last_block
-    block_size = Decimal(sys.getsizeof(str(data))) / Decimal(1000000)
-    app_log.warning("Block size: {} MB".format(block_size))
+    global peers
+    block_height_new = last_block + 1  # for logging purposes.
+    block_hash = 'N/A'
 
+    if peers.is_banned(peer_ip):
+        # no need to loose any time with banned peers
+        raise ValueError("Cannot accept blocks from a banned peer")
+        # since we raise, it will also drop the connection, it's fine since he's banned.
 
     if not db_lock.locked():
         db_lock.acquire()
 
         while mp.MEMPOOL.lock.locked():
             time.sleep(0.1)
-            app_log.info("Waiting for mempool to unlock {}".format(peer_ip))
+            app_log.info("Block: Waiting for mempool to unlock {}".format(peer_ip))
 
-        block_valid = True  # init
+        app_log.warning("Block: Digesting started from {}".format(peer_ip))
+        # variables that have been quantized are prefixed by q_ So we can avoid any unnecessary quantize again later. Takes time.
+        # Variables that are only used as quantized decimal are quantized once and for all.
+        q_time_now = quantize_two(time.time())
 
-        app_log.info("Digesting started from {}".format(peer_ip))
+        block_size = Decimal(sys.getsizeof(str(data))) / Decimal(1000000)
+        app_log.warning("Block: size: {} MB".format(block_size))
 
         try:
-            block_list = data
-
+            transaction_list = data[0]  # only one block at a time anyway. Spares an indent level.
             # reject block with duplicate transactions
             signature_list = []
             block_transactions = []
 
-            for transaction_list in block_list:
+            # Reworked process: we exit as soon as we find an error, no need to process further tests.
+            # Then the exception handler takes place.
 
-                for entry in transaction_list:  # sig 4
-                    entry_signature = entry[4]
+            # TODO EGG: benchmark this loop vs a single "WHERE IN" SQL
+            # move down, so bad format tx do not require sql query
+            for entry in transaction_list:  # sig 4
+                entry_signature = entry[4]
+                if entry_signature:  # prevent empty signature database retry hack
+                    signature_list.append(entry_signature)
+                    # reject block with transactions which are already in the ledger ram
+                    execute_param(h3, "SELECT block_height FROM transactions WHERE signature = ?;", (entry_signature,))
+                    test = h3.fetchone()
+                    if test:
+                        print(last_block)
+                        raise ValueError("That transaction {} is already in our ram ledger, block_height {}".format(entry_signature[:10], test[0]))
 
-                    if entry_signature:  # prevent empty signature database retry hack
-                        signature_list.append(entry_signature)
+                    execute_param(c, "SELECT block_height FROM transactions WHERE signature = ?;",(entry_signature,))
+                    test = h3.fetchone()
+                    if test:
+                        print(last_block)
+                        raise ValueError("That transaction {} is already in our ledger, block_height {}".format(entry_signature[:10], test[0]))
+                else:
+                    raise ValueError("Empty signature from {}".format(peer_ip))
 
-                        # reject block with transactions which are already in the ledger RAM
-                        execute_param(h3, ("SELECT block_height FROM transactions WHERE signature = ?;"), (entry_signature,))
-                        try:
-                            result = h3.fetchall()[0]
-                            app_log.warning("That transaction is already in our ledger, row {}".format(result[0]))
-                            block_valid = False
+            tx_count = len(signature_list)
+            if tx_count != len(set(signature_list)):
+                raise ValueError("There are duplicate transactions in this block, rejected")
 
-                        except:
-                            pass
-                            # reject block with transactions which are already in the ledger RAM
+            del signature_list[:]
 
-                        # reject block with transactions which are already in the ledger
-                        execute_param(c, ("SELECT block_height FROM transactions WHERE signature = ?;"), (entry_signature,))
-                        try:
-                            result = c.fetchall()[0]
-                            app_log.warning("That transaction is already in our ledger, row {}".format(result[0]))
-                            block_valid = False
+            # previous block info
+            execute(c, "SELECT block_hash, block_height, timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")
+            result = c.fetchall()
+            db_block_hash = result[0][0]
+            db_block_height = result[0][1]
+            q_db_timestamp_last = quantize_two(result[0][2])
+            block_height_new = db_block_height + 1
+            # previous block info
 
-                        except:
-                            pass
-                            # reject block with transactions which are already in the ledger
+            transaction_list_converted = []  # makes sure all the data are properly converted as in the previous lines
+            for tx_index, transaction in enumerate(transaction_list):
+                # verify signatures
+                q_received_timestamp = quantize_two(transaction[0])  # we use this several times
+                received_timestamp = '%.2f' % q_received_timestamp
+                received_address = str(transaction[1])[:56]
+                received_recipient = str(transaction[2])[:56]
+                received_amount = '%.8f' %(quantize_eight(transaction[3]))
+                received_signature_enc = str(transaction[4])[:684]
+                received_public_key_hashed = str(transaction[5])[:1068]
+                received_operation = str(transaction[6])[:30]
+                received_openfield = str(transaction[7])[:100000]
 
+                # if transaction == transaction_list[-1]:
+                if tx_index == tx_count - 1:  # faster than comparing the whole tx
+                    # recognize the last transaction as the mining reward transaction
+                    q_block_timestamp = q_received_timestamp
+                    nonce = received_openfield[:128]
+                    miner_address = received_address
+
+                transaction_list_converted.append((received_timestamp, received_address, received_recipient,
+                                                   received_amount, received_signature_enc,
+                                                   received_public_key_hashed, received_operation,
+                                                   received_openfield))
+                # convert readable key to instance
+                received_public_key = RSA.importKey(base64.b64decode(received_public_key_hashed))
+
+                received_signature_dec = base64.b64decode(received_signature_enc)
+                verifier = PKCS1_v1_5.new(received_public_key)
+
+                validate_pem(received_public_key_hashed)
+
+                hash = SHA.new(str((received_timestamp, received_address, received_recipient, received_amount, received_operation, received_openfield)).encode("utf-8"))
+                if not verifier.verify(hash, received_signature_dec):
+                    raise ValueError("Invalid signature from {}".format(received_address))
+                else:
+                    app_log.info("Valid signature from {} to {} amount {}".format(received_address,
+                                                                                  received_recipient,
+                                                                                  received_amount))
+                if float(received_amount) < 0:
+                    raise ValueError("Negative balance spend attempt")
+
+                if received_address != hashlib.sha224(base64.b64decode(received_public_key_hashed)).hexdigest():
+                    raise ValueError("Attempt to spend from a wrong address")
+
+                if not essentials.address_validate(received_address):
+                    raise ValueError("Not a valid sender address")
+
+                if not essentials.address_validate(received_recipient):
+                    raise ValueError("Not a valid recipient address")
+
+                if q_time_now < q_received_timestamp:
+                    raise ValueError("Future transaction not allowed, timestamp {} minutes in the future".format(quantize_two((q_received_timestamp - q_time_now) / 60)))
+                if q_db_timestamp_last - 86400 > q_received_timestamp:
+                    raise ValueError("Transaction older than 24h not allowed.")
+                # verify signatures
+
+            # reject blocks older than latest block
+            if q_block_timestamp <= q_db_timestamp_last:
+                raise ValueError("Block is older than the previous one, will be rejected")
+
+            # calculate current difficulty
+            diff = difficulty(c)
+
+            app_log.warning("Time to generate block {}: {:.2f}".format(db_block_height+1, diff[2]))
+            app_log.warning("Current difficulty: {}".format(diff[3]))
+            app_log.warning("Current blocktime: {}".format(diff[4]))
+            app_log.warning("Current hashrate: {}".format(diff[5]))
+            app_log.warning("New difficulty after adjustment: {}".format(diff[6]))
+            app_log.warning("Difficulty: {} {}".format(diff[0], diff[1]))
+
+            # app_log.info("Transaction list: {}".format(transaction_list_converted))
+            block_hash = hashlib.sha224((str(transaction_list_converted) + db_block_hash).encode("utf-8")).hexdigest()
+            # app_log.info("Last block hash: {}".format(db_block_hash))
+            app_log.info("Calculated block hash: {}".format(block_hash))
+            # app_log.info("Nonce: {}".format(nonce))
+
+            # check if we already have the hash
+            execute_param(h3, "SELECT block_height FROM transactions WHERE block_hash = ?", (block_hash,))
+            dummy = c.fetchone()
+            if dummy:
+                raise ValueError("Skipping digestion of block {} from {}, because we already have it on block_height {}".
+                                format(block_hash[:10], peer_ip, dummy[0]))
+
+            mining_hash = bin_convert(hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
+            diff_drop_time = Decimal(180)
+            mining_condition = bin_convert(db_block_hash)[0:int(diff[0])]
+
+            if mining_condition in mining_hash:  # simplified comparison, no backwards mining
+                app_log.info("Difficulty requirement satisfied for block {} from {}".format (block_height_new, peer_ip))
+                diff_save = diff[0]
+
+            elif Decimal(received_timestamp) > q_db_timestamp_last + Decimal(diff_drop_time): #uses block timestamp, dont merge with diff() for security reasons
+                time_difference = q_received_timestamp - q_db_timestamp_last
+                diff_dropped = quantize_ten(diff[0])-quantize_ten(time_difference/diff_drop_time)
+                if diff_dropped < 50:
+                    diff_dropped = 50
+
+                mining_condition = bin_convert(db_block_hash)[0:int(diff_dropped)]
+
+                if mining_condition in mining_hash:  # simplified comparison, no backwards mining
+                    app_log.info("Readjusted difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
+                    diff_save = diff[0]  # lie about what diff was matched not to mess up the diff algo
+                else:
+                    raise ValueError("Readjusted difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff_dropped))
+            else:
+                raise ValueError("Difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[0]))
+
+            fees_block = []
+            mining_reward = 0  # avoid warning
+
+            # Cache for multiple tx from same address
+            balances = {}
+            for tx_index, transaction in enumerate(transaction_list):
+                db_timestamp = '%.2f' % quantize_two(transaction[0])
+                db_address = str(transaction[1])[:56]
+                db_recipient = str(transaction[2])[:56]
+                db_amount = '%.8f' % quantize_eight(transaction[3])
+                db_signature = str(transaction[4])[:684]
+                db_public_key_hashed = str(transaction[5])[:1068]
+                db_operation = str(transaction[6])[:30]
+                db_openfield = str(transaction[7])[:100000]
+
+                block_debit_address = 0
+                block_fees_address = 0
+
+                # this also is redundant on many tx per address block
+                for x in transaction_list:
+                    if x[1] == db_address:  # make calculation relevant to a particular address in the block
+                        block_debit_address = quantize_eight(Decimal(block_debit_address) + Decimal(x[3]))
+
+                        if x != transaction_list[-1]:
+                            block_fees_address = quantize_eight(Decimal(block_fees_address) + Decimal(fee_calculate(db_openfield, db_operation, last_block)))  # exclude the mining tx from fees
+                # print("block_fees_address", block_fees_address, "for", db_address)
+                # app_log.info("Digest: Inbound block credit: " + str(block_credit))
+                # app_log.info("Digest: Inbound block debit: " + str(block_debit))
+                # include the new block
+
+                # balance_pre = quantize_eight(credit_ledger - debit_ledger - fees + rewards)  # without projection
+                balance_pre = ledger_balance3(db_address, c, balances)
+                # balance = quantize_eight(credit - debit - fees + rewards)
+                balance = quantize_eight(balance_pre - block_debit_address)
+                # app_log.info("Digest: Projected transaction address balance: " + str(balance))
+
+                fee = fee_calculate(db_openfield, db_operation, last_block)
+
+                fees_block.append(quantize_eight(fee))
+                # app_log.info("Fee: " + str(fee))
+
+                # decide reward
+                if tx_index == tx_count - 1:
+                    db_amount = 0  # prevent spending from another address, because mining txs allow delegation
+                    if db_block_height <= 10000000:
+                        mining_reward = 15 - (quantize_eight(block_height_new) / quantize_eight(1000000))  # one zero less
                     else:
-                        block_valid = False
-                        app_log.warning("Empty signature from {}".format(peer_ip))
-
-                if len(signature_list) != len(set(signature_list)):
-                    app_log.warning("There are duplicate transactions in this block, rejected")
-                    block_valid = False  # dont really need this one
-                del signature_list[:]
-
-                # reject block with duplicate transactions
-
-                # previous block info
-                execute(c, ("SELECT block_hash, block_height,timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
-                result = c.fetchall()
-                db_block_hash = result[0][0]
-                db_block_height = result[0][1]
-                db_timestamp_last = quantize_two(result[0][2])
-                block_height_new = db_block_height + 1
-                # previous block info
-
-                transaction_list_converted = []  # makes sure all the data are properly converted as in the previous lines
-                for transaction in transaction_list:
-                    # verify signatures
-                    received_timestamp = '%.2f' % (quantize_two(transaction[0]))
-                    received_address = str(transaction[1])[:56]
-                    received_recipient = str(transaction[2])[:56]
-                    received_amount = '%.8f' %(quantize_eight(transaction[3]))
-                    received_signature_enc = str(transaction[4])[:684]
-                    received_public_key_hashed = str(transaction[5])[:1068]
-                    received_operation = str(transaction[6])[:30]
-                    received_openfield = str(transaction[7])[:100000]
-
-                    transaction_list_converted.append((received_timestamp, received_address, received_recipient, received_amount, received_signature_enc, received_public_key_hashed, received_operation, received_openfield))
-
-                    received_public_key = RSA.importKey(base64.b64decode(received_public_key_hashed))  # convert readable key to instance
-
-                    received_signature_dec = base64.b64decode(received_signature_enc)
-                    verifier = PKCS1_v1_5.new(received_public_key)
-
-                    validate_pem(received_public_key_hashed)
-
-                    hash = SHA.new(str((received_timestamp, received_address, received_recipient, received_amount, received_operation, received_openfield)).encode("utf-8"))
-                    if not verifier.verify(hash, received_signature_dec):
-                        app_log.warning("Invalid signature")
-                        # print(received_timestamp +"\n"+ received_address +"\n"+ received_recipient +"\n"+ received_amount +"\n"+ received_operation +"\n"+ received_openfield)
-                        block_valid = False
-                    else:
-                        app_log.info("Valid signature")
-
-                    #if received_operation != "1" and received_operation != "0":
-                    #    block_valid = False
-                    #    # print(type(received_operation))
-                    #    app_log.warning("Wrong keep value {}".format(received_operation))
-
-                    if quantize_eight(received_amount) < 0:
-                        block_valid = False
-                        app_log.warning("Negative balance spend attempt")
-
-                    #if transaction != transaction_list[-1]:  # non-mining txs / disabled (per pool request)
-
-                    if received_address != hashlib.sha224(base64.b64decode(received_public_key_hashed)).hexdigest():
-                        app_log.warning("Attempt to spend from a wrong address")
-                        block_valid = False
-
-                    if not essentials.address_validate(received_address) or not essentials.address_validate(received_recipient):
-                        app_log.warning("Not a valid address")
-                        block_valid = False
-
-                    if transaction == transaction_list[-1]:  # recognize the last transaction as the mining reward transaction
-                        block_timestamp = received_timestamp
-                        nonce = received_openfield[:128]
-                        miner_address = received_address
-
-                        # if float(db_timestamp_last) + 30 > float(block_timestamp): #if block comes 0-30 seconds after the previous one
-                        #    error_msg = "The mined block is too close to the previous one"
-                        #    block_valid = False
-
-                    time_now = time.time()
-
-                    if quantize_two(time_now) < quantize_two(received_timestamp):
-                        app_log.warning("Future transaction not allowed, timestamp {} minutes in the future".format(quantize_two((quantize_two(received_timestamp) - quantize_two(time_now)) / 60)))
-                        block_valid = False
-                    if quantize_two(db_timestamp_last) - 86400 > quantize_two(received_timestamp):
-                        app_log.warning("Transaction older than 24h not allowed.")
-                        block_valid = False
-                        # verify signatures
-
-                # reject blocks older than latest block
-                if quantize_two(block_timestamp) <= quantize_two(db_timestamp_last):
-                    block_valid = False
-                    app_log.warning("Block is older than the previous one, will be rejected")
-                # reject blocks older than latest block
-
-                if block_valid:
-                    # calculate difficulty
-
-                    diff = difficulty(c)
-
-                    app_log.warning("Time to generate block {}: {:.2f}".format(db_block_height+1, diff[2]))
-                    app_log.warning("Current difficulty: {}".format(diff[3]))
-                    app_log.warning("Current blocktime: {}".format(diff[4]))
-                    app_log.warning("Current hashrate: {}".format(diff[5]))
-                    app_log.warning("New difficulty after adjustment: {}".format(diff[6]))
-                    app_log.warning("Difficulty: {} {}".format(diff[0], diff[1]))
-
-                    # app_log.info("Transaction list: {}".format(transaction_list_converted))
-                    block_hash = hashlib.sha224((str(transaction_list_converted) + db_block_hash).encode("utf-8")).hexdigest()
-                    # app_log.info("Last block hash: {}".format(db_block_hash))
-                    app_log.info("Calculated block hash: {}".format(block_hash))
-                    # app_log.info("Nonce: {}".format(nonce))
-
-                    # check if we already have the hash
-                    execute_param(h3, ("SELECT block_hash FROM transactions WHERE block_hash = ?;"), (block_hash,))
-                    try:
-                        dummy = c.fetchone()[0]
-                        block_valid = False
-                        app_log.warning("Skipping digestion of block {} from {}, because we already have it".format(peer_ip,dummy))
-                    except:
-                        pass
-                    # check if we already have the hash
-
-                if block_valid:
-                    mining_hash = bin_convert(hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
-
-                    diff_drop_time = Decimal(180)
-
-                    mining_condition = bin_convert(db_block_hash)[0:int(diff[0])]
-
-                    if mining_condition in mining_hash:  # simplified comparison, no backwards mining
-                        app_log.info("Difficulty requirement satisfied for block {} from {}".format (block_height_new, peer_ip))
-                        diff_save = diff[0]
-
-                    elif Decimal(received_timestamp) > Decimal(db_timestamp_last) + Decimal(diff_drop_time): #uses block timestamp, dont merge with diff() for security reasons
-                        time_difference = quantize_two(received_timestamp) - quantize_two(db_timestamp_last)
-                        diff_dropped = quantize_ten(diff[0])-quantize_ten(time_difference/diff_drop_time)
-                        if diff_dropped < 50:
-                            diff_dropped = 50
-
-                        mining_condition = bin_convert(db_block_hash)[0:int(diff_dropped)]
-
-                        if mining_condition in mining_hash:  # simplified comparison, no backwards mining
-                            app_log.info("Readjusted difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
-                            diff_save = diff[0] #lie about what diff was matched not to mess up the diff algo
-                        else:
-                            # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
-                            app_log.warning("Readjusted difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff_dropped))
-                            block_valid = False
-                    else:
-                        # app_log.info("Digest: Difficulty requirement not satisfied: " + bin_convert(miner_address) + " " + bin_convert(block_hash))
-                        app_log.warning("Difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[0]))
-                        block_valid = False
-
-
-                        # print data
-                        # print transaction_list
-                    # match difficulty
-
-                    fees_block = []
-
-                    if peers.is_banned(peer_ip):
-                        block_valid = False
-                        app_log.warning("Cannot accept blocks form a banned peer")
-
-                if not block_valid:
-                    #app_log.warning("Check 1: A part of the block is invalid, rejected: {}".format(error_msg))
-                    #app_log.info("Check 1: Complete rejected data: {}".format(data))
-                    if peers.warning(sdef, peer_ip, "Rejected block", 2):
-                        raise ValueError("{} banned".format(peer_ip))
-                    raise ValueError("Block digestion aborted")
-
-                if block_valid:
-                    for transaction in transaction_list:
-                        db_timestamp = '%.2f' % quantize_two(transaction[0])
-                        db_address = str(transaction[1])[:56]
-                        db_recipient = str(transaction[2])[:56]
-                        db_amount = '%.8f' % quantize_eight(transaction[3])
-                        db_signature = str(transaction[4])[:684]
-                        db_public_key_hashed = str(transaction[5])[:1068]
-                        db_operation = str(transaction[6])[:30]
-                        db_openfield = str(transaction[7])[:100000]
-
-                        # print "sync this"
-                        # print block_timestamp
-                        # print transaction_list
-                        # print db_block_hash
-                        # print(str((block_timestamp,transaction_list,db_block_hash)))
-
-                        # app_log.info("Digest: tx sig not found in the local ledger, proceeding to check before insert")
-
-                        # app_log.info("Digest: Verifying balance")
-                        # app_log.info("Digest: Received address: " + str(db_address))
-
-                        # include the new block
-
-                        # if float(db_amount) > 0: todo: only check balances if user is spending
-
-                        block_debit_address = 0
-                        block_fees_address = 0
-
-                        for x in transaction_list:
-                            if x[1] == db_address:  # make calculation relevant to a particular address in the block
-                                block_debit_address = quantize_eight(Decimal(block_debit_address) + Decimal(x[3]))
-
-                                if x != transaction_list[-1]:
-                                    block_fees_address = quantize_eight(Decimal(block_fees_address) + Decimal(fee_calculate(db_openfield, db_operation, last_block)))  # exclude the mining tx from fees
-                        # print("block_fees_address", block_fees_address, "for", db_address)
-
-                        # app_log.info("Digest: Inbound block credit: " + str(block_credit))
-                        # app_log.info("Digest: Inbound block debit: " + str(block_debit))
-                        # include the new block
-
-                        credit_ledger = Decimal("0")
-                        for entry in execute_param(c, ("SELECT amount FROM transactions WHERE recipient = ?;"), (db_address,)):
-                            credit_ledger = quantize_eight(credit_ledger) + quantize_eight(entry[0])
-                            credit_ledger = 0 if credit_ledger is None else quantize_eight(credit_ledger)
-
-                        credit = credit_ledger
-
-                        debit_ledger = Decimal("0")
-                        for entry in execute_param(c, ("SELECT amount FROM transactions WHERE address = ?;"), (db_address,)):
-                            debit_ledger = quantize_eight(debit_ledger) + quantize_eight(entry[0])
-                            debit_ledger = 0 if debit_ledger is None else quantize_eight(debit_ledger)
-
-                        debit = quantize_eight(debit_ledger + block_debit_address)
-
-                        fees = Decimal("0")
-                        for entry in execute_param(c, ("SELECT fee FROM transactions WHERE address = ?;"), (db_address,)):
-                            try:
-                                fees = quantize_eight(fees) + quantize_eight(entry[0])
-                                fees = 0 if fees is None else fees
-                            except:
-                                fees = 0
-
-                        rewards = Decimal("0")
-                        for entry in execute_param(c, ("SELECT reward FROM transactions WHERE recipient = ?;"), (db_address,)):
-                            try:
-                                rewards = quantize_eight(rewards) + quantize_eight(entry[0])
-                                rewards = 0 if rewards is None else rewards
-                            except:
-                                rewards = 0
-
-                        # app_log.info("Digest: Total credit: " + str(credit))
-                        # app_log.info("Digest: Total debit: " + str(debit))
-                        balance_pre = quantize_eight(credit_ledger - debit_ledger - fees + rewards)  # without projection
-                        balance = quantize_eight(credit - debit - fees + rewards)
-                        # app_log.info("Digest: Projected transction address balance: " + str(balance))
-
-                        fee = fee_calculate(db_openfield, db_operation, last_block)
-                        # fee = '%.8f' % float(0.01 + (float(len(db_openfield)) / 100000) + int(db_operation))  # 0.01 dust
-
-                        fees_block.append(quantize_eight(fee))
-                        # app_log.info("Fee: " + str(fee))
-
-                        # decide reward
-
-                        if transaction == transaction_list[-1]:
-                            db_amount = 0  # prevent spending from another address, because mining txs allow delegation
-                            if db_block_height <= 10000000:
-                                mining_reward = 15 - (quantize_eight(block_height_new) / quantize_eight(1000000))  # one zero less
-                            else:
-                                mining_reward = 0
-
-                            reward = quantize_eight(mining_reward + sum(fees_block[:-1]))
-                            fee = 0
-
-                        else:
-                            reward = 0
-
-                            # dont request a fee for mined block so new accounts can mine
-
-                        if quantize_eight(balance_pre) < quantize_eight(db_amount):
-                            app_log.warning("sending more than owned".format(db_address))
-                            block_valid = False
-
-                        elif quantize_eight(balance) - quantize_eight(block_fees_address) < 0:  # exclude fee check for the mining/header tx
-                            app_log.warning("{} Cannot afford to pay fees".format(db_address))
-                            block_valid = False
-
-                        else:
-                            # append, but do not insert to ledger before whole block is validated, not that it takes already validated values (decimals, length)
-                            app_log.info("Digest: Appending transaction back to block with {} transactions in it".format(len(block_transactions)))
-                            block_transactions.append((block_height_new, db_timestamp, db_address, db_recipient, db_amount, db_signature, db_public_key_hashed, block_hash, fee, reward, db_operation, db_openfield))
-
-                        try:
-                            mp.MEMPOOL.delete_transaction(db_signature)
-                            app_log.info("Digest: Removed processed transaction from the mempool")
-                        except:
-                            # tx was not in the local mempool
-                            pass
-
-                    # whole block validation
-                    if not block_valid:
-                        #app_log.info("Check 2: A part of the block is invalid, rejected: {}".format(error_msg))
-                        #app_log.info("Check 2: Complete rejected block: {}".format(data))
-                        if peers.warning(sdef, peer_ip, "Rejected block", 2):
-                            raise ValueError("{} banned".format(peer_ip))
-                        raise ValueError("Block digestion aborted")
-
-                    if block_valid:
-
-                        # save diff
-                        execute_param(c, "INSERT INTO misc VALUES (?, ?)", (block_height_new, diff_save))
-                        commit(conn)
-                        # save diff
-
-                        plugin_manager.execute_action_hook('block',
-                                                           {'height': block_height_new, 'diff': diff_save,
-                                                            'hash': block_hash, 'timestamp': block_timestamp,
-                                                            'miner': miner_address})
-
-                        plugin_manager.execute_action_hook('fullblock',
-                                                           {'height': block_height_new, 'diff': diff_save,
-                                                            'hash': block_hash, 'timestamp': block_timestamp,
-                                                            'miner': miner_address, 'transactions': block_transactions})
-                        
-                        for transaction in block_transactions:
-                            execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
-                                str(transaction[0]), str(transaction[1]),
-                                str(transaction[2]), str(transaction[3]),
-                                str(transaction[4]), str(transaction[5]),
-                                str(transaction[6]), str(transaction[7]),
-                                str(transaction[8]), str(transaction[9]),
-                                str(transaction[10]), str(transaction[11])))
-                            # secure commit for slow nodes
-                            commit(conn)
-
-                        # savings
-                        if "testnet" in version:
-                            if int(block_height_new) % 100 == 0:  # every x blocks
-                                savings.masternodes_update(conn, c, index, index_cursor, "normal", block_height_new, app_log)
-                                savings.masternodes_payout(conn, c, index, index_cursor, block_height_new, block_timestamp, app_log)
-                                savings.masternodes_revalidate(conn, c, index, index_cursor, app_log)
-                            # savings
-
-                        # dev reward
-                        # new hash
-                        c.execute ("SELECT * FROM transactions WHERE block_height = (SELECT block_height FROM transactions ORDER BY block_height ASC LIMIT 1)")
-                        result = c.fetchall ()
-                        mirror_hash = blake2b (str (result).encode (), digest_size=20).hexdigest ()
-                        # new hash
-
-                        if int(block_height_new) % 10 == 0:  # every 10 blocks
-                                execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                                              (-block_height_new, str(time_now), "Development Reward", str(genesis_conf), str(mining_reward),
-                                               "0", "0", mirror_hash, "0", "0", "0", "0"))
-                                commit(conn)
-                        # dev reward
-
-                        app_log.warning("Block {} valid and saved from {}".format(block_height_new, peer_ip))
-
-                        del block_transactions[:]
-                        peers.unban(peer_ip)
-
-                        # This new block may change the int(diff). Trigger the hook wether it changed or not.
-                        diff = difficulty(c)
-                        plugin_manager.execute_action_hook('diff', diff[0])
-                        # We could recalc diff after inserting block, and then only trigger the block hook, but I fear this would delay the new block event.
-
-                        # peers will test himself. Anyway, unban was only unwarning, not unbanning.
-                        # if peer_ip in warning_list or peer_ip in banlist:
-                        #    unban(peer_ip)
-
-                        # whole block validation
+                        mining_reward = 0
+
+                    reward = quantize_eight(mining_reward + sum(fees_block[:-1]))
+                    # don't request a fee for mined block so new accounts can mine
+                    fee = 0
+                else:
+                    reward = 0
+
+                if quantize_eight(balance_pre) < quantize_eight(db_amount):
+                    raise ValueError("{} sending more than owned".format(db_address))
+
+                if quantize_eight(balance) - quantize_eight(block_fees_address) < 0:
+                    # exclude fee check for the mining/header tx
+                    raise ValueError("{} Cannot afford to pay fees".format(db_address))
+
+                # append, but do not insert to ledger before whole block is validated, note that it takes already validated values (decimals, length)
+                app_log.info("Block: Appending transaction back to block with {} transactions in it".format(len(block_transactions)))
+                block_transactions.append((block_height_new, db_timestamp, db_address, db_recipient, db_amount, db_signature, db_public_key_hashed, block_hash, fee, reward, db_operation, db_openfield))
+
+                try:
+                    mp.MEMPOOL.delete_transaction(db_signature)
+                    app_log.info("Block: Removed processed transaction {} from the mempool while digesting".format(db_signature[:56]))
+                except:
+                    # tx was not or is no more in the local mempool
+                    pass
+            # end for transaction_list
+
+            # save current diff (before the new block)
+            execute_param(c, "INSERT INTO misc VALUES (?, ?)", (block_height_new, diff_save))
+            commit(conn)
+
+            # quantized vars have to be converted, since Decimal is not json serializable...
+            plugin_manager.execute_action_hook('block',
+                                               {'height': block_height_new, 'diff': diff_save,
+                                                'hash': block_hash, 'timestamp': float(q_block_timestamp),
+                                                'miner': miner_address, 'ip': peer_ip})
+
+            plugin_manager.execute_action_hook('fullblock',
+                                               {'height': block_height_new, 'diff': diff_save,
+                                                'hash': block_hash, 'timestamp': float(q_block_timestamp),
+                                                'miner': miner_address, 'ip': peer_ip,
+                                                'transactions': block_transactions})
+
+            # do not use "transaction" as it masks upper level variable.
+            for transaction2 in block_transactions:
+                execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
+                    str(transaction2[0]), str(transaction2[1]),
+                    str(transaction2[2]), str(transaction2[3]),
+                    str(transaction2[4]), str(transaction2[5]),
+                    str(transaction2[6]), str(transaction2[7]),
+                    str(transaction2[8]), str(transaction2[9]),
+                    str(transaction2[10]), str(transaction2[11])))
+                # secure commit for slow nodes
+                commit(conn)
+
+            # savings
+            if "testnet" in version:
+                if int(block_height_new) % 100 == 0:  # every x blocks
+                    savings.masternodes_update(conn, c, index, index_cursor, "normal", block_height_new, app_log)
+                    savings.masternodes_payout(conn, c, index, index_cursor, block_height_new, q_block_timestamp, app_log)
+                    savings.masternodes_revalidate(conn, c, index, index_cursor, app_log)
+
+            # new hash
+            c.execute("SELECT * FROM transactions WHERE block_height = (SELECT block_height FROM transactions ORDER BY block_height ASC LIMIT 1)")
+            # Was trying to simplify, but it's the latest mirror hash. not the latest block, nor the mirror of the latest block.
+            # c.execute("SELECT * FROM transactions WHERE block_height = ?", (block_height_new -1,))
+            tx_list_to_hash = c.fetchall()
+            mirror_hash = blake2b(str(tx_list_to_hash).encode(), digest_size=20).hexdigest()
+            # /new hash
+
+            # dev reward
+            if int(block_height_new) % 10 == 0:  # every 10 blocks
+                    execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                                  (-block_height_new, str(q_time_now), "Development Reward", str(genesis_conf),
+                                   str(mining_reward), "0", "0", mirror_hash, "0", "0", "0", "0"))
+                    commit(conn)
+            # /dev reward
+
+            app_log.warning("Block: {}: {} valid and saved from {}".format(block_height_new, block_hash[:10], peer_ip))
+
+            del block_transactions[:]
+            peers.unban(peer_ip)
+
+            # This new block may change the int(diff). Trigger the hook whether it changed or not.
+            diff = difficulty(c)
+            plugin_manager.execute_action_hook('diff', diff[0])
+            # We could recalc diff after inserting block, and then only trigger the block hook, but I fear this would delay the new block event.
+
+            # /whole block validation
 
         except Exception as e:
-            app_log.warning("Block processing failed: {}".format(e))
-
-            if debug_conf:
-                raise  # major debug client
-            else:
-                pass
+            app_log.warning("Block: processing failed: {}".format(e))
+            # Temp
+            """
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+            print(exc_type, fname, exc_tb.tb_lineno)
+            """
+            if peers.warning(sdef, peer_ip, "Rejected block", 2):
+                raise ValueError("{} banned".format(peer_ip))
+            raise ValueError("Block: digestion aborted")
 
         finally:
-            if full_ledger or ram_conf:  # first case move stuff from hyper.db to ledger.db; second case move stuff from ram to both
+            if full_ledger or ram_conf:
+                # first case move stuff from hyper.db to ledger.db; second case move stuff from ram to both
                 db_to_drive(hdd, h, hdd2, h2)
-            app_log.info("Digesting complete")
             db_lock.release()
+            app_log.warning("Block: {}: {} digestion completed in {}s.".format(block_height_new,  block_hash[:10], time.time() - float(q_time_now)))
 
     else:
-        app_log.info("Skipping block processing from {}, someone delivered data faster".format(peer_ip))
+        app_log.warning("Block: Skipping processing from {}, someone delivered data faster".format(peer_ip))
 
 
 def coherence_check():
@@ -1335,7 +1272,7 @@ def coherence_check():
                 for chain2 in chains_to_check:
                     conn2 = sqlite3.connect(chain2)
                     c2 = conn2.cursor()
-                    app_log.warning("Status: Chain {} transaction coherence error at: {}".format(chain, row[0]-1))
+                    app_log.warning("Status: Chain {} transaction coherence error at: {}. {} instead of {}".format(chain, row[0]-1, row[0], y))
                     c2.execute("DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?", (row[0]-1,-(row[0]+1)))
                     conn2.commit()
                     c2.execute("DELETE FROM misc WHERE block_height >= ?", (row[0]-1,))
@@ -1352,8 +1289,6 @@ def coherence_check():
                         masternodes_rollback (y, app_log)
 
                     # rollback indices
-
-
 
                     app_log.warning("Status: Due to a coherence issue at block {}, {} has been rolled back and will be resynchronized".format(y, chain))
                 break
@@ -1376,7 +1311,7 @@ def coherence_check():
                 for chain2 in chains_to_check:
                     conn2 = sqlite3.connect(chain2)
                     c2 = conn2.cursor()
-                    app_log.warning("Status: Chain {} difficulty coherence error at: {}".format(chain, row[0]-1))
+                    app_log.warning("Status: Chain {} difficulty coherence error at: {} {} instead of {}".format(chain, row[0]-1, row[0], y))
                     c2.execute("DELETE FROM transactions WHERE block_height >= ?", (row[0]-1,))
                     conn2.commit()
                     c2.execute("DELETE FROM misc WHERE block_height >= ?", (row[0]-1,))
@@ -1411,7 +1346,6 @@ def db_maintenance(conn):
     app_log.warning("Status: Database maintenance finished")
 
 
-
 class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
     def handle(self):
 
@@ -1419,7 +1353,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         # global ban_threshold
         global peers
         global apihandler
-
+        global plugin_manager
 
         peer_ip = self.request.getpeername()[0]
 
@@ -1508,7 +1442,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         # We already sent not long ago, send empy
                         mempool_txs = []
 
-
                     # send own
                     # app_log.info("Inbound: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
 
@@ -1538,7 +1471,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         time.sleep(int(pause_conf))
 
                     connections.send(self.request, "sync")
-
 
                 elif data == "blocksfnd":
                     app_log.info("Inbound: Client {} has the block(s)".format(peer_ip))  # node should start sending txs in this step
@@ -1681,7 +1613,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     except Exception as e:
                         app_log.info("Inbound: Sync failed {}".format(e))
 
-
                 elif data == "nonewblk":
                     connections.send(self.request, "sync")
 
@@ -1696,7 +1627,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     app_log.info("Outbound: Deletion complete, sending sync request")
 
                     while db_lock.locked():
-                        time.sleep(quantize_two(pause_conf))
+                        time.sleep(pause_conf)
                     connections.send(self.request, "sync")
 
                 elif data == "block":
@@ -1712,22 +1643,36 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         # check if we have the latest block
 
                         execute(c, ('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1'))
-                        db_block_height = c.fetchone()[0]
+                        db_block_height = int(c.fetchone()[0])
 
                         # check if we have the latest block
 
+                        mined = {"timestamp": time.time(), "last": db_block_height, "ip": peer_ip, "miner": "", "result": False, "reason": ''}
+                        try:
+                            mined['miner'] = segments[0][-1][2]
+                        except:
+                            pass
                         if "testnet" not in version:
                             if len(peers.connection_pool) < 5 and not peers.is_whitelisted(peer_ip):
-                                app_log.info("Outbound: Mined block ignored, insufficient connections to the network")
-                            elif int(db_block_height) >= int(peers.consensus_max) - 3 and not db_lock.locked():
+                                reason = "Outbound: Mined block ignored, insufficient connections to the network"
+                                mined['reason'] = reason
+                                plugin_manager.execute_action_hook('mined', mined)
+                                app_log.info(reason)
+                            elif db_lock.locked():
+                                reason = "Outbound: Block from miner skipped because we are digesting already"
+                                mined['reason'] = reason
+                                plugin_manager.execute_action_hook('mined', mined)
+                                app_log.warning(reason)
+                            elif db_block_height >= peers.consensus_max - 3:
+                                mined['result'] = True
+                                plugin_manager.execute_action_hook('mined', mined)
                                 app_log.info("Outbound: Processing block from miner")
                                 digest_block(segments, self.request, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, index_cursor)
-                            elif db_lock.locked():
-                                app_log.warning("Outbound: Block from miner skipped because we are digesting already")
-
-                            # receive theirs
                             else:
-                                app_log.info("Outbound: Mined block was orphaned because node was not synced, we are at block {}, should be at least {}".format(db_block_height, peers.consensus_max - 3))
+                                reason = "Outbound: Mined block was orphaned because node was not synced, we are at block {}, should be at least {}".format(db_block_height, peers.consensus_max - 3)
+                                mined['reason'] = reason
+                                plugin_manager.execute_action_hook('mined', mined)
+                                app_log.warning(reason)
                         else:
                             digest_block(segments, self.request, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, index_cursor)
                     else:
@@ -1793,7 +1738,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     mp.MEMPOOL.clear()
                     commit(mempool)
 
-
                 elif data == "keygen":
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
@@ -1854,7 +1798,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         connections.send(self.request, result)
                     else:
                         app_log.info("{} not whitelisted for aliasget command".format(peer_ip))
-
 
                 elif data == "aliasesget":  # only gets the first one, for multiple addresses
                     # if (peer_ip in allowed or "any" in allowed):
@@ -1940,8 +1883,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     else:
                         app_log.info("{} not whitelisted for pubkeyget command".format(peer_ip))
 
-
-
                 elif data == "aliascheck":
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
@@ -1960,7 +1901,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             connections.send(self.request, "Alias registered")
                     else:
                         app_log.info("{} not whitelisted for aliascheck command".format(peer_ip))
-
 
                 elif data == "txsend":
                     # if (peer_ip in allowed or "any" in allowed):
@@ -2020,7 +1960,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     else:
                         app_log.info("{} not whitelisted for addvalidate command".format(peer_ip))
 
-
                 elif data == "annget":
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
@@ -2073,7 +2012,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                     else:
                         app_log.info("{} not whitelisted for statusget command".format(peer_ip))
-
 
                 elif data == "statusjson":
                     if peers.is_allowed(peer_ip, data):
@@ -2517,13 +2455,13 @@ if __name__ == "__main__":
 
     app_log.warning("Status: Local address: {}".format(address))
 
-    check_integrity(hyper_path_conf)
-    coherence_check()
-
     if "testnet" in version:
         index_db = "static/index_test.db"
     else:
         index_db = "static/index.db"
+
+    check_integrity(hyper_path_conf)
+    coherence_check()
 
     app_log.warning("Status: Indexing tokens")
     tokens.tokens_update(index_db, ledger_path_conf, "normal", app_log, plugin_manager)
@@ -2632,4 +2570,3 @@ if __name__ == "__main__":
         app_log.info("Status: Node already running?")
         app_log.info(e)
         raise
-sys.exit()
