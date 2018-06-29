@@ -51,7 +51,6 @@ db_lock = threading.Lock()
 
 config = options.Get()
 config.read()
-
 debug_level = config.debug_level_conf
 port = config.port
 genesis_conf = config.genesis_conf
@@ -957,7 +956,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                         raise ValueError("That transaction {} is already in our ram ledger, block_height {}".format(entry_signature[:10], test[0]))
 
                     execute_param(c, "SELECT block_height FROM transactions WHERE signature = ?;",(entry_signature,))
-                    test = h3.fetchone()
+                    test = c.fetchone()
                     if test:
                         print(last_block)
                         raise ValueError("That transaction {} is already in our ledger, block_height {}".format(entry_signature[:10], test[0]))
