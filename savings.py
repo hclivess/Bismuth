@@ -1,3 +1,4 @@
+#todo: make registrations produce mirror hashes
 #todo: make sure registrations newer than latest block are ignored
 #todo: rollbacks inside node; make sure delagete/ip is only allowed characters
 
