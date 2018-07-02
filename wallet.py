@@ -211,7 +211,7 @@ def node_connect():
                 result = connections.receive(s, 10)  # validate the connection
                 app_log.warning("Connection OK")
                 app_log.warning("Status: Wallet connected to {}:{}".format (ip, local_port))
-                ip_connected_var.set("Node: {}".format (ip))
+                ip_connected_var.set(ip)
                 keep_trying = False
                 break
             except Exception as e:
