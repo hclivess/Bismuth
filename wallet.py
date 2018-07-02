@@ -18,7 +18,7 @@ import matplotlib
 matplotlib.use ('TkAgg')
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
 from matplotlib.figure import Figure
-from random import SystemRandom
+from random import shuffle
 
 # import keys
 
@@ -64,24 +64,21 @@ debug_level = config.debug_level_conf
 full_ledger = config.full_ledger_conf
 port = config.port
 light_ip = config.light_ip
-
-#randomize light_ip-list
-if any('127.0.0.1' in s for s in light_ip):
-    light_ip.remove('127.0.0.1')
-
-    #Shuffle light_ip-list
-    randlist = SystemRandom()
-    randlist.shuffle(light_ip)
-
-    #keep localnode on first position
-    light_ip.insert(0,'127.0.0.1')
-else:
-    randlist = SystemRandom()
-    randlist.shuffle(light_ip)
-
 version = config.version_conf
 terminal_output = config.terminal_output
 gui_scaling = config.gui_scaling
+
+#randomize light_ip-list
+shuffle(light_ip)
+
+try:
+    light_ip.remove('127.0.0.1')
+    light_ip.insert(0, '127.0.0.1')
+    pass
+except:
+    pass
+
+
 
 if "testnet" in version:
     port = 2829
