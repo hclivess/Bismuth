@@ -88,7 +88,7 @@ def balanceget_at_block(balance_address,block, h3):
 
 
 
-def masternodes_update(conn,c,index,index_cursor, mode, block, app_log):
+def masternodes_update(conn,c,index,index_cursor, mode, reg_phase_end, app_log):
     """update register of masternodes based on the current phase (10000 block intervals)"""
     if mode not in ("normal","reindex"):
         raise ValueError ("Wrong value for masternodes_update function")
@@ -103,9 +103,9 @@ def masternodes_update(conn,c,index,index_cursor, mode, block, app_log):
         index_cursor.execute("DELETE FROM masternodes")
         index.commit()
 
-    reg_phase_start = block - 10000
+    reg_phase_start = reg_phase_end - 10000
     app_log.warning("reg_phase_start: {}".format(reg_phase_start))
-    app_log.warning("reg_phase_end: {}".format(block))
+    app_log.warning("reg_phase_end: {}".format(reg_phase_end))
 
     c.execute("SELECT block_height, timestamp, address, recipient,operation, openfield FROM transactions WHERE block_height >= ? AND block_height <= ? AND operation = ? ORDER BY block_height, timestamp LIMIT 100", (reg_phase_start, reg_phase_end, "masternode:register",))
     results = c.fetchall() #more efficient than "for row in"
@@ -130,7 +130,7 @@ def masternodes_update(conn,c,index,index_cursor, mode, block, app_log):
             app_log.warning("Masternode already registered: {}".format(address))
         except:
             app_log.warning("address: {}".format(address))
-            balance = balanceget_at_block(address, block, c)[5]
+            balance = balanceget_at_block(address, reg_phase_end, c)[5]
 
             if quantize_eight(balance) >= 10000:
                 index_cursor.execute("INSERT INTO masternodes VALUES (?, ?, ?, ?, ?, ?)", (block_height, timestamp, address, balance, ip, delegate))
@@ -140,14 +140,13 @@ def masternodes_update(conn,c,index,index_cursor, mode, block, app_log):
             else:
                 app_log.warning("Insufficient balance for masternode")
 
-    return reg_phase_start, block
+    return reg_phase_start, reg_phase_end
 
 
 def mirror_hash_generate():
     # new hash
     c.execute("SELECT * FROM transactions WHERE block_height = (SELECT block_height FROM transactions ORDER BY block_height ASC LIMIT 1)")
     result = c.fetchall()
-    print(result)
     mirror_hash = blake2b (str (result).encode (), digest_size=20).hexdigest ()
     return mirror_hash
     # new hash
