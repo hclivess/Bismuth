@@ -160,6 +160,12 @@ def masternodes_payout(conn,c,index,index_cursor,block_height,timestamp,app_log)
                 c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",(-block_height,timestamp,"masternode",address,stake,"0","0",mirror_hash,"0","0","Masternode Payout","0"))
                 conn.commit()
                 app_log.warning ("Masternode payout added: {} {}".format (block_height, address))
+
+                #fuel
+                c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",(-block_height,timestamp,"masternode",address,"0","0","0",mirror_hash,"0","0","mnpayout",stake))
+                conn.commit()
+                app_log.warning ("Masternode fuel payout added: {} {}".format (block_height, address))
+                #fuel
         else:
             app_log.warning("Masternode is registered ahead of current block")
 
