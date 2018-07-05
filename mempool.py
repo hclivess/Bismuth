@@ -18,7 +18,7 @@ import json
 from quantizer import *
 import essentials
 
-__version__ = "0.0.5b"
+__version__ = "0.0.5c"
 
 MEMPOOL = None
 
@@ -408,7 +408,7 @@ class Mempool:
         if data == '*':
             raise ValueError("Connection lost")
         try:
-            if self.peers_sent[peer_ip] > time.time():
+            if self.peers_sent[peer_ip] > time.time() and peer_ip != '127.0.0.1':
                 self.app_log.warning("Mempool ignoring merge from frozen {}".format(peer_ip))
                 mempool_result.append("Mempool ignoring merge from frozen {}".format(peer_ip))
                 return mempool_result
@@ -416,9 +416,10 @@ class Mempool:
             # unknown peer
             pass
         if not essentials.is_sequence(data):
-            with self.peers_lock:
-                self.peers_sent[peer_ip] = time.time() + 10 * 60
-            self.app_log.warning("Freezing mempool from {} for 10 min - Bad TX format".format(peer_ip))
+            if peer_ip != '127.0.0.1':
+                with self.peers_lock:
+                    self.peers_sent[peer_ip] = time.time() + 10 * 60
+                self.app_log.warning("Freezing mempool from {} for 10 min - Bad TX format".format(peer_ip))
             mempool_result.append("Bad TX Format")
             return mempool_result
 
@@ -517,8 +518,6 @@ class Mempool:
 
                         # Only now, process the tests requiring db access
                         mempool_in = self.sig_check(mempool_signature_enc)
-                        if mempool_in:
-                            mempool_result.append("That transaction is already in our mempool")
 
                         # Temp: get last block for HF reason
                         essentials.execute_param_c(c, "SELECT block_height FROM transactions WHERE 1 ORDER by block_height DESC limit ?",
@@ -542,13 +541,17 @@ class Mempool:
                         if ledger_in:
                             mempool_result.append("That transaction is already in our ledger")
                             # Can be a syncing node. Do not request mempool from this peer until 10 min
-                            with self.peers_lock:
-                                self.peers_sent[peer_ip] = time.time() + 10 * 60
-                            self.app_log.warning("Freezing mempool from {} for 10 min.".format(peer_ip))
+                            if peer_ip != '127.0.0.1':
+                                with self.peers_lock:
+                                    self.peers_sent[peer_ip] = time.time() + 10 * 60
+                                self.app_log.warning("Freezing mempool from {} for 10 min.".format(peer_ip))
                             # Here, we point blank stop processing the batch from this host since it's outdated.
-                            return mempool_result
+                            # Update: Do not, since it blocks further valid tx - case has been found in real use.
+                            # return mempool_result
+                            continue
                         # Already there, just ignore then
                         if mempool_in:
+                            mempool_result.append("That transaction is already in our mempool")
                             continue
 
                         # Here we covered the basics, the current tx is conform and signed. Now let's check balance.

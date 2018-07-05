@@ -1192,7 +1192,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
             if "testnet" in version:
                 if int(block_height_new) % 100 == 0:  # every x blocks
                     savings.masternodes_update(conn, c, index, index_cursor, "normal", block_height_new, app_log)
-                    savings.masternodes_payout(conn, c, index, index_cursor, block_height_new, q_block_timestamp, app_log)
+                    savings.masternodes_payout(conn, c, index, index_cursor, block_height_new, float(q_block_timestamp), app_log)
                     savings.masternodes_revalidate(conn, c, index, index_cursor, block_height_new, app_log)
 
             # new hash

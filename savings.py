@@ -29,24 +29,6 @@ def execute_param(cursor, query, param):
 def balanceget_at_block(balance_address,block, h3):
     # verify balance
 
-    # app_log.info("Mempool: Verifying balance")
-    # app_log.info("Mempool: Received address: " + str(balance_address))
-
-
-    base_mempool = mp.MEMPOOL.fetchall ("SELECT amount, openfield FROM transactions WHERE block_height <= ? AND block_height >= ? AND address = ?;", (block, -block, balance_address,))
-
-    # include mempool fees
-
-    debit_mempool = 0
-    if base_mempool:
-        for x in base_mempool:
-            debit_tx = Decimal(x[0])
-            fee = fee_calculate (x[1], x[2], 700000)
-            debit_mempool = quantize_eight(debit_mempool + debit_tx + fee)
-    else:
-        debit_mempool = 0
-    # include mempool fees
-
     credit_ledger = Decimal ("0")
     for entry in execute_param (h3, ("SELECT amount FROM transactions WHERE block_height <= ? AND block_height >= ? AND recipient = ?;"), (block, -block, balance_address,)):
         try:
@@ -71,7 +53,7 @@ def balanceget_at_block(balance_address,block, h3):
         except:
             debit_ledger = 0
 
-    debit = quantize_eight (debit_ledger + debit_mempool)
+    debit = quantize_eight (debit_ledger)
 
     rewards = Decimal ("0")
     for entry in execute_param (h3, ("SELECT reward FROM transactions WHERE block_height <= ? AND block_height >= ? AND recipient = ?;"), (block, -block, balance_address,)):
@@ -82,13 +64,12 @@ def balanceget_at_block(balance_address,block, h3):
             rewards = 0
 
     balance = quantize_eight (credit_ledger - debit - fees + rewards)
-    balance_no_mempool = float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)
     # app_log.info("Mempool: Projected transction address balance: " + str(balance))
-    return str (balance), str (credit_ledger), str (debit), str (fees), str (rewards), str(balance_no_mempool)
+    return str(balance) #, str (credit_ledger), str (debit), str (fees), str (rewards)
 
 
 
-def masternodes_update(conn,c,index,index_cursor, mode, block, app_log):
+def masternodes_update(conn,c,index,index_cursor, mode, reg_phase_end, app_log):
     """update register of masternodes based on the current phase (10000 block intervals)"""
     if mode not in ("normal","reindex"):
         raise ValueError ("Wrong value for masternodes_update function")
@@ -103,9 +84,9 @@ def masternodes_update(conn,c,index,index_cursor, mode, block, app_log):
         index_cursor.execute("DELETE FROM masternodes")
         index.commit()
 
-    reg_phase_start = block - 10000
+    reg_phase_start = reg_phase_end - 10000
     app_log.warning("reg_phase_start: {}".format(reg_phase_start))
-    app_log.warning("reg_phase_end: {}".format(block))
+    app_log.warning("reg_phase_end: {}".format(reg_phase_end))
 
     c.execute("SELECT block_height, timestamp, address, recipient,operation, openfield FROM transactions WHERE block_height >= ? AND block_height <= ? AND operation = ? ORDER BY block_height, timestamp LIMIT 100", (reg_phase_start, reg_phase_end, "masternode:register",))
     results = c.fetchall() #more efficient than "for row in"
@@ -130,7 +111,7 @@ def masternodes_update(conn,c,index,index_cursor, mode, block, app_log):
             app_log.warning("Masternode already registered: {}".format(address))
         except:
             app_log.warning("address: {}".format(address))
-            balance = balanceget_at_block(address, block, c)[5]
+            balance = balanceget_at_block(address, reg_phase_end, c)
 
             if quantize_eight(balance) >= 10000:
                 index_cursor.execute("INSERT INTO masternodes VALUES (?, ?, ?, ?, ?, ?)", (block_height, timestamp, address, balance, ip, delegate))
@@ -140,14 +121,13 @@ def masternodes_update(conn,c,index,index_cursor, mode, block, app_log):
             else:
                 app_log.warning("Insufficient balance for masternode")
 
-    return reg_phase_start, block
+    return reg_phase_start, reg_phase_end
 
 
-def mirror_hash_generate():
+def mirror_hash_generate(c):
     # new hash
     c.execute("SELECT * FROM transactions WHERE block_height = (SELECT block_height FROM transactions ORDER BY block_height ASC LIMIT 1)")
     result = c.fetchall()
-    print(result)
     mirror_hash = blake2b (str (result).encode (), digest_size=20).hexdigest ()
     return mirror_hash
     # new hash
@@ -160,7 +140,7 @@ def masternodes_payout(conn,c,index,index_cursor,block_height,timestamp,app_log)
     app_log.warning("masternodes: {}".format(masternodes))
     masternodes_total = len(masternodes)
 
-    mirror_hash = mirror_hash_generate()
+    mirror_hash = mirror_hash_generate(c)
 
     for masternode in masternodes:
         block_masternode = masternode[0]
@@ -177,9 +157,15 @@ def masternodes_payout(conn,c,index,index_cursor,block_height,timestamp,app_log)
                 app_log.warning ("Masternode payout already processed: {} {}".format(block_height,address))
 
             except:
-                c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",(-block_height,timestamp,"masternode",address,stake,"0","0",mirror_hash,"0","0","Masternode Payout","0",))
+                c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",(-block_height,timestamp,"masternode",address,stake,"0","0",mirror_hash,"0","0","Masternode Payout","0"))
                 conn.commit()
                 app_log.warning ("Masternode payout added: {} {}".format (block_height, address))
+
+                #fuel
+                c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",(-block_height,timestamp,"masternode",address,"0","0","0",mirror_hash,"0","0","mnpayout",stake))
+                conn.commit()
+                app_log.warning ("Masternode fuel payout added: {} {}".format (block_height, address))
+                #fuel
         else:
             app_log.warning("Masternode is registered ahead of current block")
 
@@ -195,7 +181,7 @@ def masternodes_revalidate(conn,c,index,index_cursor,block,app_log):
         app_log.warning ("address: {}".format(address))
         balance_savings = masternode[3]
         app_log.warning("balance_savings: {}".format(balance_savings))
-        balance = balanceget_at_block (address, block, c)[5]
+        balance = balanceget_at_block (address, block, c)
         app_log.warning ("balance: {}".format(balance))
 
         if quantize_eight(balance) < 10000:
