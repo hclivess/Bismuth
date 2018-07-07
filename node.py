@@ -952,13 +952,13 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                     execute_param(h3, "SELECT block_height FROM transactions WHERE signature = ?;", (entry_signature,))
                     test = h3.fetchone()
                     if test:
-                        print(last_block)
+                        #print(last_block)
                         raise ValueError("That transaction {} is already in our ram ledger, block_height {}".format(entry_signature[:10], test[0]))
 
                     execute_param(c, "SELECT block_height FROM transactions WHERE signature = ?;",(entry_signature,))
                     test = c.fetchone()
                     if test:
-                        print(last_block)
+                        #print(last_block)
                         raise ValueError("That transaction {} is already in our ledger, block_height {}".format(entry_signature[:10], test[0]))
                 else:
                     raise ValueError("Empty signature from {}".format(peer_ip))

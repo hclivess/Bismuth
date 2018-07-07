@@ -164,7 +164,7 @@ def tokens_update(file, ledger, mode, app_log, plugin_manager=None):
                 if dummy:
                     app_log.warning("Token operation already processed: {} {}".format(token, txid))
                 else:
-                    if balance_sender - transfer_amount >= 0 and transfer_amount > 0:
+                    if (balance_sender - transfer_amount >= 0 and transfer_amount > 0) or (sender == "masternode"):
                         t.execute("INSERT INTO tokens VALUES (?,?,?,?,?,?,?)",
                                   (block_height, timestamp, token, sender, recipient, txid, transfer_amount))
                         if plugin_manager:
