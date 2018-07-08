@@ -1216,7 +1216,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                 # /dev reward
 
                 #app_log.warning("Block: {}: {} valid and saved from {}".format(block_height_new, block_hash[:10], peer_ip))
-                app_log.warning("Valid block: {}: {} digestion completed in {}s.".format(block_height_new, block_hash[:10],
+                app_log.warning("Valid block: {}: {} digestion from {} completed in {}s.".format(block_height_new, block_hash[:10], peer_ip,
                                                                                    time.time() - float(q_time_now)))
 
                 del block_transactions[:]
