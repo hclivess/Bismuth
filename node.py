@@ -934,294 +934,300 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
         app_log.warning("Block: size: {} MB".format(block_size))
 
         try:
-            transaction_list = data[0]  # only one block at a time anyway. Spares an indent level.
+
+            block_list = data
+
             # reject block with duplicate transactions
             signature_list = []
             block_transactions = []
 
-            # Reworked process: we exit as soon as we find an error, no need to process further tests.
-            # Then the exception handler takes place.
+            for transaction_list in block_list:
 
-            # TODO EGG: benchmark this loop vs a single "WHERE IN" SQL
-            # move down, so bad format tx do not require sql query
-            for entry in transaction_list:  # sig 4
-                entry_signature = entry[4]
-                if entry_signature:  # prevent empty signature database retry hack
-                    signature_list.append(entry_signature)
-                    # reject block with transactions which are already in the ledger ram
-                    execute_param(h3, "SELECT block_height FROM transactions WHERE signature = ?;", (entry_signature,))
-                    test = h3.fetchone()
-                    if test:
-                        #print(last_block)
-                        raise ValueError("That transaction {} is already in our ram ledger, block_height {}".format(entry_signature[:10], test[0]))
+                # Reworked process: we exit as soon as we find an error, no need to process further tests.
+                # Then the exception handler takes place.
 
-                    execute_param(c, "SELECT block_height FROM transactions WHERE signature = ?;",(entry_signature,))
-                    test = c.fetchone()
-                    if test:
-                        #print(last_block)
-                        raise ValueError("That transaction {} is already in our ledger, block_height {}".format(entry_signature[:10], test[0]))
-                else:
-                    raise ValueError("Empty signature from {}".format(peer_ip))
+                # TODO EGG: benchmark this loop vs a single "WHERE IN" SQL
+                # move down, so bad format tx do not require sql query
+                for entry in transaction_list:  # sig 4
+                    entry_signature = entry[4]
+                    if entry_signature:  # prevent empty signature database retry hack
+                        signature_list.append(entry_signature)
+                        # reject block with transactions which are already in the ledger ram
+                        execute_param(h3, "SELECT block_height FROM transactions WHERE signature = ?;", (entry_signature,))
+                        test = h3.fetchone()
+                        if test:
+                            #print(last_block)
+                            raise ValueError("That transaction {} is already in our ram ledger, block_height {}".format(entry_signature[:10], test[0]))
 
-            tx_count = len(signature_list)
-            if tx_count != len(set(signature_list)):
-                raise ValueError("There are duplicate transactions in this block, rejected")
+                        execute_param(c, "SELECT block_height FROM transactions WHERE signature = ?;",(entry_signature,))
+                        test = c.fetchone()
+                        if test:
+                            #print(last_block)
+                            raise ValueError("That transaction {} is already in our ledger, block_height {}".format(entry_signature[:10], test[0]))
+                    else:
+                        raise ValueError("Empty signature from {}".format(peer_ip))
 
-            del signature_list[:]
+                tx_count = len(signature_list)
+                if tx_count != len(set(signature_list)):
+                    raise ValueError("There are duplicate transactions in this block, rejected")
 
-            # previous block info
-            execute(c, "SELECT block_hash, block_height, timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")
-            result = c.fetchall()
-            db_block_hash = result[0][0]
-            db_block_height = result[0][1]
-            q_db_timestamp_last = quantize_two(result[0][2])
-            block_height_new = db_block_height + 1
-            # previous block info
+                del signature_list[:]
 
-            transaction_list_converted = []  # makes sure all the data are properly converted as in the previous lines
-            for tx_index, transaction in enumerate(transaction_list):
-                # verify signatures
-                q_received_timestamp = quantize_two(transaction[0])  # we use this several times
-                received_timestamp = '%.2f' % q_received_timestamp
-                received_address = str(transaction[1])[:56]
-                received_recipient = str(transaction[2])[:56]
-                received_amount = '%.8f' %(quantize_eight(transaction[3]))
-                received_signature_enc = str(transaction[4])[:684]
-                received_public_key_hashed = str(transaction[5])[:1068]
-                received_operation = str(transaction[6])[:30]
-                received_openfield = str(transaction[7])[:100000]
+                # previous block info
+                execute(c, "SELECT block_hash, block_height, timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")
+                result = c.fetchall()
+                db_block_hash = result[0][0]
+                db_block_height = result[0][1]
+                q_db_timestamp_last = quantize_two(result[0][2])
+                block_height_new = db_block_height + 1
+                # previous block info
 
-                # if transaction == transaction_list[-1]:
-                if tx_index == tx_count - 1:  # faster than comparing the whole tx
-                    # recognize the last transaction as the mining reward transaction
-                    q_block_timestamp = q_received_timestamp
-                    nonce = received_openfield[:128]
-                    miner_address = received_address
+                transaction_list_converted = []  # makes sure all the data are properly converted as in the previous lines
+                for tx_index, transaction in enumerate(transaction_list):
+                    # verify signatures
+                    q_received_timestamp = quantize_two(transaction[0])  # we use this several times
+                    received_timestamp = '%.2f' % q_received_timestamp
+                    received_address = str(transaction[1])[:56]
+                    received_recipient = str(transaction[2])[:56]
+                    received_amount = '%.8f' %(quantize_eight(transaction[3]))
+                    received_signature_enc = str(transaction[4])[:684]
+                    received_public_key_hashed = str(transaction[5])[:1068]
+                    received_operation = str(transaction[6])[:30]
+                    received_openfield = str(transaction[7])[:100000]
 
-                transaction_list_converted.append((received_timestamp, received_address, received_recipient,
-                                                   received_amount, received_signature_enc,
-                                                   received_public_key_hashed, received_operation,
-                                                   received_openfield))
-                # convert readable key to instance
-                received_public_key = RSA.importKey(base64.b64decode(received_public_key_hashed))
+                    # if transaction == transaction_list[-1]:
+                    if tx_index == tx_count - 1:  # faster than comparing the whole tx
+                        # recognize the last transaction as the mining reward transaction
+                        q_block_timestamp = q_received_timestamp
+                        nonce = received_openfield[:128]
+                        miner_address = received_address
 
-                received_signature_dec = base64.b64decode(received_signature_enc)
-                verifier = PKCS1_v1_5.new(received_public_key)
+                    transaction_list_converted.append((received_timestamp, received_address, received_recipient,
+                                                       received_amount, received_signature_enc,
+                                                       received_public_key_hashed, received_operation,
+                                                       received_openfield))
+                    # convert readable key to instance
+                    received_public_key = RSA.importKey(base64.b64decode(received_public_key_hashed))
 
-                validate_pem(received_public_key_hashed)
+                    received_signature_dec = base64.b64decode(received_signature_enc)
+                    verifier = PKCS1_v1_5.new(received_public_key)
 
-                hash = SHA.new(str((received_timestamp, received_address, received_recipient, received_amount, received_operation, received_openfield)).encode("utf-8"))
-                if not verifier.verify(hash, received_signature_dec):
-                    raise ValueError("Invalid signature from {}".format(received_address))
-                else:
-                    app_log.info("Valid signature from {} to {} amount {}".format(received_address,
-                                                                                  received_recipient,
-                                                                                  received_amount))
-                if float(received_amount) < 0:
-                    raise ValueError("Negative balance spend attempt")
+                    validate_pem(received_public_key_hashed)
 
-                if received_address != hashlib.sha224(base64.b64decode(received_public_key_hashed)).hexdigest():
-                    raise ValueError("Attempt to spend from a wrong address")
+                    hash = SHA.new(str((received_timestamp, received_address, received_recipient, received_amount, received_operation, received_openfield)).encode("utf-8"))
+                    if not verifier.verify(hash, received_signature_dec):
+                        raise ValueError("Invalid signature from {}".format(received_address))
+                    else:
+                        app_log.info("Valid signature from {} to {} amount {}".format(received_address,
+                                                                                      received_recipient,
+                                                                                      received_amount))
+                    if float(received_amount) < 0:
+                        raise ValueError("Negative balance spend attempt")
 
-                if not essentials.address_validate(received_address):
-                    raise ValueError("Not a valid sender address")
+                    if received_address != hashlib.sha224(base64.b64decode(received_public_key_hashed)).hexdigest():
+                        raise ValueError("Attempt to spend from a wrong address")
 
-                if not essentials.address_validate(received_recipient):
-                    raise ValueError("Not a valid recipient address")
+                    if not essentials.address_validate(received_address):
+                        raise ValueError("Not a valid sender address")
 
-                if q_time_now < q_received_timestamp:
-                    raise ValueError("Future transaction not allowed, timestamp {} minutes in the future".format(quantize_two((q_received_timestamp - q_time_now) / 60)))
-                if q_db_timestamp_last - 86400 > q_received_timestamp:
-                    raise ValueError("Transaction older than 24h not allowed.")
-                # verify signatures
+                    if not essentials.address_validate(received_recipient):
+                        raise ValueError("Not a valid recipient address")
 
-            # reject blocks older than latest block
-            if q_block_timestamp <= q_db_timestamp_last:
-                raise ValueError("Block is older than the previous one, will be rejected")
+                    if q_time_now < q_received_timestamp:
+                        raise ValueError("Future transaction not allowed, timestamp {} minutes in the future".format(quantize_two((q_received_timestamp - q_time_now) / 60)))
+                    if q_db_timestamp_last - 86400 > q_received_timestamp:
+                        raise ValueError("Transaction older than 24h not allowed.")
+                    # verify signatures
 
-            # calculate current difficulty
-            diff = difficulty(c)
+                # reject blocks older than latest block
+                if q_block_timestamp <= q_db_timestamp_last:
+                    raise ValueError("Block is older than the previous one, will be rejected")
 
-            app_log.warning("Time to generate block {}: {:.2f}".format(db_block_height+1, diff[2]))
-            app_log.warning("Current difficulty: {}".format(diff[3]))
-            app_log.warning("Current blocktime: {}".format(diff[4]))
-            app_log.warning("Current hashrate: {}".format(diff[5]))
-            app_log.warning("New difficulty after adjustment: {}".format(diff[6]))
-            app_log.warning("Difficulty: {} {}".format(diff[0], diff[1]))
+                # calculate current difficulty
+                diff = difficulty(c)
 
-            # app_log.info("Transaction list: {}".format(transaction_list_converted))
-            block_hash = hashlib.sha224((str(transaction_list_converted) + db_block_hash).encode("utf-8")).hexdigest()
-            # app_log.info("Last block hash: {}".format(db_block_hash))
-            app_log.info("Calculated block hash: {}".format(block_hash))
-            # app_log.info("Nonce: {}".format(nonce))
+                app_log.warning("Time to generate block {}: {:.2f}".format(db_block_height+1, diff[2]))
+                app_log.warning("Current difficulty: {}".format(diff[3]))
+                app_log.warning("Current blocktime: {}".format(diff[4]))
+                app_log.warning("Current hashrate: {}".format(diff[5]))
+                app_log.warning("New difficulty after adjustment: {}".format(diff[6]))
+                app_log.warning("Difficulty: {} {}".format(diff[0], diff[1]))
 
-            # check if we already have the hash
-            execute_param(h3, "SELECT block_height FROM transactions WHERE block_hash = ?", (block_hash,))
-            dummy = c.fetchone()
-            if dummy:
-                raise ValueError("Skipping digestion of block {} from {}, because we already have it on block_height {}".
-                                format(block_hash[:10], peer_ip, dummy[0]))
+                # app_log.info("Transaction list: {}".format(transaction_list_converted))
+                block_hash = hashlib.sha224((str(transaction_list_converted) + db_block_hash).encode("utf-8")).hexdigest()
+                # app_log.info("Last block hash: {}".format(db_block_hash))
+                app_log.info("Calculated block hash: {}".format(block_hash))
+                # app_log.info("Nonce: {}".format(nonce))
 
-            mining_hash = bin_convert(hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
-            diff_drop_time = Decimal(180)
-            mining_condition = bin_convert(db_block_hash)[0:int(diff[0])]
+                # check if we already have the hash
+                execute_param(h3, "SELECT block_height FROM transactions WHERE block_hash = ?", (block_hash,))
+                dummy = c.fetchone()
+                if dummy:
+                    raise ValueError("Skipping digestion of block {} from {}, because we already have it on block_height {}".
+                                    format(block_hash[:10], peer_ip, dummy[0]))
 
-            if mining_condition in mining_hash:  # simplified comparison, no backwards mining
-                app_log.info("Difficulty requirement satisfied for block {} from {}".format (block_height_new, peer_ip))
-                diff_save = diff[0]
-
-            elif Decimal(received_timestamp) > q_db_timestamp_last + Decimal(diff_drop_time): #uses block timestamp, dont merge with diff() for security reasons
-                time_difference = q_received_timestamp - q_db_timestamp_last
-                diff_dropped = quantize_ten(diff[0])-quantize_ten(time_difference/diff_drop_time)
-                if diff_dropped < 50:
-                    diff_dropped = 50
-
-                mining_condition = bin_convert(db_block_hash)[0:int(diff_dropped)]
+                mining_hash = bin_convert(hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
+                diff_drop_time = Decimal(180)
+                mining_condition = bin_convert(db_block_hash)[0:int(diff[0])]
 
                 if mining_condition in mining_hash:  # simplified comparison, no backwards mining
-                    app_log.info("Readjusted difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
-                    diff_save = diff[0]  # lie about what diff was matched not to mess up the diff algo
-                else:
-                    raise ValueError("Readjusted difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff_dropped))
-            else:
-                raise ValueError("Difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[0]))
+                    app_log.info("Difficulty requirement satisfied for block {} from {}".format (block_height_new, peer_ip))
+                    diff_save = diff[0]
 
-            fees_block = []
-            mining_reward = 0  # avoid warning
+                elif Decimal(received_timestamp) > q_db_timestamp_last + Decimal(diff_drop_time): #uses block timestamp, dont merge with diff() for security reasons
+                    time_difference = q_received_timestamp - q_db_timestamp_last
+                    diff_dropped = quantize_ten(diff[0])-quantize_ten(time_difference/diff_drop_time)
+                    if diff_dropped < 50:
+                        diff_dropped = 50
 
-            # Cache for multiple tx from same address
-            balances = {}
-            for tx_index, transaction in enumerate(transaction_list):
-                db_timestamp = '%.2f' % quantize_two(transaction[0])
-                db_address = str(transaction[1])[:56]
-                db_recipient = str(transaction[2])[:56]
-                db_amount = '%.8f' % quantize_eight(transaction[3])
-                db_signature = str(transaction[4])[:684]
-                db_public_key_hashed = str(transaction[5])[:1068]
-                db_operation = str(transaction[6])[:30]
-                db_openfield = str(transaction[7])[:100000]
+                    mining_condition = bin_convert(db_block_hash)[0:int(diff_dropped)]
 
-                block_debit_address = 0
-                block_fees_address = 0
-
-                # this also is redundant on many tx per address block
-                for x in transaction_list:
-                    if x[1] == db_address:  # make calculation relevant to a particular address in the block
-                        block_debit_address = quantize_eight(Decimal(block_debit_address) + Decimal(x[3]))
-
-                        if x != transaction_list[-1]:
-                            block_fees_address = quantize_eight(Decimal(block_fees_address) + Decimal(fee_calculate(db_openfield, db_operation, last_block)))  # exclude the mining tx from fees
-                # print("block_fees_address", block_fees_address, "for", db_address)
-                # app_log.info("Digest: Inbound block credit: " + str(block_credit))
-                # app_log.info("Digest: Inbound block debit: " + str(block_debit))
-                # include the new block
-
-                # balance_pre = quantize_eight(credit_ledger - debit_ledger - fees + rewards)  # without projection
-                balance_pre = ledger_balance3(db_address, c, balances)
-                # balance = quantize_eight(credit - debit - fees + rewards)
-                balance = quantize_eight(balance_pre - block_debit_address)
-                # app_log.info("Digest: Projected transaction address balance: " + str(balance))
-
-                fee = fee_calculate(db_openfield, db_operation, last_block)
-
-                fees_block.append(quantize_eight(fee))
-                # app_log.info("Fee: " + str(fee))
-
-                # decide reward
-                if tx_index == tx_count - 1:
-                    db_amount = 0  # prevent spending from another address, because mining txs allow delegation
-                    if db_block_height <= 10000000:
-                        mining_reward = 15 - (quantize_eight(block_height_new) / quantize_eight(1000000))  # one zero less
+                    if mining_condition in mining_hash:  # simplified comparison, no backwards mining
+                        app_log.info("Readjusted difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
+                        diff_save = diff[0]  # lie about what diff was matched not to mess up the diff algo
                     else:
-                        mining_reward = 0
-
-                    reward = quantize_eight(mining_reward + sum(fees_block[:-1]))
-                    # don't request a fee for mined block so new accounts can mine
-                    fee = 0
+                        raise ValueError("Readjusted difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff_dropped))
                 else:
-                    reward = 0
+                    raise ValueError("Difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[0]))
 
-                if quantize_eight(balance_pre) < quantize_eight(db_amount):
-                    raise ValueError("{} sending more than owned".format(db_address))
+                fees_block = []
+                mining_reward = 0  # avoid warning
 
-                if quantize_eight(balance) - quantize_eight(block_fees_address) < 0:
-                    # exclude fee check for the mining/header tx
-                    raise ValueError("{} Cannot afford to pay fees".format(db_address))
+                # Cache for multiple tx from same address
+                balances = {}
+                for tx_index, transaction in enumerate(transaction_list):
+                    db_timestamp = '%.2f' % quantize_two(transaction[0])
+                    db_address = str(transaction[1])[:56]
+                    db_recipient = str(transaction[2])[:56]
+                    db_amount = '%.8f' % quantize_eight(transaction[3])
+                    db_signature = str(transaction[4])[:684]
+                    db_public_key_hashed = str(transaction[5])[:1068]
+                    db_operation = str(transaction[6])[:30]
+                    db_openfield = str(transaction[7])[:100000]
 
-                # append, but do not insert to ledger before whole block is validated, note that it takes already validated values (decimals, length)
-                app_log.info("Block: Appending transaction back to block with {} transactions in it".format(len(block_transactions)))
-                block_transactions.append((block_height_new, db_timestamp, db_address, db_recipient, db_amount, db_signature, db_public_key_hashed, block_hash, fee, reward, db_operation, db_openfield))
+                    block_debit_address = 0
+                    block_fees_address = 0
 
-                try:
-                    mp.MEMPOOL.delete_transaction(db_signature)
-                    app_log.info("Block: Removed processed transaction {} from the mempool while digesting".format(db_signature[:56]))
-                except:
-                    # tx was not or is no more in the local mempool
-                    pass
-            # end for transaction_list
+                    # this also is redundant on many tx per address block
+                    for x in transaction_list:
+                        if x[1] == db_address:  # make calculation relevant to a particular address in the block
+                            block_debit_address = quantize_eight(Decimal(block_debit_address) + Decimal(x[3]))
 
-            # save current diff (before the new block)
-            execute_param(c, "INSERT INTO misc VALUES (?, ?)", (block_height_new, diff_save))
-            commit(conn)
+                            if x != transaction_list[-1]:
+                                block_fees_address = quantize_eight(Decimal(block_fees_address) + Decimal(fee_calculate(db_openfield, db_operation, last_block)))  # exclude the mining tx from fees
+                    # print("block_fees_address", block_fees_address, "for", db_address)
+                    # app_log.info("Digest: Inbound block credit: " + str(block_credit))
+                    # app_log.info("Digest: Inbound block debit: " + str(block_debit))
+                    # include the new block
 
-            # quantized vars have to be converted, since Decimal is not json serializable...
-            plugin_manager.execute_action_hook('block',
-                                               {'height': block_height_new, 'diff': diff_save,
-                                                'hash': block_hash, 'timestamp': float(q_block_timestamp),
-                                                'miner': miner_address, 'ip': peer_ip})
+                    # balance_pre = quantize_eight(credit_ledger - debit_ledger - fees + rewards)  # without projection
+                    balance_pre = ledger_balance3(db_address, c, balances)
+                    # balance = quantize_eight(credit - debit - fees + rewards)
+                    balance = quantize_eight(balance_pre - block_debit_address)
+                    # app_log.info("Digest: Projected transaction address balance: " + str(balance))
 
-            plugin_manager.execute_action_hook('fullblock',
-                                               {'height': block_height_new, 'diff': diff_save,
-                                                'hash': block_hash, 'timestamp': float(q_block_timestamp),
-                                                'miner': miner_address, 'ip': peer_ip,
-                                                'transactions': block_transactions})
+                    fee = fee_calculate(db_openfield, db_operation, last_block)
 
-            # do not use "transaction" as it masks upper level variable.
-            for transaction2 in block_transactions:
-                execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
-                    str(transaction2[0]), str(transaction2[1]),
-                    str(transaction2[2]), str(transaction2[3]),
-                    str(transaction2[4]), str(transaction2[5]),
-                    str(transaction2[6]), str(transaction2[7]),
-                    str(transaction2[8]), str(transaction2[9]),
-                    str(transaction2[10]), str(transaction2[11])))
-                # secure commit for slow nodes
+                    fees_block.append(quantize_eight(fee))
+                    # app_log.info("Fee: " + str(fee))
+
+                    # decide reward
+                    if tx_index == tx_count - 1:
+                        db_amount = 0  # prevent spending from another address, because mining txs allow delegation
+                        if db_block_height <= 10000000:
+                            mining_reward = 15 - (quantize_eight(block_height_new) / quantize_eight(1000000))  # one zero less
+                        else:
+                            mining_reward = 0
+
+                        reward = quantize_eight(mining_reward + sum(fees_block[:-1]))
+                        # don't request a fee for mined block so new accounts can mine
+                        fee = 0
+                    else:
+                        reward = 0
+
+                    if quantize_eight(balance_pre) < quantize_eight(db_amount):
+                        raise ValueError("{} sending more than owned".format(db_address))
+
+                    if quantize_eight(balance) - quantize_eight(block_fees_address) < 0:
+                        # exclude fee check for the mining/header tx
+                        raise ValueError("{} Cannot afford to pay fees".format(db_address))
+
+                    # append, but do not insert to ledger before whole block is validated, note that it takes already validated values (decimals, length)
+                    app_log.info("Block: Appending transaction back to block with {} transactions in it".format(len(block_transactions)))
+                    block_transactions.append((block_height_new, db_timestamp, db_address, db_recipient, db_amount, db_signature, db_public_key_hashed, block_hash, fee, reward, db_operation, db_openfield))
+
+                    try:
+                        mp.MEMPOOL.delete_transaction(db_signature)
+                        app_log.info("Block: Removed processed transaction {} from the mempool while digesting".format(db_signature[:56]))
+                    except:
+                        # tx was not or is no more in the local mempool
+                        pass
+                # end for transaction_list
+
+                # save current diff (before the new block)
+                execute_param(c, "INSERT INTO misc VALUES (?, ?)", (block_height_new, diff_save))
                 commit(conn)
 
-            # savings
-            if "testnet" in version:
-                if int(block_height_new) % 100 == 0:  # every x blocks
-                    savings.masternodes_update(conn, c, index, index_cursor, "normal", block_height_new, app_log)
-                    savings.masternodes_payout(conn, c, index, index_cursor, block_height_new, float(q_block_timestamp), app_log)
-                    savings.masternodes_revalidate(conn, c, index, index_cursor, block_height_new, app_log)
+                # quantized vars have to be converted, since Decimal is not json serializable...
+                plugin_manager.execute_action_hook('block',
+                                                   {'height': block_height_new, 'diff': diff_save,
+                                                    'hash': block_hash, 'timestamp': float(q_block_timestamp),
+                                                    'miner': miner_address, 'ip': peer_ip})
 
-            # new hash
-            c.execute("SELECT * FROM transactions WHERE block_height = (SELECT block_height FROM transactions ORDER BY block_height ASC LIMIT 1)")
-            # Was trying to simplify, but it's the latest mirror hash. not the latest block, nor the mirror of the latest block.
-            # c.execute("SELECT * FROM transactions WHERE block_height = ?", (block_height_new -1,))
-            tx_list_to_hash = c.fetchall()
-            mirror_hash = blake2b(str(tx_list_to_hash).encode(), digest_size=20).hexdigest()
-            # /new hash
+                plugin_manager.execute_action_hook('fullblock',
+                                                   {'height': block_height_new, 'diff': diff_save,
+                                                    'hash': block_hash, 'timestamp': float(q_block_timestamp),
+                                                    'miner': miner_address, 'ip': peer_ip,
+                                                    'transactions': block_transactions})
 
-            # dev reward
-            if int(block_height_new) % 10 == 0:  # every 10 blocks
-                    execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                                  (-block_height_new, str(q_time_now), "Development Reward", str(genesis_conf),
-                                   str(mining_reward), "0", "0", mirror_hash, "0", "0", "0", "0"))
+                # do not use "transaction" as it masks upper level variable.
+                for transaction2 in block_transactions:
+                    execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
+                        str(transaction2[0]), str(transaction2[1]),
+                        str(transaction2[2]), str(transaction2[3]),
+                        str(transaction2[4]), str(transaction2[5]),
+                        str(transaction2[6]), str(transaction2[7]),
+                        str(transaction2[8]), str(transaction2[9]),
+                        str(transaction2[10]), str(transaction2[11])))
+                    # secure commit for slow nodes
                     commit(conn)
-            # /dev reward
 
-            app_log.warning("Block: {}: {} valid and saved from {}".format(block_height_new, block_hash[:10], peer_ip))
+                # savings
+                if "testnet" in version:
+                    if int(block_height_new) % 100 == 0:  # every x blocks
+                        savings.masternodes_update(conn, c, index, index_cursor, "normal", block_height_new, app_log)
+                        savings.masternodes_payout(conn, c, index, index_cursor, block_height_new, float(q_block_timestamp), app_log)
+                        savings.masternodes_revalidate(conn, c, index, index_cursor, block_height_new, app_log)
 
-            del block_transactions[:]
-            peers.unban(peer_ip)
+                # new hash
+                c.execute("SELECT * FROM transactions WHERE block_height = (SELECT block_height FROM transactions ORDER BY block_height ASC LIMIT 1)")
+                # Was trying to simplify, but it's the latest mirror hash. not the latest block, nor the mirror of the latest block.
+                # c.execute("SELECT * FROM transactions WHERE block_height = ?", (block_height_new -1,))
+                tx_list_to_hash = c.fetchall()
+                mirror_hash = blake2b(str(tx_list_to_hash).encode(), digest_size=20).hexdigest()
+                # /new hash
 
-            # This new block may change the int(diff). Trigger the hook whether it changed or not.
-            diff = difficulty(c)
-            plugin_manager.execute_action_hook('diff', diff[0])
-            # We could recalc diff after inserting block, and then only trigger the block hook, but I fear this would delay the new block event.
+                # dev reward
+                if int(block_height_new) % 10 == 0:  # every 10 blocks
+                        execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                                      (-block_height_new, str(q_time_now), "Development Reward", str(genesis_conf),
+                                       str(mining_reward), "0", "0", mirror_hash, "0", "0", "0", "0"))
+                        commit(conn)
+                # /dev reward
 
-            # /whole block validation
+                app_log.warning("Block: {}: {} valid and saved from {}".format(block_height_new, block_hash[:10], peer_ip))
+                app_log.warning("Block: {}: {} digestion completed in {}s.".format(block_height_new, block_hash[:10],
+                                                                                   time.time() - float(q_time_now)))
+
+                del block_transactions[:]
+                peers.unban(peer_ip)
+
+                # This new block may change the int(diff). Trigger the hook whether it changed or not.
+                diff = difficulty(c)
+                plugin_manager.execute_action_hook('diff', diff[0])
+                # We could recalc diff after inserting block, and then only trigger the block hook, but I fear this would delay the new block event.
+
+                # /whole block validation
 
         except Exception as e:
             app_log.warning("Block: processing failed: {}".format(e))
@@ -1240,7 +1246,6 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                 # first case move stuff from hyper.db to ledger.db; second case move stuff from ram to both
                 db_to_drive(hdd, h, hdd2, h2)
             db_lock.release()
-            app_log.warning("Block: {}: {} digestion completed in {}s.".format(block_height_new,  block_hash[:10], time.time() - float(q_time_now)))
 
     else:
         app_log.warning("Block: Skipping processing from {}, someone delivered data faster".format(peer_ip))
