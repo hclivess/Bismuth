@@ -928,7 +928,6 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
         app_log.warning("Block: Digesting started from {}".format(peer_ip))
         # variables that have been quantized are prefixed by q_ So we can avoid any unnecessary quantize again later. Takes time.
         # Variables that are only used as quantized decimal are quantized once and for all.
-        q_time_now = quantize_two(time.time())
 
         block_size = Decimal(sys.getsizeof(str(data))) / Decimal(1000000)
         app_log.warning("Block: size: {} MB".format(block_size))
@@ -942,6 +941,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
             block_transactions = []
 
             for transaction_list in block_list:
+                q_time_now = quantize_two(time.time())
 
                 # Reworked process: we exit as soon as we find an error, no need to process further tests.
                 # Then the exception handler takes place.
@@ -1215,8 +1215,8 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                         commit(conn)
                 # /dev reward
 
-                app_log.warning("Block: {}: {} valid and saved from {}".format(block_height_new, block_hash[:10], peer_ip))
-                app_log.warning("Block: {}: {} digestion completed in {}s.".format(block_height_new, block_hash[:10],
+                #app_log.warning("Block: {}: {} valid and saved from {}".format(block_height_new, block_hash[:10], peer_ip))
+                app_log.warning("Valid block: {}: {} digestion completed in {}s.".format(block_height_new, block_hash[:10],
                                                                                    time.time() - float(q_time_now)))
 
                 del block_transactions[:]
