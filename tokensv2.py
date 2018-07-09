@@ -165,7 +165,10 @@ def tokens_update(file, ledger, mode, app_log, plugin_manager=None):
 
             # app_log.warning all token transfers
             balance_sender = credit_sender - debit_sender
-            app_log.warning("Sender's balance {}".format(balance_sender))
+            if balance_sender < 0:
+                app_log.warning("Total staked {}".format(abs(balance_sender)))
+            else:
+                app_log.warning("Sender's balance {}".format(balance_sender))
             try:
                 t.execute("SELECT txid from tokens WHERE txid = ?", (txid,))
                 dummy = t.fetchone()  # check for uniqueness
