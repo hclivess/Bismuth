@@ -162,7 +162,7 @@ def masternodes_payout(conn,c,index,index_cursor,block_height,timestamp,app_log)
                 app_log.warning ("Masternode payout added: {} {}".format (block_height, address))
 
                 #fuel
-                c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",(-block_height,timestamp,"masternode",address,"0","0","0",mirror_hash,"0","0","token:transfer","fuel:{}".format(stake)))
+                c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",(-block_height,timestamp,"masternode",address,"0","0","0",mirror_hash,"0","0","token:transfer","fuel:{}".format(int(float(stake)))))
                 conn.commit()
                 app_log.warning ("Masternode fuel payout added: {} {}".format (block_height, address))
                 #fuel
