@@ -128,7 +128,7 @@ def mirror_hash_generate(c):
     # new hash
     c.execute("SELECT * FROM transactions WHERE block_height = (SELECT block_height FROM transactions ORDER BY block_height ASC LIMIT 1)")
     result = c.fetchall()
-    mirror_hash = blake2b (str (result).encode (), digest_size=20).hexdigest ()
+    mirror_hash = blake2b(str (result).encode(), digest_size=20).hexdigest()
     return mirror_hash
     # new hash
 
@@ -157,12 +157,12 @@ def masternodes_payout(conn,c,index,index_cursor,block_height,timestamp,app_log)
                 app_log.warning ("Masternode payout already processed: {} {}".format(block_height,address))
 
             except:
-                c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",(-block_height,timestamp,"masternode",address,stake,mirror_hash,"0",mirror_hash,"0","0","mnpayout","0"))
+                c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",(-block_height,timestamp,"masternode",address,stake,"0","0",mirror_hash,"0","0","mnpayout","0"))
                 conn.commit()
                 app_log.warning ("Masternode payout added: {} {}".format (block_height, address))
 
                 #fuel
-                c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",(-block_height,timestamp,"masternode",address,"0",mirror_hash,"0",mirror_hash,"0","0","token:transfer","fuel:{}".format(int(float(stake)))))
+                c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",(-block_height,timestamp,"masternode",address,"0","0","0",mirror_hash,"0","0","token:transfer","fuel:{}".format(int(float(stake)))))
                 conn.commit()
                 app_log.warning ("Masternode fuel payout added: {} {}".format (block_height, address))
                 #fuel

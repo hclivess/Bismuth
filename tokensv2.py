@@ -6,9 +6,15 @@
 
 import sqlite3
 import log
+from hashlib import blake2b
 
 __version__ = '0.0.2'
 
+def blake2bhash_generate(data):
+    # new hash
+    blake2bhash = blake2b(str(data).encode(), digest_size=20).hexdigest()
+    return blake2bhash
+    # new hash
 
 def tokens_update(file, ledger, mode, app_log, plugin_manager=None):
     if mode not in ("normal", "reindex"):
@@ -128,6 +134,8 @@ def tokens_update(file, ledger, mode, app_log, plugin_manager=None):
             app_log.warning("Transfer to {}".format(recipient))
 
             txid = r[4][:56]
+            if txid == "0":
+                txid = blake2bhash_generate(r)
             app_log.warning("Txid: {}".format(txid))
 
             try:
