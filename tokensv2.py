@@ -90,8 +90,8 @@ def tokens_update(file, ledger, mode, app_log, plugin_manager=None):
     # app_log.warning all transfers of a given token
     # token = "worthless"
 
-    c.execute("SELECT operation, openfield FROM transactions WHERE block_height >= ? AND operation = ? and reward = 0 ORDER BY block_height ASC;",
-              (token_last_block, "token:transfer",))
+    c.execute("SELECT operation, openfield FROM transactions WHERE (block_height >= ? OR block_height <= ?) AND operation = ? and reward = 0 ORDER BY block_height ASC;",
+              (token_last_block, -token_last_block, "token:transfer",)) #includes mirror blocks
     openfield_transfers = c.fetchall()
     # print(openfield_transfers)
 
@@ -106,8 +106,8 @@ def tokens_update(file, ledger, mode, app_log, plugin_manager=None):
 
     for token in tokens_transferred:
         app_log.warning("processing {}".format(token))
-        c.execute("SELECT block_height, timestamp, address, recipient, signature, operation, openfield FROM transactions WHERE block_height >= ? AND operation = ? AND openfield LIKE ? AND reward = 0 ORDER BY block_height ASC;",
-                  (token_last_block, "token:transfer",token + '%',))
+        c.execute("SELECT block_height, timestamp, address, recipient, signature, operation, openfield FROM transactions WHERE (block_height >= ? OR block_height <= ?) AND operation = ? AND openfield LIKE ? AND reward = 0 ORDER BY block_height ASC;",
+                  (token_last_block, -token_last_block, "token:transfer",token + '%',))
         results2 = c.fetchall()
         app_log.warning(results2)
 
@@ -146,7 +146,7 @@ def tokens_update(file, ledger, mode, app_log, plugin_manager=None):
                 credit_sender = 0
             app_log.warning("Sender's credit {}".format(credit_sender))
 
-            t.execute("SELECT sum(amount) FROM tokens WHERE address = ? AND block_height <= ? AND token = ?",
+            t.execute("SELECT sum(amount) FROM tokens WHERE address = ? OR block_height <= ? AND token = ?",
                       (sender,block_height,token,))
             try:
                 debit_sender = int(t.fetchone()[0])
