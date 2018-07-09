@@ -1112,8 +1112,9 @@ def tokens():
 	
     token_box = Listbox (tokens_main, width=100)
     token_box.grid (row=0, pady=0)
-    scrollbar_v = Scrollbar(orient="vertical", command=token_box.yview)
-    scrollbar_v.grid(row=1, column=1, sticky="ns")
+
+    scrollbar_v = Scrollbar(tokens_main, command=token_box.yview)
+    scrollbar_v.grid(row=0, column=1, sticky=N + S + E)
 
     connections.send (s, "tokensget", 10)
     connections.send (s, gui_address_t.get (), 10)
@@ -1724,6 +1725,7 @@ miscmenu.add_command (label="Help", command=help)
 connect_menu = Menu (menubar, tearoff=0)
 menubar.add_cascade (label="Connection", menu=connect_menu)
 connect_list = []
+
 for ip_once in light_ip:
     connect_list.append (ip_once)
     connect_menu.add_command(label=ip_once, command=lambda ip_once=ip_once: node_connect_once (ip_once))
