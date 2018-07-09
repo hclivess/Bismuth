@@ -3,7 +3,7 @@
 # icons created using http://www.winterdrache.de/freeware/png2ico/
 
 import sqlite3
-import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, time, base64, connections, icons, log, socks, ast, options, tarfile, glob, essentials, re, platform
+import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, time, base64, connections, icons, log, socks, ast, options, tarfile, glob, essentials, re, platform, lwbench
 from tokensv2 import *
 from decimal import *
 from bisurl import *
@@ -68,16 +68,8 @@ version = config.version_conf
 terminal_output = config.terminal_output
 gui_scaling = config.gui_scaling
 
-#randomize light_ip-list
-shuffle(light_ip)
-
-try:
-    light_ip.remove('127.0.0.1')
-    light_ip.insert(0, '127.0.0.1')
-    pass
-except:
-    pass
-
+#benchmark light_ip-list
+light_ip = lwbench.time_measure(light_ip)
 
 
 if "testnet" in version:
@@ -230,6 +222,24 @@ def node_connect():
                 app_log.warning("Status: Cannot connect to {}:{}".format (ip, local_port))
                 time.sleep(1)
 
+def node_connect_once(ip_once): #Connect a light-wallet-ip directly from menu
+    global s
+    global port
+    global ip
+    try:
+        ip, local_port = convert_ip_port(ip_once, port)
+        app_log.warning("Status: Attempting to connect to {}:{} out of {}".format (ip_once, local_port, light_ip))
+        s = socks.socksocket()
+        s.settimeout(3)
+        s.connect((ip, int(local_port)))
+        connections.send(s, "statusget", 10)
+        result = connections.receive(s, 10)  # validate the connection
+        app_log.warning("Connection OK")
+        app_log.warning("Status: Wallet connected to {}:{}".format (ip, local_port))
+        ip_connected_var.set(ip)
+    except Exception as e:
+        app_log.warning("Status: Cannot connect to {}:{}".format (ip, local_port))
+        node_connect ()
 
 def replace_regex(string, replace):
     replaced_string = re.sub (r'^{}'.format (replace), "", string)
@@ -1096,11 +1106,14 @@ def token_issue(token, amount, window):
 
 
 def tokens():
-    tokens_main = Toplevel ()
-    tokens_main.title ("Tokens")
-
+    tokens_main = Frame (tab_tokens, relief='ridge', borderwidth=0)
+    tokens_main.grid (row=0, column=0, pady=5, padx=5, sticky=N + W + E + S)
+    #tokens_main.title ("Tokens")
+	
     token_box = Listbox (tokens_main, width=100)
     token_box.grid (row=0, pady=0)
+    scrollbar_v = Scrollbar(orient="vertical", command=token_box.yview)
+    scrollbar_v.grid(row=1, column=1, sticky="ns")
 
     connections.send (s, "tokensget", 10)
     connections.send (s, gui_address_t.get (), 10)
@@ -1149,8 +1162,8 @@ def tokens():
     issue = Button (tokens_main, text="Issue", command=lambda: token_issue (token_name_var.get (), token_amount_var.get (), tokens_main))
     issue.grid (row=5, column=0, sticky=W + E, padx=5)
 
-    cancel = Button (tokens_main, text="Cancel", command=tokens_main.destroy)
-    cancel.grid (row=6, column=0, sticky=W + E, padx=5)
+    #cancel = Button (tokens_main, text="Cancel", command=tokens_main.destroy)
+    #cancel.grid (row=6, column=0, sticky=W + E, padx=5)
 
 
 def tx_tree_define():
@@ -1620,9 +1633,16 @@ url_r = Entry (frame_entries_r, width=60)
 url_r.grid (row=5, column=1, sticky=W, pady=5, padx=5)
 url_r.insert (0, "bis://")
 
-# tab5 tokens
-# tab_tokens = ttk.Frame(nbtabs)
-# nbtabs.add(tab_tokens, text='Tokens')
+#tab5 tokens
+tab_tokens = ttk.Frame(nbtabs)
+nbtabs.add(tab_tokens, text='Tokens')
+
+def click_on_tab_tokens(event):
+    if str(nbtabs.index(nbtabs.select())) == "4":
+        tokens()
+
+nbtabs.bind('<<NotebookTabChanged>>', click_on_tab_tokens)
+
 
 # tab_statistics statistics
 # tab_statistics = ttk.Frame(nbtabs)
@@ -1699,8 +1719,14 @@ menubar.add_cascade (label="Misc", menu=miscmenu)
 miscmenu.add_command (label="Mempool", command=lambda: mempool_get (s))
 miscmenu.add_command (label="CSV Export", command=lambda: csv_export (s))
 miscmenu.add_command (label="Statistics", command=lambda: stats ())
-miscmenu.add_command (label="Tokens", command=tokens)
 miscmenu.add_command (label="Help", command=help)
+
+connect_menu = Menu (menubar, tearoff=0)
+menubar.add_cascade (label="Connection", menu=connect_menu)
+connect_list = []
+for ip_once in light_ip:
+    connect_list.append (ip_once)
+    connect_menu.add_command(label=ip_once, command=lambda ip_once=ip_once: node_connect_once (ip_once))
 
 # labels
 Label (frame_entries, text="My Address:").grid (row=0, sticky=W + N, pady=5, padx=5)
@@ -1967,7 +1993,7 @@ balance_enumerator = Entry (frame_entries, width=5)
 # logo = PhotoImage(data="graphics/logo.png")
 
 
-logo_img = PIL.Image.open ("graphics/logo.jpg")
+logo_img = PIL.Image.open ("graphics/logo_new.png")
 logo = PIL.ImageTk.PhotoImage (logo_img)
 
 Label (frame_logo, image=logo).grid (column=0, row=0)
