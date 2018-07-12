@@ -6,6 +6,7 @@ Bismuth Readme
 http://bismuth.cz
 
 For basic instructions, please refer to https://github.com/EggPool/BismuthHowto
+
 To use a bitcoin-like RPC server, please refer to https://github.com/EggPool/BismuthRPC
 
 License:
