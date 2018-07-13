@@ -148,13 +148,14 @@ def tokens_update(file, ledger, mode, app_log, plugin_manager=None):
             # calculate balances
             t.execute("SELECT sum(amount) FROM tokens WHERE recipient = ? AND block_height < ? AND token = ?",
                       (sender,block_height,token,))
+
             try:
                 credit_sender = int(t.fetchone()[0])
             except:
                 credit_sender = 0
             app_log.warning("Sender's credit {}".format(credit_sender))
 
-            t.execute("SELECT sum(amount) FROM tokens WHERE address = ? OR block_height <= ? AND token = ?",
+            t.execute("SELECT sum(amount) FROM tokens WHERE address = ? AND block_height <= ? AND token = ?",
                       (sender,block_height,token,))
             try:
                 debit_sender = int(t.fetchone()[0])
@@ -165,7 +166,7 @@ def tokens_update(file, ledger, mode, app_log, plugin_manager=None):
 
             # app_log.warning all token transfers
             balance_sender = credit_sender - debit_sender
-            if balance_sender < 0:
+            if balance_sender < 0 and sender == "masternode":
                 app_log.warning("Total staked {}".format(abs(balance_sender)))
             else:
                 app_log.warning("Sender's balance {}".format(balance_sender))
@@ -177,7 +178,7 @@ def tokens_update(file, ledger, mode, app_log, plugin_manager=None):
                 else:
                     if (balance_sender - transfer_amount >= 0 and transfer_amount > 0) or (sender == "masternode"):
                         t.execute("INSERT INTO tokens VALUES (?,?,?,?,?,?,?)",
-                                  (block_height, timestamp, token, sender, recipient, txid, transfer_amount))
+                                  (abs(block_height), timestamp, token, sender, recipient, txid, transfer_amount))
                         if plugin_manager:
                             plugin_manager.execute_action_hook('token_transfer',
                                                                {'token': token, 'from': sender,

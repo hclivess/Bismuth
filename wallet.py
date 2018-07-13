@@ -1995,7 +1995,7 @@ balance_enumerator = Entry (frame_entries, width=5)
 # logo = PhotoImage(data="graphics/logo.png")
 
 
-logo_img = PIL.Image.open ("graphics/logo_new.png")
+logo_img = PIL.Image.open ("graphics/logo.png")
 logo = PIL.ImageTk.PhotoImage (logo_img)
 
 Label (frame_logo, image=logo).grid (column=0, row=0)

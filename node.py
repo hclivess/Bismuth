@@ -6,7 +6,7 @@
 # do not isolation_level=None/WAL hdd levels, it makes saving slow
 
 
-VERSION = "4.2.5.3"
+VERSION = "4.2.5.4"
 
 # Bis specific modules
 import log, options, connections, peershandler, apihandler
@@ -2468,6 +2468,7 @@ if __name__ == "__main__":
     coherence_check()
 
     app_log.warning("Status: Indexing tokens")
+    print(ledger_path_conf)
     tokens.tokens_update(index_db, ledger_path_conf, "normal", app_log, plugin_manager)
     app_log.warning("Status: Indexing aliases")
     aliases.aliases_update(index_db, ledger_path_conf, "normal", app_log)
