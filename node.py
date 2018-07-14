@@ -1037,8 +1037,8 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                         if q_db_timestamp_last - 86400 > q_received_timestamp:
                             raise ValueError("Transaction older than 24h not allowed.")
                         # verify signatures
-                    else:
-                        print("hyp1")
+                    #else:
+                    #    print("hyp1")
 
                 # reject blocks older than latest block
                 if q_block_timestamp <= q_db_timestamp_last:
