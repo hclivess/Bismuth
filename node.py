@@ -905,6 +905,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
     global hdd_block
     global last_block
     global peers
+
     block_height_new = last_block + 1  # for logging purposes.
     block_hash = 'N/A'
 
@@ -1001,38 +1002,43 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                                                        received_amount, received_signature_enc,
                                                        received_public_key_hashed, received_operation,
                                                        received_openfield))
-                    # convert readable key to instance
-                    received_public_key = RSA.importKey(base64.b64decode(received_public_key_hashed))
 
-                    received_signature_dec = base64.b64decode(received_signature_enc)
-                    verifier = PKCS1_v1_5.new(received_public_key)
+                    if q_time_now > q_received_timestamp + 600000:
 
-                    validate_pem(received_public_key_hashed)
+                        # convert readable key to instance
+                        received_public_key = RSA.importKey(base64.b64decode(received_public_key_hashed))
 
-                    hash = SHA.new(str((received_timestamp, received_address, received_recipient, received_amount, received_operation, received_openfield)).encode("utf-8"))
-                    if not verifier.verify(hash, received_signature_dec):
-                        raise ValueError("Invalid signature from {}".format(received_address))
-                    else:
-                        app_log.info("Valid signature from {} to {} amount {}".format(received_address,
-                                                                                      received_recipient,
-                                                                                      received_amount))
-                    if float(received_amount) < 0:
-                        raise ValueError("Negative balance spend attempt")
+                        received_signature_dec = base64.b64decode(received_signature_enc)
+                        verifier = PKCS1_v1_5.new(received_public_key)
 
-                    if received_address != hashlib.sha224(base64.b64decode(received_public_key_hashed)).hexdigest():
-                        raise ValueError("Attempt to spend from a wrong address")
+                        validate_pem(received_public_key_hashed)
 
-                    if not essentials.address_validate(received_address):
-                        raise ValueError("Not a valid sender address")
+                        hash = SHA.new(str((received_timestamp, received_address, received_recipient, received_amount, received_operation, received_openfield)).encode("utf-8"))
+                        if not verifier.verify(hash, received_signature_dec):
+                            raise ValueError("Invalid signature from {}".format(received_address))
+                        else:
+                            app_log.info("Valid signature from {} to {} amount {}".format(received_address,
+                                                                                          received_recipient,
+                                                                                          received_amount))
+                        if float(received_amount) < 0:
+                            raise ValueError("Negative balance spend attempt")
 
-                    if not essentials.address_validate(received_recipient):
-                        raise ValueError("Not a valid recipient address")
+                        if received_address != hashlib.sha224(base64.b64decode(received_public_key_hashed)).hexdigest():
+                            raise ValueError("Attempt to spend from a wrong address")
 
-                    if q_time_now < q_received_timestamp:
-                        raise ValueError("Future transaction not allowed, timestamp {} minutes in the future".format(quantize_two((q_received_timestamp - q_time_now) / 60)))
-                    if q_db_timestamp_last - 86400 > q_received_timestamp:
-                        raise ValueError("Transaction older than 24h not allowed.")
-                    # verify signatures
+                        if not essentials.address_validate(received_address):
+                            raise ValueError("Not a valid sender address")
+
+                        if not essentials.address_validate(received_recipient):
+                            raise ValueError("Not a valid recipient address")
+
+                        if q_time_now < q_received_timestamp:
+                            raise ValueError("Future transaction not allowed, timestamp {} minutes in the future".format(quantize_two((q_received_timestamp - q_time_now) / 60)))
+                        if q_db_timestamp_last - 86400 > q_received_timestamp:
+                            raise ValueError("Transaction older than 24h not allowed.")
+                        # verify signatures
+                    #else:
+                    #    print("hyp1")
 
                 # reject blocks older than latest block
                 if q_block_timestamp <= q_db_timestamp_last:
@@ -1110,21 +1116,26 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
 
                             if x != transaction_list[-1]:
                                 block_fees_address = quantize_eight(Decimal(block_fees_address) + Decimal(fee_calculate(db_openfield, db_operation, last_block)))  # exclude the mining tx from fees
+
                     # print("block_fees_address", block_fees_address, "for", db_address)
                     # app_log.info("Digest: Inbound block credit: " + str(block_credit))
                     # app_log.info("Digest: Inbound block debit: " + str(block_debit))
                     # include the new block
 
-                    # balance_pre = quantize_eight(credit_ledger - debit_ledger - fees + rewards)  # without projection
-                    balance_pre = ledger_balance3(db_address, c, balances)
-                    # balance = quantize_eight(credit - debit - fees + rewards)
-                    balance = quantize_eight(balance_pre - block_debit_address)
-                    # app_log.info("Digest: Projected transaction address balance: " + str(balance))
+                    if q_time_now > q_received_timestamp + 600000:
+                        # balance_pre = quantize_eight(credit_ledger - debit_ledger - fees + rewards)  # without projection
+                        balance_pre = ledger_balance3(db_address, c, balances)
+                        # balance = quantize_eight(credit - debit - fees + rewards)
+                        balance = quantize_eight(balance_pre - block_debit_address)
+                        # app_log.info("Digest: Projected transaction address balance: " + str(balance))
+                    #else:
+                    #    print("hyp2")
 
                     fee = fee_calculate(db_openfield, db_operation, last_block)
 
                     fees_block.append(quantize_eight(fee))
                     # app_log.info("Fee: " + str(fee))
+
 
                     # decide reward
                     if tx_index == tx_count - 1:
@@ -1140,12 +1151,15 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                     else:
                         reward = 0
 
-                    if quantize_eight(balance_pre) < quantize_eight(db_amount):
-                        raise ValueError("{} sending more than owned".format(db_address))
+                    if q_time_now > q_received_timestamp + 600000:
+                        if quantize_eight(balance_pre) < quantize_eight(db_amount):
+                            raise ValueError("{} sending more than owned".format(db_address))
 
-                    if quantize_eight(balance) - quantize_eight(block_fees_address) < 0:
-                        # exclude fee check for the mining/header tx
-                        raise ValueError("{} Cannot afford to pay fees".format(db_address))
+                        if quantize_eight(balance) - quantize_eight(block_fees_address) < 0:
+                            # exclude fee check for the mining/header tx
+                            raise ValueError("{} Cannot afford to pay fees".format(db_address))
+                    #else:
+                    #    print("hyp3")
 
                     # append, but do not insert to ledger before whole block is validated, note that it takes already validated values (decimals, length)
                     app_log.info("Block: Appending transaction back to block with {} transactions in it".format(len(block_transactions)))
