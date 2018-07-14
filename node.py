@@ -31,11 +31,6 @@ import savings
 # load config
 # global ban_threshold
 
-# remove after hf - WARNING : dup in mempool.py
-global drift_limit
-drift_limit = 30
-# remove after hf
-
 
 getcontext().rounding = ROUND_HALF_EVEN
 
