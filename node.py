@@ -593,7 +593,7 @@ def difficulty(c):
     return (float('%.10f' % difficulty),float('%.10f' % diff_dropped), float(time_to_generate), float(diff_block_previous), float(block_time), float(hashrate), float(diff_adjustment), block_height)  # need to keep float here for database inserts support
 
 
-def balanceget(balance_address, h3):
+def balanceget(balance_address, c):
     global last_block  # temp
     # verify balance
 
@@ -615,7 +615,7 @@ def balanceget(balance_address, h3):
     # include mempool fees
 
     credit_ledger = Decimal("0")
-    for entry in execute_param(h3, ("SELECT amount FROM transactions WHERE recipient = ?;"), (balance_address,)):
+    for entry in execute_param(c, ("SELECT amount FROM transactions WHERE recipient = ?;"), (balance_address,)):
         try:
             credit_ledger = quantize_eight(credit_ledger) + quantize_eight(entry[0])
             credit_ledger = 0 if credit_ledger is None else credit_ledger
@@ -625,7 +625,7 @@ def balanceget(balance_address, h3):
     fees = Decimal("0")
     debit_ledger = Decimal("0")
 
-    for entry in execute_param(h3, ("SELECT fee, amount FROM transactions WHERE address = ?;"), (balance_address,)):
+    for entry in execute_param(c, ("SELECT fee, amount FROM transactions WHERE address = ?;"), (balance_address,)):
         try:
             fees = quantize_eight(fees) + quantize_eight(entry[0])
             fees = 0 if fees is None else fees
@@ -641,7 +641,7 @@ def balanceget(balance_address, h3):
     debit = quantize_eight(debit_ledger + debit_mempool)
 
     rewards = Decimal("0")
-    for entry in execute_param(h3, ("SELECT reward FROM transactions WHERE recipient = ?;"), (balance_address,)):
+    for entry in execute_param(c, ("SELECT reward FROM transactions WHERE recipient = ?;"), (balance_address,)):
         try:
             rewards = quantize_eight(rewards) + quantize_eight(entry[0])
             rewards = 0 if rewards is None else rewards
