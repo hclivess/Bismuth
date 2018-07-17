@@ -106,10 +106,17 @@ def masternodes_update(conn,c,index,index_cursor, mode, reg_phase_end, app_log):
         if not isinstance(openfield_split, list) or len(openfield_split) != 2:
             openfield_split = [None, None]
 
-
         app_log.warning("operation_split: {}".format(openfield_split))
-        ip = openfield_split[0] #openfield
-        delegate = openfield_split[1]
+
+        if ip_validate(openfield_split[0]):
+            ip = openfield_split[0]
+        else:
+            ip = ""
+
+        if address_validate(openfield_split[1]):
+            delegate = openfield_split[1]
+        else:
+            delegate = ""
 
         try:
             index_cursor.execute("SELECT * from masternodes WHERE address = ?", (address,))
