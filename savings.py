@@ -9,8 +9,14 @@ import sqlite3
 import log
 from quantizer import *
 import mempool as mp
-from essentials import fee_calculate
 from hashlib import blake2b
+import re
+
+def address_validate(address):
+    return re.match('[abcdef0123456789]{56}', address)
+
+def ip_validate(ip):
+    return re.match('^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$', ip)
 
 def percentage(percent, whole):
     return ((Decimal(percent) * Decimal(whole)) / 100)
