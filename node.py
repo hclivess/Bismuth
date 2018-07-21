@@ -80,7 +80,7 @@ accept_peers = config.accept_peers
 terminal_output = config.terminal_output
 # mempool_ram_conf = config.mempool_ram_conf
 egress = config.egress
-
+quicksync = config.quicksync
 
 # nodes_ban_reset=config.nodes_ban_reset
 
@@ -1003,7 +1003,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                                                        received_public_key_hashed, received_operation,
                                                        received_openfield))
 
-                    if q_time_now < q_received_timestamp + 432000:
+                    if (q_time_now < q_received_timestamp + 432000) or not quicksync:
 
                         # convert readable key to instance
                         received_public_key = RSA.importKey(base64.b64decode(received_public_key_hashed))
@@ -1122,7 +1122,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                     # app_log.info("Digest: Inbound block debit: " + str(block_debit))
                     # include the new block
 
-                    if q_time_now < q_received_timestamp + 432000:
+                    if (q_time_now < q_received_timestamp + 432000) and not quicksync:
                         # balance_pre = quantize_eight(credit_ledger - debit_ledger - fees + rewards)  # without projection
                         balance_pre = ledger_balance3(db_address, c, balances)
                         # balance = quantize_eight(credit - debit - fees + rewards)
@@ -1151,7 +1151,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                     else:
                         reward = 0
 
-                    if q_time_now < q_received_timestamp + 432000:
+                    if (q_time_now < q_received_timestamp + 432000) and not quicksync:
                         if quantize_eight(balance_pre) < quantize_eight(db_amount):
                             raise ValueError("{} sending more than owned".format(db_address))
 
