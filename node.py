@@ -1367,9 +1367,11 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         global peers
         global apihandler
         global plugin_manager
-
-        peer_ip = self.request.getpeername()[0]
-
+        try:
+            peer_ip = self.request.getpeername()[0]
+        except:
+            app_log.warning("Inbound: Transport endpoint was not connected");
+            return
         # if threading.active_count() < thread_limit_conf or peer_ip == "127.0.0.1":
         # Always keep a slot for whitelisted (wallet could be there)
         if threading.active_count() < thread_limit_conf/3*2 or peers.is_whitelisted(peer_ip): #inbound
@@ -2134,7 +2136,13 @@ def worker(HOST, PORT):
         return  # can return here, because no lists are affected yet
 
     banned = False
-    peer_ip = s.getpeername()[0]
+    try:
+        peer_ip = s.getpeername()[0]
+    except:
+        # Should not happen, extra safety
+        app_log.warning("Outbound: Transport endpoint was not connected");
+        return
+        
     if peers.is_banned(peer_ip):
         banned = True
         s.close()
