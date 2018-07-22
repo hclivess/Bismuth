@@ -92,42 +92,38 @@ quicksync = config.quicksync
 
 global peers
 
+PEM_BEGIN = re.compile("\s*-----BEGIN (.*)-----\s+")
+PEM_END = re.compile("-----END (.*)-----\s*$")
+
 
 def tokens_rollback(height, app_log):
     """rollback token index"""
-    tok = sqlite3.connect(index_db)
-    tok.text_factory = str
-    t = tok.cursor()
-    execute_param(t, "DELETE FROM tokens WHERE block_height >= ?;", (height-1,))
-    commit(tok)
-    t.close()
+    with sqlite3.connect(index_db) as tok:
+        t = tok.cursor()
+        execute_param(t, "DELETE FROM tokens WHERE block_height >= ?;", (height-1,))
+        commit(tok)
     app_log.warning("Rolled back the token index to {}".format(height-1))
 
 
 def masternodes_rollback(height, app_log):
     """rollback alias index"""
-    ali = sqlite3.connect (index_db)
-    ali.text_factory = str
-    a = ali.cursor ()
-    execute_param (a, "DELETE FROM masternodes WHERE block_height >= ?;", (height - 1,))
-    commit (ali)
-    a.close ()
-    app_log.warning ("Rolled back the masternode index to {}".format (height - 1))
+    with sqlite3.connect(index_db) as ali:
+        a = ali.cursor()
+        execute_param(a, "DELETE FROM masternodes WHERE block_height >= ?;", (height - 1,))
+        commit(ali)
+    app_log.warning("Rolled back the masternode index to {}".format(height - 1))
 
 
 def aliases_rollback(height, app_log):
     """rollback alias index"""
-    ali = sqlite3.connect(index_db)
-    ali.text_factory = str
-    a = ali.cursor()
-    execute_param(a, "DELETE FROM aliases WHERE block_height >= ?;", (height-1,))
-    commit(ali)
-    a.close()
+    with sqlite3.connect(index_db) as ali:
+        a = ali.cursor()
+        execute_param(a, "DELETE FROM aliases WHERE block_height >= ?;", (height-1,))
+        commit(ali)
     app_log.warning("Rolled back the alias index to {}".format(height-1))
 
 
 def sendsync(sdef, peer_ip, status, provider):
-
     app_log.info("Outbound: Synchronization with {} finished after: {}, sending new sync request".format(peer_ip, status))
 
     if provider:
@@ -144,15 +140,13 @@ def sendsync(sdef, peer_ip, status, provider):
 def validate_pem(public_key):
     # verify pem as cryptodome does
     pem_data = base64.b64decode(public_key).decode("utf-8")
-    regex = re.compile("\s*-----BEGIN (.*)-----\s+")
-    match = regex.match(pem_data)
+    match = PEM_BEGIN.match(pem_data)
     if not match:
         raise ValueError("Not a valid PEM pre boundary")
 
     marker = match.group(1)
 
-    regex = re.compile("-----END (.*)-----\s*$")
-    match = regex.search(pem_data)
+    match = PEM_END.search(pem_data)
     if not match or match.group(1) != marker:
         raise ValueError("Not a valid PEM post boundary")
         # verify pem as cryptodome does
@@ -189,17 +183,16 @@ def most_common(lst):
 def bootstrap():
     try:
         types = ['static/*.db-wal', 'static/*.db-shm']
-        for type in types:
-            for file in glob.glob(type):
-                os.remove(file)
-                print(file,"deleted")
+        for t in types:
+            for f in glob.glob(t):
+                os.remove(f)
+                print(f, "deleted")
 
         archive_path = ledger_path_conf + ".tar.gz"
         download_file("https://bismuth.cz/ledger.tar.gz", archive_path)
 
-        tar = tarfile.open(archive_path)
-        tar.extractall("static/")  # NOT COMPATIBLE WITH CUSTOM PATH CONFS
-        tar.close()
+        with tarfile.open(archive_path) as tar:
+            tar.extractall("static/")  # NOT COMPATIBLE WITH CUSTOM PATH CONFS
 
     except:
         app_log.warning("Something went wrong during bootstrapping, aborted")
@@ -208,22 +201,18 @@ def bootstrap():
 
 def check_integrity(database):
     # check ledger integrity
-    ledger_check = sqlite3.connect(database)
-    ledger_check.text_factory = str
+    with sqlite3.connect(database) as ledger_check:
+        l = ledger_check.cursor()
 
-    l = ledger_check.cursor()
+        try:
+            l.execute("PRAGMA table_info('transactions')")
+            redownload = False
+        except:
+            redownload = True
 
-    try:
-        l.execute("PRAGMA table_info('transactions')")
-        redownload = False
-    except:
-        redownload = True
-
-    if len(l.fetchall()) != 12:
-        app_log.warning("Status: Integrity check on database {} failed, bootstrapping from the website".format(database))
-        redownload = True
-    else:
-        ledger_check.close()
+        if len(l.fetchall()) != 12:
+            app_log.warning("Status: Integrity check on database {} failed, bootstrapping from the website".format(database))
+            redownload = True
 
     if redownload and "testnet" not in version:
         bootstrap()
@@ -242,7 +231,6 @@ def db_to_drive(hdd, h, hdd2, h2):
         else:  # select hyper.db as source database
             source_db = sqlite3.connect(hyper_path_conf, timeout=1)
 
-        source_db.text_factory = str
         sc = source_db.cursor()
 
         execute_param(sc, ("SELECT * FROM transactions WHERE block_height > ? OR block_height < ? ORDER BY block_height ASC"), (hdd_block, -hdd_block))
@@ -296,26 +284,23 @@ def db_to_drive(hdd, h, hdd2, h2):
 
 
 def index_define():
-    index = sqlite3.connect(index_db, timeout=1)
-    index.text_factory = str
-    index_cursor = index.cursor()
-    index.execute("PRAGMA page_size = 4096;")
+    with sqlite3.connect(index_db, timeout=1) as index:
+        index_cursor = index.cursor()
+        index.execute("PRAGMA page_size = 4096;")
     return index, index_cursor
 
 
 def db_h_define():
-    hdd = sqlite3.connect(ledger_path_conf, timeout=1)
-    hdd.text_factory = str
-    h = hdd.cursor()
-    hdd.execute("PRAGMA page_size = 4096;")
+    with sqlite3.connect(ledger_path_conf, timeout=1) as hdd:
+        h = hdd.cursor()
+        hdd.execute("PRAGMA page_size = 4096;")
     return hdd, h
 
 
 def db_h2_define():
-    hdd2 = sqlite3.connect(hyper_path_conf, timeout=1)
-    hdd2.text_factory = str
-    h2 = hdd2.cursor()
-    hdd2.execute("PRAGMA page_size = 4096;")
+    with sqlite3.connect(hyper_path_conf, timeout=1) as hdd2:
+        h2 = hdd2.cursor()
+        hdd2.execute("PRAGMA page_size = 4096;")
     return hdd2, h2
 
 
@@ -508,12 +493,12 @@ def execute(cursor, query):
             cursor.execute(query)
             break
         except sqlite3.InterfaceError as e:
-            app_log.warning("Database query to abort: {} {}".format (cursor, query))
-            app_log.warning("Database abortion reason: {}".format (e))
+            app_log.warning("Database query to abort: {} {}".format(cursor, query))
+            app_log.warning("Database abortion reason: {}".format(e))
             break
         except sqlite3.IntegrityError as e:
-            app_log.warning("Database query to abort: {} {}".format (cursor, query))
-            app_log.warning("Database abortion reason: {}".format (e))
+            app_log.warning("Database query to abort: {} {}".format(cursor, query))
+            app_log.warning("Database abortion reason: {}".format(e))
             break
         except Exception as e:
             app_log.warning("Database query: {} {}".format(cursor, query))
@@ -2122,7 +2107,7 @@ def worker(HOST, PORT):
 
         data = connections.receive(s)
 
-        if (data == "ok"):
+        if data == "ok":
             app_log.info("Outbound: Node protocol version of {} matches our client".format(this_client))
         else:
             raise ValueError("Outbound: Node protocol version of {} mismatch".format(this_client))
