@@ -280,11 +280,10 @@ def keys_backup():
             root.filename = root.filename + ".tar.gz"
 
         der_files = glob.glob("*.der")
-
-        tar = tarfile.open(root.filename, "w:gz")
-        for der_file in der_files:
-            tar.add(der_file, arcname=der_file)
-        tar.close()
+        
+        with tarfile.open(root.filename, "w:gz") as tar:
+            for der_file in der_files:
+                tar.add(der_file, arcname=der_file)
 
 
 def watch():
@@ -630,9 +629,8 @@ def qr(address):
     top = Toplevel()
     top.title("Address QR Code")
 
-    im = PIL.Image.open("address_qr.png")
-
-    photo = PIL.ImageTk.PhotoImage(im.resize((320, 320)))
+    with PIL.Image.open("address_qr.png") as im:
+        photo = PIL.ImageTk.PhotoImage(im.resize((320, 320)))
     label = Label(top, image=photo)
     label.image = photo  # keep a reference!
     label.pack()
@@ -1467,8 +1465,8 @@ def themes(theme):
         width_main = tab_main.winfo_width()
         height_main = tab_main.winfo_height()
 
-        main_bg = PIL.Image.open("themes/{}.jpg".format(theme)).resize((width_main, height_main), PIL.Image.ANTIALIAS)
-        photo_main = PIL.ImageTk.PhotoImage(main_bg)
+        with PIL.Image.open("themes/{}.jpg".format(theme)) as main_bg:
+            photo_main = PIL.ImageTk.PhotoImage(main_bg.resize((width_main, height_main), PIL.Image.ANTIALIAS))
         canvas_main.create_image(0, 0, image=photo_main, anchor=NW)
 
     with open("theme", "w") as theme_file:
@@ -1587,9 +1585,9 @@ if __name__ == "__main__":
     # root.geometry("1310x700") #You want the size of the app to be 500x500
     root.resizable(0, 0)  # Don't allow resizing in the x or y direction / resize
     # root['bg']="black"
-
-    img_icon = PIL.Image.open("graphics/icon.jpg")
-    photo_icon = PIL.ImageTk.PhotoImage(img_icon)
+    
+    with PIL.Image.open("graphics/icon.jpg") as img_icon:
+        photo_icon = PIL.ImageTk.PhotoImage(img_icon)
     root.tk.call('wm', 'iconphoto', root._w, photo_icon, )
 
     if gui_scaling == "adapt":
@@ -2009,8 +2007,8 @@ if __name__ == "__main__":
     # logo_hash_decoded = base64.b64decode(icons.logo_hash)
     # logo = PhotoImage(data="graphics/logo.png")
 
-    logo_img = PIL.Image.open("graphics/logo.png")
-    logo = PIL.ImageTk.PhotoImage(logo_img)
+    with PIL.Image.open("graphics/logo.png") as logo_img:
+        logo = PIL.ImageTk.PhotoImage(logo_img)
 
     Label(frame_logo, image=logo).grid(column=0, row=0)
     # logo
@@ -2028,7 +2026,8 @@ if __name__ == "__main__":
     refresh_auto()
 
     try:
-        themes(open("theme", "r").read())  # load last selected theme
+        with open('theme', 'r') as theme_file:
+            themes(theme_file.read())  # load last selected theme
     except:
         with open("theme", "w") as theme_file:
             theme_file.write("Barebone")
