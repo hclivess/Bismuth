@@ -43,7 +43,7 @@ import icons
 import log
 import options
 import recovery
-from bisurl import *
+from bisurl import create_url, read_url
 from essentials import fee_calculate
 from quantizer import quantize_eight
 from simplecrypt import decrypt, encrypt
