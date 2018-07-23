@@ -170,9 +170,11 @@ def masternodes_payout(conn,c,index,index_cursor,block_height,timestamp,app_log)
                 app_log.warning ("Masternode payout already processed: {} {}".format(block_height,address))
 
             except:
+                """skip direct bis payouts
                 c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",(-block_height,timestamp,"masternode",address,stake,"0","0",mirror_hash,"0","0","mnpayout","0"))
                 conn.commit()
                 app_log.warning ("Masternode payout added: {} {}".format (block_height, address))
+                """
 
                 #fuel
                 stake_int = int(float(stake))
