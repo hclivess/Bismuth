@@ -2,45 +2,57 @@
 
 # icons created using http://www.winterdrache.de/freeware/png2ico/
 
-# import sqlite3
-import PIL.Image, PIL.ImageTk, pyqrcode, os, time, socks, ast, options, tarfile, essentials, platform
-import hashlib, base64,  icons, log, glob, re
-# import connections
-
-from tokensv2 import *
-from decimal import *
-from bisurl import *
-from quantizer import quantize_eight
+import ast
+import asyncio
+import base64
 import csv
 import glob
-import recovery
-from essentials import fee_calculate
+import hashlib
+import os
+import platform
+import re
+import tarfile
+import threading
+import time
+import webbrowser
+from datetime import datetime
+from decimal import *
+from tkinter import *
+from tkinter import filedialog, messagebox, ttk
 
 import matplotlib
+import PIL.Image
+import PIL.ImageTk
+import pyqrcode
+import socks
+from Cryptodome.Cipher import AES, PKCS1_OAEP
+from Cryptodome.Hash import SHA
+from Cryptodome.PublicKey import RSA
+from Cryptodome.Random import get_random_bytes
+from Cryptodome.Signature import PKCS1_v1_5
+from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg,
+                                               NavigationToolbar2TkAgg)
+from matplotlib.figure import Figure
 
-
-#from tornado.ioloop import IOLoop
-# import aioprocessing
 import async_client
-import threading
-import asyncio
+import essentials
+import icons
+import log
+import options
+import recovery
+from bisurl import *
+from essentials import fee_calculate
+from quantizer import quantize_eight
+from simplecrypt import decrypt, encrypt
+from tokensv2 import *
+
+# import sqlite3
+# from random import shuffle
+# from tornado.ioloop import IOLoop
+# import aioprocessing
+# import connections
 
 matplotlib.use ('TkAgg')
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
-from matplotlib.figure import Figure
-# from random import shuffle
-
-from datetime import datetime
-from Cryptodome.PublicKey import RSA
-from Cryptodome.Signature import PKCS1_v1_5
-from Cryptodome.Hash import SHA
-from Cryptodome.Random import get_random_bytes
-from Cryptodome.Cipher import AES, PKCS1_OAEP
-
-from simplecrypt import encrypt, decrypt
-from tkinter import filedialog, messagebox, ttk
-from tkinter import *
-import webbrowser
 
 __version__ = "1.0.4"
 
