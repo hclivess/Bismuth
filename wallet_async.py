@@ -18,10 +18,10 @@ import time
 import webbrowser
 from datetime import datetime
 from decimal import Decimal, getcontext
-from tkinter import (DISABLED, END, INSERT, LEFT, NORMAL, WORD, BooleanVar,
+from tkinter import (DISABLED, END, INSERT, LEFT, NORMAL, NW, WORD, BooleanVar,
                      Button, Canvas, Checkbutton, E, Entry, Frame, Label,
                      Listbox, Menu, N, S, Scrollbar, StringVar, Text, Tk,
-                     Toplevel, W, filedialog, messagebox, ttk, NW)
+                     Toplevel, W, filedialog, messagebox, ttk)
 
 import matplotlib
 import PIL.Image
@@ -47,8 +47,8 @@ from bisurl import create_url, read_url
 from essentials import fee_calculate
 from quantizer import quantize_eight
 from simplecrypt import decrypt, encrypt
-from tokensv2 import *
 
+# from tokensv2 import *
 # import sqlite3
 # from random import shuffle
 # from tornado.ioloop import IOLoop
