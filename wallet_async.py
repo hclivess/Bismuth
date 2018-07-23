@@ -230,14 +230,14 @@ def all_spend_check():
 def fingerprint():
     root.filename = filedialog.askopenfilename(multiple=True, initialdir="", title="Select files for fingerprinting")
 
-    dict = {}
+    data_dict = {}
 
-    for file in root.filename:
-        with open(file, 'rb') as fp:
+    for f in root.filename:
+        with open(f, 'rb') as fp:
             data = hashlib.blake2b(fp.read()).hexdigest()
-            dict[os.path.split(file)[-1]] = data
+            data_dict[os.path.split(f)[-1]] = data
 
-    openfield.insert(INSERT, dict)
+    openfield.insert(INSERT, data_dict)
 
 
 def keys_load_dialog():
@@ -1343,10 +1343,10 @@ def sign():
         try:
             received_public_key = RSA.importKey(public_key_gui.get("1.0", END))
             verifier = PKCS1_v1_5.new(received_public_key)
-            hash = SHA.new(input_text.get("1.0", END).encode("utf-8"))
+            h = SHA.new(input_text.get("1.0", END).encode("utf-8"))
             received_signature_dec = base64.b64decode(output_signature.get("1.0", END))
 
-            if verifier.verify(hash, received_signature_dec):
+            if verifier.verify(h, received_signature_dec):
                 messagebox.showinfo("Validation Result", "Signature valid")
             else:
                 raise ValueError("Invalid Signature")
