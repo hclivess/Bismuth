@@ -11,14 +11,17 @@ import hashlib
 import os
 import platform
 import re
+import sys
 import tarfile
 import threading
 import time
 import webbrowser
 from datetime import datetime
-from decimal import *
-from tkinter import *
-from tkinter import filedialog, messagebox, ttk
+from decimal import Decimal, getcontext
+from tkinter import (DISABLED, END, INSERT, LEFT, NORMAL, WORD, BooleanVar,
+                     Button, Canvas, Checkbutton, E, Entry, Frame, Label,
+                     Listbox, Menu, N, S, Scrollbar, StringVar, Text, Tk,
+                     Toplevel, W, filedialog, messagebox, ttk, NW)
 
 import matplotlib
 import PIL.Image
