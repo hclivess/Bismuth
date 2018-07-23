@@ -1419,6 +1419,7 @@ def support_collection(sync_msg_var, version_var):
     db_timestamp_last = block_get[1]
     time_now = float(time.time())
     last_block_ago = int(time_now - db_timestamp_last)
+    ip = 'N/A'
 
 
     collection_box.config(wrap=WORD)
