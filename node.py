@@ -1142,6 +1142,15 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                         db_amount = 0  # prevent spending from another address, because mining txs allow delegation
                         if db_block_height <= 10000000:
                             mining_reward = 15 - (quantize_eight(block_height_new) / quantize_eight(1000000))  # one zero less
+                            if mining_reward < 0:
+                                mining_reward = 0
+
+                            if "testnet" in version:
+                                mining_reward = 15 - (quantize_eight(block_height_new) / quantize_eight(1000000)) - 0.8 # one zero less
+                                if mining_reward < 0:
+                                    mining_reward = 0
+                                masternode_reward = 0.8
+
                         else:
                             mining_reward = 0
 
