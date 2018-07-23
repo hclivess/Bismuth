@@ -18,7 +18,7 @@ import time
 import webbrowser
 from datetime import datetime
 from decimal import Decimal, getcontext
-from tkinter import(DISABLED, END, INSERT, LEFT, NORMAL, NW, WORD, BooleanVar,
+from tkinter import (DISABLED, END, INSERT, LEFT, NORMAL, NW, WORD, BooleanVar,
                      Button, Canvas, Checkbutton, E, Entry, Frame, Label,
                      Listbox, Menu, N, S, Scrollbar, StringVar, Text, Tk,
                      Toplevel, W, filedialog, messagebox, ttk)
@@ -33,7 +33,7 @@ from Cryptodome.Hash import SHA
 from Cryptodome.PublicKey import RSA
 from Cryptodome.Random import get_random_bytes
 from Cryptodome.Signature import PKCS1_v1_5
-from matplotlib.backends.backend_tkagg import(FigureCanvasTkAgg,
+from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg,
                                                NavigationToolbar2TkAgg)
 from matplotlib.figure import Figure
 
