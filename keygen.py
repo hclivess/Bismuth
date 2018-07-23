@@ -9,3 +9,11 @@ if __name__ == "__main__":
     key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress = essentials.keys_load ("privkey.der", "pubkey.der")
     print("Address:",myaddress)
     print("Data saved to:","privkey.der", "pubkey.der")
+    f = open("privkey.der", "wt")
+    f.write(private_key_readable)
+    f.close()
+    f = open("pubkey.der", "wt")
+    f.write(public_key_readable)
+    f.close()
+ 
+
