@@ -1993,7 +1993,7 @@ if __name__ == "__main__":
     # logo_hash_decoded = base64.b64decode(icons.logo_hash)
     # logo = PhotoImage(data="graphics/logo.png")
 
-    logo_img = PIL.Image.open("graphics/logo.jpg")
+    logo_img = PIL.Image.open("graphics/logo.png")
     logo = PIL.ImageTk.PhotoImage(logo_img)
 
     Label(frame_logo, image=logo).grid(column=0, row=0)
