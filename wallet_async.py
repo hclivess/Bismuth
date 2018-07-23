@@ -252,7 +252,7 @@ def keys_load_dialog():
 
     wallet_load = filedialog.askopenfilename(multiple=False, initialdir="", title="Select private key")
 
-    key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress = essentials.keys_load_new(wallet_load)  # upgrade later, remove blanks
+    key, _, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress = essentials.keys_load_new(wallet_load)  # upgrade later, remove blanks
 
     encryption_button_refresh()
 
@@ -405,7 +405,7 @@ def encrypt_get_password():
 
 
 def lock_fn(button):
-    key = None
+    # key = None
     decrypt_b.configure(text="Unlock", state=NORMAL)
     lock_b.configure(text="Locked", state=DISABLED)
     messagemenu.entryconfig("Sign Messages", state=DISABLED)  # messages
@@ -1309,8 +1309,8 @@ def refresh(address, s=None):
 
         # canvas bg
         root.update()
-        width_root = root.winfo_width()
-        height_root = root.winfo_height()
+        # width_root = root.winfo_width()
+        # height_root = root.winfo_height()
 
         # frame_main.update()
         width_main = tab_main.winfo_width()
@@ -1332,7 +1332,7 @@ def refresh(address, s=None):
 
     except Exception as e:
         app_log.warning(e)
-        exc_type, exc_obj, exc_tb = sys.exc_info()
+        exc_type, _, exc_tb = sys.exc_info()
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
         print(exc_type, fname, exc_tb.tb_lineno)
         # node_connect()
