@@ -1146,10 +1146,9 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                                 mining_reward = 0
 
                             if "testnet" in version:
-                                mining_reward = 15 - (quantize_eight(block_height_new) / quantize_eight(1000000)) - 0.8 # one zero less
+                                mining_reward = 15 - (quantize_eight(block_height_new) / quantize_eight(1000000)) - Decimal("0.8") # one zero less
                                 if mining_reward < 0:
                                     mining_reward = 0
-                                masternode_reward = 0.8
 
                         else:
                             mining_reward = 0
@@ -1231,6 +1230,12 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                                       (-block_height_new, str(q_time_now), "Development Reward", str(genesis_conf),
                                        str(mining_reward), "0", "0", mirror_hash, "0", "0", "0", "0"))
                         commit(conn)
+
+                        if "testnet" in version:
+                            execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                                          (-block_height_new, str(q_time_now), "Masternode Payouts", "3e08b5538a4509d9daa99e01ca5912cda3e98a7f79ca01248c2bde16",
+                                           "8", "0", "0", mirror_hash, "0", "0", "0", "0"))
+                            commit(conn)
                 # /dev reward
 
                 #app_log.warning("Block: {}: {} valid and saved from {}".format(block_height_new, block_hash[:10], peer_ip))
