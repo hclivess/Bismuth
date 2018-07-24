@@ -97,7 +97,16 @@ PEM_END = re.compile("-----END (.*)-----\s*$")
 
 
 def tokens_rollback(height, app_log):
-    """rollback token index"""
+    """Rollback Token index
+    
+    :param height: height index of token in chain
+    :param app_log: logger to use
+    
+    Simply deletes from the `tokens` table where the block_height is
+    greater than or equal to the :param height: and logs the new height
+    
+    returns None
+    """
     with sqlite3.connect(index_db) as tok:
         t = tok.cursor()
         execute_param(t, "DELETE FROM tokens WHERE block_height >= ?;", (height-1,))
@@ -106,7 +115,16 @@ def tokens_rollback(height, app_log):
 
 
 def masternodes_rollback(height, app_log):
-    """rollback alias index"""
+    """Rollback Masternodes index
+    
+    :param height: height index of token in chain
+    :param app_log: logger to use
+    
+    Simply deletes from the `masternodes` table where the block_height is
+    greater than or equal to the :param height: and logs the new height
+    
+    returns None
+    """
     with sqlite3.connect(index_db) as ali:
         a = ali.cursor()
         execute_param(a, "DELETE FROM masternodes WHERE block_height >= ?;", (height - 1,))
@@ -115,7 +133,16 @@ def masternodes_rollback(height, app_log):
 
 
 def aliases_rollback(height, app_log):
-    """rollback alias index"""
+    """Rollback Alias index
+    
+    :param height: height index of token in chain
+    :param app_log: logger to use
+    
+    Simply deletes from the `aliases` table where the block_height is
+    greater than or equal to the :param height: and logs the new height
+    
+    returns None
+    """
     with sqlite3.connect(index_db) as ali:
         a = ali.cursor()
         execute_param(a, "DELETE FROM aliases WHERE block_height >= ?;", (height-1,))
@@ -124,6 +151,21 @@ def aliases_rollback(height, app_log):
 
 
 def sendsync(sdef, peer_ip, status, provider):
+    """ Save peer_ip to peerlist and send `sendsync`
+    
+    :param sdef: socket object
+    :param peer_ip: IP of peer synchronization has been completed with
+    :param status: Status synchronization was completed in/as
+    :param provider: <Documentation N/A>
+    
+    Log the synchronization status
+    Save peer IP to peers list if applicable
+    Wait for database to unlock
+    Send `sendsync` command via socket `sdef`
+    
+    returns None
+    """
+    
     app_log.info("Outbound: Synchronization with {} finished after: {}, sending new sync request".format(peer_ip, status))
 
     if provider:
@@ -138,6 +180,16 @@ def sendsync(sdef, peer_ip, status, provider):
 
 
 def validate_pem(public_key):
+    """ Validate PEM data against :param public key:
+    
+    :param public_key: public key to validate PEM against
+    
+    The PEM data is constructed by base64 decoding the public key
+    Then, the data is tested against the PEM_BEGIN and PEM_END
+    to ensure the `pem_data` is valid, thus validating the public key.
+    
+    returns None
+    """
     # verify pem as cryptodome does
     pem_data = base64.b64decode(public_key).decode("utf-8")
     match = PEM_BEGIN.match(pem_data)
@@ -153,6 +205,13 @@ def validate_pem(public_key):
 
 
 def download_file(url, filename):
+    """Download a file from URL to filename
+    
+    :param url: URL to download file from
+    :param filename: Filename to save downloaded data as
+    
+    returns `filename`
+    """
     try:
         r = requests.get(url, stream=True)
         total_size = int(r.headers.get('content-length')) / 1024
