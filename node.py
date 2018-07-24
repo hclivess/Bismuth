@@ -1311,9 +1311,7 @@ def coherence_check():
                     # rollback indices
                     tokens_rollback(y, app_log)
                     aliases_rollback(y, app_log)
-
-                    if "testnet" in version :
-                        masternodes_rollback (y, app_log)
+                    masternodes_rollback (y, app_log)
 
                     # rollback indices
 
@@ -1351,8 +1349,7 @@ def coherence_check():
                     # rollback indices
                     tokens_rollback(y, app_log)
                     aliases_rollback(y, app_log)
-                    if "testnet" in version:
-                        masternodes_rollback (y, app_log)
+                    masternodes_rollback (y, app_log)
                     # rollback indices
 
                     app_log.warning("Status: Due to a coherence issue at block {}, {} has been rolled back and will be resynchronized".format(y, chain))
