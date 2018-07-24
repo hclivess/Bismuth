@@ -785,8 +785,7 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2):
                 # rollback indices
                 tokens_rollback(db_block_height, app_log)
                 aliases_rollback(db_block_height, app_log)
-                if "testnet" in version:
-                    masternodes_rollback (db_block_height, app_log)
+                masternodes_rollback (db_block_height, app_log)
                 # /rollback indices
 
         except Exception as e:
