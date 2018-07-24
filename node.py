@@ -202,6 +202,7 @@ def bootstrap():
 def check_integrity(database):
     # check ledger integrity
     with sqlite3.connect(database) as ledger_check:
+        ledger_check.text_factory = str
         l = ledger_check.cursor()
 
         try:
@@ -230,7 +231,8 @@ def db_to_drive(hdd, h, hdd2, h2):
             source_db = sqlite3.connect(ledger_ram_file, uri=True, timeout=1)
         else:  # select hyper.db as source database
             source_db = sqlite3.connect(hyper_path_conf, timeout=1)
-
+        
+        source_db.text_factory = str
         sc = source_db.cursor()
 
         execute_param(sc, ("SELECT * FROM transactions WHERE block_height > ? OR block_height < ? ORDER BY block_height ASC"), (hdd_block, -hdd_block))
@@ -285,6 +287,7 @@ def db_to_drive(hdd, h, hdd2, h2):
 
 def index_define():
     with sqlite3.connect(index_db, timeout=1) as index:
+        index.text_factory = str
         index_cursor = index.cursor()
         index.execute("PRAGMA page_size = 4096;")
     return index, index_cursor
@@ -292,6 +295,7 @@ def index_define():
 
 def db_h_define():
     with sqlite3.connect(ledger_path_conf, timeout=1) as hdd:
+        hdd.text_factory = str
         h = hdd.cursor()
         hdd.execute("PRAGMA page_size = 4096;")
     return hdd, h
@@ -299,6 +303,7 @@ def db_h_define():
 
 def db_h2_define():
     with sqlite3.connect(hyper_path_conf, timeout=1) as hdd2:
+        hdd2.text_factory = str
         h2 = hdd2.cursor()
         hdd2.execute("PRAGMA page_size = 4096;")
     return hdd2, h2
