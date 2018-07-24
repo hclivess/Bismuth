@@ -1545,12 +1545,10 @@ if __name__ == "__main__":
 
     config = options.Get()
     config.read()
-    debug_level = config.debug_level_conf
     full_ledger = config.full_ledger_conf
     port = config.port
     light_ip = config.light_ip
     version = config.version_conf
-    terminal_output = config.terminal_output
     gui_scaling = config.gui_scaling
 
     """
@@ -1570,7 +1568,7 @@ if __name__ == "__main__":
         light_ip = ["127.0.0.1"]
 
     # app_log = log.log("gui.log", debug_level)
-    app_log = log.log("wallet.log", debug_level, terminal_output)
+    app_log = log.log("wallet.log", config.debug_level_conf, config.terminal_output)
 
     essentials.keys_check(app_log)
     essentials.db_check(app_log)
