@@ -389,7 +389,7 @@ def ledger_compress(ledger_path_conf, hyper_path_conf):
             recompress = True
 
         if recompress:
-            depth = 10000  # REWORK TO REFLECT TIME INSTEAD OF BLOCKS
+            depth = 15000  # REWORK TO REFLECT TIME INSTEAD OF BLOCKS
 
             # if os.path.exists(ledger_path_conf + '.temp'):
             #    os.remove(ledger_path_conf + '.temp')
@@ -1211,7 +1211,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
 
                 # savings
                 if "testnet" in version or block_height_new >= 800000:
-                    if int(block_height_new) % 100 == 0:  # every x blocks
+                    if int(block_height_new) % 10000 == 0:  # every x blocks
                         savings.masternodes_update(conn, c, index, index_cursor, "normal", block_height_new, app_log)
                         savings.masternodes_payout(conn, c, index, index_cursor, block_height_new, float(q_block_timestamp), app_log)
                         savings.masternodes_revalidate(conn, c, index, index_cursor, block_height_new, app_log)
@@ -1312,7 +1312,8 @@ def coherence_check():
                     # rollback indices
                     tokens_rollback(y, app_log)
                     aliases_rollback(y, app_log)
-                    if "testnet" in version:
+
+                    if "testnet" in version :
                         masternodes_rollback (y, app_log)
 
                     # rollback indices
@@ -2494,6 +2495,9 @@ if __name__ == "__main__":
         index_db = "static/index_test.db"
     else:
         index_db = "static/index.db"
+
+    index, index_cursor = index_define() # todo: remove this later
+    savings.check_db(index, index_cursor)  #todo: remove this later
 
     check_integrity(hyper_path_conf)
     coherence_check()

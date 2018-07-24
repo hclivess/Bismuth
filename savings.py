@@ -73,7 +73,9 @@ def balanceget_at_block(balance_address,block, h3):
     # app_log.info("Mempool: Projected transction address balance: " + str(balance))
     return str(balance) #, str (credit_ledger), str (debit), str (fees), str (rewards)
 
-
+def check_db(index,index_cursor):
+    index_cursor.execute("CREATE TABLE IF NOT EXISTS masternodes (block_height INTEGER, timestamp NUMERIC, address, balance, ip, delegate)")
+    index.commit()
 
 def masternodes_update(conn,c,index,index_cursor, mode, reg_phase_end, app_log):
     """update register of masternodes based on the current phase (10000 block intervals)"""
@@ -161,7 +163,7 @@ def masternodes_payout(conn,c,index,index_cursor,block_height,timestamp,app_log)
             address = masternode[2]
             balance_savings = masternode[3]
             app_log.warning("balance_savings: {}".format(balance_savings))
-            stake = str(quantize_eight(percentage(25/52/masternodes_total,balance_savings))) #divide by number of 10k blocks per year
+            stake = str(quantize_eight(percentage(100/masternodes_total,balance_savings)))
             app_log.warning("stake: {}".format(stake))
 
             try:
