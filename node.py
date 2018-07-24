@@ -6,7 +6,7 @@
 # do not isolation_level=None/WAL hdd levels, it makes saving slow
 
 
-VERSION = "4.2.5.4"
+VERSION = "4.2.6"
 
 # Bis specific modules
 import log, options, connections, peershandler, apihandler
@@ -1145,7 +1145,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                             if mining_reward < 0:
                                 mining_reward = 0
 
-                            if "testnet" in version:
+                            if "testnet" in version or block_height_new >= 800000: #clean above this
                                 mining_reward = 15 - (quantize_eight(block_height_new) / quantize_eight(1000000)) - Decimal("0.8") # one zero less
                                 if mining_reward < 0:
                                     mining_reward = 0
@@ -1210,7 +1210,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                     commit(conn)
 
                 # savings
-                if "testnet" in version:
+                if "testnet" in version or block_height_new >= 800000:
                     if int(block_height_new) % 100 == 0:  # every x blocks
                         savings.masternodes_update(conn, c, index, index_cursor, "normal", block_height_new, app_log)
                         savings.masternodes_payout(conn, c, index, index_cursor, block_height_new, float(q_block_timestamp), app_log)
@@ -1231,7 +1231,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                                        str(mining_reward), "0", "0", mirror_hash, "0", "0", "0", "0"))
                         commit(conn)
 
-                        if "testnet" in version:
+                        if "testnet" in version or block_height_new >= 800000:
                             execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                                           (-block_height_new, str(q_time_now), "Masternode Payouts", "3e08b5538a4509d9daa99e01ca5912cda3e98a7f79ca01248c2bde16",
                                            "8", "0", "0", mirror_hash, "0", "0", "0", "0"))
