@@ -92,8 +92,8 @@ quicksync = config.quicksync
 
 global peers
 
-PEM_BEGIN = re.compile("\s*-----BEGIN (.*)-----\s+")
-PEM_END = re.compile("-----END (.*)-----\s*$")
+PEM_BEGIN = re.compile(r"\s*-----BEGIN (.*)-----\s+")
+PEM_END = re.compile(r"-----END (.*)-----\s*$")
 
 
 def tokens_rollback(height, app_log):
