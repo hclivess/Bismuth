@@ -2,45 +2,60 @@
 
 # icons created using http://www.winterdrache.de/freeware/png2ico/
 
-# import sqlite3
-import PIL.Image, PIL.ImageTk, pyqrcode, os, time, socks, ast, options, tarfile, essentials, platform
-import hashlib, base64,  icons, log, glob, re
-# import connections
-
-from tokensv2 import *
-from decimal import *
-from bisurl import *
-from quantizer import quantize_eight
+import ast
+import asyncio
+import base64
 import csv
 import glob
-import recovery
-from essentials import fee_calculate
+import hashlib
+import os
+import platform
+import re
+import sys
+import tarfile
+import threading
+import time
+import webbrowser
+from datetime import datetime
+from decimal import Decimal, getcontext
+from tkinter import (DISABLED, END, INSERT, LEFT, NORMAL, NW, WORD, BooleanVar,
+                     Button, Canvas, Checkbutton, E, Entry, Frame, Label,
+                     Listbox, Menu, N, S, Scrollbar, StringVar, Text, Tk,
+                     Toplevel, W, filedialog, messagebox, ttk)
 
 import matplotlib
-
-
-#from tornado.ioloop import IOLoop
-# import aioprocessing
-import async_client
-import threading
-import asyncio
-
-matplotlib.use ('TkAgg')
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
-from matplotlib.figure import Figure
-# from random import shuffle
-
-from datetime import datetime
-from Cryptodome.PublicKey import RSA
-from Cryptodome.Signature import PKCS1_v1_5
-from Cryptodome.Hash import SHA
-from Cryptodome.Random import get_random_bytes
+import PIL.Image
+import PIL.ImageTk
+import pyqrcode
+import socks
 from Cryptodome.Cipher import AES, PKCS1_OAEP
+from Cryptodome.Hash import SHA
+from Cryptodome.PublicKey import RSA
+from Cryptodome.Random import get_random_bytes
+from Cryptodome.Signature import PKCS1_v1_5
+from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg,
+                                               NavigationToolbar2TkAgg)
+from matplotlib.figure import Figure
 
-from simplecrypt import encrypt, decrypt
-from tkinter import filedialog, messagebox, ttk
-from tkinter import *
-import webbrowser
+import async_client
+import essentials
+import icons
+import log
+import options
+import recovery
+from bisurl import create_url, read_url
+from essentials import fee_calculate
+from quantizer import quantize_eight
+from simplecrypt import decrypt, encrypt
+
+# from tokensv2 import *
+# import sqlite3
+# from random import shuffle
+# from tornado.ioloop import IOLoop
+# import aioprocessing
+# import connections
+
+matplotlib.use('TkAgg')
 
 __version__ = "1.0.4"
 
@@ -52,60 +67,60 @@ def mempool_clear(s):
 def mempool_get(s):
     # result = [['1524749959.44', '2ac10094cc1d3dd2375f8e1aa51115afd33926e3fa69472f2ea987f5', 'edf2d63cdf0b6275ead22c9e6d66aa8ea31dc0ccb367fad2e7c08a25', '11.15000000', 'rd7Op7gZlp7bBkdL5EogrhkHB3WFGNKfc2cGqzrKzwtFCJf/3nKt13y/1MggR5ioA1RAHFn/8m5q+ot7nv6bTcAOhXHgK/CcqplNBNEp3J+RFf1IbEbhbckJsdVbRvrkQoMRZmSrwCwJm+v/pB9KYqG3R5OVKmEyc5KbUZsRuTUrZjPL6lPd+VfYy6x2Wnr5JgC+q7zvQPH0+yqVqOxcbgYggbbNyHHfYIj+0k0uK+8hwmRCe+SfG+/JZwiSp8ZO4Teyd6/NDmss0AaDRYfAVmxLMEg0aOf1xPbURL3D9gyUsDWupRFVT88eS22cRTPgvS5fwpPt/rV8QUa58eRHSMJ3MDwxpkJ7KeMkN5dfiQ/NZ0HFQc3vDwnGJ1ybyVDnw/i7ioRsJtTC0hGNO33lNVqKnbQ8yQ/7yihqfUsCM1qXA/a5Q+9bRx1mr0ff+h7BYxK7qoVF/2KeiS7Ia8OiX8EPUSiwFxCnGsY+Ie+AgQlaiUIlen2LoGw41NGmZufvWXFqK9ww8e50n35OmKw0MQrJrzOr/7iBoCOXmW0/jEzbJNM7NKEni7iFNwbfk3Xzkoh8A2/m9hdDPKZASdF1hFpNVnGJnDvuINRNn3xBUqoxCQUY50b9mGO4hdkLgVOQOVvzYvdYjB0B+XJTvmfLtWQKOcAJ4/E7tr8dSrC7sPY=', 'LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUlJQ0lqQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FnOEFNSUlDQ2dLQ0FnRUE0SjdSS2VPWGN2OXhaTGN6R2IvSQprV2MvanU3cktvLzIrNGJuS0NsQituT0VwNDY5Vzd5YmF3eW1mR2xVUmpvYjg3MjZ6eWFDdDVrOEJqNXU1Y25MCk1XaENueGNwdGltUytmeHA1WGx5NGs5TUNQUDlYODZFc1U0ZjBrcVBhZjhnais1MG5LdjM4a01ZMHFSR0k0U0QKNS9wVlpCY1ptRjN0eVFPYzh0SWJERk9vUHJta0FpTy9LQnAxWHA4Q0dFK24zaTdKdS9zUFlzcDZFRERobjVrVAptVDMxUGVOZ2tUOTh4OW5rSmhSTmxmQTE2Mi9ia2gva2JISE1hUE1JYUhsUDhSbGVNazlqS0hCNjVOWFVMVHNLCjZZa2FNK2F3aGVpUWIwVDE2cm5tY3N4NHZBbWViUEFBWTQ1WWNqMWx3L3lpU0ZXWWpvdkcrQjBkZ0JuTDVXbUUKb2d6bnQxN04zYzZnU1JBNEYrUUhrVlA1RjBUejdTSXFuWnZDeCtEMDhjam9hVWgxUi9SeFNlT1Mwd3pEdWdNOQpMZjhSQXZweVRxR0xmUWpYY252YnVaMGNBc1g4SzFCR3lvTDZIZ3h2U3kzeUJBMlZvSjlnM1JncVUxU3NraHgrCktsdlg0S0VWeXUxLzlMbXRpc3dKSFZGTitEdVhTV1VqMjk0RURsZktsTlRKY0h1LytQWHFyeGVzbkpjOGttYisKWVlYS0R3YnRKNDFRMnRZalBwd1BOSmpDdm1Ca2haSzR2VEFIQXNKVTVEV1pQZkRJeEN6WDVFbFFRUGNhVUV6MApvbnAzNDVpeVV0TFZZcmdIdTJCNmIvNkNqMWlCNm90SitNV1RUYXVOUHcrYXczeVRHK1NUM3dxeG5qS3I3YkoyCnJGVkFnUFBCRlI5cmVoUUpmTXBoTGtVQ0F3RUFBUT09Ci0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLQ==', '0', '672ce4daaeb73565'], ['1524749904.95', '4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed', '4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed', '0.00000000', 'bQmnTD79aL1hjoyVF/ARfMLFfMtQiqpmvk88fPAGW1LUqLQen87+6i+2flBCuSPOWvjHQBMJ3Ctyk5MtuWj6KtoltWSKXev2tYfgNSiAOuo1YIbUhDwTBtHI5UY6X9eNmFjB5Iny0/7VB+cotV1ZBPpgCx1xQn45CtAVk4IYaXc=', 'LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUlHZk1BMEdDU3FHU0liM0RRRUJBUVVBQTRHTkFEQ0JpUUtCZ1FES3ZMVGJEeDg1YTF1Z2IvNnhNTWhWT3E2VQoyR2VZVDgrSXEyejlGd0lNUjQwbDJ0dEdxTks3dmFyTmNjRkxJdThLbjRvZ0RRczNXU1dRQ3hOa2haaC9GcXpGCllZYTMvSXRQUGZ6clhxZ2Fqd0Q4cTRadDRZbWp0OCsyQmtJbVBqakZOa3VUUUl6Mkl1M3lGcU9JeExkak13N24KVVZ1OXRGUGlVa0QwVm5EUExRSURBUUFCCi0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLQ==', '0', '']]
 
-    mempool_window = Toplevel ()
-    mempool_window.title ("Mempool")
+    mempool_window = Toplevel()
+    mempool_window.title("Mempool")
 
     def update():
-        for child in mempool_window.winfo_children ():  # prevent hangup
-            child.destroy ()
+        for child in mempool_window.winfo_children():  # prevent hangup
+            child.destroy()
 
-        mp_tree = ttk.Treeview (mempool_window, selectmode="extended", columns=('sender', 'recipient', 'amount'))
+        mp_tree = ttk.Treeview(mempool_window, selectmode="extended", columns=('sender', 'recipient', 'amount'))
         # mp_tree.grid(row=0, column=0)
 
         # table
 
-        mp_tree.heading ("#0", text='time')
-        mp_tree.column ("#0", anchor='center', width=100)
+        mp_tree.heading("#0", text='time')
+        mp_tree.column("#0", anchor='center', width=100)
 
-        mp_tree.heading ("#1", text='sender')
-        mp_tree.column ("#1", anchor='center', width=350)
+        mp_tree.heading("#1", text='sender')
+        mp_tree.column("#1", anchor='center', width=350)
 
-        mp_tree.heading ("#2", text='recipient')
-        mp_tree.column ("#2", anchor='center', width=350)
+        mp_tree.heading("#2", text='recipient')
+        mp_tree.column("#2", anchor='center', width=350)
 
-        mp_tree.heading ("#3", text='amount')
-        mp_tree.column ("#3", anchor='center', width=100)
+        mp_tree.heading("#3", text='amount')
+        mp_tree.column("#3", anchor='center', width=100)
 
-        mp_tree.grid (sticky=N + S + W + E)
+        mp_tree.grid(sticky=N + S + W + E)
         # table
 
         for tx in mempool_total:
-            mp_tree.insert ('', 'end', text=datetime.fromtimestamp (float (tx[0])).strftime ('%y-%m-%d %H:%M'), values=(tx[1], tx[2], tx[3]))
+            mp_tree.insert('', 'end', text=datetime.fromtimestamp(float(tx[0])).strftime('%y-%m-%d %H:%M'), values=(tx[1], tx[2], tx[3]))
 
-        clear_mempool_b = Button (mempool_window, text="Clear Mempool", command=lambda: mempool_clear (s), height=1, width=20, font=("Tahoma", 8))
-        clear_mempool_b.grid (row=1, column=0, sticky=N + S + W + E)
-        close_mempool_b = Button (mempool_window, text="Close", command=lambda: mempool_window.destroy (), height=1, width=20, font=("Tahoma", 8))
-        close_mempool_b.grid (row=2, column=0, sticky=N + S + W + E)
+        clear_mempool_b = Button(mempool_window, text="Clear Mempool", command=lambda: mempool_clear(s), height=1, width=20, font=("Tahoma", 8))
+        clear_mempool_b.grid(row=1, column=0, sticky=N + S + W + E)
+        close_mempool_b = Button(mempool_window, text="Close", command=lambda: mempool_window.destroy(), height=1, width=20, font=("Tahoma", 8))
+        close_mempool_b.grid(row=2, column=0, sticky=N + S + W + E)
 
     def refresh_mp_auto():
         try:
             # global frame_chart
-            root.after (0, update ())
-            root.after (10000, refresh_mp_auto)
+            root.after(0, update())
+            root.after(10000, refresh_mp_auto)
 
         except Exception as e:
-            print ("Mempool window closed, disabling auto-refresh ({})".format (e))
+            print("Mempool window closed, disabling auto-refresh({})".format(e))
 
-    refresh_mp_auto ()
+    refresh_mp_auto()
 
 
 def recover():
-    result = recovery.recover (key)
-    messagebox.showinfo ("Recovery Result", result)
+    result = recovery.recover(key)
+    messagebox.showinfo("Recovery Result", result)
 
 
 def address_validate(address):
-    if re.match ('[abcdef0123456789]{56}', address):
+    if re.match('[abcdef0123456789]{56}', address):
         return True
     else:
         return False
@@ -114,30 +129,30 @@ def address_validate(address):
 def create_url_clicked(app_log, command, recipient, amount, operation, openfield):
     """isolated function so no GUI leftovers are in bisurl.py"""
 
-    result = create_url (app_log, command, recipient, amount, operation, openfield)
-    url_r.delete (0, END)
-    url_r.insert (0, result)
+    result = create_url(app_log, command, recipient, amount, operation, openfield)
+    url_r.delete(0, END)
+    url_r.insert(0, result)
 
 
 def read_url_clicked(app_log, url):
     """isolated function so no GUI leftovers are in bisurl.py"""
-    result = (read_url (app_log, url))
+    result =(read_url(app_log, url))
 
-    recipient.delete (0, END)
-    amount.delete (0, END)
-    operation.delete (0, END)
-    openfield.delete ("1.0", END)
+    recipient.delete(0, END)
+    amount.delete(0, END)
+    operation.delete(0, END)
+    openfield.delete("1.0", END)
 
-    recipient.insert (0, result[1])  # amount
-    amount.insert (0, result[2])  # recipient
+    recipient.insert(0, result[1])  # amount
+    amount.insert(0, result[2])  # recipient
 
-    operation.insert (INSERT, result[3])  # operation
-    openfield.insert (INSERT, result[4])  # openfield
+    operation.insert(INSERT, result[3])  # operation
+    openfield.insert(INSERT, result[4])  # openfield
 
 
 
 def replace_regex(string, replace):
-    replaced_string = re.sub (r'^{}'.format (replace), "", string)
+    replaced_string = re.sub(r'^{}'.format(replace), "", string)
     return replaced_string
 
 
@@ -146,83 +161,83 @@ def alias_register(alias_desired):
     result = async_client.connection.command("aliascheck", alias_desired)
 
     if result == "Alias free":
-        send ("0", myaddress, "", "alias=" + alias_desired)
+        send("0", myaddress, "", "alias=" + alias_desired)
         pass
     else:
-        messagebox.showinfo ("Conflict", "Name already registered")
+        messagebox.showinfo("Conflict", "Name already registered")
 
 
 def help():
-    top13 = Toplevel ()
-    top13.title ("Help")
-    aliases_box = Text (top13, width=100)
-    aliases_box.grid (row=0, pady=0)
+    top13 = Toplevel()
+    top13.title("Help")
+    aliases_box = Text(top13, width=100)
+    aliases_box.grid(row=0, pady=0)
 
-    aliases_box.insert (INSERT, "Encrypt with PK:\n Encrypt the data with the recipient's private key. Only they will be able to view it.")
-    aliases_box.insert (INSERT, "\n\n")
-    aliases_box.insert (INSERT, "Mark as Message:\n Mark data as message. The recipient will be able to view it in the message section.")
-    aliases_box.insert (INSERT, "\n\n")
-    aliases_box.insert (INSERT, "Base64 Encoding:\n Encode the data with base64, it is a group of binary-to-text encoding scheme that representd binary data in an ASCII string format by translating it into a radix-64 representation.")
-    aliases_box.insert (INSERT, "\n\n")
-    aliases_box.insert (INSERT, "Operation:\n A static operation for blockchain programmability.")
-    aliases_box.insert (INSERT, "\n\n")
-    aliases_box.insert (INSERT, "Data:\n A variable operation for blockchain programmability.")
-    aliases_box.insert (INSERT, "\n\n")
-    aliases_box.insert (INSERT, "Alias Recipient:\n Use an alias of the recipient in the recipient field if they have one registered")
-    aliases_box.insert (INSERT, "\n\n")
-    aliases_box.insert (INSERT, "Resolve Aliases:\n Show aliases instead of addressess where applicable in the table below.")
-    aliases_box.insert (INSERT, "\n\n")
+    aliases_box.insert(INSERT, "Encrypt with PK:\n Encrypt the data with the recipient's private key. Only they will be able to view it.")
+    aliases_box.insert(INSERT, "\n\n")
+    aliases_box.insert(INSERT, "Mark as Message:\n Mark data as message. The recipient will be able to view it in the message section.")
+    aliases_box.insert(INSERT, "\n\n")
+    aliases_box.insert(INSERT, "Base64 Encoding:\n Encode the data with base64, it is a group of binary-to-text encoding scheme that representd binary data in an ASCII string format by translating it into a radix-64 representation.")
+    aliases_box.insert(INSERT, "\n\n")
+    aliases_box.insert(INSERT, "Operation:\n A static operation for blockchain programmability.")
+    aliases_box.insert(INSERT, "\n\n")
+    aliases_box.insert(INSERT, "Data:\n A variable operation for blockchain programmability.")
+    aliases_box.insert(INSERT, "\n\n")
+    aliases_box.insert(INSERT, "Alias Recipient:\n Use an alias of the recipient in the recipient field if they have one registered")
+    aliases_box.insert(INSERT, "\n\n")
+    aliases_box.insert(INSERT, "Resolve Aliases:\n Show aliases instead of addressess where applicable in the table below.")
+    aliases_box.insert(INSERT, "\n\n")
 
-    close = Button (top13, text="Close", command=top13.destroy)
-    close.grid (row=3, column=0, sticky=W + E)
+    close = Button(top13, text="Close", command=top13.destroy)
+    close.grid(row=3, column=0, sticky=W + E)
 
 
 def data_insert_clear():
-    openfield.delete ('1.0', END)  # remove previous
+    openfield.delete('1.0', END)  # remove previous
 
 
 def all_spend_clear():
-    all_spend_var.set (False)
+    all_spend_var.set(False)
 
-    amount.delete (0, END)
-    amount.insert (0, 0)
+    amount.delete(0, END)
+    amount.insert(0, 0)
 
 
 def all_spend():
     # all_spend_var.set(True)
-    all_spend_check ()
+    all_spend_check()
 
 
 def all_spend_check():
-    if all_spend_var.get ():
-        openfield_fee_calc = openfield.get ("1.0", END).strip ()
+    if all_spend_var.get():
+        openfield_fee_calc = openfield.get("1.0", END).strip()
 
-        if encode_var.get () and not msg_var.get ():
-            openfield_fee_calc = base64.b64encode (openfield_fee_calc.encode ("utf-8")).decode ("utf-8")
+        if encode_var.get() and not msg_var.get():
+            openfield_fee_calc = base64.b64encode(openfield_fee_calc.encode("utf-8")).decode("utf-8")
 
-        if msg_var.get () and encode_var.get ():
-            openfield_fee_calc = "bmsg=" + base64.b64encode (openfield_fee_calc.encode ("utf-8")).decode ("utf-8")
-        if msg_var.get () and not encode_var.get ():
+        if msg_var.get() and encode_var.get():
+            openfield_fee_calc = "bmsg=" + base64.b64encode(openfield_fee_calc.encode("utf-8")).decode("utf-8")
+        if msg_var.get() and not encode_var.get():
             openfield_fee_calc = "msg=" + openfield_fee_calc
-        if encrypt_var.get ():
-            openfield_fee_calc = "enc=" + str (openfield_fee_calc)
+        if encrypt_var.get():
+            openfield_fee_calc = "enc=" + str(openfield_fee_calc)
 
-        fee_from_all = fee_calculate (openfield_fee_calc)
-        amount.delete (0, END)
-        amount.insert (0, (Decimal (balance_raw.get ()) - Decimal (fee_from_all)))
+        fee_from_all = fee_calculate(openfield_fee_calc)
+        amount.delete(0, END)
+        amount.insert(0,(Decimal(balance_raw.get()) - Decimal(fee_from_all)))
 
 
 def fingerprint():
-    root.filename = filedialog.askopenfilename (multiple=True, initialdir="", title="Select files for fingerprinting")
+    root.filename = filedialog.askopenfilename(multiple=True, initialdir="", title="Select files for fingerprinting")
 
-    dict = {}
+    data_dict = {}
 
-    for file in root.filename:
-        with open (file, 'rb') as fp:
-            data = hashlib.blake2b (fp.read ()).hexdigest ()
-            dict[os.path.split (file)[-1]] = data
+    for f in root.filename:
+        with open(f, 'rb') as fp:
+            data = hashlib.blake2b(fp.read()).hexdigest()
+            data_dict[os.path.split(f)[-1]] = data
 
-    openfield.insert (INSERT, dict)
+    openfield.insert(INSERT, data_dict)
 
 
 def keys_load_dialog():
@@ -235,370 +250,369 @@ def keys_load_dialog():
     global private_key_load
     global public_key_load
 
-    wallet_load = filedialog.askopenfilename (multiple=False, initialdir="", title="Select private key")
+    wallet_load = filedialog.askopenfilename(multiple=False, initialdir="", title="Select private key")
 
-    key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress = essentials.keys_load_new (wallet_load)  # upgrade later, remove blanks
+    key, _, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress = essentials.keys_load_new(wallet_load)  # upgrade later, remove blanks
 
-    encryption_button_refresh ()
+    encryption_button_refresh()
 
-    gui_address_t.delete (0, END)
-    gui_address_t.insert (INSERT, myaddress)
+    gui_address_t.delete(0, END)
+    gui_address_t.insert(INSERT, myaddress)
 
-    recipient_address.config (state=NORMAL)
-    recipient_address.delete (0, END)
-    recipient_address.insert (INSERT, myaddress)
-    recipient_address.config (state=DISABLED)
+    recipient_address.config(state=NORMAL)
+    recipient_address.delete(0, END)
+    recipient_address.insert(INSERT, myaddress)
+    recipient_address.config(state=DISABLED)
 
-    sender_address.config (state=NORMAL)
-    sender_address.delete (0, END)
-    sender_address.insert (INSERT, myaddress)
-    sender_address.config (state=DISABLED)
+    sender_address.config(state=NORMAL)
+    sender_address.delete(0, END)
+    sender_address.insert(INSERT, myaddress)
+    sender_address.config(state=DISABLED)
 
-    refresh (myaddress, s)
+    refresh(myaddress, s)
 
 
 def keys_backup():
-    root.filename = filedialog.asksaveasfilename (initialdir="", title="Select backup file")
+    root.filename = filedialog.asksaveasfilename(initialdir="", title="Select backup file")
 
     if not root.filename == "":
-        if not root.filename.endswith (".tar.gz"):
+        if not root.filename.endswith(".tar.gz"):
             root.filename = root.filename + ".tar.gz"
 
-        der_files = glob.glob ("*.der")
-
-        tar = tarfile.open (root.filename, "w:gz")
-        for der_file in der_files:
-            tar.add (der_file, arcname=der_file)
-        tar.close ()
+        der_files = glob.glob("*.der")
+        
+        with tarfile.open(root.filename, "w:gz") as tar:
+            for der_file in der_files:
+                tar.add(der_file, arcname=der_file)
 
 
 def watch():
-    address = gui_address_t.get ()
-    refresh (address, s)
+    address = gui_address_t.get()
+    refresh(address, s)
 
 
 def unwatch():
-    gui_address_t.delete (0, END)
-    gui_address_t.insert (INSERT, myaddress)
-    refresh (myaddress, s)
+    gui_address_t.delete(0, END)
+    gui_address_t.insert(INSERT, myaddress)
+    refresh(myaddress, s)
 
 
 def aliases_list():
-    top12 = Toplevel ()
-    top12.title ("Your aliases")
-    aliases_box = Text (top12, width=100)
-    aliases_box.grid (row=0, pady=0)
+    top12 = Toplevel()
+    top12.title("Your aliases")
+    aliases_box = Text(top12, width=100)
+    aliases_box.grid(row=0, pady=0)
 
     # This will freeze, but let say it's ok, we're waiting for a feedback.
     aliases_self = async_client.connection.command("aliasget", myaddress)
 
     for x in aliases_self:
-        aliases_box.insert (INSERT, replace_regex (x[0], "alias="))
-        aliases_box.insert (INSERT, "\n")
+        aliases_box.insert(INSERT, replace_regex(x[0], "alias="))
+        aliases_box.insert(INSERT, "\n")
 
-    close = Button (top12, text="Close", command=top12.destroy)
-    close.grid (row=3, column=0, sticky=W + E, padx=15, pady=(5, 5))
+    close = Button(top12, text="Close", command=top12.destroy)
+    close.grid(row=3, column=0, sticky=W + E, padx=15, pady=(5, 5))
 
 
 def recipient_insert():
-    recipient.delete (0, END)
-    recipient.insert (0, root.clipboard_get ())
+    recipient.delete(0, END)
+    recipient.insert(0, root.clipboard_get())
 
 
 def address_insert():
-    gui_address_t.delete (0, END)
-    gui_address_t.insert (0, root.clipboard_get ())
+    gui_address_t.delete(0, END)
+    gui_address_t.insert(0, root.clipboard_get())
 
 
 def data_insert():
-    openfield.delete ('1.0', END)  # remove previous
-    openfield.insert (INSERT, root.clipboard_get ())
+    openfield.delete('1.0', END)  # remove previous
+    openfield.insert(INSERT, root.clipboard_get())
 
 
 def data_insert_r():
-    openfield_r.delete ('1.0', END)  # remove previous
-    openfield_r.insert (INSERT, root.clipboard_get ())
+    openfield_r.delete('1.0', END)  # remove previous
+    openfield_r.insert(INSERT, root.clipboard_get())
 
 
 def url_insert():
-    url.delete (0, END)  # remove previous
-    url.insert (0, root.clipboard_get ())
+    url.delete(0, END)  # remove previous
+    url.insert(0, root.clipboard_get())
 
 
 def address_copy():
-    root.clipboard_clear ()
-    root.clipboard_append (myaddress)
+    root.clipboard_clear()
+    root.clipboard_append(myaddress)
 
 
 def url_copy():
-    root.clipboard_clear ()
-    root.clipboard_append (url_r.get ())
+    root.clipboard_clear()
+    root.clipboard_append(url_r.get())
 
 
 def recipient_copy():
-    root.clipboard_clear ()
-    root.clipboard_append (recipient.get ())
+    root.clipboard_clear()
+    root.clipboard_append(recipient.get())
 
 
 def percentage(percent, whole):
-    return (Decimal (percent) * Decimal (whole) / 100)
+    return(Decimal(percent) * Decimal(whole) / 100)
 
 
 def alias():
-    alias_var = StringVar ()
+    alias_var = StringVar()
 
     # enter password
-    top8 = Toplevel ()
-    top8.title ("Enter Desired Name")
+    top8 = Toplevel()
+    top8.title("Enter Desired Name")
 
-    alias_label = Label (top8, text="Input name")
-    alias_label.grid (row=0, column=0, sticky=N + W, padx=15, pady=(5, 0))
+    alias_label = Label(top8, text="Input name")
+    alias_label.grid(row=0, column=0, sticky=N + W, padx=15, pady=(5, 0))
 
-    input_alias = Entry (top8, textvariable=alias_var)
-    input_alias.grid (row=1, column=0, sticky=N + E, padx=15, pady=(0, 5))
+    input_alias = Entry(top8, textvariable=alias_var)
+    input_alias.grid(row=1, column=0, sticky=N + E, padx=15, pady=(0, 5))
 
-    dismiss = Button (top8, text="Register", command=lambda: alias_register (alias_var.get ().strip ()))
-    dismiss.grid (row=2, column=0, sticky=W + E, padx=15, pady=(15, 0))
+    dismiss = Button(top8, text="Register", command=lambda: alias_register(alias_var.get().strip()))
+    dismiss.grid(row=2, column=0, sticky=W + E, padx=15, pady=(15, 0))
 
-    dismiss = Button (top8, text="Dismiss", command=top8.destroy)
-    dismiss.grid (row=3, column=0, sticky=W + E, padx=15, pady=(5, 5))
+    dismiss = Button(top8, text="Dismiss", command=top8.destroy)
+    dismiss.grid(row=3, column=0, sticky=W + E, padx=15, pady=(5, 5))
 
 
 def encrypt_get_password():
     # enter password
-    top3 = Toplevel ()
-    top3.title ("Enter Password")
+    top3 = Toplevel()
+    top3.title("Enter Password")
 
-    password_label = Label (top3, text="Input password")
-    password_label.grid (row=0, column=0, sticky=N + W, padx=15, pady=(5, 0))
+    password_label = Label(top3, text="Input password")
+    password_label.grid(row=0, column=0, sticky=N + W, padx=15, pady=(5, 0))
 
-    input_password = Entry (top3, textvariable=password_var_enc, show='*')
-    input_password.grid (row=1, column=0, sticky=N + E, padx=15, pady=(0, 5))
+    input_password = Entry(top3, textvariable=password_var_enc, show='*')
+    input_password.grid(row=1, column=0, sticky=N + E, padx=15, pady=(0, 5))
 
-    confirm_label = Label (top3, text="Confirm password")
-    confirm_label.grid (row=2, column=0, sticky=N + W, padx=15, pady=(5, 0))
+    confirm_label = Label(top3, text="Confirm password")
+    confirm_label.grid(row=2, column=0, sticky=N + W, padx=15, pady=(5, 0))
 
-    input_password_con = Entry (top3, textvariable=password_var_con, show='*')
-    input_password_con.grid (row=3, column=0, sticky=N + E, padx=15, pady=(0, 5))
+    input_password_con = Entry(top3, textvariable=password_var_con, show='*')
+    input_password_con.grid(row=3, column=0, sticky=N + E, padx=15, pady=(0, 5))
 
-    enter = Button (top3, text="Encrypt", command=lambda: encrypt_fn (top3))
-    enter.grid (row=4, column=0, sticky=W + E, padx=15, pady=(5, 5))
+    enter = Button(top3, text="Encrypt", command=lambda: encrypt_fn(top3))
+    enter.grid(row=4, column=0, sticky=W + E, padx=15, pady=(5, 5))
 
-    cancel = Button (top3, text="Cancel", command=top3.destroy)
-    cancel.grid (row=5, column=0, sticky=W + E, padx=15, pady=(5, 5))
+    cancel = Button(top3, text="Cancel", command=top3.destroy)
+    cancel.grid(row=5, column=0, sticky=W + E, padx=15, pady=(5, 5))
     # enter password
 
 
 def lock_fn(button):
-    key = None
-    decrypt_b.configure (text="Unlock", state=NORMAL)
-    lock_b.configure (text="Locked", state=DISABLED)
-    messagemenu.entryconfig ("Sign Messages", state=DISABLED)  # messages
-    walletmenu.entryconfig ("Recovery", state=DISABLED)  # recover
-    password_var_dec.set ("")
+    # key = None
+    decrypt_b.configure(text="Unlock", state=NORMAL)
+    lock_b.configure(text="Locked", state=DISABLED)
+    messagemenu.entryconfig("Sign Messages", state=DISABLED)  # messages
+    walletmenu.entryconfig("Recovery", state=DISABLED)  # recover
+    password_var_dec.set("")
 
 
 def encrypt_fn(destroy_this):
     global key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress
-    password = password_var_enc.get ()
-    password_conf = password_var_con.get ()
+    password = password_var_enc.get()
+    password_conf = password_var_con.get()
 
     if password == password_conf:
 
-        ciphertext = encrypt (password, private_key_readable)
-        ciphertext_export = base64.b64encode (ciphertext).decode ()
-        essentials.keys_save (ciphertext_export, public_key_readable, myaddress)
+        ciphertext = encrypt(password, private_key_readable)
+        ciphertext_export = base64.b64encode(ciphertext).decode()
+        essentials.keys_save(ciphertext_export, public_key_readable, myaddress)
 
         # encrypt_b.configure(text="Encrypted", state=DISABLED)
 
-        key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress = essentials.keys_load (private_key_load, public_key_load)
-        encryption_button_refresh ()
+        key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress = essentials.keys_load(private_key_load, public_key_load)
+        encryption_button_refresh()
 
-        destroy_this.destroy ()
+        destroy_this.destroy()
         # lock_b.configure(text="Lock", state=NORMAL)
     else:
-        messagebox.showwarning ("Mismatch", "Password Mismatch")
+        messagebox.showwarning("Mismatch", "Password Mismatch")
 
 
 def decrypt_get_password():
     # enter password
-    top4 = Toplevel ()
-    top4.title ("Enter Password")
+    top4 = Toplevel()
+    top4.title("Enter Password")
 
-    input_password = Entry (top4, textvariable=password_var_dec, show='*')
-    input_password.grid (row=0, column=0, sticky=N + E, padx=15, pady=(5, 5))
+    input_password = Entry(top4, textvariable=password_var_dec, show='*')
+    input_password.grid(row=0, column=0, sticky=N + E, padx=15, pady=(5, 5))
 
-    enter = Button (top4, text="Unlock", command=lambda: decrypt_fn (top4))
-    enter.grid (row=1, column=0, sticky=W + E, padx=15, pady=(5, 5))
+    enter = Button(top4, text="Unlock", command=lambda: decrypt_fn(top4))
+    enter.grid(row=1, column=0, sticky=W + E, padx=15, pady=(5, 5))
 
-    cancel = Button (top4, text="Cancel", command=top4.destroy)
-    cancel.grid (row=2, column=0, sticky=W + E, padx=15, pady=(5, 5))
+    cancel = Button(top4, text="Cancel", command=top4.destroy)
+    cancel.grid(row=2, column=0, sticky=W + E, padx=15, pady=(5, 5))
     # enter password
 
 
 def decrypt_fn(destroy_this):
     global key
     try:
-        password = password_var_dec.get ()
+        password = password_var_dec.get()
 
-        decrypted_privkey = decrypt (password, base64.b64decode (private_key_readable))  # decrypt privkey
+        decrypted_privkey = decrypt(password, base64.b64decode(private_key_readable))  # decrypt privkey
 
-        key = RSA.importKey (decrypted_privkey)  # be able to sign
+        key = RSA.importKey(decrypted_privkey)  # be able to sign
 
-        destroy_this.destroy ()
+        destroy_this.destroy()
 
-        decrypt_b.configure (text="Unlocked", state=DISABLED)
-        lock_b.configure (text="Lock", state=NORMAL)
-        messagemenu.entryconfig ("Sign Messages", state=NORMAL)  # messages
-        walletmenu.entryconfig ("Recovery", state=NORMAL)  # recover
+        decrypt_b.configure(text="Unlocked", state=DISABLED)
+        lock_b.configure(text="Lock", state=NORMAL)
+        messagemenu.entryconfig("Sign Messages", state=NORMAL)  # messages
+        walletmenu.entryconfig("Recovery", state=NORMAL)  # recover
     except:
-        messagebox.showwarning ("Locked", "Wrong password")
+        messagebox.showwarning("Locked", "Wrong password")
 
     return key
 
 
 def send_confirm(amount_input, recipient_input, operation_input, openfield_input):
-    amount_input = quantize_eight (amount_input)
+    amount_input = quantize_eight(amount_input)
 
     # cryptopia check
-    if recipient_input == "edf2d63cdf0b6275ead22c9e6d66aa8ea31dc0ccb367fad2e7c08a25" and len (openfield_input) not in [16, 20]:
-        messagebox.showinfo ("Cannot send", "Identification message is missing for Cryptopia, please include it")
+    if recipient_input == "edf2d63cdf0b6275ead22c9e6d66aa8ea31dc0ccb367fad2e7c08a25" and len(openfield_input) not in [16, 20]:
+        messagebox.showinfo("Cannot send", "Identification message is missing for Cryptopia, please include it")
         return
     # cryptopia check
 
-    top10 = Toplevel ()
-    top10.title ("Confirm")
+    top10 = Toplevel()
+    top10.title("Confirm")
 
-    if alias_cb_var.get ():  # alias check
+    if alias_cb_var.get():  # alias check
         """
-        connections.send (s, "addfromalias", 10)
-        connections.send (s, recipient_input, 10)
-        recipient_input = connections.receive (s, 10)
+        connections.send(s, "addfromalias", 10)
+        connections.send(s, recipient_input, 10)
+        recipient_input = connections.receive(s, 10)
         """
         # This will freeze, but let say it's ok, we're waiting for a feedback.
         recipient_input = async_client.connection.command("addfromalias", recipient_input)
 
 
     # encr check
-    if encrypt_var.get ():
+    if encrypt_var.get():
         # get recipient's public key
         """
-        connections.send (s, "pubkeyget", 10)
-        connections.send (s, recipient_input, 10)
-        target_public_key_hashed = connections.receive (s, 10)
+        connections.send(s, "pubkeyget", 10)
+        connections.send(s, recipient_input, 10)
+        target_public_key_hashed = connections.receive(s, 10)
         """
         # This will freeze, but let say it's ok, we're waiting for a feedback.
         target_public_key_hashed = async_client.connection.command("pubkeyget", recipient_input)
 
-        recipient_key = RSA.importKey (base64.b64decode (target_public_key_hashed).decode ("utf-8"))
+        recipient_key = RSA.importKey(base64.b64decode(target_public_key_hashed).decode("utf-8"))
 
         # openfield_input = str(target_public_key.encrypt(openfield_input.encode("utf-8"), 32))
 
-        data = openfield_input.encode ("utf-8")
-        # print (open("pubkey.der").read())
-        session_key = get_random_bytes (16)
-        cipher_aes = AES.new (session_key, AES.MODE_EAX)
+        data = openfield_input.encode("utf-8")
+        # print(open("pubkey.der").read())
+        session_key = get_random_bytes(16)
+        cipher_aes = AES.new(session_key, AES.MODE_EAX)
 
         # Encrypt the session key with the public RSA key
-        cipher_rsa = PKCS1_OAEP.new (recipient_key)
+        cipher_rsa = PKCS1_OAEP.new(recipient_key)
 
         # Encrypt the data with the AES session key
-        ciphertext, tag = cipher_aes.encrypt_and_digest (data)
-        enc_session_key = (cipher_rsa.encrypt (session_key))
-        openfield_input = str ([x for x in (cipher_aes.nonce, tag, ciphertext, enc_session_key)])
+        ciphertext, tag = cipher_aes.encrypt_and_digest(data)
+        enc_session_key =(cipher_rsa.encrypt(session_key))
+        openfield_input = str([x for x in(cipher_aes.nonce, tag, ciphertext, enc_session_key)])
 
     # encr check
 
-    if encode_var.get () and not msg_var.get ():
-        openfield_input = base64.b64encode (openfield_input.encode ("utf-8")).decode ("utf-8")
-    if msg_var.get () and encode_var.get ():
-        openfield_input = "bmsg=" + base64.b64encode (openfield_input.encode ("utf-8")).decode ("utf-8")
-    if msg_var.get () and not encode_var.get ():
+    if encode_var.get() and not msg_var.get():
+        openfield_input = base64.b64encode(openfield_input.encode("utf-8")).decode("utf-8")
+    if msg_var.get() and encode_var.get():
+        openfield_input = "bmsg=" + base64.b64encode(openfield_input.encode("utf-8")).decode("utf-8")
+    if msg_var.get() and not encode_var.get():
         openfield_input = "msg=" + openfield_input
-    if encrypt_var.get ():
-        openfield_input = "enc=" + str (openfield_input)
+    if encrypt_var.get():
+        openfield_input = "enc=" + str(openfield_input)
 
-    fee = fee_calculate (openfield_input)
+    fee = fee_calculate(openfield_input)
 
-    confirmation_dialog = Text (top10, width=100)
-    confirmation_dialog.insert (INSERT, ("Amount: {}\nFee: {}\nTotal: {}\nTo: {}\nOperation: {}\nData: {}".format ('{:.8f}'.format (amount_input), '{:.8f}'.format (fee), '{:.8f}'.format (Decimal (amount_input) + Decimal (fee)), recipient_input, operation_input, openfield_input)))
-    confirmation_dialog.configure (state="disabled")
-    confirmation_dialog.grid (row=0, pady=0)
+    confirmation_dialog = Text(top10, width=100)
+    confirmation_dialog.insert(INSERT,("Amount: {}\nFee: {}\nTotal: {}\nTo: {}\nOperation: {}\nData: {}".format('{:.8f}'.format(amount_input), '{:.8f}'.format(fee), '{:.8f}'.format(Decimal(amount_input) + Decimal(fee)), recipient_input, operation_input, openfield_input)))
+    confirmation_dialog.configure(state="disabled")
+    confirmation_dialog.grid(row=0, pady=0)
 
-    enter = Button (top10, text="Confirm", command=lambda: send_confirmed (amount_input, recipient_input, operation_input, openfield_input, top10))
-    enter.grid (row=1, column=0, sticky=W + E, padx=15, pady=(5, 5))
+    enter = Button(top10, text="Confirm", command=lambda: send_confirmed(amount_input, recipient_input, operation_input, openfield_input, top10))
+    enter.grid(row=1, column=0, sticky=W + E, padx=15, pady=(5, 5))
 
-    done = Button (top10, text="Cancel", command=top10.destroy)
-    done.grid (row=2, column=0, sticky=W + E, padx=15, pady=(5, 5))
+    done = Button(top10, text="Cancel", command=top10.destroy)
+    done.grid(row=2, column=0, sticky=W + E, padx=15, pady=(5, 5))
 
 
 def send_confirmed(amount_input, recipient_input, operation_input ,openfield_input, top10):
-    send (amount_input, recipient_input, operation_input, openfield_input)
-    top10.destroy ()
+    send(amount_input, recipient_input, operation_input, openfield_input)
+    top10.destroy()
 
 
 def send(amount_input, recipient_input, operation_input, openfield_input):
-    all_spend_check ()
+    all_spend_check()
 
     if key is None:
-        messagebox.showerror ("Locked", "Wallet is locked")
+        messagebox.showerror("Locked", "Wallet is locked")
 
-    app_log.warning ("Received tx command")
+    app_log.warning("Received tx command")
 
     try:
-        Decimal (amount_input)
+        Decimal(amount_input)
     except:
-        messagebox.showerror ("Invalid Amount", "Amount must be a number")
+        messagebox.showerror("Invalid Amount", "Amount must be a number")
 
     # alias check
 
     # alias check
 
-    if not address_validate (recipient_input):
-        messagebox.showerror ("Invalid Address", "Invalid address format")
+    if not address_validate(recipient_input):
+        messagebox.showerror("Invalid Address", "Invalid address format")
     else:
 
-        app_log.warning ("Amount: {}".format (amount_input))
-        app_log.warning ("Recipient: {}".format (recipient_input))
-        app_log.warning ("Data: {}".format (openfield_input))
+        app_log.warning("Amount: {}".format(amount_input))
+        app_log.warning("Recipient: {}".format(recipient_input))
+        app_log.warning("Data: {}".format(openfield_input))
 
-        tx_timestamp = '%.2f' % (float(stats_timestamp) - abs(float(stats_timestamp) - time.time())) #randomize timestamp for unique signatures
-        transaction = (str (tx_timestamp), str (myaddress), str (recipient_input), '%.8f' % float (amount_input), str (operation_input), str (openfield_input))  # this is signed, float kept for compatibility
+        tx_timestamp = '%.2f' %(float(stats_timestamp) - abs(float(stats_timestamp) - time.time())) #randomize timestamp for unique signatures
+        transaction =(str(tx_timestamp), str(myaddress), str(recipient_input), '%.8f' % float(amount_input), str(operation_input), str(openfield_input))  # this is signed, float kept for compatibility
 
-        h = SHA.new (str (transaction).encode ("utf-8"))
-        signer = PKCS1_v1_5.new (key)
-        signature = signer.sign (h)
-        signature_enc = base64.b64encode (signature)
-        app_log.warning ("Client: Encoded Signature: {}".format (signature_enc.decode ("utf-8")))
+        h = SHA.new(str(transaction).encode("utf-8"))
+        signer = PKCS1_v1_5.new(key)
+        signature = signer.sign(h)
+        signature_enc = base64.b64encode(signature)
+        app_log.warning("Client: Encoded Signature: {}".format(signature_enc.decode("utf-8")))
 
-        verifier = PKCS1_v1_5.new (key)
+        verifier = PKCS1_v1_5.new(key)
 
-        if verifier.verify (h, signature):
+        if verifier.verify(h, signature):
 
-            app_log.warning ("Client: The signature is valid, proceeding to save transaction, signature, new txhash and the public key to mempool")
+            app_log.warning("Client: The signature is valid, proceeding to save transaction, signature, new txhash and the public key to mempool")
 
             # print(str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input),str(signature_enc), str(public_key_hashed), str(keep_input), str(openfield_input))
-            tx_submit = str (tx_timestamp), str (myaddress), str (recipient_input), '%.8f' % float (amount_input), str (signature_enc.decode ("utf-8")), str (public_key_hashed.decode ("utf-8")), str (operation_input), str (openfield_input)  # float kept for compatibility
+            tx_submit = str(tx_timestamp), str(myaddress), str(recipient_input), '%.8f' % float(amount_input), str(signature_enc.decode("utf-8")), str(public_key_hashed.decode("utf-8")), str(operation_input), str(openfield_input)  # float kept for compatibility
 
             while True:
                 """
-                connections.send (s, "mpinsert", 10)
-                connections.send (s, tx_submit, 10)
-                reply = connections.receive (s, 10)
+                connections.send(s, "mpinsert", 10)
+                connections.send(s, tx_submit, 10)
+                reply = connections.receive(s, 10)
                 """
                 # This will freeze, but let say it's ok, we're waiting for a feedback.
                 reply = async_client.connection.command("mpinsert", tx_submit)
 
-                app_log.warning ("Client: {}".format (reply))
+                app_log.warning("Client: {}".format(reply))
                 if reply[-1] == "Success":
                     messagebox.showinfo("OK","Transaction accepted to mempool")
                 else:
                     messagebox.showerror("Error","There was a problem with transaction processing. Full message: {}".format(reply))
                 break
 
-            refresh (gui_address_t.get (), s)
+            refresh(gui_address_t.get(), s)
         else:
-            app_log.warning ("Client: Invalid signature")
+            app_log.warning("Client: Invalid signature")
         # enter transaction end
 
 
@@ -608,271 +622,270 @@ def send(amount_input, recipient_input, operation_input, openfield_input):
 
 
 def qr(address):
-    address_qr = pyqrcode.create (address)
-    address_qr.png ('address_qr.png')
+    address_qr = pyqrcode.create(address)
+    address_qr.png('address_qr.png')
 
     # popup
-    top = Toplevel ()
-    top.title ("Address QR Code")
+    top = Toplevel()
+    top.title("Address QR Code")
 
-    im = PIL.Image.open ("address_qr.png")
-
-    photo = PIL.ImageTk.PhotoImage (im.resize ((320, 320)))
-    label = Label (top, image=photo)
+    with PIL.Image.open("address_qr.png") as im:
+        photo = PIL.ImageTk.PhotoImage(im.resize((320, 320)))
+    label = Label(top, image=photo)
     label.image = photo  # keep a reference!
-    label.pack ()
+    label.pack()
 
     # msg = Message(top, text="hi")
     # msg.pack()
 
-    button = Button (top, text="Dismiss", command=top.destroy)
-    button.pack ()
+    button = Button(top, text="Dismiss", command=top.destroy)
+    button.pack()
     # popup
 
 
 def msg_dialogue(address):
     """
-    connections.send (s, "addlist", 10)
-    connections.send (s, myaddress, 10)
-    addlist = connections.receive (s, 10)
+    connections.send(s, "addlist", 10)
+    connections.send(s, myaddress, 10)
+    addlist = connections.receive(s, 10)
     """
     # This will freeze, but let say it's ok, we're waiting for a feedback.
     addlist = async_client.connection.command("addlist", myaddress)
-    print (addlist)
+    print(addlist)
 
     def msg_received_get(addlist):
 
         for x in addlist:
-            if x[11].startswith (("msg=", "bmsg=", "enc=msg=", "enc=bmsg=")) and x[3] == address:
+            if x[11].startswith(("msg=", "bmsg=", "enc=msg=", "enc=bmsg=")) and x[3] == address:
                 # print(x[11])
                 """
-                connections.send (s, "aliasget", 10)
-                connections.send (s, x[2], 10)
-                msg_address = connections.receive (s, 10)[0][0]
+                connections.send(s, "aliasget", 10)
+                connections.send(s, x[2], 10)
+                msg_address = connections.receive(s, 10)[0][0]
                 """
                 # We could/should use the cache, but say we do a live request for now.
                 msg_address = async_client.connection.command("aliasget", x[2])
 
-                if x[11].startswith ("enc=msg="):
-                    msg_received_digest = replace_regex (x[11], "enc=msg=")
+                if x[11].startswith("enc=msg="):
+                    msg_received_digest = replace_regex(x[11], "enc=msg=")
                     try:
                         # msg_received_digest = key.decrypt(ast.literal_eval(msg_received_digest)).decode("utf-8")
 
-                        (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval (msg_received_digest)
+                        (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval(msg_received_digest)
                         # Decrypt the session key with the public RSA key
-                        cipher_rsa = PKCS1_OAEP.new (key)
-                        session_key = cipher_rsa.decrypt (enc_session_key)
+                        cipher_rsa = PKCS1_OAEP.new(key)
+                        session_key = cipher_rsa.decrypt(enc_session_key)
                         # Decrypt the data with the AES session key
-                        cipher_aes = AES.new (session_key, AES.MODE_EAX, cipher_aes_nonce)
-                        msg_received_digest = cipher_aes.decrypt_and_verify (ciphertext, tag).decode ("utf-8")
+                        cipher_aes = AES.new(session_key, AES.MODE_EAX, cipher_aes_nonce)
+                        msg_received_digest = cipher_aes.decrypt_and_verify(ciphertext, tag).decode("utf-8")
 
                     except:
                         msg_received_digest = "Could not decrypt message"
 
-                elif x[11].startswith ("enc=bmsg="):
-                    msg_received_digest = replace_regex (x[11], "enc=bmsg=")
+                elif x[11].startswith("enc=bmsg="):
+                    msg_received_digest = replace_regex(x[11], "enc=bmsg=")
                     try:
-                        msg_received_digest = base64.b64decode (msg_received_digest).decode ("utf-8")
+                        msg_received_digest = base64.b64decode(msg_received_digest).decode("utf-8")
 
                         # msg_received_digest = key.decrypt(ast.literal_eval(msg_received_digest)).decode("utf-8")
-                        (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval (msg_received_digest)
+                        (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval(msg_received_digest)
                         # Decrypt the session key with the public RSA key
-                        cipher_rsa = PKCS1_OAEP.new (key)
-                        session_key = cipher_rsa.decrypt (enc_session_key)
+                        cipher_rsa = PKCS1_OAEP.new(key)
+                        session_key = cipher_rsa.decrypt(enc_session_key)
                         # Decrypt the data with the AES session key
-                        cipher_aes = AES.new (session_key, AES.MODE_EAX, cipher_aes_nonce)
-                        msg_received_digest = cipher_aes.decrypt_and_verify (ciphertext, tag).decode ("utf-8")
+                        cipher_aes = AES.new(session_key, AES.MODE_EAX, cipher_aes_nonce)
+                        msg_received_digest = cipher_aes.decrypt_and_verify(ciphertext, tag).decode("utf-8")
 
                     except:
                         msg_received_digest = "Could not decrypt message"
 
 
-                elif x[11].startswith ("bmsg="):
-                    msg_received_digest = replace_regex (x[11], "bmsg=")
+                elif x[11].startswith("bmsg="):
+                    msg_received_digest = replace_regex(x[11], "bmsg=")
                     try:
-                        msg_received_digest = base64.b64decode (msg_received_digest).decode ("utf-8")
+                        msg_received_digest = base64.b64decode(msg_received_digest).decode("utf-8")
                     except:
                         msg_received_digest = "Could not decode message"
 
-                elif x[11].startswith ("msg="):
-                    msg_received_digest = replace_regex (x[11], "msg=")
+                elif x[11].startswith("msg="):
+                    msg_received_digest = replace_regex(x[11], "msg=")
 
-                msg_received.insert (INSERT, ((time.strftime ("%Y-%m-%d %H:%M:%S", time.gmtime (Decimal (x[1])))) + " From " + replace_regex (msg_address, "alias=") + ": " + msg_received_digest) + "\n")
+                msg_received.insert(INSERT,((time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(Decimal(x[1])))) + " From " + replace_regex(msg_address, "alias=") + ": " + msg_received_digest) + "\n")
 
     def msg_sent_get(addlist):
 
         for x in addlist:
-            if x[11].startswith (("msg=", "bmsg=", "enc=msg=", "enc=bmsg=")) and x[2] == address:
+            if x[11].startswith(("msg=", "bmsg=", "enc=msg=", "enc=bmsg=")) and x[2] == address:
                 # print(x[11])
                 """
-                connections.send (s, "aliasget", 10)
-                connections.send (s, x[3], 10)
-                received_aliases = connections.receive (s, 10)
+                connections.send(s, "aliasget", 10)
+                connections.send(s, x[3], 10)
+                received_aliases = connections.receive(s, 10)
                 """
                 # We could/should use the cache, but say we do a live request for now.
                 received_aliases = async_client.connection.command("aliasget", x[3])
 
                 msg_recipient = received_aliases[0][0]
 
-                if x[11].startswith ("enc=msg="):
-                    msg_sent_digest = replace_regex (x[11], "enc=msg=")
+                if x[11].startswith("enc=msg="):
+                    msg_sent_digest = replace_regex(x[11], "enc=msg=")
                     try:
                         # msg_sent_digest = key.decrypt(ast.literal_eval(msg_sent_digest)).decode("utf-8")
-                        (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval (msg_sent_digest)
+                        (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval(msg_sent_digest)
                         # Decrypt the session key with the public RSA key
-                        cipher_rsa = PKCS1_OAEP.new (key)
-                        session_key = cipher_rsa.decrypt (enc_session_key)
+                        cipher_rsa = PKCS1_OAEP.new(key)
+                        session_key = cipher_rsa.decrypt(enc_session_key)
                         # Decrypt the data with the AES session key
-                        cipher_aes = AES.new (session_key, AES.MODE_EAX, cipher_aes_nonce)
-                        msg_sent_digest = cipher_aes.decrypt_and_verify (ciphertext, tag).decode ("utf-8")
+                        cipher_aes = AES.new(session_key, AES.MODE_EAX, cipher_aes_nonce)
+                        msg_sent_digest = cipher_aes.decrypt_and_verify(ciphertext, tag).decode("utf-8")
 
                     except:
                         msg_sent_digest = "Could not decrypt message"
 
 
-                elif x[11].startswith ("enc=bmsg="):
-                    msg_sent_digest = replace_regex (x[11], "enc=bmsg=")
+                elif x[11].startswith("enc=bmsg="):
+                    msg_sent_digest = replace_regex(x[11], "enc=bmsg=")
                     try:
-                        msg_sent_digest = base64.b64decode (msg_sent_digest).decode ("utf-8")
+                        msg_sent_digest = base64.b64decode(msg_sent_digest).decode("utf-8")
                         # msg_sent_digest = key.decrypt(ast.literal_eval(msg_sent_digest)).decode("utf-8")
-                        (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval (msg_sent_digest)
+                        (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval(msg_sent_digest)
                         # Decrypt the session key with the public RSA key
-                        cipher_rsa = PKCS1_OAEP.new (key)
-                        session_key = cipher_rsa.decrypt (enc_session_key)
+                        cipher_rsa = PKCS1_OAEP.new(key)
+                        session_key = cipher_rsa.decrypt(enc_session_key)
                         # Decrypt the data with the AES session key
-                        cipher_aes = AES.new (session_key, AES.MODE_EAX, cipher_aes_nonce)
-                        msg_sent_digest = cipher_aes.decrypt_and_verify (ciphertext, tag).decode ("utf-8")
+                        cipher_aes = AES.new(session_key, AES.MODE_EAX, cipher_aes_nonce)
+                        msg_sent_digest = cipher_aes.decrypt_and_verify(ciphertext, tag).decode("utf-8")
                     except:
                         msg_sent_digest = "Could not decrypt message"
 
-                elif x[11].startswith ("bmsg="):
-                    msg_sent_digest = replace_regex (x[11], "bmsg=")
+                elif x[11].startswith("bmsg="):
+                    msg_sent_digest = replace_regex(x[11], "bmsg=")
                     try:
-                        msg_sent_digest = base64.b64decode (msg_sent_digest).decode ("utf-8")
+                        msg_sent_digest = base64.b64decode(msg_sent_digest).decode("utf-8")
                     except:
                         msg_sent_digest = "Could not decode message"
 
-                elif x[11].startswith ("msg="):
-                    msg_sent_digest = replace_regex (x[11], "msg=")
+                elif x[11].startswith("msg="):
+                    msg_sent_digest = replace_regex(x[11], "msg=")
 
-                msg_sent.insert (INSERT, ((time.strftime ("%Y-%m-%d %H:%M:%S", time.gmtime (Decimal (x[1])))) + " To " + replace_regex (msg_recipient, "alias=") + ": " + msg_sent_digest) + "\n")
+                msg_sent.insert(INSERT,((time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(Decimal(x[1])))) + " To " + replace_regex(msg_recipient, "alias=") + ": " + msg_sent_digest) + "\n")
 
     # popup
-    top11 = Toplevel ()
-    top11.title ("Messaging")
+    top11 = Toplevel()
+    top11.title("Messaging")
 
-    Label (top11, text="Received:", width=20).grid (row=0)
+    Label(top11, text="Received:", width=20).grid(row=0)
 
-    msg_received = Text (top11, width=100, height=20, font=("Tahoma", 8))
-    msg_received.grid (row=1, column=0, sticky=W, padx=5, pady=(5, 5))
-    msg_received_get (addlist)
+    msg_received = Text(top11, width=100, height=20, font=("Tahoma", 8))
+    msg_received.grid(row=1, column=0, sticky=W, padx=5, pady=(5, 5))
+    msg_received_get(addlist)
 
-    Label (top11, text="Sent:", width=20).grid (row=2)
+    Label(top11, text="Sent:", width=20).grid(row=2)
 
-    msg_sent = Text (top11, width=100, height=20, font=("Tahoma", 8))
-    msg_sent.grid (row=3, column=0, sticky=W, padx=5, pady=(5, 5))
-    msg_sent_get (addlist)
+    msg_sent = Text(top11, width=100, height=20, font=("Tahoma", 8))
+    msg_sent.grid(row=3, column=0, sticky=W, padx=5, pady=(5, 5))
+    msg_sent_get(addlist)
 
-    dismiss = Button (top11, text="Dismiss", command=top11.destroy)
-    dismiss.grid (row=5, column=0, sticky=W + E, padx=15, pady=(5, 5))
+    dismiss = Button(top11, text="Dismiss", command=top11.destroy)
+    dismiss.grid(row=5, column=0, sticky=W + E, padx=15, pady=(5, 5))
 
     # popup
 
 
 def refresh_auto():
-    root.after (0, refresh(gui_address_t.get(), s))
-    root.after (10000, refresh_auto)
+    root.after(0, refresh(gui_address_t.get(), s))
+    root.after(10000, refresh_auto)
 
 
 def stats():
-    stats_window = Toplevel ()
-    stats_window.title ("Node Statistics")
-    stats_window.resizable (0, 0)
+    stats_window = Toplevel()
+    stats_window.title("Node Statistics")
+    stats_window.resizable(0, 0)
 
-    # canvas_stats_bg = Canvas (root, highlightthickness=0)
-    # canvas_stats_bg.grid (row=0, column=0, rowspan=200, columnspan=200, sticky=W + E + S + N)
+    # canvas_stats_bg = Canvas(root, highlightthickness=0)
+    # canvas_stats_bg.grid(row=0, column=0, rowspan=200, columnspan=200, sticky=W + E + S + N)
 
-    # stats_window.update ()
-    # width_stats = stats_window.winfo_width ()
-    # height_stats = stats_window.winfo_height ()
+    # stats_window.update()
+    # width_stats = stats_window.winfo_width()
+    # height_stats = stats_window.winfo_height()
 
-    # img_stats_bg = PhotoImage (file="graphics/brushed.png")
-    # canvas_bg.create_image (width_stats, height_stats, image=img_stats_bg)
+    # img_stats_bg = PhotoImage(file="graphics/brushed.png")
+    # canvas_bg.create_image(width_stats, height_stats, image=img_stats_bg)
 
-    frame_chart = Frame (stats_window, height=100, width=100)
-    frame_chart.grid (row=0, column=1, rowspan=999)
-    f = Figure (figsize=(11, 7), dpi=100)
-    f.set_facecolor ('silver')
-    f.subplots_adjust (left=None, bottom=None, right=None, top=None, wspace=None, hspace=0.5)
+    frame_chart = Frame(stats_window, height=100, width=100)
+    frame_chart.grid(row=0, column=1, rowspan=999)
+    f = Figure(figsize=(11, 7), dpi=100)
+    f.set_facecolor('silver')
+    f.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=None, hspace=0.5)
 
-    canvas = FigureCanvasTkAgg (f, master=frame_chart)
-    canvas.get_tk_widget ().grid (row=0, column=1, sticky=W, padx=15, pady=(0, 0))
+    canvas = FigureCanvasTkAgg(f, master=frame_chart)
+    canvas.get_tk_widget().grid(row=0, column=1, sticky=W, padx=15, pady=(0, 0))
 
     def chart_fill():
-        print ("Filling the chart")
-        f.clear ()
+        print("Filling the chart")
+        f.clear()
 
         rows = 4
         columns = 2
 
         # f.remove(first)
-        first = f.add_subplot (rows, columns, 1)
-        first.plot ((range (len (stats_nodes_count_list))), (stats_nodes_count_list))
-        first.ticklabel_format (useOffset=False)
+        first = f.add_subplot(rows, columns, 1)
+        first.plot((range(len(stats_nodes_count_list))),(stats_nodes_count_list))
+        first.ticklabel_format(useOffset=False)
 
-        first_2 = f.add_subplot (rows, columns, 1)
-        first_2.plot ((range (len (stats_thread_count_list))), (stats_thread_count_list))
-        first_2.ticklabel_format (useOffset=False)
-        first.legend (('Nodes', 'Threads'), loc='best', shadow=True)
+        first_2 = f.add_subplot(rows, columns, 1)
+        first_2.plot((range(len(stats_thread_count_list))),(stats_thread_count_list))
+        first_2.ticklabel_format(useOffset=False)
+        first.legend(('Nodes', 'Threads'), loc='best', shadow=True)
 
-        second = f.add_subplot (rows, columns, 2)
-        second.plot ((range (len (stats_consensus_list))), (stats_consensus_list))
-        second.legend (('Consensus Block',), loc='best', shadow=True)
-        second.ticklabel_format (useOffset=False)
+        second = f.add_subplot(rows, columns, 2)
+        second.plot((range(len(stats_consensus_list))),(stats_consensus_list))
+        second.legend(('Consensus Block',), loc='best', shadow=True)
+        second.ticklabel_format(useOffset=False)
 
-        third = f.add_subplot (rows, columns, 3)
-        third.plot ((range (len (stats_consensus_percentage_list))), (stats_consensus_percentage_list))
-        third.legend (('Consensus Level',), loc='best', shadow=True)
-        third.ticklabel_format (useOffset=False)
+        third = f.add_subplot(rows, columns, 3)
+        third.plot((range(len(stats_consensus_percentage_list))),(stats_consensus_percentage_list))
+        third.legend(('Consensus Level',), loc='best', shadow=True)
+        third.ticklabel_format(useOffset=False)
 
-        fourth = f.add_subplot (rows, columns, 4)
-        fourth.plot ((range (len (stats_diff_list_2))), (stats_diff_list_2))
-        fourth.legend (('Time To Generate Block',), loc='best', shadow=True)
-        fourth.ticklabel_format (useOffset=False)
+        fourth = f.add_subplot(rows, columns, 4)
+        fourth.plot((range(len(stats_diff_list_2))),(stats_diff_list_2))
+        fourth.legend(('Time To Generate Block',), loc='best', shadow=True)
+        fourth.ticklabel_format(useOffset=False)
 
-        fifth = f.add_subplot (rows, columns, 5)
-        fifth.plot ((range (len (stats_diff_list_0))), (stats_diff_list_0))
-        fifth.ticklabel_format (useOffset=False)
+        fifth = f.add_subplot(rows, columns, 5)
+        fifth.plot((range(len(stats_diff_list_0))),(stats_diff_list_0))
+        fifth.ticklabel_format(useOffset=False)
 
-        fifth_2 = f.add_subplot (rows, columns, 5)
-        fifth_2.plot ((range (len (stats_diff_list_1))), (stats_diff_list_1))
-        fifth_2.ticklabel_format (useOffset=False)
+        fifth_2 = f.add_subplot(rows, columns, 5)
+        fifth_2.plot((range(len(stats_diff_list_1))),(stats_diff_list_1))
+        fifth_2.ticklabel_format(useOffset=False)
 
-        fifth_3 = f.add_subplot (rows, columns, 5)
-        fifth_3.plot ((range (len (stats_diff_list_3))), (stats_diff_list_3))
-        fifth_3.ticklabel_format (useOffset=False)
-        fifth.legend (('Diff 1', 'Diff 2', 'Diff Current',), loc='best', shadow=True)
+        fifth_3 = f.add_subplot(rows, columns, 5)
+        fifth_3.plot((range(len(stats_diff_list_3))),(stats_diff_list_3))
+        fifth_3.ticklabel_format(useOffset=False)
+        fifth.legend(('Diff 1', 'Diff 2', 'Diff Current',), loc='best', shadow=True)
 
-        sixth = f.add_subplot (rows, columns, 6)
-        sixth.plot ((range (len (stats_diff_list_4))), (stats_diff_list_4))
-        sixth.legend (('Block Time',), loc='best', shadow=True)
-        sixth.ticklabel_format (useOffset=False)
+        sixth = f.add_subplot(rows, columns, 6)
+        sixth.plot((range(len(stats_diff_list_4))),(stats_diff_list_4))
+        sixth.legend(('Block Time',), loc='best', shadow=True)
+        sixth.ticklabel_format(useOffset=False)
 
-        seventh = f.add_subplot (rows, columns, 7)
-        seventh.plot ((range (len (stats_diff_list_5))), (stats_diff_list_5))
-        seventh.legend (('Hashrate',), loc='best', shadow=True)
-        seventh.ticklabel_format (useOffset=False)
+        seventh = f.add_subplot(rows, columns, 7)
+        seventh.plot((range(len(stats_diff_list_5))),(stats_diff_list_5))
+        seventh.legend(('Hashrate',), loc='best', shadow=True)
+        seventh.ticklabel_format(useOffset=False)
 
-        eigth = f.add_subplot (rows, columns, 8)
-        eigth.plot ((range (len (stats_diff_list_6))), (stats_diff_list_6))
-        eigth.legend (('Difficulty Adjustment',), loc='best', shadow=True)
-        eigth.ticklabel_format (useOffset=False)
+        eigth = f.add_subplot(rows, columns, 8)
+        eigth.plot((range(len(stats_diff_list_6))),(stats_diff_list_6))
+        eigth.legend(('Difficulty Adjustment',), loc='best', shadow=True)
+        eigth.ticklabel_format(useOffset=False)
 
         # a tk.DrawingArea
-        canvas.draw ()
+        canvas.draw()
 
     def update():
-        print ("Statistics update triggered")
+        print("Statistics update triggered")
         stats_address = statusget[0]
         stats_nodes_count = statusget[1]
         stats_nodes_list = statusget[2]
@@ -884,229 +897,229 @@ def stats():
         stats_diff = statusget[8]
 
 
-        stats_address_label_var.set ("Node Address: {}".format (stats_address))
-        stats_nodes_count_label_var.set ("Number of Nodes: {}".format (stats_nodes_count))
-        stats_nodes_list_text_var.delete (0, END)
+        stats_address_label_var.set("Node Address: {}".format(stats_address))
+        stats_nodes_count_label_var.set("Number of Nodes: {}".format(stats_nodes_count))
+        stats_nodes_list_text_var.delete(0, END)
         for entry in stats_nodes_list:
-            stats_nodes_list_text_var.insert (END, entry)
-        stats_nodes_list_text_var.grid (row=2, column=0, sticky=E, padx=15, pady=(0, 0))
+            stats_nodes_list_text_var.insert(END, entry)
+        stats_nodes_list_text_var.grid(row=2, column=0, sticky=E, padx=15, pady=(0, 0))
 
-        stats_thread_count_var.set ("Number of Threads: {}".format (stats_thread_count))
-        stats_uptime_var.set ("Uptime: {:.2f} hours".format (stats_uptime / 60 / 60))
-        stats_consensus_var.set ("Consensus Block: {}".format (stats_consensus))
-        stats_consensus_consensus_percentage_var.set ("Consensus Level: {:.2f}%".format (stats_consensus_percentage))
-        stats_version_var.set ("Version: {}".format (stats_version))
-        stats_diff_var_0.set ("Difficulty 1: {}".format (stats_diff[0]))
-        stats_diff_var_1.set ("Difficulty 2: {}".format (stats_diff[1]))
-        stats_diff_var_2.set ("Time to Generate Block: {}".format (stats_diff[2]))
-        stats_diff_var_3.set ("Current Block Difficulty: {}".format (stats_diff[3]))
-        stats_diff_var_4.set ("Block Time: {}".format (stats_diff[4]))
-        stats_diff_var_5.set ("Hashrate: {}".format (stats_diff[5]))
-        stats_diff_var_6.set ("Difficulty Adjustment: {}".format (stats_diff[6]))
+        stats_thread_count_var.set("Number of Threads: {}".format(stats_thread_count))
+        stats_uptime_var.set("Uptime: {:.2f} hours".format(stats_uptime / 60 / 60))
+        stats_consensus_var.set("Consensus Block: {}".format(stats_consensus))
+        stats_consensus_consensus_percentage_var.set("Consensus Level: {:.2f}%".format(stats_consensus_percentage))
+        stats_version_var.set("Version: {}".format(stats_version))
+        stats_diff_var_0.set("Difficulty 1: {}".format(stats_diff[0]))
+        stats_diff_var_1.set("Difficulty 2: {}".format(stats_diff[1]))
+        stats_diff_var_2.set("Time to Generate Block: {}".format(stats_diff[2]))
+        stats_diff_var_3.set("Current Block Difficulty: {}".format(stats_diff[3]))
+        stats_diff_var_4.set("Block Time: {}".format(stats_diff[4]))
+        stats_diff_var_5.set("Hashrate: {}".format(stats_diff[5]))
+        stats_diff_var_6.set("Difficulty Adjustment: {}".format(stats_diff[6]))
 
-    stats_address_label_var = StringVar ()
-    stats_address_label = Label (stats_window, textvariable=stats_address_label_var)
-    stats_address_label.grid (row=0, column=0, sticky=E, padx=15, pady=(0, 0))
+    stats_address_label_var = StringVar()
+    stats_address_label = Label(stats_window, textvariable=stats_address_label_var)
+    stats_address_label.grid(row=0, column=0, sticky=E, padx=15, pady=(0, 0))
 
-    stats_nodes_count_label_var = StringVar ()
-    stats_nodes_count_label = Label (stats_window, textvariable=stats_nodes_count_label_var)
-    stats_nodes_count_label.grid (row=1, column=0, sticky=E, padx=15, pady=(0, 0))
+    stats_nodes_count_label_var = StringVar()
+    stats_nodes_count_label = Label(stats_window, textvariable=stats_nodes_count_label_var)
+    stats_nodes_count_label.grid(row=1, column=0, sticky=E, padx=15, pady=(0, 0))
 
-    scrollbar = Scrollbar (stats_window)
-    scrollbar.grid (row=2, column=0, sticky=N + S + E, padx=140)
-    stats_nodes_list_text_var = Listbox (stats_window, width=20, height=10, font=("Tahoma", 8))
-    scrollbar.config (command=stats_nodes_list_text_var.yview)
+    scrollbar = Scrollbar(stats_window)
+    scrollbar.grid(row=2, column=0, sticky=N + S + E, padx=140)
+    stats_nodes_list_text_var = Listbox(stats_window, width=20, height=10, font=("Tahoma", 8))
+    scrollbar.config(command=stats_nodes_list_text_var.yview)
 
-    stats_thread_count_var = StringVar ()
-    stats_thread_count_label = Label (stats_window, textvariable=stats_thread_count_var)
-    stats_thread_count_label.grid (row=3, column=0, sticky=E, padx=15, pady=(0, 0))
+    stats_thread_count_var = StringVar()
+    stats_thread_count_label = Label(stats_window, textvariable=stats_thread_count_var)
+    stats_thread_count_label.grid(row=3, column=0, sticky=E, padx=15, pady=(0, 0))
 
-    stats_uptime_var = StringVar ()
-    stats_uptime_label = Label (stats_window, textvariable=stats_uptime_var)
-    stats_uptime_label.grid (row=4, column=0, sticky=E, padx=15, pady=(0, 0))
+    stats_uptime_var = StringVar()
+    stats_uptime_label = Label(stats_window, textvariable=stats_uptime_var)
+    stats_uptime_label.grid(row=4, column=0, sticky=E, padx=15, pady=(0, 0))
 
-    stats_consensus_var = StringVar ()
-    stats_consensus_label = Label (stats_window, textvariable=stats_consensus_var)
-    stats_consensus_label.grid (row=5, column=0, sticky=E, padx=15, pady=(0, 0))
+    stats_consensus_var = StringVar()
+    stats_consensus_label = Label(stats_window, textvariable=stats_consensus_var)
+    stats_consensus_label.grid(row=5, column=0, sticky=E, padx=15, pady=(0, 0))
 
-    stats_consensus_consensus_percentage_var = StringVar ()
-    stats_consensus_consensus_percentage_label = Label (stats_window, textvariable=stats_consensus_consensus_percentage_var)
-    stats_consensus_consensus_percentage_label.grid (row=6, column=0, sticky=E, padx=15, pady=(0, 0))
+    stats_consensus_consensus_percentage_var = StringVar()
+    stats_consensus_consensus_percentage_label = Label(stats_window, textvariable=stats_consensus_consensus_percentage_var)
+    stats_consensus_consensus_percentage_label.grid(row=6, column=0, sticky=E, padx=15, pady=(0, 0))
 
-    stats_version_var = StringVar ()
-    stats_version_label = Label (stats_window, textvariable=stats_version_var)
-    stats_version_label.grid (row=7, column=0, sticky=E, padx=15, pady=(0, 0))
+    stats_version_var = StringVar()
+    stats_version_label = Label(stats_window, textvariable=stats_version_var)
+    stats_version_label.grid(row=7, column=0, sticky=E, padx=15, pady=(0, 0))
 
-    stats_diff_var_0 = StringVar ()
-    stats_diff_label_0 = Label (stats_window, textvariable=stats_diff_var_0)
-    stats_diff_label_0.grid (row=8, column=0, sticky=E, padx=15, pady=(0, 0))
+    stats_diff_var_0 = StringVar()
+    stats_diff_label_0 = Label(stats_window, textvariable=stats_diff_var_0)
+    stats_diff_label_0.grid(row=8, column=0, sticky=E, padx=15, pady=(0, 0))
 
-    stats_diff_var_1 = StringVar ()
-    stats_diff_label_1 = Label (stats_window, textvariable=stats_diff_var_1)
-    stats_diff_label_1.grid (row=9, column=0, sticky=E, padx=15, pady=(0, 0))
+    stats_diff_var_1 = StringVar()
+    stats_diff_label_1 = Label(stats_window, textvariable=stats_diff_var_1)
+    stats_diff_label_1.grid(row=9, column=0, sticky=E, padx=15, pady=(0, 0))
 
-    stats_diff_var_2 = StringVar ()
-    stats_diff_label_2 = Label (stats_window, textvariable=stats_diff_var_2)
-    stats_diff_label_2.grid (row=10, column=0, sticky=E, padx=15, pady=(0, 0))
+    stats_diff_var_2 = StringVar()
+    stats_diff_label_2 = Label(stats_window, textvariable=stats_diff_var_2)
+    stats_diff_label_2.grid(row=10, column=0, sticky=E, padx=15, pady=(0, 0))
 
-    stats_diff_var_3 = StringVar ()
-    stats_diff_label_3 = Label (stats_window, textvariable=stats_diff_var_3)
-    stats_diff_label_3.grid (row=11, column=0, sticky=E, padx=15, pady=(0, 0))
+    stats_diff_var_3 = StringVar()
+    stats_diff_label_3 = Label(stats_window, textvariable=stats_diff_var_3)
+    stats_diff_label_3.grid(row=11, column=0, sticky=E, padx=15, pady=(0, 0))
 
-    stats_diff_var_4 = StringVar ()
-    stats_diff_label_4 = Label (stats_window, textvariable=stats_diff_var_4)
-    stats_diff_label_4.grid (row=12, column=0, sticky=E, padx=15, pady=(0, 0))
+    stats_diff_var_4 = StringVar()
+    stats_diff_label_4 = Label(stats_window, textvariable=stats_diff_var_4)
+    stats_diff_label_4.grid(row=12, column=0, sticky=E, padx=15, pady=(0, 0))
 
-    stats_diff_var_5 = StringVar ()
-    stats_diff_label_5 = Label (stats_window, textvariable=stats_diff_var_5)
-    stats_diff_label_5.grid (row=13, column=0, sticky=E, padx=15, pady=(0, 0))
+    stats_diff_var_5 = StringVar()
+    stats_diff_label_5 = Label(stats_window, textvariable=stats_diff_var_5)
+    stats_diff_label_5.grid(row=13, column=0, sticky=E, padx=15, pady=(0, 0))
 
-    stats_diff_var_6 = StringVar ()
-    stats_diff_label_6 = Label (stats_window, textvariable=stats_diff_var_6)
-    stats_diff_label_6.grid (row=14, column=0, sticky=E, padx=15, pady=(0, 0))
+    stats_diff_var_6 = StringVar()
+    stats_diff_label_6 = Label(stats_window, textvariable=stats_diff_var_6)
+    stats_diff_label_6.grid(row=14, column=0, sticky=E, padx=15, pady=(0, 0))
 
     def refresh_stats_auto():
         try:
             # global frame_chart
-            root.after (0, update ())
-            root.after (10000, refresh_stats_auto)
+            root.after(0, update())
+            root.after(10000, refresh_stats_auto)
 
-            chart_fill ()
+            chart_fill()
         except Exception as e:
-            print ("Statistics window closed, disabling auto-refresh ({})".format (e))
+            print("Statistics window closed, disabling auto-refresh({})".format(e))
 
-    refresh_stats_auto ()
+    refresh_stats_auto()
 
 
 def csv_export(s):
     """
-    connections.send (s, "addlist", 10)  # senders
-    connections.send (s, myaddress, 10)
-    tx_list = connections.receive (s, 10)
-    print (tx_list)
+    connections.send(s, "addlist", 10)  # senders
+    connections.send(s, myaddress, 10)
+    tx_list = connections.receive(s, 10)
+    print(tx_list)
     """
     # This will freeze, but let say it's ok, we're waiting for a feedback.
     tx_list = async_client.connection.command("addlist", myaddress)
 
-    root.filename = filedialog.asksaveasfilename (initialdir="", title="Select CSV file")
+    root.filename = filedialog.asksaveasfilename(initialdir="", title="Select CSV file")
 
-    with open (root.filename, 'w', newline='') as csvfile:
+    with open(root.filename, 'w', newline='') as csvfile:
         for transaction in tx_list:
-            writer = csv.writer (csvfile, quoting=csv.QUOTE_MINIMAL)
-            writer.writerow ([transaction[0], transaction[1], transaction[3], transaction[4], transaction[5], transaction[6], transaction[7], transaction[8], transaction[9], transaction[10], transaction[11]])
+            writer = csv.writer(csvfile, quoting=csv.QUOTE_MINIMAL)
+            writer.writerow([transaction[0], transaction[1], transaction[3], transaction[4], transaction[5], transaction[6], transaction[7], transaction[8], transaction[9], transaction[10], transaction[11]])
 
     return
 
 
 def token_transfer(token, amount, window):
-    operation.delete (0, END)
-    operation.insert (0, "token:transfer")
+    operation.delete(0, END)
+    operation.insert(0, "token:transfer")
 
-    openfield.delete ('1.0', END)  # remove previous
-    openfield.insert (INSERT, "{}:{}".format (token, amount))
-    window.destroy ()
+    openfield.delete('1.0', END)  # remove previous
+    openfield.insert(INSERT, "{}:{}".format(token, amount))
+    window.destroy()
 
-    send_confirm (0, recipient.get (),"token:transfer", "{}:{}".format (token, amount))
+    send_confirm(0, recipient.get(),"token:transfer", "{}:{}".format(token, amount))
 
 
 def token_issue(token, amount, window):
-    operation.delete (0, END)
-    operation.insert (0, "token:issue")
+    operation.delete(0, END)
+    operation.insert(0, "token:issue")
 
-    openfield.delete ('1.0', END)  # remove previous
-    openfield.insert (INSERT, "{}:{}".format (token, amount))
-    recipient.delete (0, END)
-    recipient.insert (INSERT, myaddress)
-    window.destroy ()
+    openfield.delete('1.0', END)  # remove previous
+    openfield.insert(INSERT, "{}:{}".format(token, amount))
+    recipient.delete(0, END)
+    recipient.insert(INSERT, myaddress)
+    window.destroy()
 
-    send_confirm (0, recipient.get (),"token:issue", "{}:{}".format (token, amount))
+    send_confirm(0, recipient.get(),"token:issue", "{}:{}".format(token, amount))
 
 
 def tokens():
-    tokens_main = Toplevel ()
-    tokens_main.title ("Tokens")
+    tokens_main = Toplevel()
+    tokens_main.title("Tokens")
 
-    token_box = Listbox (tokens_main, width=100)
-    token_box.grid (row=0, pady=0)
+    token_box = Listbox(tokens_main, width=100)
+    token_box.grid(row=0, pady=0)
     """
-    connections.send (s, "tokensget", 10)
-    connections.send (s, gui_address_t.get (), 10)
-    tokens_results = connections.receive (s, 10)
+    connections.send(s, "tokensget", 10)
+    connections.send(s, gui_address_t.get(), 10)
+    tokens_results = connections.receive(s, 10)
     """
     # This will freeze, but let say it's ok, we're waiting for a feedback.
     tokens_results = async_client.connection.command("tokensget", gui_address_t.get())
 
-    print (tokens_results)
+    print(tokens_results)
 
     for pair in tokens_results:
         token = pair[0]
         balance = pair[1]
-        token_box.insert (END, (token, ":", balance))
+        token_box.insert(END,(token, ":", balance))
 
     # callback
     def callback(event):
-        token_select = (token_box.get (token_box.curselection ()[0]))
-        token_name_var.set (token_select[0])
-        token_amount_var.set (token_select[2])
+        token_select =(token_box.get(token_box.curselection()[0]))
+        token_name_var.set(token_select[0])
+        token_amount_var.set(token_select[2])
 
-    token_box.bind ('<Double-1>', callback)
+    token_box.bind('<Double-1>', callback)
 
     # callback
 
-    token_name_var = StringVar ()
-    token_name = Entry (tokens_main, textvariable=token_name_var, width=80)
-    token_name.grid (row=2, column=0, sticky=E, padx=15, pady=(5, 5))
+    token_name_var = StringVar()
+    token_name = Entry(tokens_main, textvariable=token_name_var, width=80)
+    token_name.grid(row=2, column=0, sticky=E, padx=15, pady=(5, 5))
 
-    token_name_label_var = StringVar ()
-    token_name_label_var.set ("Token Name:")
-    token_name_label = Label (tokens_main, textvariable=token_name_label_var)
-    token_name_label.grid (row=2, column=0, sticky=W, padx=15, pady=(0, 0))
+    token_name_label_var = StringVar()
+    token_name_label_var.set("Token Name:")
+    token_name_label = Label(tokens_main, textvariable=token_name_label_var)
+    token_name_label.grid(row=2, column=0, sticky=W, padx=15, pady=(0, 0))
 
     # balance_var = StringVar()
     # balance_msg_label = Label(frame_buttons, textvariable=balance_var)
 
-    token_amount_var = StringVar ()
-    token_amount = Entry (tokens_main, textvariable=token_amount_var, width=80, )
-    token_amount.grid (row=3, column=0, sticky=E, padx=15, pady=(5, 5))
+    token_amount_var = StringVar()
+    token_amount = Entry(tokens_main, textvariable=token_amount_var, width=80, )
+    token_amount.grid(row=3, column=0, sticky=E, padx=15, pady=(5, 5))
 
-    token_amount_label_var = StringVar ()
-    token_amount_label_var.set ("Token Amount:")
-    token_amount_label = Label (tokens_main, textvariable=token_amount_label_var)
-    token_amount_label.grid (row=3, column=0, sticky=W, padx=15, pady=(0, 0))
+    token_amount_label_var = StringVar()
+    token_amount_label_var.set("Token Amount:")
+    token_amount_label = Label(tokens_main, textvariable=token_amount_label_var)
+    token_amount_label.grid(row=3, column=0, sticky=W, padx=15, pady=(0, 0))
 
-    transfer = Button (tokens_main, text="Transfer", command=lambda: token_transfer (token_name_var.get (), token_amount_var.get (), tokens_main))
-    transfer.grid (row=4, column=0, sticky=W + E, padx=5)
+    transfer = Button(tokens_main, text="Transfer", command=lambda: token_transfer(token_name_var.get(), token_amount_var.get(), tokens_main))
+    transfer.grid(row=4, column=0, sticky=W + E, padx=5)
 
-    issue = Button (tokens_main, text="Issue", command=lambda: token_issue (token_name_var.get (), token_amount_var.get (), tokens_main))
-    issue.grid (row=5, column=0, sticky=W + E, padx=5)
+    issue = Button(tokens_main, text="Issue", command=lambda: token_issue(token_name_var.get(), token_amount_var.get(), tokens_main))
+    issue.grid(row=5, column=0, sticky=W + E, padx=5)
 
-    cancel = Button (tokens_main, text="Cancel", command=tokens_main.destroy)
-    cancel.grid (row=6, column=0, sticky=W + E, padx=5)
+    cancel = Button(tokens_main, text="Cancel", command=tokens_main.destroy)
+    cancel.grid(row=6, column=0, sticky=W + E, padx=5)
 
 
 def tx_tree_define():
     global tx_tree
 
-    tx_tree = ttk.Treeview (tab_transactions, selectmode="extended", columns=('sender', 'recipient', 'amount', 'type'), height=20)
-    tx_tree.grid (row=1, column=0)
+    tx_tree = ttk.Treeview(tab_transactions, selectmode="extended", columns=('sender', 'recipient', 'amount', 'type'), height=20)
+    tx_tree.grid(row=1, column=0)
 
     # table
-    tx_tree.heading ("#0", text='time')
-    tx_tree.column ("#0", anchor='center', width=100)
+    tx_tree.heading("#0", text='time')
+    tx_tree.column("#0", anchor='center', width=100)
 
-    tx_tree.heading ("#1", text='sender')
-    tx_tree.column ("#1", anchor='center', width=347)
+    tx_tree.heading("#1", text='sender')
+    tx_tree.column("#1", anchor='center', width=347)
 
-    tx_tree.heading ("#2", text='recipient')
-    tx_tree.column ("#2", anchor='center', width=347)
+    tx_tree.heading("#2", text='recipient')
+    tx_tree.column("#2", anchor='center', width=347)
 
-    tx_tree.heading ("#3", text='amount')
-    tx_tree.column ("#3", anchor='center', width=35)
+    tx_tree.heading("#3", text='amount')
+    tx_tree.column("#3", anchor='center', width=35)
 
-    tx_tree.heading ("#4", text='type')
-    tx_tree.column ("#4", anchor='center', width=40)
+    tx_tree.heading("#4", text='type')
+    tx_tree.column("#4", anchor='center', width=40)
 
-    tx_tree.grid (sticky=N + S + W + E)
+    tx_tree.grid(sticky=N + S + W + E)
 
 
 def table(address, addlist_20, mempool_total):
@@ -1114,16 +1127,16 @@ def table(address, addlist_20, mempool_total):
     # transaction table
     # data
     try:
-        tx_tree.destroy ()
+        tx_tree.destroy()
     except:
         pass
-    tx_tree_define ()
+    tx_tree_define()
 
     for tx in mempool_total:
         tag = "mempool"
 
         if tx[1] == address:
-            tx_tree.insert ('', 'end', text=datetime.fromtimestamp (float (tx[0])).strftime ('%y-%m-%d %H:%M'), values=(tx[1], tx[2], tx[3], "?"), tags=tag)
+            tx_tree.insert('', 'end', text=datetime.fromtimestamp(float(tx[0])).strftime('%y-%m-%d %H:%M'), values=(tx[1], tx[2], tx[3], "?"), tags=tag)
 
     if resolve_var.get():
         # aliases
@@ -1151,19 +1164,19 @@ def table(address, addlist_20, mempool_total):
             tag = "received"
         # case for alias = this address
 
-        if Decimal (tx[9]) > 0:
+        if Decimal(tx[9]) > 0:
             symbol = "MIN"
-        elif tx[11].startswith ("bmsg"):
+        elif tx[11].startswith("bmsg"):
             symbol = "B64M"
-        elif tx[11].startswith ("msg"):
+        elif tx[11].startswith("msg"):
             symbol = "MSG"
         else:
             symbol = "TX"
 
-        tx_tree.insert ('', 'end', text=datetime.fromtimestamp (float (tx[1])).strftime ('%y-%m-%d %H:%M'), values=(tx[2], tx[3], tx[4], symbol), tags=tag)
+        tx_tree.insert('', 'end', text=datetime.fromtimestamp(float(tx[1])).strftime('%y-%m-%d %H:%M'), values=(tx[2], tx[3], tx[4], symbol), tags=tag)
 
-        tx_tree.tag_configure ("received", background='palegreen1')
-        tx_tree.tag_configure ("sent", background='chocolate1')
+        tx_tree.tag_configure("received", background='palegreen1')
+        tx_tree.tag_configure("sent", background='chocolate1')
 
     # table
 
@@ -1198,7 +1211,7 @@ def refresh(address, s=None):
         status_version = statusget[7]
         stats_timestamp = statusget[9]
 
-        server_timestamp_var.set("GMT: {}".format(time.strftime ("%H:%M:%S", time.gmtime (int(float(stats_timestamp))))))
+        server_timestamp_var.set("GMT: {}".format(time.strftime("%H:%M:%S", time.gmtime(int(float(stats_timestamp))))))
 
         # data for charts
         block_height = statusget[8][7]  # move chart only if the block height changes, returned from diff 7
@@ -1208,24 +1221,24 @@ def refresh(address, s=None):
             block_height_old = block_height  # init
 
         if block_height_old != block_height or not stats_nodes_count_list:  # or if list is empty
-            print ("Chart update in progress")
+            print("Chart update in progress")
 
-            stats_nodes_count_list.append (statusget[1])
-            stats_thread_count_list.append (statusget[3])
-            stats_consensus_list.append (statusget[5])
-            stats_consensus_percentage_list.append (statusget[6])
+            stats_nodes_count_list.append(statusget[1])
+            stats_thread_count_list.append(statusget[3])
+            stats_consensus_list.append(statusget[5])
+            stats_consensus_percentage_list.append(statusget[6])
 
-            stats_diff_list_0.append (statusget[8][0])
-            stats_diff_list_1.append (statusget[8][1])
-            stats_diff_list_2.append (statusget[8][2])
-            stats_diff_list_3.append (statusget[8][3])
-            stats_diff_list_4.append (statusget[8][4])
-            stats_diff_list_5.append (statusget[8][5])
-            stats_diff_list_6.append (statusget[8][6])
+            stats_diff_list_0.append(statusget[8][0])
+            stats_diff_list_1.append(statusget[8][1])
+            stats_diff_list_2.append(statusget[8][2])
+            stats_diff_list_3.append(statusget[8][3])
+            stats_diff_list_4.append(statusget[8][4])
+            stats_diff_list_5.append(statusget[8][5])
+            stats_diff_list_6.append(statusget[8][6])
 
             block_height_old = block_height
         else:
-            print ("Chart update skipped, block hasn't moved")
+            print("Chart update skipped, block hasn't moved")
         # data for charts
 
         stats_account = status['stats_account']
@@ -1235,7 +1248,7 @@ def refresh(address, s=None):
         fees = stats_account[3]
         rewards = stats_account[4]
 
-        app_log.warning ("Transaction address balance: {}".format (balance))
+        app_log.warning("Transaction address balance: {}".format(balance))
 
         block_get = status['block_get']
         bl_height = block_get[0]
@@ -1246,46 +1259,46 @@ def refresh(address, s=None):
         diff = status['diffget']
         # check difficulty
 
-        print (diff)
-        diff_msg = int (diff[1])  # integer is enough
+        print(diff)
+        diff_msg = int(diff[1])  # integer is enough
 
         # network status
-        time_now = str (time.time ())
-        last_block_ago = Decimal (time_now) - Decimal (db_timestamp_last)
+        time_now = str(time.time())
+        last_block_ago = Decimal(time_now) - Decimal(db_timestamp_last)
         if last_block_ago > 300:
-            sync_msg = "{}m behind".format ((int (last_block_ago / 60)))
-            sync_msg_label.config (fg='red')
+            sync_msg = "{}m behind".format((int(last_block_ago / 60)))
+            sync_msg_label.config(fg='red')
         else:
-            sync_msg = "Last block: {}s ago".format ((int (last_block_ago)))
-            sync_msg_label.config (fg='green')
+            sync_msg = "Last block: {}s ago".format((int(last_block_ago)))
+            sync_msg_label.config(fg='green')
 
         # network status
 
         mempool_total = status['mpget']
-        # print (mempool_total)
+        # print(mempool_total)
 
         # fees_current_var.set("Current Fee: {}".format('%.8f' % float(fee)))
-        balance_var.set ("Balance: {:.8f} BIS".format (Decimal (balance)))
-        balance_raw.set (balance)
-        debit_var.set ("Sent Total: {:.8f} BIS".format (Decimal (debit)))
-        credit_var.set ("Received Total: {:.8f} BIS".format (Decimal (credit)))
-        fees_var.set ("Fees Paid: {:.8f} BIS".format (Decimal (fees)))
-        rewards_var.set ("Rewards: {:.8f} BIS".format (Decimal (rewards)))
-        bl_height_var.set ("Block: {}".format (bl_height))
-        diff_msg_var.set ("Difficulty: {}".format (diff_msg))
-        sync_msg_var.set (sync_msg)
+        balance_var.set("Balance: {:.8f} BIS".format(Decimal(balance)))
+        balance_raw.set(balance)
+        debit_var.set("Sent Total: {:.8f} BIS".format(Decimal(debit)))
+        credit_var.set("Received Total: {:.8f} BIS".format(Decimal(credit)))
+        fees_var.set("Fees Paid: {:.8f} BIS".format(Decimal(fees)))
+        rewards_var.set("Rewards: {:.8f} BIS".format(Decimal(rewards)))
+        bl_height_var.set("Block: {}".format(bl_height))
+        diff_msg_var.set("Difficulty: {}".format(diff_msg))
+        sync_msg_var.set(sync_msg)
 
-        hash_var.set ("Hash: {}...".format (hash_last[:6]))
-        mempool_count_var.set ("Mempool txs: {}".format (len (mempool_total)))
+        hash_var.set("Hash: {}...".format(hash_last[:6]))
+        mempool_count_var.set("Mempool txs: {}".format(len(mempool_total)))
 
         annverget = status['annverget']
-        version_var.set ("Version: {}/{}".format (status_version, annverget))
+        version_var.set("Version: {}/{}".format(status_version, annverget))
 
         # if status_version != annverget:
         #    version_color = "red"
         # else:
         #    version_color = "green"
-        # version_var_label.config (fg=version_color)
+        # version_var_label.config(fg=version_color)
 
         addlist = status['addlist']
 
@@ -1294,30 +1307,30 @@ def refresh(address, s=None):
 
         # canvas bg
         root.update()
-        width_root = root.winfo_width ()
-        height_root = root.winfo_height ()
+        # width_root = root.winfo_width()
+        # height_root = root.winfo_height()
 
         # frame_main.update()
-        width_main = tab_main.winfo_width ()
-        height_main = tab_main.winfo_height ()
+        width_main = tab_main.winfo_width()
+        height_main = tab_main.winfo_height()
 
-        canvas_main.configure (width=width_main, height=height_main)
-        # photo_main.resize (width_main,height_main)
+        canvas_main.configure(width=width_main, height=height_main)
+        # photo_main.resize(width_main,height_main)
 
         # canvas bg
 
         annget = status['annget']
-        ann_var_text.config (state=NORMAL)
-        ann_var_text.delete ('1.0', END)
-        ann_var_text.insert (INSERT, annget)
-        ann_var_text.config (state=DISABLED)
+        ann_var_text.config(state=NORMAL)
+        ann_var_text.delete('1.0', END)
+        ann_var_text.insert(INSERT, annget)
+        ann_var_text.config(state=DISABLED)
 
-        all_spend_check ()
+        all_spend_check()
 
 
     except Exception as e:
         app_log.warning(e)
-        exc_type, exc_obj, exc_tb = sys.exc_info()
+        exc_type, _, exc_tb = sys.exc_info()
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
         print(exc_type, fname, exc_tb.tb_lineno)
         # node_connect()
@@ -1326,91 +1339,91 @@ def refresh(address, s=None):
 def sign():
     def verify_this():
         try:
-            received_public_key = RSA.importKey (public_key_gui.get ("1.0", END))
-            verifier = PKCS1_v1_5.new (received_public_key)
-            hash = SHA.new (input_text.get ("1.0", END).encode ("utf-8"))
-            received_signature_dec = base64.b64decode (output_signature.get ("1.0", END))
+            received_public_key = RSA.importKey(public_key_gui.get("1.0", END))
+            verifier = PKCS1_v1_5.new(received_public_key)
+            h = SHA.new(input_text.get("1.0", END).encode("utf-8"))
+            received_signature_dec = base64.b64decode(output_signature.get("1.0", END))
 
-            if verifier.verify (hash, received_signature_dec):
-                messagebox.showinfo ("Validation Result", "Signature valid")
+            if verifier.verify(h, received_signature_dec):
+                messagebox.showinfo("Validation Result", "Signature valid")
             else:
                 raise ValueError("Invalid Signature")
         except:
-            messagebox.showerror ("Validation Result", "Signature invalid")
+            messagebox.showerror("Validation Result", "Signature invalid")
 
     def sign_this():
-        h = SHA.new (input_text.get ("1.0", END).encode ("utf-8"))
-        signer = PKCS1_v1_5.new (key)
-        signature = signer.sign (h)
-        signature_enc = base64.b64encode (signature)
+        h = SHA.new(input_text.get("1.0", END).encode("utf-8"))
+        signer = PKCS1_v1_5.new(key)
+        signature = signer.sign(h)
+        signature_enc = base64.b64encode(signature)
 
-        output_signature.delete ('1.0', END)  # remove previous
-        output_signature.insert (INSERT, signature_enc)
+        output_signature.delete('1.0', END)  # remove previous
+        output_signature.insert(INSERT, signature_enc)
 
     # popup
-    top = Toplevel ()
-    top.title ("Sign message")
-    # top.geometry("%dx%d%+d%+d" % (800, 600, 0, 0))
+    top = Toplevel()
+    top.title("Sign message")
+    # top.geometry("%dx%d%+d%+d" %(800, 600, 0, 0))
     # top.grid_propagate(False)
 
-    Label (top, text="Message:", width=20).grid (row=0, pady=0)
-    input_text = Text (top, height=10)
+    Label(top, text="Message:", width=20).grid(row=0, pady=0)
+    input_text = Text(top, height=10)
     # label.image = photo  # keep a reference!
-    input_text.grid (row=1, column=0, sticky=N + E, padx=15, pady=(0, 0))
+    input_text.grid(row=1, column=0, sticky=N + E, padx=15, pady=(0, 0))
 
-    Label (top, text="Public Key:", width=20).grid (row=2, pady=0)
-    public_key_gui = Text (top, height=10)
-    public_key_gui.insert (INSERT, public_key_readable)
-    public_key_gui.grid (row=3, column=0, sticky=N + E, padx=15, pady=(0, 0))
+    Label(top, text="Public Key:", width=20).grid(row=2, pady=0)
+    public_key_gui = Text(top, height=10)
+    public_key_gui.insert(INSERT, public_key_readable)
+    public_key_gui.grid(row=3, column=0, sticky=N + E, padx=15, pady=(0, 0))
 
-    Label (top, text="Signature:", width=20).grid (row=4, pady=0)
-    output_signature = Text (top, height=10)
-    output_signature.grid (row=5, column=0, sticky=N + E, padx=15, pady=(0, 0))
+    Label(top, text="Signature:", width=20).grid(row=4, pady=0)
+    output_signature = Text(top, height=10)
+    output_signature.grid(row=5, column=0, sticky=N + E, padx=15, pady=(0, 0))
 
     # msg = Message(top, text="hi")
     # msg.pack()
 
-    sign_message = Button (top, text="Sign Message", command=sign_this)
-    sign_message.grid (row=6, column=0, sticky=W + E, padx=15, pady=(5, 0))
+    sign_message = Button(top, text="Sign Message", command=sign_this)
+    sign_message.grid(row=6, column=0, sticky=W + E, padx=15, pady=(5, 0))
 
-    sign_message = Button (top, text="Verify Message", command=verify_this)
-    sign_message.grid (row=7, column=0, sticky=W + E, padx=15, pady=(15, 0))
+    sign_message = Button(top, text="Verify Message", command=verify_this)
+    sign_message.grid(row=7, column=0, sticky=W + E, padx=15, pady=(15, 0))
 
-    dismiss = Button (top, text="Dismiss", command=top.destroy)
-    dismiss.grid (row=8, column=0, sticky=W + E, padx=15, pady=(15, 5))
+    dismiss = Button(top, text="Dismiss", command=top.destroy)
+    dismiss.grid(row=8, column=0, sticky=W + E, padx=15, pady=(15, 5))
     # popup
 
 
 def hyperlink_howto():
     url = "https://github.com/EggPool/BismuthHowto"
-    webbrowser.open (url, new=1)
+    webbrowser.open(url, new=1)
 
 
 def hyperlink_BE():
     url = "https://bismuth.online"
-    webbrowser.open (url, new=1)
+    webbrowser.open(url, new=1)
 
 
 def hyperlink_BISGit():
     url = "https://github.com/hclivess/Bismuth/releases"
-    webbrowser.open (url, new=1)
+    webbrowser.open(url, new=1)
 
 
 def hyperlink_bct():
     url = "https://bitcointalk.org/index.php?topic=1896497.0"
-    webbrowser.open (url, new=1)
+    webbrowser.open(url, new=1)
 	
 def support_collection(sync_msg_var, version_var):
-    sup_col = Toplevel ()
-    sup_col.title ("Collection of Basic Information")
-    collection_box = Text (sup_col, width=100)
-    collection_box.grid (row=0, pady=0)
+    sup_col = Toplevel()
+    sup_col.title("Collection of Basic Information")
+    collection_box = Text(sup_col, width=100)
+    collection_box.grid(row=0, pady=0)
 
     version = statusget[7]
     stats_timestamp = statusget[9]
     """
-    connections.send (s, "blocklast", 10)
-    block_get = connections.receive (s, 10)
+    connections.send(s, "blocklast", 10)
+    block_get = connections.receive(s, 10)
     """
     # This will freeze, but let say it's ok, we're waiting for a feedback.
     block_get = async_client.connection.command("blocklast")
@@ -1419,20 +1432,21 @@ def support_collection(sync_msg_var, version_var):
     db_timestamp_last = block_get[1]
     time_now = float(time.time())
     last_block_ago = int(time_now - db_timestamp_last)
+    ip = 'N/A'
 
 
     collection_box.config(wrap=WORD)
-    collection_box.insert (INSERT, "If you have questions or want to report a problem, please copy the information below to provide it.")
-    collection_box.insert (INSERT, "\n\n")
-    collection_box.insert (INSERT, "Your OS: {} {}".format(platform.system(), platform.release()))
-    collection_box.insert (INSERT, "\nNode Version: {}".format(version))
-    collection_box.insert (INSERT, "\nConnected to: {}".format(ip))
-    collection_box.insert (INSERT, "\nLast Block: {}".format(bl_height))
-    collection_box.insert (INSERT, "\nSeconds since Last Block: {}".format(last_block_ago))
-    collection_box.insert (INSERT, "\nNode GMT: {}".format(time.strftime ("%H:%M:%S", time.gmtime (int(float(stats_timestamp))))))
+    collection_box.insert(INSERT, "If you have questions or want to report a problem, please copy the information below to provide it.")
+    collection_box.insert(INSERT, "\n\n")
+    collection_box.insert(INSERT, "Your OS: {} {}".format(platform.system(), platform.release()))
+    collection_box.insert(INSERT, "\nNode Version: {}".format(version))
+    collection_box.insert(INSERT, "\nConnected to: {}".format(ip))
+    collection_box.insert(INSERT, "\nLast Block: {}".format(bl_height))
+    collection_box.insert(INSERT, "\nSeconds since Last Block: {}".format(last_block_ago))
+    collection_box.insert(INSERT, "\nNode GMT: {}".format(time.strftime("%H:%M:%S", time.gmtime(int(float(stats_timestamp))))))
 
-    close = Button (sup_col, text="Close", command=sup_col.destroy)
-    close.grid (row=3, column=0, sticky=W + E)
+    close = Button(sup_col, text="Close", command=sup_col.destroy)
+    close.grid(row=3, column=0, sticky=W + E)
 
 
 def themes(theme):
@@ -1441,36 +1455,36 @@ def themes(theme):
 
     if theme == "Barebone" or None:
         # canvas_bg.delete("all")
-        canvas_main.delete ("all")
+        canvas_main.delete("all")
 
     else:
-        # img_bg = PIL.Image.open ("themes/{}_bg.jpg".format(theme))
-        # photo_bg = PIL.ImageTk.PhotoImage (img_bg)
-        # canvas_bg.create_image (0, 0, image=photo_bg, anchor=NW)
+        # img_bg = PIL.Image.open("themes/{}_bg.jpg".format(theme))
+        # photo_bg = PIL.ImageTk.PhotoImage(img_bg)
+        # canvas_bg.create_image(0, 0, image=photo_bg, anchor=NW)
 
-        width_main = tab_main.winfo_width ()
-        height_main = tab_main.winfo_height ()
+        width_main = tab_main.winfo_width()
+        height_main = tab_main.winfo_height()
 
-        main_bg = PIL.Image.open ("themes/{}.jpg".format (theme)).resize ((width_main, height_main), PIL.Image.ANTIALIAS)
-        photo_main = PIL.ImageTk.PhotoImage (main_bg)
-        canvas_main.create_image (0, 0, image=photo_main, anchor=NW)
+        with PIL.Image.open("themes/{}.jpg".format(theme)) as main_bg:
+            photo_main = PIL.ImageTk.PhotoImage(main_bg.resize((width_main, height_main), PIL.Image.ANTIALIAS))
+        canvas_main.create_image(0, 0, image=photo_main, anchor=NW)
 
-    with open ("theme", "w") as theme_file:
-        theme_file.write (theme)
+    with open("theme", "w") as theme_file:
+        theme_file.write(theme)
 
 
 
 def encryption_button_refresh():
     if unlocked:
-        decrypt_b.configure (text="Unlocked", state=DISABLED)
+        decrypt_b.configure(text="Unlocked", state=DISABLED)
     if not unlocked:
-        decrypt_b.configure (text="Unlock", state=NORMAL)
-        messagemenu.entryconfig ("Sign Messages", state="disabled")  # messages
-        walletmenu.entryconfig ("Recovery", state="disabled")  # recover
+        decrypt_b.configure(text="Unlock", state=NORMAL)
+        messagemenu.entryconfig("Sign Messages", state="disabled")  # messages
+        walletmenu.entryconfig("Recovery", state="disabled")  # recover
     if not encrypted:
-        encrypt_b.configure (text="Encrypt", state=NORMAL)
+        encrypt_b.configure(text="Encrypt", state=NORMAL)
     if encrypted:
-        encrypt_b.configure (text="Encrypted", state=DISABLED)
+        encrypt_b.configure(text="Encrypted", state=DISABLED)
 
 
 def connection_thread():
@@ -1531,12 +1545,10 @@ if __name__ == "__main__":
 
     config = options.Get()
     config.read()
-    debug_level = config.debug_level_conf
     full_ledger = config.full_ledger_conf
     port = config.port
     light_ip = config.light_ip
     version = config.version_conf
-    terminal_output = config.terminal_output
     gui_scaling = config.gui_scaling
 
     """
@@ -1556,7 +1568,7 @@ if __name__ == "__main__":
         light_ip = ["127.0.0.1"]
 
     # app_log = log.log("gui.log", debug_level)
-    app_log = log.log("wallet.log", debug_level, terminal_output)
+    app_log = log.log("wallet.log", config.debug_level_conf, config.terminal_output)
 
     essentials.keys_check(app_log)
     essentials.db_check(app_log)
@@ -1571,9 +1583,9 @@ if __name__ == "__main__":
     # root.geometry("1310x700") #You want the size of the app to be 500x500
     root.resizable(0, 0)  # Don't allow resizing in the x or y direction / resize
     # root['bg']="black"
-
-    img_icon = PIL.Image.open("graphics/icon.jpg")
-    photo_icon = PIL.ImageTk.PhotoImage(img_icon)
+    
+    with PIL.Image.open("graphics/icon.jpg") as img_icon:
+        photo_icon = PIL.ImageTk.PhotoImage(img_icon)
     root.tk.call('wm', 'iconphoto', root._w, photo_icon, )
 
     if gui_scaling == "adapt":
@@ -1772,7 +1784,7 @@ if __name__ == "__main__":
 
     send_b = Button(frame_send, text="Send Bismuth",
                     command=lambda: send_confirm(str(amount.get()).strip(), recipient.get().strip(),
-                                                 operation.get().strip(), (openfield.get("1.0", END)).strip()),
+                                                 operation.get().strip(),(openfield.get("1.0", END)).strip()),
                     height=2, width=22, font=("Tahoma", 12))
     send_b.grid(row=0, column=0)
 
@@ -1993,8 +2005,8 @@ if __name__ == "__main__":
     # logo_hash_decoded = base64.b64decode(icons.logo_hash)
     # logo = PhotoImage(data="graphics/logo.png")
 
-    logo_img = PIL.Image.open("graphics/logo.jpg")
-    logo = PIL.ImageTk.PhotoImage(logo_img)
+    with PIL.Image.open("graphics/logo.png") as logo_img:
+        logo = PIL.ImageTk.PhotoImage(logo_img)
 
     Label(frame_logo, image=logo).grid(column=0, row=0)
     # logo
@@ -2012,9 +2024,10 @@ if __name__ == "__main__":
     refresh_auto()
 
     try:
-        themes (open ("theme", "r").read ())  # load last selected theme
+        with open('theme', 'r') as theme_file:
+            themes(theme_file.read())  # load last selected theme
     except:
-        with open ("theme", "w") as theme_file:
-            theme_file.write ("Barebone")
+        with open("theme", "w") as theme_file:
+            theme_file.write("Barebone")
 
     root.mainloop()

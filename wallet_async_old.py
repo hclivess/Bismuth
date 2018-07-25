@@ -2,8 +2,11 @@
 
 # icons created using http://www.winterdrache.de/freeware/png2ico/
 
-import sqlite3
-import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, time, base64, connections, icons, log, socks, ast, options, tarfile, glob, essentials, re, platform, lwbench
+# import sqlite3
+import PIL.Image, PIL.ImageTk, pyqrcode, os, time, socks, ast, options, tarfile, essentials, platform
+import hashlib, base64,  icons, log, glob, re
+# import connections
+
 from tokensv2 import *
 from decimal import *
 from bisurl import *
@@ -15,66 +18,17 @@ from essentials import fee_calculate
 
 import matplotlib
 
+
+#from tornado.ioloop import IOLoop
+# import aioprocessing
+import async_client
+import threading
+import asyncio
+
 matplotlib.use ('TkAgg')
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
 from matplotlib.figure import Figure
-from random import shuffle
-
-# import keys
-
-# globalize
-global block_height_old
-global statusget
-global key
-global private_key_readable
-global encrypted
-global unlocked
-global public_key_hashed
-global myaddress
-global private_key_load
-global public_key_load
-global s
-
-# data for charts
-stats_nodes_count_list = []
-stats_thread_count_list = []
-stats_consensus_list = []
-stats_consensus_percentage_list = []
-stats_diff_list_0 = []
-stats_diff_list_1 = []
-stats_diff_list_2 = []
-stats_diff_list_3 = []
-stats_diff_list_4 = []
-stats_diff_list_5 = []
-stats_diff_list_6 = []
-# data for charts
-
-if os.path.exists ("privkey.der"):
-    private_key_load = "privkey.der"
-else:
-    private_key_load = "privkey_encrypted.der"
-
-public_key_load = "pubkey.der"
-
-print (getcontext ())
-
-config = options.Get ()
-config.read ()
-debug_level = config.debug_level_conf
-full_ledger = config.full_ledger_conf
-port = config.port
-light_ip = config.light_ip
-version = config.version_conf
-terminal_output = config.terminal_output
-gui_scaling = config.gui_scaling
-
-#benchmark light_ip-list
-light_ip = lwbench.time_measure(light_ip)
-
-
-if "testnet" in version:
-    port = 2829
-    light_ip = ["127.0.0.1"]
+# from random import shuffle
 
 from datetime import datetime
 from Cryptodome.PublicKey import RSA
@@ -88,16 +42,11 @@ from tkinter import filedialog, messagebox, ttk
 from tkinter import *
 import webbrowser
 
-# app_log = log.log("gui.log", debug_level)
-app_log = log.log ("wallet.log", debug_level, terminal_output)
-
-essentials.keys_check (app_log)
-essentials.db_check (app_log)
-key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress = essentials.keys_load (private_key_load, public_key_load)
+__version__ = "1.0.4"
 
 
 def mempool_clear(s):
-    connections.send (s, "mpclear", 10)
+    async_client.connection.send("mpclear")
 
 
 def mempool_get(s):
@@ -186,60 +135,6 @@ def read_url_clicked(app_log, url):
     openfield.insert (INSERT, result[4])  # openfield
 
 
-def convert_ip_port(ip, some_port):
-    """
-    Get ip and port, but extract port from ip if ip was as ip:port
-    :param ip:
-    :param some_port: default port
-    :return: (ip, port)
-    """
-    if ':' in ip:
-        ip, some_port = ip.split(':')
-    return ip, some_port
-
-
-def node_connect():
-    global s
-    global port
-    global ip
-    keep_trying = True
-    while keep_trying:
-        for ip in light_ip:
-            try:
-                ip, local_port = convert_ip_port(ip, port)
-                app_log.warning("Status: Attempting to connect to {}:{} out of {}".format (ip, local_port, light_ip))
-                s = socks.socksocket()
-                s.settimeout(3)
-                s.connect((ip, int(local_port)))
-                connections.send(s, "statusget", 10)
-                result = connections.receive(s, 10)  # validate the connection
-                app_log.warning("Connection OK")
-                app_log.warning("Status: Wallet connected to {}:{}".format (ip, local_port))
-                ip_connected_var.set(ip)
-                keep_trying = False
-                break
-            except Exception as e:
-                app_log.warning("Status: Cannot connect to {}:{}".format (ip, local_port))
-                time.sleep(1)
-
-def node_connect_once(ip_once): #Connect a light-wallet-ip directly from menu
-    global s
-    global port
-    global ip
-    try:
-        ip, local_port = convert_ip_port(ip_once, port)
-        app_log.warning("Status: Attempting to connect to {}:{} out of {}".format (ip_once, local_port, light_ip))
-        s = socks.socksocket()
-        s.settimeout(3)
-        s.connect((ip, int(local_port)))
-        connections.send(s, "statusget", 10)
-        result = connections.receive(s, 10)  # validate the connection
-        app_log.warning("Connection OK")
-        app_log.warning("Status: Wallet connected to {}:{}".format (ip, local_port))
-        ip_connected_var.set(ip)
-    except Exception as e:
-        app_log.warning("Status: Cannot connect to {}:{}".format (ip, local_port))
-        node_connect ()
 
 def replace_regex(string, replace):
     replaced_string = re.sub (r'^{}'.format (replace), "", string)
@@ -247,10 +142,8 @@ def replace_regex(string, replace):
 
 
 def alias_register(alias_desired):
-    connections.send (s, "aliascheck", 10)
-    connections.send (s, alias_desired, 10)
-
-    result = connections.receive (s, 10)
+    # This will freeze, but let say it's ok, we're waiting for a feedback.
+    result = async_client.connection.command("aliascheck", alias_desired)
 
     if result == "Alias free":
         send ("0", myaddress, "", "alias=" + alias_desired)
@@ -396,10 +289,8 @@ def aliases_list():
     aliases_box = Text (top12, width=100)
     aliases_box.grid (row=0, pady=0)
 
-    connections.send (s, "aliasget", 10)
-    connections.send (s, myaddress, 10)
-
-    aliases_self = connections.receive (s, 10)
+    # This will freeze, but let say it's ok, we're waiting for a feedback.
+    aliases_self = async_client.connection.command("aliasget", myaddress)
 
     for x in aliases_self:
         aliases_box.insert (INSERT, replace_regex (x[0], "alias="))
@@ -579,17 +470,25 @@ def send_confirm(amount_input, recipient_input, operation_input, openfield_input
     top10.title ("Confirm")
 
     if alias_cb_var.get ():  # alias check
+        """
         connections.send (s, "addfromalias", 10)
         connections.send (s, recipient_input, 10)
         recipient_input = connections.receive (s, 10)
+        """
+        # This will freeze, but let say it's ok, we're waiting for a feedback.
+        recipient_input = async_client.connection.command("addfromalias", recipient_input)
+
 
     # encr check
     if encrypt_var.get ():
         # get recipient's public key
-
+        """
         connections.send (s, "pubkeyget", 10)
         connections.send (s, recipient_input, 10)
         target_public_key_hashed = connections.receive (s, 10)
+        """
+        # This will freeze, but let say it's ok, we're waiting for a feedback.
+        target_public_key_hashed = async_client.connection.command("pubkeyget", recipient_input)
 
         recipient_key = RSA.importKey (base64.b64decode (target_public_key_hashed).decode ("utf-8"))
 
@@ -682,9 +581,14 @@ def send(amount_input, recipient_input, operation_input, openfield_input):
             tx_submit = str (tx_timestamp), str (myaddress), str (recipient_input), '%.8f' % float (amount_input), str (signature_enc.decode ("utf-8")), str (public_key_hashed.decode ("utf-8")), str (operation_input), str (openfield_input)  # float kept for compatibility
 
             while True:
+                """
                 connections.send (s, "mpinsert", 10)
                 connections.send (s, tx_submit, 10)
                 reply = connections.receive (s, 10)
+                """
+                # This will freeze, but let say it's ok, we're waiting for a feedback.
+                reply = async_client.connection.command("mpinsert", tx_submit)
+
                 app_log.warning ("Client: {}".format (reply))
                 if reply[-1] == "Success":
                     messagebox.showinfo("OK","Transaction accepted to mempool")
@@ -727,9 +631,13 @@ def qr(address):
 
 
 def msg_dialogue(address):
+    """
     connections.send (s, "addlist", 10)
     connections.send (s, myaddress, 10)
     addlist = connections.receive (s, 10)
+    """
+    # This will freeze, but let say it's ok, we're waiting for a feedback.
+    addlist = async_client.connection.command("addlist", myaddress)
     print (addlist)
 
     def msg_received_get(addlist):
@@ -737,11 +645,13 @@ def msg_dialogue(address):
         for x in addlist:
             if x[11].startswith (("msg=", "bmsg=", "enc=msg=", "enc=bmsg=")) and x[3] == address:
                 # print(x[11])
-
+                """
                 connections.send (s, "aliasget", 10)
                 connections.send (s, x[2], 10)
-
                 msg_address = connections.receive (s, 10)[0][0]
+                """
+                # We could/should use the cache, but say we do a live request for now.
+                msg_address = async_client.connection.command("aliasget", x[2])
 
                 if x[11].startswith ("enc=msg="):
                     msg_received_digest = replace_regex (x[11], "enc=msg=")
@@ -794,10 +704,14 @@ def msg_dialogue(address):
         for x in addlist:
             if x[11].startswith (("msg=", "bmsg=", "enc=msg=", "enc=bmsg=")) and x[2] == address:
                 # print(x[11])
-
+                """
                 connections.send (s, "aliasget", 10)
                 connections.send (s, x[3], 10)
                 received_aliases = connections.receive (s, 10)
+                """
+                # We could/should use the cache, but say we do a live request for now.
+                received_aliases = async_client.connection.command("aliasget", x[3])
+
                 msg_recipient = received_aliases[0][0]
 
                 if x[11].startswith ("enc=msg="):
@@ -866,7 +780,7 @@ def msg_dialogue(address):
 
 
 def refresh_auto():
-    root.after (0, refresh (gui_address_t.get (), s))
+    root.after (0, refresh(gui_address_t.get(), s))
     root.after (10000, refresh_auto)
 
 
@@ -1065,11 +979,14 @@ def stats():
 
 
 def csv_export(s):
+    """
     connections.send (s, "addlist", 10)  # senders
     connections.send (s, myaddress, 10)
-
     tx_list = connections.receive (s, 10)
     print (tx_list)
+    """
+    # This will freeze, but let say it's ok, we're waiting for a feedback.
+    tx_list = async_client.connection.command("addlist", myaddress)
 
     root.filename = filedialog.asksaveasfilename (initialdir="", title="Select CSV file")
 
@@ -1106,19 +1023,19 @@ def token_issue(token, amount, window):
 
 
 def tokens():
-    tokens_main = Frame (tab_tokens, relief='ridge', borderwidth=0)
-    tokens_main.grid (row=0, column=0, pady=5, padx=5, sticky=N + W + E + S)
-    #tokens_main.title ("Tokens")
-	
+    tokens_main = Toplevel ()
+    tokens_main.title ("Tokens")
+
     token_box = Listbox (tokens_main, width=100)
     token_box.grid (row=0, pady=0)
-
-    scrollbar_v = Scrollbar(tokens_main, command=token_box.yview)
-    scrollbar_v.grid(row=0, column=1, sticky=N + S + E)
-
+    """
     connections.send (s, "tokensget", 10)
     connections.send (s, gui_address_t.get (), 10)
     tokens_results = connections.receive (s, 10)
+    """
+    # This will freeze, but let say it's ok, we're waiting for a feedback.
+    tokens_results = async_client.connection.command("tokensget", gui_address_t.get())
+
     print (tokens_results)
 
     for pair in tokens_results:
@@ -1163,8 +1080,8 @@ def tokens():
     issue = Button (tokens_main, text="Issue", command=lambda: token_issue (token_name_var.get (), token_amount_var.get (), tokens_main))
     issue.grid (row=5, column=0, sticky=W + E, padx=5)
 
-    #cancel = Button (tokens_main, text="Cancel", command=tokens_main.destroy)
-    #cancel.grid (row=6, column=0, sticky=W + E, padx=5)
+    cancel = Button (tokens_main, text="Cancel", command=tokens_main.destroy)
+    cancel.grid (row=6, column=0, sticky=W + E, padx=5)
 
 
 def tx_tree_define():
@@ -1208,46 +1125,30 @@ def table(address, addlist_20, mempool_total):
         if tx[1] == address:
             tx_tree.insert ('', 'end', text=datetime.fromtimestamp (float (tx[0])).strftime ('%y-%m-%d %H:%M'), values=(tx[1], tx[2], tx[3], "?"), tags=tag)
 
-    # aliases
-    addlist_addressess = []
-    reclist_addressess = []
+    if resolve_var.get():
+        # aliases
+        #  local address
+        needed_aliases = [gui_address_t.get()]
+        for tx in addlist_20:
+            needed_aliases.append(tx[2])  # append address
+            needed_aliases.append(tx[3])  # append recipient
+        # no need to ask the same alias twice
+        needed_aliases = set(needed_aliases)
+        # ask for the cached version and trigger update in background
+        aliases = async_client.connection.aliases(needed_aliases)
 
+        for tx in addlist_20:
+            tx[2], tx[3] = aliases[tx[2]], aliases[tx[3]]
+
+    local_address = gui_address_t.get()
     for tx in addlist_20:
-        addlist_addressess.append (tx[2])  # append address
-        reclist_addressess.append (tx[3])  # append recipient
-
-    if resolve_var.get ():
-        connections.send (s, "aliasesget", 10)  # senders
-        connections.send (s, addlist_addressess, 10)
-        aliases_address_results = connections.receive (s, 10)
-
-        connections.send (s, "aliasesget", 10)  # recipients
-        connections.send (s, reclist_addressess, 10)
-        aliases_rec_results = connections.receive (s, 10)
-
-        for index, tx in enumerate (addlist_20):
-            tx[2] = aliases_address_results[index]
-            tx[3] = aliases_rec_results[index]
-    # aliases
-
-    # bind local address to local alias
-    if resolve_var.get ():
-        connections.send (s, "aliasesget", 10)  # local
-        connections.send (s, [gui_address_t.get ()], 10)
-        alias_local_result = connections.receive (s, 10)[0]
-    # bind local address to local alias
-
-    for tx in addlist_20:
-        if tx[3] == gui_address_t.get ():
+        if tx[3] == local_address:
             tag = "received"
         else:
             tag = "sent"
-
         # case for alias = this address
-        if resolve_var.get ():
-            print (tx[3], alias_local_result)
-            if tx[3] == alias_local_result:
-                tag = "received"
+        if resolve_var.get() and tx[3] == aliases[local_address]:
+            tag = "received"
         # case for alias = this address
 
         if Decimal (tx[9]) > 0:
@@ -1267,19 +1168,36 @@ def table(address, addlist_20, mempool_total):
     # table
 
 
-def refresh(address, s):
+def refresh(address, s=None):
     global balance
     global statusget
     global block_height_old
     global mempool_total
     global stats_timestamp
 
+    status = async_client.connection.status(address)
+    if not async_client.connection.connected:
+        app_log.warning("Not connected yet, please wait")
+        ip_connected_var.set("Connecting...")
+        frame_bottom.config(bg="red")
+        return
+    if not "stats_account" in status:
+        app_log.warning("No info yet, please wait")
+        ip_connected_var.set("Syncing...")
+        frame_bottom.config(bg="orange")
+        return
+
+    ip_connected_var.set(async_client.connection.ip_port)
+    frame_bottom.config(bg="")
+    # TEMP
+    # print("Status", status)
+
     # print "refresh triggered"
     try:
-        connections.send (s, "statusget", 10)
-        statusget = connections.receive (s, 10)
+        statusget = status['statusget']
         status_version = statusget[7]
         stats_timestamp = statusget[9]
+
         server_timestamp_var.set("GMT: {}".format(time.strftime ("%H:%M:%S", time.gmtime (int(float(stats_timestamp))))))
 
         # data for charts
@@ -1310,9 +1228,7 @@ def refresh(address, s):
             print ("Chart update skipped, block hasn't moved")
         # data for charts
 
-        connections.send (s, "balanceget", 10)
-        connections.send (s, address, 10)  # change address here to view other people's transactions
-        stats_account = connections.receive (s, 10)
+        stats_account = status['stats_account']
         balance = stats_account[0]
         credit = stats_account[1]
         debit = stats_account[2]
@@ -1321,15 +1237,13 @@ def refresh(address, s):
 
         app_log.warning ("Transaction address balance: {}".format (balance))
 
-        connections.send (s, "blocklast", 10)
-        block_get = connections.receive (s, 10)
+        block_get = status['block_get']
         bl_height = block_get[0]
         db_timestamp_last = block_get[1]
         hash_last = block_get[7]
 
         # check difficulty
-        connections.send (s, "diffget", 10)
-        diff = connections.receive (s, 10)
+        diff = status['diffget']
         # check difficulty
 
         print (diff)
@@ -1347,9 +1261,8 @@ def refresh(address, s):
 
         # network status
 
-        connections.send (s, "mpget", 10)  # senders
-        mempool_total = connections.receive (s, 10)
-        print (mempool_total)
+        mempool_total = status['mpget']
+        # print (mempool_total)
 
         # fees_current_var.set("Current Fee: {}".format('%.8f' % float(fee)))
         balance_var.set ("Balance: {:.8f} BIS".format (Decimal (balance)))
@@ -1365,8 +1278,7 @@ def refresh(address, s):
         hash_var.set ("Hash: {}...".format (hash_last[:6]))
         mempool_count_var.set ("Mempool txs: {}".format (len (mempool_total)))
 
-        connections.send (s, "annverget", 10)
-        annverget = connections.receive (s, 10)
+        annverget = status['annverget']
         version_var.set ("Version: {}/{}".format (status_version, annverget))
 
         # if status_version != annverget:
@@ -1375,16 +1287,13 @@ def refresh(address, s):
         #    version_color = "green"
         # version_var_label.config (fg=version_color)
 
-        connections.send (s, "addlistlim", 10)
-        connections.send (s, address, 10)
-        connections.send (s, "20", 10)
-        addlist = connections.receive (s, 10)
+        addlist = status['addlist']
 
-        table (address, addlist, mempool_total)
+        table(address, addlist, mempool_total)
         # root.after(1000, refresh)
 
         # canvas bg
-        root.update ()
+        root.update()
         width_root = root.winfo_width ()
         height_root = root.winfo_height ()
 
@@ -1397,8 +1306,7 @@ def refresh(address, s):
 
         # canvas bg
 
-        connections.send (s, "annget", 10)
-        annget = connections.receive (s, 10)
+        annget = status['annget']
         ann_var_text.config (state=NORMAL)
         ann_var_text.delete ('1.0', END)
         ann_var_text.insert (INSERT, annget)
@@ -1408,8 +1316,11 @@ def refresh(address, s):
 
 
     except Exception as e:
-        app_log.warning (e)
-        node_connect ()
+        app_log.warning(e)
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+        fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+        print(exc_type, fname, exc_tb.tb_lineno)
+        # node_connect()
 
 
 def sign():
@@ -1423,7 +1334,7 @@ def sign():
             if verifier.verify (hash, received_signature_dec):
                 messagebox.showinfo ("Validation Result", "Signature valid")
             else:
-                raise
+                raise ValueError("Invalid Signature")
         except:
             messagebox.showerror ("Validation Result", "Signature invalid")
 
@@ -1497,13 +1408,15 @@ def support_collection(sync_msg_var, version_var):
 
     version = statusget[7]
     stats_timestamp = statusget[9]
+    """
     connections.send (s, "blocklast", 10)
     block_get = connections.receive (s, 10)
-    bl_height = block_get[0]
+    """
+    # This will freeze, but let say it's ok, we're waiting for a feedback.
+    block_get = async_client.connection.command("blocklast")
 
-    connections.send(s, "blocklast", 10)
-    blocklast = connections.receive(s, 10)
-    db_timestamp_last = blocklast[1]
+    bl_height = block_get[0]
+    db_timestamp_last = block_get[1]
     time_now = float(time.time())
     last_block_ago = int(time_now - db_timestamp_last)
 
@@ -1520,160 +1433,6 @@ def support_collection(sync_msg_var, version_var):
 
     close = Button (sup_col, text="Close", command=sup_col.destroy)
     close.grid (row=3, column=0, sticky=W + E)
-
-
-root = Tk ()
-
-root.wm_title ("Bismuth Light Wallet")
-# root.geometry("1310x700") #You want the size of the app to be 500x500
-root.resizable (0, 0)  # Don't allow resizing in the x or y direction / resize
-# root['bg']="black"
-
-
-img_icon = PIL.Image.open ("graphics/icon.jpg")
-photo_icon = PIL.ImageTk.PhotoImage (img_icon)
-root.tk.call ('wm', 'iconphoto', root._w, photo_icon, )
-
-if gui_scaling == "adapt":
-    dpi_value = root.winfo_fpixels ('1i')
-    root.tk.call ('tk', 'scaling', dpi_value / 72)
-
-elif gui_scaling != "default":
-    root.tk.call ("tk", "scaling", gui_scaling)
-
-password_var_enc = StringVar ()
-password_var_con = StringVar ()
-password_var_dec = StringVar ()
-
-# canvas_bg = Canvas(root,highlightthickness=0)
-# canvas_bg.grid(row=0, column=0, rowspan=200,columnspan=200,sticky=W + E + S + N)
-
-frame_bottom = Frame (root, relief='sunken', borderwidth=1)
-frame_bottom.grid (row=5, column=0, sticky='NESW', pady=5, padx=5)
-
-# notebook widget
-nbtabs = ttk.Notebook (root)
-nbtabs.grid (row=1, column=0, sticky='NESW', pady=5, padx=5)
-
-# tab_main Main
-tab_main = ttk.Frame (nbtabs)
-nbtabs.add (tab_main, text='Overview')
-
-canvas_main = Canvas (tab_main, highlightthickness=0)
-canvas_main.grid (row=0, column=0, sticky=W + E + N + S, columnspan=99, rowspan=99)
-
-frame_logo = Frame (tab_main, relief='ridge', borderwidth=4)
-frame_logo.grid (row=1, column=0, pady=5, padx=5, sticky=W)
-
-frame_coins = Frame (tab_main, relief='ridge', borderwidth=4)
-frame_coins.grid (row=0, column=0, sticky=W + E + N, pady=5, padx=5)
-
-frame_hyperlinks = Frame (tab_main, relief='ridge', borderwidth=4)
-frame_hyperlinks.grid (row=0, column=98, pady=5, padx=5, sticky=W+N)
-
-frame_support = Frame (tab_main, relief='ridge', borderwidth=4)
-frame_support.grid (row=98, column=98, pady=5, padx=5, sticky=W+N)
-
-# frame_mainstats = Frame(tab_main, relief = 'ridge', borderwidth = 4)
-# frame_mainstats.grid(row=5, column=1, sticky=W + E + N, pady=5, padx=5)
-
-
-# tab_transactions transactions
-tab_transactions = ttk.Frame (nbtabs)
-
-nbtabs.add (tab_transactions, text='History')
-
-frame_entries_t = Frame (tab_transactions, relief='ridge', borderwidth=0)
-frame_entries_t.grid (row=0, column=0, pady=5, padx=5)
-
-# frame_labels_t = Frame(tab_transactions,relief = 'ridge', borderwidth = 0)
-# frame_labels_t.grid(row=0, column=0, pady=5, padx=5, sticky=N+W+E+S)
-
-frame_table = Frame (tab_transactions, relief='ridge', borderwidth=0)
-frame_table.grid (row=1, column=0, sticky=W + E + N, pady=5, padx=5)
-
-# refresh(myaddress, s)
-
-# tab_send sendcoin tab
-tab_send = ttk.Frame (nbtabs)
-nbtabs.add (tab_send, text='Send')
-
-frame_entries = Frame (tab_send)
-frame_entries.grid (row=0, column=0, pady=5, padx=5, sticky=N + W + E + S)
-
-frame_send = Frame (tab_send, relief='ridge', borderwidth=1)
-frame_send.grid (row=0, column=2, pady=5, padx=5, sticky=N)
-
-frame_tick = Frame (frame_send, relief='ridge', borderwidth=1)
-frame_tick.grid (row=4, column=0, pady=5, padx=5, sticky=S)
-
-# tab_receive receive
-tab_receive = ttk.Frame (nbtabs)
-nbtabs.add (tab_receive, text='Receive')
-
-frame_entries_r = Frame (tab_receive, relief='ridge', borderwidth=0)
-frame_entries_r.grid (row=0, column=0, pady=5, padx=5, sticky=N + W + E + S)
-
-recipient_address = Entry (frame_entries_r, width=60, text=myaddress)
-recipient_address.insert (0, myaddress)
-
-recipient_address.grid (row=0, column=1, sticky=W, pady=5, padx=5)
-recipient_address.configure (state=DISABLED)
-
-amount_r = Entry (frame_entries_r, width=60)
-amount_r.grid (row=2, column=1, sticky=W, pady=5, padx=5)
-amount_r.insert (0, "0.00000000")
-
-openfield_r = Text (frame_entries_r, width=60, height=5, font=("Tahoma", 8))
-openfield_r.grid (row=3, column=1, sticky=W, pady=5, padx=5)
-
-operation_r = Entry (frame_entries_r, width=60)
-operation_r.grid (row=4, column=1, sticky=W, pady=5, padx=5)
-
-url_r = Entry (frame_entries_r, width=60)
-url_r.grid (row=5, column=1, sticky=W, pady=5, padx=5)
-url_r.insert (0, "bis://")
-
-#tab5 tokens
-tab_tokens = ttk.Frame(nbtabs)
-nbtabs.add(tab_tokens, text='Tokens')
-
-def click_on_tab_tokens(event):
-    if str(nbtabs.index(nbtabs.select())) == "4":
-        tokens()
-
-nbtabs.bind('<<NotebookTabChanged>>', click_on_tab_tokens)
-
-
-# tab_statistics statistics
-# tab_statistics = ttk.Frame(nbtabs)
-# nbtabs.add(tab_statistics, text='Statistics')
-
-
-# frames
-# menu
-
-
-# canvas
-menubar = Menu (root)
-walletmenu = Menu (menubar, tearoff=0)
-menubar.add_cascade (label="Wallet", menu=walletmenu)
-walletmenu.add_command (label="Load Wallet", command=keys_load_dialog)
-walletmenu.add_command (label="Backup Wallet", command=keys_backup)
-walletmenu.add_command (label="Recovery", command=lambda: recover ())
-walletmenu.add_separator ()
-walletmenu.add_command (label="Spending URL QR", command=lambda: qr (url.get ()))
-walletmenu.add_command (label="Reception URL QR", command=lambda: qr (url_r.get ()))
-walletmenu.add_command (label="Alias Registration", command=alias)
-walletmenu.add_command (label="Show Alias", command=aliases_list)
-walletmenu.add_command (label="Fingerprint", command=fingerprint)
-walletmenu.add_separator ()
-walletmenu.add_command (label="Exit", command=root.quit)
-
-messagemenu = Menu (menubar, tearoff=0)
-menubar.add_cascade (label="Message", menu=messagemenu)
-messagemenu.add_command (label="Show Messages", command=lambda: msg_dialogue (gui_address_t.get ()))
-messagemenu.add_command (label="Sign Messages", command=sign)
 
 
 def themes(theme):
@@ -1700,87 +1459,6 @@ def themes(theme):
         theme_file.write (theme)
 
 
-if not os.path.exists ("theme"):
-    with open ("theme", "w") as theme_file:
-        theme_file.write ("Barebone")
-
-theme_menu = Menu (menubar, tearoff=0)
-
-theme_list = []
-for theme_picture in glob.glob ('themes/*.jpg'):
-    theme_picture = os.path.basename (theme_picture).split ('.jpg')[0]
-    theme_list.append (theme_picture)
-    theme_menu.add_command (label=theme_picture, command=lambda theme_picture=theme_picture: themes (theme_picture))  # wow this lambda is amazing
-
-theme_menu.add_command (label="Barebone", command=lambda: themes ("Barebone"))
-menubar.add_cascade (label="Themes", menu=theme_menu)
-
-miscmenu = Menu (menubar, tearoff=0)
-menubar.add_cascade (label="Misc", menu=miscmenu)
-miscmenu.add_command (label="Mempool", command=lambda: mempool_get (s))
-miscmenu.add_command (label="CSV Export", command=lambda: csv_export (s))
-miscmenu.add_command (label="Statistics", command=lambda: stats ())
-miscmenu.add_command (label="Help", command=help)
-
-connect_menu = Menu (menubar, tearoff=0)
-menubar.add_cascade (label="Connection", menu=connect_menu)
-connect_list = []
-
-for ip_once in light_ip:
-    connect_list.append (ip_once)
-    connect_menu.add_command(label=ip_once, command=lambda ip_once=ip_once: node_connect_once (ip_once))
-
-# labels
-Label (frame_entries, text="My Address:").grid (row=0, sticky=W + N, pady=5, padx=5)
-Label (frame_entries, text="Recipient:").grid (row=1, sticky=W, pady=5, padx=5)
-Label (frame_entries, text="Amount:").grid (row=2, sticky=W, pady=5, padx=5)
-Label (frame_entries, text="Data:", height=4).grid (row=3, sticky=W, pady=5, padx=5)
-Label (frame_entries, text="Operation:", height=4).grid (row=4, sticky=W, pady=5, padx=5)
-Label (frame_entries, text="URL:").grid (row=5, sticky=W + S, pady=5, padx=5)
-Label (frame_entries, text="If you have a BIS URL, copy it, click paste-button\n"
-                           "on URL field and then click 'read'."
-                           "If you want to send Bismuth\n"
-                           "to the shown recipient, click send and then\n"
-                           "the confirmation dialog opens.", justify=LEFT).grid (row=6, column=1, sticky=W + S, pady=1, padx=1, columnspan=2)
-
-Label (frame_entries_r, text="Recipient:").grid (row=0, sticky=W, pady=5, padx=5)
-Label (frame_entries_r, text="Amount:").grid (row=2, sticky=W, pady=5, padx=5)
-Label (frame_entries_r, text="Data:", height=4).grid (row=3, sticky=W, pady=5, padx=5)
-Label (frame_entries_r, text="Operation:", height=4).grid (row=4, sticky=W, pady=5, padx=5)
-Label (frame_entries_r, text="URL:").grid (row=5, sticky=W + S, pady=5, padx=5)
-
-Label (frame_entries_r, text="Enter amount and if wanted, a message in field Data.\n"
-                             "Your address is automatically used. Click create and copy the url.", justify=LEFT).grid (row=6, column=1, sticky=W + S, pady=1, padx=1, columnspan=2)
-
-Label (frame_entries_t, text="Address:").grid (row=0, column=0, sticky=W + N, pady=5, padx=5)
-
-resolve_var = BooleanVar ()
-resolve = Checkbutton (frame_entries_t, text="Aliases", variable=resolve_var, command=lambda: refresh (gui_address_t.get (), s), width=14, anchor=W)
-resolve.grid (row=0, column=5, sticky=W)
-
-# canvas
-
-
-# display the menu
-root.config (menu=menubar)
-# menu
-
-# buttons
-
-
-send_b = Button (frame_send, text="Send Bismuth", command=lambda: send_confirm (str (amount.get ()).strip(), recipient.get().strip (), operation.get().strip (), (openfield.get ("1.0", END)).strip ()), height=2, width=22, font=("Tahoma", 12))
-send_b.grid (row=0, column=0)
-
-frame_logo_buttons = Frame (frame_send)
-frame_logo_buttons.grid (row=5, column=0, padx=5, pady=5)
-
-encrypt_b = Button (frame_logo_buttons, text="Encrypt", command=encrypt_get_password, height=1, width=8)
-encrypt_b.grid (row=0, column=0)
-decrypt_b = Button (frame_logo_buttons, text="Unlock", command=decrypt_get_password, height=1, width=8)
-decrypt_b.grid (row=0, column=1)
-lock_b = Button (frame_logo_buttons, text="Locked", command=lambda: lock_fn (lock_b), height=1, width=8, state=DISABLED)
-lock_b.grid (row=0, column=2)
-
 
 def encryption_button_refresh():
     if unlocked:
@@ -1795,219 +1473,548 @@ def encryption_button_refresh():
         encrypt_b.configure (text="Encrypted", state=DISABLED)
 
 
-encryption_button_refresh ()
-# buttons
+def connection_thread():
+    """
+    This is running the connection client ioloop in a thread
+    :return:
+    """
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        async_client.connection = async_client.AsyncClient(light_ip, app_log, loop, address=myaddress)
+        loop.create_task(async_client.connection.background())
+        try:
+            loop.run_forever()
+        except KeyboardInterrupt:
+            loop.stop()
+            app_log.info("exited from loop")
+    except Exception as e:
+        print("ect", e)
+
+
+if __name__ == "__main__":
+    # globalize
+    global block_height_old
+    global statusget
+    global key
+    global private_key_readable
+    global encrypted
+    global unlocked
+    global public_key_hashed
+    global myaddress
+    global private_key_load
+    global public_key_load
+    global s
+
+    # data for charts
+    stats_nodes_count_list = []
+    stats_thread_count_list = []
+    stats_consensus_list = []
+    stats_consensus_percentage_list = []
+    stats_diff_list_0 = []
+    stats_diff_list_1 = []
+    stats_diff_list_2 = []
+    stats_diff_list_3 = []
+    stats_diff_list_4 = []
+    stats_diff_list_5 = []
+    stats_diff_list_6 = []
+    # data for charts
+
+    if os.path.exists("privkey.der"):
+        private_key_load = "privkey.der"
+    else:
+        private_key_load = "privkey_encrypted.der"
+
+    public_key_load = "pubkey.der"
+
+    print(getcontext())
+
+    config = options.Get()
+    config.read()
+    debug_level = config.debug_level_conf
+    full_ledger = config.full_ledger_conf
+    port = config.port
+    light_ip = config.light_ip
+    version = config.version_conf
+    terminal_output = config.terminal_output
+    gui_scaling = config.gui_scaling
+
+    """
+    # randomize light_ip-list
+    shuffle(light_ip)
+
+    try:
+        light_ip.remove('127.0.0.1')
+        light_ip.insert(0, '127.0.0.1')
+        pass
+    except:
+        pass
+    """
+
+    if "testnet" in version:
+        port = 2829
+        light_ip = ["127.0.0.1"]
+
+    # app_log = log.log("gui.log", debug_level)
+    app_log = log.log("wallet.log", debug_level, terminal_output)
+
+    essentials.keys_check(app_log)
+    essentials.db_check(app_log)
+    key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress = essentials.keys_load(
+        private_key_load, public_key_load)
+
+    # Build TK INTERFACE
+
+    root = Tk()
+
+    root.wm_title("Bismuth Light Wallet")
+    # root.geometry("1310x700") #You want the size of the app to be 500x500
+    root.resizable(0, 0)  # Don't allow resizing in the x or y direction / resize
+    # root['bg']="black"
+
+    img_icon = PIL.Image.open("graphics/icon.jpg")
+    photo_icon = PIL.ImageTk.PhotoImage(img_icon)
+    root.tk.call('wm', 'iconphoto', root._w, photo_icon, )
 
-# refreshables
+    if gui_scaling == "adapt":
+        dpi_value = root.winfo_fpixels('1i')
+        root.tk.call('tk', 'scaling', dpi_value / 72)
 
-# update balance label
-balance_raw = StringVar ()
-balance_var = StringVar ()
+    elif gui_scaling != "default":
+        root.tk.call("tk", "scaling", gui_scaling)
 
-balance_msg_label = Label (frame_coins, textvariable=balance_var, font=("Tahoma", 16, "bold"))
-balance_msg_label.grid (row=0, column=0, sticky=S, padx=15)
+    password_var_enc = StringVar()
+    password_var_con = StringVar()
+    password_var_dec = StringVar()
 
-balance_msg_label_sendtab = Label (frame_send, textvariable=balance_var, font=("Tahoma", 10))
-balance_msg_label_sendtab.grid (row=3, column=0, sticky=N + S)
+    # canvas_bg = Canvas(root,highlightthickness=0)
+    # canvas_bg.grid(row=0, column=0, rowspan=200,columnspan=200,sticky=W + E + S + N)
 
-debit_var = StringVar ()
-spent_msg_label = Label (frame_coins, textvariable=debit_var, font=("Tahoma", 12))
-spent_msg_label.grid (row=1, column=0, sticky=N + E, padx=15)
+    frame_bottom = Frame(root, relief='sunken', borderwidth=1)
+    frame_bottom.grid(row=5, column=0, sticky='NESW', pady=5, padx=5)
 
-credit_var = StringVar ()
-received_msg_label = Label (frame_coins, textvariable=credit_var, font=("Tahoma", 12))
-received_msg_label.grid (row=2, column=0, sticky=N + E, padx=15)
+    # notebook widget
+    nbtabs = ttk.Notebook(root)
+    nbtabs.grid(row=1, column=0, sticky='NESW', pady=5, padx=5)
 
-fees_var = StringVar ()
-fees_paid_msg_label = Label (frame_coins, textvariable=fees_var, font=("Tahoma", 12))
-fees_paid_msg_label.grid (row=3, column=0, sticky=N + E, padx=15)
+    # tab_main Main
+    tab_main = ttk.Frame(nbtabs)
+    nbtabs.add(tab_main, text='Overview')
 
-rewards_var = StringVar ()
-rewards_paid_msg_label = Label (frame_coins, textvariable=rewards_var, font=("Tahoma", 12))
-rewards_paid_msg_label.grid (row=4, column=0, sticky=N + E, padx=15)
+    canvas_main = Canvas(tab_main, highlightthickness=0)
+    canvas_main.grid(row=0, column=0, sticky=W + E + N + S, columnspan=99, rowspan=99)
 
-bl_height_var = StringVar ()
-block_height_label = Label (frame_bottom, textvariable=bl_height_var)
-block_height_label.grid (row=0, column=7, sticky=S + E, padx=5)
+    frame_logo = Frame(tab_main, relief='ridge', borderwidth=4)
+    frame_logo.grid(row=1, column=0, pady=5, padx=5, sticky=W)
 
-ip_connected_var = StringVar ()
-ip_connected_label = Label (frame_bottom, textvariable=ip_connected_var)
-ip_connected_label.grid (row=0, column=8, sticky=S + E, padx=5)
+    frame_coins = Frame(tab_main, relief='ridge', borderwidth=4)
+    frame_coins.grid(row=0, column=0, sticky=W + E + N, pady=5, padx=5)
 
-diff_msg_var = StringVar ()
-diff_msg_label = Label (frame_bottom, textvariable=diff_msg_var)
-diff_msg_label.grid (row=0, column=5, sticky=S + E, padx=5)
+    frame_hyperlinks = Frame(tab_main, relief='ridge', borderwidth=4)
+    frame_hyperlinks.grid(row=0, column=98, pady=5, padx=5, sticky=W + N)
 
-sync_msg_var = StringVar ()
-sync_msg_label = Label (frame_bottom, textvariable=sync_msg_var)
-sync_msg_label.grid (row=0, column=0, sticky=N + E, padx=15)
+    frame_support = Frame(tab_main, relief='ridge', borderwidth=4)
+    frame_support.grid(row=98, column=98, pady=5, padx=5, sticky=W + N)
 
-version_var = StringVar ()
-version_var_label = Label (frame_bottom, textvariable=version_var)
-version_var_label.grid (row=0, column=2, sticky=N + E, padx=15)
+    # frame_mainstats = Frame(tab_main, relief = 'ridge', borderwidth = 4)
+    # frame_mainstats.grid(row=5, column=1, sticky=W + E + N, pady=5, padx=5)
 
-hash_var = StringVar ()
-hash_var_label = Label (frame_bottom, textvariable=hash_var)
-hash_var_label.grid (row=0, column=4, sticky=S + E, padx=5)
+    # tab_transactions transactions
+    tab_transactions = ttk.Frame(nbtabs)
 
-mempool_count_var = StringVar ()
-mempool_count_var_label = Label (frame_bottom, textvariable=mempool_count_var)
-mempool_count_var_label.grid (row=0, column=3, sticky=S + E, padx=5)
+    nbtabs.add(tab_transactions, text='History')
 
-server_timestamp_var = StringVar ()
-server_timestamp_label = Label (frame_bottom, textvariable=server_timestamp_var)
-server_timestamp_label.grid (row=0, column=9, sticky=S + E, padx=5)
+    frame_entries_t = Frame(tab_transactions, relief='ridge', borderwidth=0)
+    frame_entries_t.grid(row=0, column=0, pady=5, padx=5)
 
+    # frame_labels_t = Frame(tab_transactions,relief = 'ridge', borderwidth = 0)
+    # frame_labels_t.grid(row=0, column=0, pady=5, padx=5, sticky=N+W+E+S)
 
-ann_var = StringVar ()
-ann_var_text = Text (frame_logo, width=20, height=4, font=("Tahoma", 8))
-ann_var_text.grid (row=1, column=0, sticky=E + W, padx=5, pady=5)
-ann_var_text.config (wrap=WORD)
-ann_var_text.config (background="grey75")
+    frame_table = Frame(tab_transactions, relief='ridge', borderwidth=0)
+    frame_table.grid(row=1, column=0, sticky=W + E + N, pady=5, padx=5)
 
-encode_var = BooleanVar ()
-alias_cb_var = BooleanVar ()
-msg_var = BooleanVar ()
-encrypt_var = BooleanVar ()
-all_spend_var = BooleanVar ()
+    # refresh(myaddress, s)
 
-# address and amount
+    # tab_send sendcoin tab
+    tab_send = ttk.Frame(nbtabs)
+    nbtabs.add(tab_send, text='Send')
 
-# gui_address.configure(state="readonly")
+    frame_entries = Frame(tab_send)
+    frame_entries.grid(row=0, column=0, pady=5, padx=5, sticky=N + W + E + S)
 
-gui_copy_address = Button (frame_entries, text="Copy", command=address_copy, font=("Tahoma", 7))
-gui_copy_address.grid (row=0, column=2, sticky=W)
+    frame_send = Frame(tab_send, relief='ridge', borderwidth=1)
+    frame_send.grid(row=0, column=2, pady=5, padx=5, sticky=N)
+
+    frame_tick = Frame(frame_send, relief='ridge', borderwidth=1)
+    frame_tick.grid(row=4, column=0, pady=5, padx=5, sticky=S)
+
+    # tab_receive receive
+    tab_receive = ttk.Frame(nbtabs)
+    nbtabs.add(tab_receive, text='Receive')
+
+    frame_entries_r = Frame(tab_receive, relief='ridge', borderwidth=0)
+    frame_entries_r.grid(row=0, column=0, pady=5, padx=5, sticky=N + W + E + S)
+
+    recipient_address = Entry(frame_entries_r, width=60, text=myaddress)
+    recipient_address.insert(0, myaddress)
 
-gui_copy_recipient = Button (frame_entries, text="Copy", command=recipient_copy, font=("Tahoma", 7))
-gui_copy_recipient.grid (row=1, column=2, sticky=W)
+    recipient_address.grid(row=0, column=1, sticky=W, pady=5, padx=5)
+    recipient_address.configure(state=DISABLED)
+
+    amount_r = Entry(frame_entries_r, width=60)
+    amount_r.grid(row=2, column=1, sticky=W, pady=5, padx=5)
+    amount_r.insert(0, "0.00000000")
 
-gui_insert_recipient = Button (frame_entries, text="Paste", command=recipient_insert, font=("Tahoma", 7))
-gui_insert_recipient.grid (row=1, column=3, sticky=W)
+    openfield_r = Text(frame_entries_r, width=60, height=5, font=("Tahoma", 8))
+    openfield_r.grid(row=3, column=1, sticky=W, pady=5, padx=5)
+
+    operation_r = Entry(frame_entries_r, width=60)
+    operation_r.grid(row=4, column=1, sticky=W, pady=5, padx=5)
 
-# gui_help = Button(frame_entries, text="Help", command=help, font=("Tahoma", 7))
-# gui_help.grid(row=4, column=2, sticky=W + E, padx=(5, 0))
+    url_r = Entry(frame_entries_r, width=60)
+    url_r.grid(row=5, column=1, sticky=W, pady=5, padx=5)
+    url_r.insert(0, "bis://")
+
+    # tab5 tokens
+    # tab_tokens = ttk.Frame(nbtabs)
+    # nbtabs.add(tab_tokens, text='Tokens')
+
+    # tab_statistics statistics
+    # tab_statistics = ttk.Frame(nbtabs)
+    # nbtabs.add(tab_statistics, text='Statistics')
+
+    # frames
+    # menu
+
+    # canvas
+    menubar = Menu(root)
+    walletmenu = Menu(menubar, tearoff=0)
+    menubar.add_cascade(label="Wallet", menu=walletmenu)
+    walletmenu.add_command(label="Load Wallet", command=keys_load_dialog)
+    walletmenu.add_command(label="Backup Wallet", command=keys_backup)
+    walletmenu.add_command(label="Recovery", command=lambda: recover())
+    walletmenu.add_separator()
+    walletmenu.add_command(label="Spending URL QR", command=lambda: qr(url.get()))
+    walletmenu.add_command(label="Reception URL QR", command=lambda: qr(url_r.get()))
+    walletmenu.add_command(label="Alias Registration", command=alias)
+    walletmenu.add_command(label="Show Alias", command=aliases_list)
+    walletmenu.add_command(label="Fingerprint", command=fingerprint)
+    walletmenu.add_separator()
+    walletmenu.add_command(label="Exit", command=root.quit)
 
-gui_all_spend = Checkbutton (frame_entries, text="All", variable=all_spend_var, command=all_spend, font=("Tahoma", 7))
-gui_all_spend.grid (row=2, column=2, sticky=W)
+    messagemenu = Menu(menubar, tearoff=0)
+    menubar.add_cascade(label="Message", menu=messagemenu)
+    messagemenu.add_command(label="Show Messages", command=lambda: msg_dialogue(gui_address_t.get()))
+    messagemenu.add_command(label="Sign Messages", command=sign)
 
-gui_all_spend_clear = Button (frame_entries, text="Clear", command=all_spend_clear, font=("Tahoma", 7))
-gui_all_spend_clear.grid (row=2, column=3, sticky=W)
+    if not os.path.exists("theme"):
+        with open("theme", "w") as theme_file:
+            theme_file.write("Barebone")
 
-data_insert_clipboard = Button (frame_entries, text="Paste", command=data_insert, font=("Tahoma", 7))
-data_insert_clipboard.grid (row=3, column=2)
+    theme_menu = Menu(menubar, tearoff=0)
 
-data_insert_clear = Button (frame_entries, text="Clear", command=data_insert_clear, font=("Tahoma", 7))
-data_insert_clear.grid (row=3, column=3, sticky=W)
+    theme_list = []
+    for theme_picture in glob.glob('themes/*.jpg'):
+        theme_picture = os.path.basename(theme_picture).split('.jpg')[0]
+        theme_list.append(theme_picture)
+        theme_menu.add_command(label=theme_picture, command=lambda theme_picture=theme_picture: themes(
+            theme_picture))  # wow this lambda is amazing
 
-url_insert_clipboard = Button (frame_entries, text="Paste", command=url_insert, font=("Tahoma", 7))
-url_insert_clipboard.grid (row=5, column=2, sticky=W)
+    theme_menu.add_command(label="Barebone", command=lambda: themes("Barebone"))
+    menubar.add_cascade(label="Themes", menu=theme_menu)
 
-read_url_b = Button (frame_entries, text="Read", command=lambda: read_url_clicked (app_log, url.get ()), font=("Tahoma", 7))
-read_url_b.grid (row=5, column=3, sticky=W)
+    miscmenu = Menu(menubar, tearoff=0)
+    menubar.add_cascade(label="Misc", menu=miscmenu)
+    miscmenu.add_command(label="Mempool", command=lambda: mempool_get(s))
+    miscmenu.add_command(label="CSV Export", command=lambda: csv_export(s))
+    miscmenu.add_command(label="Statistics", command=lambda: stats())
+    miscmenu.add_command(label="Tokens", command=tokens)
+    miscmenu.add_command(label="Help", command=help)
 
-data_insert_clipboard = Button (frame_entries_r, text="Paste", command=data_insert_r, font=("Tahoma", 7))
-data_insert_clipboard.grid (row=3, column=2)
+    # labels
+    Label(frame_entries, text="My Address:").grid(row=0, sticky=W + N, pady=5, padx=5)
+    Label(frame_entries, text="Recipient:").grid(row=1, sticky=W, pady=5, padx=5)
+    Label(frame_entries, text="Amount:").grid(row=2, sticky=W, pady=5, padx=5)
+    Label(frame_entries, text="Data:", height=4).grid(row=3, sticky=W, pady=5, padx=5)
+    Label(frame_entries, text="Operation:", height=4).grid(row=4, sticky=W, pady=5, padx=5)
+    Label(frame_entries, text="URL:").grid(row=5, sticky=W + S, pady=5, padx=5)
+    Label(frame_entries, text="If you have a BIS URL, copy it, click paste-button\n"
+                              "on URL field and then click 'read'."
+                              "If you want to send Bismuth\n"
+                              "to the shown recipient, click send and then\n"
+                              "the confirmation dialog opens.", justify=LEFT).grid(row=6, column=1, sticky=W + S,
+                                                                                   pady=1, padx=1, columnspan=2)
 
-data_insert_clear = Button (frame_entries_r, text="Clear", command=data_insert_clear, font=("Tahoma", 7))
-data_insert_clear.grid (row=3, column=3, sticky=W)
+    Label(frame_entries_r, text="Recipient:").grid(row=0, sticky=W, pady=5, padx=5)
+    Label(frame_entries_r, text="Amount:").grid(row=2, sticky=W, pady=5, padx=5)
+    Label(frame_entries_r, text="Data:", height=4).grid(row=3, sticky=W, pady=5, padx=5)
+    Label(frame_entries_r, text="Operation:", height=4).grid(row=4, sticky=W, pady=5, padx=5)
+    Label(frame_entries_r, text="URL:").grid(row=5, sticky=W + S, pady=5, padx=5)
 
-gui_copy_address_r = Button (frame_entries_r, text="Copy", command=address_copy, font=("Tahoma", 7))
-gui_copy_address_r.grid (row=0, column=2, sticky=W)
+    Label(frame_entries_r, text="Enter amount and if wanted, a message in field Data.\n"
+                                "Your address is automatically used. Click create and copy the url.",
+          justify=LEFT).grid(row=6, column=1, sticky=W + S, pady=1, padx=1, columnspan=2)
+
+    Label(frame_entries_t, text="Address:").grid(row=0, column=0, sticky=W + N, pady=5, padx=5)
 
-gui_copy_url_r = Button (frame_entries_r, text="Copy", command=url_copy, font=("Tahoma", 7))
-gui_copy_url_r.grid (row=5, column=3, sticky=W)
+    resolve_var = BooleanVar()
+    resolve = Checkbutton(frame_entries_t, text="Aliases", variable=resolve_var,
+                          command=lambda: refresh(gui_address_t.get(), s), width=14, anchor=W)
+    resolve.grid(row=0, column=5, sticky=W)
+
+    # canvas
+
+    # display the menu
+    root.config(menu=menubar)
+    # menu
 
-create_url_b = Button (frame_entries_r, text="Create", command=lambda: create_url_clicked (app_log, "pay", gui_address_t.get (), amount_r.get (), operation_r.get (), openfield_r.get ("1.0", END).strip ()), font=("Tahoma", 7))
-create_url_b.grid (row=5, column=2, sticky=W)
+    # buttons
 
-gui_paste_address = Button (frame_entries_t, text="Paste", command=address_insert, font=("Tahoma", 7))
-gui_paste_address.grid (row=0, column=2, sticky=W)
+    send_b = Button(frame_send, text="Send Bismuth",
+                    command=lambda: send_confirm(str(amount.get()).strip(), recipient.get().strip(),
+                                                 operation.get().strip(), (openfield.get("1.0", END)).strip()),
+                    height=2, width=22, font=("Tahoma", 12))
+    send_b.grid(row=0, column=0)
 
-gui_watch = Button (frame_entries_t, text="Watch", command=watch, font=("Tahoma", 7))
-gui_watch.grid (row=0, column=3, sticky=W)
+    frame_logo_buttons = Frame(frame_send)
+    frame_logo_buttons.grid(row=5, column=0, padx=5, pady=5)
 
-gui_unwatch = Button (frame_entries_t, text="Reset", command=unwatch, font=("Tahoma", 7))
-gui_unwatch.grid (row=0, column=4, sticky=W, padx=(0, 5))
+    encrypt_b = Button(frame_logo_buttons, text="Encrypt", command=encrypt_get_password, height=1, width=8)
+    encrypt_b.grid(row=0, column=0)
+    decrypt_b = Button(frame_logo_buttons, text="Unlock", command=decrypt_get_password, height=1, width=8)
+    decrypt_b.grid(row=0, column=1)
+    lock_b = Button(frame_logo_buttons, text="Locked", command=lambda: lock_fn(lock_b), height=1, width=8,
+                    state=DISABLED)
+    lock_b.grid(row=0, column=2)
 
-#hyperlinks
-hyperlink_BISGit = Button (frame_hyperlinks, text="Bismuth@Github", command=hyperlink_BISGit, font=("Tahoma", 7))
-hyperlink_BISGit.grid (row=0, column=0, sticky=N + E + S + W, padx=1, pady=1)
+    encryption_button_refresh()
+    # buttons
 
-hyperlink_BE = Button (frame_hyperlinks, text="Official Block Explorer", command=hyperlink_BE, font=("Tahoma", 7))
-hyperlink_BE.grid (row=1, column=0, sticky=N + E + S + W, padx=1, pady=1)
+    # refreshables
 
-hyperlink_howto = Button (frame_hyperlinks, text="HowTos@Github", command=hyperlink_howto, font=("Tahoma", 7))
-hyperlink_howto.grid (row=2, column=0, sticky=N + E + S + W, padx=1, pady=1)
+    # update balance label
+    balance_raw = StringVar()
+    balance_var = StringVar()
 
-hyperlink_bct = Button (frame_hyperlinks, text="BIS@Bitcointalk", command=hyperlink_bct, font=("Tahoma", 7))
-hyperlink_bct.grid (row=3, column=0, sticky=N + E + S + W, padx=1, pady=1)
-#hyperlinks
+    balance_msg_label = Label(frame_coins, textvariable=balance_var, font=("Tahoma", 16, "bold"))
+    balance_msg_label.grid(row=0, column=0, sticky=S, padx=15)
 
-#supportbutton
-dev_support = Button (frame_support, text="Collect Info for Support", command=lambda: support_collection (str(sync_msg_var), str(version_var)), font=("Tahoma", 7))
-dev_support.grid (row=98, column=98, sticky=N + E + S + W, padx=1, pady=1)
-#supportbutton
+    balance_msg_label_sendtab = Label(frame_send, textvariable=balance_var, font=("Tahoma", 10))
+    balance_msg_label_sendtab.grid(row=3, column=0, sticky=N + S)
 
-gui_address_t = Entry (frame_entries_t, width=60)
-gui_address_t.grid (row=0, column=1, sticky=W, pady=5, padx=5)
-gui_address_t.insert (0, myaddress)
+    debit_var = StringVar()
+    spent_msg_label = Label(frame_coins, textvariable=debit_var, font=("Tahoma", 12))
+    spent_msg_label.grid(row=1, column=0, sticky=N + E, padx=15)
 
-sender_address = Entry (frame_entries, width=60)
-sender_address.insert (0, myaddress)
-sender_address.grid (row=0, column=1, sticky=W, pady=5, padx=5)
-sender_address.configure (state=DISABLED)
+    credit_var = StringVar()
+    received_msg_label = Label(frame_coins, textvariable=credit_var, font=("Tahoma", 12))
+    received_msg_label.grid(row=2, column=0, sticky=N + E, padx=15)
 
-recipient = Entry (frame_entries, width=60)
-recipient.grid (row=1, column=1, sticky=W, pady=5, padx=5)
+    fees_var = StringVar()
+    fees_paid_msg_label = Label(frame_coins, textvariable=fees_var, font=("Tahoma", 12))
+    fees_paid_msg_label.grid(row=3, column=0, sticky=N + E, padx=15)
 
-amount = Entry (frame_entries, width=60)
-amount.grid (row=2, column=1, sticky=W, pady=5, padx=5)
-amount.insert (0, "0.00000000")
+    rewards_var = StringVar()
+    rewards_paid_msg_label = Label(frame_coins, textvariable=rewards_var, font=("Tahoma", 12))
+    rewards_paid_msg_label.grid(row=4, column=0, sticky=N + E, padx=15)
 
-openfield = Text (frame_entries, width=60, height=5, font=("Tahoma", 8))
-openfield.grid (row=3, column=1, sticky=W, pady=5, padx=5)
+    bl_height_var = StringVar()
+    block_height_label = Label(frame_bottom, textvariable=bl_height_var)
+    block_height_label.grid(row=0, column=7, sticky=S + E, padx=5)
 
-operation = Entry (frame_entries, width=60)
-operation.grid (row=4, column=1, sticky=W, pady=5, padx=5)
+    ip_connected_var = StringVar()
+    ip_connected_label = Label(frame_bottom, textvariable=ip_connected_var)
+    ip_connected_label.grid(row=0, column=8, sticky=S + E, padx=5)
 
-url = Entry (frame_entries, width=60)
-url.grid (row=5, column=1, sticky=W, pady=5, padx=5)
-url.insert (0, "bis://")
+    diff_msg_var = StringVar()
+    diff_msg_label = Label(frame_bottom, textvariable=diff_msg_var)
+    diff_msg_label.grid(row=0, column=5, sticky=S + E, padx=5)
 
-encode = Checkbutton (frame_tick, text="Base64 Encoding", variable=encode_var, command=all_spend_check, width=14, anchor=W)
-encode.grid (row=0, column=0, sticky=W)
+    sync_msg_var = StringVar()
+    sync_msg_label = Label(frame_bottom, textvariable=sync_msg_var)
+    sync_msg_label.grid(row=0, column=0, sticky=N + E, padx=15)
 
-msg = Checkbutton (frame_tick, text="Mark as Message", variable=msg_var, command=all_spend_check, width=14, anchor=W)
-msg.grid (row=1, column=0, sticky=W)
+    version_var = StringVar()
+    version_var_label = Label(frame_bottom, textvariable=version_var)
+    version_var_label.grid(row=0, column=2, sticky=N + E, padx=15)
 
-encr = Checkbutton (frame_tick, text="Encrypt with PK", variable=encrypt_var, command=all_spend_check, width=14, anchor=W)
-encr.grid (row=2, column=0, sticky=W)
+    hash_var = StringVar()
+    hash_var_label = Label(frame_bottom, textvariable=hash_var)
+    hash_var_label.grid(row=0, column=4, sticky=S + E, padx=5)
 
-alias_cb = Checkbutton (frame_tick, text="Alias Recipient", variable=alias_cb_var, command=None, width=14, anchor=W)
-alias_cb.grid (row=4, column=0, sticky=W)
+    mempool_count_var = StringVar()
+    mempool_count_var_label = Label(frame_bottom, textvariable=mempool_count_var)
+    mempool_count_var_label.grid(row=0, column=3, sticky=S + E, padx=5)
 
-balance_enumerator = Entry (frame_entries, width=5)
-# address and amount
+    server_timestamp_var = StringVar()
+    server_timestamp_label = Label(frame_bottom, textvariable=server_timestamp_var)
+    server_timestamp_label.grid(row=0, column=9, sticky=S + E, padx=5)
 
-# logo
+    ann_var = StringVar()
+    ann_var_text = Text(frame_logo, width=20, height=4, font=("Tahoma", 8))
+    ann_var_text.grid(row=1, column=0, sticky=E + W, padx=5, pady=5)
+    ann_var_text.config(wrap=WORD)
+    ann_var_text.config(background="grey75")
 
-# logo_hash_decoded = base64.b64decode(icons.logo_hash)
-# logo = PhotoImage(data="graphics/logo.png")
+    encode_var = BooleanVar()
+    alias_cb_var = BooleanVar()
+    msg_var = BooleanVar()
+    encrypt_var = BooleanVar()
+    all_spend_var = BooleanVar()
 
+    # address and amount
 
-logo_img = PIL.Image.open ("graphics/logo.png")
-logo = PIL.ImageTk.PhotoImage (logo_img)
+    # gui_address.configure(state="readonly")
 
-Label (frame_logo, image=logo).grid (column=0, row=0)
-# logo
+    gui_copy_address = Button(frame_entries, text="Copy", command=address_copy, font=("Tahoma", 7))
+    gui_copy_address.grid(row=0, column=2, sticky=W)
 
-node_connect ()
-refresh_auto ()
+    gui_copy_recipient = Button(frame_entries, text="Copy", command=recipient_copy, font=("Tahoma", 7))
+    gui_copy_recipient.grid(row=1, column=2, sticky=W)
 
-try:
-    themes (open ("theme", "r").read ())  # load last selected theme
-except:
-    with open ("theme", "w") as theme_file:
-        theme_file.write ("Barebone")
+    gui_insert_recipient = Button(frame_entries, text="Paste", command=recipient_insert, font=("Tahoma", 7))
+    gui_insert_recipient.grid(row=1, column=3, sticky=W)
 
-root.mainloop ()
+    # gui_help = Button(frame_entries, text="Help", command=help, font=("Tahoma", 7))
+    # gui_help.grid(row=4, column=2, sticky=W + E, padx=(5, 0))
+
+    gui_all_spend = Checkbutton(frame_entries, text="All", variable=all_spend_var, command=all_spend,
+                                font=("Tahoma", 7))
+    gui_all_spend.grid(row=2, column=2, sticky=W)
+
+    gui_all_spend_clear = Button(frame_entries, text="Clear", command=all_spend_clear, font=("Tahoma", 7))
+    gui_all_spend_clear.grid(row=2, column=3, sticky=W)
+
+    data_insert_clipboard = Button(frame_entries, text="Paste", command=data_insert, font=("Tahoma", 7))
+    data_insert_clipboard.grid(row=3, column=2)
+
+    data_insert_clear = Button(frame_entries, text="Clear", command=data_insert_clear, font=("Tahoma", 7))
+    data_insert_clear.grid(row=3, column=3, sticky=W)
+
+    url_insert_clipboard = Button(frame_entries, text="Paste", command=url_insert, font=("Tahoma", 7))
+    url_insert_clipboard.grid(row=5, column=2, sticky=W)
+
+    read_url_b = Button(frame_entries, text="Read", command=lambda: read_url_clicked(app_log, url.get()),
+                        font=("Tahoma", 7))
+    read_url_b.grid(row=5, column=3, sticky=W)
+
+    data_insert_clipboard = Button(frame_entries_r, text="Paste", command=data_insert_r, font=("Tahoma", 7))
+    data_insert_clipboard.grid(row=3, column=2)
+
+    data_insert_clear = Button(frame_entries_r, text="Clear", command=data_insert_clear, font=("Tahoma", 7))
+    data_insert_clear.grid(row=3, column=3, sticky=W)
+
+    gui_copy_address_r = Button(frame_entries_r, text="Copy", command=address_copy, font=("Tahoma", 7))
+    gui_copy_address_r.grid(row=0, column=2, sticky=W)
+
+    gui_copy_url_r = Button(frame_entries_r, text="Copy", command=url_copy, font=("Tahoma", 7))
+    gui_copy_url_r.grid(row=5, column=3, sticky=W)
+
+    create_url_b = Button(frame_entries_r, text="Create",
+                          command=lambda: create_url_clicked(app_log, "pay", gui_address_t.get(), amount_r.get(),
+                                                             operation_r.get(), openfield_r.get("1.0", END).strip()),
+                          font=("Tahoma", 7))
+    create_url_b.grid(row=5, column=2, sticky=W)
+
+    gui_paste_address = Button(frame_entries_t, text="Paste", command=address_insert, font=("Tahoma", 7))
+    gui_paste_address.grid(row=0, column=2, sticky=W)
+
+    gui_watch = Button(frame_entries_t, text="Watch", command=watch, font=("Tahoma", 7))
+    gui_watch.grid(row=0, column=3, sticky=W)
+
+    gui_unwatch = Button(frame_entries_t, text="Reset", command=unwatch, font=("Tahoma", 7))
+    gui_unwatch.grid(row=0, column=4, sticky=W, padx=(0, 5))
+
+    # hyperlinks
+    hyperlink_BISGit = Button(frame_hyperlinks, text="Bismuth@Github", command=hyperlink_BISGit, font=("Tahoma", 7))
+    hyperlink_BISGit.grid(row=0, column=0, sticky=N + E + S + W, padx=1, pady=1)
+
+    hyperlink_BE = Button(frame_hyperlinks, text="Official Block Explorer", command=hyperlink_BE, font=("Tahoma", 7))
+    hyperlink_BE.grid(row=1, column=0, sticky=N + E + S + W, padx=1, pady=1)
+
+    hyperlink_howto = Button(frame_hyperlinks, text="HowTos@Github", command=hyperlink_howto, font=("Tahoma", 7))
+    hyperlink_howto.grid(row=2, column=0, sticky=N + E + S + W, padx=1, pady=1)
+
+    hyperlink_bct = Button(frame_hyperlinks, text="BIS@Bitcointalk", command=hyperlink_bct, font=("Tahoma", 7))
+    hyperlink_bct.grid(row=3, column=0, sticky=N + E + S + W, padx=1, pady=1)
+    # hyperlinks
+
+    # supportbutton
+    dev_support = Button(frame_support, text="Collect Info for Support",
+                         command=lambda: support_collection(str(sync_msg_var), str(version_var)), font=("Tahoma", 7))
+    dev_support.grid(row=98, column=98, sticky=N + E + S + W, padx=1, pady=1)
+    # supportbutton
+
+    gui_address_t = Entry(frame_entries_t, width=60)
+    gui_address_t.grid(row=0, column=1, sticky=W, pady=5, padx=5)
+    gui_address_t.insert(0, myaddress)
+
+    sender_address = Entry(frame_entries, width=60)
+    sender_address.insert(0, myaddress)
+    sender_address.grid(row=0, column=1, sticky=W, pady=5, padx=5)
+    sender_address.configure(state=DISABLED)
+
+    recipient = Entry(frame_entries, width=60)
+    recipient.grid(row=1, column=1, sticky=W, pady=5, padx=5)
+
+    amount = Entry(frame_entries, width=60)
+    amount.grid(row=2, column=1, sticky=W, pady=5, padx=5)
+    amount.insert(0, "0.00000000")
+
+    openfield = Text(frame_entries, width=60, height=5, font=("Tahoma", 8))
+    openfield.grid(row=3, column=1, sticky=W, pady=5, padx=5)
+
+    operation = Entry(frame_entries, width=60)
+    operation.grid(row=4, column=1, sticky=W, pady=5, padx=5)
+
+    url = Entry(frame_entries, width=60)
+    url.grid(row=5, column=1, sticky=W, pady=5, padx=5)
+    url.insert(0, "bis://")
+
+    encode = Checkbutton(frame_tick, text="Base64 Encoding", variable=encode_var, command=all_spend_check, width=14,
+                         anchor=W)
+    encode.grid(row=0, column=0, sticky=W)
+
+    msg = Checkbutton(frame_tick, text="Mark as Message", variable=msg_var, command=all_spend_check, width=14, anchor=W)
+    msg.grid(row=1, column=0, sticky=W)
+
+    encr = Checkbutton(frame_tick, text="Encrypt with PK", variable=encrypt_var, command=all_spend_check, width=14,
+                       anchor=W)
+    encr.grid(row=2, column=0, sticky=W)
+
+    alias_cb = Checkbutton(frame_tick, text="Alias Recipient", variable=alias_cb_var, command=None, width=14, anchor=W)
+    alias_cb.grid(row=4, column=0, sticky=W)
+
+    balance_enumerator = Entry(frame_entries, width=5)
+    # address and amount
+
+    # logo
+
+    # logo_hash_decoded = base64.b64decode(icons.logo_hash)
+    # logo = PhotoImage(data="graphics/logo.png")
+
+    logo_img = PIL.Image.open("graphics/logo.png")
+    logo = PIL.ImageTk.PhotoImage(logo_img)
+
+    Label(frame_logo, image=logo).grid(column=0, row=0)
+    # logo
+
+    # / Build TK INTERFACE
+
+    # Run the threaded ioloop that handles the connection and refresh in the background
+    loop = threading.Thread(target=connection_thread)
+    loop.daemon = True
+    loop.start()
+    # let the object take a coffee and wake up.
+    time.sleep(0.1)
+
+    s = None  # Temp hack
+    refresh_auto()
+
+    try:
+        themes (open ("theme", "r").read ())  # load last selected theme
+    except:
+        with open ("theme", "w") as theme_file:
+            theme_file.write ("Barebone")
+
+    root.mainloop()

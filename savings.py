@@ -9,8 +9,14 @@ import sqlite3
 import log
 from quantizer import *
 import mempool as mp
-from essentials import fee_calculate
 from hashlib import blake2b
+import re
+
+def address_validate(address):
+    return re.match('[abcdef0123456789]{56}', address)
+
+def ip_validate(ip):
+    return re.match('^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$', ip)
 
 def percentage(percent, whole):
     return ((Decimal(percent) * Decimal(whole)) / 100)
@@ -67,7 +73,9 @@ def balanceget_at_block(balance_address,block, h3):
     # app_log.info("Mempool: Projected transction address balance: " + str(balance))
     return str(balance) #, str (credit_ledger), str (debit), str (fees), str (rewards)
 
-
+def check_db(index,index_cursor):
+    index_cursor.execute("CREATE TABLE IF NOT EXISTS masternodes (block_height INTEGER, timestamp NUMERIC, address, balance, ip, delegate)")
+    index.commit()
 
 def masternodes_update(conn,c,index,index_cursor, mode, reg_phase_end, app_log):
     """update register of masternodes based on the current phase (10000 block intervals)"""
@@ -100,10 +108,17 @@ def masternodes_update(conn,c,index,index_cursor, mode, reg_phase_end, app_log):
         if not isinstance(openfield_split, list) or len(openfield_split) != 2:
             openfield_split = [None, None]
 
-
         app_log.warning("operation_split: {}".format(openfield_split))
-        ip = openfield_split[0] #openfield
-        delegate = openfield_split[1]
+
+        if ip_validate(openfield_split[0]):
+            ip = openfield_split[0]
+        else:
+            ip = ""
+
+        if address_validate(openfield_split[1]):
+            delegate = openfield_split[1]
+        else:
+            delegate = ""
 
         try:
             index_cursor.execute("SELECT * from masternodes WHERE address = ?", (address,))
@@ -128,7 +143,7 @@ def mirror_hash_generate(c):
     # new hash
     c.execute("SELECT * FROM transactions WHERE block_height = (SELECT block_height FROM transactions ORDER BY block_height ASC LIMIT 1)")
     result = c.fetchall()
-    mirror_hash = blake2b (str (result).encode (), digest_size=20).hexdigest ()
+    mirror_hash = blake2b(str (result).encode(), digest_size=20).hexdigest()
     return mirror_hash
     # new hash
 
@@ -148,7 +163,7 @@ def masternodes_payout(conn,c,index,index_cursor,block_height,timestamp,app_log)
             address = masternode[2]
             balance_savings = masternode[3]
             app_log.warning("balance_savings: {}".format(balance_savings))
-            stake = str(quantize_eight(percentage(25/52/masternodes_total,balance_savings))) #divide by number of 10k blocks per year
+            stake = str(quantize_eight(percentage(100/masternodes_total,balance_savings)))
             app_log.warning("stake: {}".format(stake))
 
             try:
@@ -157,12 +172,18 @@ def masternodes_payout(conn,c,index,index_cursor,block_height,timestamp,app_log)
                 app_log.warning ("Masternode payout already processed: {} {}".format(block_height,address))
 
             except:
-                c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",(-block_height,timestamp,"masternode",address,stake,"0","0",mirror_hash,"0","0","Masternode Payout","0"))
+                """skip direct bis payouts
+                c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",(-block_height,timestamp,"masternode",address,stake,"0","0",mirror_hash,"0","0","mnpayout","0"))
                 conn.commit()
                 app_log.warning ("Masternode payout added: {} {}".format (block_height, address))
+                """
 
                 #fuel
-                c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",(-block_height,timestamp,"masternode",address,"0","0","0",mirror_hash,"0","0","mnpayout",stake))
+                stake_int = int(float(stake))
+                if stake_int < 1:
+                    stake_int = 1
+
+                c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",(-block_height,timestamp,"masternode",address,"0","0","0",mirror_hash,"0","0","token:transfer","fuel:{}".format(stake_int)))
                 conn.commit()
                 app_log.warning ("Masternode fuel payout added: {} {}".format (block_height, address))
                 #fuel

@@ -3,20 +3,23 @@ from hashlib import blake2b
 import os
 
 def keys_load(privkey_file, pubkey_file):
-    privkey_loaded = open(privkey_file, 'rb').read()
-    privkey = SigningKey.from_string(privkey_loaded, curve=SECP256k1)
+    with open(privkey_file, 'rb') as f:
+        privkey = SigningKey.from_string(f.read(), curve=SECP256k1)
 
-    pubkey_loaded = open(pubkey_file, 'rb').read()
-    pubkey = VerifyingKey.from_string(pubkey_loaded, curve=SECP256k1)
+    with open(pubkey_file, 'rb') as f:
+        pubkey = VerifyingKey.from_string(f.read(), curve=SECP256k1)
 
     address = blake2b(privkey.to_string(), digest_size=20).hexdigest()
-
     return privkey, pubkey, address
 
-def keys_save(key, file):
+def keys_save(key, keys_file):
     print(key)
-    open(file, 'wb').write(key)
-    return True
+    try:
+        with open(keys_file, 'wb') as f:
+            f.write(key)
+        return True
+    except:
+        return False
 
 def privkey_generate(privkey_file, pubkey_file):
     if not os.path.exists(privkey_file):
@@ -46,13 +49,11 @@ def verify(pubkey, message, signature):
 
 
 if __name__ == "__main__":
-    privkey_generate("privkey_ecdsa.pem","pubkey_ecdsa.pem")
-    privkey, pubkey, address = keys_load("privkey_ecdsa.pem","pubkey_ecdsa.pem")
-    print (address)
+    privkey_generate("privkey_ecdsa.pem", "pubkey_ecdsa.pem")
+    privkey, pubkey, address = keys_load("privkey_ecdsa.pem", "pubkey_ecdsa.pem")
+    print(address)
 
     message = "message"
-    signature = sign(message,privkey, pubkey)
-    sign("message",privkey, pubkey)
-    verify(pubkey,message,signature)
-
-
+    signature = sign(message, privkey, pubkey)
+    sign("message", privkey, pubkey)
+    verify(pubkey, message, signature)

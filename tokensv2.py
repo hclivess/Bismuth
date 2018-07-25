@@ -6,9 +6,15 @@
 
 import sqlite3
 import log
+from hashlib import blake2b
 
 __version__ = '0.0.2'
 
+def blake2bhash_generate(data):
+    # new hash
+    blake2bhash = blake2b(str(data).encode(), digest_size=20).hexdigest()
+    return blake2bhash
+    # new hash
 
 def tokens_update(file, ledger, mode, app_log, plugin_manager=None):
     if mode not in ("normal", "reindex"):
@@ -90,8 +96,8 @@ def tokens_update(file, ledger, mode, app_log, plugin_manager=None):
     # app_log.warning all transfers of a given token
     # token = "worthless"
 
-    c.execute("SELECT operation, openfield FROM transactions WHERE block_height >= ? AND operation = ? and reward = 0 ORDER BY block_height ASC;",
-              (token_last_block, "token:transfer",))
+    c.execute("SELECT operation, openfield FROM transactions WHERE (block_height >= ? OR block_height <= ?) AND operation = ? and reward = 0 ORDER BY block_height ASC;",
+              (token_last_block, -token_last_block, "token:transfer",)) #includes mirror blocks
     openfield_transfers = c.fetchall()
     # print(openfield_transfers)
 
@@ -106,8 +112,8 @@ def tokens_update(file, ledger, mode, app_log, plugin_manager=None):
 
     for token in tokens_transferred:
         app_log.warning("processing {}".format(token))
-        c.execute("SELECT block_height, timestamp, address, recipient, signature, operation, openfield FROM transactions WHERE block_height >= ? AND operation = ? AND openfield LIKE ? AND reward = 0 ORDER BY block_height ASC;",
-                  (token_last_block, "token:transfer",token + '%',))
+        c.execute("SELECT block_height, timestamp, address, recipient, signature, operation, openfield FROM transactions WHERE (block_height >= ? OR block_height <= ?) AND operation = ? AND openfield LIKE ? AND reward = 0 ORDER BY block_height ASC;",
+                  (token_last_block, -token_last_block, "token:transfer",token + '%',))
         results2 = c.fetchall()
         app_log.warning(results2)
 
@@ -128,6 +134,8 @@ def tokens_update(file, ledger, mode, app_log, plugin_manager=None):
             app_log.warning("Transfer to {}".format(recipient))
 
             txid = r[4][:56]
+            if txid == "0":
+                txid = blake2bhash_generate(r)
             app_log.warning("Txid: {}".format(txid))
 
             try:
@@ -140,6 +148,7 @@ def tokens_update(file, ledger, mode, app_log, plugin_manager=None):
             # calculate balances
             t.execute("SELECT sum(amount) FROM tokens WHERE recipient = ? AND block_height < ? AND token = ?",
                       (sender,block_height,token,))
+
             try:
                 credit_sender = int(t.fetchone()[0])
             except:
@@ -157,16 +166,19 @@ def tokens_update(file, ledger, mode, app_log, plugin_manager=None):
 
             # app_log.warning all token transfers
             balance_sender = credit_sender - debit_sender
-            app_log.warning("Sender's balance {}".format(balance_sender))
+            if balance_sender < 0 and sender == "masternode":
+                app_log.warning("Total staked {}".format(abs(balance_sender)))
+            else:
+                app_log.warning("Sender's balance {}".format(balance_sender))
             try:
                 t.execute("SELECT txid from tokens WHERE txid = ?", (txid,))
                 dummy = t.fetchone()  # check for uniqueness
                 if dummy:
                     app_log.warning("Token operation already processed: {} {}".format(token, txid))
                 else:
-                    if balance_sender - transfer_amount >= 0 and transfer_amount > 0:
+                    if (balance_sender - transfer_amount >= 0 and transfer_amount > 0) or (sender == "masternode"):
                         t.execute("INSERT INTO tokens VALUES (?,?,?,?,?,?,?)",
-                                  (block_height, timestamp, token, sender, recipient, txid, transfer_amount))
+                                  (abs(block_height), timestamp, token, sender, recipient, txid, transfer_amount))
                         if plugin_manager:
                             plugin_manager.execute_action_hook('token_transfer',
                                                                {'token': token, 'from': sender,
@@ -188,5 +200,5 @@ def tokens_update(file, ledger, mode, app_log, plugin_manager=None):
 
 if __name__ == "__main__":
     app_log = log.log("tokens.log", "WARNING", True)
-    tokens_update("static/index.db", "static/ledger.db", "normal", app_log)
+    tokens_update("static/index_test.db", "static/test.db", "normal", app_log)
     # tokens_update("tokens.db","reindex")

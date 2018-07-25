@@ -42,7 +42,8 @@ class Get:
         "terminal_output": ["bool"],
         "gui_scaling": ["str"],
         "mempool_ram_conf": ["bool"],
-        "egress": ["bool"]
+        "egress": ["bool"],
+        "quicksync": ["bool"]
     }
  
     def load_file(self,filename):
