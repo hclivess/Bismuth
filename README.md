@@ -3,11 +3,17 @@ Bismuth Readme
 
 [![Build Status](https://travis-ci.org/hclivess/Bismuth.svg?branch=master)](https://travis-ci.org/hclivess/Bismuth)
 
-http://bismuth.cz
+Official website: http://bismuth.cz
 
 For basic instructions, please refer to https://github.com/EggPool/BismuthHowto
 
 To use a bitcoin-like RPC server, please refer to https://github.com/EggPool/BismuthRPC
+
+Other Bismuth-related repositories:
+
+Explorer, pool, tools: https://github.com/maccaspacca
+
+Bismuth Foundation: https://github.com/bismuthfoundation
 
 License:
 
