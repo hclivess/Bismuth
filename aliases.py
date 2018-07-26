@@ -23,11 +23,12 @@ def aliases_update(f, ledger ,mode, app_log):
             try:
                 a = ali.cursor()
             except:
-                app_log.warning('Failed to create cursor for aliases')
+                app_log.error('Failed to create cursor for aliases')
+                return
 
             try:
                 a.execute("CREATE TABLE IF NOT EXISTS aliases (block_height INTEGER, address, alias)")
-                a.commit()
+                ali.commit()
             except:
                 app_log.error('Failed to create aliases table')
                 return
@@ -49,10 +50,7 @@ def aliases_update(f, ledger ,mode, app_log):
 
                 app_log.warning("Alias anchor block: {}".format(alias_last_block))
                 
-                c.execute("SELECT "\
-                          "block_height, address, openfield "\
-                          "FROM transactions WHERE openfield LIKE ? AND block_height >= ? "\
-                          "ORDER BY block_height ASC, timestamp ASC;", ("alias=" + '%',)+(alias_last_block,))
+                c.execute("SELECT block_height, address, openfield FROM transactions WHERE openfield LIKE ? AND block_height >= ? ORDER BY block_height ASC, timestamp ASC;", ("alias=" + '%',)+(alias_last_block,))
                 #include the anchor block in case indexation stopped there
                 result = c.fetchall()
                 
@@ -66,9 +64,9 @@ def aliases_update(f, ledger ,mode, app_log):
                     except:
                         a.execute("INSERT INTO aliases VALUES (?,?,?)", (openfield[0],openfield[1],alias))
                         ali.commit()
-                        app_log.warning("Added alias to the database: {}".format (alias))
+                        app_log.warning("Added alias to the database: {} from block {}".format (alias,openfield[0]))
 
 
 if __name__ == "__main__":
-    app_log = log.log("tokens.log", "WARNING", True)
+    app_log = log.log("aliases.log", "WARNING", True)
     aliases_update("static/index.db","static/ledger.db","normal",app_log)
