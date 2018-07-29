@@ -103,46 +103,49 @@ def hypernodes_update(conn,c,index,index_cursor, mode, reg_phase_end, app_log):
     results = c.fetchall() #more efficient than "for row in"
 
     for row in results:
-        block_height = row[0]
-        timestamp = row[1]
-        address = row[2]
-
-        openfield_split = row[5].split(":")
-        if not isinstance(openfield_split, list) or len(openfield_split) != 3:
-            openfield_split = [None, None]
-
-        app_log.warning("operation_split: {}".format(openfield_split))
-
-        if ip_validate(openfield_split[0]):
-            ip = openfield_split[0]
-        else:
-            ip = ""
-
-        if port_validate(openfield_split[1]):
-            port = openfield_split[1]
-        else:
-            port = ""
-
-        if pos_validate(openfield_split[2]):
-            pos_address = openfield_split[2]
-        else:
-            pos_address = ""
-
         try:
-            index_cursor.execute("SELECT * from hypernodes WHERE address = ?", (address,))
-            dummy = index_cursor.fetchall()[0] #check for uniqueness
-            app_log.warning("Hypernode already registered: {}".format(address))
-        except:
-            app_log.warning("address: {}".format(address))
-            balance = balanceget_at_block(address, reg_phase_end, c)
+            block_height = row[0]
+            timestamp = row[1]
+            address = row[2]
 
-            if quantize_eight(balance) >= 10000:
-                index_cursor.execute("INSERT INTO hypernodes VALUES (?, ?, ?, ?, ?, ?, ?)", (block_height, timestamp, address, balance, ip, port, pos_address))
-                index.commit()
+            openfield_split = row[5].split(":")
+            if not isinstance(openfield_split, list) or len(openfield_split) != 3:
+                openfield_split = [None, None]
 
-                app_log.warning ("Hypernode added: {} {}".format (block_height, address))
+            app_log.warning("operation_split: {}".format(openfield_split))
+
+            if ip_validate(openfield_split[0]):
+                ip = openfield_split[0]
             else:
-                app_log.warning("Insufficient balance for hypernode")
+                ip = ""
+
+            if port_validate(openfield_split[1]):
+                port = openfield_split[1]
+            else:
+                port = ""
+
+            if pos_validate(openfield_split[2]):
+                pos_address = openfield_split[2]
+            else:
+                pos_address = ""
+
+            try:
+                index_cursor.execute("SELECT * from hypernodes WHERE address = ?", (address,))
+                dummy = index_cursor.fetchall()[0] #check for uniqueness
+                app_log.warning("Hypernode already registered: {}".format(address))
+            except:
+                app_log.warning("address: {}".format(address))
+                balance = balanceget_at_block(address, reg_phase_end, c)
+
+                if quantize_eight(balance) >= 10000:
+                    index_cursor.execute("INSERT INTO hypernodes VALUES (?, ?, ?, ?, ?, ?, ?)", (block_height, timestamp, address, balance, ip, port, pos_address))
+                    index.commit()
+
+                    app_log.warning ("Hypernode added: {} {}".format (block_height, address))
+                else:
+                    app_log.warning("Insufficient balance for hypernode")
+        except Exception as e:
+            app_log.warning("Masternode registration ran into the following issue: {}".format(e))
 
     return reg_phase_start, reg_phase_end
 
