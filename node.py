@@ -6,7 +6,7 @@
 # do not isolation_level=None/WAL hdd levels, it makes saving slow
 
 
-VERSION = "4.2.6"  # .02 - more hooks
+VERSION = "4.2.6"  # .03 - more hooks again
 
 # Bis specific modules
 import log, options, connections, peershandler, apihandler
@@ -1511,7 +1511,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 return
 
         banned = False
-        if peers.is_banned(peer_ip):
+        dict_ip = {'ip': peer_ip}
+        plugin_manager.execute_filter_hook('peer_ip', dict_ip)
+        if peers.is_banned(peer_ip) or dict_ip['ip'] == 'banned':
             banned = True
             try:
                 self.request.close()
@@ -2249,6 +2251,14 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 # if you "return" from the function, the exception code will node be executed and client thread will hang
 def worker(HOST, PORT):
     global peers
+    global plugin_manager
+
+    dict_ip = {'ip': HOST}
+    plugin_manager.execute_filter_hook('peer_ip', dict_ip)
+    if peers.is_banned(HOST) or dict_ip['ip'] == 'banned':
+        app_log.warning("IP {} is banned, won't connect".format(HOST))
+        return    
+
     timeout_operation = 60  # timeout
     timer_operation = time.time()  # start counting
 
@@ -2288,11 +2298,6 @@ def worker(HOST, PORT):
         # Should not happen, extra safety
         app_log.warning("Outbound: Transport endpoint was not connected");
         return
-
-    if peers.is_banned(peer_ip):
-        banned = True
-        s.close()
-        app_log.warning("IP {} banned, disconnected".format(peer_ip))
 
     while not banned:
         try:
