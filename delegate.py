@@ -121,7 +121,7 @@ def additions(database,cursor,escrow,block_limit):
         #print ("total delegated",delegated_amount)
 
 def list(database, cursor, block_limit):
-    """determine top masternodes to know which are eligible for PoS rewards"""
+    """determine top hypernodes to know which are eligible for PoS rewards"""
     c.execute("SELECT DISTINCT delegate FROM delegations")
     delegates = c.fetchall()[0]
     print ("delegates",delegates)

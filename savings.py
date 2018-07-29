@@ -2,8 +2,8 @@
 #todo: make sure registrations newer than latest block are ignored
 #todo: rollbacks inside node; make sure delagete/ip is only allowed characters
 
-#operation: masternode:register
-#openfield: ip:delegate
+#operation: hypernode:register
+#openfield: ip:port:pos_address
 
 import sqlite3
 import log
@@ -11,6 +11,12 @@ from quantizer import *
 import mempool as mp
 from hashlib import blake2b
 import re
+
+def port_validate(port):
+    return re.match('([0-9]{1,5})', port)
+
+def pos_validate(address):
+    return re.match('[A-Za-z0-9]{34}', address)
 
 def address_validate(address):
     return re.match('[abcdef0123456789]{56}', address)
@@ -74,29 +80,26 @@ def balanceget_at_block(balance_address,block, h3):
     return str(balance) #, str (credit_ledger), str (debit), str (fees), str (rewards)
 
 def check_db(index,index_cursor):
-    index_cursor.execute("CREATE TABLE IF NOT EXISTS masternodes (block_height INTEGER, timestamp NUMERIC, address, balance, ip, delegate)")
+    index_cursor.execute("CREATE TABLE IF NOT EXISTS hypernodes (block_height INTEGER, timestamp NUMERIC, address, balance, ip, port, pos_address)")
     index.commit()
 
-def masternodes_update(conn,c,index,index_cursor, mode, reg_phase_end, app_log):
-    """update register of masternodes based on the current phase (10000 block intervals)"""
+def hypernodes_update(conn,c,index,index_cursor, mode, reg_phase_end, app_log):
+    """update register of hypernodes based on the current phase (10000 block intervals)"""
     if mode not in ("normal","reindex"):
-        raise ValueError ("Wrong value for masternodes_update function")
+        raise ValueError ("Wrong value for hypernodes_update function")
 
-
-    index_cursor.execute("CREATE TABLE IF NOT EXISTS masternodes (block_height INTEGER, timestamp NUMERIC, address, balance, ip, delegate)")
-    index.commit()
-
+    check_db(index,index_cursor)
 
     if mode == "reindex":
-        app_log.warning("Masternodes database will be reindexed")
-        index_cursor.execute("DELETE FROM masternodes")
+        app_log.warning("hypernodes database will be reindexed")
+        index_cursor.execute("DELETE FROM hypernodes")
         index.commit()
 
     reg_phase_start = reg_phase_end - 10000
     app_log.warning("reg_phase_start: {}".format(reg_phase_start))
     app_log.warning("reg_phase_end: {}".format(reg_phase_end))
 
-    c.execute("SELECT block_height, timestamp, address, recipient,operation, openfield FROM transactions WHERE block_height >= ? AND block_height <= ? AND operation = ? ORDER BY block_height, timestamp LIMIT 100", (reg_phase_start, reg_phase_end, "masternode:register",))
+    c.execute("SELECT block_height, timestamp, address, recipient,operation, openfield FROM transactions WHERE block_height >= ? AND block_height <= ? AND operation = ? ORDER BY block_height, timestamp LIMIT 100", (reg_phase_start, reg_phase_end, "hypernode:register",))
     results = c.fetchall() #more efficient than "for row in"
 
     for row in results:
@@ -105,7 +108,7 @@ def masternodes_update(conn,c,index,index_cursor, mode, reg_phase_end, app_log):
         address = row[2]
 
         openfield_split = row[5].split(":")
-        if not isinstance(openfield_split, list) or len(openfield_split) != 2:
+        if not isinstance(openfield_split, list) or len(openfield_split) != 3:
             openfield_split = [None, None]
 
         app_log.warning("operation_split: {}".format(openfield_split))
@@ -115,26 +118,31 @@ def masternodes_update(conn,c,index,index_cursor, mode, reg_phase_end, app_log):
         else:
             ip = ""
 
-        if address_validate(openfield_split[1]):
-            delegate = openfield_split[1]
+        if port_validate(openfield_split[1]):
+            port = openfield_split[1]
         else:
-            delegate = ""
+            port = ""
+
+        if pos_validate(openfield_split[2]):
+            pos_address = openfield_split[2]
+        else:
+            pos_address = ""
 
         try:
-            index_cursor.execute("SELECT * from masternodes WHERE address = ?", (address,))
+            index_cursor.execute("SELECT * from hypernodes WHERE address = ?", (address,))
             dummy = index_cursor.fetchall()[0] #check for uniqueness
-            app_log.warning("Masternode already registered: {}".format(address))
+            app_log.warning("Hypernode already registered: {}".format(address))
         except:
             app_log.warning("address: {}".format(address))
             balance = balanceget_at_block(address, reg_phase_end, c)
 
             if quantize_eight(balance) >= 10000:
-                index_cursor.execute("INSERT INTO masternodes VALUES (?, ?, ?, ?, ?, ?)", (block_height, timestamp, address, balance, ip, delegate))
+                index_cursor.execute("INSERT INTO hypernodes VALUES (?, ?, ?, ?, ?, ?, ?)", (block_height, timestamp, address, balance, ip, port, pos_address))
                 index.commit()
 
-                app_log.warning ("Masternode added: {} {}".format (block_height, address))
+                app_log.warning ("Hypernode added: {} {}".format (block_height, address))
             else:
-                app_log.warning("Insufficient balance for masternode")
+                app_log.warning("Insufficient balance for hypernode")
 
     return reg_phase_start, reg_phase_end
 
@@ -147,35 +155,35 @@ def mirror_hash_generate(c):
     return mirror_hash
     # new hash
 
-def masternodes_payout(conn,c,index,index_cursor,block_height,timestamp,app_log):
+def hypernodes_payout(conn,c,index,index_cursor,block_height,timestamp,app_log):
     "payout, to be run every 10k blocks"
 
-    index_cursor.execute("SELECT * FROM masternodes")
-    masternodes = index_cursor.fetchall()
-    app_log.warning("masternodes: {}".format(masternodes))
-    masternodes_total = len(masternodes)
+    index_cursor.execute("SELECT * FROM hypernodes")
+    hypernodes = index_cursor.fetchall()
+    app_log.warning("hypernodes: {}".format(hypernodes))
+    hypernodes_total = len(hypernodes)
 
     mirror_hash = mirror_hash_generate(c)
 
-    for masternode in masternodes:
-        block_masternode = masternode[0]
-        if block_masternode <= block_height:
-            address = masternode[2]
-            balance_savings = masternode[3]
+    for hypernode in hypernodes:
+        block_hypernode = hypernode[0]
+        if block_hypernode <= block_height:
+            address = hypernode[2]
+            balance_savings = hypernode[3]
             app_log.warning("balance_savings: {}".format(balance_savings))
-            stake = str(quantize_eight(percentage(100/masternodes_total,balance_savings)))
+            stake = str(quantize_eight(percentage(100/hypernodes_total,balance_savings)))
             app_log.warning("stake: {}".format(stake))
 
             try:
                 c.execute ("SELECT * from transactions WHERE block_height = ? AND recipient = ?", (-block_height,address,))
                 dummy = c.fetchall ()[0]  # check for uniqueness
-                app_log.warning ("Masternode payout already processed: {} {}".format(block_height,address))
+                app_log.warning ("hypernode payout already processed: {} {}".format(block_height,address))
 
             except:
                 """skip direct bis payouts
-                c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",(-block_height,timestamp,"masternode",address,stake,"0","0",mirror_hash,"0","0","mnpayout","0"))
+                c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",(-block_height,timestamp,"hypernode",address,stake,"0","0",mirror_hash,"0","0","mnpayout","0"))
                 conn.commit()
-                app_log.warning ("Masternode payout added: {} {}".format (block_height, address))
+                app_log.warning ("hypernode payout added: {} {}".format (block_height, address))
                 """
 
                 #fuel
@@ -183,35 +191,35 @@ def masternodes_payout(conn,c,index,index_cursor,block_height,timestamp,app_log)
                 if stake_int < 1:
                     stake_int = 1
 
-                c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",(-block_height,timestamp,"masternode",address,"0","0","0",mirror_hash,"0","0","token:transfer","fuel:{}".format(stake_int)))
+                c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",(-block_height,timestamp,"hypernode",address,"0","0","0",mirror_hash,"0","0","token:transfer","fuel:{}".format(stake_int)))
                 conn.commit()
-                app_log.warning ("Masternode fuel payout added: {} {}".format (block_height, address))
+                app_log.warning ("hypernode fuel payout added: {} {}".format (block_height, address))
                 #fuel
         else:
-            app_log.warning("Masternode is registered ahead of current block")
+            app_log.warning("hypernode is registered ahead of current block")
 
-def masternodes_revalidate(conn,c,index,index_cursor,block,app_log):
+def hypernodes_revalidate(conn,c,index,index_cursor,block,app_log):
     "remove nodes that removed balance, to be run every 10k blocks"
 
-    index_cursor.execute("SELECT * FROM masternodes")
-    masternodes = index_cursor.fetchall()
+    index_cursor.execute("SELECT * FROM hypernodes")
+    hypernodes = index_cursor.fetchall()
 
-    for masternode in masternodes:
-        app_log.warning (masternode)
-        address = masternode[2]
+    for hypernode in hypernodes:
+        app_log.warning (hypernode)
+        address = hypernode[2]
         app_log.warning ("address: {}".format(address))
-        balance_savings = masternode[3]
+        balance_savings = hypernode[3]
         app_log.warning("balance_savings: {}".format(balance_savings))
         balance = balanceget_at_block (address, block, c)
         app_log.warning ("balance: {}".format(balance))
 
         if quantize_eight(balance) < 10000:
-            index_cursor.execute("DELETE FROM masternodes WHERE address = ?",(address,))
+            index_cursor.execute("DELETE FROM hypernodes WHERE address = ?",(address,))
             index.commit()
         else: #update balance
-            index_cursor.execute("UPDATE masternodes SET balance = ? WHERE address = ?",(balance,address))
+            index_cursor.execute("UPDATE hypernodes SET balance = ? WHERE address = ?",(balance,address))
             index.commit ()
-            app_log.warning("Masternode balance updated from {} to {} for {}".format(balance_savings,balance,address))
+            app_log.warning("hypernode balance updated from {} to {} for {}".format(balance_savings,balance,address))
 
 
 
@@ -237,6 +245,6 @@ if __name__ == "__main__":
     index_cursor = index.cursor()
 
     address = "4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed"
-    masternodes_update(conn, c,index,index_cursor, "normal", 626580, app_log)
-    masternodes_payout(conn, c,index,index_cursor,70002, 1525304875, app_log)
-    masternodes_revalidate (conn, c,index, index_cursor,70002, app_log)
+    hypernodes_update(conn, c,index,index_cursor, "normal", 626580, app_log)
+    hypernodes_payout(conn, c,index,index_cursor,70002, 1525304875, app_log)
+    hypernodes_revalidate (conn, c,index, index_cursor,70002, app_log)

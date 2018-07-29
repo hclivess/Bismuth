@@ -166,7 +166,7 @@ def tokens_update(file, ledger, mode, app_log, plugin_manager=None):
 
             # app_log.warning all token transfers
             balance_sender = credit_sender - debit_sender
-            if balance_sender < 0 and sender == "masternode":
+            if balance_sender < 0 and sender == "hypernode":
                 app_log.warning("Total staked {}".format(abs(balance_sender)))
             else:
                 app_log.warning("Sender's balance {}".format(balance_sender))
@@ -176,7 +176,7 @@ def tokens_update(file, ledger, mode, app_log, plugin_manager=None):
                 if dummy:
                     app_log.warning("Token operation already processed: {} {}".format(token, txid))
                 else:
-                    if (balance_sender - transfer_amount >= 0 and transfer_amount > 0) or (sender == "masternode"):
+                    if (balance_sender - transfer_amount >= 0 and transfer_amount > 0) or (sender == "hypernode"):
                         t.execute("INSERT INTO tokens VALUES (?,?,?,?,?,?,?)",
                                   (abs(block_height), timestamp, token, sender, recipient, txid, transfer_amount))
                         if plugin_manager:

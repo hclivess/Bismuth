@@ -113,22 +113,22 @@ def tokens_rollback(height, app_log):
     app_log.warning("Rolled back the token index to {}".format(height - 1))
 
 
-def masternodes_rollback(height, app_log):
-    """Rollback Masternodes index
+def hypernodes_rollback(height, app_log):
+    """Rollback hypernodes index
 
     :param height: height index of token in chain
     :param app_log: logger to use
 
-    Simply deletes from the `masternodes` table where the block_height is
+    Simply deletes from the `hypernodes` table where the block_height is
     greater than or equal to the :param height: and logs the new height
 
     returns None
     """
     with sqlite3.connect(index_db) as ali:
         a = ali.cursor()
-        execute_param(a, "DELETE FROM masternodes WHERE block_height >= ?;", (height - 1,))
+        execute_param(a, "DELETE FROM hypernodes WHERE block_height >= ?;", (height - 1,))
         commit(ali)
-    app_log.warning("Rolled back the masternode index to {}".format(height - 1))
+    app_log.warning("Rolled back the hypernode index to {}".format(height - 1))
 
 
 def aliases_rollback(height, app_log):
@@ -861,7 +861,7 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2):
                 # rollback indices
                 tokens_rollback(db_block_height, app_log)
                 aliases_rollback(db_block_height, app_log)
-                masternodes_rollback(db_block_height, app_log)
+                hypernodes_rollback(db_block_height, app_log)
                 # /rollback indices
 
         except Exception as e:
@@ -1006,7 +1006,6 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
         app_log.warning("Block: Digesting started from {}".format(peer_ip))
         # variables that have been quantized are prefixed by q_ So we can avoid any unnecessary quantize again later. Takes time.
         # Variables that are only used as quantized decimal are quantized once and for all.
-        q_time_now = quantize_two(time.time())
 
         block_size = Decimal(sys.getsizeof(str(data))) / Decimal(1000000)
         app_log.warning("Block: size: {} MB".format(block_size))
@@ -1068,6 +1067,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
 
                 transaction_list_converted = []  # makes sure all the data are properly converted as in the previous lines
                 for tx_index, transaction in enumerate(transaction_list):
+                    q_time_now = quantize_two(time.time())
                     # verify signatures
                     q_received_timestamp = quantize_two(transaction[0])  # we use this several times
                     received_timestamp = '%.2f' % q_received_timestamp
@@ -1313,9 +1313,9 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                 # savings
                 if "testnet" in version or block_height_new >= 800000:
                     if int(block_height_new) % 10000 == 0:  # every x blocks
-                        savings.masternodes_update(conn, c, index, index_cursor, "normal", block_height_new, app_log)
-                        savings.masternodes_payout(conn, c, index, index_cursor, block_height_new, float(q_block_timestamp), app_log)
-                        savings.masternodes_revalidate(conn, c, index, index_cursor, block_height_new, app_log)
+                        savings.hypernodes_update(conn, c, index, index_cursor, "normal", block_height_new, app_log)
+                        savings.hypernodes_payout(conn, c, index, index_cursor, block_height_new, float(q_block_timestamp), app_log)
+                        savings.hypernodes_revalidate(conn, c, index, index_cursor, block_height_new, app_log)
 
                 # new hash
                 c.execute("SELECT * FROM transactions WHERE block_height = (SELECT block_height FROM transactions ORDER BY block_height ASC LIMIT 1)")
@@ -1334,7 +1334,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
 
                     if "testnet" in version or block_height_new >= 800000:
                         execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                                      (-block_height_new, str(q_time_now), "Masternode Payouts",
+                                      (-block_height_new, str(q_time_now), "Hypernode Payouts",
                                        "3e08b5538a4509d9daa99e01ca5912cda3e98a7f79ca01248c2bde16",
                                        "8", "0", "0", mirror_hash, "0", "0", "0", "0"))
                         commit(conn)
@@ -1423,7 +1423,7 @@ def coherence_check():
                     # rollback indices
                     tokens_rollback(y, app_log)
                     aliases_rollback(y, app_log)
-                    masternodes_rollback(y, app_log)
+                    hypernodes_rollback(y, app_log)
 
                     # rollback indices
 
@@ -1461,7 +1461,7 @@ def coherence_check():
                     # rollback indices
                     tokens_rollback(y, app_log)
                     aliases_rollback(y, app_log)
-                    masternodes_rollback(y, app_log)
+                    hypernodes_rollback(y, app_log)
                     # rollback indices
 
                     app_log.warning("Status: Due to a coherence issue at block {}, {} has been rolled back and will be resynchronized".format(y, chain))
