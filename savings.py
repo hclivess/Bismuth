@@ -248,6 +248,6 @@ if __name__ == "__main__":
     index_cursor = index.cursor()
 
     address = "4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed"
-    hypernodes_update(conn, c,index,index_cursor, "normal", 626580, app_log)
-    hypernodes_payout(conn, c,index,index_cursor,70002, 1525304875, app_log)
-    hypernodes_revalidate (conn, c,index, index_cursor,70002, app_log)
+    hypernodes_update(conn, c,index,index_cursor, "normal", 736600, app_log)
+    hypernodes_payout(conn, c,index,index_cursor,736600, 1525304875, app_log)
+    hypernodes_revalidate (conn, c,index, index_cursor,736600, app_log)
