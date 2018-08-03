@@ -80,7 +80,7 @@ def balanceget_at_block(balance_address,block, h3):
     return str(balance) #, str (credit_ledger), str (debit), str (fees), str (rewards)
 
 def check_db(index,index_cursor):
-    index_cursor.execute("CREATE TABLE IF NOT EXISTS hypernodes (block_height INTEGER, timestamp NUMERIC, address, balance, ip, port, pos_address)")
+    index_cursor.execute("CREATE TABLE IF NOT EXISTS hypernodes (block_height INTEGER, timestamp NUMERIC, address, balance)")
     index.commit()
 
 def hypernodes_update(conn,c,index,index_cursor, mode, reg_phase_end, app_log):
@@ -138,7 +138,7 @@ def hypernodes_update(conn,c,index,index_cursor, mode, reg_phase_end, app_log):
                 balance = balanceget_at_block(address, reg_phase_end, c)
 
                 if quantize_eight(balance) >= 10000:
-                    index_cursor.execute("INSERT INTO hypernodes VALUES (?, ?, ?, ?, ?, ?, ?)", (block_height, timestamp, address, balance, ip, port, pos_address))
+                    index_cursor.execute("INSERT INTO hypernodes VALUES (?, ?, ?, ?, ?, ?, ?)", (block_height, timestamp, address, balance))
                     index.commit()
 
                     app_log.warning ("Hypernode added: {} {}".format (block_height, address))
