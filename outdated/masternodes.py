@@ -7,12 +7,12 @@ from difflib import SequenceMatcher
 
 
 def delegates_list(file):
-    """list hypernode addresses registered for the period"""
+    """list vesting addresses registered for the period"""
     try:
         mas = sqlite3.connect(file)
         mas.text_factory = str
         m = mas.cursor()
-        m.execute("SELECT DISTINCT delegate FROM hypernodes")
+        m.execute("SELECT DISTINCT delegate FROM vestings")
         delegates_found = m.fetchall()
         m.close()
     except:
@@ -37,12 +37,12 @@ def candidate_select(delegates_list, hash_last):
     return lowest_match
 
 
-def stake_eligible(recipient, hypernode_ratio, reg_phase_start, reg_phase_end):
-    blocks_allowed = hypernode_ratio[0]
-    block_turn = hypernode_ratio[1]
+def stake_eligible(recipient, vesting_ratio, reg_phase_start, reg_phase_end):
+    blocks_allowed = vesting_ratio[0]
+    block_turn = vesting_ratio[1]
 
 
-    """find out whether the hypernode's delegate (or self) has staked in the past number of blocks decided by hypernode_ratio and nobody else staked for x blocks"""
+    """find out whether the vesting's delegate (or self) has staked in the past number of blocks decided by vesting_ratio and nobody else staked for x blocks"""
     conn = sqlite3.connect('static/ledger.db')
     conn.text_factory = str
     c = conn.cursor()
@@ -86,14 +86,14 @@ def stake_eligible(recipient, hypernode_ratio, reg_phase_start, reg_phase_end):
 
     return eligible
 
-def hypernode_ratio(hypernode_count):
-    #hypernode_count = 1000 #HACK
+def vesting_ratio(vesting_count):
+    #vesting_count = 1000 #HACK
 
     """report how many blocks a node can mine in the given phase and how often it can mine"""
     try:
         
-        blocks_allowed = int(1000 / hypernode_count) #every node can mint this amount of blocks per period
-        block_turn = int(blocks_allowed * hypernode_count) #one block every x turns
+        blocks_allowed = int(1000 / vesting_count) #every node can mint this amount of blocks per period
+        block_turn = int(blocks_allowed * vesting_count) #one block every x turns
     except:
         blocks_allowed, block_turn = 0, 0
 
@@ -102,29 +102,29 @@ def hypernode_ratio(hypernode_count):
     print ("blocks_allowed",blocks_allowed)
     return blocks_allowed, block_turn
 
-def hypernode_count(file):
-    """return the number of unique hypernodes registered for the phase to determine reward ratio"""
+def vesting_count(file):
+    """return the number of unique vestings registered for the phase to determine reward ratio"""
     try:
         mas = sqlite3.connect(file)
         mas.text_factory = str
         m = mas.cursor()
-        m.execute("SELECT COUNT(DISTINCT address) FROM hypernodes")
-        hypernodes_found = m.fetchone()[0]
+        m.execute("SELECT COUNT(DISTINCT address) FROM vestings")
+        vestings_found = m.fetchone()[0]
         m.close()
     except:
-        hypernodes_found = False
+        vestings_found = False
 
-    print("hypernodes_found", hypernodes_found)
-    return hypernodes_found
+    print("vestings_found", vestings_found)
+    return vestings_found
 
     
 
-def hypernode_find(file, address, app_log):
-    """determine whether the hypernode is registered for the phase"""
+def vesting_find(file, address, app_log):
+    """determine whether the vesting is registered for the phase"""
     mas = sqlite3.connect(file)
     mas.text_factory = str
     m = mas.cursor()
-    m.execute("SELECT * FROM hypernodes WHERE address = ?", (address,))
+    m.execute("SELECT * FROM vestings WHERE address = ?", (address,))
     found = m.fetchall()
     m.close()
     return found
@@ -135,7 +135,7 @@ def delegate_find(file, address, recipient, app_log):
         mas = sqlite3.connect(file)
         mas.text_factory = str
         m = mas.cursor()
-        m.execute("SELECT address FROM hypernodes WHERE delegate = ? AND address = ?", (recipient,) + (address,))
+        m.execute("SELECT address FROM vestings WHERE delegate = ? AND address = ?", (recipient,) + (address,))
         delegate_found = m.fetchone()[0]
         m.close()
     except:
@@ -144,20 +144,20 @@ def delegate_find(file, address, recipient, app_log):
 
     return delegate_found
 
-def hypernodes_update(file, mode, app_log):
-    """update register of hypernodes based on the current phase (10000 block intervals)"""
+def vestings_update(file, mode, app_log):
+    """update register of vestings based on the current phase (10000 block intervals)"""
     if mode not in ("normal","reindex"):
-        raise ValueError ("Wrong value for hypernodes_update function")
+        raise ValueError ("Wrong value for vestings_update function")
 
     mas = sqlite3.connect(file)
     mas.text_factory = str
     m = mas.cursor()
-    m.execute("CREATE TABLE IF NOT EXISTS hypernodes (block_height INTEGER, timestamp NUMERIC, address, delegate, ip, txid)")
+    m.execute("CREATE TABLE IF NOT EXISTS vestings (block_height INTEGER, timestamp NUMERIC, address, delegate, ip, txid)")
     mas.commit()
 
     if mode == "reindex":
-        app_log.warning("hypernodes database will be reindexed")
-        m.execute("DELETE FROM hypernodes")
+        app_log.warning("vestings database will be reindexed")
+        m.execute("DELETE FROM vestings")
         mas.commit()
 
     conn = sqlite3.connect('static/ledger.db')
@@ -185,7 +185,7 @@ def hypernodes_update(file, mode, app_log):
     print("reg_phase_start", reg_phase_start)
     print("reg_phase_end", reg_phase_end)
 
-    c.execute("SELECT block_height, timestamp, address, recipient, openfield, signature FROM transactions WHERE block_height >= ? AND block_height <= ? AND openfield LIKE ?", (reg_phase_start,) + (reg_phase_end,) + ("hypernode:" + '%',))
+    c.execute("SELECT block_height, timestamp, address, recipient, openfield, signature FROM transactions WHERE block_height >= ? AND block_height <= ? AND openfield LIKE ?", (reg_phase_start,) + (reg_phase_end,) + ("vesting:" + '%',))
     results = c.fetchall() #more efficient than "for row in"
 
     for row in results:
@@ -202,14 +202,14 @@ def hypernodes_update(file, mode, app_log):
         print("ip",ip)
 
         try:
-            m.execute("SELECT * from hypernodes WHERE txid = ?", (txid,))
+            m.execute("SELECT * from vestings WHERE txid = ?", (txid,))
             dummy = m.fetchall()[0] #check for uniqueness
-            app_log.warning("hypernode tx already registered: {}".format(txid))
+            app_log.warning("vesting tx already registered: {}".format(txid))
         except:
 
 
             try:
-                m.execute("SELECT * from hypernodes WHERE address = ?", (address,))
+                m.execute("SELECT * from vestings WHERE address = ?", (address,))
                 registration_requests = len(m.fetchall())
             except:
                 registration_requests = 0
@@ -217,9 +217,9 @@ def hypernodes_update(file, mode, app_log):
             print("registration_requests",registration_requests)
 
             if registration_requests > 3:
-                app_log.warning("hypernode registration limit surpassed: {}".format(registration_requests))
+                app_log.warning("vesting registration limit surpassed: {}".format(registration_requests))
             else:
-                m.execute("INSERT INTO hypernodes VALUES (?, ?, ?, ?, ?, ?)", (block_height, timestamp, address, delegate, ip, txid))
+                m.execute("INSERT INTO vestings VALUES (?, ?, ?, ?, ?, ?)", (block_height, timestamp, address, delegate, ip, txid))
                 mas.commit()
 
     c.close()
@@ -231,15 +231,15 @@ if __name__ == "__main__":
     address = "4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed"
     delegate = "4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed"
 
-    app_log = log.log("hypernodes.log", "WARNING", True)
-    reg_phase_start, reg_phase_end = hypernodes_update("static/index.db","normal",app_log)
+    app_log = log.log("vestings.log", "WARNING", True)
+    reg_phase_start, reg_phase_end = vestings_update("static/index.db","normal",app_log)
 
-    hypernode_count("static/index.db")
-    #print(hypernode_find("static/index.db", address, app_log))
+    vesting_count("static/index.db")
+    #print(vesting_find("static/index.db", address, app_log))
     print(delegate_find("static/index.db", address, delegate, app_log))
-    print(hypernode_ratio(hypernode_count("static/index.db")))
-    print(stake_eligible(delegate, hypernode_ratio(hypernode_count("static/index.db")),reg_phase_start,reg_phase_end))
+    print(vesting_ratio(vesting_count("static/index.db")))
+    print(stake_eligible(delegate, vesting_ratio(vesting_count("static/index.db")),reg_phase_start,reg_phase_end))
     delegates_list("static/index.db")
-    #hypernode:delegate:ip
+    #vesting:delegate:ip
 
     candidate_select(delegates_list("static/index.db"),"4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed")

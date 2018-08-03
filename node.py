@@ -11,8 +11,7 @@ VERSION = "4.2.6"  # .03 - more hooks again
 # Bis specific modules
 import log, options, connections, peershandler, apihandler
 
-import shutil, socketserver, base64, hashlib, os, re, sqlite3, sys, threading, time, socks, random, keys, math, \
-    requests, tarfile, essentials, glob
+import shutil, socketserver, base64, hashlib, os, re, sqlite3, sys, threading, time, socks, random, keys, math, requests, tarfile, essentials, glob
 from hashlib import blake2b
 import tokensv2 as tokens
 import aliases
@@ -26,7 +25,7 @@ from Cryptodome.Signature import PKCS1_v1_5
 
 import mempool as mp
 import plugins
-import savings
+import staking
 
 # load config
 # global ban_threshold
@@ -47,7 +46,6 @@ config = options.Get()
 config.read()
 debug_level = config.debug_level_conf
 port = config.port
-genesis_conf = config.genesis_conf
 verify_conf = config.verify_conf
 thread_limit_conf = config.thread_limit_conf
 rebuild_db_conf = config.rebuild_db_conf
@@ -80,6 +78,7 @@ terminal_output = config.terminal_output
 # mempool_ram_conf = config.mempool_ram_conf
 egress = config.egress
 quicksync = config.quicksync
+genesis_conf = "4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed"
 
 # nodes_ban_reset=config.nodes_ban_reset
 
@@ -113,22 +112,22 @@ def tokens_rollback(height, app_log):
     app_log.warning("Rolled back the token index to {}".format(height - 1))
 
 
-def hypernodes_rollback(height, app_log):
-    """Rollback hypernodes index
+def staking_rollback(height, app_log):
+    """Rollback staking index
 
     :param height: height index of token in chain
     :param app_log: logger to use
 
-    Simply deletes from the `hypernodes` table where the block_height is
+    Simply deletes from the `staking` table where the block_height is
     greater than or equal to the :param height: and logs the new height
 
     returns None
     """
-    with sqlite3.connect(index_db) as ali:
-        a = ali.cursor()
-        execute_param(a, "DELETE FROM hypernodes WHERE block_height >= ?;", (height - 1,))
-        commit(ali)
-    app_log.warning("Rolled back the hypernode index to {}".format(height - 1))
+    with sqlite3.connect(index_db) as sta:
+        s = sta.cursor()
+        execute_param(s, "DELETE FROM staking WHERE block_height >= ?;", (height - 1,))
+        commit(sta)
+    app_log.warning("Rolled back the staking index to {}".format(height - 1))
 
 
 def aliases_rollback(height, app_log):
@@ -324,23 +323,6 @@ def db_to_drive(hdd, h, hdd2, h2):
             for x in result2:
                 h2.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
             commit(hdd2)
-
-        """
-        old way
-        # reward
-        execute_param(sc, ('SELECT * FROM transactions WHERE address = "Development Reward" AND block_height < ?'), (-hdd_block,))
-        result3 = sc.fetchall()
-        if full_ledger:  # we want to save to ledger.db from RAM
-            for x in result3:
-                h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
-            commit(hdd)
-
-        if ram_conf:  # we want to save to hyper.db from RAM
-            for x in result3:
-                h2.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
-            commit(hdd2)
-        # reward
-        """
 
         h2.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
         hdd_block = h2.fetchone()[0]
@@ -846,22 +828,10 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2):
                 hdd_block = int(db_block_height) - 1
                 # /roll back hdd too
 
-                """
-                # roll back reward too
-                if full_ledger:  # rollback ledger.db
-                    execute_param(h, ('DELETE FROM transactions WHERE address = "Development Reward" AND block_height <= ?'), (-db_block_height,))
-                    commit(hdd)
-
-                if ram_conf:  # rollback hyper.db
-                    execute_param(h2, ('DELETE FROM transactions WHERE address = "Development Reward" AND block_height <= ?'), (-db_block_height,))
-                    commit(hdd2)
-                # roll back reward too
-                """
-
                 # rollback indices
                 tokens_rollback(db_block_height, app_log)
                 aliases_rollback(db_block_height, app_log)
-                hypernodes_rollback(db_block_height, app_log)
+                staking_rollback(db_block_height, app_log)
                 # /rollback indices
 
         except Exception as e:
@@ -1308,11 +1278,11 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                     commit(conn)
 
                 # savings
-                if "testnet" in version or block_height_new >= 800000:
+                if "testnet" in version or block_height_new >= 843000:
                     if int(block_height_new) % 10000 == 0:  # every x blocks
-                        savings.hypernodes_update(conn, c, index, index_cursor, "normal", block_height_new, app_log)
-                        savings.hypernodes_payout(conn, c, index, index_cursor, block_height_new, float(q_block_timestamp), app_log)
-                        savings.hypernodes_revalidate(conn, c, index, index_cursor, block_height_new, app_log)
+                        staking.staking_update(conn, c, index, index_cursor, "normal", block_height_new, app_log)
+                        staking.staking_payout(conn, c, index, index_cursor, block_height_new, float(q_block_timestamp), app_log)
+                        staking.staking_revalidate(conn, c, index, index_cursor, block_height_new, app_log)
 
                 # new hash
                 c.execute("SELECT * FROM transactions WHERE block_height = (SELECT block_height FROM transactions ORDER BY block_height ASC LIMIT 1)")
@@ -1420,7 +1390,7 @@ def coherence_check():
                     # rollback indices
                     tokens_rollback(y, app_log)
                     aliases_rollback(y, app_log)
-                    hypernodes_rollback(y, app_log)
+                    staking_rollback(y, app_log)
 
                     # rollback indices
 
@@ -1458,7 +1428,7 @@ def coherence_check():
                     # rollback indices
                     tokens_rollback(y, app_log)
                     aliases_rollback(y, app_log)
-                    hypernodes_rollback(y, app_log)
+                    staking_rollback(y, app_log)
                     # rollback indices
 
                     app_log.warning("Status: Due to a coherence issue at block {}, {} has been rolled back and will be resynchronized".format(y, chain))
@@ -2634,7 +2604,7 @@ if __name__ == "__main__":
         index_db = "static/index.db"
 
     index, index_cursor = index_define()  # todo: remove this later
-    savings.check_db(index, index_cursor)  # todo: remove this later
+    staking.check_db(index, index_cursor)  # todo: remove this later
 
     check_integrity(hyper_path_conf)
     coherence_check()
