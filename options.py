@@ -6,7 +6,6 @@ class Get:
     # "param_name":["type"] or "param_name"=["type","property_name"]
     vars={
         "port":["str"],
-        "genesis":["str","genesis_conf"],
         "verify":["bool","verify_conf"],
         "version":["str","version_conf"],
         "version_allow":["list"],

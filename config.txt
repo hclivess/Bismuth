@@ -1,5 +1,4 @@
 port=5658
-genesis=4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed
 verify=False
 version=mainnet0018
 version_allow=mainnet0017,mainnet0018,mainnet0019
