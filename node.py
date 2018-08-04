@@ -778,8 +778,14 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2):
             results = c.fetchone()
             db_block_height = results[0]
             db_block_hash = results[7]
-
-            if db_block_height < 2:
+            
+            ip = {'ip': peer_ip}
+            plugin_manager.execute_filter_hook('filter_rollback_ip', ip)
+            if ip['ip'] == 'no':
+                reason = "Filter blocked this rollback"
+                skip = True
+            
+            elif db_block_height < 2:
                 reason = "Will not roll back this block"
                 skip = True
 
