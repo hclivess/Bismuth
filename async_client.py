@@ -24,7 +24,7 @@ __version__ = '0.0.31'
 class AsyncClient():
 
 
-    def __init__(self, server_list, app_log, loop, rebench_timer, address=''):
+    def __init__(self, server_list, app_log, loop, address=''):
         # print("async init", server_list)
         self.server_list = server_list
         self.app_log = app_log
@@ -38,45 +38,23 @@ class AsyncClient():
         self.cached_aliases = {}
         self.needed_aliases = []
         self.ip_port = 'N/A'
-        self.rebench_timer = rebench_timer
-        self.block_height = 0
-        self.block_height_old = 0
-        self.block_timestamp = time.time()
 
     def status(self, address):
         self.address = address
         return self._status
-		
-    def loop_status(self):
-        return self.loop.is_running()
-		
+
     async def refresh(self):
         if not self.stream:
             return
         if self.refreshing:
             return
-        try:  
+        try:
             self.refreshing = True
             statusget = await self._command("statusget")
             self._status['statusget'] = statusget
             self._status['status_version'] = statusget[7]
             self._status['stats_timestamp'] = statusget[9]
-            self.block_height = statusget[8][7]
-            if self.block_height != self.block_height_old:
-                self.block_height_old = self.block_height
-                self.block_timestamp = time.time()
 
-            #rebench servers if last benchmark too old
-            if (self.rebench_timer + 7200.0) < time.time():
-                self.loop.stop()
-            #rebench if too far behind    
-            elif (time.time() > self.block_timestamp + 300):
-                self.loop.stop()
-            #    pass
-            else:
-                pass
-            
-            			
             # The two following ones only, depend on the address
             if self.address:
                 stats_account = await self._command("balanceget", self.address)
@@ -214,6 +192,15 @@ class AsyncClient():
         :return:
         """
         try:
+            # Shuffle server list
+            random.shuffle(self.server_list)
+            try:
+                # Force local host to be tried first, once.
+                self.server_list.remove('127.0.0.1')
+                self.server_list.insert(0, '127.0.0.1')
+            except:
+                pass
+
             while True:
                 for self.ip_port in self.server_list:
                     self.app_log.warning("async client trying to connect to {}".format(self.ip_port))
