@@ -47,6 +47,7 @@ from bisurl import create_url, read_url
 from essentials import fee_calculate
 from quantizer import quantize_eight
 from simplecrypt import decrypt, encrypt
+from lwbench import time_measure
 
 # from tokensv2 import *
 # import sqlite3
@@ -793,6 +794,12 @@ def msg_dialogue(address):
 
 
 def refresh_auto():
+    status = async_client.connection.loop_status()
+    if status != True:
+        #benchmark light_ip-list
+        benchmark_lightip()
+        #restart loop
+        restart_loop()
     root.after(0, refresh(gui_address_t.get(), s))
     root.after(10000, refresh_auto)
 
@@ -1036,11 +1043,15 @@ def token_issue(token, amount, window):
 
 
 def tokens():
-    tokens_main = Toplevel()
-    tokens_main.title("Tokens")
+    tokens_main = Frame (tab_tokens, relief='ridge', borderwidth=0)
+    tokens_main.grid (row=0, column=0, pady=5, padx=5, sticky=N + W + E + S)														
+    #tokens_main.title("Tokens")
+    token_box = Listbox (tokens_main, width=100)
+    token_box.grid (row=0, pady=0)
 
-    token_box = Listbox(tokens_main, width=100)
-    token_box.grid(row=0, pady=0)
+    scrollbar_v = Scrollbar(tokens_main, command=token_box.yview)
+    scrollbar_v.grid(row=0, column=1, sticky=N + S + E)											
+
     """
     connections.send(s, "tokensget", 10)
     connections.send(s, gui_address_t.get(), 10)
@@ -1093,8 +1104,8 @@ def tokens():
     issue = Button(tokens_main, text="Issue", command=lambda: token_issue(token_name_var.get(), token_amount_var.get(), tokens_main))
     issue.grid(row=5, column=0, sticky=W + E, padx=5)
 
-    cancel = Button(tokens_main, text="Cancel", command=tokens_main.destroy)
-    cancel.grid(row=6, column=0, sticky=W + E, padx=5)
+    #cancel = Button(tokens_main, text="Cancel", command=tokens_main.destroy)
+    #cancel.grid(row=6, column=0, sticky=W + E, padx=5)
 
 
 def tx_tree_define():
@@ -1495,7 +1506,7 @@ def connection_thread():
     try:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        async_client.connection = async_client.AsyncClient(light_ip, app_log, loop, address=myaddress)
+        async_client.connection = async_client.AsyncClient(light_ip, app_log, loop, rebench_timer, address=myaddress)
         loop.create_task(async_client.connection.background())
         try:
             loop.run_forever()
@@ -1504,6 +1515,21 @@ def connection_thread():
             app_log.info("exited from loop")
     except Exception as e:
         print("ect", e)
+
+		
+def restart_loop():
+    loop = threading.Thread(target=connection_thread)
+    loop.daemon = True
+    loop.start()
+
+	
+def benchmark_lightip():
+    global light_ip
+    global rebench_timer
+    #benchmark light_ip-list
+    light_ip = time_measure(light_ip)
+    rebench_timer = time.time()
+    
 
 
 if __name__ == "__main__":
@@ -1551,18 +1577,10 @@ if __name__ == "__main__":
     version = config.version_conf
     gui_scaling = config.gui_scaling
 
-    """
-    # randomize light_ip-list
-    shuffle(light_ip)
-
-    try:
-        light_ip.remove('127.0.0.1')
-        light_ip.insert(0, '127.0.0.1')
-        pass
-    except:
-        pass
-    """
-
+    #benchmark light_ip-list
+    benchmark_lightip()
+   
+	
     if "testnet" in version:
         port = 2829
         light_ip = ["127.0.0.1"]
@@ -1686,10 +1704,15 @@ if __name__ == "__main__":
     url_r = Entry(frame_entries_r, width=60)
     url_r.grid(row=5, column=1, sticky=W, pady=5, padx=5)
     url_r.insert(0, "bis://")
+    #tab5 tokens
+    tab_tokens = ttk.Frame(nbtabs)
+    nbtabs.add(tab_tokens, text='Tokens')
 
-    # tab5 tokens
-    # tab_tokens = ttk.Frame(nbtabs)
-    # nbtabs.add(tab_tokens, text='Tokens')
+    def click_on_tab_tokens(event):
+        if str(nbtabs.index(nbtabs.select())) == "4":
+            tokens()
+
+    nbtabs.bind('<<NotebookTabChanged>>', click_on_tab_tokens)	
 
     # tab_statistics statistics
     # tab_statistics = ttk.Frame(nbtabs)
@@ -1740,8 +1763,14 @@ if __name__ == "__main__":
     miscmenu.add_command(label="Mempool", command=lambda: mempool_get(s))
     miscmenu.add_command(label="CSV Export", command=lambda: csv_export(s))
     miscmenu.add_command(label="Statistics", command=lambda: stats())
-    miscmenu.add_command(label="Tokens", command=tokens)
     miscmenu.add_command(label="Help", command=help)
+    #connect_menu = Menu (menubar, tearoff=0)
+    #menubar.add_cascade (label="Connection", menu=connect_menu)
+    #connect_list = []
+
+    #for ip_once in light_ip:
+    #    connect_list.append (ip_once)
+    #    connect_menu.add_command(label=ip_once, command=lambda ip_once=ip_once: force_connection (ip_once))
 
     # labels
     Label(frame_entries, text="My Address:").grid(row=0, sticky=W + N, pady=5, padx=5)
@@ -1983,15 +2012,13 @@ if __name__ == "__main__":
     url.grid(row=5, column=1, sticky=W, pady=5, padx=5)
     url.insert(0, "bis://")
 
-    encode = Checkbutton(frame_tick, text="Base64 Encoding", variable=encode_var, command=all_spend_check, width=14,
-                         anchor=W)
+    encode = Checkbutton(frame_tick, text="Base64 Encoding", variable=encode_var, command=all_spend_check, width=14, anchor=W)
     encode.grid(row=0, column=0, sticky=W)
 
     msg = Checkbutton(frame_tick, text="Mark as Message", variable=msg_var, command=all_spend_check, width=14, anchor=W)
     msg.grid(row=1, column=0, sticky=W)
 
-    encr = Checkbutton(frame_tick, text="Encrypt with PK", variable=encrypt_var, command=all_spend_check, width=14,
-                       anchor=W)
+    encr = Checkbutton(frame_tick, text="Encrypt with PK", variable=encrypt_var, command=all_spend_check, width=14, anchor=W)
     encr.grid(row=2, column=0, sticky=W)
 
     alias_cb = Checkbutton(frame_tick, text="Alias Recipient", variable=alias_cb_var, command=None, width=14, anchor=W)
@@ -2012,14 +2039,14 @@ if __name__ == "__main__":
     # logo
 
     # / Build TK INTERFACE
-
+    
     # Run the threaded ioloop that handles the connection and refresh in the background
     loop = threading.Thread(target=connection_thread)
     loop.daemon = True
     loop.start()
     # let the object take a coffee and wake up.
     time.sleep(0.1)
-
+  
     s = None  # Temp hack
     refresh_auto()
 
