@@ -1523,11 +1523,11 @@ def restart_loop():
     loop.start()
 
 	
-def benchmark_lightip():
+def benchmark_lightip(app_log):
     global light_ip
     global rebench_timer
     #benchmark light_ip-list
-    light_ip = time_measure(light_ip)
+    light_ip = time_measure(light_ip, app_log)
     rebench_timer = time.time()
     
 
@@ -1577,9 +1577,6 @@ if __name__ == "__main__":
     version = config.version_conf
     gui_scaling = config.gui_scaling
 
-    #benchmark light_ip-list
-    benchmark_lightip()
-   
 	
     if "testnet" in version:
         port = 2829
@@ -1593,6 +1590,9 @@ if __name__ == "__main__":
     key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress = essentials.keys_load(
         private_key_load, public_key_load)
 
+    #benchmark light_ip-list
+    benchmark_lightip(app_log)
+    
     # Build TK INTERFACE
 
     root = Tk()
