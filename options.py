@@ -71,6 +71,8 @@ class Get:
                     # deal with properties that do not match the config name.
                     left = params[1]
                 setattr(self,left,right)                
+        # Default genesis to keep compatibility
+        self.genesis_conf = "4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed"
         print(self.__dict__)           
                     
     def read(self):
