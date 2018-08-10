@@ -1122,9 +1122,13 @@ def tokens():
     print (tokens_results)
 
     for pair in tokens_results:
-        token = pair[0]
-        balance = pair[1]
-        token_box.insert (END, (token, ":", balance))
+        try:
+            token = pair[0]
+            balance = pair[1]
+            token_box.insert (END, (token, ":", balance))
+        except:
+            app_log.warning("There was an issue fetching tokens")
+            pass
 
     # callback
     def callback(event):

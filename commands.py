@@ -232,24 +232,10 @@ def peersget(socket):
     print (peers_received)
 
 def statusget(socket):
-    connections.send(s, "statusget", 10)
+    connections.send(s, "statusjson", 10)
     response = connections.receive(s, 10)
-    node_address = response[0]
-    nodes_count = response[1]
-    nodes_list = response[2]
-    threads_count = response[3]
-    uptime = response[4]
-    consensus = response[5]
-    consensus_percentage = response[6]
-    version = response[7]
-    print("Node address:", node_address)
-    print("Number of nodes:", nodes_count)
-    print("List of nodes:", nodes_list)
-    print("Number of threads:", threads_count)
-    print("Uptime:", uptime)
-    print("Consensus:", consensus)
-    print("Consensus percentage:", consensus_percentage)
-    print("Version:", version)
+    for key in response:
+        print (key,":",response[key])
 
 def addvalidate(socket, arg1):
     connections.send(s, "addvalidate", 10)

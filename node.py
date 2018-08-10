@@ -2151,12 +2151,24 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if peers.is_allowed(peer_ip, data):
                         uptime = int(time.time() - startup_time)
                         tempdiff = difficulty(c)
-                        status = {"protocolversion": config.version_conf, "walletversion": VERSION,
+
+                        if reveal_address:
+                            revealed_address = address
+                        else:
+                            revealed_address = "private"
+
+                        status = {"protocolversion": config.version_conf,
+                                  "address": revealed_address,
+                                  "walletversion": VERSION,
                                   "testnet": peers.is_testnet,  # config data
-                                  "blocks": last_block, "timeoffset": 0, "connections": peers.consensus_size,
+                                  "blocks": last_block, "timeoffset": 0,
+                                  "connections": peers.consensus_size,
+                                  "connections_list": peers.peer_ip_list,
                                   "difficulty": tempdiff[0],  # live status, bitcoind format
-                                  "threads": threading.active_count(), "uptime": uptime, "consensus": peers.consensus,
-                                  "consensus_percent": peers.consensus_percentage}  # extra data
+                                  "threads": threading.active_count(),
+                                  "uptime": uptime, "consensus": peers.consensus,
+                                  "consensus_percent": peers.consensus_percentage,
+                                  "server_timestamp": '%.2f' % time.time()}  # extra data
                         connections.send(self.request, status)
                     else:
                         app_log.info("{} not whitelisted for statusjson command".format(peer_ip))
