@@ -797,7 +797,7 @@ def refresh_auto():
     status = async_client.connection.loop_status()
     if status != True:
         #benchmark light_ip-list
-        benchmark_lightip()
+        benchmark_lightip(app_log)
         #restart loop
         restart_loop()
     root.after(0, refresh(gui_address_t.get(), s))
