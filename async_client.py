@@ -69,9 +69,11 @@ class AsyncClient():
             #rebench servers if last benchmark too old
             if (self.rebench_timer + 7200.0) < time.time():
                 self.loop.stop()
+                self.app_log.warning('Benchmark: regular benchmark after 2 hours')
             #rebench if too far behind    
             elif (time.time() > self.block_timestamp + 300):
                 self.loop.stop()
+                self.app_log.warning('Benchmark: Last Block too old, refreshing server list')
             #    pass
             else:
                 pass

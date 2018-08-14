@@ -19,7 +19,7 @@ def convert_ip_port(ip, some_port):
 
 
                                            
-def time_measure(light_ip):
+def time_measure(light_ip, app_log):
     port = 5658
     result_collection = {ip:[0,0] for ip in light_ip}
 	
@@ -35,16 +35,28 @@ def time_measure(light_ip):
             s.connect((ip, int(local_port)))
             connections.send(s, "statusget", 10)
             result = connections.receive(s, 10)
-            timer_stop = time.time()
+            connections.send(s, "wstatusget", 10)
+            result_ws = connections.receive(s, 10)
             #finish benchmark
 
-            timer_result = timer_stop - timer_start
+            print("Stats_WS: ", result_ws)
+            timer_result = time.time() - timer_start
+            ws_clients = result_ws.get('clients')
+            if ws_clients > 300:
+                timer_result = timer_result + ws_clients/1000
+                app_log.warning("Result for {}:{}, modified due to high client load: {}".format(ip, local_port, timer_result))
+            elif ws_clients > 150:
+                timer_result = timer_result + ws_clients/10000
+                app_log.warning("Result for {}:{}, modified due to client load: {}".format(ip, local_port, timer_result))
+            else:
+                app_log.warning("Result for {}:{}, low load - unmodified: {}".format(ip, local_port, timer_result))
             result_collection[address] = timer_result, result[8][7]
-                        
+                                   
         except Exception as e:
             print("Cannot benchmark {}:{}".format (ip, local_port))
             
 
+    
     #sort IPs for measured Time
     bench_result = collections.OrderedDict(sorted((value[0], key) for (key,value) in result_collection.items()))
     light_ip = list(bench_result.values())
