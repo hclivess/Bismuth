@@ -109,6 +109,15 @@ def balanceget(socket, arg1):
     print ("Address balance without mempool: {}".format (balanceget_result[5]))
     #get balance
 
+def balancegetjson(socket, arg1):
+    #get balance
+    connections.send(s, "balancegetjson", 10)
+    connections.send(s, arg1, 10)
+    response = connections.receive(s, 10)
+    for key in response:
+        print (key,":",response[key])
+    #get balance
+
 #insert to mempool
 #DIRECT INSERT, NO REMOTE TX CONSTRUCTION
 def mpinsert(s, transaction):
@@ -287,6 +296,9 @@ elif command == "difflast":
 
 elif command == "balanceget":
     balanceget(s, arg1)
+
+elif command == "balancegetjson":
+    balancegetjson(s, arg1)
 
 elif command == "mpget":
     mpget(s)

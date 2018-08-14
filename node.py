@@ -1850,12 +1850,31 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if peers.is_allowed(peer_ip, data):
                         balance_address = connections.receive(self.request)  # for which address
 
-                        balanceget_result = balanceget(balance_address, h3)
+                        balanceget_result = balanceget(balance_address, h2)
 
                         connections.send(self.request, balanceget_result)  # return balance of the address to the client, including mempool
                         # connections.send(self.request, balance_pre)  # return balance of the address to the client, no mempool
                     else:
                         app_log.info("{} not whitelisted for balanceget command".format(peer_ip))
+
+                elif data == "balancegetjson":
+                    # if (peer_ip in allowed or "any" in allowed):
+                    if peers.is_allowed(peer_ip, data):
+                        balance_address = connections.receive(self.request)  # for which address
+
+                        balanceget_result = balanceget(balance_address, h2)
+                        response = {"balance": balanceget_result[0],
+                                    "credit": balanceget_result[1],
+                                    "debit": balanceget_result[0],
+                                    "fees": balanceget_result[0],
+                                    "rewards": balanceget_result[0],
+                                    "balance_no_mempool": balanceget_result[0]
+                                    }
+
+                        connections.send(self.request, response)  # return balance of the address to the client, including mempool
+                        # connections.send(self.request, balance_pre)  # return balance of the address to the client, no mempool
+                    else:
+                        app_log.info("{} not whitelisted for balancegetjson command".format(peer_ip))
 
                 elif data == "mpget" and peers.is_allowed(peer_ip, data):
                     mempool_txs = mp.MEMPOOL.fetchall(mp.SQL_SELECT_TX_TO_SEND)
