@@ -144,6 +144,14 @@ def difflast(socket):
     print ("Last difficulty: {}".format(difflast))
     #ask for last difficulty
 
+def difflastjson(socket):
+    #ask for last difficulty
+    connections.send(s, "difflastjson", 10)
+    response = connections.receive(s, 10)
+    for key in response:
+        print (key,":",response[key])
+    #ask for last difficulty
+
 def blocklast(socket):
     #get last block
     connections.send(s, "blocklast", 10)
@@ -152,6 +160,14 @@ def blocklast(socket):
     print ("Last block number: {}".format(block_last[0]))
     print ("Last block timestamp: {}".format(block_last[1]))
     print ("Last block hash: {}".format(block_last[7]))
+    #get last block
+
+def blocklastjson(socket):
+    #get last block
+    connections.send(s, "blocklastjson", 10)
+    response = connections.receive(s, 10)
+    for key in response:
+        print (key,":",response[key])
     #get last block
 
 
@@ -166,6 +182,15 @@ def keygen(socket):
     print ("Address: {}".format(keys_generated[2]))
     #generate address
 
+def keygenjson(socket):
+    #generate address
+    #RECEIVES PRIVATE KEY FROM NODE
+    connections.send(s, "keygenjson", 10)
+    response = connections.receive(s, 10)
+    for key in response:
+        print (key,":",response[key])
+    #generate address
+
 def blockget(socket, arg1):
     #get block
     connections.send(s, "blockget", 10)
@@ -174,6 +199,16 @@ def blockget(socket, arg1):
     print ("Requested block: {}".format(block_get))
     print ("Requested block number of transactions: {}".format(len(block_get)))
     print ("Requested block height: {}".format(block_get[0][0]))
+    #get block
+
+def blockgetjson(socket, arg1):
+    #get block
+    connections.send(s, "blockgetjson", 10)
+    connections.send(s, arg1, 10)
+    response_list = connections.receive(s, 10)
+    for response in response_list:
+        for key in response:
+            print (key,":",response[key])
     #get block
 
 def addlist(socket, arg1):
@@ -294,6 +329,9 @@ elif command == "diffgetjson":
 elif command == "difflast":
     difflast(s)
 
+elif command == "difflastjson":
+    difflastjson(s)
+
 elif command == "balanceget":
     balanceget(s, arg1)
 
@@ -312,11 +350,20 @@ elif command == "peersget":
 elif command == "blocklast":
     blocklast(s)
 
+elif command == "blocklastjson":
+    blocklastjson(s)
+
 elif command == "keygen":
     keygen(s)
 
+elif command == "keygenjson":
+    keygenjson(s)
+
 elif command == "blockget":
     blockget(s, arg1)
+
+elif command == "blockgetjson":
+    blockgetjson(s, arg1)
 
 elif command == "addlist":
     addlist(s, arg1)

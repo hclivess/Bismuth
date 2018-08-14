@@ -1821,6 +1821,29 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     else:
                         app_log.info("{} not whitelisted for blocklast command".format(peer_ip))
 
+                elif data == "blocklastjson":
+                    # if (peer_ip in allowed or "any" in allowed):  # only sends the miner part of the block!
+                    if peers.is_allowed(peer_ip, data):
+                        execute(c, ("SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
+                        block_last = c.fetchall()[0]
+
+                        response = {"block_height":block_last[0],
+                                    "timestamp": block_last[1],
+                                    "address": block_last[2],
+                                    "recipient": block_last[3],
+                                    "amount": block_last[4],
+                                    "signature": block_last[5],
+                                    "public_key": block_last[6],
+                                    "block_hash": block_last[7],
+                                    "fee": block_last[8],
+                                    "reward": block_last[9],
+                                    "operation": block_last[10],
+                                    "nonce": block_last[11]}
+
+                        connections.send(self.request, response)
+                    else:
+                        app_log.info("{} not whitelisted for blocklastjson command".format(peer_ip))
+
                 elif data == "blockget":
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
@@ -1830,6 +1853,35 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         block_desired_result = h3.fetchall()
 
                         connections.send(self.request, block_desired_result)
+                    else:
+                        app_log.info("{} not whitelisted for blockget command".format(peer_ip))
+
+                elif data == "blockgetjson":
+                    # if (peer_ip in allowed or "any" in allowed):
+                    if peers.is_allowed(peer_ip, data):
+                        block_desired = connections.receive(self.request)
+
+                        execute_param(h3, ("SELECT * FROM transactions WHERE block_height = ?;"), (block_desired,))
+                        block_desired_result = h3.fetchall()
+
+                        response_list = []
+                        for transaction in block_desired_result:
+                            response = {"block_height":transaction[0],
+                                        "timestamp": transaction[1],
+                                        "address": transaction[2],
+                                        "recipient": transaction[3],
+                                        "amount": transaction[4],
+                                        "signature": transaction[5],
+                                        "public_key": transaction[6],
+                                        "block_hash": transaction[7],
+                                        "fee": transaction[8],
+                                        "reward": transaction[9],
+                                        "operation": transaction[10],
+                                        "openfield": transaction[11]}
+
+                            response_list.append(response)
+
+                        connections.send(self.request, response_list)
                     else:
                         app_log.info("{} not whitelisted for blockget command".format(peer_ip))
 
@@ -1868,8 +1920,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                     "debit": balanceget_result[0],
                                     "fees": balanceget_result[0],
                                     "rewards": balanceget_result[0],
-                                    "balance_no_mempool": balanceget_result[0]
-                                    }
+                                    "balance_no_mempool": balanceget_result[0]}
 
                         connections.send(self.request, response)  # return balance of the address to the client, including mempool
                         # connections.send(self.request, balance_pre)  # return balance of the address to the client, no mempool
@@ -1894,6 +1945,19 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if peers.is_allowed(peer_ip, data):
                         (gen_private_key_readable, gen_public_key_readable, gen_address) = keys.generate()
                         connections.send(self.request, (gen_private_key_readable, gen_public_key_readable, gen_address))
+                        (gen_private_key_readable, gen_public_key_readable, gen_address) = (None, None, None)
+                    else:
+                        app_log.info("{} not whitelisted for keygen command".format(peer_ip))
+
+                elif data == "keygenjson":
+                    # if (peer_ip in allowed or "any" in allowed):
+                    if peers.is_allowed(peer_ip, data):
+                        (gen_private_key_readable, gen_public_key_readable, gen_address) = keys.generate()
+                        response = {"private_key":gen_private_key_readable,
+                                    "public_key": gen_public_key_readable,
+                                    "address": gen_address}
+
+                        connections.send(self.request, response)
                         (gen_private_key_readable, gen_public_key_readable, gen_address) = (None, None, None)
                     else:
                         app_log.info("{} not whitelisted for keygen command".format(peer_ip))
@@ -2229,8 +2293,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                     "block_time": diff[0],
                                     "hashrate": diff[0],
                                     "diff_adjustment": diff[0],
-                                    "block_height": diff[0]
-                                    }
+                                    "block_height": diff[0]}
+
                         connections.send(self.request, response)
                     else:
                         app_log.info("{} not whitelisted for diffgetjson command".format(peer_ip))
@@ -2244,6 +2308,19 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         connections.send(self.request, difflast)
                     else:
                         app_log.info("{} not whitelisted for difflastget command".format(peer_ip))
+
+                elif data == "difflastjson":
+                    # if (peer_ip in allowed or "any" in allowed):
+                    if peers.is_allowed(peer_ip, data):
+
+                        execute(h3, ("SELECT block_height, difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
+                        difflast = h3.fetchone()
+                        response = {"block": difflast[0],
+                                    "difficulty": difflast[1]
+                                    }
+                        connections.send(self.request, response)
+                    else:
+                        app_log.info("{} not whitelisted for difflastjson command".format(peer_ip))
 
                 else:
                     if data == '*':
