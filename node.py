@@ -1360,6 +1360,15 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
 
 def coherence_check():
     app_log.warning("Status: Testing chain coherence")
+
+    try:
+        with open("coherence_last", 'r') as filename:
+            coherence_last = int(filename.read())
+
+    except:
+        app_log.warning("Coherence anchor not found, going through the whole chain")
+        coherence_last = 0
+
     if full_ledger:
         chains_to_check = [ledger_path_conf, hyper_path_conf]
     else:
@@ -1372,7 +1381,7 @@ def coherence_check():
         # perform test on transaction table
         y = None
         # Egg: not sure block_height != (0 OR 1)  gives the proper result, 0 or 1  = 1. not in (0, 1) could be better.
-        for row in c.execute("SELECT block_height FROM transactions WHERE reward != 0 AND block_height != (0 OR 1) AND block_height > 0 ORDER BY block_height ASC"):
+        for row in c.execute("SELECT block_height FROM transactions WHERE reward != 0 AND block_height != (0 OR 1) AND block_height >= ? ORDER BY block_height ASC",(coherence_last,)):
             y_init = row[0]
 
             if y is None:
@@ -1444,6 +1453,9 @@ def coherence_check():
 
         app_log.warning("Status: Chain coherence test complete for {}".format(chain))
         conn.close()
+
+        with open("coherence_last", 'w') as filename:
+            filename.write(str(y-1))
 
 
 # init
@@ -2186,6 +2198,23 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         connections.send(self.request, diff)
                     else:
                         app_log.info("{} not whitelisted for diffget command".format(peer_ip))
+
+                elif data == "diffgetjson":
+                    # if (peer_ip in allowed or "any" in allowed):
+                    if peers.is_allowed(peer_ip, data):
+                        diff = difficulty(c)
+                        response = {"difficulty": diff[0],
+                                    "diff_dropped": diff[0],
+                                    "time_to_generate": diff[0],
+                                    "diff_block_previous": diff[0],
+                                    "block_time": diff[0],
+                                    "hashrate": diff[0],
+                                    "diff_adjustment": diff[0],
+                                    "block_height": diff[0]
+                                    }
+                        connections.send(self.request, response)
+                    else:
+                        app_log.info("{} not whitelisted for diffgetjson command".format(peer_ip))
 
                 elif data == "difflast":
                     # if (peer_ip in allowed or "any" in allowed):

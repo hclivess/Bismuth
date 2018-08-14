@@ -88,6 +88,14 @@ def diffget(socket):
     print ("Current difficulty: {}".format(diff))
     #check difficulty
 
+def diffgetjson(socket):
+    #check difficulty
+    connections.send(s, "diffgetjson", 10)
+    response = connections.receive(s, 10)
+    for key in response:
+        print (key,":",response[key])
+    #check difficulty
+
 def balanceget(socket, arg1):
     #get balance
     connections.send(s, "balanceget", 10)
@@ -270,6 +278,9 @@ if command == "aliasesget":
 
 elif command == "diffget":
     diffget(s)
+
+elif command == "diffgetjson":
+    diffgetjson(s)
 
 elif command == "difflast":
     difflast(s)
