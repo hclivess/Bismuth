@@ -68,8 +68,7 @@ version = config.version_conf
 terminal_output = config.terminal_output
 gui_scaling = config.gui_scaling
 
-#benchmark light_ip-list
-light_ip = lwbench.time_measure(light_ip)
+
 
 
 if "testnet" in version:
@@ -95,6 +94,8 @@ essentials.keys_check (app_log)
 essentials.db_check (app_log)
 key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress = essentials.keys_load (private_key_load, public_key_load)
 
+#benchmark light_ip-list
+light_ip = lwbench.time_measure(light_ip, app_log)
 
 def mempool_clear(s):
     connections.send (s, "mpclear", 10)
