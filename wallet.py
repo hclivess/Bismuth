@@ -67,10 +67,12 @@ light_ip = config.light_ip
 version = config.version_conf
 terminal_output = config.terminal_output
 gui_scaling = config.gui_scaling
+# app_log = log.log("gui.log", debug_level)
+app_log = log.log ("wallet.log", debug_level, terminal_output)
 
 #benchmark light_ip-list
-light_ip = lwbench.time_measure(light_ip)
-
+light_ip = lwbench.time_measure(light_ip, app_log)
+#light_ip = ["127.0.0.1:5658"]
 
 if "testnet" in version:
     port = 2829
@@ -87,9 +89,6 @@ from simplecrypt import encrypt, decrypt
 from tkinter import filedialog, messagebox, ttk
 from tkinter import *
 import webbrowser
-
-# app_log = log.log("gui.log", debug_level)
-app_log = log.log ("wallet.log", debug_level, terminal_output)
 
 essentials.keys_check (app_log)
 essentials.db_check (app_log)

@@ -453,7 +453,6 @@ def ledger_compress(ledger_path_conf, hyper_path_conf):
             unique_addressess = hyp.fetchall()
 
             for x in set(unique_addressess):
-
                 credit = Decimal("0")
                 for entry in hyp.execute(
                         "SELECT amount,reward FROM transactions WHERE (recipient = ? AND block_height < ?);",
@@ -482,29 +481,18 @@ def ledger_compress(ledger_path_conf, hyper_path_conf):
                 # app_log.info("Fees: " + str(fees))
                 # app_log.info("Rewards: " + str(rewards))
                 # app_log.info("Balance: " + str(end_balance))
-                # test for keep positivity
-                # hyp.execute("SELECT block_height FROM transactions WHERE address OR recipient = ?", (x,))
-                # keep_is = 1
-                # try:
-                #    hyp.fetchone()[0]
-                # except:
-                #    keep_is = 0
-                # test for keep positivity
+
+                #print(x[0],end_balance)
 
                 if end_balance > 0:
                     timestamp = str(time.time())
                     hyp.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
                     db_block_height - depth - 1, timestamp, "Hyperblock", x[0], str(end_balance), "0", "0", "0", "0",
-                    "0",
-                    "0", "0"))
+                    "0", "0", "0"))
             hyper.commit()
 
-            # keep recognized openfield data
 
-            # keep recognized openfield data
-
-            hyp.execute("DELETE FROM transactions WHERE block_height < ? AND address != 'Hyperblock';",
-                        (db_block_height - depth,))
+            hyp.execute("DELETE FROM transactions WHERE block_height < ? AND address != 'Hyperblock';", (db_block_height - depth,))
             hyper.commit()
 
             hyp.execute("DELETE FROM misc WHERE block_height < ?;", (db_block_height - depth,))  # remove diff calc
@@ -1455,7 +1443,7 @@ def coherence_check():
         conn.close()
 
         with open("coherence_last", 'w') as filename:
-            filename.write(str(y-1))
+            filename.write(str(y-1000)) #room for rollbacks
 
 
 # init
