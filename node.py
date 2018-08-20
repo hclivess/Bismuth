@@ -447,16 +447,14 @@ def ledger_compress(ledger_path_conf, hyper_path_conf):
 
             hyp.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
             db_block_height = int(hyp.fetchone()[0])
+            depth_specific = db_block_height - depth
 
-            hyp.execute("SELECT distinct(recipient) FROM transactions WHERE (block_height < ?) ORDER BY block_height;",
-                        (db_block_height - depth,))
+            hyp.execute("SELECT distinct(recipient) FROM transactions WHERE (block_height < ?) ORDER BY block_height;", (depth_specific,)) #new addresses will be ignored until depth passed
             unique_addressess = hyp.fetchall()
 
             for x in set(unique_addressess):
                 credit = Decimal("0")
-                for entry in hyp.execute(
-                        "SELECT amount,reward FROM transactions WHERE (recipient = ? AND block_height < ?);",
-                        (x[0],) + (db_block_height - depth,)):
+                for entry in hyp.execute("SELECT amount,reward FROM transactions WHERE (recipient = ? AND block_height < ?);",(x[0],) + (depth_specific,)):
                     try:
                         credit = quantize_eight(credit) + quantize_eight(entry[0]) + quantize_eight(entry[1])
                         credit = 0 if credit is None else credit
@@ -464,9 +462,7 @@ def ledger_compress(ledger_path_conf, hyper_path_conf):
                         credit = 0
 
                 debit = Decimal("0")
-                for entry in hyp.execute(
-                        "SELECT amount,fee FROM transactions WHERE (address = ? AND block_height < ?);",
-                        (x[0],) + (db_block_height - depth,)):
+                for entry in hyp.execute("SELECT amount,fee FROM transactions WHERE (address = ? AND block_height < ?);",(x[0],) + (depth_specific,)):
                     try:
                         debit = quantize_eight(debit) + quantize_eight(entry[0]) + quantize_eight(entry[1])
                         debit = 0 if debit is None else debit
@@ -487,15 +483,15 @@ def ledger_compress(ledger_path_conf, hyper_path_conf):
                 if end_balance > 0:
                     timestamp = str(time.time())
                     hyp.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
-                    db_block_height - depth - 1, timestamp, "Hyperblock", x[0], str(end_balance), "0", "0", "0", "0",
+                    depth_specific - 1, timestamp, "Hyperblock", x[0], str(end_balance), "0", "0", "0", "0",
                     "0", "0", "0"))
             hyper.commit()
 
 
-            hyp.execute("DELETE FROM transactions WHERE block_height < ? AND address != 'Hyperblock';", (db_block_height - depth,))
+            hyp.execute("DELETE FROM transactions WHERE block_height < ? AND address != 'Hyperblock';", (depth_specific,))
             hyper.commit()
 
-            hyp.execute("DELETE FROM misc WHERE block_height < ?;", (db_block_height - depth,))  # remove diff calc
+            hyp.execute("DELETE FROM misc WHERE block_height < ?;", (depth_specific,))  # remove diff calc
             hyper.commit()
 
             hyp.execute("VACUUM")
@@ -583,9 +579,7 @@ def difficulty(c):
     block_height = int(result[0])
     timestamp_before_last = Decimal(c.fetchone()[1])
 
-    execute_param(c, (
-        "SELECT timestamp FROM transactions WHERE CAST(block_height AS INTEGER) > ? AND reward != 0 ORDER BY timestamp ASC LIMIT 2"),
-                  (block_height - 1441,))
+    execute_param(c, ("SELECT timestamp FROM transactions WHERE CAST(block_height AS INTEGER) > ? AND reward != 0 ORDER BY timestamp ASC LIMIT 2"),(block_height - 1441,))
     timestamp_1441 = Decimal(c.fetchone()[0])
     block_time_prev = (timestamp_before_last - timestamp_1441) / 1440
     timestamp_1440 = Decimal(c.fetchone()[0])
@@ -600,8 +594,7 @@ def difficulty(c):
     # Calculate new difficulty for desired blocktime of 60 seconds
     target = Decimal(60.00)
     ##D0 = diff_block_previous
-    difficulty_new = Decimal(
-        (2 / math.log(2)) * math.log(hashrate * target * math.ceil(28 - diff_block_previous / Decimal(16.0))))
+    difficulty_new = Decimal((2 / math.log(2)) * math.log(hashrate * target * math.ceil(28 - diff_block_previous / Decimal(16.0))))
     # Feedback controller
     Kd = 10
     difficulty_new = difficulty_new - Kd * (block_time - block_time_prev)
