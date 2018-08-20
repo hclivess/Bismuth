@@ -1384,6 +1384,7 @@ def refresh(address, s):
         connections.send(s, address, 10)
         connections.send(s, "20", 10)
         addlist = connections.receive(s, 10)
+        print(addlist)
 
         table(address, addlist, mempool_total)
         # root.after(1000, refresh)

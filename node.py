@@ -1972,7 +1972,10 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                         # print(address_tx_list_limit)
                         execute_param(h3, ("SELECT * FROM transactions WHERE (address = ? OR recipient = ?) ORDER BY block_height DESC LIMIT ?"), (address_tx_list,address_tx_list,address_tx_list_limit,))
-                        result = h3.fetchall()
+                        result1 = h3.fetchall()
+                        execute_param(h3, ("SELECT * FROM transactions WHERE (address = ? OR recipient = ?) ORDER BY block_height ASC LIMIT ?"), (address_tx_list,address_tx_list,address_tx_list_limit,))
+                        result2 = h3.fetchall()
+                        result = result1+result2
                         connections.send(self.request, result)
                     else:
                         app_log.info("{} not whitelisted for addlistlim command".format(peer_ip))
