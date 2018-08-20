@@ -30,7 +30,7 @@ class Get:
         "pool_address":["str","pool_address_conf"],
         "ram":["bool","ram_conf"],
         "pool_percentage":["int","pool_percentage_conf"],
-        "node_ip":["str","node_ip_conf"],
+        "node_ip":["str","node_ip"],
         "light_ip":["list"],
         "reveal_address":["bool"],
         "accept_peers":["bool"],
