@@ -222,7 +222,7 @@ def addlist(socket, arg1):
     #get all txs for an address
 
 def addlistlim(socket, arg1, arg2):
-    #get all txs for an address
+    #get x txs for an address
     connections.send(s, "addlistlim", 10)
     connections.send(s, arg1, 10)
     connections.send(s, arg2, 10)
@@ -232,8 +232,20 @@ def addlistlim(socket, arg1, arg2):
         print (row)
     #get all txs for an address
 
-def addlistlimmir(socket, arg1, arg2):
+def addlistlimjson(socket, arg1, arg2):
+    #get x txs for an address
+    connections.send(s, "addlistlimjson", 10)
+    connections.send(s, arg1, 10)
+    connections.send(s, arg2, 10)
+    response_list = connections.receive(s, 10)
+    print("Transactions for requested address:")
+    for response in response_list:
+        for key in response:
+            print (key,":",response[key])
     #get all txs for an address
+
+def addlistlimmir(socket, arg1, arg2):
+    #get x negative txs for an address
     connections.send(s, "addlistlimmir", 10)
     connections.send(s, arg1, 10)
     connections.send(s, arg2, 10)
@@ -243,14 +255,36 @@ def addlistlimmir(socket, arg1, arg2):
         print (row)
     #get all txs for an address
 
-def listlim(socket, arg1):
+def addlistlimmirjson(socket, arg1, arg2):
+    #get x negative txs for an address
+    connections.send(s, "addlistlimmirjson", 10)
+    connections.send(s, arg1, 10)
+    connections.send(s, arg2, 10)
+    response_list = connections.receive(s, 10)
+    print("Mirror transactions for requested address:")
+    for response in response_list:
+        for key in response:
+            print (key,":",response[key])
     #get all txs for an address
+
+def listlim(socket, arg1):
+    #get x last txs
     connections.send(s, "listlim", 10)
     connections.send(s, arg1, 10)
     tx_list = connections.receive(s, 10)
     print("All transactions for requested range:")
     for row in tx_list:
         print (row)
+
+def listlimjson(socket, arg1):
+    #get x last txs
+    connections.send(s, "listlimjson", 10)
+    connections.send(s, arg1, 10)
+    response_list = connections.receive(s, 10)
+    print("All transactions for requested range:")
+    for response in response_list:
+        for key in response:
+            print (key,":",response[key])
 
 def txsend(socket, arg1, arg2, arg3, arg4, arg5):
     #generate transaction
@@ -382,8 +416,14 @@ elif command == "addlist":
 elif command == "addlistlim":
     addlistlim(s, arg1, arg2)
 
+elif command == "addlistlimjson":
+    addlistlimjson(s, arg1, arg2)
+
 elif command == "addlistlimmir":
     addlistlimmir(s, arg1, arg2)
+
+elif command == "addlistlimmirjson":
+    addlistlimmirjson(s, arg1, arg2)
 
 elif command == "listlim":
     listlim(s, arg1)

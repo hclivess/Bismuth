@@ -1953,7 +1953,36 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     else:
                         app_log.info("{} not whitelisted for addlist command".format(peer_ip))
 
-                elif data == "listlim":
+                elif data == "listlimjson":
+                    # if (peer_ip in allowed or "any" in allowed):
+                    if peers.is_allowed(peer_ip, data):
+                        list_limit = connections.receive(self.request)
+                        # print(address_tx_list_limit)
+                        execute_param(h3, ("SELECT * FROM transactions ORDER BY block_height DESC LIMIT ?"), (list_limit,))
+                        result = h3.fetchall()
+
+                        response_list = []
+                        for transaction in result:
+                            response = {"block_height":transaction[0],
+                                        "timestamp": transaction[1],
+                                        "address": transaction[2],
+                                        "recipient": transaction[3],
+                                        "amount": transaction[4],
+                                        "signature": transaction[5],
+                                        "public_key": transaction[6],
+                                        "block_hash": transaction[7],
+                                        "fee": transaction[8],
+                                        "reward": transaction[9],
+                                        "operation": transaction[10],
+                                        "openfield": transaction[11]}
+
+                            response_list.append(response)
+
+                        connections.send(self.request, response_list)
+                    else:
+                        app_log.info("{} not whitelisted for listlimjson command".format(peer_ip))
+
+                elif data == "listlimjson":
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
                         list_limit = connections.receive(self.request)
@@ -1962,7 +1991,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         result = h3.fetchall()
                         connections.send(self.request, result)
                     else:
-                        app_log.info("{} not whitelisted for listlim command".format(peer_ip))
+                        app_log.info("{} not whitelisted for listlimjson command".format(peer_ip))
 
                 elif data == "addlistlim":
                     # if (peer_ip in allowed or "any" in allowed):
@@ -1977,6 +2006,37 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     else:
                         app_log.info("{} not whitelisted for addlistlim command".format(peer_ip))
 
+                elif data == "addlistlimjson":
+                    # if (peer_ip in allowed or "any" in allowed):
+                    if peers.is_allowed(peer_ip, data):
+                        address_tx_list = connections.receive(self.request)
+                        address_tx_list_limit = connections.receive(self.request)
+
+                        # print(address_tx_list_limit)
+                        execute_param(h3, ("SELECT * FROM transactions WHERE (address = ? OR recipient = ?) ORDER BY block_height DESC LIMIT ?"), (address_tx_list,address_tx_list,address_tx_list_limit,))
+                        result = h3.fetchall()
+
+                        response_list = []
+                        for transaction in result:
+                            response = {"block_height":transaction[0],
+                                        "timestamp": transaction[1],
+                                        "address": transaction[2],
+                                        "recipient": transaction[3],
+                                        "amount": transaction[4],
+                                        "signature": transaction[5],
+                                        "public_key": transaction[6],
+                                        "block_hash": transaction[7],
+                                        "fee": transaction[8],
+                                        "reward": transaction[9],
+                                        "operation": transaction[10],
+                                        "openfield": transaction[11]}
+
+                            response_list.append(response)
+
+                        connections.send(self.request, response_list)
+                    else:
+                        app_log.info("{} not whitelisted for addlistlimjson command".format(peer_ip))
+
                 elif data == "addlistlimmir":
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
@@ -1986,6 +2046,39 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         # print(address_tx_list_limit)
                         execute_param(h3, ("SELECT * FROM transactions WHERE (address = ? OR recipient = ?) AND block_height < 1 ORDER BY block_height ASC LIMIT ?"), (address_tx_list,address_tx_list,address_tx_list_limit,))
                         result = h3.fetchall()
+                        connections.send(self.request, result)
+                    else:
+                        app_log.info("{} not whitelisted for addlistlimmir command".format(peer_ip))
+
+                elif data == "addlistlimmirjson":
+                    # if (peer_ip in allowed or "any" in allowed):
+                    if peers.is_allowed(peer_ip, data):
+                        address_tx_list = connections.receive(self.request)
+                        address_tx_list_limit = connections.receive(self.request)
+
+                        # print(address_tx_list_limit)
+                        execute_param(h3, ("SELECT * FROM transactions WHERE (address = ? OR recipient = ?) AND block_height < 1 ORDER BY block_height ASC LIMIT ?"), (address_tx_list,address_tx_list,address_tx_list_limit,))
+                        result = h3.fetchall()
+
+                        response_list = []
+                        for transaction in result:
+                            response = {"block_height":transaction[0],
+                                        "timestamp": transaction[1],
+                                        "address": transaction[2],
+                                        "recipient": transaction[3],
+                                        "amount": transaction[4],
+                                        "signature": transaction[5],
+                                        "public_key": transaction[6],
+                                        "block_hash": transaction[7],
+                                        "fee": transaction[8],
+                                        "reward": transaction[9],
+                                        "operation": transaction[10],
+                                        "openfield": transaction[11]}
+
+                            response_list.append(response)
+
+                        connections.send(self.request, response_list)
+
                         connections.send(self.request, result)
                     else:
                         app_log.info("{} not whitelisted for addlistlimmir command".format(peer_ip))
