@@ -1972,13 +1972,23 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                         # print(address_tx_list_limit)
                         execute_param(h3, ("SELECT * FROM transactions WHERE (address = ? OR recipient = ?) ORDER BY block_height DESC LIMIT ?"), (address_tx_list,address_tx_list,address_tx_list_limit,))
-                        result1 = h3.fetchall()
-                        execute_param(h3, ("SELECT * FROM transactions WHERE (address = ? OR recipient = ?) ORDER BY block_height ASC LIMIT ?"), (address_tx_list,address_tx_list,address_tx_list_limit,))
-                        result2 = h3.fetchall()
-                        result = result1+result2
+                        result = h3.fetchall()
                         connections.send(self.request, result)
                     else:
                         app_log.info("{} not whitelisted for addlistlim command".format(peer_ip))
+
+                elif data == "addlistlimmir":
+                    # if (peer_ip in allowed or "any" in allowed):
+                    if peers.is_allowed(peer_ip, data):
+                        address_tx_list = connections.receive(self.request)
+                        address_tx_list_limit = connections.receive(self.request)
+
+                        # print(address_tx_list_limit)
+                        execute_param(h3, ("SELECT * FROM transactions WHERE (address = ? OR recipient = ?) AND block_height < 1 ORDER BY block_height ASC LIMIT ?"), (address_tx_list,address_tx_list,address_tx_list_limit,))
+                        result = h3.fetchall()
+                        connections.send(self.request, result)
+                    else:
+                        app_log.info("{} not whitelisted for addlistlimmir command".format(peer_ip))
 
                 elif data == "aliasget":  # all for a single address, no protection against overlapping
                     # if (peer_ip in allowed or "any" in allowed):

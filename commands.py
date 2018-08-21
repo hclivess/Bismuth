@@ -232,6 +232,17 @@ def addlistlim(socket, arg1, arg2):
         print (row)
     #get all txs for an address
 
+def addlistlimmir(socket, arg1, arg2):
+    #get all txs for an address
+    connections.send(s, "addlistlimmir", 10)
+    connections.send(s, arg1, 10)
+    connections.send(s, arg2, 10)
+    address_tx_list = connections.receive(s, 10)
+    print("Mirror transactions for requested address:")
+    for row in address_tx_list:
+        print (row)
+    #get all txs for an address
+
 def listlim(socket, arg1):
     #get all txs for an address
     connections.send(s, "listlim", 10)
@@ -370,6 +381,9 @@ elif command == "addlist":
 
 elif command == "addlistlim":
     addlistlim(s, arg1, arg2)
+
+elif command == "addlistlimmir":
+    addlistlimmir(s, arg1, arg2)
 
 elif command == "listlim":
     listlim(s, arg1)
