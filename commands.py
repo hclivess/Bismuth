@@ -134,6 +134,16 @@ def mpget(socket):
     print ("Current mempool: {}".format(mempool))
     #ask for mempool
 
+def mpgetjson(socket):
+    #ask for mempool
+    connections.send(s, "mpgetjson", 10)
+    response_list = connections.receive(s, 10)
+    print ("Current mempool:")
+    for response in response_list:
+        for key in response:
+            print (key,":",response[key])
+    #ask for mempool
+
 def difflast(socket):
     #ask for last difficulty
     connections.send(s, "difflast", 10)
@@ -385,6 +395,9 @@ elif command == "balancegetjson":
 
 elif command == "mpget":
     mpget(s)
+
+elif command == "mpgetjson":
+    mpgetjson(s)
 
 elif command == "statusget":
     statusget(s)

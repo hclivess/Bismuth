@@ -1908,6 +1908,28 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     else:
                         app_log.info("{} not whitelisted for balancegetjson command".format(peer_ip))
 
+                elif data == "mpgetjson" and peers.is_allowed(peer_ip, data):
+                    mempool_txs = mp.MEMPOOL.fetchall(mp.SQL_SELECT_TX_TO_SEND)
+
+                    response_list = []
+                    for transaction in mempool_txs:
+                        response = {"timestamp": transaction[0],
+                                    "address": transaction[1],
+                                    "recipient": transaction[2],
+                                    "amount": transaction[3],
+                                    "signature": transaction[4],
+                                    "public_key": transaction[5],
+                                    "operation": transaction[6],
+                                    "openfield": transaction[7]}
+
+                        response_list.append(response)
+
+                    # app_log.info("Outbound: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
+
+                    # if len(mempool_txs) > 0: #wont sync mempool until we send something, which is bad
+                    # send own
+                    connections.send(self.request, response_list)
+
                 elif data == "mpget" and peers.is_allowed(peer_ip, data):
                     mempool_txs = mp.MEMPOOL.fetchall(mp.SQL_SELECT_TX_TO_SEND)
 
