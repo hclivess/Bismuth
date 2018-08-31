@@ -77,7 +77,6 @@ accept_peers = config.accept_peers
 terminal_output = config.terminal_output
 # mempool_ram_conf = config.mempool_ram_conf
 egress = config.egress
-quicksync = config.quicksync
 genesis_conf = "4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed"
 
 # nodes_ban_reset=config.nodes_ban_reset
@@ -1048,43 +1047,43 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                                                        received_public_key_hashed, received_operation,
                                                        received_openfield))
 
-                    if (q_time_now < q_received_timestamp + 432000) or not quicksync:
+                    #if (q_time_now < q_received_timestamp + 432000) or not quicksync:
 
-                        # convert readable key to instance
-                        received_public_key = RSA.importKey(base64.b64decode(received_public_key_hashed))
+                    # convert readable key to instance
+                    received_public_key = RSA.importKey(base64.b64decode(received_public_key_hashed))
 
-                        received_signature_dec = base64.b64decode(received_signature_enc)
-                        verifier = PKCS1_v1_5.new(received_public_key)
+                    received_signature_dec = base64.b64decode(received_signature_enc)
+                    verifier = PKCS1_v1_5.new(received_public_key)
 
-                        validate_pem(received_public_key_hashed)
+                    validate_pem(received_public_key_hashed)
 
-                        hash = SHA.new(str((received_timestamp, received_address, received_recipient, received_amount,
-                                            received_operation, received_openfield)).encode("utf-8"))
-                        if not verifier.verify(hash, received_signature_dec):
-                            raise ValueError("Invalid signature from {}".format(received_address))
-                        else:
-                            app_log.info("Valid signature from {} to {} amount {}".format(received_address,
-                                                                                          received_recipient,
-                                                                                          received_amount))
-                        if float(received_amount) < 0:
-                            raise ValueError("Negative balance spend attempt")
+                    hash = SHA.new(str((received_timestamp, received_address, received_recipient, received_amount,
+                                        received_operation, received_openfield)).encode("utf-8"))
+                    if not verifier.verify(hash, received_signature_dec):
+                        raise ValueError("Invalid signature from {}".format(received_address))
+                    else:
+                        app_log.info("Valid signature from {} to {} amount {}".format(received_address,
+                                                                                      received_recipient,
+                                                                                      received_amount))
+                    if float(received_amount) < 0:
+                        raise ValueError("Negative balance spend attempt")
 
-                        if received_address != hashlib.sha224(base64.b64decode(received_public_key_hashed)).hexdigest():
-                            raise ValueError("Attempt to spend from a wrong address")
+                    if received_address != hashlib.sha224(base64.b64decode(received_public_key_hashed)).hexdigest():
+                        raise ValueError("Attempt to spend from a wrong address")
 
-                        if not essentials.address_validate(received_address):
-                            raise ValueError("Not a valid sender address")
+                    if not essentials.address_validate(received_address):
+                        raise ValueError("Not a valid sender address")
 
-                        if not essentials.address_validate(received_recipient):
-                            raise ValueError("Not a valid recipient address")
+                    if not essentials.address_validate(received_recipient):
+                        raise ValueError("Not a valid recipient address")
 
-                        if q_time_now < q_received_timestamp:
-                            raise ValueError(
-                                "Future transaction not allowed, timestamp {} minutes in the future".format(
-                                    quantize_two((q_received_timestamp - q_time_now) / 60)))
-                        if q_db_timestamp_last - 86400 > q_received_timestamp:
-                            raise ValueError("Transaction older than 24h not allowed.")
-                        # verify signatures
+                    if q_time_now < q_received_timestamp:
+                        raise ValueError(
+                            "Future transaction not allowed, timestamp {} minutes in the future".format(
+                                quantize_two((q_received_timestamp - q_time_now) / 60)))
+                    if q_db_timestamp_last - 86400 > q_received_timestamp:
+                        raise ValueError("Transaction older than 24h not allowed.")
+                    # verify signatures
                     # else:
                     # print("hyp1")
 
@@ -1174,12 +1173,12 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                     # app_log.info("Digest: Inbound block debit: " + str(block_debit))
                     # include the new block
 
-                    if (q_time_now < q_received_timestamp + 432000) and not quicksync:
-                        # balance_pre = quantize_eight(credit_ledger - debit_ledger - fees + rewards)  # without projection
-                        balance_pre = ledger_balance3(db_address, c, balances)
-                        # balance = quantize_eight(credit - debit - fees + rewards)
-                        balance = quantize_eight(balance_pre - block_debit_address)
-                        # app_log.info("Digest: Projected transaction address balance: " + str(balance))
+                    #if (q_time_now < q_received_timestamp + 432000) and not quicksync:
+                    # balance_pre = quantize_eight(credit_ledger - debit_ledger - fees + rewards)  # without projection
+                    balance_pre = ledger_balance3(db_address, c, balances)
+                    # balance = quantize_eight(credit - debit - fees + rewards)
+                    balance = quantize_eight(balance_pre - block_debit_address)
+                    # app_log.info("Digest: Projected transaction address balance: " + str(balance))
                     # else:
                     #    print("hyp2")
 
@@ -1210,13 +1209,13 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                     else:
                         reward = 0
 
-                    if (q_time_now < q_received_timestamp + 432000) and not quicksync:
-                        if quantize_eight(balance_pre) < quantize_eight(db_amount):
-                            raise ValueError("{} sending more than owned".format(db_address))
+                    #if (q_time_now < q_received_timestamp + 432000) and not quicksync:
+                    if quantize_eight(balance_pre) < quantize_eight(db_amount):
+                        raise ValueError("{} sending more than owned".format(db_address))
 
-                        if quantize_eight(balance) - quantize_eight(block_fees_address) < 0:
-                            # exclude fee check for the mining/header tx
-                            raise ValueError("{} Cannot afford to pay fees".format(db_address))
+                    if quantize_eight(balance) - quantize_eight(block_fees_address) < 0:
+                        # exclude fee check for the mining/header tx
+                        raise ValueError("{} Cannot afford to pay fees".format(db_address))
                     # else:
                     #    print("hyp3")
 
