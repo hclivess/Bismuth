@@ -6,7 +6,7 @@
 # do not isolation_level=None/WAL hdd levels, it makes saving slow
 
 
-VERSION = "4.2.6.1"  # .03 - more hooks again
+VERSION = "4.2.6.2"  # .03 - more hooks again
 
 # Bis specific modules
 import log, options, connections, peershandler, apihandler
