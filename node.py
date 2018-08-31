@@ -1340,7 +1340,6 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
 
 
 def coherence_check():
-    app_log.warning("Status: Testing chain coherence")
 
     try:
         with open("coherence_last", 'r') as filename:
@@ -1349,6 +1348,8 @@ def coherence_check():
     except:
         app_log.warning("Coherence anchor not found, going through the whole chain")
         coherence_last = 0
+
+    app_log.warning("Status: Testing chain coherence, strting with block {}".format(coherence_last))
 
     if full_ledger:
         chains_to_check = [ledger_path_conf, hyper_path_conf]
