@@ -77,7 +77,7 @@ accept_peers = config.accept_peers
 terminal_output = config.terminal_output
 # mempool_ram_conf = config.mempool_ram_conf
 egress = config.egress
-genesis_conf = "4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed"
+genesis_conf = config.genesis_conf
 
 # nodes_ban_reset=config.nodes_ban_reset
 
