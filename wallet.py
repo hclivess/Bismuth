@@ -869,7 +869,7 @@ def msg_dialogue(address):
 
 def refresh_auto():
     root.after(0, refresh(gui_address_t.get(), s))
-    root.after(60000, refresh_auto)
+    root.after(30000, refresh_auto)
 
 
 def stats():

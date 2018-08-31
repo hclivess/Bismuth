@@ -6,7 +6,7 @@
 # do not isolation_level=None/WAL hdd levels, it makes saving slow
 
 
-VERSION = "4.2.6"  # .03 - more hooks again
+VERSION = "4.2.6.1"  # .03 - more hooks again
 
 # Bis specific modules
 import log, options, connections, peershandler, apihandler
@@ -1349,7 +1349,7 @@ def coherence_check():
         app_log.warning("Coherence anchor not found, going through the whole chain")
         coherence_last = 0
 
-    app_log.warning("Status: Testing chain coherence, strting with block {}".format(coherence_last))
+    app_log.warning("Status: Testing chain coherence, starting with block {}".format(coherence_last))
 
     if full_ledger:
         chains_to_check = [ledger_path_conf, hyper_path_conf]

@@ -35,4 +35,4 @@ terminal_output=False
 gui_scaling=adapt
 mempool_ram_conf=True
 egress=True
-quicksync=True
+quicksync=False
