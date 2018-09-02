@@ -327,7 +327,7 @@ def db_to_drive(hdd, h, hdd2, h2):
         hdd_block = h2.fetchone()[0]
     except Exception as e:
         app_log.warning("Block: Exception Moving new data to HDD: {}".format(e))
-    # app_log.warning("Ledger digestion ended")  # dup with more informative digest_block notice.
+        # app_log.warning("Ledger digestion ended")  # dup with more informative digest_block notice.
 
 
 def index_define():
@@ -448,12 +448,12 @@ def ledger_compress(ledger_path_conf, hyper_path_conf):
             db_block_height = int(hyp.fetchone()[0])
             depth_specific = db_block_height - depth
 
-            hyp.execute("SELECT distinct(recipient) FROM transactions WHERE (block_height < ?) ORDER BY block_height;", (depth_specific,)) #new addresses will be ignored until depth passed
+            hyp.execute("SELECT distinct(recipient) FROM transactions WHERE (block_height < ?) ORDER BY block_height;", (depth_specific,))  # new addresses will be ignored until depth passed
             unique_addressess = hyp.fetchall()
 
             for x in set(unique_addressess):
                 credit = Decimal("0")
-                for entry in hyp.execute("SELECT amount,reward FROM transactions WHERE (recipient = ? AND block_height < ?);",(x[0],) + (depth_specific,)):
+                for entry in hyp.execute("SELECT amount,reward FROM transactions WHERE (recipient = ? AND block_height < ?);", (x[0],) + (depth_specific,)):
                     try:
                         credit = quantize_eight(credit) + quantize_eight(entry[0]) + quantize_eight(entry[1])
                         credit = 0 if credit is None else credit
@@ -461,7 +461,7 @@ def ledger_compress(ledger_path_conf, hyper_path_conf):
                         credit = 0
 
                 debit = Decimal("0")
-                for entry in hyp.execute("SELECT amount,fee FROM transactions WHERE (address = ? AND block_height < ?);",(x[0],) + (depth_specific,)):
+                for entry in hyp.execute("SELECT amount,fee FROM transactions WHERE (address = ? AND block_height < ?);", (x[0],) + (depth_specific,)):
                     try:
                         debit = quantize_eight(debit) + quantize_eight(entry[0]) + quantize_eight(entry[1])
                         debit = 0 if debit is None else debit
@@ -477,15 +477,14 @@ def ledger_compress(ledger_path_conf, hyper_path_conf):
                 # app_log.info("Rewards: " + str(rewards))
                 # app_log.info("Balance: " + str(end_balance))
 
-                #print(x[0],end_balance)
+                # print(x[0],end_balance)
 
                 if end_balance > 0:
                     timestamp = str(time.time())
                     hyp.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
-                    depth_specific - 1, timestamp, "Hyperblock", x[0], str(end_balance), "0", "0", "0", "0",
-                    "0", "0", "0"))
+                        depth_specific - 1, timestamp, "Hyperblock", x[0], str(end_balance), "0", "0", "0", "0",
+                        "0", "0", "0"))
             hyper.commit()
-
 
             hyp.execute("DELETE FROM transactions WHERE block_height < ? AND address != 'Hyperblock';", (depth_specific,))
             hyper.commit()
@@ -578,7 +577,7 @@ def difficulty(c):
     block_height = int(result[0])
     timestamp_before_last = Decimal(c.fetchone()[1])
 
-    execute_param(c, ("SELECT timestamp FROM transactions WHERE CAST(block_height AS INTEGER) > ? AND reward != 0 ORDER BY timestamp ASC LIMIT 2"),(block_height - 1441,))
+    execute_param(c, ("SELECT timestamp FROM transactions WHERE CAST(block_height AS INTEGER) > ? AND reward != 0 ORDER BY timestamp ASC LIMIT 2"), (block_height - 1441,))
     timestamp_1441 = Decimal(c.fetchone()[0])
     block_time_prev = (timestamp_before_last - timestamp_1441) / 1440
     timestamp_1440 = Decimal(c.fetchone()[0])
@@ -589,7 +588,7 @@ def difficulty(c):
     time_to_generate = timestamp_last - timestamp_before_last
 
     hashrate = pow(2, diff_block_previous / Decimal(2.0)) / (
-                block_time * math.ceil(28 - diff_block_previous / Decimal(16.0)))
+        block_time * math.ceil(28 - diff_block_previous / Decimal(16.0)))
     # Calculate new difficulty for desired blocktime of 60 seconds
     target = Decimal(60.00)
     ##D0 = diff_block_previous
@@ -620,9 +619,9 @@ def difficulty(c):
         diff_dropped = 50
 
     return (
-    float('%.10f' % difficulty), float('%.10f' % diff_dropped), float(time_to_generate), float(diff_block_previous),
-    float(block_time), float(hashrate), float(diff_adjustment),
-    block_height)  # need to keep float here for database inserts support
+        float('%.10f' % difficulty), float('%.10f' % diff_dropped), float(time_to_generate), float(diff_block_previous),
+        float(block_time), float(hashrate), float(diff_adjustment),
+        block_height)  # need to keep float here for database inserts support
 
 
 def balanceget(balance_address, c):
@@ -758,13 +757,13 @@ def blocknf(block_hash_delete, peer_ip, conn, c, hdd, h, hdd2, h2):
             results = c.fetchone()
             db_block_height = results[0]
             db_block_hash = results[7]
-            
+
             ip = {'ip': peer_ip}
             plugin_manager.execute_filter_hook('filter_rollback_ip', ip)
             if ip['ip'] == 'no':
                 reason = "Filter blocked this rollback"
                 skip = True
-            
+
             elif db_block_height < 2:
                 reason = "Will not roll back this block"
                 skip = True
@@ -894,7 +893,6 @@ def manager(c):
         # Status display for Peers related info
         peers.status_log()
         mp.MEMPOOL.status()
-
 
         # last block
         execute(c, "SELECT block_height, timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
@@ -1047,7 +1045,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                                                        received_public_key_hashed, received_operation,
                                                        received_openfield))
 
-                    #if (q_time_now < q_received_timestamp + 432000) or not quicksync:
+                    # if (q_time_now < q_received_timestamp + 432000) or not quicksync:
 
                     # convert readable key to instance
                     received_public_key = RSA.importKey(base64.b64decode(received_public_key_hashed))
@@ -1083,9 +1081,9 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                                 quantize_two((q_received_timestamp - q_time_now) / 60)))
                     if q_db_timestamp_last - 86400 > q_received_timestamp:
                         raise ValueError("Transaction older than 24h not allowed.")
-                    # verify signatures
-                    # else:
-                    # print("hyp1")
+                        # verify signatures
+                        # else:
+                        # print("hyp1")
 
                 # reject blocks older than latest block
                 if q_block_timestamp <= q_db_timestamp_last:
@@ -1113,7 +1111,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                 dummy = c.fetchone()
                 if dummy:
                     raise ValueError("Skipping digestion of block {} from {}, because we already have it on block_height {}".
-                                    format(block_hash[:10], peer_ip, dummy[0]))
+                                     format(block_hash[:10], peer_ip, dummy[0]))
 
                 mining_hash = bin_convert(
                     hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
@@ -1121,10 +1119,10 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                 mining_condition = bin_convert(db_block_hash)[0:int(diff[0])]
 
                 if mining_condition in mining_hash:  # simplified comparison, no backwards mining
-                    app_log.info("Difficulty requirement satisfied for block {} from {}".format (block_height_new, peer_ip))
+                    app_log.info("Difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
                     diff_save = diff[0]
 
-                elif Decimal(received_timestamp) > q_db_timestamp_last + Decimal(diff_drop_time): #uses block timestamp, dont merge with diff() for security reasons
+                elif Decimal(received_timestamp) > q_db_timestamp_last + Decimal(diff_drop_time):  # uses block timestamp, dont merge with diff() for security reasons
                     time_difference = q_received_timestamp - q_db_timestamp_last
                     diff_dropped = quantize_ten(diff[0]) - quantize_ten(time_difference / diff_drop_time)
                     if diff_dropped < 50:
@@ -1173,7 +1171,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                     # app_log.info("Digest: Inbound block debit: " + str(block_debit))
                     # include the new block
 
-                    #if (q_time_now < q_received_timestamp + 432000) and not quicksync:
+                    # if (q_time_now < q_received_timestamp + 432000) and not quicksync:
                     # balance_pre = quantize_eight(credit_ledger - debit_ledger - fees + rewards)  # without projection
                     balance_pre = ledger_balance3(db_address, c, balances)
                     # balance = quantize_eight(credit - debit - fees + rewards)
@@ -1209,7 +1207,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                     else:
                         reward = 0
 
-                    #if (q_time_now < q_received_timestamp + 432000) and not quicksync:
+                    # if (q_time_now < q_received_timestamp + 432000) and not quicksync:
                     if quantize_eight(balance_pre) < quantize_eight(db_amount):
                         raise ValueError("{} sending more than owned".format(db_address))
 
@@ -1339,7 +1337,6 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
 
 
 def coherence_check():
-
     try:
         with open("coherence_last", 'r') as filename:
             coherence_last = int(filename.read())
@@ -1362,7 +1359,7 @@ def coherence_check():
         # perform test on transaction table
         y = None
         # Egg: not sure block_height != (0 OR 1)  gives the proper result, 0 or 1  = 1. not in (0, 1) could be better.
-        for row in c.execute("SELECT block_height FROM transactions WHERE reward != 0 AND block_height != (0 OR 1) AND block_height >= ? ORDER BY block_height ASC",(coherence_last,)):
+        for row in c.execute("SELECT block_height FROM transactions WHERE reward != 0 AND block_height != (0 OR 1) AND block_height >= ? ORDER BY block_height ASC", (coherence_last,)):
             y_init = row[0]
 
             if y is None:
@@ -1373,8 +1370,8 @@ def coherence_check():
                 for chain2 in chains_to_check:
                     conn2 = sqlite3.connect(chain2)
                     c2 = conn2.cursor()
-                    app_log.warning("Status: Chain {} transaction coherence error at: {}. {} instead of {}".format(chain, row[0]-1, row[0], y))
-                    c2.execute("DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?", (row[0]-1,-(row[0]+1)))
+                    app_log.warning("Status: Chain {} transaction coherence error at: {}. {} instead of {}".format(chain, row[0] - 1, row[0], y))
+                    c2.execute("DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?", (row[0] - 1, -(row[0] + 1)))
                     conn2.commit()
                     c2.execute("DELETE FROM misc WHERE block_height >= ?", (row[0] - 1,))
                     conn2.commit()
@@ -1411,13 +1408,13 @@ def coherence_check():
                 for chain2 in chains_to_check:
                     conn2 = sqlite3.connect(chain2)
                     c2 = conn2.cursor()
-                    app_log.warning("Status: Chain {} difficulty coherence error at: {} {} instead of {}".format(chain, row[0]-1, row[0], y))
-                    c2.execute("DELETE FROM transactions WHERE block_height >= ?", (row[0]-1,))
+                    app_log.warning("Status: Chain {} difficulty coherence error at: {} {} instead of {}".format(chain, row[0] - 1, row[0], y))
+                    c2.execute("DELETE FROM transactions WHERE block_height >= ?", (row[0] - 1,))
                     conn2.commit()
                     c2.execute("DELETE FROM misc WHERE block_height >= ?", (row[0] - 1,))
                     conn2.commit()
 
-                    execute_param(conn2, ('DELETE FROM transactions WHERE address = "Development Reward" AND block_height <= ?'), (-(row[0]+1),))
+                    execute_param(conn2, ('DELETE FROM transactions WHERE address = "Development Reward" AND block_height <= ?'), (-(row[0] + 1),))
                     commit(conn2)
                     conn2.close()
 
@@ -1436,7 +1433,7 @@ def coherence_check():
         conn.close()
 
         with open("coherence_last", 'w') as filename:
-            filename.write(str(y-1000)) #room for rollbacks
+            filename.write(str(y - 1000))  # room for rollbacks
 
 
 # init
@@ -1808,7 +1805,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         execute(c, ("SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
                         block_last = c.fetchall()[0]
 
-                        response = {"block_height":block_last[0],
+                        response = {"block_height": block_last[0],
                                     "timestamp": block_last[1],
                                     "address": block_last[2],
                                     "recipient": block_last[3],
@@ -1847,7 +1844,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                         response_list = []
                         for transaction in block_desired_result:
-                            response = {"block_height":transaction[0],
+                            response = {"block_height": transaction[0],
                                         "timestamp": transaction[1],
                                         "address": transaction[2],
                                         "recipient": transaction[3],
@@ -1956,7 +1953,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
                         (gen_private_key_readable, gen_public_key_readable, gen_address) = keys.generate()
-                        response = {"private_key":gen_private_key_readable,
+                        response = {"private_key": gen_private_key_readable,
                                     "public_key": gen_public_key_readable,
                                     "address": gen_address}
 
@@ -1985,7 +1982,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                         response_list = []
                         for transaction in result:
-                            response = {"block_height":transaction[0],
+                            response = {"block_height": transaction[0],
                                         "timestamp": transaction[1],
                                         "address": transaction[2],
                                         "recipient": transaction[3],
@@ -2022,7 +2019,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         address_tx_list_limit = connections.receive(self.request)
 
                         # print(address_tx_list_limit)
-                        execute_param(h3, ("SELECT * FROM transactions WHERE (address = ? OR recipient = ?) ORDER BY block_height DESC LIMIT ?"), (address_tx_list,address_tx_list,address_tx_list_limit,))
+                        execute_param(h3, ("SELECT * FROM transactions WHERE (address = ? OR recipient = ?) ORDER BY block_height DESC LIMIT ?"), (address_tx_list, address_tx_list, address_tx_list_limit,))
                         result = h3.fetchall()
                         connections.send(self.request, result)
                     else:
@@ -2035,12 +2032,12 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         address_tx_list_limit = connections.receive(self.request)
 
                         # print(address_tx_list_limit)
-                        execute_param(h3, ("SELECT * FROM transactions WHERE (address = ? OR recipient = ?) ORDER BY block_height DESC LIMIT ?"), (address_tx_list,address_tx_list,address_tx_list_limit,))
+                        execute_param(h3, ("SELECT * FROM transactions WHERE (address = ? OR recipient = ?) ORDER BY block_height DESC LIMIT ?"), (address_tx_list, address_tx_list, address_tx_list_limit,))
                         result = h3.fetchall()
 
                         response_list = []
                         for transaction in result:
-                            response = {"block_height":transaction[0],
+                            response = {"block_height": transaction[0],
                                         "timestamp": transaction[1],
                                         "address": transaction[2],
                                         "recipient": transaction[3],
@@ -2066,7 +2063,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         address_tx_list_limit = connections.receive(self.request)
 
                         # print(address_tx_list_limit)
-                        execute_param(h3, ("SELECT * FROM transactions WHERE (address = ? OR recipient = ?) AND block_height < 1 ORDER BY block_height ASC LIMIT ?"), (address_tx_list,address_tx_list,address_tx_list_limit,))
+                        execute_param(h3, ("SELECT * FROM transactions WHERE (address = ? OR recipient = ?) AND block_height < 1 ORDER BY block_height ASC LIMIT ?"), (address_tx_list, address_tx_list, address_tx_list_limit,))
                         result = h3.fetchall()
                         connections.send(self.request, result)
                     else:
@@ -2079,12 +2076,12 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         address_tx_list_limit = connections.receive(self.request)
 
                         # print(address_tx_list_limit)
-                        execute_param(h3, ("SELECT * FROM transactions WHERE (address = ? OR recipient = ?) AND block_height < 1 ORDER BY block_height ASC LIMIT ?"), (address_tx_list,address_tx_list,address_tx_list_limit,))
+                        execute_param(h3, ("SELECT * FROM transactions WHERE (address = ? OR recipient = ?) AND block_height < 1 ORDER BY block_height ASC LIMIT ?"), (address_tx_list, address_tx_list, address_tx_list_limit,))
                         result = h3.fetchall()
 
                         response_list = []
                         for transaction in result:
-                            response = {"block_height":transaction[0],
+                            response = {"block_height": transaction[0],
                                         "timestamp": transaction[1],
                                         "address": transaction[2],
                                         "recipient": transaction[3],
@@ -2345,8 +2342,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             revealed_address = "private"
 
                         connections.send(self.request, (
-                        revealed_address, nodes_count, nodes_list, threads_count, uptime, peers.consensus,
-                        peers.consensus_percentage, VERSION, diff, server_timestamp))
+                            revealed_address, nodes_count, nodes_list, threads_count, uptime, peers.consensus,
+                            peers.consensus_percentage, VERSION, diff, server_timestamp))
 
                     else:
                         app_log.info("{} not whitelisted for statusget command".format(peer_ip))
@@ -2476,7 +2473,7 @@ def worker(HOST, PORT):
     plugin_manager.execute_filter_hook('peer_ip', dict_ip)
     if peers.is_banned(HOST) or dict_ip['ip'] == 'banned':
         app_log.warning("IP {} is banned, won't connect".format(HOST))
-        return    
+        return
 
     timeout_operation = 60  # timeout
     timer_operation = time.time()  # start counting

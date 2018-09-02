@@ -78,21 +78,22 @@ def keys_check(app_log):
         app_log.info("Your public key: {}".format(public_key_readable))
 
         # export to single file
-        keys_save(private_key_readable, public_key_readable, address)
+        keys_save(private_key_readable, public_key_readable, address, "wallet.der")
         # export to single file
 
 
-def keys_save(private_key_readable, public_key_readable, address):
+def keys_save(private_key_readable, public_key_readable, address, file):
     wallet_dict = {}
     wallet_dict['Private Key'] = private_key_readable
     wallet_dict['Public Key'] = public_key_readable
     wallet_dict['Address'] = address
 
-    with open ("wallet.der", 'w') as wallet_file:
-        json.dump (wallet_dict, wallet_file)
+    with open (file.name, 'w') as keyfile:
+        json.dump (wallet_dict, keyfile)
 
         
 def keys_load(privkey="privkey.der", pubkey="pubkey.der"):
+    keyfile = "wallet.der"
     if os.path.exists("wallet.der"):
         print("Using modern wallet method")
         return keys_load_new ("wallet.der")
@@ -123,9 +124,9 @@ def keys_load(privkey="privkey.der", pubkey="pubkey.der"):
         address = hashlib.sha224(public_key_readable.encode('utf-8')).hexdigest()
 
         print("Upgrading wallet")
-        keys_save (private_key_readable, public_key_readable, address)
+        keys_save (private_key_readable, public_key_readable, address, keyfile)
 
-        return key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, address
+        return key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, address, keyfile
 
 
 def keys_unlock(private_key_encrypted):
@@ -137,11 +138,11 @@ def keys_unlock(private_key_encrypted):
     return key, private_key_readable
 
 
-def keys_load_new(wallet_file="wallet.der"):
+def keys_load_new(keyfile="wallet.der"):
     # import keys
 
-    with open (wallet_file, 'r') as wallet_file:
-        wallet_dict = json.load (wallet_file)
+    with open (keyfile, 'r') as keyfile:
+        wallet_dict = json.load (keyfile)
 
     private_key_readable = wallet_dict['Private Key']
     public_key_readable = wallet_dict['Public Key']
@@ -163,7 +164,7 @@ def keys_load_new(wallet_file="wallet.der"):
 
     public_key_hashed = base64.b64encode(public_key_readable.encode('utf-8'))
 
-    return key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, address
+    return key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, address, keyfile
 
 
 # Dup code, not pretty, but would need address module to avoid dup

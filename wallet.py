@@ -34,6 +34,7 @@ global myaddress
 global private_key_load
 global public_key_load
 global s
+global keyfile
 
 # data for charts
 stats_nodes_count_list = []
@@ -90,7 +91,8 @@ app_log = log.log("wallet.log", debug_level, terminal_output)
 
 essentials.keys_check(app_log)
 essentials.db_check(app_log)
-key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress = essentials.keys_load(private_key_load, public_key_load)
+key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress, keyfile = essentials.keys_load(private_key_load, public_key_load)
+print("Keyfile: {}".format(keyfile))
 
 # benchmark light_ip-list
 light_ip = lwbench.time_measure(light_ip, app_log)
@@ -343,10 +345,11 @@ def keys_load_dialog():
     global myaddress
     global private_key_load
     global public_key_load
+    global keyfile
 
     wallet_load = filedialog.askopenfilename(multiple=False, initialdir="", title="Select private key")
 
-    key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress = essentials.keys_load_new(wallet_load)  # upgrade later, remove blanks
+    key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress, keyfile = essentials.keys_load_new(wallet_load)  # upgrade later, remove blanks
 
     encryption_button_refresh()
 
@@ -510,7 +513,7 @@ def lock_fn(button):
 
 
 def encrypt_fn(destroy_this):
-    global key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress
+    global key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress, keyfile
     password = password_var_enc.get()
     password_conf = password_var_con.get()
 
@@ -518,11 +521,11 @@ def encrypt_fn(destroy_this):
 
         ciphertext = encrypt(password, private_key_readable)
         ciphertext_export = base64.b64encode(ciphertext).decode()
-        essentials.keys_save(ciphertext_export, public_key_readable, myaddress)
+        essentials.keys_save(ciphertext_export, public_key_readable, myaddress, keyfile)
 
         # encrypt_b.configure(text="Encrypted", state=DISABLED)
 
-        key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress = essentials.keys_load(private_key_load, public_key_load)
+        key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress, keyfile = essentials.keys_load(private_key_load, public_key_load)
         encryption_button_refresh()
 
         destroy_this.destroy()
