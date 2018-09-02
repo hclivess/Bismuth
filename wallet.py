@@ -1795,7 +1795,6 @@ lock_b.grid(row=0, column=2)
 def encryption_button_refresh():
     if unlocked:
         decrypt_b.configure(text="Unlocked", state=DISABLED)
-        lock_b.configure(text="Lock", state=DISABLED)
     if not unlocked:
         decrypt_b.configure(text="Unlock", state=NORMAL)
         messagemenu.entryconfig("Sign Messages", state="disabled")  # messages
@@ -1804,7 +1803,7 @@ def encryption_button_refresh():
         encrypt_b.configure(text="Encrypt", state=NORMAL)
     if encrypted:
         encrypt_b.configure(text="Encrypted", state=DISABLED)
-
+    lock_b.configure(text="Lock", state=DISABLED)
 
 encryption_button_refresh()
 # buttons
