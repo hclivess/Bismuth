@@ -54,7 +54,7 @@ def sign_rsa(timestamp, address, recipient, amount, operation, openfield, key, p
     return return_value
 
 
-def keys_check(app_log):
+def keys_check(app_log, keyfile):
     # key maintenance
     if os.path.isfile("privkey.der") is True:
         app_log.warning("privkey.der found")
@@ -62,8 +62,8 @@ def keys_check(app_log):
         app_log.warning("privkey_encrypted.der found")
         os.rename("privkey_encrypted.der","privkey.der")
 
-    elif os.path.isfile ("wallet.der") is True:
-        app_log.warning ("wallet.der found")
+    elif os.path.isfile (keyfile) is True:
+        app_log.warning ("{} found".format(keyfile))
     else:
         # generate key pair and an address
         key = RSA.generate(4096)
@@ -78,7 +78,7 @@ def keys_check(app_log):
         app_log.info("Your public key: {}".format(public_key_readable))
 
         # export to single file
-        keys_save(private_key_readable, public_key_readable, address, "wallet.der")
+        keys_save(private_key_readable, public_key_readable, address, keyfile)
         # export to single file
 
 
@@ -88,7 +88,7 @@ def keys_save(private_key_readable, public_key_readable, address, file):
     wallet_dict['Public Key'] = public_key_readable
     wallet_dict['Address'] = address
 
-    with open (file.name, 'w') as keyfile:
+    with open (file, 'w') as keyfile:
         json.dump (wallet_dict, keyfile)
 
         

@@ -89,7 +89,7 @@ import webbrowser
 # app_log = log.log("gui.log", debug_level)
 app_log = log.log("wallet.log", debug_level, terminal_output)
 
-essentials.keys_check(app_log)
+essentials.keys_check(app_log, "wallet.der")
 essentials.db_check(app_log)
 key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress, keyfile = essentials.keys_load(private_key_load, public_key_load)
 print("Keyfile: {}".format(keyfile))
@@ -521,7 +521,7 @@ def encrypt_fn(destroy_this):
 
         ciphertext = encrypt(password, private_key_readable)
         ciphertext_export = base64.b64encode(ciphertext).decode()
-        essentials.keys_save(ciphertext_export, public_key_readable, myaddress, keyfile)
+        essentials.keys_save(ciphertext_export, public_key_readable, myaddress, keyfile.name)
 
         # encrypt_b.configure(text="Encrypted", state=DISABLED)
 
@@ -1795,6 +1795,7 @@ lock_b.grid(row=0, column=2)
 def encryption_button_refresh():
     if unlocked:
         decrypt_b.configure(text="Unlocked", state=DISABLED)
+        lock_b.configure(text="Lock", state=DISABLED)
     if not unlocked:
         decrypt_b.configure(text="Unlock", state=NORMAL)
         messagemenu.entryconfig("Sign Messages", state="disabled")  # messages
