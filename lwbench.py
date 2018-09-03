@@ -27,27 +27,35 @@ def time_measure(light_ip, app_log):
             s = socks.socksocket()
             s.settimeout(3)
 
-            # start benchmark
-            timer_start = time.time()
-            s.connect((ip, int(local_port)))
-            connections.send(s, "statusget", 10)
-            result = connections.receive(s, 10)
-            connections.send(s, "wstatusget", 10)
-            result_ws = connections.receive(s, 10)
-            # finish benchmark
-
-            print("Stats_WS: ", result_ws)
-            timer_result = time.time() - timer_start
-            ws_clients = result_ws.get('clients')
-            if ws_clients > 300:
-                timer_result = timer_result + ws_clients / 1000
-                app_log.warning("Result for {}:{}, modified due to high client load: {}".format(ip, local_port, timer_result))
-            elif ws_clients > 150:
-                timer_result = timer_result + ws_clients / 10000
-                app_log.warning("Result for {}:{}, modified due to client load: {}".format(ip, local_port, timer_result))
+            if local_port == 5658: #doesn't work if a node uses non standard port, bench in else-path - will fail
+                #start benchmark
+                timer_start = time.time()
+                s.connect((ip, int(local_port)))
+                connections.send(s, "statusget", 10)
+                timer_result = (time.time() - timer_start) * 5 #penalty to prio Wallet-Servers before nodes. local node should be so fast, to be still fastest, else it is better that a wallet-server is chosen!
+                result_collection[address] = timer_result, result[8][7]
+                app_log.warning("Result for {}:{}, a normal node, penalty-factor *5 (real result time/5): {}".format(ip, local_port, timer_result))
+                #finish benchmark
             else:
-                app_log.warning("Result for {}:{}, low load - unmodified: {}".format(ip, local_port, timer_result))
-            result_collection[address] = timer_result, result[8][7]
+                #start benchmark
+                timer_start = time.time()
+                s.connect((ip, int(local_port)))
+                connections.send(s, "statusget", 10)
+                result = connections.receive(s, 10)
+                connections.send(s, "wstatusget", 10)
+                result_ws = connections.receive(s, 10)
+                timer_result = time.time() - timer_start
+                #finish benchmark and load balance if too many clients
+                ws_clients = result_ws.get('clients')
+                if ws_clients > 300:
+                    timer_result = timer_result + ws_clients/1000
+                    app_log.warning("Result for {}:{}, modified due to high client load: {}".format(ip, local_port, timer_result))
+                elif ws_clients > 150:
+                    timer_result = timer_result + ws_clients/10000
+                    app_log.warning("Result for {}:{}, modified due to client load: {}".format(ip, local_port, timer_result))
+                else:
+                    app_log.warning("Result for {}:{}, low load - unmodified: {}".format(ip, local_port, timer_result))
+                result_collection[address] = timer_result, result[8][7]
 
         except Exception as e:
             print("Cannot benchmark {}:{}".format(ip, local_port))

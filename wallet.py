@@ -96,7 +96,7 @@ print("Keyfile: {}".format(keyfile))
 
 # benchmark light_ip-list
 light_ip = lwbench.time_measure(light_ip, app_log)
-light_ip.insert(0,node_ip)
+#light_ip.insert(0,node_ip)
 
 def mempool_clear(s):
     connections.send(s, "mpclear", 10)
