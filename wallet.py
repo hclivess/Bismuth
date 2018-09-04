@@ -523,7 +523,7 @@ def encrypt_fn(destroy_this):
 
         ciphertext = encrypt(password, private_key_readable)
         ciphertext_export = base64.b64encode(ciphertext).decode()
-        essentials.keys_save(ciphertext_export, public_key_readable, myaddress, keyfile.name)
+        essentials.keys_save(ciphertext_export, public_key_readable, myaddress, keyfile)
 
         # encrypt_b.configure(text="Encrypted", state=DISABLED)
 
