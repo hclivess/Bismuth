@@ -2837,13 +2837,13 @@ if __name__ == "__main__":
     global syncing
     syncing = []
 
-    essentials.keys_check(app_log)
-    essentials.db_check(app_log)
-
     # import keys
     # key = RSA.importKey(open('privkey.der').read())
     # private_key_readable = str(key.exportKey())
-    _, public_key_readable, _, _, _, public_key_hashed, address = essentials.keys_load("privkey.der", "pubkey.der")
+    _, public_key_readable, _, _, _, public_key_hashed, address, keyfile = essentials.keys_load("privkey.der", "pubkey.der")
+
+    essentials.keys_check(app_log, keyfile)
+    essentials.db_check(app_log)
 
     app_log.warning("Status: Local address: {}".format(address))
 

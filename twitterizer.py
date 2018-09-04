@@ -35,7 +35,7 @@ auth = tweepy.OAuthHandler (consumer_key, consumer_secret)
 auth.set_access_token (access_token, access_token_secret)
 api = tweepy.API (auth)
 
-key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress = essentials.keys_load()
+key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress, keyfile = essentials.keys_load()
 
 def tweet_saved(tweet):
     try:

@@ -27,7 +27,7 @@ hyper_path = config.hyper_path_conf
 
 
 
-key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, address = essentials.keys_load("privkey.der", "pubkey.der")
+key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, address, keyfile = essentials.keys_load("privkey.der", "pubkey.der")
 
 if encrypted:
     key, private_key_readable = essentials.keys_unlock(private_key_readable)

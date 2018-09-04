@@ -62,8 +62,8 @@ def keys_check(app_log, keyfile):
         app_log.warning("privkey_encrypted.der found")
         os.rename("privkey_encrypted.der","privkey.der")
 
-    elif os.path.isfile (keyfile) is True:
-        app_log.warning ("{} found".format(keyfile))
+    elif os.path.isfile (keyfile.name) is True:
+        app_log.warning ("{} found".format(keyfile.name))
     else:
         # generate key pair and an address
         key = RSA.generate(4096)
