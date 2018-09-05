@@ -32,6 +32,7 @@ def time_measure(light_ip, app_log):
                 timer_start = time.time()
                 s.connect((ip, int(local_port)))
                 connections.send(s, "statusget", 10)
+                result = connections.receive(s, 10)
                 timer_result = (time.time() - timer_start) * 5 #penalty to prio Wallet-Servers before nodes. local node should be so fast, to be still fastest, else it is better that a wallet-server is chosen!
                 result_collection[address] = timer_result, result[8][7]
                 app_log.warning("Result for {}:{}, a normal node, penalty-factor *5 (real result time/5): {}".format(ip, local_port, timer_result))
