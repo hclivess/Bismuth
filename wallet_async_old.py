@@ -1558,13 +1558,12 @@ if __name__ == "__main__":
     # app_log = log.log("gui.log", debug_level)
     app_log = log.log("wallet.log", debug_level, terminal_output)
 
-
+    essentials.keys_check(app_log, "wallet.der")
+    essentials.db_check(app_log)
 
     key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress, keyfile = essentials.keys_load(private_key_load, public_key_load)
 
 
-    essentials.keys_check(app_log, keyfile)
-    essentials.db_check(app_log)
     # Build TK INTERFACE
 
     root = Tk()

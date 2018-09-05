@@ -62,8 +62,8 @@ def keys_check(app_log, keyfile):
         app_log.warning("privkey_encrypted.der found")
         os.rename("privkey_encrypted.der","privkey.der")
 
-    elif os.path.isfile (keyfile.name) is True:
-        app_log.warning ("{} found".format(keyfile.name))
+    elif os.path.isfile (keyfile) is True:
+        app_log.warning ("{} found".format(keyfile))
     else:
         # generate key pair and an address
         key = RSA.generate(4096)
@@ -88,7 +88,7 @@ def keys_save(private_key_readable, public_key_readable, address, file):
     wallet_dict['Public Key'] = public_key_readable
     wallet_dict['Address'] = address
 
-    with open (file, 'w') as keyfile:
+    with open (file.name, 'w') as keyfile:
         json.dump (wallet_dict, keyfile)
 
         

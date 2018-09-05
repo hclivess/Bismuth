@@ -88,9 +88,10 @@ app_log = log.log("wallet.log", debug_level, terminal_output)
 
 
 essentials.db_check(app_log)
+essentials.keys_check(app_log, "wallet.der")
+
 key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress, keyfile = essentials.keys_load(private_key_load, public_key_load)
 
-essentials.keys_check(app_log, keyfile)
 
 def mempool_clear(s):
     connections.send (s, "mpclear", 10)
