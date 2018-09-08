@@ -27,7 +27,7 @@ hyper_path = config.hyper_path_conf
 
 
 
-key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, address, keyfile = essentials.keys_load("privkey.der", "pubkey.der")
+key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, address, keyfile = essentials.keys_load_new("hypernode_contract.der")
 
 if encrypted:
     key, private_key_readable = essentials.keys_unlock(private_key_readable)
@@ -90,6 +90,8 @@ try:
 except IndexError:
     recipient_input = input("Recipient: ")
 
+
+
 if not address_validate(recipient_input):
     print("Wrong address format")
     exit(1)
@@ -102,7 +104,7 @@ except IndexError:
 try:
     openfield_input = sys.argv[4]
 except IndexError:
-    openfield_input = input("Enter openfield data (message): ")
+    openfield_input = ""
 
 
 # hardfork fee display
