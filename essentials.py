@@ -9,7 +9,6 @@ import getpass
 import re
 import time
 import json
-import _io
 from simplecrypt import *
 
 from quantizer import *
@@ -89,7 +88,7 @@ def keys_save(private_key_readable, public_key_readable, address, file):
     wallet_dict['Public Key'] = public_key_readable
     wallet_dict['Address'] = address
 
-    if type(file) == _io.TextIOWrapper:
+    if not isinstance(file,str):
         file = file.name
 
     with open (file, 'w') as keyfile:
