@@ -338,6 +338,15 @@ def fingerprint():
     openfield.insert(INSERT, dict)
 
 
+def keys_untar(archive):
+    with open(archive, "r") as archive_file:
+        tar = tarfile.open(archive_file.name)
+        name = tar.getnames()
+        tar.extractall()
+    app_log.warning("{} file untarred successfully".format(name))
+    return name
+
+
 def keys_load_dialog():
     global key
     global private_key_readable
@@ -349,7 +358,11 @@ def keys_load_dialog():
     global public_key_load
     global keyfile
 
-    wallet_load = filedialog.askopenfilename(multiple=False, initialdir="", title="Select private key")
+    wallet_load = filedialog.askopenfilename(multiple=False, initialdir="", title="Select wallet")
+
+    if wallet_load.endswith('.gz'):
+        print(wallet_load)
+        wallet_load = keys_untar(wallet_load)[0]
 
     key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress, keyfile = essentials.keys_load_new(wallet_load)  # upgrade later, remove blanks
 
@@ -1364,6 +1377,7 @@ def refresh(address, s):
         # fees_current_var.set("Current Fee: {}".format('%.8f' % float(fee)))
         balance_var.set("Balance: {:.8f} BIS".format(Decimal(balance)))
         balance_raw.set(balance)
+        #address_var.set("Address: {}".format(address))
         debit_var.set("Sent Total: {:.8f} BIS".format(Decimal(debit)))
         credit_var.set("Received Total: {:.8f} BIS".format(Decimal(credit)))
         fees_var.set("Fees Paid: {:.8f} BIS".format(Decimal(fees)))
@@ -1816,27 +1830,31 @@ encryption_button_refresh()
 balance_raw = StringVar()
 balance_var = StringVar()
 
+#address_var = StringVar()
+#address_var_label = Label(frame_coins, textvariable=address_var, font=("Tahoma", 8, "bold"))
+#address_var_label.grid(row=0, column=0, sticky=S, padx=15)
+
 balance_msg_label = Label(frame_coins, textvariable=balance_var, font=("Tahoma", 16, "bold"))
-balance_msg_label.grid(row=0, column=0, sticky=S, padx=15)
+balance_msg_label.grid(row=1, column=0, sticky=S, padx=15)
 
 balance_msg_label_sendtab = Label(frame_send, textvariable=balance_var, font=("Tahoma", 10))
 balance_msg_label_sendtab.grid(row=3, column=0, sticky=N + S)
 
 debit_var = StringVar()
 spent_msg_label = Label(frame_coins, textvariable=debit_var, font=("Tahoma", 12))
-spent_msg_label.grid(row=1, column=0, sticky=N + E, padx=15)
+spent_msg_label.grid(row=2, column=0, sticky=N + E, padx=15)
 
 credit_var = StringVar()
 received_msg_label = Label(frame_coins, textvariable=credit_var, font=("Tahoma", 12))
-received_msg_label.grid(row=2, column=0, sticky=N + E, padx=15)
+received_msg_label.grid(row=3, column=0, sticky=N + E, padx=15)
 
 fees_var = StringVar()
 fees_paid_msg_label = Label(frame_coins, textvariable=fees_var, font=("Tahoma", 12))
-fees_paid_msg_label.grid(row=3, column=0, sticky=N + E, padx=15)
+fees_paid_msg_label.grid(row=4, column=0, sticky=N + E, padx=15)
 
 rewards_var = StringVar()
 rewards_paid_msg_label = Label(frame_coins, textvariable=rewards_var, font=("Tahoma", 12))
-rewards_paid_msg_label.grid(row=4, column=0, sticky=N + E, padx=15)
+rewards_paid_msg_label.grid(row=5, column=0, sticky=N + E, padx=15)
 
 bl_height_var = StringVar()
 block_height_label = Label(frame_bottom, textvariable=bl_height_var)
