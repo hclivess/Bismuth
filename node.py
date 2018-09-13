@@ -323,7 +323,7 @@ def db_to_drive(hdd, h, hdd2, h2):
                 h2.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
             commit(hdd2)
 
-        h2.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
+        h2.execute("SELECT max(block_height) FROM transactions")
         hdd_block = h2.fetchone()[0]
     except Exception as e:
         app_log.warning("Block: Exception Moving new data to HDD: {}".format(e))
@@ -390,14 +390,14 @@ def ledger_compress(ledger_path_conf, hyper_path_conf):
                 hdd = sqlite3.connect(ledger_path_conf, timeout=1)
                 hdd.text_factory = str
                 h = hdd.cursor()
-                h.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
+                h.execute("SELECT max(block_height) FROM transactions")
                 hdd_block_last = h.fetchone()[0]
                 hdd.close()
 
                 hdd2 = sqlite3.connect(hyper_path_conf, timeout=1)
                 hdd2.text_factory = str
                 h2 = hdd2.cursor()
-                h2.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
+                h2.execute("SELECT max(block_height) FROM transactions")
                 hdd2_block_last = h2.fetchone()[0]
                 hdd2.close()
                 # cross-integrity check
@@ -444,7 +444,7 @@ def ledger_compress(ledger_path_conf, hyper_path_conf):
 
             hyp.execute("UPDATE transactions SET address = 'Hypoblock' WHERE address = 'Hyperblock'")
 
-            hyp.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1;")
+            hyp.execute("SELECT max(block_height) FROM transactions")
             db_block_height = int(hyp.fetchone()[0])
             depth_specific = db_block_height - depth
 
@@ -1269,7 +1269,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                         staking.staking_revalidate(conn, c, index, index_cursor, block_height_new, app_log)
 
                 # new hash
-                c.execute("SELECT * FROM transactions WHERE block_height = (SELECT block_height FROM transactions ORDER BY block_height ASC LIMIT 1)")
+                c.execute("SELECT * FROM transactions WHERE block_height = (SELECT max(block_height) FROM transactions)")
                 # Was trying to simplify, but it's the latest mirror hash. not the latest block, nor the mirror of the latest block.
                 # c.execute("SELECT * FROM transactions WHERE block_height = ?", (block_height_new -1,))
                 tx_list_to_hash = c.fetchall()
@@ -1632,7 +1632,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         peers.consensus_add(peer_ip, consensus_blockheight, self.request, last_block)
                         # consensus pool 1 (connection from them)
 
-                        execute(c, ('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1'))
+                        execute(c, ('SELECT max(block_height) FROM transactions'))
                         db_block_height = c.fetchone()[0]
 
                         # append zeroes to get static length
@@ -1748,7 +1748,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                         # check if we have the latest block
 
-                        execute(c, ('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1'))
+                        execute(c, ('SELECT max(block_height) FROM transactions'))
                         db_block_height = int(c.fetchone()[0])
 
                         # check if we have the latest block
@@ -2559,7 +2559,7 @@ def worker(HOST, PORT):
                     # send block height, receive block height
                     connections.send(s, "blockheight")
 
-                    execute(c, ('SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1'))
+                    execute(c, ('SELECT max(block_height) FROM transactions'))
                     db_block_height = c.fetchone()[0]
 
                     app_log.info("Outbound: Sending block height to compare: {}".format(db_block_height))
@@ -2873,7 +2873,7 @@ if __name__ == "__main__":
         source_db.text_factory = str
         sc = source_db.cursor()
 
-        sc.execute("SELECT block_height FROM transactions ORDER BY block_height DESC LIMIT 1")
+        sc.execute("SELECT max(block_height) FROM transactions")
         hdd_block = sc.fetchone()[0]
 
         if ram_conf:
