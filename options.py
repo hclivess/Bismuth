@@ -45,7 +45,7 @@ class Get:
     }
  
     def load_file(self,filename):
-        print("Loading",filename)
+        #print("Loading",filename)
         for line in open(filename):
             if '=' in line:
                 left,right = map(str.strip,line.rstrip("\n").split("="))
@@ -72,7 +72,7 @@ class Get:
                 setattr(self,left,right)                
         # Default genesis to keep compatibility
         self.genesis_conf = "4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed"
-        print(self.__dict__)           
+        #print(self.__dict__)
                     
     def read(self):
         # first of all, load from default config so we have all needed params
