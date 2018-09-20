@@ -6,7 +6,7 @@
 # do not isolation_level=None/WAL hdd levels, it makes saving slow
 
 
-VERSION = "4.2.6.3"  # .03 - more hooks again
+VERSION = "4.2.6.3"  # .01 - modularize mining
 
 # Bis specific modules
 import log, options, connections, peershandler, apihandler
@@ -26,6 +26,7 @@ from Cryptodome.Signature import PKCS1_v1_5
 import mempool as mp
 import plugins
 import staking
+import mining
 
 # load config
 # global ban_threshold
@@ -1113,30 +1114,9 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                     raise ValueError("Skipping digestion of block {} from {}, because we already have it on block_height {}".
                                      format(block_hash[:10], peer_ip, dummy[0]))
 
-                mining_hash = bin_convert(
-                    hashlib.sha224((miner_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
-                diff_drop_time = Decimal(180)
-                mining_condition = bin_convert(db_block_hash)[0:int(diff[0])]
-
-                if mining_condition in mining_hash:  # simplified comparison, no backwards mining
-                    app_log.info("Difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
-                    diff_save = diff[0]
-
-                elif Decimal(received_timestamp) > q_db_timestamp_last + Decimal(diff_drop_time):  # uses block timestamp, dont merge with diff() for security reasons
-                    time_difference = q_received_timestamp - q_db_timestamp_last
-                    diff_dropped = quantize_ten(diff[0]) - quantize_ten(time_difference / diff_drop_time)
-                    if diff_dropped < 50:
-                        diff_dropped = 50
-
-                    mining_condition = bin_convert(db_block_hash)[0:int(diff_dropped)]
-
-                    if mining_condition in mining_hash:  # simplified comparison, no backwards mining
-                        app_log.info("Readjusted difficulty requirement satisfied for block {} from {}".format(block_height_new, peer_ip))
-                        diff_save = diff[0]  # lie about what diff was matched not to mess up the diff algo
-                    else:
-                        raise ValueError("Readjusted difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff_dropped))
-                else:
-                    raise ValueError("Difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff[0]))
+                diff_save = mining.check_block(block_height_new, miner_address, nonce, db_block_hash, diff[0],
+                                               received_timestamp, q_received_timestamp, q_db_timestamp_last,
+                                               peer_ip=peer_ip, app_log=app_log)                  
 
                 fees_block = []
                 mining_reward = 0  # avoid warning
