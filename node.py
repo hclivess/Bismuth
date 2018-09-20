@@ -80,6 +80,10 @@ terminal_output = config.terminal_output
 egress = config.egress
 genesis_conf = config.genesis_conf
 
+from appdirs import *
+appname = "Bismuth"
+appauthor = "Bismuth Foundation"
+
 # nodes_ban_reset=config.nodes_ban_reset
 
 # global banlist

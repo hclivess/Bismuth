@@ -1,40 +1,34 @@
-d:
-cd D:\Bismuth
+del /f /s /q dist 1>nul
+rmdir /s /q dist
+del /f /s /q build 1>nul
+rmdir /s /q build
 
-SET var=%cd%
-ECHO %var%
+pyinstaller --uac-admin --log-level=INFO commands.py --icon=graphics\icon.ico --hidden-import=pycryptodomex --hidden-import=PySocks
+pyinstaller --uac-admin --noconsole --log-level=INFO wallet.py --icon=graphics\icon.ico --hidden-import=pycryptodomex --hidden-import=PySocks
+pyinstaller --uac-admin --log-level=INFO node.py --icon=graphics\icon.ico --hidden-import=pycryptodomex --hidden-import=PySocks
 
-del /f /s /q %var%\dist 1>nul
-rmdir /s /q %var%\dist
-del /f /s /q %var%\build 1>nul
-rmdir /s /q %var%\build
-
-C:\Python36\Scripts\pyinstaller.exe --uac-admin --log-level=INFO %var%\commands.py --icon=%var%\graphics\icon.ico
-C:\Python36\Scripts\pyinstaller.exe --uac-admin --noconsole --log-level=INFO %var%\wallet.py --icon=%var%\graphics\icon.ico
-C:\Python36\Scripts\pyinstaller.exe --uac-admin --log-level=INFO %var%\node.py --icon=%var%\graphics\icon.ico
-
-robocopy %var%\graphics %var%\dist\graphics
-robocopy %var%\themes %var%\dist\themes
-robocopy %var%\dist\wallet %var%\dist\ /move /E
-rmdir /s /q %var%\dist\wallet
-robocopy %var%\dist\node %var%\dist\ /move /E
+robocopy graphics dist\graphics
+robocopy themes dist\themes
+robocopy dist\wallet dist\ /move /E
+rmdir /s /q dist\wallet
+robocopy dist\node dist\ /move /E
 rmdir /s /q dist\node
-robocopy %var%\dist\commands %var%\dist\ /move /E
+robocopy dist\commands dist\ /move /E
 rmdir /s /q dist\commands
 
-mkdir %var%\dist\static
-copy %var%\static\backup.py %var%\dist\static\backup.py
-copy %var%\static\bg.jpg %var%\dist\static\bg.jpg
-copy %var%\static\Chart.js %var%\dist\static\Chart.js
-copy %var%\static\explorer.ico %var%\dist\static\explorer.ico
-copy %var%\static\explorer_bg.png %var%\dist\static\explorer_bg.png
-copy %var%\static\style.css %var%\dist\static\style.css
-copy %var%\static\style_zircodice.css %var%\dist\static\style_zircodice.css
-copy %var%\static\zircodice.ico %var%\dist\static\zircodice.ico
+mkdir dist\static
+copy static\backup.py dist\static\backup.py
+copy static\bg.jpg dist\static\bg.jpg
+copy static\Chart.js dist\static\Chart.js
+copy static\explorer.ico dist\static\explorer.ico
+copy static\explorer_bg.png dist\static\explorer_bg.png
+copy static\style.css dist\static\style.css
+copy static\style_zircodice.css dist\static\style_zircodice.css
+copy static\zircodice.ico dist\static\zircodice.ico
 
-copy %var%\peers.txt %var%\dist\peers.txt
-copy %var%\config.txt %var%\dist\config.txt
+copy peers.txt dist\peers.txt
+copy config.txt dist\config.txt
 
-"C:\Program Files (x86)\Inno Setup 5\iscc" /q "%var%\setup.iss"
+"C:\Program Files (x86)\Inno Setup 5\iscc" /q "setup.iss"
 pause
 
