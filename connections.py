@@ -14,12 +14,12 @@ if "Linux" in platform.system():
     READ_OR_ERROR = select.POLLIN | select.POLLPRI | select.POLLHUP | select.POLLERR | select.POLLNVAL
     #READ_ONLY = select.POLLIN | select.POLLPRI
 
-    def receive(sdef, slen=SLEN):
+    def receive(sdef, slen=SLEN, timeout=LTIMEOUT):
         try:
             sdef.setblocking(1)
             poller = select.poll()
             poller.register(sdef, READ_OR_ERROR)
-            ready = poller.poll(LTIMEOUT*1000)
+            ready = poller.poll(timeout*1000)
             if not ready:
                 # logical timeout
                 return "*"
@@ -40,7 +40,7 @@ if "Linux" in platform.system():
             chunks = []
             bytes_recd = 0
             while bytes_recd < data:
-                ready = poller.poll(LTIMEOUT*1000)
+                ready = poller.poll(timeout*1000)
                 if not ready:
                     raise RuntimeError("Socket Timeout2")
                 fd, flag = ready[0]
@@ -78,9 +78,9 @@ if "Linux" in platform.system():
 
 else:
 
-    def receive(sdef, slen=SLEN):
+    def receive(sdef, slen=SLEN, timeout=LTIMEOUT):
         sdef.setblocking(1)
-        ready = select.select([sdef], [], [sdef], LTIMEOUT)
+        ready = select.select([sdef], [], [sdef], timeout)
         if ready[0]:
             try:
                 data = int(sdef.recv(slen))  # receive length
@@ -96,7 +96,7 @@ else:
         chunks = []
         bytes_recd = 0
         while bytes_recd < data:
-            ready = select.select([sdef], [], [], LTIMEOUT)
+            ready = select.select([sdef], [], [], timeout)
             if ready[0]:
                 chunk = sdef.recv(min(data - bytes_recd, 2048))
                 if not chunk:

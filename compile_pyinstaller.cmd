@@ -4,7 +4,7 @@ del /f /s /q build 1>nul
 rmdir /s /q build
 
 pyinstaller --uac-admin --log-level=INFO commands.py --icon=graphics\icon.ico --hidden-import=pycryptodomex --hidden-import=PySocks
-pyinstaller --uac-admin --noconsole --log-level=INFO wallet.py --icon=graphics\icon.ico --hidden-import=pycryptodomex --hidden-import=PySocks
+pyinstaller --uac-admin --log-level=INFO wallet.py --icon=graphics\icon.ico --hidden-import=pycryptodomex --hidden-import=PySocks
 pyinstaller --uac-admin --log-level=INFO node.py --icon=graphics\icon.ico --hidden-import=pycryptodomex --hidden-import=PySocks
 
 robocopy graphics dist\graphics
