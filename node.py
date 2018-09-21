@@ -168,8 +168,7 @@ def sendsync(sdef, peer_ip, status, provider):
     returns None
     """
 
-    app_log.info(
-        "Outbound: Synchronization with {} finished after: {}, sending new sync request".format(peer_ip, status))
+    app_log.info("Outbound: Synchronization with {} finished after: {}, sending new sync request".format(peer_ip, status))
 
     if provider:
         app_log.info("Outbound: Saving peer {}".format(peer_ip))
@@ -2888,7 +2887,7 @@ if __name__ == "__main__":
     # init
 
     ### LOCAL CHECKS FINISHED ###
-    app_log.warning("Status: Starting...")
+    app_log.warning("Status: Starting node version {}".format(VERSION))
     global startup_time
     startup_time = time.time()
 
