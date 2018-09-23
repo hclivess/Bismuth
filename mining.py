@@ -55,8 +55,7 @@ def check_block(block_height_new, miner_address, nonce, db_block_hash, diff0, re
             diff_save = diff0
             # lie about what diff was matched not to mess up the diff algo
         else:
-            raise ValueError ("Readjusted difficulty too low for block {} from {}, should be at least {}"
-                              .format(block_height_new, peer_ip, diff_dropped))
+            raise ValueError ("Readjusted difficulty too low for block {} from {}, should be at least {}".format(block_height_new, peer_ip, diff_dropped))
     else:
         raise ValueError ("Difficulty too low for block {} from {}, should be at least {}"
                           .format(block_height_new, peer_ip, diff0))
