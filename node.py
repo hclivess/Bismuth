@@ -6,9 +6,11 @@
 # do not isolation_level=None/WAL hdd levels, it makes saving slow
 
 
-VERSION = "4.2.7.0"  #
+VERSION = "4.2.7.0"  # .2
 
 POW_FORK = 854660
+# POW_FORK = 836260
+FORK_AHEAD = 5
 FORK_DIFF = 108
 
 # Bis specific modules
@@ -109,7 +111,8 @@ PEM_END = re.compile(r"-----END (.*)-----\s*$")
 
 def limit_version():
     global version_allow
-    version_allow.remove('mainnet0018')
+    if 'mainnet0018' in version_allow:
+        version_allow.remove('mainnet0018')
 
 
 def tokens_rollback(height, app_log):
@@ -622,6 +625,8 @@ def difficulty(c):
     difficulty_new_adjusted = quantize_ten(diff_block_previous + diff_adjustment)
     difficulty = difficulty_new_adjusted
 
+    if block_height == POW_FORK - FORK_AHEAD:
+        limit_version()
     if block_height == POW_FORK:
         difficulty = FORK_DIFF
         # Remove mainnet0018 from allowed
@@ -2509,7 +2514,7 @@ def worker(HOST, PORT):
             raise ValueError("Outbound: Node protocol version of {} mismatch".format(this_client))
 
         # If we are post pow fork, then the peer has getversion command
-        if last_block >= POW_FORK:
+        if last_block >= POW_FORK - FORK_AHEAD:
             # Peers that are not up to date will disconnect since they don't know that command.
             # That is precisely what we need :D
             connections.send(s, "getversion")
@@ -2526,7 +2531,7 @@ def worker(HOST, PORT):
         return  # can return here, because no lists are affected yet
 
     banned = False
-    if last_block >= POW_FORK:
+    if last_block >= POW_FORK - FORK_AHEAD:
         peers.store_mainnet(HOST, peer_version)
     try:
         peer_ip = s.getpeername()[0]
@@ -2903,7 +2908,7 @@ if __name__ == "__main__":
             hdd_block = sc.fetchone()[0]
 
             last_block = hdd_block
-            if hdd_block >= POW_FORK:
+            if hdd_block >= POW_FORK - FORK_AHEAD:
                 limit_version()
 
             if ram_conf:
