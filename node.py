@@ -627,6 +627,8 @@ def difficulty(c):
 
     if block_height == POW_FORK - FORK_AHEAD:
         limit_version()
+    if block_height == POW_FORK - 1:
+        difficulty = FORK_DIFF        
     if block_height == POW_FORK:
         difficulty = FORK_DIFF
         # Remove mainnet0018 from allowed
