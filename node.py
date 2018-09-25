@@ -74,10 +74,12 @@ pool_conf = config.pool_conf
 ram_conf = config.ram_conf
 pool_address = config.pool_address_conf
 version = config.version_conf
-version = 'mainnet0019'  # Force in code.
+if version != 'mainnet0020':
+    version = 'mainnet0019'  # Force in code.
 version_allow = config.version_allow
 # Allow 18 for transition period. Will be auto removed at fork block.
-version_allow = ['mainnet0018', 'mainnet0019', 'mainnet0020']
+if "mainnnet0020" not in version_allow:
+    version_allow = ['mainnet0018', 'mainnet0019', 'mainnet0020']
 full_ledger = config.full_ledger_conf
 reveal_address = config.reveal_address
 accept_peers = config.accept_peers
@@ -103,6 +105,11 @@ global peers
 
 PEM_BEGIN = re.compile(r"\s*-----BEGIN (.*)-----\s+")
 PEM_END = re.compile(r"-----END (.*)-----\s*$")
+
+
+def limit_version():
+    global version_allow
+    version_allow.remove('mainnet0018')
 
 
 def tokens_rollback(height, app_log):
@@ -617,6 +624,9 @@ def difficulty(c):
 
     if block_height == POW_FORK:
         difficulty = FORK_DIFF
+        # Remove mainnet0018 from allowed
+        limit_version()
+        # disconnect our outgoing connections
 
     diff_drop_time = Decimal(180)
 
@@ -1522,6 +1532,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         app_log.warning("Inbound: Protocol version matched: {}".format(data))
                         connections.send(self.request, "ok")
                         peers.store_mainnet(peer_ip, data)
+
+                elif data == 'getversion':
+                    connections.send(self.request, version)
 
                 elif data == 'mempool':
 
@@ -2451,7 +2464,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
             finally:
                 # cleanup
-                peers.forget_mainnet(peer_ip)
+                # peers.forget_mainnet(peer_ip)
                 try:
                     if conn:
                         conn.close()
@@ -2495,6 +2508,15 @@ def worker(HOST, PORT):
         else:
             raise ValueError("Outbound: Node protocol version of {} mismatch".format(this_client))
 
+        # If we are post pow fork, then the peer has getversion command
+        if last_block >= POW_FORK:
+            # Peers that are not up to date will disconnect since they don't know that command.
+            # That is precisely what we need :D
+            connections.send(s, "getversion")
+            peer_version = connections.receive(s)
+            if peer_version not in version_allow:
+                raise ValueError("Outbound: Incompatible peer version {} from {}".format(peer_version, this_client))
+
         connections.send(s, "hello")
 
         # communication starter
@@ -2504,6 +2526,8 @@ def worker(HOST, PORT):
         return  # can return here, because no lists are affected yet
 
     banned = False
+    if last_block >= POW_FORK:
+        peers.store_mainnet(HOST, peer_version)
     try:
         peer_ip = s.getpeername()[0]
     except:
@@ -2511,8 +2535,12 @@ def worker(HOST, PORT):
         app_log.warning("Outbound: Transport endpoint was not connected");
         return
 
-    while not banned:
+    while not banned and peers.version_allowed(HOST, version_allow):
         try:
+            # If we are post fork, but we don't know the version, then it was an old connection, close.
+            if last_block >= POW_FORK and HOST not in peers.ip_to_mainnet:
+                return
+
             if this_client not in peers.connection_pool:
                 peers.append_client(this_client)
                 app_log.info("Connected to {}".format(this_client))
@@ -2761,6 +2789,7 @@ def worker(HOST, PORT):
                 return
 
         finally:
+            # peers.forget_mainnet(HOST)
             try:
                 conn.close()
             except:
@@ -2872,6 +2901,10 @@ if __name__ == "__main__":
 
             sc.execute("SELECT max(block_height) FROM transactions")
             hdd_block = sc.fetchone()[0]
+
+            last_block = hdd_block
+            if hdd_block >= POW_FORK:
+                limit_version()
 
             if ram_conf:
                 app_log.warning("Status: Moving database to RAM")
