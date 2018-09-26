@@ -6,12 +6,7 @@
 # do not isolation_level=None/WAL hdd levels, it makes saving slow
 
 
-VERSION = "4.2.7.0"  # .2
-
-POW_FORK = 854660
-# POW_FORK = 836260
-FORK_AHEAD = 5
-FORK_DIFF = 108
+VERSION = "4.2.7.0"  # .3
 
 # Bis specific modules
 import log, options, connections, peershandler, apihandler
@@ -36,6 +31,10 @@ import mining_heavy3
 
 # load config
 # global ban_threshold
+
+POW_FORK = 854660
+FORK_AHEAD = 5
+FORK_DIFF = 108.9
 
 
 getcontext().rounding = ROUND_HALF_EVEN
@@ -112,6 +111,7 @@ PEM_END = re.compile(r"-----END (.*)-----\s*$")
 def limit_version():
     global version_allow
     if 'mainnet0018' in version_allow:
+        app_log.warning("Beginning to reject mainnet0018 - block {}".format(last_block))
         version_allow.remove('mainnet0018')
 
 
@@ -628,7 +628,7 @@ def difficulty(c):
     if block_height == POW_FORK - FORK_AHEAD:
         limit_version()
     if block_height == POW_FORK - 1:
-        difficulty = FORK_DIFF        
+        difficulty = FORK_DIFF
     if block_height == POW_FORK:
         difficulty = FORK_DIFF
         # Remove mainnet0018 from allowed
@@ -2477,6 +2477,21 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         conn.close()
                 except Exception as e:
                     app_log.info("Error closing conn {}".format(e))
+        if not peers.version_allowed(peer_ip, version_allow):
+            app_log.warning("Inbound: Closing connection to old {} node: {}"
+                            .format(peer_ip, peers.ip_to_mainnet['peer_ip']))
+
+
+def ensure_good_peer_version(peer_ip):
+    """
+    Todo: clean after HF
+    """
+    # If we are post fork, but we don't know the version, then it was an old connection, close.
+    if last_block >= POW_FORK :
+        if peer_ip not in peers.ip_to_mainnet:
+            raise ValueError("Outbound: disconnecting old node {}".format(peer_ip));
+        elif peers.ip_to_mainnet[peer_ip] not in version_allow:
+            raise ValueError("Outbound: disconnecting old node {} - {}".format(peer_ip, peers.ip_to_mainnet[peer_ip]));
 
 
 # client thread
@@ -2542,16 +2557,14 @@ def worker(HOST, PORT):
         app_log.warning("Outbound: Transport endpoint was not connected");
         return
 
+    if this_client not in peers.connection_pool:
+        peers.append_client(this_client)
+        app_log.info("Connected to {}".format(this_client))
+        app_log.info("Current active pool: {}".format(peers.connection_pool))
+
     while not banned and peers.version_allowed(HOST, version_allow):
         try:
-            # If we are post fork, but we don't know the version, then it was an old connection, close.
-            if last_block >= POW_FORK and HOST not in peers.ip_to_mainnet:
-                return
-
-            if this_client not in peers.connection_pool:
-                peers.append_client(this_client)
-                app_log.info("Connected to {}".format(this_client))
-                app_log.info("Current active pool: {}".format(peers.connection_pool))
+            ensure_good_peer_version(HOST)
 
             hdd2, h2 = db_h2_define()
             conn, c = db_c_define()
@@ -2678,6 +2691,8 @@ def worker(HOST, PORT):
                         app_log.info("Outbound: block_hash to send: {}".format(db_block_hash))
                         connections.send(s, db_block_hash)
 
+                        ensure_good_peer_version(HOST)
+
                         # consensus pool 2 (active connection)
                         consensus_blockheight = int(received_block_height)  # str int to remove leading zeros
                         peers.consensus_add(peer_ip, consensus_blockheight, s, last_block)
@@ -2719,12 +2734,15 @@ def worker(HOST, PORT):
                         block_req = peers.consensus_max
                         app_log.warning("Longest chain rule triggered")
 
+                    ensure_good_peer_version(HOST)
+
                     if int(received_block_height) >= block_req:
                         try:  # they claim to have the longest chain, things must go smooth or ban
                             app_log.warning("Confirming to sync from {}".format(peer_ip))
 
                             connections.send(s, "blockscf")
                             segments = connections.receive(s)
+                            ensure_good_peer_version(HOST)
 
                         except:
                             if peers.warning(s, peer_ip, "Failed to deliver the longest chain"):
@@ -2766,6 +2784,11 @@ def worker(HOST, PORT):
                 raise ValueError("Unexpected error, received: {}".format(str(data)[:32]))
 
         except Exception as e:
+            """
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+            print(exc_type, fname, exc_tb.tb_lineno)
+            """
             # remove from active pool
             if this_client in peers.connection_pool:
                 app_log.info("Will remove {} from active pool {}".format(this_client, peers.connection_pool))
@@ -2801,6 +2824,9 @@ def worker(HOST, PORT):
                 conn.close()
             except:
                 pass
+    if not peers.version_allowed(HOST, version_allow):
+        app_log.warning("Outbound: Ending thread, because {} has too old a version: {}"
+                        .format(HOST, peers.ip_to_mainnet[HOST]))
 
 
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
