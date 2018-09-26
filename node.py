@@ -2745,7 +2745,7 @@ def worker(HOST, PORT):
                             ensure_good_peer_version(HOST)
 
                         except:
-                            if peers.warning(s, peer_ip, "Failed to deliver the longest chain"):
+                            if peers.warning(s, peer_ip, "Failed to deliver the longest chain", 2):
                                 raise ValueError("{} is banned".format(peer_ip))
 
                         else:
