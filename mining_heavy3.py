@@ -15,14 +15,15 @@ from hmac_drbg import DRBG
 from quantizer import *
 
 
-__version__ = '0.1.1'
+__version__ = '0.1.2'
 
 
 print("Mining_Heavy3 v{}".format(__version__))
 
 
 POW_FORK = 854660
-FORK_DIFF = 108
+FORK_DIFF = 108.9
+
 
 RND_LEN = 0
 
@@ -93,7 +94,7 @@ def check_block(block_height_new, miner_address, nonce, db_block_hash, diff0, re
     :return:
     """
     if block_height_new == POW_FORK - 1 :
-        diff0 = FORK_DIFF    
+        diff0 = FORK_DIFF
     if block_height_new == POW_FORK:
         diff0 = FORK_DIFF
     real_diff = diffme_heavy3(miner_address, nonce, db_block_hash)
