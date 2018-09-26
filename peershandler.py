@@ -3,16 +3,16 @@ Peers handler module for Bismuth nodes
 @EggPoolNet
 """
 
-# import json
-import time
-import re
 import os
+import re
 import sys
 import threading
+# import json
+import time
 
 import socks
 
-__version__ = "0.0.6"
+__version__ = "0.0.7"
 
 
 # TODO : some config options are _conf and others without => clean up later on
@@ -25,8 +25,10 @@ def most_common(lst):
 class Peers:
     """The peers manager. A thread safe peers manager"""
 
-    __slots__ = ('app_log','config','logstats','peersync_lock','startup_time','reset_time','warning_list','stats','connection_pool',
-                'peer_ip_list','consensus_blockheight_list','consensus_percentage','consensus','tried','peer_dict','connection_pool','peerlist','suggested_peerlist','banlist','whitelist','ban_threshold')
+    __slots__ = ('app_log','config','logstats','peersync_lock','startup_time','reset_time','warning_list','stats',
+                 'connection_pool','peer_ip_list','consensus_blockheight_list','consensus_percentage','consensus',
+                 'tried','peer_dict','peerlist','suggested_peerlist','banlist','whitelist','ban_threshold',
+                 'ip_to_mainnet')
 
     def __init__(self, app_log, config=None, logstats=True):
         self.app_log = app_log
@@ -45,6 +47,7 @@ class Peers:
         self.consensus = None
         self.tried = {}
         self.peer_dict = {}
+        self.ip_to_mainnet = {}
         self.connection_pool = []
         # We store them apart from the initial config, could diverge somehow later on.
         self.banlist = config.banlist
@@ -71,6 +74,23 @@ class Peers:
         """Returns a status as a dict"""
         status = {"version": self.config.VERSION, "stats": self.stats}
         return status
+
+    def store_mainnet(self, ip, version):
+        """Stores the mainnet version of a peer. Can't change unless reconnects"""
+        self.ip_to_mainnet[ip] = version
+
+    def forget_mainnet(self, ip):
+        """Peers disconnected, forget his mainnet version"""
+        self.ip_to_mainnet.pop(ip, None)
+
+    def version_allowed(self, ip, version_allow):
+        """
+        If we don't know the version for this ip, allow.
+        If we know, check
+        """
+        if not ip in self.ip_to_mainnet:
+            return True
+        return self.ip_to_mainnet[ip] in version_allow
 
     def peers_save(self, peerlist, peer_ip):
         """Validates then adds a peer to the peer list on disk"""
@@ -426,7 +446,7 @@ class Peers:
         """
         limit = time.time() + 12*60  # matches 2.5 tries :)
         remove = [client for client in self.tried if self.tried[client][1] > limit]
-        for client in remove: 
+        for client in remove:
             del self.tried[client]
 
     def manager_loop(self, target=None):

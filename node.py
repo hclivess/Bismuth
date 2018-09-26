@@ -6,7 +6,7 @@
 # do not isolation_level=None/WAL hdd levels, it makes saving slow
 
 
-VERSION = "4.2.6.3"  # .01 - modularize mining
+VERSION = "4.2.7.0"  # .3
 
 # Bis specific modules
 import log, options, connections, peershandler, apihandler
@@ -27,9 +27,14 @@ import mempool as mp
 import plugins
 import staking
 import mining
+import mining_heavy3
 
 # load config
 # global ban_threshold
+
+POW_FORK = 854660
+FORK_AHEAD = 5
+FORK_DIFF = 108.9
 
 
 getcontext().rounding = ROUND_HALF_EVEN
@@ -70,7 +75,12 @@ pool_conf = config.pool_conf
 ram_conf = config.ram_conf
 pool_address = config.pool_address_conf
 version = config.version_conf
+if version != 'mainnet0020':
+    version = 'mainnet0019'  # Force in code.
 version_allow = config.version_allow
+# Allow 18 for transition period. Will be auto removed at fork block.
+if "mainnnet0020" not in version_allow:
+    version_allow = ['mainnet0018', 'mainnet0019', 'mainnet0020']
 full_ledger = config.full_ledger_conf
 reveal_address = config.reveal_address
 accept_peers = config.accept_peers
@@ -96,6 +106,13 @@ global peers
 
 PEM_BEGIN = re.compile(r"\s*-----BEGIN (.*)-----\s+")
 PEM_END = re.compile(r"-----END (.*)-----\s*$")
+
+
+def limit_version():
+    global version_allow
+    if 'mainnet0018' in version_allow:
+        app_log.warning("Beginning to reject mainnet0018 - block {}".format(last_block))
+        version_allow.remove('mainnet0018')
 
 
 def tokens_rollback(height, app_log):
@@ -608,12 +625,26 @@ def difficulty(c):
     difficulty_new_adjusted = quantize_ten(diff_block_previous + diff_adjustment)
     difficulty = difficulty_new_adjusted
 
+    if block_height == POW_FORK - FORK_AHEAD:
+        limit_version()
+    if block_height == POW_FORK - 1:
+        difficulty = FORK_DIFF
+    if block_height == POW_FORK:
+        difficulty = FORK_DIFF
+        # Remove mainnet0018 from allowed
+        limit_version()
+        # disconnect our outgoing connections
+
     diff_drop_time = Decimal(180)
 
-    if Decimal(time.time()) > Decimal(timestamp_last) + Decimal(diff_drop_time):
+    if Decimal(time.time()) > Decimal(timestamp_last) + Decimal(2*diff_drop_time):
+        # Emergency diff drop
         time_difference = quantize_two(time.time()) - quantize_two(timestamp_last)
-        diff_dropped = quantize_ten(difficulty) - quantize_ten(time_difference / diff_drop_time)
-
+        diff_dropped = quantize_ten(difficulty) - quantize_ten(1) \
+                       - quantize_ten(10 * (time_difference-2 * diff_drop_time) / diff_drop_time)
+    elif Decimal(time.time()) > Decimal(timestamp_last) + Decimal(diff_drop_time):
+        time_difference = quantize_two(time.time()) - quantize_two(timestamp_last)
+        diff_dropped = quantize_ten(difficulty) + quantize_ten(1) - quantize_ten(time_difference / diff_drop_time)
     else:
         diff_dropped = difficulty
 
@@ -1117,9 +1148,14 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                     raise ValueError("Skipping digestion of block {} from {}, because we already have it on block_height {}".
                                      format(block_hash[:10], peer_ip, dummy[0]))
 
-                diff_save = mining.check_block(block_height_new, miner_address, nonce, db_block_hash, diff[0],
-                                               received_timestamp, q_received_timestamp, q_db_timestamp_last,
-                                               peer_ip=peer_ip, app_log=app_log)                  
+                if block_height_new < POW_FORK:
+                    diff_save = mining.check_block(block_height_new, miner_address, nonce, db_block_hash, diff[0],
+                                                   received_timestamp, q_received_timestamp, q_db_timestamp_last,
+                                                   peer_ip=peer_ip, app_log=app_log)
+                else:
+                    diff_save = mining_heavy3.check_block(block_height_new, miner_address, nonce, db_block_hash, diff[0],
+                                                          received_timestamp, q_received_timestamp, q_db_timestamp_last,
+                                                          peer_ip=peer_ip, app_log=app_log)
 
                 fees_block = []
                 mining_reward = 0  # avoid warning
@@ -1465,7 +1501,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         timeout_operation = 120  # timeout
         timer_operation = time.time()  # start counting
 
-        while not banned and capacity:
+        while not banned and capacity and peers.version_allowed(peer_ip, version_allow):
             try:
                 hdd2, h2 = db_h2_define()
                 conn, c = db_c_define()
@@ -1502,6 +1538,10 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     else:
                         app_log.warning("Inbound: Protocol version matched: {}".format(data))
                         connections.send(self.request, "ok")
+                        peers.store_mainnet(peer_ip, data)
+
+                elif data == 'getversion':
+                    connections.send(self.request, version)
 
                 elif data == 'mempool':
 
@@ -2431,12 +2471,27 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
             finally:
                 # cleanup
-
+                # peers.forget_mainnet(peer_ip)
                 try:
                     if conn:
                         conn.close()
                 except Exception as e:
                     app_log.info("Error closing conn {}".format(e))
+        if not peers.version_allowed(peer_ip, version_allow):
+            app_log.warning("Inbound: Closing connection to old {} node: {}"
+                            .format(peer_ip, peers.ip_to_mainnet['peer_ip']))
+
+
+def ensure_good_peer_version(peer_ip):
+    """
+    Todo: clean after HF
+    """
+    # If we are post fork, but we don't know the version, then it was an old connection, close.
+    if last_block >= POW_FORK :
+        if peer_ip not in peers.ip_to_mainnet:
+            raise ValueError("Outbound: disconnecting old node {}".format(peer_ip));
+        elif peers.ip_to_mainnet[peer_ip] not in version_allow:
+            raise ValueError("Outbound: disconnecting old node {} - {}".format(peer_ip, peers.ip_to_mainnet[peer_ip]));
 
 
 # client thread
@@ -2475,6 +2530,15 @@ def worker(HOST, PORT):
         else:
             raise ValueError("Outbound: Node protocol version of {} mismatch".format(this_client))
 
+        # If we are post pow fork, then the peer has getversion command
+        if last_block >= POW_FORK - FORK_AHEAD:
+            # Peers that are not up to date will disconnect since they don't know that command.
+            # That is precisely what we need :D
+            connections.send(s, "getversion")
+            peer_version = connections.receive(s)
+            if peer_version not in version_allow:
+                raise ValueError("Outbound: Incompatible peer version {} from {}".format(peer_version, this_client))
+
         connections.send(s, "hello")
 
         # communication starter
@@ -2484,6 +2548,8 @@ def worker(HOST, PORT):
         return  # can return here, because no lists are affected yet
 
     banned = False
+    if last_block >= POW_FORK - FORK_AHEAD:
+        peers.store_mainnet(HOST, peer_version)
     try:
         peer_ip = s.getpeername()[0]
     except:
@@ -2491,12 +2557,14 @@ def worker(HOST, PORT):
         app_log.warning("Outbound: Transport endpoint was not connected");
         return
 
-    while not banned:
+    if this_client not in peers.connection_pool:
+        peers.append_client(this_client)
+        app_log.info("Connected to {}".format(this_client))
+        app_log.info("Current active pool: {}".format(peers.connection_pool))
+
+    while not banned and peers.version_allowed(HOST, version_allow):
         try:
-            if this_client not in peers.connection_pool:
-                peers.append_client(this_client)
-                app_log.info("Connected to {}".format(this_client))
-                app_log.info("Current active pool: {}".format(peers.connection_pool))
+            ensure_good_peer_version(HOST)
 
             hdd2, h2 = db_h2_define()
             conn, c = db_c_define()
@@ -2623,6 +2691,8 @@ def worker(HOST, PORT):
                         app_log.info("Outbound: block_hash to send: {}".format(db_block_hash))
                         connections.send(s, db_block_hash)
 
+                        ensure_good_peer_version(HOST)
+
                         # consensus pool 2 (active connection)
                         consensus_blockheight = int(received_block_height)  # str int to remove leading zeros
                         peers.consensus_add(peer_ip, consensus_blockheight, s, last_block)
@@ -2664,12 +2734,15 @@ def worker(HOST, PORT):
                         block_req = peers.consensus_max
                         app_log.warning("Longest chain rule triggered")
 
+                    ensure_good_peer_version(HOST)
+
                     if int(received_block_height) >= block_req:
                         try:  # they claim to have the longest chain, things must go smooth or ban
                             app_log.warning("Confirming to sync from {}".format(peer_ip))
 
                             connections.send(s, "blockscf")
                             segments = connections.receive(s)
+                            ensure_good_peer_version(HOST)
 
                         except:
                             if peers.warning(s, peer_ip, "Failed to deliver the longest chain"):
@@ -2711,6 +2784,11 @@ def worker(HOST, PORT):
                 raise ValueError("Unexpected error, received: {}".format(str(data)[:32]))
 
         except Exception as e:
+            """
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+            print(exc_type, fname, exc_tb.tb_lineno)
+            """
             # remove from active pool
             if this_client in peers.connection_pool:
                 app_log.info("Will remove {} from active pool {}".format(this_client, peers.connection_pool))
@@ -2741,10 +2819,14 @@ def worker(HOST, PORT):
                 return
 
         finally:
+            # peers.forget_mainnet(HOST)
             try:
                 conn.close()
             except:
                 pass
+    if not peers.version_allowed(HOST, version_allow):
+        app_log.warning("Outbound: Ending thread, because {} has too old a version: {}"
+                        .format(HOST, peers.ip_to_mainnet[HOST]))
 
 
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
@@ -2754,193 +2836,200 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 if __name__ == "__main__":
     app_log = log.log("node.log", debug_level_conf, terminal_output)
     app_log.warning("Configuration settings loaded")
+    mining_heavy3.mining_open()
+    try:
+        # create a plugin manager, load all plugin modules and init
+        plugin_manager = plugins.PluginManager(app_log=app_log, init=True)
 
-    # create a plugin manager, load all plugin modules and init
-    plugin_manager = plugins.PluginManager(app_log=app_log, init=True)
+        if os.path.exists("fresh_sync"):
+            app_log.warning("Status: Fresh sync required, bootstrapping from the website")
+            os.remove("fresh_sync")
+            bootstrap()
 
-    if os.path.exists("fresh_sync"):
-        app_log.warning("Status: Fresh sync required, bootstrapping from the website")
-        os.remove("fresh_sync")
-        bootstrap()
+        if "testnet" in version:  # overwrite for testnet
+            port = 2829
+            full_ledger = 0
+            hyper_path_conf = "static/test.db"
+            ledger_path_conf = "static/test.db"  # for tokens
+            ledger_ram_file = "file:ledger_testnet?mode=memory&cache=shared"
+            hyper_recompress_conf = 0
+            peerlist = "peers_test.txt"
 
-    if "testnet" in version:  # overwrite for testnet
-        port = 2829
-        full_ledger = 0
-        hyper_path_conf = "static/test.db"
-        ledger_path_conf = "static/test.db"  # for tokens
-        ledger_ram_file = "file:ledger_testnet?mode=memory&cache=shared"
-        hyper_recompress_conf = 0
-        peerlist = "peers_test.txt"
+            redownload_test = input("Status: Welcome to the testnet. Redownload test ledger? y/n")
+            if redownload_test == "y" or not os.path.exists("static/test.db"):
+                types = ['static/test.db-wal', 'static/test.db-shm', 'static/index_test.db']
+                for type in types:
+                    for file in glob.glob(type):
+                        os.remove(file)
+                        print(file, "deleted")
+                download_file("https://bismuth.cz/test.db", "static/test.db")
+                download_file("https://bismuth.cz/index_test.db", "static/index_test.db")
+            else:
+                print("Not redownloading test db")
 
-        redownload_test = input("Status: Welcome to the testnet. Redownload test ledger? y/n")
-        if redownload_test == "y" or not os.path.exists("static/test.db"):
-            types = ['static/test.db-wal', 'static/test.db-shm', 'static/index_test.db']
-            for type in types:
-                for file in glob.glob(type):
-                    os.remove(file)
-                    print(file, "deleted")
-            download_file("https://bismuth.cz/test.db", "static/test.db")
-            download_file("https://bismuth.cz/index_test.db", "static/index_test.db")
+        # TODO : move this to peers also.
         else:
-            print("Not redownloading test db")
+            peerlist = "peers.txt"
+            ledger_ram_file = "file:ledger?mode=memory&cache=shared"
 
-    # TODO : move this to peers also.
-    else:
-        peerlist = "peers.txt"
-        ledger_ram_file = "file:ledger?mode=memory&cache=shared"
+        # UPDATE DB
 
-    # UPDATE DB
+        if "testnet" not in version:
+            upgrade = sqlite3.connect(ledger_path_conf)
+            u = upgrade.cursor()
+            try:
+                u.execute("PRAGMA table_info(transactions);")
+                result = u.fetchall()[10][2]
+                if result != "TEXT":
+                    raise ValueError("Database column type outdated for Command field")
 
-    if "testnet" not in version:
-        upgrade = sqlite3.connect(ledger_path_conf)
-        u = upgrade.cursor()
+                upgrade.close()
+
+            except Exception as e:
+                print(e)
+                upgrade.close()
+                print("Database needs upgrading, bootstrapping...")
+                bootstrap()
+        # UPDATE DB
+
+        # This one too?
+        global syncing
+        syncing = []
+
+        # import keys
+        # key = RSA.importKey(open('privkey.der').read())
+        # private_key_readable = str(key.exportKey())
+
+        essentials.keys_check(app_log, "wallet.der")
+        essentials.db_check(app_log)
+        _, public_key_readable, _, _, _, public_key_hashed, address, keyfile = essentials.keys_load("privkey.der", "pubkey.der")
+
+
+
+        app_log.warning("Status: Local address: {}".format(address))
+
+        if "testnet" in version:
+            index_db = "static/index_test.db"
+        else:
+            index_db = "static/index.db"
+
+        index, index_cursor = index_define()  # todo: remove this later
+        staking.check_db(index, index_cursor)  # todo: remove this later
+
+        check_integrity(hyper_path_conf)
+        coherence_check()
+
+        app_log.warning("Status: Indexing tokens")
+        print(ledger_path_conf)
+        tokens.tokens_update(index_db, ledger_path_conf, "normal", app_log, plugin_manager)
+        app_log.warning("Status: Indexing aliases")
+        aliases.aliases_update(index_db, ledger_path_conf, "normal", app_log)
+
+        ledger_compress(ledger_path_conf, hyper_path_conf)
+
         try:
-            u.execute("PRAGMA table_info(transactions);")
-            result = u.fetchall()[10][2]
-            if result != "TEXT":
-                raise ValueError("Database column type outdated for Command field")
+            source_db = sqlite3.connect(hyper_path_conf, timeout=1)
+            source_db.text_factory = str
+            sc = source_db.cursor()
 
-            upgrade.close()
+            sc.execute("SELECT max(block_height) FROM transactions")
+            hdd_block = sc.fetchone()[0]
+
+            last_block = hdd_block
+            if hdd_block >= POW_FORK - FORK_AHEAD:
+                limit_version()
+
+            if ram_conf:
+                app_log.warning("Status: Moving database to RAM")
+                to_ram = sqlite3.connect(ledger_ram_file, uri=True, timeout=1, isolation_level=None)
+                to_ram.text_factory = str
+                tr = to_ram.cursor()
+
+                query = "".join(line for line in source_db.iterdump())
+                to_ram.executescript(query)
+                # do not close
+                app_log.warning("Status: Moved database to RAM")
 
         except Exception as e:
-            print(e)
-            upgrade.close()
-            print("Database needs upgrading, bootstrapping...")
-            bootstrap()
-    # UPDATE DB
+            app_log.error(e)
+            raise
 
-    # This one too?
-    global syncing
-    syncing = []
-
-    # import keys
-    # key = RSA.importKey(open('privkey.der').read())
-    # private_key_readable = str(key.exportKey())
-
-    essentials.keys_check(app_log, "wallet.der")
-    essentials.db_check(app_log)
-    _, public_key_readable, _, _, _, public_key_hashed, address, keyfile = essentials.keys_load("privkey.der", "pubkey.der")
-
-
-
-    app_log.warning("Status: Local address: {}".format(address))
-
-    if "testnet" in version:
-        index_db = "static/index_test.db"
-    else:
-        index_db = "static/index.db"
-
-    index, index_cursor = index_define()  # todo: remove this later
-    staking.check_db(index, index_cursor)  # todo: remove this later
-
-    check_integrity(hyper_path_conf)
-    coherence_check()
-
-    app_log.warning("Status: Indexing tokens")
-    print(ledger_path_conf)
-    tokens.tokens_update(index_db, ledger_path_conf, "normal", app_log, plugin_manager)
-    app_log.warning("Status: Indexing aliases")
-    aliases.aliases_update(index_db, ledger_path_conf, "normal", app_log)
-
-    ledger_compress(ledger_path_conf, hyper_path_conf)
-
-    try:
-        source_db = sqlite3.connect(hyper_path_conf, timeout=1)
-        source_db.text_factory = str
-        sc = source_db.cursor()
-
-        sc.execute("SELECT max(block_height) FROM transactions")
-        hdd_block = sc.fetchone()[0]
-
-        if ram_conf:
-            app_log.warning("Status: Moving database to RAM")
-            to_ram = sqlite3.connect(ledger_ram_file, uri=True, timeout=1, isolation_level=None)
-            to_ram.text_factory = str
-            tr = to_ram.cursor()
-
-            query = "".join(line for line in source_db.iterdump())
-            to_ram.executescript(query)
-            # do not close
-            app_log.warning("Status: Moved database to RAM")
-
-    except Exception as e:
-        app_log.error(e)
-        raise
-
-    # mempool, m = db_m_define()
-    conn, c = db_c_define()
-    hdd2, h2 = db_h2_define()
-    if full_ledger:
-        hdd, h = db_h_define()
-        h3 = h
-    else:
-        hdd, h = None, None
-        h3 = h2
-
-    # init
-
-    ### LOCAL CHECKS FINISHED ###
-    app_log.warning("Status: Starting node version {}".format(VERSION))
-    global startup_time
-    startup_time = time.time()
-
-    try:
-        if "testnet" in version:
-            is_testnet = True
+        # mempool, m = db_m_define()
+        conn, c = db_c_define()
+        hdd2, h2 = db_h2_define()
+        if full_ledger:
+            hdd, h = db_h_define()
+            h3 = h
         else:
-            is_testnet = False
-        app_log.warning("Testnet: {}".format(is_testnet))
+            hdd, h = None, None
+            h3 = h2
 
-        peers = peershandler.Peers(app_log, config)
-        apihandler = apihandler.ApiHandler(app_log, config)
-        mp.MEMPOOL = mp.Mempool(app_log, config, db_lock, is_testnet)
+        # init
 
-        if rebuild_db_conf:
-            db_maintenance(conn)
-        # connectivity to self node
+        ### LOCAL CHECKS FINISHED ###
+        app_log.warning("Status: Starting node version {}".format(VERSION))
+        global startup_time
+        startup_time = time.time()
 
-        if verify_conf:
-            verify(h3)
+        try:
+            if "testnet" in version:
+                is_testnet = True
+            else:
+                is_testnet = False
+            app_log.warning("Testnet: {}".format(is_testnet))
 
-        if not tor_conf:
-            # Port 0 means to select an arbitrary unused port
-            HOST, PORT = "0.0.0.0", int(port)
+            peers = peershandler.Peers(app_log, config)
+            apihandler = apihandler.ApiHandler(app_log, config)
+            mp.MEMPOOL = mp.Mempool(app_log, config, db_lock, is_testnet)
 
-            ThreadedTCPServer.allow_reuse_address = True
-            ThreadedTCPServer.daemon_threads = True
-            ThreadedTCPServer.timeout = 60
-            ThreadedTCPServer.request_queue_size = 100
+            if rebuild_db_conf:
+                db_maintenance(conn)
+            # connectivity to self node
 
-            server = ThreadedTCPServer((HOST, PORT), ThreadedTCPRequestHandler)
-            ip, port = server.server_address
+            if verify_conf:
+                verify(h3)
 
-            # Start a thread with the server -- that thread will then start one
-            # more thread for each request
+            if not tor_conf:
+                # Port 0 means to select an arbitrary unused port
+                HOST, PORT = "0.0.0.0", int(port)
 
-            server_thread = threading.Thread(target=server.serve_forever)
+                ThreadedTCPServer.allow_reuse_address = True
+                ThreadedTCPServer.daemon_threads = True
+                ThreadedTCPServer.timeout = 60
+                ThreadedTCPServer.request_queue_size = 100
 
-            # Exit the server thread when the main thread terminates
+                server = ThreadedTCPServer((HOST, PORT), ThreadedTCPRequestHandler)
+                ip, port = server.server_address
 
-            server_thread.daemon = True
-            server_thread.start()
-            app_log.warning("Status: Server loop running.")
-        else:
-            app_log.warning("Status: Not starting a local server to conceal identity on Tor network")
+                # Start a thread with the server -- that thread will then start one
+                # more thread for each request
 
-        # start connection manager
-        t_manager = threading.Thread(target=manager(c))
-        app_log.warning("Status: Starting connection manager")
-        t_manager.daemon = True
-        t_manager.start()
-        # start connection manager
+                server_thread = threading.Thread(target=server.serve_forever)
 
-        # server.serve_forever() #added
-        server.shutdown()
-        server.server_close()
-        mp.MEMPOOL.close()
+                # Exit the server thread when the main thread terminates
+
+                server_thread.daemon = True
+                server_thread.start()
+                app_log.warning("Status: Server loop running.")
+            else:
+                app_log.warning("Status: Not starting a local server to conceal identity on Tor network")
+
+            # start connection manager
+            t_manager = threading.Thread(target=manager(c))
+            app_log.warning("Status: Starting connection manager")
+            t_manager.daemon = True
+            t_manager.start()
+            # start connection manager
+
+            # server.serve_forever() #added
+            server.shutdown()
+            server.server_close()
+            mp.MEMPOOL.close()
 
 
-    except Exception as e:
-        app_log.info("Status: Node already running?")
-        app_log.info(e)
-        raise
+        except Exception as e:
+            app_log.info("Status: Node already running?")
+            app_log.info(e)
+            raise
+    finally:
+        mining_heavy3.mining_close()
