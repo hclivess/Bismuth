@@ -2017,7 +2017,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     else:
                         app_log.info("{} not whitelisted for listlimjson command".format(peer_ip))
 
-                elif data == "listlimjson":
+                elif data == "listlim":
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):
                         list_limit = connections.receive(self.request)
@@ -2026,7 +2026,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         result = h3.fetchall()
                         connections.send(self.request, result)
                     else:
-                        app_log.info("{} not whitelisted for listlimjson command".format(peer_ip))
+                        app_log.info("{} not whitelisted for listlim command".format(peer_ip))
 
                 elif data == "addlistlim":
                     # if (peer_ip in allowed or "any" in allowed):
