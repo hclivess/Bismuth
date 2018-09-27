@@ -1220,15 +1220,12 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                     else:
                         reward = 0
 
-                    # if (q_time_now < q_received_timestamp + 432000) and not quicksync:
                     if quantize_eight(balance_pre) < quantize_eight(db_amount):
                         raise ValueError("{} sending more than owned".format(db_address))
 
                     if quantize_eight(balance) - quantize_eight(block_fees_address) < 0:
                         # exclude fee check for the mining/header tx
                         raise ValueError("{} Cannot afford to pay fees".format(db_address))
-                    # else:
-                    #    print("hyp3")
 
                     # append, but do not insert to ledger before whole block is validated, note that it takes already validated values (decimals, length)
                     app_log.info("Block: Appending transaction back to block with {} transactions in it".format(
