@@ -598,7 +598,7 @@ class Mempool:
 
                         fee = essentials.fee_calculate(mempool_openfield, mempool_operation, last_block)
 
-                        if quantize_eight(mempool_amount) > balance_pre:
+                        if quantize_eight(mempool_amount) > quantize_eight(balance_pre):
                             mempool_result.append("Mempool: Sending more than owned")
                             continue
                         if quantize_eight(balance) - quantize_eight(fee) < 0:
