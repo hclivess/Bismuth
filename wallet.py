@@ -1449,7 +1449,7 @@ def sign():
             if verifier.verify(hash, received_signature_dec):
                 messagebox.showinfo("Validation Result", "Signature valid")
             else:
-                raise
+                messagebox.showinfo("Validation Result", "Signature invalid")
         except:
             messagebox.showerror("Validation Result", "Signature invalid")
 

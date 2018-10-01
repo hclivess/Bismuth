@@ -598,7 +598,7 @@ class Mempool:
 
                         fee = essentials.fee_calculate(mempool_openfield, mempool_operation, last_block)
 
-                        if quantize_eight(mempool_amount) > quantize_eight(balance_pre): #mp amount is already included in "balance" var!
+                        if quantize_eight(mempool_amount) > quantize_eight(balance_pre): #mp amount is already included in "balance" var! also, that tx might already be in the mempool
                             mempool_result.append("Mempool: Sending more than owned")
                             continue
                         if quantize_eight(balance) - quantize_eight(fee) < 0:
