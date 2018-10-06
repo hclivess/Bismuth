@@ -56,10 +56,13 @@ else:
 conn.text_factory = str
 c = conn.cursor()
 
-s = socks.socksocket()
-s.settimeout(10)
-s.connect(("31.31.75.71", 8150))
+def connect():
+    s = socks.socksocket()
+    s.settimeout(10)
+    s.connect(("31.31.75.71", 8150))
+    return s
 
+s = connect()
 connections.send (s, "balanceget", 10)
 connections.send (s, address, 10)  # change address here to view other people's transactions
 stats_account = connections.receive (s, 10)
@@ -153,11 +156,18 @@ else:
         else:
             tx_submit = (str (timestamp), str (address), str (recipient_input), '%.8f' % float (amount_input), str (signature_enc.decode ("utf-8")), str (public_key_hashed.decode("utf-8")), str (operation_input), str (openfield_input))
             while True:
-                connections.send (s, "mpinsert", 10)
-                connections.send (s, tx_submit, 10)
-                reply = connections.receive (s, 10)
-                print ("Client: {}".format (reply))
-                break
+                try:
+                    connections.send (s, "mpinsert", 10)
+                    connections.send (s, tx_submit, 10)
+                    reply = connections.receive (s, 10)
+                    print ("Client: {}".format (reply))
+                    break
+
+                except:
+                    print("A problem occurred, retrying")
+                    s = connect()
+                    time.sleep(4)
+                    pass
     else:
         print("Invalid signature")
         # enter transaction end
