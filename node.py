@@ -79,7 +79,7 @@ if version != 'mainnet0020':
     version = 'mainnet0019'  # Force in code.
 version_allow = config.version_allow
 # Allow 18 for transition period. Will be auto removed at fork block.
-if "mainnnet0020" not in version_allow:
+if "mainnet0020" not in version_allow:
     version_allow = ['mainnet0018', 'mainnet0019', 'mainnet0020']
 full_ledger = config.full_ledger_conf
 reveal_address = config.reveal_address
