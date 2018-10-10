@@ -1192,7 +1192,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
 
                     # if (q_time_now < q_received_timestamp + 432000) and not quicksync:
                     # balance_pre = quantize_eight(credit_ledger - debit_ledger - fees + rewards)  # without projection
-                    balance_pre = ledger_balance3(db_address, h2, balances)
+                    balance_pre = ledger_balance3(db_address, c, balances)
                     # balance = quantize_eight(credit - debit - fees + rewards)
                     balance = quantize_eight(balance_pre - block_debit_address)
                     # app_log.info("Digest: Projected transaction address balance: " + str(balance))
