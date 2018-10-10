@@ -1,3 +1,8 @@
+# c = hyperblock in ram OR hyperblock file when running only hyperblocks
+# h = ledger file
+# h2 = hyperblock file
+# h3 = ledger file OR hyperblock file when running only hyperblocks
+
 # never remove the str() conversion in data evaluation or database inserts or you will debug for 14 days as signed types mismatch
 # if you raise in the server thread, the server will die and node will stop
 # never use codecs, they are bugged and do not provide proper serialization
