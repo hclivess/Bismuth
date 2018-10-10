@@ -1193,6 +1193,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                     # if (q_time_now < q_received_timestamp + 432000) and not quicksync:
                     # balance_pre = quantize_eight(credit_ledger - debit_ledger - fees + rewards)  # without projection
                     balance_pre = ledger_balance3(db_address, c, balances) #todo investigation, changing to h2 causes issues with overspending detection
+
                     # balance = quantize_eight(credit - debit - fees + rewards)
                     balance = quantize_eight(balance_pre - block_debit_address)
                     # app_log.info("Digest: Projected transaction address balance: " + str(balance))
@@ -1221,7 +1222,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                         reward = 0
 
                     if quantize_eight(balance_pre) < quantize_eight(db_amount):
-                        raise ValueError("{} sending more than owned".format(db_address))
+                        raise ValueError("{} sending more than owned: {}/{}".format(db_address, db_amount, balance_pre))
 
                     if quantize_eight(balance) - quantize_eight(block_fees_address) < 0:
                         # exclude fee check for the mining/header tx
@@ -1304,7 +1305,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                 app_log.warning(
                     "Valid block: {}: {} digestion from {} completed in {}s.".format(block_height_new, block_hash[:10],
                                                                                      peer_ip,
-                                                                                     time.time() - float(q_time_now)))
+                                                                                     str(time.time() - float(q_time_now))[:5]))
 
                 del block_transactions[:]
                 peers.unban(peer_ip)
@@ -2910,8 +2911,8 @@ if __name__ == "__main__":
         else:
             index_db = "static/index.db"
 
-        index, index_cursor = index_define()  # todo: remove this later
-        staking.check_db(index, index_cursor)  # todo: remove this later
+        #index, index_cursor = index_define()  # todo: remove this later
+        #staking.check_db(index, index_cursor)  # todo: remove this later
 
         check_integrity(hyper_path_conf)
         coherence_check()
