@@ -3,7 +3,7 @@
 # icons created using http://www.winterdrache.de/freeware/png2ico/
 
 import sqlite3
-import pyqrcode, os, hashlib, time, base64, connections, icons, log, socks, ast, options, tarfile, glob, essentials, re, platform, lwbench
+import os, hashlib, time, base64, connections, icons, log, socks, ast, options, tarfile, glob, essentials, re, platform, lwbench
 from tokensv2 import *
 from decimal import *
 from bisurl import *
@@ -14,7 +14,7 @@ import recovery
 from essentials import fee_calculate
 
 """nuitka
-import PIL.Image, PIL.ImageTk
+import PIL.Image, PIL.ImageTk, pyqrcode
 import matplotlib
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 matplotlib.use('TkAgg')
@@ -894,7 +894,6 @@ def refresh_auto():
 
 
 def stats():
-
     """nuitka
 
     stats_window = Toplevel()
@@ -1547,11 +1546,12 @@ root = Tk()
 
 root.wm_title("Bismuth Light Wallet")
 # root.geometry("1310x700") #You want the size of the app to be 500x500
-root.resizable(0, 0)  # Don't allow resizing in the x or y direction / resize
+
 # root['bg']="black"
 
 
 """nuitka
+root.resizable(0, 0)  # Don't allow resizing in the x or y direction / resize #nuitka
 img_icon = PIL.Image.open("graphics/icon.jpg") #nuitka
 photo_icon = PIL.ImageTk.PhotoImage(img_icon) #nuitka
 root.tk.call('wm', 'iconphoto', root._w, photo_icon, ) #nuitka
