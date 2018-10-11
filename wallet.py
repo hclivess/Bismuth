@@ -3,7 +3,7 @@
 # icons created using http://www.winterdrache.de/freeware/png2ico/
 
 import sqlite3
-import PIL.Image, PIL.ImageTk, pyqrcode, os, hashlib, time, base64, connections, icons, log, socks, ast, options, tarfile, glob, essentials, re, platform, lwbench
+import pyqrcode, os, hashlib, time, base64, connections, icons, log, socks, ast, options, tarfile, glob, essentials, re, platform, lwbench
 from tokensv2 import *
 from decimal import *
 from bisurl import *
@@ -13,13 +13,13 @@ import glob
 import recovery
 from essentials import fee_calculate
 
+"""nuitka
+import PIL.Image, PIL.ImageTk
 import matplotlib
-
-matplotlib.use('TkAgg')
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
-from matplotlib.figure import Figure
-from random import shuffle
-
+matplotlib.use('TkAgg')
+from matplotlib.figure import Figure3
+"""
 # import keys
 
 # globalize
@@ -725,6 +725,7 @@ def send(amount_input, recipient_input, operation_input, openfield_input):
 
 
 def qr(address):
+    """nuitka
     address_qr = pyqrcode.create(address)
     address_qr.png('address_qr.png')
 
@@ -745,6 +746,7 @@ def qr(address):
     button = Button(top, text="Dismiss", command=top.destroy)
     button.pack()
     # popup
+    """
 
 
 def msg_dialogue(address):
@@ -892,19 +894,12 @@ def refresh_auto():
 
 
 def stats():
+
+    """nuitka
+
     stats_window = Toplevel()
     stats_window.title("Node Statistics")
     stats_window.resizable(0, 0)
-
-    # canvas_stats_bg = Canvas (root, highlightthickness=0)
-    # canvas_stats_bg.grid (row=0, column=0, rowspan=200, columnspan=200, sticky=W + E + S + N)
-
-    # stats_window.update ()
-    # width_stats = stats_window.winfo_width ()
-    # height_stats = stats_window.winfo_height ()
-
-    # img_stats_bg = PhotoImage (file="graphics/brushed.png")
-    # canvas_bg.create_image (width_stats, height_stats, image=img_stats_bg)
 
     frame_chart = Frame(stats_window, height=100, width=100)
     frame_chart.grid(row=0, column=1, rowspan=999)
@@ -1082,7 +1077,7 @@ def stats():
             print("Statistics window closed, disabling auto-refresh ({})".format(e))
 
     refresh_stats_auto()
-
+    """
 
 def csv_export(s):
     connections.send(s, "addlist", 10)  # senders
@@ -1556,9 +1551,11 @@ root.resizable(0, 0)  # Don't allow resizing in the x or y direction / resize
 # root['bg']="black"
 
 
-img_icon = PIL.Image.open("graphics/icon.jpg")
-photo_icon = PIL.ImageTk.PhotoImage(img_icon)
-root.tk.call('wm', 'iconphoto', root._w, photo_icon, )
+"""nuitka
+img_icon = PIL.Image.open("graphics/icon.jpg") #nuitka
+photo_icon = PIL.ImageTk.PhotoImage(img_icon) #nuitka
+root.tk.call('wm', 'iconphoto', root._w, photo_icon, ) #nuitka
+"""
 
 if gui_scaling == "adapt":
     dpi_value = root.winfo_fpixels('1i')
@@ -1570,9 +1567,6 @@ elif gui_scaling != "default":
 password_var_enc = StringVar()
 password_var_con = StringVar()
 password_var_dec = StringVar()
-
-# canvas_bg = Canvas(root,highlightthickness=0)
-# canvas_bg.grid(row=0, column=0, rowspan=200,columnspan=200,sticky=W + E + S + N)
 
 frame_bottom = Frame(root, relief='sunken', borderwidth=1)
 frame_bottom.grid(row=5, column=0, sticky='NESW', pady=5, padx=5)
@@ -1672,14 +1666,8 @@ def click_on_tab_tokens(event):
 
 nbtabs.bind('<<NotebookTabChanged>>', click_on_tab_tokens)
 
-# tab_statistics statistics
-# tab_statistics = ttk.Frame(nbtabs)
-# nbtabs.add(tab_statistics, text='Statistics')
-
-
 # frames
 # menu
-
 
 # canvas
 menubar = Menu(root)
@@ -1704,6 +1692,8 @@ messagemenu.add_command(label="Sign Messages", command=sign)
 
 
 def themes(theme):
+    """nuitka
+
     # global photo_bg, photo_main
     global photo_main
 
@@ -1725,6 +1715,7 @@ def themes(theme):
 
     with open("theme", "w") as theme_file:
         theme_file.write(theme)
+    """
 
 
 if not os.path.exists("theme"):
@@ -2024,13 +2015,13 @@ balance_enumerator = Entry(frame_entries, width=5)
 # logo_hash_decoded = base64.b64decode(icons.logo_hash)
 # logo = PhotoImage(data="graphics/logo.png")
 
-
+"""nuitka
 logo_img = PIL.Image.open("graphics/logo.png")
 logo = PIL.ImageTk.PhotoImage(logo_img)
 
 Label(frame_logo, image=logo).grid(column=0, row=0)
 # logo
-
+"""
 node_connect()
 refresh_auto()
 
