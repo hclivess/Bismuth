@@ -14,8 +14,8 @@ Extract the latest announce and version from the chain.
 Non documented, probably outdated.
 
 ## apihandler.py (*module*)
-Class to handle extra API commands, that are not part of the code nodes protocol.  
-Used by Json-RPC serverand other third party interaction.  
+Class to handle extra API commands, that are not part of the core nodes protocol.  
+Used by Json-RPC server and other third party interaction.  
 Prefered entry point for adding new generic features.
 
 ## apidirs.py (*module*)
@@ -25,7 +25,7 @@ To be used by GUI wallet.  Finds local user storage location.
 Non documented arches client.
 
 ## async_client.py (*module*)
-Async TCP Client class for use by asyncio Bismuth Wallet orother async clients.
+Async TCP Client class for use by asyncio Bismuth Wallet or other async clients.
 
 ## balance_nogui.py (*script*)
 Get balance from the command line.  
@@ -46,7 +46,7 @@ Exchanges could use this feature to give each user a bis url for deposit. The bi
 Outdated block time calculator. Do not use.
 
 ## check_tx.py  (*script*)
-A Demo script that takes a transaction id as input, and sends back a json with it's status.  
+A Demo script that takes a transaction id as input, and sends back a json with is status.  
 Comes with a doc https://github.com/hclivess/Bismuth/blob/master/check_tx.md
 
 ## commands.py  (*script*)
