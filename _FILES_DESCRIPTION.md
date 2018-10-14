@@ -2,7 +2,7 @@
 
 This repo will likely go through some refactoring, but in the mean time here is an alphabetic list of all .py files of the main dir, so you know where to look.
 
-Each file maybe a *module* (library of functions, to be included byt not run) or a *script* (to be run)
+Each file maybe a *module* (library of functions, to be included but not run) or a *script* (to be run)
 
 ## aliases.py (*module*)
 Handles the aliases index (ie: labels for bismuth addresses)
