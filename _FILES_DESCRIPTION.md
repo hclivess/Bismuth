@@ -141,6 +141,76 @@ Config helper. Beware: imported as "config" in the node.
 Peers handler class.
 
 ## plugins.py (*module*)
+Plugin manager class for nodes. See the plugins repo for usage and sample plugins.
 
+## poolware_dappie (*script*)
+Unmaintained pool interface. Do not use.
 
+## poolware_explorer (*script*)
+Unmaintained pool interface. Do not use.
 
+## probability_analyzer.py  (*script*)
+One time script to analyse the outcome of the casino.
+
+## process_search.py (*module*)
+Helper to test for a process presence.
+
+## quantizer.py (*module*)
+Helpers. Workaround for float rounding.
+
+## recovery.py (*module*)
+Helper. Recovers pubkey and address from privkey alone.
+
+## rewards_reindex.py  (*script*)
+System script to reindex dev rewards. Do not use.
+
+## rewards_test.py  (*script*)
+Test. Do not use.
+
+## rollback.py (*module*)
+Helper. rollbacks indexs on block rollback.
+
+## send_nogui.py  (*script*)
+Command line script to send a transaction.  
+Can be used as base for automated payment scripts.  
+Does **not** send anything sensitive to the node.
+
+## send_nogui_noconf.py  (*script*)
+As send_nogui.py, without confirmation.
+
+## simplecrypt.py (*module*)
+Helper. Handles wallet encryption/decryption with password.
+
+## staking.py (*module*)
+Helper. Proof of concept for offline staking.
+
+## tokensv2.py (*module*)
+Tokens functions.
+
+## twitterizer.py  (*script*)
+App: reward users who register their bismuth tweets.
+
+## vanity.py  (*script*)
+Try to generate addresses with specific chars in it.  
+Concept only, do not use for real world use without prior testing that the wallet works.
+
+## wallet.py  (*script*)
+Current GUI Wallet.
+
+## wallet_async.py  (*script*)
+Proof of concept asyncio GUI wallet.
+
+## wallet_async_old.py  (*script*)
+outdated
+
+## wallet_old.py  (*script*)
+outdated
+
+## wallet_recovery_tool.py  (*script*)
+Util. Tries to recover a wallet from privkey.
+
+## zircodice_dappie.py  (*script*)
+Dapp part of the zircodice casino.
+
+## zircodice_web.py  (*script*)
+Web part of the zircodice casino.
