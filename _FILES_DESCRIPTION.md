@@ -45,6 +45,65 @@ Exchanges could use this feature to give each user a bis url for deposit. The bi
 ## block_time_calc.py  (*script*)
 Outdated block time calculator. Do not use.
 
+## check_tx.py  (*script*)
+A Demo script that takes a transaction id as input, and sends back a json with it's status.  
+Comes with a doc https://github.com/hclivess/Bismuth/blob/master/check_tx.md
+
+## commands.py  (*script*)
+Command line interface to node commands. Undocumented.  
+Rather refer to the dedicated API repo. 
+
+## commands_new_not_working.py  (*script*)
+Undocumented WIP.
+
+## connections.py (*module*)
+Low level protocol functions, header + json over raw socket.  
+Len of payload, decimal, on 10 chars, followed by json encoded data. See API repo.
+
+## db.py (*module*)
+Database helpers - sqlite.
+
+## dbhandler.py (*module*)
+Outdated WIP
+
+## decryptor.py (*script*)
+Decrypt an encrypted wallet.  
+Only privkey is encrypted in an encrypted wallet. Address and pubkey stay in clear format.
+
+## demo_txsend.py (*script*)
+**!!Do not use unless you know what you do!!**. 
+Assemble and sends a transaction to be signed and sent by a node.
+**sends the privkey to the node**
+
+## difficulty_calculator.py (*script*)
+Undocumented 
+
+## essentials.py (*module*)
+Common helpers. Some DB related, mainly crypto helpers.
+
+## exchange.py (*script*)
+Old helper script for use by exchanges, to be used with a local node only.  
+**sends privkey to the node**
+
+## genesis.py (*script*)
+Do not use.  
+Helper script to create a new genesis block, from an empty chain.
+
+## hmac_drbg.py (*module*)
+HMAC_DRBG (sha512) helper class, used by the "heavy3" PoW algorithm.
+
+## html_dappie.py (*script*)
+Undocumented
+
+
+
+
+
+
+
+
+
+
 
 
 
