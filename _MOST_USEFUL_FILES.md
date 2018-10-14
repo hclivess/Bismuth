@@ -7,7 +7,7 @@ See also full list of files: https://github.com/EggPool/Bismuth/blob/patch-51/_F
 ## node.py
 The Bismuth node itself.
 
-## wallet.py
+## wallet.py
 GUI wallet, cross O.S.  
 Connects to a local node if there is one, or to an online wallet server.
 
@@ -47,11 +47,12 @@ Dapp part of the zircodice casino.
 ## zircodice_web.py  (*script*)
 Web part of the zircodice casino.
 
-# See also
+# See also
 
-## Bismuth Core API
+## Bismuth Core API
 
 https://github.com/EggPool/BismuthAPI
 
-## Bismuth plugins
+## Bismuth plugins
 https://github.com/bismuthfoundation/BismuthPlugins
+
