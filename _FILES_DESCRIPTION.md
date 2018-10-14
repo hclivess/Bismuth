@@ -95,15 +95,52 @@ HMAC_DRBG (sha512) helper class, used by the "heavy3" PoW algorithm.
 ## html_dappie.py (*script*)
 Undocumented
 
+## hyper_test.py (*script*)
+Test. Recompress the ledger into hyperblocks.
 
+## icons.py (*module*)
+Undocumented
 
+## keygen.py (*script*)
+Sample script to generate a new address.
 
+## keys.py (*module*)
+Helpers to generate and read wallet.der (privkey, pubkey, address)
 
+## ledger_explorer.py (*script*)
+Early version of a block explorer. Not maintained.
 
+## legacy_gui.py (*script*)
+Early version of a wallet. Not maintained.
 
+## log.py (*module*)
+Logging - console, file - helpers.
 
+## lwbench.py (*module*) (wallet)
+Benchmark Helper for wallet.
 
+## mempool.py (*module*)
+Mempool module for Bismuth nodes
 
+## miner.py (*script*)
+Legacy miner. Not maintained, not "heavy3" compatible.
+
+## mining.py (*module*)
+Legacy mining algo: block validity check.
+
+## mining_heavy3.py (*module*)
+Heavy3 mining algo: block validity check.
+
+## node.py (*script*)
+Main script to run a bismuth node.
+
+## options.py (*module*)
+Config helper. Beware: imported as "config" in the node.
+
+## peershandler.py (*module*)
+Peers handler class.
+
+## plugins.py (*module*)
 
 
 
