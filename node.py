@@ -953,6 +953,9 @@ def manager(c):
         plugin_manager.execute_action_hook('status', status)
         # end status hook
 
+        if peerlist: #if it is not empty
+            peers.peers_dump(peerlist, peers.peer_dict)
+
         # app_log.info(threading.enumerate() all threads)
         time.sleep(30)
 

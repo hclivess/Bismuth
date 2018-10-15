@@ -59,7 +59,9 @@ c = conn.cursor()
 def connect():
     s = socks.socksocket()
     s.settimeout(10)
-    s.connect(("31.31.75.71", 8150))
+    #s.connect(("31.31.75.71", 8150))
+    s.connect(("127.0.0.1", 5658))
+    print("A problem occurred, retrying")
     return s
 
 s = connect()
@@ -161,12 +163,14 @@ else:
                     connections.send (s, tx_submit, 10)
                     reply = connections.receive (s, 10)
                     print ("Client: {}".format (reply))
-                    break
+                    if reply != "*": #response can be empty due to different timeout setting
+                        break
+                    else:
+                        print("Connection cut, retrying")
 
-                except:
-                    print("A problem occurred, retrying")
+                except Exception as e:
+                    print("A problem occurred: {}, retrying".format(e))
                     s = connect()
-                    time.sleep(4)
                     pass
     else:
         print("Invalid signature")

@@ -27,8 +27,8 @@ class Peers:
 
     __slots__ = ('app_log','config','logstats','peersync_lock','startup_time','reset_time','warning_list','stats',
                  'connection_pool','peer_ip_list','consensus_blockheight_list','consensus_percentage','consensus',
-                 'tried','peer_dict','peerlist','suggested_peerlist','banlist','whitelist','ban_threshold',
-                 'ip_to_mainnet')
+                 'tried','peer_dict','peerfile','suggested_peerfile','banlist','whitelist','ban_threshold',
+                 'ip_to_mainnet', 'peers')
 
     def __init__(self, app_log, config=None, logstats=True):
         self.app_log = app_log
@@ -54,16 +54,17 @@ class Peers:
         self.whitelist = config.whitelist
         self.ban_threshold = config.ban_threshold
 
-        self.peerlist = "peers.txt"
-        self.suggested_peerlist = "suggested_peers.txt"
+        self.peerfile = "peers.txt"
+        self.suggested_peerfile = "suggested_peers.txt"
+        
         if self.is_testnet:  # overwrite for testnet
-            self.peerlist = "peers_test.txt"
-            self.suggested_peerlist = "suggested_peers_test.txt"
+            self.peerfile = "peers_test.txt"
+            self.suggested_peerfile = "suggested_peers_test.txt"
 
         # From manager(), init
-        self.peer_dict.update(self.peers_get(self.peerlist))
-        self.peers_test(self.peerlist)
-        self.peers_test(self.suggested_peerlist)
+        self.peer_dict.update(self.peers_get(self.peerfile))
+        self.peers_test(self.peerfile)
+        self.peers_test(self.suggested_peerfile)
 
     @property
     def is_testnet(self):
@@ -92,39 +93,47 @@ class Peers:
             return True
         return self.ip_to_mainnet[ip] in version_allow
 
-    def peers_save(self, peerlist, peer_ip):
+    def peers_save(self, file, peer_ip):
+        """peers saved to memory, file var unused"""
+        self.peer_dict[peer_ip] = self.config.port
+
+
+    def peers_dump(self, file, peerlist):
         """Validates then adds a peer to the peer list on disk"""
         # called by Sync, should not be an issue, but check if needs to be thread safe or not.
-        with open (peerlist, "r") as peer_file:
+        with open (file, "r") as peer_file:
             peer_tuples = []
             for line in peer_file:
                 extension = re.findall("'([\d\.]+)', '([\d]+)'", line)
                 peer_tuples.extend(extension)
 
-        peer_tuple = ("('" + peer_ip + "', '" + str(self.config.port) + "')")
+        for key in peerlist:
+            peer_ip = key
 
-        try:
-            if peer_tuple not in str(peer_tuples):
-                self.app_log.warning("Testing connectivity to: {}".format(peer_ip))
-                peer_test = socks.socksocket()
-                if self.config.tor_conf == 1:
-                    peer_test.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                peer_test.connect((str(peer_ip), int(self.config.port)))  # double parentheses mean tuple
-                self.app_log.info("Inbound: Distant peer connectible")
+            peer_tuple = ("('" + peer_ip + "', '" + str(self.config.port) + "')")
 
-                # properly end the connection
-                peer_test.close()
-                # properly end the connection
+            try:
+                if peer_tuple not in str(peer_tuples):
+                    self.app_log.warning("Testing connectivity to: {}".format(peer_ip))
+                    peer_test = socks.socksocket()
+                    if self.config.tor_conf == 1:
+                        peer_test.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+                    peer_test.connect((str(peer_ip), int(self.config.port)))  # double parentheses mean tuple
+                    self.app_log.info("Inbound: Distant peer connectible")
 
-                with open (peerlist, "a") as peer_list_file:
-                    peer_list_file.write((peer_tuple) + "\n")
-                    self.app_log.info("Inbound: Distant peer saved to peer list")
+                    # properly end the connection
+                    peer_test.close()
+                    # properly end the connection
 
-            else:
-                self.app_log.info("Distant peer already in peer list")
-        except:
-            self.app_log.info("Inbound: Distant peer not connectible")
-            pass
+                    with open (file, "a") as peer_list_file:
+                        peer_list_file.write((peer_tuple) + "\n")
+                        self.app_log.info("Inbound: Distant peer saved to peer list")
+
+                else:
+                    self.app_log.info("Distant peer already in peer list")
+            except:
+                self.app_log.info("Inbound: Distant peer not connectible")
+                pass
 
     def append_client(self, client):
         """
@@ -163,26 +172,26 @@ class Peers:
             else:
                 return False
 
-    def peers_get(self, peerlist):
-        """Returns a peerlist from disk as a dict {ip:port}"""
+    def peers_get(self, peerfile):
+        """Returns a peerfile from disk as a dict {ip:port}"""
         peer_dict = {}
-        if not os.path.exists(peerlist):
-            with open (peerlist, "a"):
+        if not os.path.exists(peerfile):
+            with open (peerfile, "a"):
                 self.app_log.warning ("Peer file created")
 
-        with open(peerlist, "r") as f:
+        with open(peerfile, "r") as f:
             for line in f:
                 try:
                     line = re.sub("[\)\(\:\\n\'\s]", "", line)
                     peer_dict[line.split(",")[0]] = line.split(",")[1]
                 except Exception as e:
-                    self.app_log.warning("Skipping peerlist entry because of wrong format: {}".format(line))
+                    self.app_log.warning("Skipping peerfile entry because of wrong format: {}".format(line))
         return peer_dict
 
-    def peer_list(self, peerlist):
-        """Returns a peerlist as is, simple text format"""
+    def peer_list(self, peerfile):
+        """Returns a peerfile as is, simple text format"""
         # TODO: caching and format to handle here
-        with open(peerlist, "r") as peer_list:
+        with open(peerfile, "r") as peer_list:
             peers = peer_list.read()
         return peers
 
@@ -223,14 +232,14 @@ class Peers:
     def is_banned(self, peer_ip):
         return peer_ip in self.banlist
 
-    def peers_test(self, peerlist):
+    def peers_test(self, peerfile):
         """Tests all peers from a list."""
         # TODO: lengthy, no need to test everyone at once?
         if not self.peersync_lock.locked() and self.config.accept_peers:
             self.peersync_lock.acquire()
 
             drop_peer_dict = []
-            peer_dict = self.peers_get(peerlist)
+            peer_dict = self.peers_get(peerfile)
 
             for key, value in peer_dict.items():
                 host, port = key, int(value)
@@ -245,12 +254,12 @@ class Peers:
                     self.app_log.info("Connection to {} {} successful, keeping the peer".format(host, port))
                 except:
                     if self.config.purge_conf == 1 and not self.is_testnet:
-                        # remove from peerlist if not connectible
+                        # remove from peerfile if not connectible
                         drop_peer_dict.append(key)
                         self.app_log.info("Removed formerly active peer {} {}".format(host, port))
                     pass
 
-            with open (peerlist, "w") as output:
+            with open (peerfile, "w") as output:
                 for key, value in peer_dict.items():
                     if key not in drop_peer_dict:
                         output.write("('" + key + "', '" + value + "')\n")
@@ -268,7 +277,7 @@ class Peers:
             # get remote peers into tuples (actually list)
 
             # get local peers into tuples
-            with open (self.peerlist, "r") as peer_file:
+            with open (self.peerfile, "r") as peer_file:
                 peer_tuples = []
                 for line in peer_file:
                     extension = re.findall("'([\d\.]+)', '([\d]+)'", line)
@@ -290,9 +299,9 @@ class Peers:
 
                         peer_formatted = "('" + x[0] + "', '" + x[1] + "')"
 
-                        with open(self.suggested_peerlist) as peers_existing:
+                        with open(self.suggested_peerfile) as peers_existing:
                             if peer_formatted not in peers_existing.read():
-                                with open (self.suggested_peerlist, "a") as peer_list_file:
+                                with open (self.suggested_peerfile, "a") as peer_list_file:
                                     peer_list_file.write(peer_formatted+"\n")
                     except:
                         pass
@@ -467,12 +476,12 @@ class Peers:
 
         # TODO: 15 s after start is too short for all peers to have been tested, rework needed.
         if int(time.time() - self.startup_time) > 15:  # refreshes peers from drive
-            self.peer_dict.update(self.peers_get(self.peerlist))
+            self.peer_dict.update(self.peers_get(self.peerfile))
 
         if len(self.consensus_blockheight_list) < 3 and int(time.time() - self.startup_time) > 15:
             # join in random peers after x seconds
             self.app_log.warning("Not enough peers in consensus, joining in peers suggested by other nodes")
-            self.peer_dict.update(self.peers_get(self.suggested_peerlist))
+            self.peer_dict.update(self.peers_get(self.suggested_peerfile))
 
         if len(self.connection_pool) < self.config.nodes_ban_reset and int(time.time() - self.startup_time) > 15:
             # do not reset before 30 secs have passed
