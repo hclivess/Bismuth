@@ -15,7 +15,7 @@ import os, sys
 #import math
 import mempool as mp
 
-__version__ = "0.0.4"
+__version__ = "0.0.5"
 
 
 class ApiHandler:
@@ -254,6 +254,41 @@ class ApiHandler:
         except Exception as e:
             print(e)
             raise
+            
+    def api_getaddresssince(self, socket_handler, ledger_db, peers):
+        """
+        Returns the full transactions following a given block_height (will not include the given height) for the given address, with at least min_confirmations confirmations,
+        as well as last considered block.
+        Returns at most transactions from 720 blocks at a time (the most *older* ones if it truncates) so about 12 hours worth of data.
+
+        :param socket_handler:
+        :param ledger_db:
+        :param peers:
+        :return:
+        """
+        info = []
+        # get the last known block
+        since_height = int(connections.receive(socket_handler))
+        min_confirmations = int(connections.receive(socket_handler))
+        address = str(connections.receive(socket_handler))
+        print('api_getaddresssince', since_height, min_confirmations, address)
+        try:
+            try:
+                dbhandler.execute(self.app_log, ledger_db, "SELECT MAX(block_height) FROM transactions")
+                # what is the max block height to consider ?
+                block_height = min(ledger_db.fetchone()[0] - min_confirmations, since_height+720)
+                dbhandler.execute_param(self.app_log, ledger_db,
+                                        ('SELECT * FROM transactions WHERE block_height > ? AND block_height <= ? '
+                                         'AND ((address = ?) OR (recipient = ?)) ORDER BY block_height ASC'),
+                                        (since_height, block_height, address, address))
+                info = ledger_db.fetchall()
+            except Exception as e:
+                print("Exception api_getaddresssince:".format(e))
+                raise
+            connections.send(socket_handler, {'last': block_height, 'minconf': min_confirmations, 'transactions': info})
+        except Exception as e:
+            print(e)
+            raise       
 
     def _get_balance(self, ledger_db, address, minconf=1):
         """
