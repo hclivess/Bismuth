@@ -11,7 +11,7 @@
 # do not isolation_level=None/WAL hdd levels, it makes saving slow
 
 
-VERSION = "4.2.7.0"  # .3
+VERSION = "4.2.8"  # 0. Alpha for port-fork cleanup - Do not release yet
 
 # Bis specific modules
 import log, options, connections, peershandler, apihandler
@@ -41,12 +41,15 @@ POW_FORK = 854660
 FORK_AHEAD = 5
 FORK_DIFF = 108.9
 
-
 getcontext().rounding = ROUND_HALF_EVEN
 
-global hdd_block
-global last_block
+hdd_block = 0
 last_block = 0
+is_testnet = False
+# regnet takes over testnet
+is_regnet = False
+# if it's not testnet, nor regnet, it's mainnet
+is_mainnet = True
 
 dl_lock = threading.Lock()
 db_lock = threading.Lock()
@@ -1583,7 +1586,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "hello":
 
                     connections.send(self.request, "peers")
-                    connections.send(self.request, peers.peer_list(peerlist)) #INCOMPATIBLE WITH THE OLD WAY
+                    connections.send(self.request, peers.peer_list_old_format()) #INCOMPATIBLE WITH THE OLD WAY
 
                     while db_lock.locked():
                         time.sleep(quantize_two(pause_conf))
@@ -2347,7 +2350,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                         # with open(peerlist, "r") as peer_list:
                         #    peers_file = peer_list.read()
-                        connections.send(self.request, peers.peer_list(peerlist))
+                        connections.send(self.request, peers.peer_list_disk_format())
 
                     else:
                         app_log.info("{} not whitelisted for peersget command".format(peer_ip))
@@ -2843,98 +2846,108 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     pass
 
 
-if __name__ == "__main__":
-    app_log = log.log("node.log", debug_level_conf, terminal_output)
-    app_log.warning("Configuration settings loaded")
-    mining_heavy3.mining_open()
-    try:
-        # create a plugin manager, load all plugin modules and init
-        plugin_manager = plugins.PluginManager(app_log=app_log, init=True)
+def setup_net_type():
+    """
+    Adjust globals depending on mainnet, testnet or regnet
+    """
+    global is_testnet, is_regnet, is_mainnet
+    global port, full_ledger, hyper_recompress_conf
+    global hyper_path_conf, ledger_path_conf, ledger_ram_file
+    global peerlist, index_db
 
-        if os.path.exists("fresh_sync"):
-            app_log.warning("Status: Fresh sync required, bootstrapping from the website")
-            os.remove("fresh_sync")
+    # Defaults value, dup'd here for clarity sake.
+    is_mainnet = True
+    is_testnet = False
+    is_regnet = False
+
+    if "testnet" in version or config.testnet:
+        is_testnet = True
+        is_mainnet = False
+
+    if "regnet" in version or config.regnet:
+        is_regnet = True
+        is_testnet = False
+        is_mainnet = False
+
+    app_log.warning("Testnet: {}".format(is_testnet))
+    app_log.warning("Regnet : {}".format(is_regnet))
+
+    # default mainnet config
+    peerlist = "peers.txt"
+    ledger_ram_file = "file:ledger?mode=memory&cache=shared"
+    index_db = "static/index.db"
+
+    if is_testnet:
+        port = 2829
+        full_ledger = False
+        hyper_path_conf = "static/test.db"
+        ledger_path_conf = "static/test.db"  # for tokens
+        ledger_ram_file = "file:ledger_testnet?mode=memory&cache=shared"
+        hyper_recompress_conf = False
+        peerlist = "peers_test.txt"
+        index_db = "static/index_test.db"
+
+        redownload_test = input("Status: Welcome to the testnet. Redownload test ledger? y/n")
+        if redownload_test == "y" or not os.path.exists("static/test.db"):
+            types = ['static/test.db-wal', 'static/test.db-shm', 'static/index_test.db']
+            for type in types:
+                for file in glob.glob(type):
+                    os.remove(file)
+                    print(file, "deleted")
+            download_file("https://bismuth.cz/test.db", "static/test.db")
+            download_file("https://bismuth.cz/index_test.db", "static/index_test.db")
+        else:
+            print("Not redownloading test db")
+
+    if is_regnet:
+        port = 3030
+        hyper_path_conf = "static/regmode.db"
+        ledger_path_conf = "static/regmode.db"  # for tokens
+        ledger_ram_file = "file:ledger_regnet?mode=memory&cache=shared"
+        hyper_recompress_conf = False
+        peerlist = "peers_reg.txt"
+        index_db = "static/index_reg.db"
+        app_log.warning("Regnet still is WIP atm.")
+        sys.exit()
+
+
+
+
+
+def initial_db_check():
+    """
+    Initial bootstrap check and chain validity control
+    """
+    global last_block, hdd_block
+    global tr, conn, c, hdd, h, h3, hdd2, h2
+    # force bootstrap via adding an empty "fresh_sync" file in the dir.
+    if os.path.exists("fresh_sync") and is_mainnet:
+        app_log.warning("Status: Fresh sync required, bootstrapping from the website")
+        os.remove("fresh_sync")
+        bootstrap()
+    # UPDATE mainnet DB if required
+    if is_mainnet:
+        upgrade = sqlite3.connect(ledger_path_conf)
+        u = upgrade.cursor()
+        try:
+            u.execute("PRAGMA table_info(transactions);")
+            result = u.fetchall()[10][2]
+            if result != "TEXT":
+                raise ValueError("Database column type outdated for Command field")
+            upgrade.close()
+        except Exception as e:
+            print(e)
+            upgrade.close()
+            print("Database needs upgrading, bootstrapping...")
             bootstrap()
-
-        if "testnet" in version:  # overwrite for testnet
-            port = 2829
-            full_ledger = 0
-            hyper_path_conf = "static/test.db"
-            ledger_path_conf = "static/test.db"  # for tokens
-            ledger_ram_file = "file:ledger_testnet?mode=memory&cache=shared"
-            hyper_recompress_conf = 0
-            peerlist = "peers_test.txt"
-
-            redownload_test = input("Status: Welcome to the testnet. Redownload test ledger? y/n")
-            if redownload_test == "y" or not os.path.exists("static/test.db"):
-                types = ['static/test.db-wal', 'static/test.db-shm', 'static/index_test.db']
-                for type in types:
-                    for file in glob.glob(type):
-                        os.remove(file)
-                        print(file, "deleted")
-                download_file("https://bismuth.cz/test.db", "static/test.db")
-                download_file("https://bismuth.cz/index_test.db", "static/index_test.db")
-            else:
-                print("Not redownloading test db")
-
-        # TODO : move this to peers also.
-        else:
-            peerlist = "peers.txt"
-            ledger_ram_file = "file:ledger?mode=memory&cache=shared"
-
         # UPDATE DB
-
-        if "testnet" not in version:
-            upgrade = sqlite3.connect(ledger_path_conf)
-            u = upgrade.cursor()
-            try:
-                u.execute("PRAGMA table_info(transactions);")
-                result = u.fetchall()[10][2]
-                if result != "TEXT":
-                    raise ValueError("Database column type outdated for Command field")
-
-                upgrade.close()
-
-            except Exception as e:
-                print(e)
-                upgrade.close()
-                print("Database needs upgrading, bootstrapping...")
-                bootstrap()
-        # UPDATE DB
-
-        # This one too?
-        global syncing
-        syncing = []
-
-        # import keys
-        # key = RSA.importKey(open('privkey.der').read())
-        # private_key_readable = str(key.exportKey())
-
-        essentials.keys_check(app_log, "wallet.der")
-        essentials.db_check(app_log)
-        _, public_key_readable, _, _, _, public_key_hashed, address, keyfile = essentials.keys_load("privkey.der", "pubkey.der")
-
-
-
-        app_log.warning("Status: Local address: {}".format(address))
-
-        if "testnet" in version:
-            index_db = "static/index_test.db"
-        else:
-            index_db = "static/index.db"
-
-        #index, index_cursor = index_define()  # todo: remove this later
-        #staking.check_db(index, index_cursor)  # todo: remove this later
-
         check_integrity(hyper_path_conf)
         coherence_check()
 
-        app_log.warning("Status: Indexing tokens")
-        print(ledger_path_conf)
+        app_log.warning("Status: Indexing tokens from ledger {}".format(ledger_path_conf))
         tokens.tokens_update(index_db, ledger_path_conf, "normal", app_log, plugin_manager)
         app_log.warning("Status: Indexing aliases")
         aliases.aliases_update(index_db, ledger_path_conf, "normal", app_log)
-
         ledger_compress(ledger_path_conf, hyper_path_conf)
 
         try:
@@ -2974,21 +2987,40 @@ if __name__ == "__main__":
             hdd, h = None, None
             h3 = h2
 
-        # init
 
-        ### LOCAL CHECKS FINISHED ###
+def load_keys():
+    """Initial loading of crypto keys"""
+    global public_key_readable, public_key_hashed, address, keyfile
+    essentials.keys_check(app_log, "wallet.der")
+    essentials.db_check(app_log)
+    _, public_key_readable, _, _, _, public_key_hashed, address, keyfile = essentials.keys_load("privkey.der",
+                                                                                                "pubkey.der")
+    app_log.warning("Status: Local address: {}".format(address))
+
+
+if __name__ == "__main__":
+    app_log = log.log("node.log", debug_level_conf, terminal_output)
+    app_log.warning("Configuration settings loaded")
+    mining_heavy3.mining_open()
+    try:
+        # create a plugin manager, load all plugin modules and init
+        plugin_manager = plugins.PluginManager(app_log=app_log, init=True)
+
+        setup_net_type()
+        load_keys()
+        initial_db_check()
+
         app_log.warning("Status: Starting node version {}".format(VERSION))
         global startup_time
         startup_time = time.time()
+        syncing = []
 
         try:
-            if "testnet" in version:
-                is_testnet = True
-            else:
-                is_testnet = False
-            app_log.warning("Testnet: {}".format(is_testnet))
 
             peers = peershandler.Peers(app_log, config)
+            # print(peers.peer_list_old_format())
+            # sys.exit()
+
             apihandler = apihandler.ApiHandler(app_log, config)
             mp.MEMPOOL = mp.Mempool(app_log, config, db_lock, is_testnet)
 
@@ -3035,7 +3067,6 @@ if __name__ == "__main__":
             server.shutdown()
             server.server_close()
             mp.MEMPOOL.close()
-
 
         except Exception as e:
             app_log.info("Status: Node already running?")
