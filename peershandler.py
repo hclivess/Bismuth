@@ -12,7 +12,7 @@ import time
 
 import socks
 
-__version__ = "0.0.7"
+__version__ = "0.0.8"
 
 
 # TODO : some config options are _conf and others without => clean up later on
@@ -56,20 +56,71 @@ class Peers:
 
         self.peerfile = "peers.txt"
         self.suggested_peerfile = "suggested_peers.txt"
-        
+
         if self.is_testnet:  # overwrite for testnet
             self.peerfile = "peers_test.txt"
             self.suggested_peerfile = "suggested_peers_test.txt"
 
-        # From manager(), init
-        self.peer_dict.update(self.peers_get(self.peerfile))
+        if self.is_regnet:  # regnet won't use any peer, won't connect. Kept for compatibility
+            self.peerfile = "peers_reg.txt"
+            self.suggested_peerfile = "suggested_peers_reg.txt"
+
+        self.load_and_convert_if_needed()
         self.peers_test(self.peerfile)
         self.peers_test(self.suggested_peerfile)
 
     @property
     def is_testnet(self):
         """Helper to check if testnet or not. Only one place to change variable names and test"""
+        if self.config.regnet:
+            # regnet takes over testnet
+            return False
+        if self.config.testnet:
+            return True
         return "testnet" in self.config.version_conf
+
+    @property
+    def is_regnet(self):
+        """Helper to check if regnet or not. Only one place to change variable names and test"""
+        if self.config.regnet:
+            # regnet takes over testnet
+            return True
+        return "regnet" in self.config.version_conf
+
+    def is_old_format(self, peerfile=''):
+        """Tells wether peers file is old format"""
+        if not peerfile:
+            peerfile = self.peerfile
+        with open(peerfile, 'r') as f:
+            line = f.readline(1)
+            return '(' in line
+
+    def convert_old_to_new(self, peerfile=''):
+        if not peerfile:
+            peerfile = self.peerfile
+        with open(peerfile, "r") as peer_file:
+            peer_tuples = []
+            for line in peer_file:
+                extension = re.findall("'([\d\.]+)', '([\d]+)'", line)
+                peer_tuples.extend(extension)
+        peer_dict = {ip:port for ip,port in peer_tuples}
+        # print(peer_dict)
+        with open(peerfile, "w") as peer_file:
+            json.dump(peer_dict, peer_file)
+
+    def load_and_convert_if_needed(self):
+        """if peers.txt was old format, convert to new json format while in single thread mode"""
+        if self.is_old_format(self.peerfile):
+            self.app_log.warning("Converting Peers to new format")
+            self.convert_old_to_new()
+        else:
+            self.app_log.warning("Peers file is in new format")
+        self.peer_dict =self.peers_get()
+        if self.is_old_format(self.suggested_peerfile):
+            self.app_log.warning("Converting Suggested Peers to new format")
+            self.convert_old_to_new(self.suggested_peerfile)
+        else:
+            self.app_log.warning("Peers file is in new format")
 
     def status_dict(self):
         """Returns a status as a dict"""
@@ -172,24 +223,33 @@ class Peers:
             else:
                 return False
 
-    def peers_get(self, peerfile):
+    def peers_get(self, peerfile=''):
         """Returns a peerfile from disk as a dict {ip:port}"""
         peer_dict = {}
+        if not peerfile:
+            peerfile = self.peerfile
         if not os.path.exists(peerfile):
             with open (peerfile, "a"):
                 self.app_log.warning ("Peer file created")
-
-        with open(peerfile, "r") as peer_file:
-            peer_dict = json.load(peer_file)
-
+        else:
+            with open(peerfile, "r") as peer_file:
+                peer_dict = json.load(peer_file)
         return peer_dict
 
-    def peer_list(self, peerfile):
-        """Returns a peerfile as is, simple text format"""
+    def peer_list_disk_format(self):
+        """Returns a peerfile as is, simple text format or json, as it is on disk"""
         # TODO: caching and format to handle here
-        with open(peerfile, "r") as peer_list:
+        with open(self.peerfile, "r") as peer_list:
             peers = peer_list.read()
         return peers
+
+    def peer_list_old_format(self):
+        """
+        Returns the peerdict as old simple text format, whatever is on disk, for old nodes compatibility.
+        Could be deprecated later on, at next HF.
+        """
+        return '\n'.join(['("{}", {})'.format(ip, port) for ip, port in self.peer_dict.items()])
+
 
     @property
     def consensus_most_common(self):
