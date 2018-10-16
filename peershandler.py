@@ -98,14 +98,14 @@ class Peers:
         self.peer_dict[peer_ip] = self.config.port
 
 
-    def peers_dump(self, file, peerlist):
+    def peers_dump(self, file, peerdict):
         """Validates then adds a peer to the peer list on disk"""
         # called by Sync, should not be an issue, but check if needs to be thread safe or not.
 
         with open(file, "r") as peer_file:
             peers_pairs = json.load(peer_file)
 
-        for ip in peerlist:
+        for ip in peerdict:
             peer_ip = ip
             peer_port = self.config.port
 

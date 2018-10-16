@@ -954,7 +954,12 @@ def manager(c):
         # end status hook
 
         if peerlist: #if it is not empty
-            peers.peers_dump(peerlist, peers.peer_dict)
+            try:
+                peers.peers_dump(peerlist, peers.peer_dict)
+            except Exception as e:
+                app_log.warning("There was an issue saving peers ({}), skipped".format(e))
+                pass
+
 
         # app_log.info(threading.enumerate() all threads)
         time.sleep(30)
