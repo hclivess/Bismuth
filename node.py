@@ -11,7 +11,7 @@
 # do not isolation_level=None/WAL hdd levels, it makes saving slow
 
 
-VERSION = "4.2.8"  # 0. Alpha for port-fork cleanup - Do not release yet
+VERSION = "4.2.8"  # 0. Alpha for post-fork cleanup - Do not release yet
 
 # Bis specific modules
 import log, options, connections, peershandler, apihandler
