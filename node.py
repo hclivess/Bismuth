@@ -11,7 +11,7 @@
 # do not isolation_level=None/WAL hdd levels, it makes saving slow
 
 
-VERSION = "4.2.8"  # 0. Alpha for post-fork cleanup - Do not release yet
+VERSION = "4.2.8"  # 1. Beta for post-fork cleanup - Do not release yet
 
 # Bis specific modules
 import log, options, connections, peershandler, apihandler
@@ -192,7 +192,7 @@ def sendsync(sdef, peer_ip, status, provider):
 
     if provider:
         app_log.info("Outbound: Saving peer {}".format(peer_ip))
-        peers.peers_save(peerlist, peer_ip)
+        peers.peers_save(peer_ip)
 
     time.sleep(Decimal(pause_conf))
     while db_lock.locked():
@@ -297,7 +297,7 @@ def check_integrity(database):
                 "Status: Integrity check on database {} failed, bootstrapping from the website".format(database))
             redownload = True
 
-    if redownload and "testnet" not in version:
+    if redownload and is_mainnet:
         bootstrap()
 
 
@@ -524,7 +524,7 @@ def ledger_compress(ledger_path_conf, hyper_path_conf):
 
             os.rename(ledger_path_conf + '.temp', hyper_path_conf)
 
-        if full_ledger == 0 and os.path.exists(ledger_path_conf) and "testnet" not in version:
+        if full_ledger == 0 and os.path.exists(ledger_path_conf) and is_mainnet:
             os.remove(ledger_path_conf)
             app_log.warning("Removed full ledger and only kept hyperblocks")
 
@@ -628,15 +628,16 @@ def difficulty(c):
     difficulty_new_adjusted = quantize_ten(diff_block_previous + diff_adjustment)
     difficulty = difficulty_new_adjusted
 
-    if block_height == POW_FORK - FORK_AHEAD:
-        limit_version()
-    if block_height == POW_FORK - 1:
-        difficulty = FORK_DIFF
-    if block_height == POW_FORK:
-        difficulty = FORK_DIFF
-        # Remove mainnet0018 from allowed
-        limit_version()
-        # disconnect our outgoing connections
+    if is_mainnet:
+        if block_height == POW_FORK - FORK_AHEAD:
+            limit_version()
+        if block_height == POW_FORK - 1:
+            difficulty = FORK_DIFF
+        if block_height == POW_FORK:
+            difficulty = FORK_DIFF
+            # Remove mainnet0018 from allowed
+            limit_version()
+            # disconnect our outgoing connections
 
     diff_drop_time = Decimal(180)
 
@@ -1159,12 +1160,24 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                     raise ValueError("Skipping digestion of block {} from {}, because we already have it on block_height {}".
                                      format(block_hash[:10], peer_ip, dummy[0]))
 
-                if block_height_new < POW_FORK:
-                    diff_save = mining.check_block(block_height_new, miner_address, nonce, db_block_hash, diff[0],
-                                                   received_timestamp, q_received_timestamp, q_db_timestamp_last,
-                                                   peer_ip=peer_ip, app_log=app_log)
+                if is_mainnet:
+                    if block_height_new < POW_FORK:
+                        diff_save = mining.check_block(block_height_new, miner_address, nonce, db_block_hash, diff[0],
+                                                       received_timestamp, q_received_timestamp, q_db_timestamp_last,
+                                                       peer_ip=peer_ip, app_log=app_log)
+                    else:
+                        diff_save = mining_heavy3.check_block(block_height_new, miner_address, nonce, db_block_hash, diff[0],
+                                                              received_timestamp, q_received_timestamp, q_db_timestamp_last,
+                                                              peer_ip=peer_ip, app_log=app_log)
+                elif is_testnet:
+                    diff_save = mining_heavy3.check_block(block_height_new, miner_address, nonce, db_block_hash,
+                                                          diff[0],
+                                                          received_timestamp, q_received_timestamp, q_db_timestamp_last,
+                                                          peer_ip=peer_ip, app_log=app_log)
                 else:
-                    diff_save = mining_heavy3.check_block(block_height_new, miner_address, nonce, db_block_hash, diff[0],
+                    # it's regnet then, will use a specific fake method here.
+                    diff_save = mining_heavy3.check_block(block_height_new, miner_address, nonce, db_block_hash,
+                                                          diff[0],
                                                           received_timestamp, q_received_timestamp, q_db_timestamp_last,
                                                           peer_ip=peer_ip, app_log=app_log)
 
@@ -1284,7 +1297,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                     commit(conn)
 
                 # savings
-                if "testnet" in version or block_height_new >= 843000:
+                if is_testnet or block_height_new >= 843000:
                     if int(block_height_new) % 10000 == 0:  # every x blocks
                         staking.staking_update(conn, c, index, index_cursor, "normal", block_height_new, app_log)
                         staking.staking_payout(conn, c, index, index_cursor, block_height_new, float(q_block_timestamp), app_log)
@@ -1784,7 +1797,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             mined['miner'] = segments[0][-1][2]
                         except:
                             pass
-                        if "testnet" not in version:
+                        if is_mainnet:
                             if len(peers.connection_pool) < 5 and not peers.is_whitelisted(peer_ip):
                                 reason = "Outbound: Mined block ignored, insufficient connections to the network"
                                 mined['reason'] = reason
@@ -2493,15 +2506,16 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
 def ensure_good_peer_version(peer_ip):
     """
-    Todo: clean after HF
+    cleanup after HF, kepts here for future use.
+    """
     """
     # If we are post fork, but we don't know the version, then it was an old connection, close.
-    if last_block >= POW_FORK :
+    if is_mainnet and (last_block >= POW_FORK) :
         if peer_ip not in peers.ip_to_mainnet:
             raise ValueError("Outbound: disconnecting old node {}".format(peer_ip));
         elif peers.ip_to_mainnet[peer_ip] not in version_allow:
             raise ValueError("Outbound: disconnecting old node {} - {}".format(peer_ip, peers.ip_to_mainnet[peer_ip]));
-
+    """
 
 # client thread
 # if you "return" from the function, the exception code will node be executed and client thread will hang
@@ -2540,13 +2554,13 @@ def worker(HOST, PORT):
             raise ValueError("Outbound: Node protocol version of {} mismatch".format(this_client))
 
         # If we are post pow fork, then the peer has getversion command
-        if last_block >= POW_FORK - FORK_AHEAD:
-            # Peers that are not up to date will disconnect since they don't know that command.
-            # That is precisely what we need :D
-            connections.send(s, "getversion")
-            peer_version = connections.receive(s)
-            if peer_version not in version_allow:
-                raise ValueError("Outbound: Incompatible peer version {} from {}".format(peer_version, this_client))
+        #if last_block >= POW_FORK - FORK_AHEAD:
+        # Peers that are not up to date will disconnect since they don't know that command.
+        # That is precisely what we need :D
+        connections.send(s, "getversion")
+        peer_version = connections.receive(s)
+        if peer_version not in version_allow:
+            raise ValueError("Outbound: Incompatible peer version {} from {}".format(peer_version, this_client))
 
         connections.send(s, "hello")
 
@@ -2557,8 +2571,8 @@ def worker(HOST, PORT):
         return  # can return here, because no lists are affected yet
 
     banned = False
-    if last_block >= POW_FORK - FORK_AHEAD:
-        peers.store_mainnet(HOST, peer_version)
+    # if last_block >= POW_FORK - FORK_AHEAD:
+    peers.store_mainnet(HOST, peer_version)
     try:
         peer_ip = s.getpeername()[0]
     except:
@@ -2985,7 +2999,8 @@ def initial_db_check():
             hdd_block = sc.fetchone()[0]
 
             last_block = hdd_block
-            if hdd_block >= POW_FORK - FORK_AHEAD:
+
+            if is_mainnet and (hdd_block >= POW_FORK - FORK_AHEAD):
                 limit_version()
 
             if ram_conf:
