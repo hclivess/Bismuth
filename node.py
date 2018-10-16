@@ -11,7 +11,7 @@
 # do not isolation_level=None/WAL hdd levels, it makes saving slow
 
 
-VERSION = "4.2.8"  # 1. Beta for post-fork cleanup - Do not release yet
+VERSION = "4.2.8"  # 2. Beta for post-fork cleanup - Do not release yet
 
 # Bis specific modules
 import log, options, connections, peershandler, apihandler
@@ -40,6 +40,8 @@ import mining_heavy3
 POW_FORK = 854660
 FORK_AHEAD = 5
 FORK_DIFF = 108.9
+
+IS_STOPPING = False
 
 getcontext().rounding = ROUND_HALF_EVEN
 
@@ -196,6 +198,8 @@ def sendsync(sdef, peer_ip, status, provider):
 
     time.sleep(Decimal(pause_conf))
     while db_lock.locked():
+        if IS_STOPPING:
+            return
         time.sleep(Decimal(pause_conf))
 
     connections.send(sdef, "sendsync")
@@ -542,7 +546,7 @@ def bin_convert(string):
 
 def commit(cursor):
     """Secure commit for slow nodes"""
-    while True:
+    while not IS_STOPPING:
         try:
             cursor.commit()
             break
@@ -554,7 +558,7 @@ def commit(cursor):
 
 def execute(cursor, query):
     """Secure execute for slow nodes"""
-    while True:
+    while not IS_STOPPING:
         try:
             cursor.execute(query)
             break
@@ -575,7 +579,7 @@ def execute(cursor, query):
 
 def execute_param(cursor, query, param):
     """Secure execute w/ param for slow nodes"""
-    while True:
+    while not IS_STOPPING:
         try:
             cursor.execute(query, param)
             break
@@ -912,7 +916,7 @@ def manager(c):
 
     until_purge = 0
 
-    while True:
+    while not IS_STOPPING:
         # dict_keys = peer_dict.keys()
         # random.shuffle(peer_dict.items())
         if until_purge == 0:
@@ -961,7 +965,8 @@ def manager(c):
 
 
         # app_log.info(threading.enumerate() all threads)
-        time.sleep(30)
+        if not IS_STOPPING:
+            time.sleep(30)
 
 
 def ledger_balance3(address, c, cache):
@@ -1481,7 +1486,10 @@ def db_maintenance(conn):
 
 class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
     def handle(self):
+        global IS_STOPPING
 
+        if IS_STOPPING:
+            return
         # global banlist
         # global ban_threshold
         global peers
@@ -1523,7 +1531,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         timeout_operation = 120  # timeout
         timer_operation = time.time()  # start counting
 
-        while not banned and capacity and peers.version_allowed(peer_ip, version_allow):
+        while not banned and capacity and peers.version_allowed(peer_ip, version_allow) and not IS_STOPPING:
             try:
                 hdd2, h2 = db_h2_define()
                 conn, c = db_c_define()
@@ -1608,6 +1616,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                     global syncing
                     while len(syncing) >= 3:
+                        if IS_STOPPING:
+                            return
                         time.sleep(int(pause_conf))
 
                     connections.send(self.request, "sync")
@@ -1771,6 +1781,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     app_log.info("Outbound: Deletion complete, sending sync request")
 
                     while db_lock.locked():
+                        if IS_STOPPING:
+                            return
                         time.sleep(pause_conf)
                     connections.send(self.request, "sync")
 
@@ -2466,6 +2478,11 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     else:
                         app_log.info("{} not whitelisted for difflastjson command".format(peer_ip))
 
+                elif data == "stop":
+                    # if (peer_ip in allowed or "any" in allowed):
+                    if peers.is_allowed(peer_ip, data):
+                        app_log.warning("Received stop from {}".format(peer_ip))
+                        IS_STOPPING = True
                 else:
                     if data == '*':
                         raise ValueError("Broken pipe")
@@ -2523,6 +2540,8 @@ def worker(HOST, PORT):
     global peers
     global plugin_manager
 
+    if IS_STOPPING:
+        return
     dict_ip = {'ip': HOST}
     plugin_manager.execute_filter_hook('peer_ip', dict_ip)
     if peers.is_banned(HOST) or dict_ip['ip'] == 'banned':
@@ -2585,7 +2604,7 @@ def worker(HOST, PORT):
         app_log.info("Connected to {}".format(this_client))
         app_log.info("Current active pool: {}".format(peers.connection_pool))
 
-    while not banned and peers.version_allowed(HOST, version_allow):
+    while not banned and peers.version_allowed(HOST, version_allow) and not IS_STOPPING:
         try:
             ensure_good_peer_version(HOST)
 
@@ -2617,6 +2636,8 @@ def worker(HOST, PORT):
                     global syncing
 
                     while len(syncing) >= 3:
+                        if IS_STOPPING:
+                            return
                         time.sleep(int(pause_conf))
 
                     syncing.append(peer_ip)
@@ -3103,11 +3124,13 @@ if __name__ == "__main__":
             t_manager.daemon = True
             t_manager.start()
             # start connection manager
-
+            app_log.warning("Closing in 10 sec...")
+            time.sleep(10)
             # server.serve_forever() #added
             server.shutdown()
             server.server_close()
             mp.MEMPOOL.close()
+            # TODO: VACUUM THE DBs
 
         except Exception as e:
             app_log.info("Status: Node already running?")
