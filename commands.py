@@ -79,19 +79,19 @@ else:
 #s.connect(("94.113.207.67", 5658))
 
 def shutdown(socket):
-    connections.send(s, "shutdown", 10)
+    connections.send(s, "shutdown")
 
 def diffget(socket):
     #check difficulty
-    connections.send(s, "diffget", 10)
-    diff = connections.receive(s, 10)
+    connections.send(s, "diffget")
+    diff = connections.receive(s)
     print ("Current difficulty: {}".format(diff))
     #check difficulty
 
 def diffgetjson(socket):
     #check difficulty
-    connections.send(s, "diffgetjson", 10)
-    response = connections.receive(s, 10)
+    connections.send(s, "diffgetjson")
+    response = connections.receive(s)
     #for key in response:
     #    print (key,":",response[key])
     print(json.dumps(response))
@@ -99,9 +99,9 @@ def diffgetjson(socket):
 
 def balanceget(socket, arg1):
     #get balance
-    connections.send(s, "balanceget", 10)
-    connections.send(s, arg1, 10)
-    balanceget_result = connections.receive(s, 10)
+    connections.send(s, "balanceget")
+    connections.send(s, arg1)
+    balanceget_result = connections.receive(s)
     print ("Address balance: {}".format(balanceget_result[0]))
     print ("Address credit: {}".format(balanceget_result[1]))
     print ("Address debit: {}".format(balanceget_result[2]))
@@ -112,40 +112,40 @@ def balanceget(socket, arg1):
 
 def balancegetjson(socket, arg1):
     #get balance
-    connections.send(s, "balancegetjson", 10)
-    connections.send(s, arg1, 10)
-    response = connections.receive(s, 10)
+    connections.send(s, "balancegetjson")
+    connections.send(s, arg1)
+    response = connections.receive(s)
     print(json.dumps(response))
     #get balance
 
 #insert to mempool
 #DIRECT INSERT, NO REMOTE TX CONSTRUCTION
 def mpinsert(s, transaction):
-    connections.send(s, "mpinsert", 10)
-    connections.send(s, transaction, 10)
-    confirmation = connections.receive(s, 10)
+    connections.send(s, "mpinsert")
+    connections.send(s, transaction)
+    confirmation = connections.receive(s)
     print (confirmation)
 #insert to mempool
 
 def mpget(socket):
     #ask for mempool
-    connections.send(s, "mpget", 10)
-    mempool = connections.receive(s, 10)
+    connections.send(s, "mpget")
+    mempool = connections.receive(s)
     print ("Current mempool: {}".format(mempool))
     #ask for mempool
 
 def mpgetjson(socket):
     #ask for mempool
-    connections.send(s, "mpgetjson", 10)
-    response_list = connections.receive(s, 10)
+    connections.send(s, "mpgetjson")
+    response_list = connections.receive(s)
     print ("Current mempool:")
     print(json.dumps(response_list))
     #ask for mempool
 
 def difflast(socket):
     #ask for last difficulty
-    connections.send(s, "difflast", 10)
-    response = connections.receive(s, 10)
+    connections.send(s, "difflast")
+    response = connections.receive(s)
     blocklast = response[0]
     difflast = response[1]
     print("Last block: {}".format(blocklast))
@@ -154,15 +154,15 @@ def difflast(socket):
 
 def difflastjson(socket):
     #ask for last difficulty
-    connections.send(s, "difflastjson", 10)
-    response = connections.receive(s, 10)
+    connections.send(s, "difflastjson")
+    response = connections.receive(s)
     print(json.dumps(response))
     #ask for last difficulty
 
 def blocklast(socket):
     #get last block
-    connections.send(s, "blocklast", 10)
-    block_last = connections.receive(s, 10)
+    connections.send(s, "blocklast")
+    block_last = connections.receive(s)
 
     print ("Last block number: {}".format(block_last[0]))
     print ("Last block timestamp: {}".format(block_last[1]))
@@ -171,8 +171,8 @@ def blocklast(socket):
 
 def blocklastjson(socket):
     #get last block
-    connections.send(s, "blocklastjson", 10)
-    response = connections.receive(s, 10)
+    connections.send(s, "blocklastjson")
+    response = connections.receive(s)
     print(json.dumps(response))
     #get last block
 
@@ -180,8 +180,8 @@ def blocklastjson(socket):
 def keygen(socket):
     #generate address
     #RECEIVES PRIVATE KEY FROM NODE
-    connections.send(s, "keygen", 10)
-    keys_generated = connections.receive(s, 10)
+    connections.send(s, "keygen")
+    keys_generated = connections.receive(s)
 
     print ("Private key: {}".format(keys_generated[0]))
     print ("Public key: {}".format(keys_generated[1]))
@@ -191,16 +191,16 @@ def keygen(socket):
 def keygenjson(socket):
     #generate address
     #RECEIVES PRIVATE KEY FROM NODE
-    connections.send(s, "keygenjson", 10)
-    response = connections.receive(s, 10)
+    connections.send(s, "keygenjson")
+    response = connections.receive(s)
     print(json.dumps(response))
     #generate address
 
 def blockget(socket, arg1):
     #get block
-    connections.send(s, "blockget", 10)
-    connections.send(s, arg1, 10)
-    block_get = connections.receive(s, 10)
+    connections.send(s, "blockget")
+    connections.send(s, arg1)
+    block_get = connections.receive(s)
     print ("Requested block: {}".format(block_get))
     print ("Requested block number of transactions: {}".format(len(block_get)))
     print ("Requested block height: {}".format(block_get[0][0]))
@@ -208,17 +208,17 @@ def blockget(socket, arg1):
 
 def blockgetjson(socket, arg1):
     #get block
-    connections.send(s, "blockgetjson", 10)
-    connections.send(s, arg1, 10)
-    response_list = connections.receive(s, 10)
+    connections.send(s, "blockgetjson")
+    connections.send(s, arg1)
+    response_list = connections.receive(s)
     print(json.dumps(response_list))
     #get block
 
 def addlist(socket, arg1):
     #get all txs for an address
-    connections.send(s, "addlist", 10)
-    connections.send(s, arg1, 10)
-    address_tx_list = connections.receive(s, 10)
+    connections.send(s, "addlist")
+    connections.send(s, arg1)
+    address_tx_list = connections.receive(s)
     print("All transactions for requested address:")
     for row in address_tx_list:
         print (row)
@@ -226,10 +226,10 @@ def addlist(socket, arg1):
 
 def addlistlim(socket, arg1, arg2):
     #get x txs for an address
-    connections.send(s, "addlistlim", 10)
-    connections.send(s, arg1, 10)
-    connections.send(s, arg2, 10)
-    address_tx_list = connections.receive(s, 10)
+    connections.send(s, "addlistlim")
+    connections.send(s, arg1)
+    connections.send(s, arg2)
+    address_tx_list = connections.receive(s)
     print("Transactions for requested address:")
     for row in address_tx_list:
         print (row)
@@ -237,20 +237,20 @@ def addlistlim(socket, arg1, arg2):
 
 def addlistlimjson(socket, arg1, arg2):
     #get x txs for an address
-    connections.send(s, "addlistlimjson", 10)
-    connections.send(s, arg1, 10)
-    connections.send(s, arg2, 10)
-    response_list = connections.receive(s, 10)
+    connections.send(s, "addlistlimjson")
+    connections.send(s, arg1)
+    connections.send(s, arg2)
+    response_list = connections.receive(s)
     print("Transactions for requested address:")
     print(json.dumps(response_list))
     #get all txs for an address
 
 def addlistlimmir(socket, arg1, arg2):
     #get x negative txs for an address
-    connections.send(s, "addlistlimmir", 10)
-    connections.send(s, arg1, 10)
-    connections.send(s, arg2, 10)
-    address_tx_list = connections.receive(s, 10)
+    connections.send(s, "addlistlimmir")
+    connections.send(s, arg1)
+    connections.send(s, arg2)
+    address_tx_list = connections.receive(s)
     print("Mirror transactions for requested address:")
     for row in address_tx_list:
         print (row)
@@ -258,35 +258,35 @@ def addlistlimmir(socket, arg1, arg2):
 
 def addlistlimmirjson(socket, arg1, arg2):
     #get x negative txs for an address
-    connections.send(s, "addlistlimmirjson", 10)
-    connections.send(s, arg1, 10)
-    connections.send(s, arg2, 10)
-    response_list = connections.receive(s, 10)
+    connections.send(s, "addlistlimmirjson")
+    connections.send(s, arg1)
+    connections.send(s, arg2)
+    response_list = connections.receive(s)
     print("Mirror transactions for requested address:")
     print(json.dumps(response_list))
     #get all txs for an address
 
 def listlim(socket, arg1):
     #get x last txs
-    connections.send(s, "listlim", 10)
-    connections.send(s, arg1, 10)
-    tx_list = connections.receive(s, 10)
+    connections.send(s, "listlim")
+    connections.send(s, arg1)
+    tx_list = connections.receive(s)
     print("All transactions for requested range:")
     for row in tx_list:
         print (row)
 
 def listlimjson(socket, arg1):
     #get x last txs
-    connections.send(s, "listlimjson", 10)
-    connections.send(s, arg1, 10)
-    response_list = connections.receive(s, 10)
+    connections.send(s, "listlimjson")
+    connections.send(s, arg1)
+    response_list = connections.receive(s)
     print("All transactions for requested range:")
     print(json.dumps(response_list))
 
 def txsend(socket, arg1, arg2, arg3, arg4, arg5):
     #generate transaction
     #SENDS PRIVATE KEY TO NODE
-    connections.send(s, "txsend", 10)
+    connections.send(s, "txsend")
 
     remote_tx_timestamp = '%.2f' % time.time()
     remote_tx_privkey = arg1 #node will dump pubkey+address from this
@@ -295,54 +295,54 @@ def txsend(socket, arg1, arg2, arg3, arg4, arg5):
     remote_tx_operation = arg4
     remote_tx_openfield = arg5
 
-    #connections.send(s, (remote_tx_timestamp, remote_tx_privkey, remote_tx_recipient, remote_tx_amount, remote_tx_keep, remote_tx_openfield), 10)
-    connections.send(s, (str(remote_tx_timestamp), str(remote_tx_privkey), str(remote_tx_recipient), str(remote_tx_amount), str(remote_tx_operation), str(remote_tx_openfield)), 10)
+    #connections.send(s, (remote_tx_timestamp, remote_tx_privkey, remote_tx_recipient, remote_tx_amount, remote_tx_keep, remote_tx_openfield))
+    connections.send(s, (str(remote_tx_timestamp), str(remote_tx_privkey), str(remote_tx_recipient), str(remote_tx_amount), str(remote_tx_operation), str(remote_tx_openfield)))
     #generate transaction
 
-    signature = connections.receive(s, 10)
+    signature = connections.receive(s)
     print (signature)
 
 def aliasget(socket, arg1):
-    connections.send(s, "aliasget", 10)
-    connections.send(s, arg1, 10)
-    alias_results = connections.receive(s, 10)
+    connections.send(s, "aliasget")
+    connections.send(s, arg1)
+    alias_results = connections.receive(s)
     print (alias_results)
 
 def tokensget(socket, arg1):
-    connections.send(s, "tokensget", 10)
-    connections.send(s, arg1, 10)
-    tokens_results = connections.receive(s, 10)
+    connections.send(s, "tokensget")
+    connections.send(s, arg1)
+    tokens_results = connections.receive(s)
     print (tokens_results)
 
 def addfromalias(socket, arg1):
-    connections.send(s, "addfromalias", 10)
-    connections.send(s, arg1, 10)
-    address_fetch = connections.receive(s, 10)
+    connections.send(s, "addfromalias")
+    connections.send(s, arg1)
+    address_fetch = connections.receive(s)
     print (address_fetch)
 
 def peersget(socket):
-    connections.send(s, "peersget", 10)
-    peers_received = connections.receive(s, 10)
+    connections.send(s, "peersget")
+    peers_received = connections.receive(s)
     print (peers_received)
 
 def statusget(socket):
-    connections.send(s, "statusjson", 10)
-    response = connections.receive(s, 10)
+    connections.send(s, "statusjson")
+    response = connections.receive(s)
     print(json.dumps(response))
 
 def addvalidate(socket, arg1):
-    connections.send(s, "addvalidate", 10)
-    connections.send(s, arg1, 10)
-    validate_result = connections.receive(s, 10)
+    connections.send(s, "addvalidate")
+    connections.send(s, arg1)
+    validate_result = connections.receive(s)
     print (validate_result)
 
 def aliasesget(socket, arg1):
     arg_split = arg1.split(",")
     print (arg_split)
 
-    connections.send(s, "aliasesget", 10)
-    connections.send(s, arg_split, 10)
-    alias_results = connections.receive(s, 10)
+    connections.send(s, "aliasesget")
+    connections.send(s, arg_split)
+    alias_results = connections.receive(s)
     print (alias_results)
 
 if command == "getversion":

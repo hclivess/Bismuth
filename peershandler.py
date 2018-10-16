@@ -7,7 +7,7 @@ import os
 import re
 import sys
 import threading
-# import json
+import json
 import time
 
 import socks
@@ -101,19 +101,16 @@ class Peers:
     def peers_dump(self, file, peerlist):
         """Validates then adds a peer to the peer list on disk"""
         # called by Sync, should not be an issue, but check if needs to be thread safe or not.
-        with open (file, "r") as peer_file:
-            peer_tuples = []
-            for line in peer_file:
-                extension = re.findall("'([\d\.]+)', '([\d]+)'", line)
-                peer_tuples.extend(extension)
 
-        for key in peerlist:
-            peer_ip = key
+        with open(file, "r") as peer_file:
+            peers_pairs = json.load(peer_file)
 
-            peer_tuple = ("('" + peer_ip + "', '" + str(self.config.port) + "')")
+        for ip in peerlist:
+            peer_ip = ip
+            peer_port = self.config.port
 
             try:
-                if peer_tuple not in str(peer_tuples):
+                if peer_ip not in peers_pairs:
                     self.app_log.warning("Testing connectivity to: {}".format(peer_ip))
                     peer_test = socks.socksocket()
                     if self.config.tor_conf == 1:
@@ -125,9 +122,12 @@ class Peers:
                     peer_test.close()
                     # properly end the connection
 
-                    with open (file, "a") as peer_list_file:
-                        peer_list_file.write((peer_tuple) + "\n")
-                        self.app_log.info("Inbound: Distant peer saved to peer list")
+                    peers_pairs[ip]=peer_port
+
+                    with open(file, "w") as peer_file:
+                        json.dump(peers_pairs,peer_file)
+
+                    self.app_log.info("Inbound: Peer {}:{} saved to peer list".format(peer_ip,peer_port))
 
                 else:
                     self.app_log.info("Distant peer already in peer list")
@@ -179,13 +179,9 @@ class Peers:
             with open (peerfile, "a"):
                 self.app_log.warning ("Peer file created")
 
-        with open(peerfile, "r") as f:
-            for line in f:
-                try:
-                    line = re.sub("[\)\(\:\\n\'\s]", "", line)
-                    peer_dict[line.split(",")[0]] = line.split(",")[1]
-                except Exception as e:
-                    self.app_log.warning("Skipping peerfile entry because of wrong format: {}".format(line))
+        with open(peerfile, "r") as peer_file:
+            peer_dict = json.load(peer_file)
+
         return peer_dict
 
     def peer_list(self, peerfile):
@@ -238,8 +234,8 @@ class Peers:
         if not self.peersync_lock.locked() and self.config.accept_peers:
             self.peersync_lock.acquire()
 
-            drop_peer_dict = []
             peer_dict = self.peers_get(peerfile)
+            peers_remove = {}
 
             for key, value in peer_dict.items():
                 host, port = key, int(value)
@@ -255,63 +251,119 @@ class Peers:
                 except:
                     if self.config.purge_conf == 1 and not self.is_testnet:
                         # remove from peerfile if not connectible
-                        drop_peer_dict.append(key)
-                        self.app_log.info("Removed formerly active peer {} {}".format(host, port))
+
+                        peers_remove[key]=value
                     pass
 
+            for key in peers_remove:
+                del peer_dict[key]
+                self.app_log.info("Removed formerly active peer {} {}".format(host, port))
+
             with open (peerfile, "w") as output:
-                for key, value in peer_dict.items():
-                    if key not in drop_peer_dict:
-                        output.write("('" + key + "', '" + value + "')\n")
+                json.dump(peer_dict, output)
 
             self.peersync_lock.release()
 
     def peersync(self, subdata):
         """Got a peers list from a peer, process. From worker()."""
-        if not self.peersync_lock.locked() and self.config.accept_peers:
-            self.peersync_lock.acquire()
 
-            # get remote peers into tuples (actually list)
+        if "(" in str(subdata): #OLD WAY
             server_peer_tuples = re.findall("'([\d\.]+)', '([\d]+)'", subdata)
-            self.app_log.info("Received following {} peers: {}".format(len((server_peer_tuples)), server_peer_tuples))
-            # get remote peers into tuples (actually list)
 
-            # get local peers into tuples
-            with open (self.peerfile, "r") as peer_file:
-                peer_tuples = []
-                for line in peer_file:
-                    extension = re.findall("'([\d\.]+)', '([\d]+)'", line)
-                    peer_tuples.extend(extension)
-            # get local peers into tuples
+            if not self.peersync_lock.locked() and self.config.accept_peers:
+                self.peersync_lock.acquire()
 
-            for x in set(server_peer_tuples):  # set removes duplicates
-                if x not in peer_tuples:
-                    self.app_log.info("Outbound: {} is a new peer, saving if connectible".format(x))
-                    try:
-                        s_purge = socks.socksocket()
-                        s_purge.settimeout(0.2)
-                        if self.config.tor_conf == 1:
-                            s_purge.settimeout(5)
-                            s_purge.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+                # get
+                self.app_log.info("Received following {} peers: {}".format(len((server_peer_tuples)), server_peer_tuples))
+                # get
 
-                        s_purge.connect((x[0], int(x[1])))  # save a new peer file with only active nodes
-                        s_purge.close()
+                with open (self.peerfile, "r") as peer_file:
+                    peers = json.load(peer_file)
 
-                        peer_formatted = "('" + x[0] + "', '" + x[1] + "')"
+                for pair in set(server_peer_tuples):  # set removes duplicates
+                    if pair not in peers:
+                        self.app_log.info("Outbound: {} is a new peer, saving if connectible".format(pair))
+                        try:
+                            s_purge = socks.socksocket()
+                            if self.config.tor_conf == 1:
+                                s_purge.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
 
-                        with open(self.suggested_peerfile) as peers_existing:
-                            if peer_formatted not in peers_existing.read():
-                                with open (self.suggested_peerfile, "a") as peer_list_file:
-                                    peer_list_file.write(peer_formatted+"\n")
-                    except:
-                        pass
-                        self.app_log.info("Not connectible")
+                            s_purge.connect((pair[0], int(pair[1])))  # save a new peer file with only active nodes
+                            s_purge.close()
 
-                else:
-                    self.app_log.info("Outbound: {} is not a new peer".format(x))
-            self.peersync_lock.release()
+                            #suggested
+                            with open(self.suggested_peerfile) as peers_existing:
+                                peers_suggested = json.load(peers_existing)
+
+                                if pair not in peers_suggested and pair not in self.peer_dict:
+                                    peers_suggested[pair[0]]=pair[1]
+
+                                    with open(self.suggested_peerfile, "w") as peer_list_file:
+                                        json.dump(peers_suggested, peer_list_file)
+                            # suggested
+
+                            peers[pair[0]]=pair[1]
+
+                            with open(self.peerfile, "w") as peer_file:
+                                json.dump(peers, peer_file)
+
+                        except:
+                            pass
+                            self.app_log.info("Not connectible")
+
+                    else:
+                        self.app_log.info("Outbound: {} is not a new peer".format(pair))
+                self.peersync_lock.release()
+            else:
+                self.app_log.info("Outbound: Peer sync occupied")
+
         else:
-            self.app_log.info("Outbound: Peer sync occupied")
+            if not self.peersync_lock.locked() and self.config.accept_peers:
+                self.peersync_lock.acquire()
+
+                # get
+                self.app_log.info("Received following {} peers: {}".format(len((subdata)), subdata))
+                # get
+
+                with open(self.peerfile, "r") as peer_file:
+                    peers = json.load(peer_file)
+
+                for pair in json.loads(subdata):
+                    if pair not in peers:
+                        self.app_log.info("Outbound: {} is a new peer, saving if connectible".format(pair))
+                        try:
+                            s_purge = socks.socksocket()
+                            if self.config.tor_conf == 1:
+                                s_purge.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+
+                            s_purge.connect((pair[0], int(pair[1])))  # save a new peer file with only active nodes
+                            s_purge.close()
+
+                            # suggested
+                            with open(self.suggested_peerfile) as peers_existing:
+                                peers_suggested = json.load(peers_existing)
+
+                                if pair not in peers_suggested:
+                                    peers_suggested[pair[0]] = pair[1]
+
+                                    with open(self.suggested_peerfile, "a") as peer_list_file:
+                                        json.dump(peers_suggested, peer_file)
+                            # suggested
+
+                            peers[pair[0]] = pair[1]
+
+                            with open(self.peerfile, "w") as peer_file:
+                                json.dump(peers, peer_file)
+
+                        except:
+                            pass
+                            self.app_log.info("Not connectible")
+
+                    else:
+                        self.app_log.info("Outbound: {} is not a new peer".format(pair))
+                self.peersync_lock.release()
+            else:
+                self.app_log.info("Outbound: Peer sync occupied")
 
     def consensus_add(self, peer_ip, consensus_blockheight, sdef, last_block):
         # obviously too old blocks, we have half a day worth of validated blocks after them

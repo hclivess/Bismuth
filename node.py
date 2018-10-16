@@ -1575,10 +1575,10 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                     # send own
 
-                elif data == 'hello':
+                elif data == "hello":
 
                     connections.send(self.request, "peers")
-                    connections.send(self.request, peers.peer_list(peerlist))
+                    connections.send(self.request, peers.peer_list(peerlist)) #INCOMPATIBLE WITH THE OLD WAY
 
                     while db_lock.locked():
                         time.sleep(quantize_two(pause_conf))
@@ -2587,9 +2587,8 @@ def worker(HOST, PORT):
             data = connections.receive(s)  # receive data, one and the only root point
             # print(data)
 
-            if data == "peers":  # REWORK
+            if data == "peers":
                 subdata = connections.receive(s)
-
                 peers.peersync(subdata)
 
             elif data == "sync":
