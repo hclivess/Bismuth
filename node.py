@@ -83,12 +83,7 @@ pool_conf = config.pool_conf
 ram_conf = config.ram_conf
 pool_address = config.pool_address_conf
 version = config.version_conf
-if version != 'mainnet0020':
-    version = 'mainnet0019'  # Force in code.
 version_allow = config.version_allow
-# Allow 18 for transition period. Will be auto removed at fork block.
-if "mainnet0020" not in version_allow:
-    version_allow = ['mainnet0018', 'mainnet0019', 'mainnet0020']
 full_ledger = config.full_ledger_conf
 reveal_address = config.reveal_address
 accept_peers = config.accept_peers
@@ -2846,6 +2841,10 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     pass
 
 
+def just_int_from(s):
+    return int(''.join(i for i in s if i.isdigit()))
+
+
 def setup_net_type():
     """
     Adjust globals depending on mainnet, testnet or regnet
@@ -2854,6 +2853,7 @@ def setup_net_type():
     global port, full_ledger, hyper_recompress_conf
     global hyper_path_conf, ledger_path_conf, ledger_ram_file
     global peerlist, index_db
+    global version, version_allow
 
     # Defaults value, dup'd here for clarity sake.
     is_mainnet = True
@@ -2877,6 +2877,26 @@ def setup_net_type():
     ledger_ram_file = "file:ledger?mode=memory&cache=shared"
     index_db = "static/index.db"
 
+    if is_mainnet:
+        # Allow 18 for transition period. Will be auto removed at fork block.
+        if version != 'mainnet0020':
+            version = 'mainnet0019'  # Force in code.
+        if "mainnet0020" not in version_allow:
+            version_allow = ['mainnet0019', 'mainnet0020', 'mainnet0021']
+        # Do not allow bad configs.
+        if not 'mainnet' in version:
+            app_log.error("Bad mainnet version, check config.txt")
+            sys.exit()
+        num_ver = just_int_from(version)
+        if num_ver < 19:
+            app_log.error("Too low mainnet version, check config.txt")
+            sys.exit()
+        for allowed in version_allow:
+            num_ver = just_int_from(allowed)
+            if num_ver < 19:
+                app_log.error("Too low allowed version, check config.txt")
+                sys.exit()
+
     if is_testnet:
         port = 2829
         full_ledger = False
@@ -2886,6 +2906,9 @@ def setup_net_type():
         hyper_recompress_conf = False
         peerlist = "peers_test.txt"
         index_db = "static/index_test.db"
+        if not 'testnet' in version:
+            app_log.error("Bad testnet version, check config.txt")
+            sys.exit()
 
         redownload_test = input("Status: Welcome to the testnet. Redownload test ledger? y/n")
         if redownload_test == "y" or not os.path.exists("static/test.db"):
@@ -2907,6 +2930,9 @@ def setup_net_type():
         hyper_recompress_conf = False
         peerlist = "peers_reg.txt"
         index_db = "static/index_reg.db"
+        if not 'regnet' in version:
+            app_log.error("Bad regnet version, check config.txt")
+            sys.exit()
         app_log.warning("Regnet still is WIP atm.")
         sys.exit()
 
