@@ -53,6 +53,9 @@ is_regnet = False
 # if it's not testnet, nor regnet, it's mainnet
 is_mainnet = True
 
+conn = None
+h3 = None
+
 dl_lock = threading.Lock()
 db_lock = threading.Lock()
 # mem_lock = threading.Lock()
@@ -3005,49 +3008,49 @@ def initial_db_check():
         check_integrity(hyper_path_conf)
         coherence_check()
 
-        app_log.warning("Status: Indexing tokens from ledger {}".format(ledger_path_conf))
-        tokens.tokens_update(index_db, ledger_path_conf, "normal", app_log, plugin_manager)
-        app_log.warning("Status: Indexing aliases")
-        aliases.aliases_update(index_db, ledger_path_conf, "normal", app_log)
-        ledger_compress(ledger_path_conf, hyper_path_conf)
+    app_log.warning("Status: Indexing tokens from ledger {}".format(ledger_path_conf))
+    tokens.tokens_update(index_db, ledger_path_conf, "normal", app_log, plugin_manager)
+    app_log.warning("Status: Indexing aliases")
+    aliases.aliases_update(index_db, ledger_path_conf, "normal", app_log)
+    ledger_compress(ledger_path_conf, hyper_path_conf)
 
-        try:
-            source_db = sqlite3.connect(hyper_path_conf, timeout=1)
-            source_db.text_factory = str
-            sc = source_db.cursor()
+    try:
+        source_db = sqlite3.connect(hyper_path_conf, timeout=1)
+        source_db.text_factory = str
+        sc = source_db.cursor()
 
-            sc.execute("SELECT max(block_height) FROM transactions")
-            hdd_block = sc.fetchone()[0]
+        sc.execute("SELECT max(block_height) FROM transactions")
+        hdd_block = sc.fetchone()[0]
 
-            last_block = hdd_block
+        last_block = hdd_block
 
-            if is_mainnet and (hdd_block >= POW_FORK - FORK_AHEAD):
-                limit_version()
+        if is_mainnet and (hdd_block >= POW_FORK - FORK_AHEAD):
+            limit_version()
 
-            if ram_conf:
-                app_log.warning("Status: Moving database to RAM")
-                to_ram = sqlite3.connect(ledger_ram_file, uri=True, timeout=1, isolation_level=None)
-                to_ram.text_factory = str
-                tr = to_ram.cursor()
+        if ram_conf:
+            app_log.warning("Status: Moving database to RAM")
+            to_ram = sqlite3.connect(ledger_ram_file, uri=True, timeout=1, isolation_level=None)
+            to_ram.text_factory = str
+            tr = to_ram.cursor()
 
-                query = "".join(line for line in source_db.iterdump())
-                to_ram.executescript(query)
-                # do not close
-                app_log.warning("Status: Moved database to RAM")
+            query = "".join(line for line in source_db.iterdump())
+            to_ram.executescript(query)
+            # do not close
+            app_log.warning("Status: Moved database to RAM")
 
-        except Exception as e:
-            app_log.error(e)
-            raise
+    except Exception as e:
+        app_log.error(e)
+        sys.exit()
 
-        # mempool, m = db_m_define()
-        conn, c = db_c_define()
-        hdd2, h2 = db_h2_define()
-        if full_ledger:
-            hdd, h = db_h_define()
-            h3 = h
-        else:
-            hdd, h = None, None
-            h3 = h2
+    # mempool, m = db_m_define()
+    conn, c = db_c_define()
+    hdd2, h2 = db_h2_define()
+    if full_ledger:
+        hdd, h = db_h_define()
+        h3 = h
+    else:
+        hdd, h = None, None
+        h3 = h2
 
 
 def load_keys():
