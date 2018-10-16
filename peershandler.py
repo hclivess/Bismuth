@@ -89,7 +89,7 @@ class Peers:
         return "regnet" in self.config.version_conf
 
     def is_old_format(self, peerfile=''):
-        """Tells wether peers file is old format"""
+        """Tells whether peers file is old format"""
         if not peerfile:
             peerfile = self.peerfile
         with open(peerfile, 'r') as f:
@@ -121,7 +121,7 @@ class Peers:
             self.app_log.warning("Converting Suggested Peers to new format")
             self.convert_old_to_new(self.suggested_peerfile)
         else:
-            self.app_log.warning("Peers file is in new format")
+            self.app_log.warning("Suggested Peers file is in new format")
 
     def status_dict(self):
         """Returns a status as a dict"""
@@ -279,6 +279,9 @@ class Peers:
         # Always allow whitelisted ip to post as block
         if 'block' == command and self.is_whitelisted(peer_ip):
             return True
+        # only allow local host for "stop" command
+        if 'stop' == command:
+            return peer_ip == '127.0.0.1'
         return peer_ip in self.config.allowed_conf or "any" in self.config.allowed_conf
 
     def is_whitelisted(self, peer_ip, command=''):
