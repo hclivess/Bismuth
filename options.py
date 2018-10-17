@@ -2,11 +2,14 @@ import os.path as path
 
 
 class Get:
-    
+
     # "param_name":["type"] or "param_name"=["type","property_name"]
     vars={
         "port":["str"],
         "verify":["bool","verify_conf"],
+        "version":["str","version_conf"],
+        "testnet":["bool"],
+        "regnet":["bool"],
         "version":["str","version_conf"],
         "version_allow":["list"],
         "thread_limit":["int","thread_limit_conf"],
@@ -43,7 +46,14 @@ class Get:
         "mempool_ram_conf": ["bool"],
         "egress": ["bool"]
     }
- 
+
+    # Optional default values so we don't bug if they are not in the config.
+    # For compatibility
+    defaults = {
+        "testnet": False,
+        "regnet": False
+    }
+
     def load_file(self,filename):
         #print("Loading",filename)
         for line in open(filename):
@@ -65,15 +75,19 @@ class Get:
 
                 else:
                     # treat as "str"
-                    pass 
+                    pass
                 if len(params)>1:
                     # deal with properties that do not match the config name.
                     left = params[1]
-                setattr(self,left,right)                
+                setattr(self,left,right)
         # Default genesis to keep compatibility
         self.genesis_conf = "4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed"
+        for key, default in self.defaults.items():
+            if key not in self.__dict__:
+                setattr(self, key, default)
+
         #print(self.__dict__)
-                    
+
     def read(self):
         # first of all, load from default config so we have all needed params
         self.load_file("config.txt")

@@ -11,7 +11,7 @@
 # do not isolation_level=None/WAL hdd levels, it makes saving slow
 
 
-VERSION = "4.2.7.0"  # .3
+VERSION = "4.2.8"  # 2. Beta for post-fork cleanup - Do not release yet
 
 # Bis specific modules
 import log, options, connections, peershandler, apihandler
@@ -41,12 +41,20 @@ POW_FORK = 854660
 FORK_AHEAD = 5
 FORK_DIFF = 108.9
 
+IS_STOPPING = False
 
 getcontext().rounding = ROUND_HALF_EVEN
 
-global hdd_block
-global last_block
+hdd_block = 0
 last_block = 0
+is_testnet = False
+# regnet takes over testnet
+is_regnet = False
+# if it's not testnet, nor regnet, it's mainnet
+is_mainnet = True
+
+conn = None
+h3 = None
 
 dl_lock = threading.Lock()
 db_lock = threading.Lock()
@@ -80,12 +88,7 @@ pool_conf = config.pool_conf
 ram_conf = config.ram_conf
 pool_address = config.pool_address_conf
 version = config.version_conf
-if version != 'mainnet0020':
-    version = 'mainnet0019'  # Force in code.
 version_allow = config.version_allow
-# Allow 18 for transition period. Will be auto removed at fork block.
-if "mainnet0020" not in version_allow:
-    version_allow = ['mainnet0018', 'mainnet0019', 'mainnet0020']
 full_ledger = config.full_ledger_conf
 reveal_address = config.reveal_address
 accept_peers = config.accept_peers
@@ -194,10 +197,12 @@ def sendsync(sdef, peer_ip, status, provider):
 
     if provider:
         app_log.info("Outbound: Saving peer {}".format(peer_ip))
-        peers.peers_save(peerlist, peer_ip)
+        peers.peers_save(peer_ip)
 
     time.sleep(Decimal(pause_conf))
     while db_lock.locked():
+        if IS_STOPPING:
+            return
         time.sleep(Decimal(pause_conf))
 
     connections.send(sdef, "sendsync")
@@ -299,7 +304,7 @@ def check_integrity(database):
                 "Status: Integrity check on database {} failed, bootstrapping from the website".format(database))
             redownload = True
 
-    if redownload and "testnet" not in version:
+    if redownload and is_mainnet:
         bootstrap()
 
 
@@ -526,7 +531,7 @@ def ledger_compress(ledger_path_conf, hyper_path_conf):
 
             os.rename(ledger_path_conf + '.temp', hyper_path_conf)
 
-        if full_ledger == 0 and os.path.exists(ledger_path_conf) and "testnet" not in version:
+        if full_ledger == 0 and os.path.exists(ledger_path_conf) and is_mainnet:
             os.remove(ledger_path_conf)
             app_log.warning("Removed full ledger and only kept hyperblocks")
 
@@ -544,7 +549,7 @@ def bin_convert(string):
 
 def commit(cursor):
     """Secure commit for slow nodes"""
-    while True:
+    while not IS_STOPPING:
         try:
             cursor.commit()
             break
@@ -556,7 +561,7 @@ def commit(cursor):
 
 def execute(cursor, query):
     """Secure execute for slow nodes"""
-    while True:
+    while not IS_STOPPING:
         try:
             cursor.execute(query)
             break
@@ -577,7 +582,7 @@ def execute(cursor, query):
 
 def execute_param(cursor, query, param):
     """Secure execute w/ param for slow nodes"""
-    while True:
+    while not IS_STOPPING:
         try:
             cursor.execute(query, param)
             break
@@ -630,15 +635,16 @@ def difficulty(c):
     difficulty_new_adjusted = quantize_ten(diff_block_previous + diff_adjustment)
     difficulty = difficulty_new_adjusted
 
-    if block_height == POW_FORK - FORK_AHEAD:
-        limit_version()
-    if block_height == POW_FORK - 1:
-        difficulty = FORK_DIFF
-    if block_height == POW_FORK:
-        difficulty = FORK_DIFF
-        # Remove mainnet0018 from allowed
-        limit_version()
-        # disconnect our outgoing connections
+    if is_mainnet:
+        if block_height == POW_FORK - FORK_AHEAD:
+            limit_version()
+        if block_height == POW_FORK - 1:
+            difficulty = FORK_DIFF
+        if block_height == POW_FORK:
+            difficulty = FORK_DIFF
+            # Remove mainnet0018 from allowed
+            limit_version()
+            # disconnect our outgoing connections
 
     diff_drop_time = Decimal(180)
 
@@ -913,7 +919,7 @@ def manager(c):
 
     until_purge = 0
 
-    while True:
+    while not IS_STOPPING:
         # dict_keys = peer_dict.keys()
         # random.shuffle(peer_dict.items())
         if until_purge == 0:
@@ -962,7 +968,8 @@ def manager(c):
 
 
         # app_log.info(threading.enumerate() all threads)
-        time.sleep(30)
+        if not IS_STOPPING:
+            time.sleep(30)
 
 
 def ledger_balance3(address, c, cache):
@@ -1161,12 +1168,24 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                     raise ValueError("Skipping digestion of block {} from {}, because we already have it on block_height {}".
                                      format(block_hash[:10], peer_ip, dummy[0]))
 
-                if block_height_new < POW_FORK:
-                    diff_save = mining.check_block(block_height_new, miner_address, nonce, db_block_hash, diff[0],
-                                                   received_timestamp, q_received_timestamp, q_db_timestamp_last,
-                                                   peer_ip=peer_ip, app_log=app_log)
+                if is_mainnet:
+                    if block_height_new < POW_FORK:
+                        diff_save = mining.check_block(block_height_new, miner_address, nonce, db_block_hash, diff[0],
+                                                       received_timestamp, q_received_timestamp, q_db_timestamp_last,
+                                                       peer_ip=peer_ip, app_log=app_log)
+                    else:
+                        diff_save = mining_heavy3.check_block(block_height_new, miner_address, nonce, db_block_hash, diff[0],
+                                                              received_timestamp, q_received_timestamp, q_db_timestamp_last,
+                                                              peer_ip=peer_ip, app_log=app_log)
+                elif is_testnet:
+                    diff_save = mining_heavy3.check_block(block_height_new, miner_address, nonce, db_block_hash,
+                                                          diff[0],
+                                                          received_timestamp, q_received_timestamp, q_db_timestamp_last,
+                                                          peer_ip=peer_ip, app_log=app_log)
                 else:
-                    diff_save = mining_heavy3.check_block(block_height_new, miner_address, nonce, db_block_hash, diff[0],
+                    # it's regnet then, will use a specific fake method here.
+                    diff_save = mining_heavy3.check_block(block_height_new, miner_address, nonce, db_block_hash,
+                                                          diff[0],
                                                           received_timestamp, q_received_timestamp, q_db_timestamp_last,
                                                           peer_ip=peer_ip, app_log=app_log)
 
@@ -1286,7 +1305,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                     commit(conn)
 
                 # savings
-                if "testnet" in version or block_height_new >= 843000:
+                if is_testnet or block_height_new >= 843000:
                     if int(block_height_new) % 10000 == 0:  # every x blocks
                         staking.staking_update(conn, c, index, index_cursor, "normal", block_height_new, app_log)
                         staking.staking_payout(conn, c, index, index_cursor, block_height_new, float(q_block_timestamp), app_log)
@@ -1470,7 +1489,10 @@ def db_maintenance(conn):
 
 class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
     def handle(self):
+        global IS_STOPPING
 
+        if IS_STOPPING:
+            return
         # global banlist
         # global ban_threshold
         global peers
@@ -1512,7 +1534,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         timeout_operation = 120  # timeout
         timer_operation = time.time()  # start counting
 
-        while not banned and capacity and peers.version_allowed(peer_ip, version_allow):
+        while not banned and capacity and peers.version_allowed(peer_ip, version_allow) and not IS_STOPPING:
             try:
                 hdd2, h2 = db_h2_define()
                 conn, c = db_c_define()
@@ -1583,7 +1605,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "hello":
 
                     connections.send(self.request, "peers")
-                    connections.send(self.request, peers.peer_list(peerlist)) #INCOMPATIBLE WITH THE OLD WAY
+                    connections.send(self.request, peers.peer_list_old_format()) #INCOMPATIBLE WITH THE OLD WAY
 
                     while db_lock.locked():
                         time.sleep(quantize_two(pause_conf))
@@ -1597,6 +1619,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                     global syncing
                     while len(syncing) >= 3:
+                        if IS_STOPPING:
+                            return
                         time.sleep(int(pause_conf))
 
                     connections.send(self.request, "sync")
@@ -1760,6 +1784,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     app_log.info("Outbound: Deletion complete, sending sync request")
 
                     while db_lock.locked():
+                        if IS_STOPPING:
+                            return
                         time.sleep(pause_conf)
                     connections.send(self.request, "sync")
 
@@ -1786,7 +1812,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             mined['miner'] = segments[0][-1][2]
                         except:
                             pass
-                        if "testnet" not in version:
+                        if is_mainnet:
                             if len(peers.connection_pool) < 5 and not peers.is_whitelisted(peer_ip):
                                 reason = "Outbound: Mined block ignored, insufficient connections to the network"
                                 mined['reason'] = reason
@@ -2347,7 +2373,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                         # with open(peerlist, "r") as peer_list:
                         #    peers_file = peer_list.read()
-                        connections.send(self.request, peers.peer_list(peerlist))
+                        connections.send(self.request, peers.peer_list_disk_format())
 
                     else:
                         app_log.info("{} not whitelisted for peersget command".format(peer_ip))
@@ -2455,6 +2481,11 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     else:
                         app_log.info("{} not whitelisted for difflastjson command".format(peer_ip))
 
+                elif data == "stop":
+                    # if (peer_ip in allowed or "any" in allowed):
+                    if peers.is_allowed(peer_ip, data):
+                        app_log.warning("Received stop from {}".format(peer_ip))
+                        IS_STOPPING = True
                 else:
                     if data == '*':
                         raise ValueError("Broken pipe")
@@ -2495,15 +2526,16 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
 def ensure_good_peer_version(peer_ip):
     """
-    Todo: clean after HF
+    cleanup after HF, kepts here for future use.
+    """
     """
     # If we are post fork, but we don't know the version, then it was an old connection, close.
-    if last_block >= POW_FORK :
+    if is_mainnet and (last_block >= POW_FORK) :
         if peer_ip not in peers.ip_to_mainnet:
             raise ValueError("Outbound: disconnecting old node {}".format(peer_ip));
         elif peers.ip_to_mainnet[peer_ip] not in version_allow:
             raise ValueError("Outbound: disconnecting old node {} - {}".format(peer_ip, peers.ip_to_mainnet[peer_ip]));
-
+    """
 
 # client thread
 # if you "return" from the function, the exception code will node be executed and client thread will hang
@@ -2511,6 +2543,8 @@ def worker(HOST, PORT):
     global peers
     global plugin_manager
 
+    if IS_STOPPING:
+        return
     dict_ip = {'ip': HOST}
     plugin_manager.execute_filter_hook('peer_ip', dict_ip)
     if peers.is_banned(HOST) or dict_ip['ip'] == 'banned':
@@ -2542,13 +2576,13 @@ def worker(HOST, PORT):
             raise ValueError("Outbound: Node protocol version of {} mismatch".format(this_client))
 
         # If we are post pow fork, then the peer has getversion command
-        if last_block >= POW_FORK - FORK_AHEAD:
-            # Peers that are not up to date will disconnect since they don't know that command.
-            # That is precisely what we need :D
-            connections.send(s, "getversion")
-            peer_version = connections.receive(s)
-            if peer_version not in version_allow:
-                raise ValueError("Outbound: Incompatible peer version {} from {}".format(peer_version, this_client))
+        #if last_block >= POW_FORK - FORK_AHEAD:
+        # Peers that are not up to date will disconnect since they don't know that command.
+        # That is precisely what we need :D
+        connections.send(s, "getversion")
+        peer_version = connections.receive(s)
+        if peer_version not in version_allow:
+            raise ValueError("Outbound: Incompatible peer version {} from {}".format(peer_version, this_client))
 
         connections.send(s, "hello")
 
@@ -2559,8 +2593,8 @@ def worker(HOST, PORT):
         return  # can return here, because no lists are affected yet
 
     banned = False
-    if last_block >= POW_FORK - FORK_AHEAD:
-        peers.store_mainnet(HOST, peer_version)
+    # if last_block >= POW_FORK - FORK_AHEAD:
+    peers.store_mainnet(HOST, peer_version)
     try:
         peer_ip = s.getpeername()[0]
     except:
@@ -2573,7 +2607,7 @@ def worker(HOST, PORT):
         app_log.info("Connected to {}".format(this_client))
         app_log.info("Current active pool: {}".format(peers.connection_pool))
 
-    while not banned and peers.version_allowed(HOST, version_allow):
+    while not banned and peers.version_allowed(HOST, version_allow) and not IS_STOPPING:
         try:
             ensure_good_peer_version(HOST)
 
@@ -2605,6 +2639,8 @@ def worker(HOST, PORT):
                     global syncing
 
                     while len(syncing) >= 3:
+                        if IS_STOPPING:
+                            return
                         time.sleep(int(pause_conf))
 
                     syncing.append(peer_ip)
@@ -2843,6 +2879,190 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     pass
 
 
+def just_int_from(s):
+    return int(''.join(i for i in s if i.isdigit()))
+
+
+def setup_net_type():
+    """
+    Adjust globals depending on mainnet, testnet or regnet
+    """
+    global is_testnet, is_regnet, is_mainnet
+    global port, full_ledger, hyper_recompress_conf
+    global hyper_path_conf, ledger_path_conf, ledger_ram_file
+    global peerlist, index_db
+    global version, version_allow
+
+    # Defaults value, dup'd here for clarity sake.
+    is_mainnet = True
+    is_testnet = False
+    is_regnet = False
+
+    if "testnet" in version or config.testnet:
+        is_testnet = True
+        is_mainnet = False
+
+    if "regnet" in version or config.regnet:
+        is_regnet = True
+        is_testnet = False
+        is_mainnet = False
+
+    app_log.warning("Testnet: {}".format(is_testnet))
+    app_log.warning("Regnet : {}".format(is_regnet))
+
+    # default mainnet config
+    peerlist = "peers.txt"
+    ledger_ram_file = "file:ledger?mode=memory&cache=shared"
+    index_db = "static/index.db"
+
+    if is_mainnet:
+        # Allow 18 for transition period. Will be auto removed at fork block.
+        if version != 'mainnet0020':
+            version = 'mainnet0019'  # Force in code.
+        if "mainnet0020" not in version_allow:
+            version_allow = ['mainnet0019', 'mainnet0020', 'mainnet0021']
+        # Do not allow bad configs.
+        if not 'mainnet' in version:
+            app_log.error("Bad mainnet version, check config.txt")
+            sys.exit()
+        num_ver = just_int_from(version)
+        if num_ver < 19:
+            app_log.error("Too low mainnet version, check config.txt")
+            sys.exit()
+        for allowed in version_allow:
+            num_ver = just_int_from(allowed)
+            if num_ver < 19:
+                app_log.error("Too low allowed version, check config.txt")
+                sys.exit()
+
+    if is_testnet:
+        port = 2829
+        full_ledger = False
+        hyper_path_conf = "static/test.db"
+        ledger_path_conf = "static/test.db"  # for tokens
+        ledger_ram_file = "file:ledger_testnet?mode=memory&cache=shared"
+        hyper_recompress_conf = False
+        peerlist = "peers_test.txt"
+        index_db = "static/index_test.db"
+        if not 'testnet' in version:
+            app_log.error("Bad testnet version, check config.txt")
+            sys.exit()
+
+        redownload_test = input("Status: Welcome to the testnet. Redownload test ledger? y/n")
+        if redownload_test == "y" or not os.path.exists("static/test.db"):
+            types = ['static/test.db-wal', 'static/test.db-shm', 'static/index_test.db']
+            for type in types:
+                for file in glob.glob(type):
+                    os.remove(file)
+                    print(file, "deleted")
+            download_file("https://bismuth.cz/test.db", "static/test.db")
+            download_file("https://bismuth.cz/index_test.db", "static/index_test.db")
+        else:
+            print("Not redownloading test db")
+
+    if is_regnet:
+        port = 3030
+        hyper_path_conf = "static/regmode.db"
+        ledger_path_conf = "static/regmode.db"  # for tokens
+        ledger_ram_file = "file:ledger_regnet?mode=memory&cache=shared"
+        hyper_recompress_conf = False
+        peerlist = "peers_reg.txt"
+        index_db = "static/index_reg.db"
+        if not 'regnet' in version:
+            app_log.error("Bad regnet version, check config.txt")
+            sys.exit()
+        app_log.warning("Regnet still is WIP atm.")
+        sys.exit()
+
+
+
+
+
+def initial_db_check():
+    """
+    Initial bootstrap check and chain validity control
+    """
+    global last_block, hdd_block
+    global tr, conn, c, hdd, h, h3, hdd2, h2
+    # force bootstrap via adding an empty "fresh_sync" file in the dir.
+    if os.path.exists("fresh_sync") and is_mainnet:
+        app_log.warning("Status: Fresh sync required, bootstrapping from the website")
+        os.remove("fresh_sync")
+        bootstrap()
+    # UPDATE mainnet DB if required
+    if is_mainnet:
+        upgrade = sqlite3.connect(ledger_path_conf)
+        u = upgrade.cursor()
+        try:
+            u.execute("PRAGMA table_info(transactions);")
+            result = u.fetchall()[10][2]
+            if result != "TEXT":
+                raise ValueError("Database column type outdated for Command field")
+            upgrade.close()
+        except Exception as e:
+            print(e)
+            upgrade.close()
+            print("Database needs upgrading, bootstrapping...")
+            bootstrap()
+        # UPDATE DB
+        check_integrity(hyper_path_conf)
+        coherence_check()
+
+    app_log.warning("Status: Indexing tokens from ledger {}".format(ledger_path_conf))
+    tokens.tokens_update(index_db, ledger_path_conf, "normal", app_log, plugin_manager)
+    app_log.warning("Status: Indexing aliases")
+    aliases.aliases_update(index_db, ledger_path_conf, "normal", app_log)
+    ledger_compress(ledger_path_conf, hyper_path_conf)
+
+    try:
+        source_db = sqlite3.connect(hyper_path_conf, timeout=1)
+        source_db.text_factory = str
+        sc = source_db.cursor()
+
+        sc.execute("SELECT max(block_height) FROM transactions")
+        hdd_block = sc.fetchone()[0]
+
+        last_block = hdd_block
+
+        if is_mainnet and (hdd_block >= POW_FORK - FORK_AHEAD):
+            limit_version()
+
+        if ram_conf:
+            app_log.warning("Status: Moving database to RAM")
+            to_ram = sqlite3.connect(ledger_ram_file, uri=True, timeout=1, isolation_level=None)
+            to_ram.text_factory = str
+            tr = to_ram.cursor()
+
+            query = "".join(line for line in source_db.iterdump())
+            to_ram.executescript(query)
+            # do not close
+            app_log.warning("Status: Moved database to RAM")
+
+    except Exception as e:
+        app_log.error(e)
+        sys.exit()
+
+    # mempool, m = db_m_define()
+    conn, c = db_c_define()
+    hdd2, h2 = db_h2_define()
+    if full_ledger:
+        hdd, h = db_h_define()
+        h3 = h
+    else:
+        hdd, h = None, None
+        h3 = h2
+
+
+def load_keys():
+    """Initial loading of crypto keys"""
+    global public_key_readable, public_key_hashed, address, keyfile
+    essentials.keys_check(app_log, "wallet.der")
+    essentials.db_check(app_log)
+    _, public_key_readable, _, _, _, public_key_hashed, address, keyfile = essentials.keys_load("privkey.der",
+                                                                                                "pubkey.der")
+    app_log.warning("Status: Local address: {}".format(address))
+
+
 if __name__ == "__main__":
     app_log = log.log("node.log", debug_level_conf, terminal_output)
     app_log.warning("Configuration settings loaded")
@@ -2851,144 +3071,21 @@ if __name__ == "__main__":
         # create a plugin manager, load all plugin modules and init
         plugin_manager = plugins.PluginManager(app_log=app_log, init=True)
 
-        if os.path.exists("fresh_sync"):
-            app_log.warning("Status: Fresh sync required, bootstrapping from the website")
-            os.remove("fresh_sync")
-            bootstrap()
+        setup_net_type()
+        load_keys()
+        initial_db_check()
 
-        if "testnet" in version:  # overwrite for testnet
-            port = 2829
-            full_ledger = 0
-            hyper_path_conf = "static/test.db"
-            ledger_path_conf = "static/test.db"  # for tokens
-            ledger_ram_file = "file:ledger_testnet?mode=memory&cache=shared"
-            hyper_recompress_conf = 0
-            peerlist = "peers_test.txt"
-
-            redownload_test = input("Status: Welcome to the testnet. Redownload test ledger? y/n")
-            if redownload_test == "y" or not os.path.exists("static/test.db"):
-                types = ['static/test.db-wal', 'static/test.db-shm', 'static/index_test.db']
-                for type in types:
-                    for file in glob.glob(type):
-                        os.remove(file)
-                        print(file, "deleted")
-                download_file("https://bismuth.cz/test.db", "static/test.db")
-                download_file("https://bismuth.cz/index_test.db", "static/index_test.db")
-            else:
-                print("Not redownloading test db")
-
-        # TODO : move this to peers also.
-        else:
-            peerlist = "peers.txt"
-            ledger_ram_file = "file:ledger?mode=memory&cache=shared"
-
-        # UPDATE DB
-
-        if "testnet" not in version:
-            upgrade = sqlite3.connect(ledger_path_conf)
-            u = upgrade.cursor()
-            try:
-                u.execute("PRAGMA table_info(transactions);")
-                result = u.fetchall()[10][2]
-                if result != "TEXT":
-                    raise ValueError("Database column type outdated for Command field")
-
-                upgrade.close()
-
-            except Exception as e:
-                print(e)
-                upgrade.close()
-                print("Database needs upgrading, bootstrapping...")
-                bootstrap()
-        # UPDATE DB
-
-        # This one too?
-        global syncing
-        syncing = []
-
-        # import keys
-        # key = RSA.importKey(open('privkey.der').read())
-        # private_key_readable = str(key.exportKey())
-
-        essentials.keys_check(app_log, "wallet.der")
-        essentials.db_check(app_log)
-        _, public_key_readable, _, _, _, public_key_hashed, address, keyfile = essentials.keys_load("privkey.der", "pubkey.der")
-
-
-
-        app_log.warning("Status: Local address: {}".format(address))
-
-        if "testnet" in version:
-            index_db = "static/index_test.db"
-        else:
-            index_db = "static/index.db"
-
-        #index, index_cursor = index_define()  # todo: remove this later
-        #staking.check_db(index, index_cursor)  # todo: remove this later
-
-        check_integrity(hyper_path_conf)
-        coherence_check()
-
-        app_log.warning("Status: Indexing tokens")
-        print(ledger_path_conf)
-        tokens.tokens_update(index_db, ledger_path_conf, "normal", app_log, plugin_manager)
-        app_log.warning("Status: Indexing aliases")
-        aliases.aliases_update(index_db, ledger_path_conf, "normal", app_log)
-
-        ledger_compress(ledger_path_conf, hyper_path_conf)
-
-        try:
-            source_db = sqlite3.connect(hyper_path_conf, timeout=1)
-            source_db.text_factory = str
-            sc = source_db.cursor()
-
-            sc.execute("SELECT max(block_height) FROM transactions")
-            hdd_block = sc.fetchone()[0]
-
-            last_block = hdd_block
-            if hdd_block >= POW_FORK - FORK_AHEAD:
-                limit_version()
-
-            if ram_conf:
-                app_log.warning("Status: Moving database to RAM")
-                to_ram = sqlite3.connect(ledger_ram_file, uri=True, timeout=1, isolation_level=None)
-                to_ram.text_factory = str
-                tr = to_ram.cursor()
-
-                query = "".join(line for line in source_db.iterdump())
-                to_ram.executescript(query)
-                # do not close
-                app_log.warning("Status: Moved database to RAM")
-
-        except Exception as e:
-            app_log.error(e)
-            raise
-
-        # mempool, m = db_m_define()
-        conn, c = db_c_define()
-        hdd2, h2 = db_h2_define()
-        if full_ledger:
-            hdd, h = db_h_define()
-            h3 = h
-        else:
-            hdd, h = None, None
-            h3 = h2
-
-        # init
-
-        ### LOCAL CHECKS FINISHED ###
         app_log.warning("Status: Starting node version {}".format(VERSION))
         global startup_time
         startup_time = time.time()
+        syncing = []
 
         try:
-            if "testnet" in version:
-                is_testnet = True
-            else:
-                is_testnet = False
-            app_log.warning("Testnet: {}".format(is_testnet))
 
             peers = peershandler.Peers(app_log, config)
+            # print(peers.peer_list_old_format())
+            # sys.exit()
+
             apihandler = apihandler.ApiHandler(app_log, config)
             mp.MEMPOOL = mp.Mempool(app_log, config, db_lock, is_testnet)
 
@@ -3030,12 +3127,13 @@ if __name__ == "__main__":
             t_manager.daemon = True
             t_manager.start()
             # start connection manager
-
+            app_log.warning("Closing in 10 sec...")
+            time.sleep(10)
             # server.serve_forever() #added
             server.shutdown()
             server.server_close()
             mp.MEMPOOL.close()
-
+            # TODO: VACUUM THE DBs
 
         except Exception as e:
             app_log.info("Status: Node already running?")
