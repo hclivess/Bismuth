@@ -11,7 +11,7 @@
 # do not isolation_level=None/WAL hdd levels, it makes saving slow
 
 
-VERSION = "4.2.8"  # 2. Beta for post-fork cleanup - Do not release yet
+VERSION = "4.2.8"  # 3. regnet support
 
 # Bis specific modules
 import log, options, connections, peershandler, apihandler
@@ -33,6 +33,7 @@ import plugins
 import staking
 import mining
 import mining_heavy3
+import regnet
 
 # load config
 # global ban_threshold
@@ -54,6 +55,7 @@ is_regnet = False
 is_mainnet = True
 
 conn = None
+c = None
 h3 = None
 
 dl_lock = threading.Lock()
@@ -602,21 +604,29 @@ def execute_param(cursor, query, param):
 
 
 def difficulty(c):
+
     execute(c, "SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 2")
     result = c.fetchone()
     timestamp_last = Decimal(result[1])
     block_height = int(result[0])
-    timestamp_before_last = Decimal(c.fetchone()[1])
+    previous = c.fetchone()
+    # Failsafe for regtest starting at block 1}
+    timestamp_before_last = timestamp_last if previous is None else Decimal(previous[1])
 
     execute_param(c, ("SELECT timestamp FROM transactions WHERE CAST(block_height AS INTEGER) > ? AND reward != 0 ORDER BY timestamp ASC LIMIT 2"), (block_height - 1441,))
     timestamp_1441 = Decimal(c.fetchone()[0])
     block_time_prev = (timestamp_before_last - timestamp_1441) / 1440
-    timestamp_1440 = Decimal(c.fetchone()[0])
+    temp = c.fetchone()
+    timestamp_1440 = timestamp_1441 if temp is None else Decimal(temp[0])
     block_time = Decimal(timestamp_last - timestamp_1440) / 1440
     execute(c, ("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
     diff_block_previous = Decimal(c.fetchone()[0])
 
     time_to_generate = timestamp_last - timestamp_before_last
+
+    if is_regnet:
+        return (float('%.10f' % regnet.REGNET_DIFF), float('%.10f' % (regnet.REGNET_DIFF - 8)), float(time_to_generate),
+            float(regnet.REGNET_DIFF), float(block_time), float(0), float(0), block_height)
 
     hashrate = pow(2, diff_block_previous / Decimal(2.0)) / (
         block_time * math.ceil(28 - diff_block_previous / Decimal(16.0)))
@@ -930,7 +940,9 @@ def manager(c):
         until_purge -= 1
 
         # peer management
-        peers.manager_loop(target=worker)
+        if not is_regnet:
+            # regnet never tries to connect
+            peers.manager_loop(target=worker)
 
         app_log.warning("Status: Threads at {} / {}".format(threading.active_count(), thread_limit_conf))
         app_log.info("Status: Syncing nodes: {}".format(syncing))
@@ -956,6 +968,8 @@ def manager(c):
                   "difficulty": tempdiff[0],  # live status, bitcoind format
                   "threads": threading.active_count(), "uptime": uptime, "consensus": peers.consensus,
                   "consensus_percent": peers.consensus_percentage, "last_block_ago": last_block_ago}  # extra data
+        if is_regnet:
+            status['regnet']= True
         plugin_manager.execute_action_hook('status', status)
         # end status hook
 
@@ -968,8 +982,10 @@ def manager(c):
 
 
         # app_log.info(threading.enumerate() all threads)
-        if not IS_STOPPING:
-            time.sleep(30)
+        for i in range(30):
+            # faster stop
+            if not IS_STOPPING:
+                time.sleep(1)
 
 
 def ledger_balance3(address, c, cache):
@@ -1185,7 +1201,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                 else:
                     # it's regnet then, will use a specific fake method here.
                     diff_save = mining_heavy3.check_block(block_height_new, miner_address, nonce, db_block_hash,
-                                                          diff[0],
+                                                          regnet.REGNET_DIFF,
                                                           received_timestamp, q_received_timestamp, q_db_timestamp_last,
                                                           peer_ip=peer_ip, app_log=app_log)
 
@@ -1306,6 +1322,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
 
                 # savings
                 if is_testnet or block_height_new >= 843000:
+                    # no savings for regnet
                     if int(block_height_new) % 10000 == 0:  # every x blocks
                         staking.staking_update(conn, c, index, index_cursor, "normal", block_height_new, app_log)
                         staking.staking_payout(conn, c, index, index_cursor, block_height_new, float(q_block_timestamp), app_log)
@@ -1348,16 +1365,18 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                 # We could recalc diff after inserting block, and then only trigger the block hook, but I fear this would delay the new block event.
 
                 # /whole block validation
+                # NEW: returns new block hash
+                return block_hash
 
         except Exception as e:
             app_log.warning("Block: processing failed: {}".format(e))
             failed_cause = str(e)
             # Temp
-            """
+
             exc_type, exc_obj, exc_tb = sys.exc_info()
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
             print(exc_type, fname, exc_tb.tb_lineno)
-            """
+
             if peers.warning(sdef, peer_ip, "Rejected block", 2):
                 raise ValueError("{} banned".format(peer_ip))
             raise ValueError("Block: digestion aborted")
@@ -1562,6 +1581,17 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                 app_log.info("Inbound: Received: {} from {}".format(data, peer_ip))  # will add custom ports later
 
+                if data.startswith('regtest_'):
+                    if not is_regnet:
+                        connections.send(self.request, "notok")
+                        return
+                    else:
+                        execute(c, ("SELECT block_hash FROM transactions WHERE block_height= (select max(block_height) from transactions)"))
+                        block_hash = c.fetchone()[0]
+                        # feed regnet with current thread db handle. refactor needed.
+                        regnet.conn, regnet.c, regnet.hdd, regnet.h, regnet.hdd2, regnet.h2, regnet.h3 = conn, c, hdd, h, hdd2, h2, h3
+                        regnet.command(self.request, data, block_hash)
+
                 if data == 'version':
                     data = connections.receive(self.request)
                     if data not in version_allow:
@@ -1603,6 +1633,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # send own
 
                 elif data == "hello":
+                    if is_regnet:
+                        app_log.info("Inbound: Got hello but I'm in regtest mode, closing.")
+                        return
 
                     connections.send(self.request, "peers")
                     connections.send(self.request, peers.peer_list_old_format()) #INCOMPATIBLE WITH THE OLD WAY
@@ -2423,6 +2456,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                   "uptime": uptime, "consensus": peers.consensus,
                                   "consensus_percent": peers.consensus_percentage,
                                   "server_timestamp": '%.2f' % time.time()}  # extra data
+                        if is_regnet:
+                            status['regnet'] = True
                         connections.send(self.request, status)
                     else:
                         app_log.info("{} not whitelisted for statusjson command".format(peer_ip))
@@ -2961,18 +2996,24 @@ def setup_net_type():
             print("Not redownloading test db")
 
     if is_regnet:
-        port = 3030
-        hyper_path_conf = "static/regmode.db"
-        ledger_path_conf = "static/regmode.db"  # for tokens
+        port = regnet.REGNET_PORT
+        hyper_path_conf = regnet.REGNET_DB
+        ledger_path_conf = regnet.REGNET_DB
         ledger_ram_file = "file:ledger_regnet?mode=memory&cache=shared"
         hyper_recompress_conf = False
-        peerlist = "peers_reg.txt"
-        index_db = "static/index_reg.db"
+        peerlist = regnet.REGNET_PEERS
+        index_db = regnet.REGNET_INDEX
         if not 'regnet' in version:
             app_log.error("Bad regnet version, check config.txt")
             sys.exit()
+        app_log.warning("Regnet init...")
+        regnet.init(app_log)
+        regnet.DIGEST_BLOCK = digest_block
+        mining_heavy3.is_regnet = True
+        """
         app_log.warning("Regnet still is WIP atm.")
         sys.exit()
+        """
 
 
 
@@ -3058,8 +3099,14 @@ def load_keys():
     global public_key_readable, public_key_hashed, address, keyfile
     essentials.keys_check(app_log, "wallet.der")
     essentials.db_check(app_log)
-    _, public_key_readable, _, _, _, public_key_hashed, address, keyfile = essentials.keys_load("privkey.der",
-                                                                                                "pubkey.der")
+    key, public_key_readable, private_key_readable, _, _, public_key_hashed, address, keyfile = \
+        essentials.keys_load("privkey.der", "pubkey.der")
+    if is_regnet:
+        regnet.PRIVATE_KEY_READABLE = private_key_readable
+        regnet.PUBLIC_KEY_HASHED = public_key_hashed
+        regnet.ADDRESS = address
+        regnet.KEY = key
+
     app_log.warning("Status: Local address: {}".format(address))
 
 
@@ -3125,15 +3172,17 @@ if __name__ == "__main__":
             t_manager = threading.Thread(target=manager(c))
             app_log.warning("Status: Starting connection manager")
             t_manager.daemon = True
-            t_manager.start()
             # start connection manager
-            app_log.warning("Closing in 10 sec...")
-            time.sleep(10)
+            t_manager.start()
+            if not is_regnet:
+                # regnet mode does not need any specific attention.
+                app_log.warning("Closing in 10 sec...")
+                time.sleep(10)
             # server.serve_forever() #added
             server.shutdown()
             server.server_close()
             mp.MEMPOOL.close()
-            # TODO: VACUUM THE DBs
+            # TODO: VACUUM THE DBs?
 
         except Exception as e:
             app_log.info("Status: Node already running?")
