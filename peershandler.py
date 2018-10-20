@@ -12,7 +12,9 @@ import time
 
 import socks
 
-__version__ = "0.0.9"
+import regnet
+
+__version__ = "0.0.10"
 
 
 # TODO : some config options are _conf and others without => clean up later on
@@ -63,8 +65,8 @@ class Peers:
             self.suggested_peerfile = "suggested_peers_test.txt"
 
         if self.is_regnet:  # regnet won't use any peer, won't connect. Kept for compatibility
-            self.peerfile = "peers_reg.txt"
-            self.suggested_peerfile = "suggested_peers_reg.txt"
+            self.peerfile = regnet.REGNET_PEERS
+            self.suggested_peerfile = regnet.REGNET_SUGGESTED_PEERS
 
         self.load_and_convert_if_needed()
         self.peers_test(self.peerfile)
