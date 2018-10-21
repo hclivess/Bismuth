@@ -69,11 +69,15 @@ except:
 s = socks.socksocket()
 s.settimeout(10)
 
-
+is_regnet = False
 
 if "testnet" in version:
     s.connect (("127.0.0.1", 2829))
     print("tesnet mode")
+elif "regnet" in version:
+    is_regnet = True
+    print("Regtest mode")
+    s.connect (("127.0.0.1", 3030))
 else:
     s.connect(("127.0.0.1", 5658))
 #s.connect(("94.113.207.67", 5658))
@@ -348,6 +352,24 @@ def aliasesget(socket, arg1):
 if command == "getversion":
     connections.send(s, "getversion")
     print(connections.receive(s))
+
+
+if command == "generate":
+    if not is_regnet:
+        print("Only available on regnet")
+        sys.exit()
+    connections.send(s, "regtest_generate")
+    connections.send(s, arg1)
+    print(connections.receive(s))
+
+if command == "mpfill":
+    if not is_regnet:
+        print("Only available on regnet")
+        sys.exit()
+    connections.send(s, "regtest_mpfill")
+    connections.send(s, arg1)
+    print(connections.receive(s))
+
 
 if command == "mpinsert":
     #arg1 = '1520788207.69', '4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed', '4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed', '0.00000000', 'e0piKXvc636t0fYmxdOti3fJZ+G1vQYAJ2IZv4inPGQYgG4nS0lU+61LDQQVqeGvmsDOsxFhM6VVLpYExPmc5HF6e1ZAr5IXQ69s88sJBx/XVl1YavAdo0katGDyvZpQf609F8PVbtD0zzBinQjfkoXU/NXo00CEyniyYPxAXuI=', 'LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUlHZk1BMEdDU3FHU0liM0RRRUJBUVVBQTRHTkFEQ0JpUUtCZ1FES3ZMVGJEeDg1YTF1Z2IvNnhNTWhWT3E2VQoyR2VZVDgrSXEyejlGd0lNUjQwbDJ0dEdxTks3dmFyTmNjRkxJdThLbjRvZ0RRczNXU1dRQ3hOa2haaC9GcXpGCllZYTMvSXRQUGZ6clhxZ2Fqd0Q4cTRadDRZbWp0OCsyQmtJbVBqakZOa3VUUUl6Mkl1M3lGcU9JeExkak13N24KVVZ1OXRGUGlVa0QwVm5EUExRSURBUUFCCi0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLQ==', '0', ''

@@ -18,7 +18,7 @@ import json
 from quantizer import *
 import essentials
 
-__version__ = "0.0.5c"
+__version__ = "0.0.5d"
 
 MEMPOOL = None
 
@@ -78,6 +78,10 @@ class Mempool:
             self.config = config
             self.db_lock = db_lock
             self.ram = self.config.mempool_ram_conf
+            if self.config.version_conf == 'regnet':
+                self.app_log.warning("Regtest mode, ram mempool")
+                self.ram = True
+
             self.lock = threading.Lock()
             self.peers_lock = threading.Lock()
             # ip: last time sent
@@ -466,7 +470,7 @@ class Mempool:
                         mempool_signature_enc = str(transaction[4])[:684]
                         mempool_public_key_hashed = str(transaction[5])[:1068]
                         if "b'" == mempool_public_key_hashed[:2]:
-                            mempool_public_key_hashed = transaction[5][2:1070]                        
+                            mempool_public_key_hashed = transaction[5][2:1070]
                         mempool_operation = str(transaction[6])[:30]
                         mempool_openfield = str(transaction[7])[:100000]
 

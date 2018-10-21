@@ -14,8 +14,9 @@ from hashlib import sha224
 from hmac_drbg import DRBG
 from quantizer import *
 
+import regnet
 
-__version__ = '0.1.2'
+__version__ = '0.1.3'
 
 
 print("Mining_Heavy3 v{}".format(__version__))
@@ -29,6 +30,8 @@ RND_LEN = 0
 
 MMAP = None
 F = None
+
+is_regnet = False
 
 
 def read_int_from_map(map, index):
@@ -97,6 +100,9 @@ def check_block(block_height_new, miner_address, nonce, db_block_hash, diff0, re
         diff0 = FORK_DIFF
     if block_height_new == POW_FORK:
         diff0 = FORK_DIFF
+    if is_regnet:
+        diff0 = regnet.REGNET_DIFF - 8
+
     real_diff = diffme_heavy3(miner_address, nonce, db_block_hash)
     diff_drop_time = Decimal(180)
     mining_condition = bin_convert(db_block_hash)[0:int(diff0)]
