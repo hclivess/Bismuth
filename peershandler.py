@@ -358,7 +358,7 @@ class Peers:
                             # suggested
                             with open(self.suggested_peerfile) as peers_existing:
                                 peers_suggested = json.load(peers_existing)
-                                if pair not in peers_suggested and pair not in self.peer_dict:
+                                if pair not in peers_suggested:
                                     peers_suggested[pair[0]] = pair[1]
                                     with open(self.suggested_peerfile, "w") as peer_list_file:
                                         json.dump(peers_suggested, peer_list_file)
@@ -388,7 +388,7 @@ class Peers:
                                 s_purge.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
                             s_purge.connect((pair[0], int(pair[1])))  # save a new peer file with only active nodes
                             s_purge.close()
-                            if pair not in peers_suggested:
+                            if pair not in peers_suggested and pair not in peers:
                                 peers_suggested[pair[0]] = pair[1]
                             peers[pair[0]] = pair[1]
                         except:
@@ -562,53 +562,55 @@ class Peers:
 
     def manager_loop(self, target=None):
         """Manager loop called every 30 sec. Handles maintenance"""
+        try:
+            for key, value in self.peer_dict.items():
+                host = key
+                port = int(value)
+                if self.is_testnet:
+                    port = 2829
+                if threading.active_count()/3 < self.config.thread_limit_conf and self.can_connect_to(host, port):
+                    self.app_log.warning("Will attempt to connect to {}:{}".format(host, port))
+                    self.add_try(host, port)
+                    t = threading.Thread(target=target, args=(host, port))  # threaded connectivity to nodes here
+                    self.app_log.info("---Starting a client thread " + str(threading.currentThread()) + "---")
+                    t.daemon = True
+                    t.start()
 
-        for key, value in self.peer_dict.items():
-            host = key
-            port = int(value)
-            if self.is_testnet:
-                port = 2829
-            if threading.active_count()/3 < self.config.thread_limit_conf and self.can_connect_to(host, port):
-                self.app_log.warning("Will attempt to connect to {}:{}".format(host, port))
-                self.add_try(host, port)
-                t = threading.Thread(target=target, args=(host, port))  # threaded connectivity to nodes here
-                self.app_log.info("---Starting a client thread " + str(threading.currentThread()) + "---")
-                t.daemon = True
-                t.start()
+            # TODO: 15 s after start is too short for all peers to have been tested, rework needed.
+            if int(time.time() - self.startup_time) > 15:  # refreshes peers from drive
+                self.peer_dict.update(self.peers_get(self.peerfile))
 
-        # TODO: 15 s after start is too short for all peers to have been tested, rework needed.
-        if int(time.time() - self.startup_time) > 15:  # refreshes peers from drive
-            self.peer_dict.update(self.peers_get(self.peerfile))
+            if len(self.consensus_blockheight_list) < 3 and int(time.time() - self.startup_time) > 15:
+                # join in random peers after x seconds
+                self.app_log.warning("Not enough peers in consensus, joining in peers suggested by other nodes")
+                self.peer_dict.update(self.peers_get(self.suggested_peerfile))
 
-        if len(self.consensus_blockheight_list) < 3 and int(time.time() - self.startup_time) > 15:
-            # join in random peers after x seconds
-            self.app_log.warning("Not enough peers in consensus, joining in peers suggested by other nodes")
-            self.peer_dict.update(self.peers_get(self.suggested_peerfile))
+            if len(self.connection_pool) < self.config.nodes_ban_reset and int(time.time() - self.startup_time) > 15:
+                # do not reset before 30 secs have passed
+                self.app_log.warning("Only {} connections active, resetting banlist".format(len(self.connection_pool)))
+                del self.banlist[:]
+                self.banlist.extend(self.config.banlist)  # reset to config version
+                del self.warning_list[:]
 
-        if len(self.connection_pool) < self.config.nodes_ban_reset and int(time.time() - self.startup_time) > 15:
-            # do not reset before 30 secs have passed
-            self.app_log.warning("Only {} connections active, resetting banlist".format(len(self.connection_pool)))
-            del self.banlist[:]
-            self.banlist.extend(self.config.banlist)  # reset to config version
-            del self.warning_list[:]
+            if len(self.connection_pool) < 10:
+                self.app_log.warning("Only {} connections active, resetting the connection history"
+                                     .format(len(self.connection_pool)))
+                # TODO: only reset large timeouts, or we end up trying the sames over and over if we never get to 10.
+                # self.
+                self.reset_tried()
 
-        if len(self.connection_pool) < 10:
-            self.app_log.warning("Only {} connections active, resetting the connection history"
-                                 .format(len(self.connection_pool)))
-            # TODO: only reset large timeouts, or we end up trying the sames over and over if we never get to 10.
-            # self.
-            self.reset_tried()
-
-        if self.config.nodes_ban_reset and len(self.connection_pool) <= len(self.banlist) \
-                and int(time.time() - self.reset_time) > 60*10:
-            # do not reset too often. 10 minutes here
-            self.app_log.warning("Less active connections ({}) than banlist ({}), resetting banlist and tried"
-                                 .format(len(self.connection_pool), len(self.banlist)))
-            del self.banlist[:]
-            self.banlist.extend(self.config.banlist)  # reset to config version
-            del self.warning_list[:]
-            self.reset_tried()
-            self.reset_time = time.time()
+            if self.config.nodes_ban_reset and len(self.connection_pool) <= len(self.banlist) \
+                    and int(time.time() - self.reset_time) > 60*10:
+                # do not reset too often. 10 minutes here
+                self.app_log.warning("Less active connections ({}) than banlist ({}), resetting banlist and tried"
+                                     .format(len(self.connection_pool), len(self.banlist)))
+                del self.banlist[:]
+                self.banlist.extend(self.config.banlist)  # reset to config version
+                del self.warning_list[:]
+                self.reset_tried()
+                self.reset_time = time.time()
+        except Exception as e:
+            self.app_log.warning("Status: Manager run skipped due to error: {}".format(e))
 
     def status_log(self):
         """Prints the peers part of the node status"""
