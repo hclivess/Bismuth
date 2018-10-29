@@ -30,7 +30,7 @@ class Peers:
     __slots__ = ('app_log','config','logstats','peersync_lock','startup_time','reset_time','warning_list','stats',
                  'connection_pool','peer_ip_list','consensus_blockheight_list','consensus_percentage','consensus',
                  'tried','peer_dict','peerfile','suggested_peerfile','banlist','whitelist','ban_threshold',
-                 'ip_to_mainnet', 'peers', 'consensus_lock')
+                 'ip_to_mainnet', 'peers', 'consensus_lock', 'first_run')
 
     def __init__(self, app_log, config=None, logstats=True):
         self.app_log = app_log
@@ -59,6 +59,7 @@ class Peers:
 
         self.peerfile = "peers.txt"
         self.suggested_peerfile = "suggested_peers.txt"
+        self.first_run = True
 
         if self.is_testnet:  # overwrite for testnet
             self.peerfile = "peers_test.txt"
@@ -69,8 +70,7 @@ class Peers:
             self.suggested_peerfile = regnet.REGNET_SUGGESTED_PEERS
 
         self.load_and_convert_if_needed()
-        self.peers_test(self.peerfile)
-        self.peers_test(self.suggested_peerfile)
+
 
     @property
     def is_testnet(self):
@@ -576,10 +576,6 @@ class Peers:
                     t.daemon = True
                     t.start()
 
-            # TODO: 15 s after start is too short for all peers to have been tested, rework needed.
-            if int(time.time() - self.startup_time) > 15:  # refreshes peers from drive
-                self.peer_dict.update(self.peers_get(self.peerfile))
-
             if len(self.consensus_blockheight_list) < 3 and int(time.time() - self.startup_time) > 15:
                 # join in random peers after x seconds
                 self.app_log.warning("Not enough peers in consensus, joining in peers suggested by other nodes")
@@ -609,6 +605,18 @@ class Peers:
                 del self.warning_list[:]
                 self.reset_tried()
                 self.reset_time = time.time()
+
+            if self.first_run:
+                self.app_log.warning("Status: First run, testing peers")
+                self.peers_test(self.peerfile)
+                self.peers_test(self.suggested_peerfile)
+                self.first_run = False
+
+            #now moved after testing of peers
+            if int(time.time() - self.startup_time) > 15:  # refreshes peers from drive
+                self.peer_dict.update(self.peers_get(self.peerfile))
+
+
         except Exception as e:
             self.app_log.warning("Status: Manager run skipped due to error: {}".format(e))
 
