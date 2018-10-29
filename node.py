@@ -1372,7 +1372,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
         except Exception as e:
             app_log.warning("Block: processing failed: {}".format(e))
 
-            app_log.warning( "Received data dump: {}".format(data))
+            app_log.info( "Received data dump: {}".format(data))
 
             failed_cause = str(e)
             # Temp
