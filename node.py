@@ -1322,7 +1322,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
 
                 # savings
                 if is_testnet or block_height_new >= 843000:
-                    # no savings for regnet
+                    # no savings for regnet
                     if int(block_height_new) % 10000 == 0:  # every x blocks
                         staking.staking_update(conn, c, index, index_cursor, "normal", block_height_new, app_log)
                         staking.staking_payout(conn, c, index, index_cursor, block_height_new, float(q_block_timestamp), app_log)
@@ -1366,10 +1366,14 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
 
                 # /whole block validation
                 # NEW: returns new block hash
-                return block_hash
+
+            return block_hash
 
         except Exception as e:
             app_log.warning("Block: processing failed: {}".format(e))
+
+            #app_log.warning( "Received data dump: {}".format(data))
+
             failed_cause = str(e)
             # Temp
 
