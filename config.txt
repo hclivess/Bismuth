@@ -1,7 +1,7 @@
 port=5658
 verify=False
-version=mainnet0018
-version_allow=mainnet0017,mainnet0018,mainnet0019
+version=mainnet0019
+version_allow=mainnet0019,mainnet0020,mainnet0021
 thread_limit=24
 pool_ip=127.0.0.1
 rebuild_db=True
