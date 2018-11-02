@@ -37,7 +37,7 @@ from simplecrypt import encrypt, decrypt
 from tokensv2 import *
 
 # Wallet needs a version for itself
-__version__ = '0.8.0'
+__version__ = '0.8.1'
 
 """nuitka
 import PIL.Image, PIL.ImageTk, pyqrcode
@@ -318,6 +318,7 @@ def keys_load_dialog():
     global myaddress
     global private_key_load
     global public_key_load
+    global public_key_readable    
     global keyfile
 
     wallet_load = filedialog.askopenfilename(multiple=False, initialdir="", title="Select wallet")
