@@ -2005,7 +2005,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         connections.send(self.request, balanceget_result)  # return balance of the address to the client, including mempool
                         # connections.send(self.request, balance_pre)  # return balance of the address to the client, no mempool
                     else:
-                        app_log.info("{} not whitelisted for balanceget command".format(peer_ip))
+                        app_log.info("{} not whitelisted for balancegetjson command".format(peer_ip))
 
                 elif data == "balancegethyperjson":
                     # if (peer_ip in allowed or "any" in allowed):
@@ -2018,7 +2018,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         connections.send(self.request, response)  # return balance of the address to the client, including mempool
                         # connections.send(self.request, balance_pre)  # return balance of the address to the client, no mempool
                     else:
-                        app_log.info("{} not whitelisted for balancegetjson command".format(peer_ip))
+                        app_log.info("{} not whitelisted for balancegethyperjson command".format(peer_ip))
 
                 elif data == "mpgetjson" and peers.is_allowed(peer_ip, data):
                     mempool_txs = mp.MEMPOOL.fetchall(mp.SQL_SELECT_TX_TO_SEND)
