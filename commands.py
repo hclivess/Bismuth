@@ -122,6 +122,22 @@ def balancegetjson(socket, arg1):
     print(json.dumps(response))
     #get balance
 
+def balancegethyper(socket, arg1):
+    #get balance
+    connections.send(s, "balancegethyper")
+    connections.send(s, arg1)
+    balanceget_result = connections.receive(s)
+    print ("Address balance: {}".format(balanceget_result))
+    #get balance
+
+def balancegethyperjson(socket, arg1):
+    #get balance
+    connections.send(s, "balancegethyperjson")
+    connections.send(s, arg1)
+    response = connections.receive(s)
+    print(json.dumps(response))
+    #get balance
+
 #insert to mempool
 #DIRECT INSERT, NO REMOTE TX CONSTRUCTION
 def mpinsert(s, transaction):
@@ -404,6 +420,12 @@ elif command == "balanceget":
 
 elif command == "balancegetjson":
     balancegetjson(s, arg1)
+
+elif command == "balancegethyper":
+    balancegethyper(s, arg1)
+
+elif command == "balancegethyperjson":
+    balancegethyperjson(s, arg1)
 
 elif command == "mpget":
     mpget(s)

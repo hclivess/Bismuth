@@ -1970,7 +1970,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if peers.is_allowed(peer_ip, data):
                         balance_address = connections.receive(self.request)  # for which address
 
-                        balanceget_result = balanceget(balance_address, c)
+                        balanceget_result = balanceget(balance_address, h3)
 
                         connections.send(self.request, balanceget_result)  # return balance of the address to the client, including mempool
                         # connections.send(self.request, balance_pre)  # return balance of the address to the client, no mempool
@@ -1982,13 +1982,38 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if peers.is_allowed(peer_ip, data):
                         balance_address = connections.receive(self.request)  # for which address
 
-                        balanceget_result = balanceget(balance_address, c)
+                        balanceget_result = balanceget(balance_address, h3)
                         response = {"balance": balanceget_result[0],
                                     "credit": balanceget_result[1],
-                                    "debit": balanceget_result[0],
-                                    "fees": balanceget_result[0],
-                                    "rewards": balanceget_result[0],
-                                    "balance_no_mempool": balanceget_result[0]}
+                                    "debit": balanceget_result[2],
+                                    "fees": balanceget_result[3],
+                                    "rewards": balanceget_result[4],
+                                    "balance_no_mempool": balanceget_result[5]}
+
+                        connections.send(self.request, response)  # return balance of the address to the client, including mempool
+                        # connections.send(self.request, balance_pre)  # return balance of the address to the client, no mempool
+                    else:
+                        app_log.info("{} not whitelisted for balancegetjson command".format(peer_ip))
+
+                elif data == "balancegethyper":
+                    # if (peer_ip in allowed or "any" in allowed):
+                    if peers.is_allowed(peer_ip, data):
+                        balance_address = connections.receive(self.request)  # for which address
+
+                        balanceget_result = balanceget(balance_address, c)[0]
+
+                        connections.send(self.request, balanceget_result)  # return balance of the address to the client, including mempool
+                        # connections.send(self.request, balance_pre)  # return balance of the address to the client, no mempool
+                    else:
+                        app_log.info("{} not whitelisted for balanceget command".format(peer_ip))
+
+                elif data == "balancegethyperjson":
+                    # if (peer_ip in allowed or "any" in allowed):
+                    if peers.is_allowed(peer_ip, data):
+                        balance_address = connections.receive(self.request)  # for which address
+
+                        balanceget_result = balanceget(balance_address, c)
+                        response = {"balance": balanceget_result[0]}
 
                         connections.send(self.request, response)  # return balance of the address to the client, including mempool
                         # connections.send(self.request, balance_pre)  # return balance of the address to the client, no mempool
