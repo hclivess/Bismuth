@@ -24,7 +24,6 @@ def execute(cursor, query):
         except Exception as e:
             print("Database query: {} {}".format(cursor, query))
             print("Database retry reason: {}".format(e))
-            time.sleep(random.uniform(1, 3))
     return cursor
 
 class MainHandler(tornado.web.RequestHandler):
