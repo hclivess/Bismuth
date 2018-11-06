@@ -37,16 +37,16 @@ api = tweepy.API (auth)
 
 key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress, keyfile = essentials.keys_load()
 
-def tweet_saved(tweet):
+def is_already_paid(tweet):
     try:
         t.execute("SELECT * FROM tweets WHERE tweet = ?", (tweet,))
         dummy = t.fetchone()[0]
-        return_value = True
+        already_paid = True
     except:
-        return_value = False
+        already_paid = False
 
-    print(return_value)
-    return return_value
+    print("already_paid",already_paid)
+    return already_paid
 
 def tweet_qualify(tweet_id, exposure=10):
     try:
@@ -67,7 +67,7 @@ def tweet_qualify(tweet_id, exposure=10):
         else:
             qualifies = False
 
-        print (parsed_id, favorite_count, retweet_count, parsed_text, parsed_followers, acc_age, qualifies)
+        print ("parsed_id", parsed_id, "favorite_count", favorite_count, "retweet_count", retweet_count, "parsed_text", parsed_text, "parsed_followers", parsed_followers, "acc_age", acc_age, "qualifies", qualifies)
 
     except Exception as e:
         print ("Exception with {}: {}".format(tweet_id,e))
@@ -115,8 +115,10 @@ if __name__ == "__main__":
             t.execute("SELECT COUNT() FROM (SELECT * FROM tweets ORDER BY block_height DESC LIMIT ?) WHERE name = ?",(payout_gap, name,))
             name_count = t.fetchone()[0]
 
+            print ("name_count", name_count)
 
-            if tweet_qualified[0] and not tweet_saved(tweet_qualified[1]) and name_count < 1:
+
+            if tweet_qualified[0] and not is_already_paid(tweet_qualified[1]) and name_count < 1:
                 print ("Tweet qualifies")
 
                 recipient = row[1]

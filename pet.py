@@ -1,3 +1,5 @@
+#make sure no operations are possible before birth
+
 import sqlite3, time, random, sys
 
 address = "fefb575972cd8fdb086e2300b51f727bb0cbfc33282f1542e19a8f1d"
@@ -5,15 +7,15 @@ conn = sqlite3.connect("static/ledger.db")
 conn.text_factory = str
 c = conn.cursor()
 
-c.execute("SELECT openfield FROM transactions WHERE address = ? AND operation = ?", (address,"pet",))
+c.execute("SELECT openfield FROM transactions WHERE address = ? AND operation = ?", (address,"petbirth"))
 result = c.fetchall()
 
 def name(entry):
-    pet_name = entry[0].split(":")[1]
+    pet_name = entry[0]
     return pet_name
 
 def age(name):
-    c.execute("SELECT timestamp FROM transactions WHERE address = ? AND operation = ? AND openfield = ?", (address, "pet", "birth:{}".format(name)))
+    c.execute("SELECT timestamp FROM transactions WHERE address = ? AND operation = ? AND openfield = ?", (address, "petbirth", name))
     birth_time = c.fetchone()[0]
     #print (birth_time)
 
@@ -28,7 +30,7 @@ def alive(name, age):
 
 
 def fed(name):
-    c.execute("SELECT timestamp FROM transactions WHERE address = ? AND operation = ? AND openfield = ?", (address, "pet", "feed:{}".format(name)))
+    c.execute("SELECT timestamp FROM transactions WHERE address = ? AND operation = ? AND openfield = ?", (address, "petfeed", name))
 
     fed_last = c.fetchone()
     fed_last = fed_last[0] if fed_last is not None else fed_last

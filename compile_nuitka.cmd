@@ -25,6 +25,7 @@ copy static\style_zircodice.css dist\files\static\style_zircodice.css
 copy static\zircodice.ico dist\files\static\zircodice.ico
 
 copy peers.txt dist\files\peers.txt
+copy peers.txt dist\files\suggested_peers.txt
 copy config.txt dist\files\config.txt
 
 "C:\Program Files (x86)\Inno Setup 5\iscc" /q "setup_nuitka.iss"
