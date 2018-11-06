@@ -613,7 +613,7 @@ def send_confirm(amount_input, recipient_input, operation_input, openfield_input
     if encrypt_var.get():
         openfield_input = "enc=" + str(openfield_input)
 
-    fee = fee_calculate(openfield_input)
+    fee = fee_calculate(openfield_input, operation_input)
 
     confirmation_dialog = Text(top10, width=100)
     confirmation_dialog.insert(INSERT, ("Amount: {}\nFee: {}\nTotal: {}\nTo: {}\nOperation: {}\nData: {}".format('{:.8f}'.format(amount_input), '{:.8f}'.format(fee), '{:.8f}'.format(Decimal(amount_input) + Decimal(fee)), recipient_input, operation_input, openfield_input)))
