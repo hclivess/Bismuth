@@ -23,9 +23,12 @@ def age(name):
     age = int((now - birth_time) / 60)
     return age
 
-def alive(name, age):
-    pet_alive = False if age > 20 else True
-    return pet_alive
+def died_between_feeding():
+    pass
+
+def died_of_age(name, age):
+    pet_died_of_age = True if age > 20 else False
+    return pet_died_of_age
     #add checks between feedings
 
 
@@ -54,10 +57,10 @@ for entry in result:
     pet_age = (age(pet_name))
     print ("age",pet_age)
 
-    pet_alive = (alive(pet_name,pet_age))
-    print ("pet_status",pet_alive)
+    pet_died_of_age = (died_of_age(pet_name,pet_age))
+    print ("died",pet_died_of_age)
 
     pet_fed = (fed(pet_name))
-    print ("pet_fed",pet_fed)
+    print ("fed",pet_fed)
 
 

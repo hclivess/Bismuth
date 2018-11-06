@@ -358,6 +358,7 @@ def db_to_drive(hdd, h, hdd2, h2):
 
         h2.execute("SELECT max(block_height) FROM transactions")
         hdd_block = h2.fetchone()[0]
+        app_log.warning("Block: {} blocks moved to HDD".format(len(result1)))
     except Exception as e:
         app_log.warning("Block: Exception Moving new data to HDD: {}".format(e))
         # app_log.warning("Ledger digestion ended")  # dup with more informative digest_block notice.
@@ -481,12 +482,12 @@ def ledger_compress(ledger_path_conf, hyper_path_conf):
             db_block_height = int(hyp.fetchone()[0])
             depth_specific = db_block_height - depth
 
-            hyp.execute("SELECT distinct(recipient) FROM transactions WHERE (block_height < ?) ORDER BY block_height;", (depth_specific,))  # new addresses will be ignored until depth passed
+            hyp.execute("SELECT distinct(recipient) FROM transactions WHERE (block_height < ? AND block_height > ?) ORDER BY block_height;", (depth_specific,-depth_specific,))  # new addresses will be ignored until depth passed
             unique_addressess = hyp.fetchall()
 
             for x in set(unique_addressess):
                 credit = Decimal("0")
-                for entry in hyp.execute("SELECT amount,reward FROM transactions WHERE (recipient = ? AND block_height < ?);", (x[0],) + (depth_specific,)):
+                for entry in hyp.execute("SELECT amount,reward FROM transactions WHERE recipient = ? AND (block_height < ? AND block_height > ?);", (x[0],) + (depth_specific,-depth_specific,)):
                     try:
                         credit = quantize_eight(credit) + quantize_eight(entry[0]) + quantize_eight(entry[1])
                         credit = 0 if credit is None else credit
@@ -494,7 +495,7 @@ def ledger_compress(ledger_path_conf, hyper_path_conf):
                         credit = 0
 
                 debit = Decimal("0")
-                for entry in hyp.execute("SELECT amount,fee FROM transactions WHERE (address = ? AND block_height < ?);", (x[0],) + (depth_specific,)):
+                for entry in hyp.execute("SELECT amount,fee FROM transactions WHERE address = ? AND (block_height < ? AND block_height > ?);", (x[0],) + (depth_specific,-depth_specific,)):
                     try:
                         debit = quantize_eight(debit) + quantize_eight(entry[0]) + quantize_eight(entry[1])
                         debit = 0 if debit is None else debit
@@ -519,10 +520,10 @@ def ledger_compress(ledger_path_conf, hyper_path_conf):
                         "0", "0", "0"))
             hyper.commit()
 
-            hyp.execute("DELETE FROM transactions WHERE block_height < ? AND address != 'Hyperblock';", (depth_specific,))
+            hyp.execute("DELETE FROM transactions WHERE address != 'Hyperblock' AND (block_height < ? AND block_height > ?);", (depth_specific,-depth_specific,))
             hyper.commit()
 
-            hyp.execute("DELETE FROM misc WHERE block_height < ?;", (depth_specific,))  # remove diff calc
+            hyp.execute("DELETE FROM misc WHERE (block_height < ? AND block_height > ?);", (depth_specific,-depth_specific,))  # remove diff calc
             hyper.commit()
 
             hyp.execute("VACUUM")
