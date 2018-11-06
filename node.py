@@ -358,7 +358,7 @@ def db_to_drive(hdd, h, hdd2, h2):
 
         h2.execute("SELECT max(block_height) FROM transactions")
         hdd_block = h2.fetchone()[0]
-        app_log.warning("Block: {} blocks moved to HDD".format(len(result1)))
+        app_log.warning("Block: {} txs moved to HDD".format(len(result1)))
     except Exception as e:
         app_log.warning("Block: Exception Moving new data to HDD: {}".format(e))
         # app_log.warning("Ledger digestion ended")  # dup with more informative digest_block notice.
