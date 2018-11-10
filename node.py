@@ -35,15 +35,6 @@ import mining
 import mining_heavy3
 import regnet
 
-#upgrade wallet location after nuitka-required "files" folder introduction
-if os.path.exists("../wallet.der"):
-    print("Upgrading wallet location")
-    if os.path.exists("wallet.der"):
-        os.rename("wallet.der", "wallet.der.old")
-        print("You already had a wallet in the new location, renamed to wallet.der.old")
-    os.rename("../wallet.der", "wallet.der")
-#upgrade wallet location after nuitka-required "files" folder introduction
-
 # load config
 # global ban_threshold
 

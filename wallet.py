@@ -39,6 +39,13 @@ from tokensv2 import *
 # Wallet needs a version for itself
 __version__ = '0.8.1'
 
+#upgrade wallet location after nuitka-required "files" folder introduction
+if os.path.exists("../wallet.der") and not os.path.exists("wallet.der"):
+    print("Upgrading wallet location")
+    os.rename("../wallet.der", "wallet.der")
+#upgrade wallet location after nuitka-required "files" folder introduction
+
+
 """nuitka
 import PIL.Image, PIL.ImageTk, pyqrcode
 import matplotlib
