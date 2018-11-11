@@ -18,6 +18,7 @@ import log, options, connections, peershandler, apihandler
 
 import shutil, socketserver, base64, hashlib, os, re, sqlite3, sys, threading, time, socks, random, keys, math, requests, tarfile, essentials, glob
 from hashlib import blake2b
+import platform
 import tokensv2 as tokens
 import aliases
 from quantizer import *
@@ -3143,6 +3144,13 @@ def load_keys():
 if __name__ == "__main__":
     app_log = log.log("node.log", debug_level_conf, terminal_output)
     app_log.warning("Configuration settings loaded")
+
+    # upgrade wallet location after nuitka-required "files" folder introduction
+    if os.path.exists("../wallet.der") and not os.path.exists("wallet.der") and "Windows" in platform.system():
+        print("Upgrading wallet location")
+        os.rename("../wallet.der", "wallet.der")
+    # upgrade wallet location after nuitka-required "files" folder introduction
+
     mining_heavy3.mining_open()
     try:
         # create a plugin manager, load all plugin modules and init

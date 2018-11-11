@@ -26,7 +26,6 @@ ledger_path = config.ledger_path_conf
 hyper_path = config.hyper_path_conf
 
 
-
 key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, address, keyfile = essentials.keys_load("privkey.der", "pubkey.der")
 
 if encrypted:

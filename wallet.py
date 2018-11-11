@@ -40,7 +40,7 @@ from tokensv2 import *
 __version__ = '0.8.2'
 
 #upgrade wallet location after nuitka-required "files" folder introduction
-if os.path.exists("../wallet.der") and not os.path.exists("wallet.der"):
+if os.path.exists("../wallet.der") and not os.path.exists("wallet.der") and "Windows" in platform.system():
     print("Upgrading wallet location")
     os.rename("../wallet.der", "wallet.der")
 #upgrade wallet location after nuitka-required "files" folder introduction
