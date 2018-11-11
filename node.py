@@ -3027,6 +3027,7 @@ def setup_net_type():
 
     if is_regnet:
         port = regnet.REGNET_PORT
+        full_ledger = False
         hyper_path_conf = regnet.REGNET_DB
         ledger_path_conf = regnet.REGNET_DB
         ledger_ram_file = "file:ledger_regnet?mode=memory&cache=shared"
