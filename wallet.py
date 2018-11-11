@@ -37,7 +37,7 @@ from simplecrypt import encrypt, decrypt
 from tokensv2 import *
 
 # Wallet needs a version for itself
-__version__ = '0.8.1'
+__version__ = '0.8.2'
 
 #upgrade wallet location after nuitka-required "files" folder introduction
 if os.path.exists("../wallet.der") and not os.path.exists("wallet.der"):
