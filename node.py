@@ -11,7 +11,7 @@
 # do not isolation_level=None/WAL hdd levels, it makes saving slow
 
 
-VERSION = "4.2.9"  # 3. regnet support
+VERSION = "4.2.8.1"  # 3. regnet support
 
 # Bis specific modules
 import log, options, connections, peershandler, apihandler
