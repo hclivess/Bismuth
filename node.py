@@ -32,6 +32,7 @@ from Cryptodome.Signature import PKCS1_v1_5
 import mempool as mp
 import plugins
 import staking
+import hyperlane
 import mining
 import mining_heavy3
 import regnet
@@ -2552,6 +2553,11 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if peers.is_allowed(peer_ip, data):
                         app_log.warning("Received stop from {}".format(peer_ip))
                         IS_STOPPING = True
+
+
+                elif data == "hyperlane":
+                    pass
+
                 else:
                     if data == '*':
                         raise ValueError("Broken pipe")
@@ -2890,6 +2896,9 @@ def worker(HOST, PORT):
                     mp.MEMPOOL.sent(peer_ip)
                 sendsync(s, peer_ip, "No new block", True)
 
+            elif data == "hyperlane":
+                pass
+
             else:
                 if data == '*':
                     raise ValueError("Broken pipe")
@@ -3206,12 +3215,16 @@ if __name__ == "__main__":
             else:
                 app_log.warning("Status: Not starting a local server to conceal identity on Tor network")
 
+            #hyperlane_manager = hyperlane.HyperlaneManager(app_log)
+            #hyperlane_manager.start()
+
             # start connection manager
             t_manager = threading.Thread(target=manager(c))
             app_log.warning("Status: Starting connection manager")
             t_manager.daemon = True
-            # start connection manager
             t_manager.start()
+            # start connection manager
+
             if not is_regnet:
                 # regnet mode does not need any specific attention.
                 app_log.warning("Closing in 10 sec...")
@@ -3223,7 +3236,6 @@ if __name__ == "__main__":
             # TODO: VACUUM THE DBs?
 
         except Exception as e:
-            app_log.info("Status: Node already running?")
             app_log.info(e)
             raise
     finally:
