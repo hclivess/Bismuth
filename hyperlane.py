@@ -7,11 +7,15 @@ class HyperlaneManager (threading.Thread):
        threading.Thread.__init__(self)
        self.app_log = app_log
 
+    def run(self):
+       self.hyperlane_manager()
+
     def hyperlane_manager(self):
         self.app_log.warning("Hyperlane manager initiated")
         while True:
             self.app_log.warning("Hyperlane manager running")
             time.sleep(5)
+
 
 
 if __name__ == "__main__":
@@ -22,5 +26,7 @@ if __name__ == "__main__":
     config.read ()
     app_log = log.log ("hyperlane.log", "WARNING", True)
 
-    hyperlane_manager = HyperlaneManager(app_log).hyperlane_manager()
+    hyperlane_manager = HyperlaneManager(app_log)
     hyperlane_manager.start()
+
+    app_log.warning ("Loop started")
