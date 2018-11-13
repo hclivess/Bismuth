@@ -3215,7 +3215,7 @@ if __name__ == "__main__":
             else:
                 app_log.warning("Status: Not starting a local server to conceal identity on Tor network")
 
-            #hyperlane_manager = hyperlane.HyperlaneManager(app_log)
+            #hyperlane_manager = hyperlane.HyperlaneManager(app_log).hyperlane_manager()
             #hyperlane_manager.start()
 
             # start connection manager
