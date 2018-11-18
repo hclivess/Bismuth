@@ -2088,7 +2088,7 @@ if __name__ == "__main__":
     encode = Checkbutton(frame_tick, text="Base64 Encoding", variable=encode_var, command=all_spend_check, width=14, anchor=W)
     encode.grid(row=0, column=0, sticky=W)
 
-    msg = Checkbutton(frame_tick, text="Mark as Message", variable=msg_var, command=all_spend_check, width=14, anchor=W)
+    msg = Checkbutton(frame_tick, text="Message", variable=msg_var, command=all_spend_check, width=14, anchor=W)
     msg.grid(row=1, column=0, sticky=W)
 
     encr = Checkbutton(frame_tick, text="Encrypt with PK", variable=encrypt_var, command=all_spend_check, width=14, anchor=W)

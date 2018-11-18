@@ -1736,7 +1736,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             execute(c, ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
                             db_block_hash = c.fetchone()[0]  # get latest block_hash
 
-                            app_log.info("Inbound: block_hash to send: " + str(db_block_hash))
+                            app_log.info("Inbound: block_hash to send: {}".format(db_block_hash))
                             connections.send(self.request, db_block_hash)
 
                             # receive their latest hash
@@ -1774,7 +1774,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                                     blocks_fetched = []
                                     del blocks_fetched[:]
-                                    while len(str(blocks_fetched)) < 500000:  # limited size based on txs in blocks
+                                    while sys.getsizeof(str(blocks_fetched)) < 500000:  # limited size based on txs in blocks
                                         # execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"),(str(int(client_block)),) + (str(int(client_block + 1)),))
                                         execute_param(h3, (
                                             "SELECT timestamp,address,recipient,amount,signature,public_key,cast(operation as TEXT),openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"),
@@ -2740,7 +2740,7 @@ def worker(HOST, PORT):
                         app_log.info("Outbound: Will seek the following block: {}".format(data))
 
                         # consensus pool 2 (active connection)
-                        consensus_blockheight = int(received_block_height)  # str int to remove leading zeros
+                        consensus_blockheight = int(received_block_height)
                         peers.consensus_add(peer_ip, consensus_blockheight, s, last_block)
                         # consensus pool 2 (active connection)
 
@@ -2758,12 +2758,12 @@ def worker(HOST, PORT):
                                     app_log.warning("Outbound: Egress disabled for {}".format(peer_ip))
                                     time.sleep(int(pause_conf))  # reduce CPU usage
                                 else:
-                                    app_log.info("Outbound: Node {} has the latest block".format(peer_ip))
+                                    app_log.info("Outbound: Node {} has the latest block".format(peer_ip)) #TODO: this is unlikely to happen due to conditions above, consider removing
                                 connections.send(s, "nonewblk")
 
                             else:
                                 blocks_fetched = []
-                                while len(str(blocks_fetched)) < 500000:  # limited size based on txs in blocks
+                                while sys.getsizeof(str(blocks_fetched)) < 500000:  # limited size based on txs in blocks
                                     # execute_param(h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"),(str(int(client_block)),) + (str(int(client_block + 1)),))
                                     execute_param(h3, (
                                         "SELECT timestamp,address,recipient,amount,signature,public_key,cast(operation as TEXT),openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"),
