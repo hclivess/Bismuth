@@ -1060,21 +1060,19 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                     if entry_signature:  # prevent empty signature database retry hack
                         signature_list.append(entry_signature)
                         # reject block with transactions which are already in the ledger ram
-                        execute_param(h3, "SELECT block_height FROM transactions WHERE signature = ?;",
-                                      (entry_signature,))
-                        test = h3.fetchone()
-                        if test:
-                            # print(last_block)
-                            raise ValueError("That transaction {} is already in our ram ledger, block_height {}".format(
-                                entry_signature[:10], test[0]))
 
-                        execute_param(c, "SELECT block_height FROM transactions WHERE signature = ?;",
-                                      (entry_signature,))
-                        test = c.fetchone()
-                        if test:
+                        execute_param(h3, "SELECT block_height FROM transactions WHERE signature = ?;",(entry_signature,))
+                        tx_presence_check = h3.fetchone()
+                        if tx_presence_check:
+                            # print(last_block)
+                            raise ValueError("That transaction {} is already in our ram ledger, block_height {}".format(entry_signature[:10], tx_presence_check[0]))
+
+                        execute_param(c, "SELECT block_height FROM transactions WHERE signature = ?;",(entry_signature,))
+                        tx_presence_check = c.fetchone()
+                        if tx_presence_check:
                             # print(last_block)
                             raise ValueError("That transaction {} is already in our ledger, block_height {}".format(
-                                entry_signature[:10], test[0]))
+                                entry_signature[:10], tx_presence_check[0]))
                     else:
                         raise ValueError("Empty signature from {}".format(peer_ip))
 
@@ -1093,7 +1091,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                 block_height_new = db_block_height + 1
                 # previous block info
 
-                transaction_list_converted = []  # makes sure all the data are properly converted as in the previous lines
+                transaction_list_converted = []  # makes sure all the data are properly converted
                 for tx_index, transaction in enumerate(transaction_list):
                     q_time_now = quantize_two(time.time())
                     # verify signatures
@@ -1170,12 +1168,11 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                 app_log.warning("Current difficulty: {}".format(diff[3]))
                 app_log.warning("Current blocktime: {}".format(diff[4]))
                 app_log.warning("Current hashrate: {}".format(diff[5]))
-                app_log.warning("New difficulty after adjustment: {}".format(diff[6]))
+                app_log.warning("Difficulty adjustment: {}".format(diff[6]))
                 app_log.warning("Difficulty: {} {}".format(diff[0], diff[1]))
 
                 # app_log.info("Transaction list: {}".format(transaction_list_converted))
-                block_hash = hashlib.sha224(
-                    (str(transaction_list_converted) + db_block_hash).encode("utf-8")).hexdigest()
+                block_hash = hashlib.sha224((str(transaction_list_converted) + db_block_hash).encode("utf-8")).hexdigest()
                 # app_log.info("Last block hash: {}".format(db_block_hash))
                 app_log.info("Calculated block hash: {}".format(block_hash))
                 # app_log.info("Nonce: {}".format(nonce))
