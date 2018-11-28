@@ -2217,6 +2217,40 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     else:
                         app_log.info("{} not whitelisted for addlistlimmir command".format(peer_ip))
 
+
+                elif data == "addlistsince":
+                    # if (peer_ip in allowed or "any" in allowed):
+                    if peers.is_allowed(peer_ip, data):
+
+                        contents = connections.receive(self.request)
+                        address_tx_list = contents[0]
+                        address_tx_list_since = contents[1]
+
+                        # print(address_tx_list_limit)
+                        execute_param(h3, ("SELECT * FROM transactions WHERE (address = ? OR recipient = ?) AND block_height >= ? ORDER BY block_height"), (address_tx_list, address_tx_list, address_tx_list_since,))
+                        result = h3.fetchall()
+
+                        response_list = []
+                        for transaction in result:
+                            response = {"block_height": transaction[0],
+                                        "timestamp": transaction[1],
+                                        "address": transaction[2],
+                                        "recipient": transaction[3],
+                                        "amount": transaction[4],
+                                        "signature": transaction[5],
+                                        "public_key": transaction[6],
+                                        "block_hash": transaction[7],
+                                        "fee": transaction[8],
+                                        "reward": transaction[9],
+                                        "operation": transaction[10],
+                                        "openfield": transaction[11]}
+
+                            response_list.append(response)
+
+                        connections.send(self.request, response_list)
+                    else:
+                        app_log.info("{} not whitelisted for addlistsince command".format(peer_ip))
+
                 elif data == "aliasget":  # all for a single address, no protection against overlapping
                     # if (peer_ip in allowed or "any" in allowed):
                     if peers.is_allowed(peer_ip, data):

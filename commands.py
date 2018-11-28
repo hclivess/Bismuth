@@ -265,6 +265,16 @@ def addlistlimjson(socket, arg1, arg2):
     print(json.dumps(response_list))
     #get all txs for an address
 
+def addlistsince(socket, arg1, arg2):
+    # get x txs for an address since block number y
+    connections.send(s, "addlistsince")
+    connections.send(s, [arg1,arg2])
+    response_list = connections.receive(s)
+    print("Transactions for requested address:")
+    print(json.dumps(response_list))
+    #get x txs for an address since block number y
+
+
 def addlistlimmir(socket, arg1, arg2):
     #get x negative txs for an address
     connections.send(s, "addlistlimmir")
@@ -465,6 +475,9 @@ elif command == "addlistlim":
 
 elif command == "addlistlimjson":
     addlistlimjson(s, arg1, arg2)
+
+elif command == "addlistsince":
+    addlistsince(s, arg1, arg2)
 
 elif command == "addlistlimmir":
     addlistlimmir(s, arg1, arg2)
