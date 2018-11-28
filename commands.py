@@ -4,8 +4,8 @@ config = options.Get()
 config.read()
 version = config.version_conf
 
-#print ('Number of arguments:', len(sys.argv), 'arguments.')
-#print ('Argument List:', str(sys.argv))
+print ('Number of arguments:', len(sys.argv), 'arguments.')
+print ('Argument List:', str(sys.argv))
 
 try:
     command = sys.argv[1]
@@ -39,6 +39,8 @@ except:
 
     entry = input("No argument detected, please insert command manually\n").split()
     command = entry[0]
+    print (entry)
+
     try:
         arg1 = entry[1]
     except:
@@ -56,12 +58,12 @@ except:
     except:
         pass
     try:
-        arg4 = sys.argv[5]
+        arg5 = entry[5]
     except:
         pass
 
     try:
-        arg5 = sys.argv[6]
+        arg6 = entry[6]
     except:
         pass
 
@@ -265,16 +267,6 @@ def addlistlimjson(socket, arg1, arg2):
     print(json.dumps(response_list))
     #get all txs for an address
 
-def addlistsince(socket, arg1, arg2):
-    # get x txs for an address since block number y
-    connections.send(s, "addlistsince")
-    connections.send(s, [arg1,arg2])
-    response_list = connections.receive(s)
-    print("Transactions for requested address:")
-    print(json.dumps(response_list))
-    #get x txs for an address since block number y
-
-
 def addlistlimmir(socket, arg1, arg2):
     #get x negative txs for an address
     connections.send(s, "addlistlimmir")
@@ -374,6 +366,15 @@ def aliasesget(socket, arg1):
     connections.send(s, arg_split)
     alias_results = connections.receive(s)
     print (alias_results)
+
+def api_getaddresssince(socket, arg1, arg2, arg3):
+    connections.send(s, "api_getaddresssince")
+    connections.send(s, arg1)
+    connections.send(s, arg2)
+    connections.send(s, arg3)
+    response = connections.receive(s)
+    print(json.dumps(response))
+
 
 if command == "getversion":
     connections.send(s, "getversion")
@@ -476,9 +477,6 @@ elif command == "addlistlim":
 elif command == "addlistlimjson":
     addlistlimjson(s, arg1, arg2)
 
-elif command == "addlistsince":
-    addlistsince(s, arg1, arg2)
-
 elif command == "addlistlimmir":
     addlistlimmir(s, arg1, arg2)
 
@@ -496,6 +494,9 @@ elif command == "stop":
 
 elif command == "addfromalias":
     addfromalias(s, arg1)
+
+elif command == "api_getaddresssince":
+    api_getaddresssince(s, arg1, arg2, arg3)
 
 elif command == "txsend":
     try:
