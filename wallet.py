@@ -564,6 +564,7 @@ def decrypt_fn(destroy_this):
         notbusy(destroy_this)
         messagebox.showwarning("Locked", "Wrong password")
 
+    password_var_dec.set("")
     return key
 
 
