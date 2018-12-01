@@ -3,17 +3,37 @@ Bismuth Readme
 
 [![Build Status](https://travis-ci.org/hclivess/Bismuth.svg?branch=master)](https://travis-ci.org/hclivess/Bismuth)
 
-Official website: http://bismuth.cz
+Official website:
+* http://bismuth.cz
 
-For basic instructions, please refer to https://github.com/EggPool/BismuthHowto
+Hypernodes website:
+* https://hypernodes.bismuth.live
 
-To use a bitcoin-like RPC server, please refer to https://github.com/EggPool/BismuthRPC
+DApps, miscellaneous: 
+* https://github.com/hclivess/BismuthProjects
 
-Other Bismuth-related repositories:
+API, RPC, Bisafe, HowTo: 
+* https://github.com/EggPool
 
-Explorer, pool, tools: https://github.com/maccaspacca
+Explorer, pool, tools: 
+* https://github.com/maccaspacca
 
-Bismuth Foundation: https://github.com/bismuthfoundation
+Bismuth Foundation: 
+* https://github.com/bismuthfoundation
+
+
+Twitter:
+* https://twitter.com/bismuth_cz
+* https://twitter.com/bismuthdev
+
+Facebook:
+* https://web.facebook.com/cryptobismuth
+
+Reddit:
+* https://www.reddit.com/r/cryptobismuth/
+
+Discord:
+* https://discord.gg/dKVZd4z
 
 License:
 
