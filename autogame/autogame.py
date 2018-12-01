@@ -5,21 +5,22 @@ conn = sqlite3.connect("../static/ledger.db")
 conn.text_factory = str
 c = conn.cursor()
 
-block = 900000
+block = 910000
 
 class Hero:
     def __init__(self):
         self.health = 100
-        self.strength = 10
+        self.power = 10
         self.alive = True
         self.in_combat = False
+        self.experience = 0
 
 hero = Hero()
 
 #trigger is followed by events affected by modifiers
 
 #define events
-events = {"9c" : "heal",
+events = {"9a" : "heal",
           "6c" : "attack",
           "e2" : "attacked",
           "8f" : "critical_hit"}
@@ -46,40 +47,54 @@ while hero.alive:
     block_hash = cycle(block)
 
     for trigger_key in triggers:
-        if trigger_key in block_hash:
+
+        if trigger_key in block_hash and hero.alive:
             print("You meet {}".format(triggers[trigger_key]))
 
 
-            while hero.alive:
+            hero.in_combat = True
+            while hero.alive and hero.in_combat:
                 block_hash = cycle(block)
 
                 for event_key in events:
-                    if event_key in block_hash:
+                    if event_key in block_hash and hero.alive:
                         print("Event: {}".format(events[event_key]))
 
                         if events[event_key] == "attack":
                             print ("{} killed! You stride forward with {} HP...".format(triggers[trigger_key], hero.health))
+                            hero.experience += 1
+                            hero.in_combat = False
                             break
 
-                        if events[event_key] == "heal" and not hero.in_combat:
-                            if hero.health < 100:
-                                hero.health = hero.health + 20
-                                print ("You rest and heal to {} HP...".format(hero.health))
-                            if hero.health > 100:
-                                hero.health = 100
+                        if events[event_key] == "heal":
+                            if hero.in_combat and hero.health < 100:
+
+                                if hero.in_combat:
+                                    hero.health = hero.health + 5
+                                    print("You drink a potion and heal to {} HP...".format(hero.health))
+
+                                else:
+                                    hero.health = 100
+                                    print ("You rest and fully heal...")
+
+                                if hero.health > 100:
+                                    hero.health = 100
+
                             break
 
                         if events[event_key] == "attacked":
-                            hero.health = hero.health - 60
-                            print("{} hit you for 60 HP, you now have {} HP".format(triggers[trigger_key], hero.health))
+                            hero.in_combat = True
+                            hero.health = hero.health - 20
+                            print("{} hit you for 20 HP, you now have {} HP".format(triggers[trigger_key], hero.health))
                             if hero.health < 1:
+                                print("You died with {} experience".format(hero.experience))
                                 hero.alive = False
 
-                block = block + 1
+                block += 1
                 time.sleep(2)
 
 
-    block = block+1
+    block += 1
 
 
 
