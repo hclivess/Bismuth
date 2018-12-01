@@ -1,20 +1,16 @@
 # this file takes optional arguments, arg1 = amount to spend, arg2 = recipient address, arg3 = keep forever (0/1), arg4=OpenField data
 # args3+4 are not prompted if ran without args
 
-from Cryptodome.PublicKey import RSA
 from Cryptodome.Signature import PKCS1_v1_5
 from Cryptodome.Hash import SHA
 from essentials import fee_calculate
 
-from simplecrypt import encrypt, decrypt
 import base64
 import time
 import sqlite3
-import os
 import essentials
 import sys
 import options
-import getpass
 import re
 import socks
 import connections

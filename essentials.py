@@ -1,7 +1,7 @@
 """
 Common helpers for Bismuth
 """
-import os, db, sqlite3, hashlib, base64
+import os, hashlib, base64
 
 # from Crypto import Random
 from Cryptodome.PublicKey import RSA
@@ -14,21 +14,6 @@ from simplecrypt import *
 from quantizer import *
 
 __version__ = "0.0.3"
-
-
-def db_check(app_log):
-    if not os.path.exists('backup.db'):
-        # create empty backup file
-        backup = sqlite3.connect('backup.db', timeout=1)
-        backup.text_factory = str
-        b = backup.cursor()
-        db.execute(b, "CREATE TABLE IF NOT EXISTS transactions (block_height, timestamp, address, recipient, amount, signature, public_key, block_hash, fee, reward, operation, openfield)", app_log)
-        db.commit(backup, app_log)
-        db.execute(b, "CREATE TABLE IF NOT EXISTS misc (block_height, difficulty)", app_log)
-        db.commit(backup, app_log)
-        app_log.warning("Created backup file")
-        backup.close()
-        # create empty backup file
 
 
 def sign_rsa(timestamp, address, recipient, amount, operation, openfield, key, public_key_hashed):
