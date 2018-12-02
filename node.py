@@ -3137,7 +3137,6 @@ def load_keys():
     """Initial loading of crypto keys"""
     global public_key_readable, public_key_hashed, address, keyfile
     essentials.keys_check(app_log, "wallet.der")
-    essentials.db_check(app_log)
     key, public_key_readable, private_key_readable, _, _, public_key_hashed, address, keyfile = essentials.keys_load("privkey.der", "pubkey.der")
     if is_regnet:
         regnet.PRIVATE_KEY_READABLE = private_key_readable
