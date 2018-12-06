@@ -71,9 +71,6 @@ class Database():
         self.index = None
         self.index_cursor = None
 
-
-
-
 class Keys():
     def __init__(self):
         self.public_key_readable = None
