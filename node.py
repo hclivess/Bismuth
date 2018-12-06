@@ -335,6 +335,7 @@ def db_define(object):
     else:
         object.h3 = object.h2
 
+
     try:
         if node.ram_conf:
             object.conn = sqlite3.connect(node.ledger_ram_file, uri=True, isolation_level=None,
@@ -960,7 +961,7 @@ def ledger_balance3(address, cache, c):
     return cache[address]
 
 
-def digest_block(data, sdef, peer_ip):
+def digest_block(data, sdef, peer_ip, c, conn, h3, index, index_cursor):
     block_height_new = node.last_block + 1  # for logging purposes.
     block_hash = 'N/A'
     failed_cause = ''
@@ -1009,17 +1010,17 @@ def digest_block(data, sdef, peer_ip):
                         signature_list.append(entry_signature)
                         # reject block with transactions which are already in the ledger ram
 
-                        execute_param(database.h3, "SELECT block_height FROM transactions WHERE signature = ?;",
+                        execute_param(h3, "SELECT block_height FROM transactions WHERE signature = ?;",
                                       (entry_signature,))
-                        tx_presence_check = database.h3.fetchone()
+                        tx_presence_check = h3.fetchone()
                         if tx_presence_check:
                             # print(node.last_block)
                             raise ValueError("That transaction {} is already in our ram ledger, block_height {}".format(
                                 entry_signature[:10], tx_presence_check[0]))
 
-                        execute_param(database.c, "SELECT block_height FROM transactions WHERE signature = ?;",
+                        execute_param(c, "SELECT block_height FROM transactions WHERE signature = ?;",
                                       (entry_signature,))
-                        tx_presence_check = database.c.fetchone()
+                        tx_presence_check = c.fetchone()
                         if tx_presence_check:
                             # print(node.last_block)
                             raise ValueError("That transaction {} is already in our ledger, block_height {}".format(
@@ -1034,9 +1035,9 @@ def digest_block(data, sdef, peer_ip):
                 del signature_list[:]
 
                 # previous block info
-                execute(database.c,
+                execute(c,
                         "SELECT block_hash, block_height, timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")
-                result = database.c.fetchall()
+                result = c.fetchall()
                 db_block_hash = result[0][0]
                 db_block_height = result[0][1]
                 q_db_timestamp_last = quantize_two(result[0][2])
@@ -1114,7 +1115,7 @@ def digest_block(data, sdef, peer_ip):
                     raise ValueError("Block is older than the previous one, will be rejected")
 
                 # calculate current difficulty
-                diff = difficulty(database.c)
+                diff = difficulty(c)
 
                 logger.app_log.warning("Time to generate block {}: {:.2f}".format(db_block_height + 1, diff[2]))
                 logger.app_log.warning("Current difficulty: {}".format(diff[3]))
@@ -1131,8 +1132,8 @@ def digest_block(data, sdef, peer_ip):
                 # logger.app_log.info("Nonce: {}".format(nonce))
 
                 # check if we already have the hash
-                execute_param(database.h3, "SELECT block_height FROM transactions WHERE block_hash = ?", (block_hash,))
-                dummy = database.c.fetchone()
+                execute_param(h3, "SELECT block_height FROM transactions WHERE block_hash = ?", (block_hash,))
+                dummy = c.fetchone()
                 if dummy:
                     raise ValueError(
                         "Skipping digestion of block {} from {}, because we already have it on block_height {}".
@@ -1197,7 +1198,7 @@ def digest_block(data, sdef, peer_ip):
                     # if (q_time_now < q_received_timestamp + 432000) and not quicksync:
                     # balance_pre = quantize_eight(credit_ledger - debit_ledger - fees + rewards)  # without projection
                     balance_pre = ledger_balance3(db_address, balances,
-                                                  database.c)  # keep this as c (ram hyperblock access)
+                                                  c)  # keep this as c (ram hyperblock access)
 
                     # balance = quantize_eight(credit - debit - fees + rewards)
                     balance = quantize_eight(balance_pre - block_debit_address)
@@ -1252,8 +1253,8 @@ def digest_block(data, sdef, peer_ip):
                 # end for transaction_list
 
                 # save current diff (before the new block)
-                execute_param(database.c, "INSERT INTO misc VALUES (?, ?)", (block_height_new, diff_save))
-                commit(database.conn)
+                execute_param(c, "INSERT INTO misc VALUES (?, ?)", (block_height_new, diff_save))
+                commit(conn)
 
                 # quantized vars have to be converted, since Decimal is not json serializable...
                 node.plugin_manager.execute_action_hook('block',
@@ -1269,7 +1270,7 @@ def digest_block(data, sdef, peer_ip):
 
                 # do not use "transaction" as it masks upper level variable.
                 for transaction2 in block_transactions:
-                    execute_param(database.c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
+                    execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
                         str(transaction2[0]), str(transaction2[1]),
                         str(transaction2[2]), str(transaction2[3]),
                         str(transaction2[4]), str(transaction2[5]),
@@ -1277,40 +1278,40 @@ def digest_block(data, sdef, peer_ip):
                         str(transaction2[8]), str(transaction2[9]),
                         str(transaction2[10]), str(transaction2[11])))
                     # secure commit for slow nodes
-                    commit(database.conn)
+                    commit(conn)
 
                 # savings
                 if is_testnet or block_height_new >= 843000:
                     # no savings for regnet
                     if int(block_height_new) % 10000 == 0:  # every x blocks
-                        staking.staking_update(database.conn, database.c, database.index, database.index_cursor,
+                        staking.staking_update(conn, c, index, index_cursor,
                                                "normal", block_height_new, logger.app_log)
-                        staking.staking_payout(database.conn, database.c, database.index, database.index_cursor,
+                        staking.staking_payout(conn, c, index, index_cursor,
                                                block_height_new, float(q_block_timestamp), logger.app_log)
-                        staking.staking_revalidate(database.conn, database.c, database.index, database.index_cursor,
+                        staking.staking_revalidate(conn, c, index, index_cursor,
                                                    block_height_new, logger.app_log)
 
                 # new hash
-                database.c.execute(
+                c.execute(
                     "SELECT * FROM transactions WHERE block_height = (SELECT max(block_height) FROM transactions)")
                 # Was trying to simplify, but it's the latest mirror hash. not the latest block, nor the mirror of the latest block.
                 # c.execute("SELECT * FROM transactions WHERE block_height = ?", (block_height_new -1,))
-                tx_list_to_hash = database.c.fetchall()
+                tx_list_to_hash = c.fetchall()
                 mirror_hash = blake2b(str(tx_list_to_hash).encode(), digest_size=20).hexdigest()
                 # /new hash
 
                 # dev reward
                 if int(block_height_new) % 10 == 0:  # every 10 blocks
-                    execute_param(database.c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                    execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                                   (-block_height_new, str(q_time_now), "Development Reward", str(node.genesis_conf),
                                    str(mining_reward), "0", "0", mirror_hash, "0", "0", "0", "0"))
-                    commit(database.conn)
+                    commit(conn)
 
-                    execute_param(database.c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                    execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                                   (-block_height_new, str(q_time_now), "Hypernode Payouts",
                                    "3e08b5538a4509d9daa99e01ca5912cda3e98a7f79ca01248c2bde16",
                                    "8", "0", "0", mirror_hash, "0", "0", "0", "0"))
-                    commit(database.conn)
+                    commit(conn)
                 # /dev reward
 
                 # logger.app_log.warning("Block: {}: {} valid and saved from {}".format(block_height_new, block_hash[:10], peer_ip))
@@ -1324,7 +1325,7 @@ def digest_block(data, sdef, peer_ip):
                 node.peers.unban(peer_ip)
 
                 # This new block may change the int(diff). Trigger the hook whether it changed or not.
-                diff = difficulty(database.c)
+                diff = difficulty(c)
                 node.plugin_manager.execute_action_hook('diff', diff[0])
                 # We could recalc diff after inserting block, and then only trigger the block hook, but I fear this would delay the new block event.
 
@@ -1667,7 +1668,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                     logger.app_log.info("{} banned".format(peer_ip))
                                     break
                             else:
-                                digest_block(segments, self.request, peer_ip)
+                                digest_block(segments, self.request, peer_ip, database.c, database.conn,database.h3,database.index,database.index_cursor)
 
                                 # receive theirs
                         else:
@@ -1846,7 +1847,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                 mined['result'] = True
                                 node.plugin_manager.execute_action_hook('mined', mined)
                                 logger.app_log.info("Outbound: Processing block from miner")
-                                digest_block(segments, self.request, peer_ip)
+                                digest_block(segments, self.request, peer_ip, database.c, database.conn, database.h3,
+                                             database.index, database.index_cursor)
                             else:
                                 reason = "Outbound: Mined block was orphaned because node was not synced, we are at block {}, should be at least {}".format(
                                     db_block_height, node.peers.consensus_max - 3)
@@ -1854,7 +1856,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                 node.plugin_manager.execute_action_hook('mined', mined)
                                 logger.app_log.warning(reason)
                         else:
-                            digest_block(segments, self.request, peer_ip)
+                            digest_block(segments, self.request, peer_ip, database.c, database.conn, database.h3,
+                                         database.index, database.index_cursor)
                     else:
                         connections.receive(self.request)  # receive block, but do nothing about it
                         logger.app_log.info("{} not whitelisted for block command".format(peer_ip))
@@ -2869,7 +2872,8 @@ def worker(HOST, PORT):
                                 raise ValueError("{} is banned".format(peer_ip))
 
                         else:
-                            digest_block(segments, s, peer_ip)
+                            digest_block(segments, s, peer_ip, this_worker.c, this_worker.conn, this_worker.h3,
+                                         this_worker.index, this_worker.index_cursor)
 
                             # receive theirs
                     else:
