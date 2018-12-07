@@ -512,8 +512,6 @@ def commit(cursor):
             logger.app_log.warning("Database cursor: {}".format(cursor))
             logger.app_log.warning("Database retry reason: {}".format(e))
             time.sleep(0.1)
-            raise  # REMOVE
-
 
 def execute(cursor, query):
     """Secure execute for slow nodes"""
@@ -533,7 +531,6 @@ def execute(cursor, query):
             logger.app_log.warning("Database query: {} {}".format(cursor, query))
             logger.app_log.warning("Database retry reason: {}".format(e))
             time.sleep(1)
-            raise  # REMOVE
     return cursor
 
 
@@ -756,7 +753,7 @@ def verify():
         raise
 
 
-def blocknf(block_hash_delete, peer_ip):
+def blocknf(block_hash_delete, peer_ip, c, conn, h, hdd, h2, hdd2):
     my_time = time.time()
 
     if not db_lock.locked():
@@ -766,8 +763,8 @@ def blocknf(block_hash_delete, peer_ip):
         reason = ""
 
         try:
-            execute(database.c, 'SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1')
-            results = database.c.fetchone()
+            execute(c, 'SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1')
+            results = c.fetchone()
             db_block_height = results[0]
             db_block_hash = results[7]
 
@@ -790,17 +787,17 @@ def blocknf(block_hash_delete, peer_ip):
             else:
                 # backup
 
-                execute_param(database.c, "SELECT * FROM transactions WHERE block_height >= ?;", (db_block_height,))
-                backup_data = database.c.fetchall()
+                execute_param(c, "SELECT * FROM transactions WHERE block_height >= ?;", (db_block_height,))
+                backup_data = c.fetchall()
                 # this code continues at the bottom because of ledger presence check
 
                 # delete followups
-                execute_param(database.c, "DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?",
+                execute_param(c, "DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?",
                               (db_block_height, -db_block_height))
-                commit(database.conn)
+                commit(conn)
 
-                execute_param(database.c, "DELETE FROM misc WHERE block_height >= ?;", (str(db_block_height),))
-                commit(database.conn)
+                execute_param(c, "DELETE FROM misc WHERE block_height >= ?;", (str(db_block_height),))
+                commit(conn)
 
                 # execute_param(c, ('DELETE FROM transactions WHERE address = "Development Reward" AND block_height <= ?'), (-db_block_height,))
                 # commit(conn)
@@ -810,18 +807,18 @@ def blocknf(block_hash_delete, peer_ip):
 
                 # roll back hdd too
                 if node.full_ledger:  # rollback ledger.db
-                    execute_param(database.h, "DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?",
+                    execute_param(h, "DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?",
                                   (db_block_height, -db_block_height))
-                    commit(database.hdd)
-                    execute_param(database.h, "DELETE FROM misc WHERE block_height >= ?;", (str(db_block_height),))
-                    commit(database.hdd)
+                    commit(hdd)
+                    execute_param(h, "DELETE FROM misc WHERE block_height >= ?;", (str(db_block_height),))
+                    commit(hdd)
 
                 if node.ram_conf:  # rollback hyper.db
-                    execute_param(database.h2, "DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?",
+                    execute_param(h2, "DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?",
                                   (db_block_height, -db_block_height))
-                    commit(database.hdd2)
-                    execute_param(database.h2, "DELETE FROM misc WHERE block_height >= ?;", (str(db_block_height),))
-                    commit(database.hdd2)
+                    commit(hdd2)
+                    execute_param(h2, "DELETE FROM misc WHERE block_height >= ?;", (str(db_block_height),))
+                    commit(hdd2)
 
                 node.hdd_block = int(db_block_height) - 1
                 # /roll back hdd too
@@ -852,7 +849,7 @@ def blocknf(block_hash_delete, peer_ip):
                                 nb_tx += 1
                                 logger.app_log.info(
                                     mp.MEMPOOL.merge((tx[1], tx[2], tx[3], tx[4], tx[5], tx[6], tx[10], tx[11]),
-                                                     peer_ip, database.c, False,
+                                                     peer_ip, c, False,
                                                      revert=True))  # will get stuck if you change it to respect db_lock
                                 logger.app_log.warning("Moved tx back to mempool: {}".format(tx_short))
                             except Exception as e:
@@ -1797,7 +1794,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     block_hash_delete = connections.receive(self.request)
                     # print peer_ip
                     if consensus_blockheight == node.peers.consensus_max:
-                        blocknf(block_hash_delete, peer_ip)
+                        blocknf(block_hash_delete, peer_ip, database.c, database.conn, database.h, database.hdd, database.h2, database.hdd2)
                         if node.peers.warning(self.request, peer_ip, "Rollback", 2):
                             logger.app_log.info("{} banned".format(peer_ip))
                             break
@@ -2829,7 +2826,9 @@ def worker(HOST, PORT):
                 # print peer_ip
                 # if max(consensus_blockheight_list) == int(received_block_height):
                 if int(received_block_height) == node.peers.consensus_max:
-                    blocknf(block_hash_delete, peer_ip)
+                    blocknf(block_hash_delete, peer_ip, this_worker.c, this_worker.conn, this_worker.h, this_worker.hdd,
+                            this_worker.h2, this_worker.hdd2)
+
                     if node.peers.warning(s, peer_ip, "Rollback", 2):
                         raise ValueError("{} is banned".format(peer_ip))
 
