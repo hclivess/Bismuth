@@ -45,6 +45,7 @@ class Node():
         self.terminal_output = None
         self.egress = None
         self.genesis_conf = None
+        self.last_block_ago = 0
 
 
 class Logger():
