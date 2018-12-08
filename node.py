@@ -265,7 +265,8 @@ def percentage(percent, whole):
     return Decimal(percent) * Decimal(whole) / 100
 
 
-def db_to_drive():
+def db_to_drive(hdd, h, hdd2, h2):
+
     logger.app_log.warning("Block: Moving new data to HDD")
     try:
         if node.ram_conf:  # select RAM as source database
@@ -283,52 +284,52 @@ def db_to_drive():
 
         if node.full_ledger:  # we want to save to ledger.db
             for x in result1:
-                database.h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                                   (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
-            commit(database.hdd)
+                h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                          (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
+            commit(hdd)
 
         if node.ram_conf:  # we want to save to hyper.db from RAM/hyper.db depending on ram conf
             for x in result1:
-                database.h2.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                                    (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
-            commit(database.hdd2)
+                h2.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                           (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
+            commit(hdd2)
 
         execute_param(sc, ("SELECT * FROM misc WHERE block_height > ? ORDER BY block_height ASC"), (node.hdd_block,))
         result2 = sc.fetchall()
 
         if node.full_ledger:  # we want to save to ledger.db from RAM/hyper.db depending on ram conf
             for x in result2:
-                database.h.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
-            commit(database.hdd)
+                h.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
+            commit(hdd)
 
         if node.ram_conf:  # we want to save to hyper.db from RAM
             for x in result2:
-                database.h2.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
-            commit(database.hdd2)
+                h2.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
+            commit(hdd2)
 
-            database.h2.execute("SELECT max(block_height) FROM transactions")
-        node.hdd_block = database.h2.fetchone()[0]
+        h2.execute("SELECT max(block_height) FROM transactions")
+        node.hdd_block = h2.fetchone()[0]
         logger.app_log.warning("Block: {} txs moved to HDD".format(len(result1)))
     except Exception as e:
         logger.app_log.warning("Block: Exception Moving new data to HDD: {}".format(e))
-        # logger.app_log.warning("Ledger digestion ended")  # dup with more informative digest_block notice.
+        # app_log.warning("Ledger digestion ended")  # dup with more informative digest_block notice.
 
 
 def db_define(object):
     object.index = sqlite3.connect(node.index_db, timeout=1, check_same_thread=False)
     object.index.text_factory = str
-    object.index_cursor = object.index.cursor()
     object.index.execute("PRAGMA page_size = 4096;")
+    object.index_cursor = object.index.cursor()
 
     object.hdd = sqlite3.connect(node.ledger_path_conf, timeout=1, check_same_thread=False)
     object.hdd.text_factory = str
-    object.h = object.hdd.cursor()
     object.hdd.execute("PRAGMA page_size = 4096;")
+    object.h = object.hdd.cursor()
 
     object.hdd2 = sqlite3.connect(node.hyper_path_conf, timeout=1, check_same_thread=False)
     object.hdd2.text_factory = str
-    object.h2 = object.hdd2.cursor()
     object.hdd2.execute("PRAGMA page_size = 4096;")
+    object.h2 = object.hdd2.cursor()
 
     if node.full_ledger:
         object.h3 = object.h
@@ -355,6 +356,9 @@ def db_define(object):
 
 
 def ledger_compress():
+    local_ledger_path_conf = node.ledger_path_conf
+    local_hyper_path_conf = node.hyper_path_conf
+
     """conversion of normal blocks into hyperblocks from ledger.db or hyper.db to hyper.db"""
     try:
 
@@ -371,7 +375,7 @@ def ledger_compress():
                 local_hdd.text_factory = str
                 local_h = local_hdd.cursor()
                 local_h.execute("SELECT max(block_height) FROM transactions")
-                node.hdd_block_last = local_h.fetchone()[0]
+                local_hdd_block_last = local_h.fetchone()[0]
                 local_hdd.close()
 
                 local_hdd2 = sqlite3.connect(node.hyper_path_conf, timeout=1)
@@ -382,16 +386,16 @@ def ledger_compress():
                 local_hdd2.close()
                 # cross-integrity check
 
-                if node.hdd_block_last == local_hdd2_block_last and node.hyper_recompress_conf:  # cross-integrity check
-                    node.ledger_path_conf = node.hyper_path_conf  # only valid within the function, this temporarily sets hyper.db as source
+                if local_hdd_block_last == local_hdd2_block_last and node.hyper_recompress_conf:  # cross-integrity check
+                    local_ledger_path_conf = local_hyper_path_conf  # only valid within the function, this temporarily sets hyper.db as source
                     logger.app_log.warning("Status: Recompressing hyperblocks (keeping full ledger)")
                     recompress = True
-                elif node.hdd_block_last == local_hdd2_block_last and node.hyper_recompress_conf:
+                elif local_hdd_block_last == local_hdd2_block_last and not node.hyper_recompress_conf:
                     logger.app_log.warning("Status: Hyperblock recompression skipped")
                     recompress = False
                 else:
                     logger.app_log.warning(
-                        "Status: Cross-integrity check failed, hyperblocks will be rebuilt from full ledger")
+                        f"Status: Cross-integrity check failed {local_hdd_block_last} not equal to {local_hdd2_block_last}, hyperblocks will be rebuilt from full ledger")
                     recompress = True
             else:
                 if node.hyper_recompress_conf:
@@ -400,6 +404,7 @@ def ledger_compress():
                 else:
                     logger.app_log.warning("Status: Hyperblock recompression skipped")
                     recompress = False
+
         else:
             logger.app_log.warning("Status: Compressing ledger to Hyperblocks")
             recompress = True
@@ -408,11 +413,11 @@ def ledger_compress():
             depth = 15000  # REWORK TO REFLECT TIME INSTEAD OF BLOCKS
 
             if node.full_ledger:
-                shutil.copy(node.ledger_path_conf, node.ledger_path_conf + '.temp')
-                hyper = sqlite3.connect(node.ledger_path_conf + '.temp')
+                shutil.copy(local_ledger_path_conf, local_ledger_path_conf + '.temp')
+                hyper = sqlite3.connect(local_ledger_path_conf + '.temp')
             else:
-                shutil.copy(node.hyper_path_conf, node.ledger_path_conf + '.temp')
-                hyper = sqlite3.connect(node.ledger_path_conf + '.temp')
+                shutil.copy(local_hyper_path_conf, local_ledger_path_conf + '.temp')
+                hyper = sqlite3.connect(local_ledger_path_conf + '.temp')
 
             hyper.text_factory = str
             hyp = hyper.cursor()
@@ -484,10 +489,10 @@ def ledger_compress():
             if os.path.exists(node.hyper_path_conf):
                 os.remove(node.hyper_path_conf)  # remove the old hyperblocks
 
-            os.rename(node.ledger_path_conf + '.temp', node.hyper_path_conf)
+            os.rename(local_ledger_path_conf + '.temp', local_hyper_path_conf)
 
-        if node.full_ledger == 0 and os.path.exists(node.ledger_path_conf) and is_mainnet:
-            os.remove(node.ledger_path_conf)
+        if node.full_ledger == 0 and os.path.exists(local_ledger_path_conf) and is_mainnet:
+            os.remove(local_ledger_path_conf)
             logger.app_log.warning("Removed full ledger and only kept hyperblocks")
 
     except Exception as e:
@@ -958,7 +963,7 @@ def ledger_balance3(address, cache, c):
     return cache[address]
 
 
-def digest_block(data, sdef, peer_ip, c, conn, h3, index, index_cursor):
+def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, index_cursor):
     block_height_new = node.last_block + 1  # for logging purposes.
     block_hash = 'N/A'
     failed_cause = ''
@@ -1350,7 +1355,7 @@ def digest_block(data, sdef, peer_ip, c, conn, h3, index, index_cursor):
         finally:
             if node.full_ledger or node.ram_conf:
                 # first case move stuff from hyper.db to ledger.db; second case move stuff from ram to both
-                db_to_drive()
+                db_to_drive(hdd,h,hdd2,h2)
             db_lock.release()
             delta_t = time.time() - float(q_time_now)
             # logger.app_log.warning("Block: {}: {} digestion completed in {}s.".format(block_height_new,  block_hash[:10], delta_t))
@@ -1665,7 +1670,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                     logger.app_log.info("{} banned".format(peer_ip))
                                     break
                             else:
-                                digest_block(segments, self.request, peer_ip, database.c, database.conn,database.h3,database.index,database.index_cursor)
+                                digest_block(segments, self.request, peer_ip, database.conn, database.c,database.hdd,database.h,database.hdd2,database.h2, database.h3, database.index, database.index_cursor)
+
 
                                 # receive theirs
                         else:
@@ -1844,8 +1850,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                 mined['result'] = True
                                 node.plugin_manager.execute_action_hook('mined', mined)
                                 logger.app_log.info("Outbound: Processing block from miner")
-                                digest_block(segments, self.request, peer_ip, database.c, database.conn, database.h3,
-                                             database.index, database.index_cursor)
+                                digest_block(segments, self.request, peer_ip, database.conn, database.c, database.hdd,
+                                             database.h, database.hdd2, database.h2, database.h3, database.index,
+                                             database.index_cursor)
                             else:
                                 reason = "Outbound: Mined block was orphaned because node was not synced, we are at block {}, should be at least {}".format(
                                     db_block_height, node.peers.consensus_max - 3)
@@ -1853,8 +1860,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                 node.plugin_manager.execute_action_hook('mined', mined)
                                 logger.app_log.warning(reason)
                         else:
-                            digest_block(segments, self.request, peer_ip, database.c, database.conn, database.h3,
-                                         database.index, database.index_cursor)
+                            digest_block(segments, self.request, peer_ip, database.conn, database.c, database.hdd,
+                                         database.h, database.hdd2, database.h2, database.h3, database.index,
+                                         database.index_cursor)
                     else:
                         connections.receive(self.request)  # receive block, but do nothing about it
                         logger.app_log.info("{} not whitelisted for block command".format(peer_ip))
@@ -2871,8 +2879,9 @@ def worker(HOST, PORT):
                                 raise ValueError("{} is banned".format(peer_ip))
 
                         else:
-                            digest_block(segments, s, peer_ip, this_worker.c, this_worker.conn, this_worker.h3,
-                                         this_worker.index, this_worker.index_cursor)
+                            digest_block(segments, s, peer_ip, this_worker.conn, this_worker.c, this_worker.hdd,
+                                         this_worker.h, this_worker.hdd2, this_worker.h2, this_worker.h3, this_worker.index,
+                                         this_worker.index_cursor)
 
                             # receive theirs
                     else:
