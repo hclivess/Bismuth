@@ -1307,7 +1307,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
 
                 # logger.app_log.warning("Block: {}: {} valid and saved from {}".format(block_height_new, block_hash[:10], peer_ip))
                 logger.app_log.warning(
-                    f"Valid block: {block_height_new}: {block_hash[:10]} digestion from {peer_ip} completed in {str(time.time() - float(q_time_now))[:5]}s.")
+                    f"Valid block: {block_height_new}: {block_hash[:10]} with {len(transaction_list)} txs, digestion from {peer_ip} completed in {str(time.time() - float(q_time_now))[:5]}s.")
 
                 del block_transactions[:]
                 node.peers.unban(peer_ip)
