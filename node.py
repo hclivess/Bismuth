@@ -48,11 +48,6 @@ FORK_DIFF = 108.9
 
 getcontext().rounding = ROUND_HALF_EVEN
 
-is_testnet = False
-# regnet takes over testnet
-is_regnet = False
-# if it's not testnet, nor regnet, it's mainnet
-is_mainnet = True
 
 db_lock = threading.Lock()
 # mem_lock = threading.Lock()
@@ -257,7 +252,7 @@ def check_integrity(database):
                 f"Status: Integrity check on database {database} failed, bootstrapping from the website")
             redownload = True
 
-    if redownload and is_mainnet:
+    if redownload and node.is_mainnet:
         bootstrap()
 
 
@@ -491,7 +486,7 @@ def ledger_compress():
 
             os.rename(local_ledger_path_conf + '.temp', local_hyper_path_conf)
 
-        if node.full_ledger == 0 and os.path.exists(local_ledger_path_conf) and is_mainnet:
+        if node.full_ledger == 0 and os.path.exists(local_ledger_path_conf) and node.is_mainnet:
             os.remove(local_ledger_path_conf)
             logger.app_log.warning("Removed full ledger and only kept hyperblocks")
 
@@ -585,7 +580,7 @@ def difficulty(c):
 
     time_to_generate = timestamp_last - timestamp_before_last
 
-    if is_regnet:
+    if node.is_regnet:
         return (float('%.10f' % regnet.REGNET_DIFF), float('%.10f' % (regnet.REGNET_DIFF - 8)), float(time_to_generate),
                 float(regnet.REGNET_DIFF), float(block_time), float(0), float(0), block_height)
 
@@ -607,7 +602,7 @@ def difficulty(c):
     difficulty_new_adjusted = quantize_ten(diff_block_previous + diff_adjustment)
     difficulty = difficulty_new_adjusted
 
-    if is_mainnet:
+    if node.is_mainnet:
         if block_height == POW_FORK - FORK_AHEAD:
             limit_version()
         if block_height == POW_FORK - 1:
@@ -839,7 +834,7 @@ def manager(c):
         until_purge -= 1
 
         # peer management
-        if not is_regnet:
+        if not node.is_regnet:
             # regnet never tries to connect
             node.peers.manager_loop(target=worker)
 
@@ -862,14 +857,14 @@ def manager(c):
         # status Hook
         uptime = int(time.time() - node.startup_time)
         tempdiff = difficulty(c)  # Can we avoid recalc that ?
-        status = {"protocolversion": node.version, "walletversion": VERSION, "testnet": node.peers.is_testnet,
+        status = {"protocolversion": node.version, "walletversion": VERSION, "testnet": node.is_testnet,
                   # config data
                   "blocks": node.last_block, "timeoffset": 0, "connections": node.peers.consensus_size,
                   "difficulty": tempdiff[0],  # live status, bitcoind format
                   "threads": threading.active_count(), "uptime": uptime, "consensus": node.peers.consensus,
                   "consensus_percent": node.peers.consensus_percentage,
                   "node.last_block_ago": node.last_block_ago}  # extra data
-        if is_regnet:
+        if node.is_regnet:
             status['regnet'] = True
         node.plugin_manager.execute_action_hook('status', status)
         # end status hook
@@ -886,7 +881,6 @@ def manager(c):
             # faster stop
             if not node.IS_STOPPING:
                 time.sleep(1)
-
 
 def ledger_balance3(address, cache, c):
     # Many heavy blocks are pool payouts, same address.
@@ -1077,7 +1071,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                         "Skipping digestion of block {} from {}, because we already have it on block_height {}".
                         format(block_hash[:10], peer_ip, dummy[0]))
 
-                if is_mainnet:
+                if node.is_mainnet:
                     if block_height_new < POW_FORK:
                         diff_save = mining.check_block(block_height_new, miner_address, nonce, db_block_hash, diff[0],
                                                        received_timestamp, q_received_timestamp, q_db_timestamp_last,
@@ -1088,7 +1082,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                                                               received_timestamp, q_received_timestamp,
                                                               q_db_timestamp_last,
                                                               peer_ip=peer_ip, app_log=logger.app_log)
-                elif is_testnet:
+                elif node.is_testnet:
                     diff_save = mining_heavy3.check_block(block_height_new, miner_address, nonce, db_block_hash,
                                                           diff[0],
                                                           received_timestamp, q_received_timestamp, q_db_timestamp_last,
@@ -1217,7 +1211,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                     commit(conn)
 
                 # savings
-                if is_testnet or block_height_new >= 843000:
+                if node.is_testnet or block_height_new >= 843000:
                     # no savings for regnet
                     if int(block_height_new) % 10000 == 0:  # every x blocks
                         staking.staking_update(conn, c, index, index_cursor,
@@ -1479,7 +1473,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     f"Inbound: Received: {data} from {peer_ip}")  # will add custom ports later
 
                 if data.startswith('regtest_'):
-                    if not is_regnet:
+                    if not node.is_regnet:
                         connections.send(self.request, "notok")
                         return
                     else:
@@ -1532,7 +1526,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # send own
 
                 elif data == "hello":
-                    if is_regnet:
+                    if node.is_regnet:
                         logger.app_log.info("Inbound: Got hello but I'm in regtest mode, closing.")
                         return
 
@@ -1753,7 +1747,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             mined['miner'] = segments[0][-1][2]
                         except:
                             pass
-                        if is_mainnet:
+                        if node.is_mainnet:
                             if len(node.peers.connection_pool) < 5 and not node.peers.is_whitelisted(peer_ip):
                                 reason = "Outbound: Mined block ignored, insufficient connections to the network"
                                 mined['reason'] = reason
@@ -2408,7 +2402,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         status = {"protocolversion": node.version,
                                   "address": revealed_address,
                                   "walletversion": VERSION,
-                                  "testnet": node.peers.is_testnet,  # config data
+                                  "testnet": node.is_testnet,  # config data
                                   "blocks": node.last_block, "timeoffset": 0,
                                   "connections": node.peers.consensus_size,
                                   "connections_list": node.peers.peer_ip_list,
@@ -2417,7 +2411,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                   "uptime": uptime, "consensus": node.peers.consensus,
                                   "consensus_percent": node.peers.consensus_percentage,
                                   "server_timestamp": '%.2f' % time.time()}  # extra data
-                        if is_regnet:
+                        if node.is_regnet:
                             status['regnet'] = True
                         connections.send(self.request, status)
                     else:
@@ -2880,28 +2874,28 @@ def setup_net_type():
     Adjust globals depending on mainnet, testnet or regnet
     """
     # Defaults value, dup'd here for clarity sake.
-    is_mainnet = True
-    is_testnet = False
-    is_regnet = False
+    node.is_mainnet = True
+    node.is_testnet = False
+    node.is_regnet = False
 
     if "testnet" in node.version or config.testnet:
-        is_testnet = True
-        is_mainnet = False
+        node.is_testnet = True
+        node.is_mainnet = False
 
     if "regnet" in node.version or config.regnet:
-        is_regnet = True
-        is_testnet = False
-        is_mainnet = False
+        node.is_regnet = True
+        node.is_testnet = False
+        node.is_mainnet = False
 
-    logger.app_log.warning(f"Testnet: {is_testnet}")
-    logger.app_log.warning(f"Regnet : {is_regnet}")
+    logger.app_log.warning(f"Testnet: {node.is_testnet}")
+    logger.app_log.warning(f"Regnet : {node.is_regnet}")
 
     # default mainnet config
     node.peerlist = "peers.txt"
     node.ledger_ram_file = "file:ledger?mode=memory&cache=shared"
     node.index_db = "static/index.db"
 
-    if is_mainnet:
+    if node.is_mainnet:
         # Allow 18 for transition period. Will be auto removed at fork block.
         if node.version != 'mainnet0020':
             node.version = 'mainnet0019'  # Force in code.
@@ -2921,7 +2915,7 @@ def setup_net_type():
                 logger.app_log.error("Too low allowed version, check config.txt")
                 sys.exit()
 
-    if is_testnet:
+    if node.is_testnet:
         node.port = 2829
         node.full_ledger = False
         node.hyper_path_conf = "static/test.db"
@@ -2946,7 +2940,7 @@ def setup_net_type():
         else:
             print("Not redownloading test db")
 
-    if is_regnet:
+    if node.is_regnet:
         node.port = regnet.REGNET_PORT
         node.full_ledger = False
         node.hyper_path_conf = regnet.REGNET_DB
@@ -2973,12 +2967,12 @@ def initial_db_check():
     Initial bootstrap check and chain validity control
     """
     # force bootstrap via adding an empty "fresh_sync" file in the dir.
-    if os.path.exists("fresh_sync") and is_mainnet:
+    if os.path.exists("fresh_sync") and node.is_mainnet:
         logger.app_log.warning("Status: Fresh sync required, bootstrapping from the website")
         os.remove("fresh_sync")
         bootstrap()
     # UPDATE mainnet DB if required
-    if is_mainnet:
+    if node.is_mainnet:
         upgrade = sqlite3.connect(node.ledger_path_conf)
         u = upgrade.cursor()
         try:
@@ -3008,7 +3002,7 @@ def initial_db_check():
 
         node.last_block = node.hdd_block
 
-        if is_mainnet and (node.hdd_block >= POW_FORK - FORK_AHEAD):
+        if node.is_mainnet and (node.hdd_block >= POW_FORK - FORK_AHEAD):
             limit_version()
 
         if node.ram_conf:
@@ -3035,7 +3029,7 @@ def load_keys():
     node_keys.key, node_keys.public_key_readable, node_keys.private_key_readable, _, _, node_keys.public_key_hashed, node_keys.address, node_keys.keyfile = essentials.keys_load(
         "privkey.der", "pubkey.der")
 
-    if is_regnet:
+    if node.is_regnet:
         regnet.PRIVATE_KEY_READABLE = node_keys.private_key_readable
         regnet.PUBLIC_KEY_HASHED = node_keys.public_key_hashed
         regnet.ADDRESS = node_keys.address
@@ -3051,6 +3045,12 @@ if __name__ == "__main__":
     logger = classes.Logger()
     node_keys = classes.Keys()
     database = classes.Database()
+
+    node.is_testnet = False
+    # regnet takes over testnet
+    node.is_regnet = False
+    # if it's not testnet, nor regnet, it's mainnet
+    node.is_mainnet = True
 
     config = options.Get()
     config.read()
@@ -3120,7 +3120,7 @@ if __name__ == "__main__":
             # sys.exit()
 
             node.apihandler = apihandler.ApiHandler(logger.app_log, config)
-            mp.MEMPOOL = mp.Mempool(logger.app_log, config, db_lock, is_testnet)
+            mp.MEMPOOL = mp.Mempool(logger.app_log, config, db_lock, node.is_testnet)
 
             if not node.tor_conf:
                 # Port 0 means to select an arbitrary unused port
@@ -3157,7 +3157,7 @@ if __name__ == "__main__":
             t_manager.start()
             # start connection manager
 
-            if not is_regnet:
+            if not node.is_regnet:
                 # regnet mode does not need any specific attention.
                 logger.app_log.warning("Closing in 10 sec...")
                 time.sleep(10)
