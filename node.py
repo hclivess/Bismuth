@@ -3184,7 +3184,7 @@ if __name__ == "__main__":
             db_maintenance()
 
         if node.verify_conf:
-            verify()
+            verify(database.h3)
 
         logger.app_log.warning(f"Status: Starting node version {VERSION}")
         node.startup_time = time.time()
