@@ -30,7 +30,6 @@ from Cryptodome.Hash import SHA
 from Cryptodome.PublicKey import RSA
 from Cryptodome.Signature import PKCS1_v1_5
 
-import verify
 import mempool as mp
 import plugins
 import staking
