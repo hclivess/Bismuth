@@ -922,7 +922,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
         # Variables that are only used as quantized decimal are quantized once and for all.
 
         block_size = Decimal(sys.getsizeof(str(data))) / Decimal(1000000)
-        logger.app_log.warning("Block: size: {block_size} MB")
+        logger.app_log.warning(f"Block: size: {block_size} MB")
 
         try:
 
