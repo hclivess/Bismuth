@@ -3174,8 +3174,8 @@ if __name__ == "__main__":
         ledger_compress()
         db_define(database)
 
-        check_integrity(node.hyper_path_conf)
         coherence_check()
+        check_integrity(node.hyper_path_conf)
 
         initial_db_check()
 
