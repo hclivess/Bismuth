@@ -1195,9 +1195,14 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
 
                 # do not use "transaction" as it masks upper level variable.
 
-                c.execute("BEGIN TRANSACTION")
-                c.executemany("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",block_transactions)
-                c.execute("END TRANSACTION")
+                while True:
+                    try:
+                        c.execute("BEGIN TRANSACTION")
+                        c.executemany("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",block_transactions)
+                        c.execute("END TRANSACTION")
+                        break
+                    except:
+                        print("Retrying database insert")
 
                 # savings
                 if node.is_testnet or block_height_new >= 843000:
