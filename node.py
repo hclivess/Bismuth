@@ -510,7 +510,6 @@ def commit(cursor):
         except Exception as e:
             logger.app_log.warning(f"Database cursor: {cursor}")
             logger.app_log.warning(f"Database retry reason: {e}")
-            raise
             time.sleep(0.1)
 
 def execute(cursor, query):
@@ -530,7 +529,6 @@ def execute(cursor, query):
         except Exception as e:
             logger.app_log.warning(f"Database query: {cursor} {query}")
             logger.app_log.warning(f"Database retry reason: {e}")
-            raise
             time.sleep(0.1)
     return cursor
 
