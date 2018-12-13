@@ -84,8 +84,8 @@ else:
     s.connect(("127.0.0.1", 5658))
 #s.connect(("94.113.207.67", 5658))
 
-def shutdown(socket):
-    connections.send(s, "shutdown")
+def stop(socket):
+    connections.send(s, "stop")
 
 def diffget(socket):
     #check difficulty
@@ -486,8 +486,8 @@ elif command == "addlistlimmirjson":
 elif command == "listlim":
     listlim(s, arg1)
 
-elif command == "shutdown":
-    shutdown(s)
+elif command == "stop":
+    stop(s)
 
 elif command == "stop":
     connections.send(s, "stop")

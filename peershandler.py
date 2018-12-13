@@ -528,7 +528,7 @@ class Peers:
             tries = 3
         self.tried[host_port] = (tries, time.time() + delay)
         # Temp
-        self.app_log.warning("Set timeout {} try {} for {}".format(delay, tries, host_port))
+        self.app_log.info("Set timeout {} try {} for {}".format(delay, tries, host_port))
 
     def del_try(self, host, port=None):
         """

@@ -10,6 +10,7 @@ class Node():
         self.IS_STOPPING = False
         self.apihandler = None
         self.syncing = []
+
         self.is_testnet = False
         self.is_regnet = False
         self.is_mainnet = False
@@ -72,6 +73,9 @@ class Database():
 
         self.index = None
         self.index_cursor = None
+
+        self.source_db = None
+        self.sc = None
 
 class Keys():
     def __init__(self):

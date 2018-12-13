@@ -259,47 +259,35 @@ def percentage(percent, whole):
     return Decimal(percent) * Decimal(whole) / 100
 
 
-def db_to_drive(hdd, h, hdd2, h2):
+def db_to_drive(hdd, h, hdd2, h2, sc):
 
     logger.app_log.warning("Block: Moving new data to HDD")
     try:
-        if node.ram_conf:  # select RAM as source database
-            source_db = sqlite3.connect(node.ledger_ram_file, uri=True, timeout=1)
-        else:  # select hyper.db as source database
-            source_db = sqlite3.connect(node.hyper_path_conf, timeout=1)
-
-        source_db.text_factory = str
-        sc = source_db.cursor()
-
         execute_param(sc, (
             "SELECT * FROM transactions WHERE block_height > ? OR block_height < ? ORDER BY block_height ASC"),
                       (node.hdd_block, -node.hdd_block))
         result1 = sc.fetchall()
 
+        h.execute("BEGIN TRANSACTION")
+        h2.execute("BEGIN TRANSACTION")
+
         if node.full_ledger:  # we want to save to ledger.db
-            for x in result1:
-                h.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                          (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
-            commit(hdd)
+            h.executemany("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",result1)
 
         if node.ram_conf:  # we want to save to hyper.db from RAM/hyper.db depending on ram conf
-            for x in result1:
-                h2.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                           (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
-            commit(hdd2)
+            h2.executemany("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",result1)
 
         execute_param(sc, ("SELECT * FROM misc WHERE block_height > ? ORDER BY block_height ASC"), (node.hdd_block,))
         result2 = sc.fetchall()
 
         if node.full_ledger:  # we want to save to ledger.db from RAM/hyper.db depending on ram conf
-            for x in result2:
-                h.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
-            commit(hdd)
+            h.executemany("INSERT INTO misc VALUES (?,?)", result2)
 
         if node.ram_conf:  # we want to save to hyper.db from RAM
-            for x in result2:
-                h2.execute("INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
-            commit(hdd2)
+            h2.executemany("INSERT INTO misc VALUES (?,?)", result2)
+
+        h.execute("END TRANSACTION")
+        h2.execute("END TRANSACTION")
 
         h2.execute("SELECT max(block_height) FROM transactions")
         node.hdd_block = h2.fetchone()[0]
@@ -329,6 +317,14 @@ def db_define(object):
         object.h3 = object.h
     else:
         object.h3 = object.h2
+
+    if node.ram_conf:  # select RAM as source database
+        object.source_db = sqlite3.connect(node.ledger_ram_file, uri=True, timeout=1)
+    else:  # select hyper.db as source database
+        object.source_db = sqlite3.connect(node.hyper_path_conf, timeout=1)
+
+    object.source_db.text_factory = str
+    object.sc = object.source_db.cursor()
 
 
     try:
@@ -898,7 +894,7 @@ def ledger_balance3(address, cache, c):
     return cache[address]
 
 
-def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, index_cursor):
+def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, index_cursor, sc):
     block_height_new = node.last_block + 1  # for logging purposes.
     block_hash = 'N/A'
     failed_cause = ''
@@ -1278,7 +1274,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
         finally:
             if node.full_ledger or node.ram_conf:
                 # first case move stuff from hyper.db to ledger.db; second case move stuff from ram to both
-                db_to_drive(hdd,h,hdd2,h2)
+                db_to_drive(hdd,h,hdd2,h2,sc)
             db_lock.release()
             delta_t = time.time() - float(q_time_now)
             # logger.app_log.warning("Block: {}: {} digestion completed in {}s.".format(block_height_new,  block_hash[:10], delta_t))
@@ -1584,7 +1580,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                     logger.app_log.info(f"{peer_ip} banned")
                                     break
                             else:
-                                digest_block(segments, self.request, peer_ip, database.conn, database.c,database.hdd,database.h,database.hdd2,database.h2, database.h3, database.index, database.index_cursor)
+                                digest_block(segments, self.request, peer_ip, database.conn, database.c,database.hdd,database.h,database.hdd2,database.h2, database.h3, database.index, database.index_cursor, database.sc)
 
 
                                 # receive theirs
@@ -1696,7 +1692,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                         # send own
 
                             except Exception as e:
-                                logger.app_log.warning("Inbound: Block {data[:8]} of {peer_ip} not found")
+                                logger.app_log.warning(f"Inbound: Block {data[:8]} of {peer_ip} not found")
                                 connections.send(self.request, "blocknf")
                                 connections.send(self.request, data)
                     except Exception as e:
@@ -1761,7 +1757,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                 logger.app_log.info("Outbound: Processing block from miner")
                                 digest_block(segments, self.request, peer_ip, database.conn, database.c, database.hdd,
                                              database.h, database.hdd2, database.h2, database.h3, database.index,
-                                             database.index_cursor)
+                                             database.index_cursor, database.sc)
                             else:
                                 reason = f"Outbound: Mined block was orphaned because node was not synced, we are at block {db_block_height}, should be at least {node.peers.consensus_max - 3}"
                                 mined['reason'] = reason
@@ -1770,7 +1766,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         else:
                             digest_block(segments, self.request, peer_ip, database.conn, database.c, database.hdd,
                                          database.h, database.hdd2, database.h2, database.h3, database.index,
-                                         database.index_cursor)
+                                         database.index_cursor,database.sc)
                     else:
                         connections.receive(self.request)  # receive block, but do nothing about it
                         logger.app_log.info(f"{peer_ip} not whitelisted for block command")
@@ -2490,6 +2486,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 # time.sleep(float(node.pause_conf))  # prevent cpu overload
                 logger.app_log.info(f"Server loop finished for {peer_ip}")
 
+
             except Exception as e:
                 logger.app_log.info(f"Inbound: Lost connection to {peer_ip}")
                 logger.app_log.info(f"Inbound: {e}")
@@ -2781,7 +2778,7 @@ def worker(HOST, PORT):
                         else:
                             digest_block(segments, s, peer_ip, this_worker.conn, this_worker.c, this_worker.hdd,
                                          this_worker.h, this_worker.hdd2, this_worker.h2, this_worker.h3, this_worker.index,
-                                         this_worker.index_cursor)
+                                         this_worker.index_cursor,this_worker.sc)
 
                             # receive theirs
                     else:
@@ -2875,11 +2872,11 @@ def setup_net_type():
     node.is_testnet = False
     node.is_regnet = False
 
-    if "testnet" in node.version or config.testnet:
+    if "testnet" in node.version or node.is_testnet:
         node.is_testnet = True
         node.is_mainnet = False
 
-    if "regnet" in node.version or config.regnet:
+    if "regnet" in node.version or node.is_regnet:
         node.is_regnet = True
         node.is_testnet = False
         node.is_mainnet = False
@@ -3149,6 +3146,7 @@ if __name__ == "__main__":
     node.terminal_output = config.terminal_output
     node.egress = config.egress
     node.genesis_conf = config.genesis_conf
+    node.accept_peers = config.accept_peers
 
     node.IS_STOPPING = False
 
@@ -3170,20 +3168,6 @@ if __name__ == "__main__":
         load_keys()
 
         ledger_compress()
-
-        x_database = classes.Database()
-        db_define(x_database)
-
-        if node.rebuild_db_conf:
-            db_maintenance(x_database)
-
-        initial_db_check(x_database)
-
-        coherence_check()
-        check_integrity(node.hyper_path_conf)
-
-        if node.verify_conf:
-            verify(x_database.h3)
 
         logger.app_log.warning(f"Status: Starting node version {VERSION}")
         node.startup_time = time.time()
@@ -3213,34 +3197,39 @@ if __name__ == "__main__":
                 # more thread for each request
 
                 server_thread = threading.Thread(target=server.serve_forever)
-
-                # Exit the server thread when the main thread terminates
-
                 server_thread.daemon = True
                 server_thread.start()
+
                 logger.app_log.warning("Status: Server loop running.")
+
             else:
                 logger.app_log.warning("Status: Not starting a local server to conceal identity on Tor network")
 
             # hyperlane_manager = hyperlane.HyperlaneManager(logger.app_log).hyperlane_manager()
             # hyperlane_manager.start()
+            
+            init_database = classes.Database()
+            db_define(init_database)
+
+            if node.rebuild_db_conf:
+                db_maintenance(init_database)
+
+            initial_db_check(init_database)
+
+            coherence_check()
+            check_integrity(node.hyper_path_conf)
+
+            if node.verify_conf:
+                verify(init_database.h3)
 
             # start connection manager
-            t_manager = threading.Thread(target=manager(x_database.c))
+            t_manager = threading.Thread(target=manager(init_database.c))
             logger.app_log.warning("Status: Starting connection manager")
             t_manager.daemon = True
             t_manager.start()
             # start connection manager
 
-            if not node.is_regnet:
-                # regnet mode does not need any specific attention.
-                logger.app_log.warning("Closing in 10 sec...")
-                time.sleep(10)
-            # server.serve_forever() #added
-            server.shutdown()
-            server.server_close()
-            mp.MEMPOOL.close()
-            # TODO: VACUUM THE DBs?
+
 
         except Exception as e:
             logger.app_log.info(e)
