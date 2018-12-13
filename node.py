@@ -563,7 +563,7 @@ def difficulty(c):
     timestamp_before_last = timestamp_last if previous is None else Decimal(previous[1])
 
     execute_param(c, (
-        "SELECT timestamp FROM transactions WHERE CAST(block_height AS INTEGER) > ? AND reward != 0 ORDER BY timestamp ASC LIMIT 2"),
+        "SELECT timestamp FROM transactions WHERE block_height > ? AND reward != 0 ORDER BY timestamp ASC LIMIT 2"),
                   (block_height - 1441,))
     timestamp_1441 = Decimal(c.fetchone()[0])
     block_time_prev = (timestamp_before_last - timestamp_1441) / 1440
