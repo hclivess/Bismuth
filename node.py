@@ -310,17 +310,17 @@ def db_to_drive(hdd, h, hdd2, h2):
 
 
 def db_define(object):
-    object.index = sqlite3.connect(node.index_db, timeout=1, check_same_thread=False)
+    object.index = sqlite3.connect(node.index_db, timeout=1,isolation_level=None, check_same_thread=True)
     object.index.text_factory = str
     object.index.execute("PRAGMA page_size = 4096;")
     object.index_cursor = object.index.cursor()
 
-    object.hdd = sqlite3.connect(node.ledger_path_conf, timeout=1, check_same_thread=False)
+    object.hdd = sqlite3.connect(node.ledger_path_conf, timeout=1,isolation_level=None, check_same_thread=True)
     object.hdd.text_factory = str
     object.hdd.execute("PRAGMA page_size = 4096;")
     object.h = object.hdd.cursor()
 
-    object.hdd2 = sqlite3.connect(node.hyper_path_conf, timeout=1, check_same_thread=False)
+    object.hdd2 = sqlite3.connect(node.hyper_path_conf, timeout=1,isolation_level=None, check_same_thread=True)
     object.hdd2.text_factory = str
     object.hdd2.execute("PRAGMA page_size = 4096;")
     object.h2 = object.hdd2.cursor()
@@ -334,10 +334,10 @@ def db_define(object):
     try:
         if node.ram_conf:
             object.conn = sqlite3.connect(node.ledger_ram_file, uri=True, isolation_level=None,
-                                            check_same_thread=False)
+                                            check_same_thread=True)
         else:
             object.conn = sqlite3.connect(node.hyper_path_conf, uri=True, isolation_level=None,
-                                            check_same_thread=False)
+                                            check_same_thread=True)
 
         object.conn.execute('PRAGMA journal_mode = WAL;')
         object.conn.execute("PRAGMA page_size = 4096;")
@@ -510,6 +510,7 @@ def commit(cursor):
         except Exception as e:
             logger.app_log.warning(f"Database cursor: {cursor}")
             logger.app_log.warning(f"Database retry reason: {e}")
+            raise
             time.sleep(0.1)
 
 def execute(cursor, query):
@@ -529,7 +530,8 @@ def execute(cursor, query):
         except Exception as e:
             logger.app_log.warning(f"Database query: {cursor} {query}")
             logger.app_log.warning(f"Database retry reason: {e}")
-            time.sleep(1)
+            raise
+            time.sleep(0.1)
     return cursor
 
 
@@ -855,7 +857,7 @@ def manager(c):
         # last block
         # status Hook
         uptime = int(time.time() - node.startup_time)
-        tempdiff = difficulty(c)  # Can we avoid recalc that ?
+        tempdiff = difficulty(c)  # Can we avoid recalc that ? yes, save it in the node object
         status = {"protocolversion": node.version, "walletversion": VERSION, "testnet": node.is_testnet,
                   # config data
                   "blocks": node.last_block, "timeoffset": 0, "connections": node.peers.consensus_size,
@@ -1221,8 +1223,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                                                    block_height_new, logger.app_log)
 
                 # new hash
-                c.execute(
-                    "SELECT * FROM transactions WHERE block_height = (SELECT max(block_height) FROM transactions)")
+                c.execute("SELECT * FROM transactions WHERE block_height = (SELECT max(block_height) FROM transactions)")
                 # Was trying to simplify, but it's the latest mirror hash. not the latest block, nor the mirror of the latest block.
                 # c.execute("SELECT * FROM transactions WHERE block_height = ?", (block_height_new -1,))
                 tx_list_to_hash = c.fetchall()
@@ -1401,10 +1402,10 @@ def coherence_check():
 
 
 # init
-def db_maintenance():
+def db_maintenance(db):
     # db maintenance
     logger.app_log.warning("Status: Database maintenance started")
-    execute(database.conn, "VACUUM")
+    execute(db.conn, "VACUUM")
     # mp.MEMPOOL.vacuum()
     logger.app_log.warning("Status: Database maintenance finished")
 
@@ -1450,10 +1451,10 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         timeout_operation = 120  # timeout
         timer_operation = time.time()  # start counting
 
-        while not banned and capacity and node.peers.version_allowed(peer_ip,
-                                                                     node.version_allow) and not node.IS_STOPPING:
+        while not banned and capacity and node.peers.version_allowed(peer_ip, node.version_allow) and not node.IS_STOPPING:
             try:
-
+                database = classes.Database()
+                db_define(database)
 
                 # Failsafe
                 if self.request == -1:
@@ -1476,8 +1477,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         connections.send(self.request, "notok")
                         return
                     else:
-                        execute(database.c, (
-                            "SELECT block_hash FROM transactions WHERE block_height= (select max(block_height) from transactions)"))
+                        execute(database.c, ("SELECT block_hash FROM transactions WHERE block_height= (select max(block_height) from transactions)"))
                         block_hash = database.c.fetchone()[0]
                         # feed regnet with current thread db handle. refactor needed.
                         regnet.conn, regnet.c, regnet.hdd, regnet.h, regnet.hdd2, regnet.h2, regnet.h3 = database.conn, database.c, database.hdd, database.h, database.hdd2, database.h2, database.h3
@@ -2961,7 +2961,7 @@ def setup_net_type():
         """
 
 
-def initial_db_check():
+def initial_db_check(database):
     """
     Initial bootstrap check and chain validity control
     """
@@ -3119,7 +3119,7 @@ if __name__ == "__main__":
     node = classes.Node()
     logger = classes.Logger()
     node_keys = classes.Keys()
-    database = classes.Database()
+
 
     node.is_testnet = False
     # regnet takes over testnet
@@ -3172,18 +3172,20 @@ if __name__ == "__main__":
         load_keys()
 
         ledger_compress()
-        db_define(database)
+
+        x_database = classes.Database()
+        db_define(x_database)
+
+        if node.rebuild_db_conf:
+            db_maintenance(x_database)
+
+        initial_db_check(x_database)
 
         coherence_check()
         check_integrity(node.hyper_path_conf)
 
-        initial_db_check()
-
-        if node.rebuild_db_conf:
-            db_maintenance()
-
         if node.verify_conf:
-            verify(database.h3)
+            verify(x_database.h3)
 
         logger.app_log.warning(f"Status: Starting node version {VERSION}")
         node.startup_time = time.time()
@@ -3226,7 +3228,7 @@ if __name__ == "__main__":
             # hyperlane_manager.start()
 
             # start connection manager
-            t_manager = threading.Thread(target=manager(database.c))
+            t_manager = threading.Thread(target=manager(x_database.c))
             logger.app_log.warning("Status: Starting connection manager")
             t_manager.daemon = True
             t_manager.start()

@@ -46,6 +46,7 @@ class Node():
         self.egress = None
         self.genesis_conf = None
         self.last_block_ago = 0
+        self.accept_peers = True
 
 
 class Logger():
