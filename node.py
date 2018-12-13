@@ -1164,9 +1164,9 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
 
                     # append, but do not insert to ledger before whole block is validated, note that it takes already validated values (decimals, length)
                     logger.app_log.info(f"Block: Appending transaction back to block with {len(block_transactions)} transactions in it")
-                    block_transactions.append((block_height_new, db_timestamp, db_address, db_recipient, db_amount,
-                                               db_signature, db_public_key_hashed, block_hash, fee, reward,
-                                               db_operation, db_openfield))
+                    block_transactions.append((str(block_height_new), str(db_timestamp), str(db_address), str(db_recipient), str(db_amount),
+                                               str(db_signature), str(db_public_key_hashed), str(block_hash), str(fee), str(reward),
+                                               str(db_operation), str(db_openfield)))
 
                     try:
                         mp.MEMPOOL.delete_transaction(db_signature)
@@ -1194,16 +1194,10 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                                                          'transactions': block_transactions})
 
                 # do not use "transaction" as it masks upper level variable.
-                for transaction2 in block_transactions:
-                    execute_param(c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
-                        str(transaction2[0]), str(transaction2[1]),
-                        str(transaction2[2]), str(transaction2[3]),
-                        str(transaction2[4]), str(transaction2[5]),
-                        str(transaction2[6]), str(transaction2[7]),
-                        str(transaction2[8]), str(transaction2[9]),
-                        str(transaction2[10]), str(transaction2[11])))
-                    # secure commit for slow nodes
-                    commit(conn)
+
+                c.execute("BEGIN TRANSACTION")
+                c.executemany("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",block_transactions)
+                c.execute("END TRANSACTION")
 
                 # savings
                 if node.is_testnet or block_height_new >= 843000:
