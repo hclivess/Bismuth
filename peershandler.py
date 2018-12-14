@@ -45,7 +45,7 @@ class Peers:
     """The peers manager. A thread safe peers manager"""
 
     __slots__ = ('app_log','config','logstats','peersync_lock','startup_time','reset_time','warning_list','stats',
-                 'connection_pool','peer_ip_dict','consensus_blockheight_list','consensus_percentage','consensus',
+                 'connection_pool','peer_opinion_dict','consensus_percentage','consensus',
                  'tried','peer_dict','peerfile','suggested_peerfile','banlist','whitelist','ban_threshold',
                  'ip_to_mainnet', 'peers', 'consensus_lock', 'first_run')
 
@@ -61,8 +61,7 @@ class Peers:
         self.warning_list = []
         self.stats = []
         self.connection_pool = []
-        self.peer_ip_dict = {}
-        self.consensus_blockheight_list = []
+        self.peer_opinion_dict = {}
         self.consensus_percentage = 0
         self.consensus = None
         self.tried = {}
@@ -266,13 +265,13 @@ class Peers:
         Returns the peerdict as old simple text format, whatever is on disk, for old nodes compatibility.
         Could be deprecated later on, at next HF.
         """
-        return '\n'.join(['("{}", {})'.format(ip, port) for ip, port in self.peer_dict.items()])
+        return '\n'.join([f'("{ip}", {port})' for ip, port in self.peer_dict.items()])
 
     @property
     def consensus_most_common(self):
         """Consensus vote"""
         try:
-            return most_common(self.consensus_blockheight_list)
+            return most_common_dict(self.peer_opinion_dict)
         except:
             # no consensus yet
             return 0
@@ -280,7 +279,7 @@ class Peers:
     @property
     def consensus_max(self):
         try:
-            return max(self.consensus_blockheight_list)
+            return max(vals_from_dict(self.peer_opinion_dict))
         except:
             # no consensus yet
             return 0
@@ -288,7 +287,7 @@ class Peers:
     @property
     def consensus_size(self):
         """Number of nodes in consensus"""
-        return len(self.consensus_blockheight_list)
+        return len(self.peer_opinion_dict)
 
     def is_allowed(self, peer_ip, command=''):
         """Tells if the given peer is allowed for that command"""
@@ -427,19 +426,19 @@ class Peers:
         try:
             self.consensus_lock.acquire()
 
-            if peer_ip not in self.peer_ip_dict:
+            if peer_ip not in self.peer_opinion_dict:
                 if consensus_blockheight < too_old:
                     self.app_log.warning(f"{peer_ip} got too old a block ({consensus_blockheight}) for consensus")
                     return
 
             self.app_log.info(f"Updating {peer_ip} in consensus")
-            self.peer_ip_dict[peer_ip] = consensus_blockheight
+            self.peer_opinion_dict[peer_ip] = consensus_blockheight
 
-            self.consensus = most_common_dict(self.peer_ip_dict)
+            self.consensus = most_common_dict(self.peer_opinion_dict)
 
-            self.consensus_percentage = percentage_in(self.peer_ip_dict[peer_ip],vals_from_dict(self.peer_ip_dict))
+            self.consensus_percentage = percentage_in(self.peer_opinion_dict[peer_ip],vals_from_dict(self.peer_opinion_dict))
 
-            if int(consensus_blockheight) > int(self.consensus) + 30 and self.consensus_percentage > 50 and len(self.peer_ip_dict) > 10:
+            if int(consensus_blockheight) > int(self.consensus) + 30 and self.consensus_percentage > 50 and len(self.peer_opinion_dict) > 10:
                 if self.warning(sdef, peer_ip, "Consensus deviation too high", 10):
                     raise ValueError("{} banned".format(peer_ip))
 
@@ -455,9 +454,9 @@ class Peers:
     def consensus_remove(self, peer_ip):
         self.consensus_lock.acquire()
         try:
-            self.app_log.info(f"Consensus opinion list: {self.peer_ip_dict}")
-            self.app_log.info(f"Will remove {peer_ip} from consensus pool {self.peer_ip_dict}")
-            self.peer_ip_dict.pop(peer_ip)
+            self.app_log.info(f"Consensus opinion list: {self.peer_opinion_dict}")
+            self.app_log.info(f"Will remove {peer_ip} from consensus pool {self.peer_opinion_dict}")
+            self.peer_opinion_dict.pop(peer_ip)
         except:
             self.app_log.info(f"IP of {peer_ip} not present in the consensus pool")
             pass
@@ -568,7 +567,7 @@ class Peers:
                     t.daemon = True
                     t.start()
 
-            if len(self.consensus_blockheight_list) < 3 and int(time.time() - self.startup_time) > 15:
+            if len(self.peer_dict) < 3 and int(time.time() - self.startup_time) > 15:
                 # join in random peers after x seconds
                 self.app_log.warning("Not enough peers in consensus, joining in peers suggested by other nodes")
                 self.peer_dict.update(self.peers_get(self.suggested_peerfile))
@@ -624,6 +623,6 @@ class Peers:
         self.app_log.info(f"Status: List of Outbound connections: {self.connection_pool}")
         self.app_log.warning(f"Status: Number of Outbound connections: {len(self.connection_pool)}")
         if self.consensus:  # once the consensus is filled
-            self.app_log.warning(f"Status: Consensus: {self.consensus} = {self.consensus_percentage}%")
-            self.app_log.warning(f"Status: Consensus parties: {self.peer_ip_dict}")
-            self.app_log.warning(f"Status: Total number of nodes: {len(self.peer_ip_dict)}")
+            self.app_log.warning(f"Status: Consensus height: {self.consensus} = {self.consensus_percentage}%")
+            self.app_log.warning(f"Status: Consensus participants: {self.peer_opinion_dict}")
+            self.app_log.warning(f"Status: Total number of nodes: {len(self.peer_opinion_dict)}")
