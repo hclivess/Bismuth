@@ -47,7 +47,6 @@ FORK_DIFF = 108.9
 
 getcontext().rounding = ROUND_HALF_EVEN
 
-
 db_lock = threading.Lock()
 # mem_lock = threading.Lock()
 # peersync_lock = threading.Lock()
@@ -260,7 +259,6 @@ def percentage(percent, whole):
 
 
 def db_to_drive(hdd, h, hdd2, h2, sc):
-
     logger.app_log.warning("Block: Moving new data to HDD")
     try:
         execute_param(sc, (
@@ -272,10 +270,10 @@ def db_to_drive(hdd, h, hdd2, h2, sc):
         h2.execute("BEGIN TRANSACTION")
 
         if node.full_ledger:  # we want to save to ledger.db
-            h.executemany("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",result1)
+            h.executemany("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", result1)
 
         if node.ram_conf:  # we want to save to hyper.db from RAM/hyper.db depending on ram conf
-            h2.executemany("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",result1)
+            h2.executemany("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", result1)
 
         execute_param(sc, ("SELECT * FROM misc WHERE block_height > ? ORDER BY block_height ASC"), (node.hdd_block,))
         result2 = sc.fetchall()
@@ -298,17 +296,17 @@ def db_to_drive(hdd, h, hdd2, h2, sc):
 
 
 def db_define(object):
-    object.index = sqlite3.connect(node.index_db, timeout=1,isolation_level=None, check_same_thread=True)
+    object.index = sqlite3.connect(node.index_db, timeout=1, isolation_level=None, check_same_thread=True)
     object.index.text_factory = str
     object.index.execute("PRAGMA page_size = 4096;")
     object.index_cursor = object.index.cursor()
 
-    object.hdd = sqlite3.connect(node.ledger_path_conf, timeout=1,isolation_level=None, check_same_thread=True)
+    object.hdd = sqlite3.connect(node.ledger_path_conf, timeout=1, isolation_level=None, check_same_thread=True)
     object.hdd.text_factory = str
     object.hdd.execute("PRAGMA page_size = 4096;")
     object.h = object.hdd.cursor()
 
-    object.hdd2 = sqlite3.connect(node.hyper_path_conf, timeout=1,isolation_level=None, check_same_thread=True)
+    object.hdd2 = sqlite3.connect(node.hyper_path_conf, timeout=1, isolation_level=None, check_same_thread=True)
     object.hdd2.text_factory = str
     object.hdd2.execute("PRAGMA page_size = 4096;")
     object.h2 = object.hdd2.cursor()
@@ -326,14 +324,13 @@ def db_define(object):
     object.source_db.text_factory = str
     object.sc = object.source_db.cursor()
 
-
     try:
         if node.ram_conf:
             object.conn = sqlite3.connect(node.ledger_ram_file, uri=True, isolation_level=None,
-                                            check_same_thread=True)
+                                          check_same_thread=True)
         else:
             object.conn = sqlite3.connect(node.hyper_path_conf, uri=True, isolation_level=None,
-                                            check_same_thread=True)
+                                          check_same_thread=True)
 
         object.conn.execute('PRAGMA journal_mode = WAL;')
         object.conn.execute("PRAGMA page_size = 4096;")
@@ -342,7 +339,6 @@ def db_define(object):
 
     except Exception as e:
         logger.app_log.info(e)
-
 
 
 def ledger_compress():
@@ -507,6 +503,7 @@ def commit(cursor):
             logger.app_log.warning(f"Database cursor: {cursor}")
             logger.app_log.warning(f"Database retry reason: {e}")
             time.sleep(0.1)
+
 
 def execute(cursor, query):
     """Secure execute for slow nodes"""
@@ -692,6 +689,7 @@ def balanceget(balance_address, c):
     # logger.app_log.info("Mempool: Projected transction address balance: " + str(balance))
     return str(balance), str(credit_ledger), str(debit), str(fees), str(rewards), str(balance_no_mempool)
 
+
 def blocknf(block_hash_delete, peer_ip, c, conn, h, hdd, h2, hdd2):
     my_time = time.time()
 
@@ -876,6 +874,7 @@ def manager(c):
             # faster stop
             if not node.IS_STOPPING:
                 time.sleep(1)
+
 
 def ledger_balance3(address, cache, c):
     # Many heavy blocks are pool payouts, same address.
@@ -1064,7 +1063,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                 if dummy:
                     raise ValueError(
                         "Skipping digestion of block {} from {}, because we already have it on block_height {}".
-                        format(block_hash[:10], peer_ip, dummy[0]))
+                            format(block_hash[:10], peer_ip, dummy[0]))
 
                 if node.is_mainnet:
                     if block_height_new < POW_FORK:
@@ -1143,7 +1142,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                         db_amount = 0  # prevent spending from another address, because mining txs allow delegation
                         if db_block_height <= 10000000:
                             mining_reward = 15 - (
-                                        quantize_eight(block_height_new) / quantize_eight(1000000 / 2)) - Decimal("0.8")
+                                    quantize_eight(block_height_new) / quantize_eight(1000000 / 2)) - Decimal("0.8")
                             if mining_reward < 0:
                                 mining_reward = 0
                         else:
@@ -1198,7 +1197,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                 while True:
                     try:
                         c.execute("BEGIN TRANSACTION")
-                        c.executemany("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",block_transactions)
+                        c.executemany("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", block_transactions)
                         c.execute("END TRANSACTION")
                         break
                     except:
@@ -1273,7 +1272,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
         finally:
             if node.full_ledger or node.ram_conf:
                 # first case move stuff from hyper.db to ledger.db; second case move stuff from ram to both
-                db_to_drive(hdd,h,hdd2,h2,sc)
+                db_to_drive(hdd, h, hdd2, h2, sc)
             db_lock.release()
             delta_t = time.time() - float(q_time_now)
             # logger.app_log.warning("Block: {}: {} digestion completed in {}s.".format(block_height_new,  block_hash[:10], delta_t))
@@ -1579,8 +1578,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                     logger.app_log.info(f"{peer_ip} banned")
                                     break
                             else:
-                                digest_block(segments, self.request, peer_ip, database.conn, database.c,database.hdd,database.h,database.hdd2,database.h2, database.h3, database.index, database.index_cursor, database.sc)
-
+                                digest_block(segments, self.request, peer_ip, database.conn, database.c, database.hdd, database.h, database.hdd2, database.h2, database.h3, database.index, database.index_cursor, database.sc)
 
                                 # receive theirs
                         else:
@@ -1641,7 +1639,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                               ("SELECT block_height FROM transactions WHERE block_hash = ?;"), (data,))
                                 client_block = database.h3.fetchone()[0]
 
-                                logger.app_log.info(f"Inbound: Client is at block {client_block}") # now check if we have any newer
+                                logger.app_log.info(f"Inbound: Client is at block {client_block}")  # now check if we have any newer
 
                                 execute(database.h3,
                                         ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
@@ -1765,7 +1763,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         else:
                             digest_block(segments, self.request, peer_ip, database.conn, database.c, database.hdd,
                                          database.h, database.hdd2, database.h2, database.h3, database.index,
-                                         database.index_cursor,database.sc)
+                                         database.index_cursor, database.sc)
                     else:
                         connections.receive(self.request)  # receive block, but do nothing about it
                         logger.app_log.info(f"{peer_ip} not whitelisted for block command")
@@ -2533,7 +2531,6 @@ def worker(HOST, PORT):
     timeout_operation = 60  # timeout
     timer_operation = time.time()  # start counting
 
-
     this_worker = classes.Database()
     db_define(this_worker)
 
@@ -2589,9 +2586,6 @@ def worker(HOST, PORT):
         node.peers.append_client(this_client)
         logger.app_log.info(f"Connected to {this_client}")
         logger.app_log.info(f"Current active pool: {node.peers.connection_pool}")
-
-
-
 
     while not banned and node.peers.version_allowed(HOST, node.version_allow) and not node.IS_STOPPING:
         try:
@@ -2697,7 +2691,7 @@ def worker(HOST, PORT):
                                         "Outbound: Client rejected to sync from us because we're dont have the latest block")
                                     pass
 
-                        except Exception as e:
+                        except Exception:
                             logger.app_log.warning(f"Outbound: Block {data[:8]} of {peer_ip} not found")
                             connections.send(s, "blocknf")
                             connections.send(s, data)
@@ -2777,7 +2771,7 @@ def worker(HOST, PORT):
                         else:
                             digest_block(segments, s, peer_ip, this_worker.conn, this_worker.c, this_worker.hdd,
                                          this_worker.h, this_worker.hdd2, this_worker.h2, this_worker.h3, this_worker.index,
-                                         this_worker.index_cursor,this_worker.sc)
+                                         this_worker.index_cursor, this_worker.sc)
 
                             # receive theirs
                     else:
@@ -3030,6 +3024,7 @@ def load_keys():
 
     logger.app_log.warning(f"Status: Local address: {node_keys.address}")
 
+
 def verify(h3):
     try:
         logger.app_log.warning("Blockchain verification started...")
@@ -3107,13 +3102,13 @@ def verify(h3):
         logger.app_log.warning("Error: {}".format(e))
         raise
 
+
 if __name__ == "__main__":
 
     # classes
     node = classes.Node()
     logger = classes.Logger()
     node_keys = classes.Keys()
-
 
     node.is_testnet = False
     # regnet takes over testnet
@@ -3206,7 +3201,7 @@ if __name__ == "__main__":
 
             # hyperlane_manager = hyperlane.HyperlaneManager(logger.app_log).hyperlane_manager()
             # hyperlane_manager.start()
-            
+
             init_database = classes.Database()
             db_define(init_database)
 
