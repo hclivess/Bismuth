@@ -47,7 +47,7 @@ class Peers:
     __slots__ = ('app_log','config','logstats','peersync_lock','startup_time','reset_time','warning_list','stats',
                  'connection_pool','peer_opinion_dict','consensus_percentage','consensus',
                  'tried','peer_dict','peerfile','suggested_peerfile','banlist','whitelist','ban_threshold',
-                 'ip_to_mainnet', 'peers', 'consensus_lock', 'first_run')
+                 'ip_to_mainnet', 'peers', 'consensus_lock', 'first_run', 'accept_peers')
 
     def __init__(self, app_log, config=None, logstats=True):
         self.app_log = app_log
@@ -72,6 +72,7 @@ class Peers:
         self.banlist = config.banlist
         self.whitelist = config.whitelist
         self.ban_threshold = config.ban_threshold
+        self.accept_peers = config.accept_peers
 
         self.peerfile = "peers.txt"
         self.suggested_peerfile = "suggested_peers.txt"
@@ -361,7 +362,7 @@ class Peers:
                 with open(self.peerfile, "r") as peer_file:
                     peers = json.load(peer_file)
                 for pair in set(server_peer_tuples):  # set removes duplicates
-                    if pair not in peers:
+                    if pair not in peers and self.accept_peers:
                         self.app_log.info("Outbound: {pair} is a new peer, saving if connectible")
                         try:
                             s_purge = socks.socksocket()
@@ -624,5 +625,5 @@ class Peers:
         self.app_log.warning(f"Status: Number of Outbound connections: {len(self.connection_pool)}")
         if self.consensus:  # once the consensus is filled
             self.app_log.warning(f"Status: Consensus height: {self.consensus} = {self.consensus_percentage}%")
-            self.app_log.warning(f"Status: Consensus participants: {self.peer_opinion_dict}")
+            self.app_log.warning(f"Status: Last block opinion: {self.peer_opinion_dict}")
             self.app_log.warning(f"Status: Total number of nodes: {len(self.peer_opinion_dict)}")
