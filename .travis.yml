@@ -7,7 +7,7 @@ install:
 script: 
   - pyinstaller --uac-admin --onefile --noconsole --log-level=INFO wallet.py --icon=graphics\icon.ico
   - pyinstaller --uac-admin --onefile --log-level=INFO node.py --icon=graphics\icon.ico
-  - pyinstaller --uac-admin --onefile --log-level=INFO miner.py --icon=graphics\icon.ico
+
 notifications:
   slack: cryptobismuth:Mtd8QY1ElBCfM7ijzsyCE7HU
   email: false
