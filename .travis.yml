@@ -14,6 +14,11 @@ notifications:
   slack: cryptobismuth:Mtd8QY1ElBCfM7ijzsyCE7HU
   email: false
 
+addons:
+  apt:
+    packages:
+      - crpath
+
 after_success:
   - wget https://raw.githubusercontent.com/k3rn31p4nic/travis-ci-discord-webhook/master/send.sh
   - chmod +x send.sh
