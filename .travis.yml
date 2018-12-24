@@ -1,12 +1,14 @@
 language: python
 python:
-  - "3.5"
+  - "3.7"
 cache: pip
 install:
-  - pip install pillow pyqrcode pypng pyinstaller bottle pycryptodome simple-crypt PySocks requests
+  - pip install -r requirements.txt
+  - pip install nuitka
 script: 
-  - pyinstaller --uac-admin --onefile --noconsole --log-level=INFO wallet.py --icon=graphics\icon.ico
-  - pyinstaller --uac-admin --onefile --log-level=INFO node.py --icon=graphics\icon.ico
+  - python -m nuitka --follow-imports commands.py --windows-icon=graphics\icon.ico --standalone --show-progress -j 8 --recurse-all
+  - python -m nuitka --follow-imports node.py --windows-icon=graphics\icon.ico --standalone --show-progress -j 8 --recurse-all
+  - python -m nuitka --follow-imports wallet.py --windows-icon=graphics\icon.ico --standalone --show-progress -j 8 --recurse-all
 
 notifications:
   slack: cryptobismuth:Mtd8QY1ElBCfM7ijzsyCE7HU
