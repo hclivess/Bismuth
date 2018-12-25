@@ -34,7 +34,7 @@ from Cryptodome.PublicKey import RSA
 from Cryptodome.Random import get_random_bytes
 from Cryptodome.Signature import PKCS1_v1_5
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg,
-                                               NavigationToolbar2TkAgg)
+                                               NavigationToolbar2Tk)
 from matplotlib.figure import Figure
 
 import async_client
