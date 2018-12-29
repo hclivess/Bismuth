@@ -259,7 +259,7 @@ def percentage(percent, whole):
 
 
 def db_to_drive(hdd, h, hdd2, h2, sc):
-    logger.app_log.warning("Block: Moving new data to HDD")
+    logger.app_log.warning("Chain: Moving new data to HDD")
     try:
         execute_param(sc, (
             "SELECT * FROM transactions WHERE block_height > ? OR block_height < ? ORDER BY block_height ASC"),
@@ -289,9 +289,9 @@ def db_to_drive(hdd, h, hdd2, h2, sc):
 
         h2.execute("SELECT max(block_height) FROM transactions")
         node.hdd_block = h2.fetchone()[0]
-        logger.app_log.warning(f"Block: {len(result1)} txs moved to HDD")
+        logger.app_log.warning(f"Chain: {len(result1)} txs moved to HDD")
     except Exception as e:
-        logger.app_log.warning(f"Block: Exception Moving new data to HDD: {e}")
+        logger.app_log.warning(f"Chain: Exception Moving new data to HDD: {e}")
         # app_log.warning("Ledger digestion ended")  # dup with more informative digest_block notice.
 
 
@@ -910,14 +910,14 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
 
         while mp.MEMPOOL.lock.locked():
             time.sleep(0.1)
-            logger.app_log.info(f"Block: Waiting for mempool to unlock {peer_ip}")
+            logger.app_log.info(f"Chain: Waiting for mempool to unlock {peer_ip}")
 
-        logger.app_log.warning(f"Block: Digesting started from {peer_ip}")
+        logger.app_log.warning(f"Chain: Digesting started from {peer_ip}")
         # variables that have been quantized are prefixed by q_ So we can avoid any unnecessary quantize again later. Takes time.
         # Variables that are only used as quantized decimal are quantized once and for all.
 
         block_size = Decimal(sys.getsizeof(str(data))) / Decimal(1000000)
-        logger.app_log.warning(f"Block: size: {block_size} MB")
+        logger.app_log.warning(f"Chain: Block size: {block_size} MB")
 
         try:
 
@@ -1162,7 +1162,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                         raise ValueError(f"{db_address} Cannot afford to pay fees")
 
                     # append, but do not insert to ledger before whole block is validated, note that it takes already validated values (decimals, length)
-                    logger.app_log.info(f"Block: Appending transaction back to block with {len(block_transactions)} transactions in it")
+                    logger.app_log.info(f"Chain: Appending transaction back to block with {len(block_transactions)} transactions in it")
                     block_transactions.append((str(block_height_new), str(db_timestamp), str(db_address), str(db_recipient), str(db_amount),
                                                str(db_signature), str(db_public_key_hashed), str(block_hash), str(fee), str(reward),
                                                str(db_operation), str(db_openfield)))
@@ -1170,7 +1170,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                     try:
                         mp.MEMPOOL.delete_transaction(db_signature)
                         logger.app_log.info(
-                            f"Block: Removed processed transaction {db_signature[:56]} from the mempool while digesting")
+                            f"Chain: Removed processed transaction {db_signature[:56]} from the mempool while digesting")
                     except:
                         # tx was not or is no more in the local mempool
                         pass
@@ -1253,7 +1253,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
             return block_hash
 
         except Exception as e:
-            logger.app_log.warning(f"Block: processing failed: {e}")
+            logger.app_log.warning(f"Chain processing failed: {e}")
 
             logger.app_log.info(f"Received data dump: {data}")
 
@@ -1266,7 +1266,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
 
             if node.peers.warning(sdef, peer_ip, "Rejected block", 2):
                 raise ValueError(f"{peer_ip} banned")
-            raise ValueError("Block: digestion aborted")
+            raise ValueError("Chain: digestion aborted")
 
         finally:
             if node.full_ledger or node.ram_conf:
@@ -1280,7 +1280,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                                                      "blocks": block_count, "txs": tx_count})
 
     else:
-        logger.app_log.warning(f"Block: Skipping processing from {peer_ip}, someone delivered data faster")
+        logger.app_log.warning(f"Chain: Skipping processing from {peer_ip}, someone delivered data faster")
         node.plugin_manager.execute_action_hook('digestblock', {'failed': "skipped", 'ip': peer_ip})
 
 
