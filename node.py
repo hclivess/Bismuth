@@ -1196,12 +1196,11 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
 
                 while True:
                     try:
-                        c.execute("BEGIN TRANSACTION")
                         c.executemany("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", block_transactions)
-                        c.execute("END TRANSACTION")
                         break
-                    except:
-                        print("Retrying database insert")
+                    except Exception as e:
+                        print(f"Retrying database insert due to {e}")
+                        time.sleep(0.1)
 
                 # savings
                 if node.is_testnet or block_height_new >= 843000:
@@ -1321,10 +1320,8 @@ def coherence_check():
                 for chain2 in chains_to_check:
                     conn2 = sqlite3.connect(chain2)
                     c2 = conn2.cursor()
-                    logger.app_log.warning(
-                        f"Status: Chain {chain} transaction coherence error at: {row[0] - 1}. {row[0]} instead of {y}")
-                    c2.execute("DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?",
-                               (row[0] - 1, -(row[0] + 1)))
+                    logger.app_log.warning(f"Status: Chain {chain} transaction coherence error at: {row[0] - 1}. {row[0]} instead of {y}")
+                    c2.execute("DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?",(row[0] - 1, -(row[0] + 1)))
                     conn2.commit()
                     c2.execute("DELETE FROM misc WHERE block_height >= ?", (row[0] - 1,))
                     conn2.commit()
