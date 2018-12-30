@@ -3171,6 +3171,23 @@ if __name__ == "__main__":
             node.apihandler = apihandler.ApiHandler(logger.app_log, config)
             mp.MEMPOOL = mp.Mempool(logger.app_log, config, db_lock, node.is_testnet)
 
+
+            check_integrity(node.hyper_path_conf)
+            ledger_compress() #this does not work after init_database is loaded
+
+            init_database = classes.Database()
+            db_define(init_database)
+
+            if node.rebuild_db_conf:
+                db_maintenance(init_database)
+
+            initial_db_check(init_database)
+
+            coherence_check()
+
+            if node.verify_conf:
+                verify(init_database.h3)
+
             if not node.tor_conf:
                 # Port 0 means to select an arbitrary unused port
                 HOST, PORT = "0.0.0.0", int(node.port)
@@ -3198,23 +3215,7 @@ if __name__ == "__main__":
             # hyperlane_manager = hyperlane.HyperlaneManager(logger.app_log).hyperlane_manager()
             # hyperlane_manager.start()
 
-            check_integrity(node.hyper_path_conf)
-            ledger_compress() #this does not work after init_database is loaded
 
-            init_database = classes.Database()
-            db_define(init_database)
-
-            if node.rebuild_db_conf:
-                db_maintenance(init_database)
-
-            initial_db_check(init_database)
-
-            coherence_check()
-
-
-
-            if node.verify_conf:
-                verify(init_database.h3)
 
             # start connection manager
             t_manager = threading.Thread(target=manager(init_database.c))
