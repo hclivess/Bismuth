@@ -3198,6 +3198,9 @@ if __name__ == "__main__":
             # hyperlane_manager = hyperlane.HyperlaneManager(logger.app_log).hyperlane_manager()
             # hyperlane_manager.start()
 
+            check_integrity(node.hyper_path_conf)
+            ledger_compress() #this does not work after init_database is loaded
+
             init_database = classes.Database()
             db_define(init_database)
 
@@ -3206,10 +3209,9 @@ if __name__ == "__main__":
 
             initial_db_check(init_database)
 
-            check_integrity(node.hyper_path_conf)
             coherence_check()
 
-            ledger_compress()
+
 
             if node.verify_conf:
                 verify(init_database.h3)
