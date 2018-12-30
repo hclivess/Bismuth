@@ -471,12 +471,14 @@ def encrypt_get_password():
     password_label = Label(top3, text="Input password")
     password_label.grid(row=0, column=0, sticky=N + W, padx=15, pady=(5, 0))
 
+    password_var_enc.set("")
     input_password = Entry(top3, textvariable=password_var_enc, show='*')
     input_password.grid(row=1, column=0, sticky=N + E, padx=15, pady=(0, 5))
 
     confirm_label = Label(top3, text="Confirm password")
     confirm_label.grid(row=2, column=0, sticky=N + W, padx=15, pady=(5, 0))
 
+    password_var_con.set("")
     input_password_con = Entry(top3, textvariable=password_var_con, show='*')
     input_password_con.grid(row=3, column=0, sticky=N + E, padx=15, pady=(0, 5))
 
