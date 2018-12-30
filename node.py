@@ -3158,7 +3158,6 @@ if __name__ == "__main__":
         setup_net_type()
         load_keys()
 
-        ledger_compress()
 
         logger.app_log.warning(f"Status: Starting node version {VERSION}")
         node.startup_time = time.time()
@@ -3207,8 +3206,10 @@ if __name__ == "__main__":
 
             initial_db_check(init_database)
 
-            coherence_check()
             check_integrity(node.hyper_path_conf)
+            coherence_check()
+
+            ledger_compress()
 
             if node.verify_conf:
                 verify(init_database.h3)
