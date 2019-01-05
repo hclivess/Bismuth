@@ -2357,7 +2357,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if node.peers.is_allowed(peer_ip, data):
 
                         nodes_count = node.peers.consensus_size
-                        nodes_list = node.peers.peer_ip_list
+                        nodes_list = node.peers.peer_opinion_dict
                         threads_count = threading.active_count()
                         uptime = int(time.time() - node.startup_time)
                         diff = difficulty(database.c)
@@ -2392,7 +2392,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                   "testnet": node.is_testnet,  # config data
                                   "blocks": node.last_block, "timeoffset": 0,
                                   "connections": node.peers.consensus_size,
-                                  "connections_list": node.peers.peer_ip_list,
+                                  "connections_list": node.peers.peer_opinion_dict,
                                   "difficulty": tempdiff[0],  # live status, bitcoind format
                                   "threads": threading.active_count(),
                                   "uptime": uptime, "consensus": node.peers.consensus,
