@@ -26,11 +26,13 @@ def most_common(lst: list):
 
 def most_common_dict(a_dict: dict):
     """Returns the most common value from a dict. Used by consensus"""
-    val_list = a_dict.values()
-    return max(set(val_list), key=val_list.count)
+    return max(a_dict.values())
 
 def percentage_in(individual, whole):
-    return (float(whole.count(individual) / float(len(whole)))) * 100
+    value_list = []
+    for value in whole:
+        value_list.append(value)
+    return (float(value_list.count(individual) / float(len(whole)))) * 100
 
 
 class Peers:
