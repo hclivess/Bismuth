@@ -29,10 +29,7 @@ def most_common_dict(a_dict: dict):
     return max(a_dict.values())
 
 def percentage_in(individual, whole):
-    value_list = []
-    for value in whole:
-        value_list.append(value)
-    return (float(value_list.count(individual) / float(len(whole)))) * 100
+    return (float(list(whole).count(individual) / float(len(whole)))) * 100
 
 
 class Peers:
