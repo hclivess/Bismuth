@@ -62,6 +62,12 @@ appauthor = "Bismuth Foundation"
 PEM_BEGIN = re.compile(r"\s*-----BEGIN (.*)-----\s+")
 PEM_END = re.compile(r"-----END (.*)-----\s*$")
 
+def round_down(number, order):
+    return int(math.floor(number / order)) * order
+
+def checkpoint_set(block_reference):
+    if block_reference > 2000:
+        node.checkpoint = round_down(block_reference,1000) - 1000
 
 def limit_version():
     if 'mainnet0018' in node.version_allow:
@@ -711,8 +717,8 @@ def blocknf(block_hash_delete, peer_ip, c, conn, h, hdd, h2, hdd2):
                 reason = "Filter blocked this rollback"
                 skip = True
 
-            elif db_block_height < 2:
-                reason = "Will not roll back this block"
+            elif db_block_height < node.checkpoint:
+                reason = "Block is past checkpoint, will not be rolled back"
                 skip = True
 
             elif db_block_hash != block_hash_delete:
@@ -832,6 +838,7 @@ def manager(c):
             node.peers.manager_loop(target=worker)
 
         logger.app_log.warning(f"Status: Threads at {threading.active_count()} / {node.thread_limit_conf}")
+        logger.app_log.warning(f"Status: Current checkpoint: {node.checkpoint}")
         logger.app_log.info(f"Status: Syncing nodes: {node.syncing}")
         logger.app_log.info(f"Status: Syncing nodes: {len(node.syncing)}/3")
 
@@ -840,10 +847,10 @@ def manager(c):
         mp.MEMPOOL.status()
 
         # last block
-        execute(c,
-                "SELECT block_height, timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
+        execute(c,"SELECT block_height, timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
         result = c.fetchall()[0]
         node.last_block = result[0]
+
         node.last_block_ago = int(time.time() - result[1])
         logger.app_log.warning(f"Status: Last block {node.last_block} was generated {'%.2f' % (node.last_block_ago / 60)} minutes ago")
         # last block
@@ -1250,6 +1257,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                 # /whole block validation
                 # NEW: returns new block hash
 
+            checkpoint_set(block_height_new)
             return block_hash
 
         except Exception as e:
@@ -2985,6 +2993,7 @@ def initial_db_check(database):
         node.hdd_block = sc.fetchone()[0]
 
         node.last_block = node.hdd_block
+        checkpoint_set(node.hdd_block)
 
         if node.is_mainnet and (node.hdd_block >= POW_FORK - FORK_AHEAD):
             limit_version()

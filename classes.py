@@ -10,6 +10,7 @@ class Node():
         self.IS_STOPPING = False
         self.apihandler = None
         self.syncing = []
+        self.checkpoint = 0
 
         self.is_testnet = False
         self.is_regnet = False
@@ -49,6 +50,7 @@ class Node():
         self.last_block_ago = 0
         self.last_block_timestamp = 0
         self.accept_peers = True
+
 
 
 class Logger():
