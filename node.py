@@ -68,6 +68,7 @@ def round_down(number, order):
 def checkpoint_set(block_reference):
     if block_reference > 2000:
         node.checkpoint = round_down(block_reference,1000) - 1000
+        logger.app_log.warning(f"Checkpoint set to {node.checkpoint}")
 
 def limit_version():
     if 'mainnet0018' in node.version_allow:
@@ -838,7 +839,6 @@ def manager(c):
             node.peers.manager_loop(target=worker)
 
         logger.app_log.warning(f"Status: Threads at {threading.active_count()} / {node.thread_limit_conf}")
-        logger.app_log.warning(f"Status: Current checkpoint: {node.checkpoint}")
         logger.app_log.info(f"Status: Syncing nodes: {node.syncing}")
         logger.app_log.info(f"Status: Syncing nodes: {len(node.syncing)}/3")
 
