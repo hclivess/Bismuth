@@ -36,6 +36,19 @@ from quantizer import quantize_eight
 from simplecrypt import encrypt, decrypt
 from tokensv2 import *
 
+class Keys:
+    def __init__(self):
+        self.key = None
+        self.public_key_readable = None
+        self.private_key_readable = None
+        self.encrypted = None
+        self.unlocked = None
+        self.public_key_hashed = None
+        self.myaddress = None
+        self.keyfile = None
+
+
+
 # Wallet needs a version for itself
 __version__ = '0.8.2'
 
@@ -57,16 +70,8 @@ from matplotlib.figure import Figure3
 
 global block_height_old
 global statusget
-global key
-global private_key_readable
-global encrypted
-global unlocked
-global public_key_hashed
-global myaddress
-global private_key_load
-global public_key_load
 global s
-global keyfile
+
 
 
 def mempool_clear(s):
@@ -124,7 +129,7 @@ def mempool_get(s):
 
 
 def recover():
-    result = recovery.recover(key)
+    result = recovery.recover(keyring.key)
     messagebox.showinfo("Recovery Result", result)
 
 
@@ -228,7 +233,7 @@ def alias_register(alias_desired):
     result = connections.receive(s, 10)
 
     if result == "Alias free":
-        send("0", myaddress, "", "alias=" + alias_desired)
+        send("0", keyring.myaddress, "", "alias=" + alias_desired)
         pass
     else:
         messagebox.showinfo("Conflict", "Name already registered")
@@ -317,16 +322,7 @@ def keys_untar(archive):
 
 
 def keys_load_dialog():
-    global key
-    global private_key_readable
-    global encrypted
-    global unlocked
-    global public_key_hashed
-    global myaddress
-    global private_key_load
-    global public_key_load
-    global public_key_readable    
-    global keyfile
+
 
     wallet_load = filedialog.askopenfilename(multiple=False, initialdir="", title="Select wallet")
 
@@ -334,24 +330,24 @@ def keys_load_dialog():
         print(wallet_load)
         wallet_load = keys_untar(wallet_load)[0]
 
-    key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress, keyfile = essentials.keys_load_new(wallet_load)  # upgrade later, remove blanks
+    keyring.key, keyring.public_key_readable, keyring.private_key_readable, keyring.encrypted, keyring.unlocked, keyring.public_key_hashed, keyring.myaddress, keyring.keyfile = essentials.keys_load_new(wallet_load)  # upgrade later, remove blanks
 
     encryption_button_refresh()
 
     gui_address_t.delete(0, END)
-    gui_address_t.insert(INSERT, myaddress)
+    gui_address_t.insert(INSERT, keyring.myaddress)
 
     recipient_address.config(state=NORMAL)
     recipient_address.delete(0, END)
-    recipient_address.insert(INSERT, myaddress)
+    recipient_address.insert(INSERT, keyring.myaddress)
     recipient_address.config(state=DISABLED)
 
     sender_address.config(state=NORMAL)
     sender_address.delete(0, END)
-    sender_address.insert(INSERT, myaddress)
+    sender_address.insert(INSERT, keyring.myaddress)
     sender_address.config(state=DISABLED)
 
-    refresh(myaddress, s)
+    refresh(keyring.myaddress, s)
 
 
 def keys_backup():
@@ -376,8 +372,8 @@ def watch():
 
 def unwatch():
     gui_address_t.delete(0, END)
-    gui_address_t.insert(INSERT, myaddress)
-    refresh(myaddress, s)
+    gui_address_t.insert(INSERT, keyring.myaddress)
+    refresh(keyring.myaddress, s)
 
 
 def aliases_list():
@@ -387,7 +383,7 @@ def aliases_list():
     aliases_box.grid(row=0, pady=0)
 
     connections.send(s, "aliasget", 10)
-    connections.send(s, myaddress, 10)
+    connections.send(s, keyring.myaddress, 10)
 
     aliases_self = connections.receive(s, 10)
 
@@ -426,7 +422,7 @@ def url_insert():
 
 def address_copy():
     root.clipboard_clear()
-    root.clipboard_append(myaddress)
+    root.clipboard_append(keyring.myaddress)
 
 
 def url_copy():
@@ -464,8 +460,7 @@ def alias():
 
 
 def encrypt_get_password():
-    global encrypted
-    if encrypted:
+    if keyring.encrypted:
         messagebox.showwarning("Error", "Already encrypted")
         return
 
@@ -476,12 +471,14 @@ def encrypt_get_password():
     password_label = Label(top3, text="Input password")
     password_label.grid(row=0, column=0, sticky=N + W, padx=15, pady=(5, 0))
 
+    password_var_enc.set("")
     input_password = Entry(top3, textvariable=password_var_enc, show='*')
     input_password.grid(row=1, column=0, sticky=N + E, padx=15, pady=(0, 5))
 
     confirm_label = Label(top3, text="Confirm password")
     confirm_label.grid(row=2, column=0, sticky=N + W, padx=15, pady=(5, 0))
 
+    password_var_con.set("")
     input_password_con = Entry(top3, textvariable=password_var_con, show='*')
     input_password_con.grid(row=3, column=0, sticky=N + E, padx=15, pady=(0, 5))
 
@@ -503,7 +500,6 @@ def lock_fn(button):
 
 
 def encrypt_fn(destroy_this):
-    global key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress, keyfile
 
     password = password_var_enc.get()
     password_conf = password_var_con.get()
@@ -511,13 +507,14 @@ def encrypt_fn(destroy_this):
     if password == password_conf:
         busy(destroy_this)
         try:
-            ciphertext = encrypt(password, private_key_readable)
+            ciphertext = encrypt(password, keyring.private_key_readable)
             ciphertext_export = base64.b64encode(ciphertext).decode()
-            essentials.keys_save(ciphertext_export, public_key_readable, myaddress, keyfile)
+            essentials.keys_save(ciphertext_export, keyring.public_key_readable, keyring.myaddress, keyring.keyfile)
 
             # encrypt_b.configure(text="Encrypted", state=DISABLED)
 
-            key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress, keyfile = essentials.keys_load(private_key_load, public_key_load)
+            keyring.key, keyring.public_key_readable, keyring.private_key_readable, keyring.encrypted, keyring.unlocked, keyring.public_key_hashed, keyring.myaddress, keyring.keyfile = essentials.keys_load_new(keyring.keyfile.name)
+
             encryption_button_refresh()
         finally:
             notbusy(destroy_this)
@@ -544,14 +541,13 @@ def decrypt_get_password():
 
 
 def decrypt_fn(destroy_this):
-    global key
     busy(destroy_this)
     try:
-        password = password_var_dec.get()
+        keyring.password = password_var_dec.get()
 
-        decrypted_privkey = decrypt(password, base64.b64decode(private_key_readable))  # decrypt privkey
+        keyring.decrypted_privkey = decrypt(keyring.password, base64.b64decode(keyring.private_key_readable))  # decrypt privkey
 
-        key = RSA.importKey(decrypted_privkey)  # be able to sign
+        keyring.key = RSA.importKey(keyring.decrypted_privkey)  # be able to sign
 
         notbusy(destroy_this)
         destroy_this.destroy()
@@ -565,7 +561,6 @@ def decrypt_fn(destroy_this):
         messagebox.showwarning("Locked", "Wrong password")
 
     password_var_dec.set("")
-    return key
 
 
 def send_confirm(amount_input, recipient_input, operation_input, openfield_input):
@@ -643,7 +638,7 @@ def send_confirmed(amount_input, recipient_input, operation_input, openfield_inp
 def send(amount_input, recipient_input, operation_input, openfield_input):
     all_spend_check()
 
-    if key is None:
+    if keyring.key is None:
         messagebox.showerror("Locked", "Wallet is locked")
 
     app_log.warning("Received tx command")
@@ -666,22 +661,22 @@ def send(amount_input, recipient_input, operation_input, openfield_input):
         app_log.warning("Data: {}".format(openfield_input))
 
         tx_timestamp = '%.2f' % (float(stats_timestamp) - abs(float(stats_timestamp) - time.time()))  # randomize timestamp for unique signatures
-        transaction = (str(tx_timestamp), str(myaddress), str(recipient_input), '%.8f' % float(amount_input), str(operation_input), str(openfield_input))  # this is signed, float kept for compatibility
+        transaction = (str(tx_timestamp), str(keyring.myaddress), str(recipient_input), '%.8f' % float(amount_input), str(operation_input), str(openfield_input))  # this is signed, float kept for compatibility
 
         h = SHA.new(str(transaction).encode("utf-8"))
-        signer = PKCS1_v1_5.new(key)
+        signer = PKCS1_v1_5.new(keyring.key)
         signature = signer.sign(h)
         signature_enc = base64.b64encode(signature)
         app_log.warning("Client: Encoded Signature: {}".format(signature_enc.decode("utf-8")))
 
-        verifier = PKCS1_v1_5.new(key)
+        verifier = PKCS1_v1_5.new(keyring.key)
 
         if verifier.verify(h, signature):
 
             app_log.warning("Client: The signature is valid, proceeding to save transaction, signature, new txhash and the public key to mempool")
 
             # print(str(timestamp), str(address), str(recipient_input), '%.8f' % float(amount_input),str(signature_enc), str(public_key_hashed), str(keep_input), str(openfield_input))
-            tx_submit = str(tx_timestamp), str(myaddress), str(recipient_input), '%.8f' % float(amount_input), str(signature_enc.decode("utf-8")), str(public_key_hashed.decode("utf-8")), str(operation_input), str(openfield_input)  # float kept for compatibility
+            tx_submit = str(tx_timestamp), str(keyring.myaddress), str(recipient_input), '%.8f' % float(amount_input), str(signature_enc.decode("utf-8")), str(keyring.public_key_hashed.decode("utf-8")), str(operation_input), str(openfield_input)  # float kept for compatibility
 
             while True:
                 connections.send(s, "mpinsert", 10)
@@ -732,7 +727,7 @@ def qr(address):
 
 def msg_dialogue(address):
     connections.send(s, "addlist", 10)
-    connections.send(s, myaddress, 10)
+    connections.send(s, keyring.myaddress, 10)
     addlist = connections.receive(s, 10)
     print(addlist)
 
@@ -754,7 +749,7 @@ def msg_dialogue(address):
 
                         (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval(msg_received_digest)
                         # Decrypt the session key with the public RSA key
-                        cipher_rsa = PKCS1_OAEP.new(key)
+                        cipher_rsa = PKCS1_OAEP.new(keyring.key)
                         session_key = cipher_rsa.decrypt(enc_session_key)
                         # Decrypt the data with the AES session key
                         cipher_aes = AES.new(session_key, AES.MODE_EAX, cipher_aes_nonce)
@@ -771,7 +766,7 @@ def msg_dialogue(address):
                         # msg_received_digest = key.decrypt(ast.literal_eval(msg_received_digest)).decode("utf-8")
                         (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval(msg_received_digest)
                         # Decrypt the session key with the public RSA key
-                        cipher_rsa = PKCS1_OAEP.new(key)
+                        cipher_rsa = PKCS1_OAEP.new(keyring.key)
                         session_key = cipher_rsa.decrypt(enc_session_key)
                         # Decrypt the data with the AES session key
                         cipher_aes = AES.new(session_key, AES.MODE_EAX, cipher_aes_nonce)
@@ -810,7 +805,7 @@ def msg_dialogue(address):
                         # msg_sent_digest = key.decrypt(ast.literal_eval(msg_sent_digest)).decode("utf-8")
                         (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval(msg_sent_digest)
                         # Decrypt the session key with the public RSA key
-                        cipher_rsa = PKCS1_OAEP.new(key)
+                        cipher_rsa = PKCS1_OAEP.new(keyring.key)
                         session_key = cipher_rsa.decrypt(enc_session_key)
                         # Decrypt the data with the AES session key
                         cipher_aes = AES.new(session_key, AES.MODE_EAX, cipher_aes_nonce)
@@ -827,7 +822,7 @@ def msg_dialogue(address):
                         # msg_sent_digest = key.decrypt(ast.literal_eval(msg_sent_digest)).decode("utf-8")
                         (cipher_aes_nonce, tag, ciphertext, enc_session_key) = ast.literal_eval(msg_sent_digest)
                         # Decrypt the session key with the public RSA key
-                        cipher_rsa = PKCS1_OAEP.new(key)
+                        cipher_rsa = PKCS1_OAEP.new(keyring.key)
                         session_key = cipher_rsa.decrypt(enc_session_key)
                         # Decrypt the data with the AES session key
                         cipher_aes = AES.new(session_key, AES.MODE_EAX, cipher_aes_nonce)
@@ -1061,7 +1056,7 @@ def stats():
 
 def csv_export(s):
     connections.send(s, "addlist", 10)  # senders
-    connections.send(s, myaddress, 10)
+    connections.send(s, keyring.myaddress, 10)
 
     tx_list = connections.receive(s, 10)
     print(tx_list)
@@ -1094,7 +1089,7 @@ def token_issue(token, amount, window):
     openfield.delete('1.0', END)  # remove previous
     openfield.insert(INSERT, "{}:{}".format(token, amount))
     recipient.delete(0, END)
-    recipient.insert(INSERT, myaddress)
+    recipient.insert(INSERT, keyring.myaddress)
     window.destroy()
 
     send_confirm(0, recipient.get(), "token:issue", "{}:{}".format(token, amount))
@@ -1432,7 +1427,7 @@ def sign():
 
     def sign_this():
         h = SHA.new(input_text.get("1.0", END).encode("utf-8"))
-        signer = PKCS1_v1_5.new(key)
+        signer = PKCS1_v1_5.new(keyring.key)
         signature = signer.sign(h)
         signature_enc = base64.b64encode(signature)
 
@@ -1452,7 +1447,7 @@ def sign():
 
     Label(top, text="Public Key:", width=20).grid(row=2, pady=0)
     public_key_gui = Text(top, height=10)
-    public_key_gui.insert(INSERT, public_key_readable)
+    public_key_gui.insert(INSERT, keyring.public_key_readable)
     public_key_gui.grid(row=3, column=0, sticky=N + E, padx=15, pady=(0, 0))
 
     Label(top, text="Signature:", width=20).grid(row=4, pady=0)
@@ -1558,15 +1553,15 @@ def themes(theme):
 
 
 def encryption_button_refresh():
-    if unlocked:
+    if keyring.unlocked:
         decrypt_b.configure(text="Unlocked", state=DISABLED)
-    if not unlocked:
+    if not keyring.unlocked:
         decrypt_b.configure(text="Unlock", state=NORMAL)
         messagemenu.entryconfig("Sign Messages", state="disabled")  # messages
         walletmenu.entryconfig("Recovery", state="disabled")  # recover
-    if not encrypted:
+    if not keyring.encrypted:
         encrypt_b.configure(text="Encrypt", state=NORMAL)
-    if encrypted:
+    if keyring.encrypted:
         encrypt_b.configure(text="Encrypted", state=DISABLED)
     lock_b.configure(text="Lock", state=DISABLED)
 
@@ -1626,6 +1621,8 @@ def notbusy(an_item=None):
 
 
 if __name__ == "__main__":
+    keyring = Keys()
+
     # data for charts
     stats_nodes_count_list = []
     stats_thread_count_list = []
@@ -1667,8 +1664,8 @@ if __name__ == "__main__":
 
     essentials.keys_check(app_log, "wallet.der")
 
-    key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress, keyfile = essentials.keys_load(private_key_load, public_key_load)
-    print("Keyfile: {}".format(keyfile))
+    keyring.key, keyring.public_key_readable, keyring.private_key_readable, keyring.encrypted, keyring.unlocked, keyring.public_key_hashed, keyring.myaddress, keyring.keyfile = essentials.keys_load(private_key_load, public_key_load)
+    print("Keyfile: {}".format(keyring.keyfile))
 
     light_ip_conf = light_ip
 
@@ -1768,8 +1765,8 @@ if __name__ == "__main__":
     frame_entries_r = Frame(tab_receive, relief='ridge', borderwidth=0)
     frame_entries_r.grid(row=0, column=0, pady=5, padx=5, sticky=N + W + E + S)
 
-    recipient_address = Entry(frame_entries_r, width=60, text=myaddress)
-    recipient_address.insert(0, myaddress)
+    recipient_address = Entry(frame_entries_r, width=60, text=keyring.myaddress)
+    recipient_address.insert(0, keyring.myaddress)
 
     recipient_address.grid(row=0, column=1, sticky=W, pady=5, padx=5)
     recipient_address.configure(state=DISABLED)
@@ -2061,10 +2058,10 @@ if __name__ == "__main__":
 
     gui_address_t = Entry(frame_entries_t, width=60)
     gui_address_t.grid(row=0, column=1, sticky=W, pady=5, padx=5)
-    gui_address_t.insert(0, myaddress)
+    gui_address_t.insert(0, keyring.myaddress)
 
     sender_address = Entry(frame_entries, width=60)
-    sender_address.insert(0, myaddress)
+    sender_address.insert(0, keyring.myaddress)
     sender_address.grid(row=0, column=1, sticky=W, pady=5, padx=5)
     sender_address.configure(state=DISABLED)
 

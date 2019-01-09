@@ -11,7 +11,7 @@
 # do not isolation_level=None/WAL hdd levels, it makes saving slow
 
 
-VERSION = "4.2.8.1"  # 3. regnet support
+VERSION = "4.2.9"  # 3. regnet support
 
 # Bis specific modules
 import log, options, connections, peershandler, apihandler
@@ -62,6 +62,13 @@ appauthor = "Bismuth Foundation"
 PEM_BEGIN = re.compile(r"\s*-----BEGIN (.*)-----\s+")
 PEM_END = re.compile(r"-----END (.*)-----\s*$")
 
+def round_down(number, order):
+    return int(math.floor(number / order)) * order
+
+def checkpoint_set(block_reference):
+    if block_reference > 2000:
+        node.checkpoint = round_down(block_reference,1000) - 1000
+        logger.app_log.warning(f"Checkpoint set to {node.checkpoint}")
 
 def limit_version():
     if 'mainnet0018' in node.version_allow:
@@ -259,7 +266,7 @@ def percentage(percent, whole):
 
 
 def db_to_drive(hdd, h, hdd2, h2, sc):
-    logger.app_log.warning("Block: Moving new data to HDD")
+    logger.app_log.warning("Chain: Moving new data to HDD")
     try:
         execute_param(sc, (
             "SELECT * FROM transactions WHERE block_height > ? OR block_height < ? ORDER BY block_height ASC"),
@@ -289,9 +296,9 @@ def db_to_drive(hdd, h, hdd2, h2, sc):
 
         h2.execute("SELECT max(block_height) FROM transactions")
         node.hdd_block = h2.fetchone()[0]
-        logger.app_log.warning(f"Block: {len(result1)} txs moved to HDD")
+        logger.app_log.warning(f"Chain: {len(result1)} txs moved to HDD")
     except Exception as e:
-        logger.app_log.warning(f"Block: Exception Moving new data to HDD: {e}")
+        logger.app_log.warning(f"Chain: Exception Moving new data to HDD: {e}")
         # app_log.warning("Ledger digestion ended")  # dup with more informative digest_block notice.
 
 
@@ -711,8 +718,8 @@ def blocknf(block_hash_delete, peer_ip, c, conn, h, hdd, h2, hdd2):
                 reason = "Filter blocked this rollback"
                 skip = True
 
-            elif db_block_height < 2:
-                reason = "Will not roll back this block"
+            elif db_block_height < node.checkpoint:
+                reason = "Block is past checkpoint, will not be rolled back"
                 skip = True
 
             elif db_block_hash != block_hash_delete:
@@ -840,10 +847,10 @@ def manager(c):
         mp.MEMPOOL.status()
 
         # last block
-        execute(c,
-                "SELECT block_height, timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
+        execute(c,"SELECT block_height, timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
         result = c.fetchall()[0]
         node.last_block = result[0]
+
         node.last_block_ago = int(time.time() - result[1])
         logger.app_log.warning(f"Status: Last block {node.last_block} was generated {'%.2f' % (node.last_block_ago / 60)} minutes ago")
         # last block
@@ -910,14 +917,14 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
 
         while mp.MEMPOOL.lock.locked():
             time.sleep(0.1)
-            logger.app_log.info(f"Block: Waiting for mempool to unlock {peer_ip}")
+            logger.app_log.info(f"Chain: Waiting for mempool to unlock {peer_ip}")
 
-        logger.app_log.warning(f"Block: Digesting started from {peer_ip}")
+        logger.app_log.warning(f"Chain: Digesting started from {peer_ip}")
         # variables that have been quantized are prefixed by q_ So we can avoid any unnecessary quantize again later. Takes time.
         # Variables that are only used as quantized decimal are quantized once and for all.
 
         block_size = Decimal(sys.getsizeof(str(data))) / Decimal(1000000)
-        logger.app_log.warning(f"Block: size: {block_size} MB")
+        logger.app_log.warning(f"Chain: Block size: {block_size} MB")
 
         try:
 
@@ -1162,7 +1169,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                         raise ValueError(f"{db_address} Cannot afford to pay fees")
 
                     # append, but do not insert to ledger before whole block is validated, note that it takes already validated values (decimals, length)
-                    logger.app_log.info(f"Block: Appending transaction back to block with {len(block_transactions)} transactions in it")
+                    logger.app_log.info(f"Chain: Appending transaction back to block with {len(block_transactions)} transactions in it")
                     block_transactions.append((str(block_height_new), str(db_timestamp), str(db_address), str(db_recipient), str(db_amount),
                                                str(db_signature), str(db_public_key_hashed), str(block_hash), str(fee), str(reward),
                                                str(db_operation), str(db_openfield)))
@@ -1170,7 +1177,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                     try:
                         mp.MEMPOOL.delete_transaction(db_signature)
                         logger.app_log.info(
-                            f"Block: Removed processed transaction {db_signature[:56]} from the mempool while digesting")
+                            f"Chain: Removed processed transaction {db_signature[:56]} from the mempool while digesting")
                     except:
                         # tx was not or is no more in the local mempool
                         pass
@@ -1196,12 +1203,11 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
 
                 while True:
                     try:
-                        c.execute("BEGIN TRANSACTION")
                         c.executemany("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", block_transactions)
-                        c.execute("END TRANSACTION")
                         break
-                    except:
-                        print("Retrying database insert")
+                    except Exception as e:
+                        print(f"Retrying database insert due to {e}")
+                        time.sleep(0.1)
 
                 # savings
                 if node.is_testnet or block_height_new >= 843000:
@@ -1251,10 +1257,11 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                 # /whole block validation
                 # NEW: returns new block hash
 
+            checkpoint_set(block_height_new)
             return block_hash
 
         except Exception as e:
-            logger.app_log.warning(f"Block: processing failed: {e}")
+            logger.app_log.warning(f"Chain processing failed: {e}")
 
             logger.app_log.info(f"Received data dump: {data}")
 
@@ -1267,7 +1274,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
 
             if node.peers.warning(sdef, peer_ip, "Rejected block", 2):
                 raise ValueError(f"{peer_ip} banned")
-            raise ValueError("Block: digestion aborted")
+            raise ValueError("Chain: digestion aborted")
 
         finally:
             if node.full_ledger or node.ram_conf:
@@ -1281,7 +1288,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                                                      "blocks": block_count, "txs": tx_count})
 
     else:
-        logger.app_log.warning(f"Block: Skipping processing from {peer_ip}, someone delivered data faster")
+        logger.app_log.warning(f"Chain: Skipping processing from {peer_ip}, someone delivered data faster")
         node.plugin_manager.execute_action_hook('digestblock', {'failed': "skipped", 'ip': peer_ip})
 
 
@@ -1321,10 +1328,8 @@ def coherence_check():
                 for chain2 in chains_to_check:
                     conn2 = sqlite3.connect(chain2)
                     c2 = conn2.cursor()
-                    logger.app_log.warning(
-                        f"Status: Chain {chain} transaction coherence error at: {row[0] - 1}. {row[0]} instead of {y}")
-                    c2.execute("DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?",
-                               (row[0] - 1, -(row[0] + 1)))
+                    logger.app_log.warning(f"Status: Chain {chain} transaction coherence error at: {row[0] - 1}. {row[0]} instead of {y}")
+                    c2.execute("DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?",(row[0] - 1, -(row[0] + 1)))
                     conn2.commit()
                     c2.execute("DELETE FROM misc WHERE block_height >= ?", (row[0] - 1,))
                     conn2.commit()
@@ -2360,7 +2365,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if node.peers.is_allowed(peer_ip, data):
 
                         nodes_count = node.peers.consensus_size
-                        nodes_list = node.peers.peer_ip_list
+                        nodes_list = node.peers.peer_opinion_dict
                         threads_count = threading.active_count()
                         uptime = int(time.time() - node.startup_time)
                         diff = difficulty(database.c)
@@ -2395,7 +2400,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                   "testnet": node.is_testnet,  # config data
                                   "blocks": node.last_block, "timeoffset": 0,
                                   "connections": node.peers.consensus_size,
-                                  "connections_list": node.peers.peer_ip_list,
+                                  "connections_list": node.peers.peer_opinion_dict,
                                   "difficulty": tempdiff[0],  # live status, bitcoind format
                                   "threads": threading.active_count(),
                                   "uptime": uptime, "consensus": node.peers.consensus,
@@ -2988,6 +2993,7 @@ def initial_db_check(database):
         node.hdd_block = sc.fetchone()[0]
 
         node.last_block = node.hdd_block
+        checkpoint_set(node.hdd_block)
 
         if node.is_mainnet and (node.hdd_block >= POW_FORK - FORK_AHEAD):
             limit_version()
@@ -3161,7 +3167,6 @@ if __name__ == "__main__":
         setup_net_type()
         load_keys()
 
-        ledger_compress()
 
         logger.app_log.warning(f"Status: Starting node version {VERSION}")
         node.startup_time = time.time()
@@ -3174,6 +3179,23 @@ if __name__ == "__main__":
 
             node.apihandler = apihandler.ApiHandler(logger.app_log, config)
             mp.MEMPOOL = mp.Mempool(logger.app_log, config, db_lock, node.is_testnet)
+
+
+            check_integrity(node.hyper_path_conf)
+            ledger_compress() #this does not work after init_database is loaded
+
+            init_database = classes.Database()
+            db_define(init_database)
+
+            if node.rebuild_db_conf:
+                db_maintenance(init_database)
+
+            initial_db_check(init_database)
+
+            coherence_check()
+
+            if node.verify_conf:
+                verify(init_database.h3)
 
             if not node.tor_conf:
                 # Port 0 means to select an arbitrary unused port
@@ -3202,19 +3224,7 @@ if __name__ == "__main__":
             # hyperlane_manager = hyperlane.HyperlaneManager(logger.app_log).hyperlane_manager()
             # hyperlane_manager.start()
 
-            init_database = classes.Database()
-            db_define(init_database)
 
-            if node.rebuild_db_conf:
-                db_maintenance(init_database)
-
-            initial_db_check(init_database)
-
-            coherence_check()
-            check_integrity(node.hyper_path_conf)
-
-            if node.verify_conf:
-                verify(init_database.h3)
 
             # start connection manager
             t_manager = threading.Thread(target=manager(init_database.c))

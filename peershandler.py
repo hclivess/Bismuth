@@ -14,31 +14,22 @@ import socks
 
 import regnet
 
-__version__ = "0.0.10"
+__version__ = "0.0.11"
 
 
 # TODO : some config options are _conf and others without => clean up later on
 
-def most_common(lst):
+def most_common(lst: list):
     """Used by consensus"""
+    # TODO: factorize the two helpers in one. and use a less cpu hungry method (counter)
     return max(set(lst), key=lst.count)
 
-def most_common_dict(dct):
-    """Used by consensus"""
-    val_list = []
-    for key, value in dct.items():
-        val_list.append(value)
-    return max(set(val_list), key=val_list.count)
+def most_common_dict(a_dict: dict):
+    """Returns the most common value from a dict. Used by consensus"""
+    return max(a_dict.values())
 
 def percentage_in(individual, whole):
-    return (float(whole.count(individual) / float(len(whole)))) * 100
-
-
-def vals_from_dict(dct):
-    val_list = []
-    for key, value in dct.items():
-        val_list.append(value)
-    return val_list
+    return (float(list(whole).count(individual) / float(len(whole)))) * 100
 
 
 class Peers:
@@ -280,7 +271,7 @@ class Peers:
     @property
     def consensus_max(self):
         try:
-            return max(vals_from_dict(self.peer_opinion_dict))
+            return max(self.peer_opinion_dict.values())
         except:
             # no consensus yet
             return 0
@@ -437,7 +428,7 @@ class Peers:
 
             self.consensus = most_common_dict(self.peer_opinion_dict)
 
-            self.consensus_percentage = percentage_in(self.peer_opinion_dict[peer_ip],vals_from_dict(self.peer_opinion_dict))
+            self.consensus_percentage = percentage_in(self.peer_opinion_dict[peer_ip],self.peer_opinion_dict.values())
 
             if int(consensus_blockheight) > int(self.consensus) + 30 and self.consensus_percentage > 50 and len(self.peer_opinion_dict) > 10:
                 if self.warning(sdef, peer_ip, "Consensus deviation too high", 10):
