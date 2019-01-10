@@ -273,9 +273,6 @@ def db_to_drive(hdd, h, hdd2, h2, sc):
                       (node.hdd_block, -node.hdd_block))
         result1 = sc.fetchall()
 
-        h.execute("BEGIN TRANSACTION")
-        h2.execute("BEGIN TRANSACTION")
-
         if node.full_ledger:  # we want to save to ledger.db
             h.executemany("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", result1)
 
@@ -290,9 +287,6 @@ def db_to_drive(hdd, h, hdd2, h2, sc):
 
         if node.ram_conf:  # we want to save to hyper.db from RAM
             h2.executemany("INSERT INTO misc VALUES (?,?)", result2)
-
-        h.execute("END TRANSACTION")
-        h2.execute("END TRANSACTION")
 
         h2.execute("SELECT max(block_height) FROM transactions")
         node.hdd_block = h2.fetchone()[0]
@@ -697,7 +691,7 @@ def balanceget(balance_address, c):
     return str(balance), str(credit_ledger), str(debit), str(fees), str(rewards), str(balance_no_mempool)
 
 
-def blocknf(block_hash_delete, peer_ip, c, conn, h, hdd, h2, hdd2):
+def blocknf(block_hash_delete, peer_ip, c, conn, h, hdd, h2, hdd2, h3):
     my_time = time.time()
 
     if not db_lock.locked():
@@ -740,7 +734,7 @@ def blocknf(block_hash_delete, peer_ip, c, conn, h, hdd, h2, hdd2):
                               (db_block_height, -db_block_height))
                 commit(conn)
 
-                execute_param(c, "DELETE FROM misc WHERE block_height >= ?;", (str(db_block_height),))
+                execute_param(c, "DELETE FROM misc WHERE block_height >= ?;", (db_block_height,))
                 commit(conn)
 
                 # execute_param(c, ('DELETE FROM transactions WHERE address = "Development Reward" AND block_height <= ?'), (-db_block_height,))
@@ -753,17 +747,19 @@ def blocknf(block_hash_delete, peer_ip, c, conn, h, hdd, h2, hdd2):
                     execute_param(h, "DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?",
                                   (db_block_height, -db_block_height))
                     commit(hdd)
-                    execute_param(h, "DELETE FROM misc WHERE block_height >= ?;", (str(db_block_height),))
+                    execute_param(h, "DELETE FROM misc WHERE block_height >= ?;", (db_block_height,))
                     commit(hdd)
 
                 if node.ram_conf:  # rollback hyper.db
                     execute_param(h2, "DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?",
                                   (db_block_height, -db_block_height))
                     commit(hdd2)
-                    execute_param(h2, "DELETE FROM misc WHERE block_height >= ?;", (str(db_block_height),))
+                    execute_param(h2, "DELETE FROM misc WHERE block_height >= ?;", (db_block_height,))
                     commit(hdd2)
 
-                node.hdd_block = int(db_block_height) - 1
+                h3.execute("SELECT max(block_height) FROM transactions")
+                node.hdd_block = h3.fetchone()[0]
+
                 # /roll back hdd too
 
                 # rollback indices
@@ -777,6 +773,7 @@ def blocknf(block_hash_delete, peer_ip, c, conn, h, hdd, h2, hdd2):
 
         finally:
             db_lock.release()
+
             if skip:
                 rollback = {"timestamp": my_time, "height": db_block_height, "ip": peer_ip,
                             "hash": db_block_hash, "skipped": True, "reason": reason}
@@ -1130,8 +1127,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
 
                     # if (q_time_now < q_received_timestamp + 432000) and not quicksync:
                     # balance_pre = quantize_eight(credit_ledger - debit_ledger - fees + rewards)  # without projection
-                    balance_pre = ledger_balance3(db_address, balances,
-                                                  c)  # keep this as c (ram hyperblock access)
+                    balance_pre = ledger_balance3(db_address, balances, c)  # keep this as c (ram hyperblock access)
 
                     # balance = quantize_eight(credit - debit - fees + rewards)
                     balance = quantize_eight(balance_pre - block_debit_address)
@@ -1707,7 +1703,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     block_hash_delete = connections.receive(self.request)
                     # print peer_ip
                     if consensus_blockheight == node.peers.consensus_max:
-                        blocknf(block_hash_delete, peer_ip, database.c, database.conn, database.h, database.hdd, database.h2, database.hdd2)
+                        blocknf(block_hash_delete, peer_ip, database.c, database.conn, database.h, database.hdd, database.h2, database.hdd2, database.h3)
                         if node.peers.warning(self.request, peer_ip, "Rollback", 2):
                             logger.app_log.info(f"{peer_ip} banned")
                             break
@@ -2730,8 +2726,7 @@ def worker(HOST, PORT):
                 # print peer_ip
                 # if max(consensus_blockheight_list) == int(received_block_height):
                 if int(received_block_height) == node.peers.consensus_max:
-                    blocknf(block_hash_delete, peer_ip, this_worker.c, this_worker.conn, this_worker.h, this_worker.hdd,
-                            this_worker.h2, this_worker.hdd2)
+                    blocknf(block_hash_delete, peer_ip, this_worker.c, this_worker.conn, this_worker.h, this_worker.hdd,this_worker.h2, this_worker.hdd2, this_worker.h3)
 
                     if node.peers.warning(s, peer_ip, "Rollback", 2):
                         raise ValueError(f"{peer_ip} is banned")
@@ -3188,7 +3183,7 @@ if __name__ == "__main__":
             db_define(init_database)
 
             if node.rebuild_db_conf:
-                db_maintenance(init_database)
+                db_maintenance(init_database) #I suspect this does not actually vacuum
 
             initial_db_check(init_database)
 

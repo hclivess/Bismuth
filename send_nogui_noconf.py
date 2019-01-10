@@ -59,8 +59,8 @@ c = conn.cursor()
 def connect():
     s = socks.socksocket()
     s.settimeout(10)
-    s.connect(("31.31.75.71", 8150))
-    #s.connect(("127.0.0.1", 5658))
+    #s.connect(("31.31.75.71", 8150))
+    s.connect(("127.0.0.1", 5658))
     return s
 
 s = connect()
