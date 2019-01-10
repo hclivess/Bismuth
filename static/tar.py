@@ -1,4 +1,6 @@
 #this file is marginally dynamic, make sure you know what you run it against
+import sys
+sys.path.append("../")
 
 import tarfile
 import sys
