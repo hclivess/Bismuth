@@ -691,7 +691,7 @@ def balanceget(balance_address, c):
     return str(balance), str(credit_ledger), str(debit), str(fees), str(rewards), str(balance_no_mempool)
 
 
-def blocknf(block_hash_delete, peer_ip, c, conn, h, hdd, h2, hdd2, h3):
+def blocknf(block_hash_delete, peer_ip, c, conn, h, hdd, h2, hdd2):
     my_time = time.time()
 
     if not db_lock.locked():
@@ -757,8 +757,8 @@ def blocknf(block_hash_delete, peer_ip, c, conn, h, hdd, h2, hdd2, h3):
                     execute_param(h2, "DELETE FROM misc WHERE block_height >= ?;", (db_block_height,))
                     commit(hdd2)
 
-                h3.execute("SELECT max(block_height) FROM transactions")
-                node.hdd_block = h3.fetchone()[0]
+                h2.execute("SELECT max(block_height) FROM transactions")
+                node.hdd_block = h2.fetchone()[0]
 
                 # /roll back hdd too
 
@@ -1703,7 +1703,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     block_hash_delete = connections.receive(self.request)
                     # print peer_ip
                     if consensus_blockheight == node.peers.consensus_max:
-                        blocknf(block_hash_delete, peer_ip, database.c, database.conn, database.h, database.hdd, database.h2, database.hdd2, database.h3)
+                        blocknf(block_hash_delete, peer_ip, database.c, database.conn, database.h, database.hdd, database.h2, database.hdd2)
                         if node.peers.warning(self.request, peer_ip, "Rollback", 2):
                             logger.app_log.info(f"{peer_ip} banned")
                             break
@@ -2726,7 +2726,7 @@ def worker(HOST, PORT):
                 # print peer_ip
                 # if max(consensus_blockheight_list) == int(received_block_height):
                 if int(received_block_height) == node.peers.consensus_max:
-                    blocknf(block_hash_delete, peer_ip, this_worker.c, this_worker.conn, this_worker.h, this_worker.hdd,this_worker.h2, this_worker.hdd2, this_worker.h3)
+                    blocknf(block_hash_delete, peer_ip, this_worker.c, this_worker.conn, this_worker.h, this_worker.hdd,this_worker.h2, this_worker.hdd2)
 
                     if node.peers.warning(s, peer_ip, "Rollback", 2):
                         raise ValueError(f"{peer_ip} is banned")
