@@ -18,8 +18,14 @@ class Tar():
         self.h2 = self.hdd2.cursor()
         
         self.errors = 0
+        self.h_name = "ledger"
+        self.h2_name = "hyperblocks"
         
-tar_obj = Tar()        
+tar_obj = Tar()
+
+def vacuum(cursor, name):
+    print(f"Vacuuming {name}")
+    cursor.execute("VACUUM")
 
 def dupes_check(cursor, name):
     print (f"Testing {name} for duplicates")
@@ -98,9 +104,11 @@ def balance_differences ():
     return return_value
 
 
-dupes_check(tar_obj.h, "ledger")
-dupes_check(tar_obj.h2, "hyperblocks")
+dupes_check(tar_obj.h, tar_obj.h_name)
+dupes_check(tar_obj.h2, tar_obj.h2_name)
 balance_differences()
+vacuum(tar_obj.h, tar_obj.h_name)
+vacuum(tar_obj.h2, tar_obj.h2_name)
 
 
 if tar_obj.errors > 0:
