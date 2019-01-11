@@ -40,17 +40,13 @@ import regnet
 import classes
 
 # load config
+db_lock = threading.Lock()
 
 POW_FORK = 854660
 FORK_AHEAD = 5
 FORK_DIFF = 108.9
 
 getcontext().rounding = ROUND_HALF_EVEN
-
-db_lock = threading.Lock()
-# mem_lock = threading.Lock()
-# peersync_lock = threading.Lock()
-
 
 from appdirs import *
 
@@ -297,17 +293,17 @@ def db_to_drive(hdd, h, hdd2, h2, sc):
 
 
 def db_define(object):
-    object.index = sqlite3.connect(node.index_db, timeout=1, isolation_level=None, check_same_thread=True)
+    object.index = sqlite3.connect(node.index_db, timeout=1)
     object.index.text_factory = str
     object.index.execute("PRAGMA page_size = 4096;")
     object.index_cursor = object.index.cursor()
 
-    object.hdd = sqlite3.connect(node.ledger_path_conf, timeout=1, isolation_level=None, check_same_thread=True)
+    object.hdd = sqlite3.connect(node.ledger_path_conf, timeout=1)
     object.hdd.text_factory = str
     object.hdd.execute("PRAGMA page_size = 4096;")
     object.h = object.hdd.cursor()
 
-    object.hdd2 = sqlite3.connect(node.hyper_path_conf, timeout=1, isolation_level=None, check_same_thread=True)
+    object.hdd2 = sqlite3.connect(node.hyper_path_conf, timeout=1)
     object.hdd2.text_factory = str
     object.hdd2.execute("PRAGMA page_size = 4096;")
     object.h2 = object.hdd2.cursor()
@@ -327,11 +323,9 @@ def db_define(object):
 
     try:
         if node.ram_conf:
-            object.conn = sqlite3.connect(node.ledger_ram_file, uri=True, isolation_level=None,
-                                          check_same_thread=True)
+            object.conn = sqlite3.connect(node.ledger_ram_file, uri=True, isolation_level=None)
         else:
-            object.conn = sqlite3.connect(node.hyper_path_conf, uri=True, isolation_level=None,
-                                          check_same_thread=True)
+            object.conn = sqlite3.connect(node.hyper_path_conf, uri=True, isolation_level=None)
 
         object.conn.execute('PRAGMA journal_mode = WAL;')
         object.conn.execute("PRAGMA page_size = 4096;")
@@ -1254,6 +1248,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                 # NEW: returns new block hash
 
             checkpoint_set(block_height_new)
+
             return block_hash
 
         except Exception as e:
@@ -1276,6 +1271,7 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
             if node.full_ledger or node.ram_conf:
                 # first case move stuff from hyper.db to ledger.db; second case move stuff from ram to both
                 db_to_drive(hdd, h, hdd2, h2, sc)
+
             db_lock.release()
             delta_t = time.time() - float(q_time_now)
             # logger.app_log.warning("Block: {}: {} digestion completed in {}s.".format(block_height_new,  block_hash[:10], delta_t))
@@ -1738,6 +1734,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             mined['miner'] = segments[0][-1][2]
                         except:
                             pass
+
                         if node.is_mainnet:
                             if len(node.peers.connection_pool) < 5 and not node.peers.is_whitelisted(peer_ip):
                                 reason = "Outbound: Mined block ignored, insufficient connections to the network"
@@ -3105,7 +3102,6 @@ def verify(h3):
 
 
 if __name__ == "__main__":
-
     # classes
     node = classes.Node()
     logger = classes.Logger()
