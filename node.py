@@ -40,13 +40,17 @@ import regnet
 import classes
 
 # load config
-db_lock = threading.Lock()
 
 POW_FORK = 854660
 FORK_AHEAD = 5
 FORK_DIFF = 108.9
 
 getcontext().rounding = ROUND_HALF_EVEN
+
+db_lock = threading.Lock()
+# mem_lock = threading.Lock()
+# peersync_lock = threading.Lock()
+
 
 from appdirs import *
 
@@ -751,9 +755,7 @@ def blocknf(block_hash_delete, peer_ip, c, conn, h, hdd, h2, hdd2):
                     execute_param(h2, "DELETE FROM misc WHERE block_height >= ?;", (db_block_height,))
                     commit(hdd2)
 
-                h2.execute("SELECT max(block_height) FROM transactions")
-                node.hdd_block = h2.fetchone()[0]
-
+                node.hdd_block = db_block_height - 1
                 # /roll back hdd too
 
                 # rollback indices
@@ -767,7 +769,6 @@ def blocknf(block_hash_delete, peer_ip, c, conn, h, hdd, h2, hdd2):
 
         finally:
             db_lock.release()
-
             if skip:
                 rollback = {"timestamp": my_time, "height": db_block_height, "ip": peer_ip,
                             "hash": db_block_hash, "skipped": True, "reason": reason}
@@ -1248,7 +1249,6 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
                 # NEW: returns new block hash
 
             checkpoint_set(block_height_new)
-
             return block_hash
 
         except Exception as e:
@@ -1271,7 +1271,6 @@ def digest_block(data, sdef, peer_ip, conn, c, hdd, h, hdd2, h2, h3, index, inde
             if node.full_ledger or node.ram_conf:
                 # first case move stuff from hyper.db to ledger.db; second case move stuff from ram to both
                 db_to_drive(hdd, h, hdd2, h2, sc)
-
             db_lock.release()
             delta_t = time.time() - float(q_time_now)
             # logger.app_log.warning("Block: {}: {} digestion completed in {}s.".format(block_height_new,  block_hash[:10], delta_t))
@@ -1734,7 +1733,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             mined['miner'] = segments[0][-1][2]
                         except:
                             pass
-
                         if node.is_mainnet:
                             if len(node.peers.connection_pool) < 5 and not node.peers.is_whitelisted(peer_ip):
                                 reason = "Outbound: Mined block ignored, insufficient connections to the network"
@@ -2723,7 +2721,7 @@ def worker(HOST, PORT):
                 # print peer_ip
                 # if max(consensus_blockheight_list) == int(received_block_height):
                 if int(received_block_height) == node.peers.consensus_max:
-                    blocknf(block_hash_delete, peer_ip, this_worker.c, this_worker.conn, this_worker.h, this_worker.hdd,this_worker.h2, this_worker.hdd2)
+                    blocknf(block_hash_delete, peer_ip, this_worker.c, this_worker.conn, this_worker.h, this_worker.hdd, this_worker.h2, this_worker.hdd2)
 
                     if node.peers.warning(s, peer_ip, "Rollback", 2):
                         raise ValueError(f"{peer_ip} is banned")
@@ -3178,8 +3176,8 @@ if __name__ == "__main__":
             init_database = classes.Database()
             db_define(init_database)
 
-            if node.rebuild_db_conf:
-                db_maintenance(init_database) #I suspect this does not actually vacuum
+            #if node.rebuild_db_conf: #does nothing
+            #    db_maintenance(init_database)
 
             initial_db_check(init_database)
 
