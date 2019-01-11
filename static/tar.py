@@ -113,7 +113,7 @@ vacuum(tar_obj.h, tar_obj.h_name)
 vacuum(tar_obj.h2, tar_obj.h2_name)
 
 tar_obj.hdd.close()
-tar_obj.h.close()
+tar_obj.hdd2.close()
 
 if tar_obj.errors > 0:
     print("There were errors, cannot continue")
