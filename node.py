@@ -23,7 +23,6 @@ import platform
 import tokensv2 as tokens
 import aliases
 from quantizer import *
-from ann import ann_get, ann_ver_get
 from essentials import fee_calculate
 
 from Cryptodome.Hash import SHA
@@ -795,11 +794,18 @@ def ledger_balance3(address, cache):
     if address in cache:
         return cache[address]
     credit_ledger = Decimal(0)
-    for entry in db_handler.execute_param("c", "SELECT amount, reward FROM transactions WHERE recipient = ?;", (address,)):
+
+    db_handler.execute_param("c", "SELECT amount, reward FROM transactions WHERE recipient = ?;", (address,))
+    entries = db_handler.fetchall("c")
+
+    for entry in entries:
         credit_ledger += quantize_eight(entry[0]) + quantize_eight(entry[1])
 
     debit_ledger = Decimal(0)
-    for entry in db_handler.execute_param("c", "SELECT amount, fee FROM transactions WHERE address = ?;", (address,)):
+    db_handler.execute_param("c", "SELECT amount, fee FROM transactions WHERE address = ?;", (address,))
+    entries = db_handler.fetchall("c")
+
+    for entry in entries:
         debit_ledger += quantize_eight(entry[0]) + quantize_eight(entry[1])
 
     cache[address] = quantize_eight(credit_ledger - debit_ledger)

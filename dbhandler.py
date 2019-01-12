@@ -58,6 +58,14 @@ class DbHandler:
             logger.app_log.info(e)
 
     def cursor_define(self,cursor):
+        if cursor == "conn":
+            cursor = self.conn
+        if cursor == "hdd":
+            cursor = self.hdd
+        if cursor == "hdd2":
+            cursor = self.hdd2
+
+
         if cursor == "c":
             cursor = self.c
         if cursor == "h":
@@ -72,7 +80,7 @@ class DbHandler:
             cursor = self.sc
         return cursor
 
-    def commit(self, cursor):
+    def commit(self, cursor): #not actually a cursor
         cursor = self.cursor_define(cursor)
 
         """Secure commit for slow nodes"""
