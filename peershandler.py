@@ -354,7 +354,7 @@ class Peers:
                     peers = json.load(peer_file)
                 for pair in set(server_peer_tuples):  # set removes duplicates
                     if pair not in peers and self.accept_peers:
-                        self.app_log.info("Outbound: {pair} is a new peer, saving if connectible")
+                        self.app_log.info(f"Outbound: {pair} is a new peer, saving if connectible")
                         try:
                             s_purge = socks.socksocket()
                             if self.config.tor_conf == 1:
