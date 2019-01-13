@@ -9,6 +9,7 @@
 # must unify node and client now that connections parameters are function parameters
 # if you have a block of data and want to insert it into sqlite, you must use a single "commit" for the whole batch, it's 100x faster
 # do not isolation_level=None/WAL hdd levels, it makes saving slow
+# issues with db? perhaps you missed a commit() or two
 
 
 VERSION = "4.2.9"  # 3. regnet support
