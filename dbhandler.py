@@ -13,33 +13,33 @@ class DbHandler:
         self.logger = logger
         self.full_ledger = full_ledger
 
-        self.index = sqlite3.connect(index_db, timeout=1, check_same_thread=False)
+        self.index = sqlite3.connect(index_db, timeout=1)
         self.index.text_factory = str
         self.index.execute("PRAGMA page_size = 4096;")
         self.index_cursor = self.index.cursor()
 
-        self.hdd = sqlite3.connect(ledger_path_conf, timeout=1, check_same_thread=False)
+        self.hdd = sqlite3.connect(ledger_path_conf, timeout=1)
         self.hdd.text_factory = str
         self.hdd.execute("PRAGMA page_size = 4096;")
         self.h = self.hdd.cursor()
 
-        self.hdd2 = sqlite3.connect(hyper_path_conf, timeout=1, check_same_thread=False)
+        self.hdd2 = sqlite3.connect(hyper_path_conf, timeout=1)
         self.hdd2.text_factory = str
         self.hdd2.execute("PRAGMA page_size = 4096;")
         self.h2 = self.hdd2.cursor()
 
         if ram_conf:  # select RAM as source database
-            self.source_db = sqlite3.connect(ledger_ram_file, uri=True, timeout=1, check_same_thread=False)
+            self.source_db = sqlite3.connect(ledger_ram_file, uri=True, timeout=1)
         else:  # select hyper.db as source database
-            self.source_db = sqlite3.connect(hyper_path_conf, timeout=1, check_same_thread=False)
+            self.source_db = sqlite3.connect(hyper_path_conf, timeout=1)
         self.source_db.text_factory = str
         self.sc = self.source_db.cursor()
 
         try:
             if ram_conf:
-                self.conn = sqlite3.connect(ledger_ram_file, uri=True, isolation_level=None, check_same_thread=False)
+                self.conn = sqlite3.connect(ledger_ram_file, uri=True, isolation_level=None)
             else:
-                self.conn = sqlite3.connect(hyper_path_conf, uri=True, isolation_level=None, check_same_thread=False)
+                self.conn = sqlite3.connect(hyper_path_conf, uri=True, isolation_level=None)
 
             self.conn.execute('PRAGMA journal_mode = WAL;')
             self.conn.execute("PRAGMA page_size = 4096;")

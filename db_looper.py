@@ -1,11 +1,13 @@
 import threading
 import time
+import queue
 
 class DbManager (threading.Thread):
 
     def __init__(self,app_log):
        threading.Thread.__init__(self)
        self.app_log = app_log
+       self.q = queue.Queue()
 
     def run(self):
        self.db_manager()
@@ -14,6 +16,14 @@ class DbManager (threading.Thread):
         self.app_log.warning("db_manager initiated")
         while True:
             self.app_log.warning("db_manager running")
+
+            self.app_log.warning("getting queue")
+
+            if self.q:
+                queue_item = self.q.get()
+                self.app_log.warning("sending queue")
+
+
             time.sleep(5)
 
 if __name__ == "__main__":
