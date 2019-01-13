@@ -14,7 +14,7 @@
 VERSION = "4.2.9"  # 3. regnet support
 
 # Bis specific modules
-import log, options, connections, peershandler, apihandler, dbhandler
+import log, options, connections, peershandler, apihandler, dbhandler, db_looper
 
 import shutil, socketserver, base64, hashlib, os, re, sqlite3, sys, threading, time, socks, random, keys, math, \
     requests, tarfile, essentials, glob
@@ -37,6 +37,7 @@ import mining
 import mining_heavy3
 import regnet
 import classes
+import queue
 
 # load config
 
@@ -697,8 +698,7 @@ def blocknf(block_hash_delete, peer_ip):
                                 nb_tx += 1
                                 logger.app_log.info(
                                     mp.MEMPOOL.merge((tx[1], tx[2], tx[3], tx[4], tx[5], tx[6], tx[10], tx[11]),
-                                                     peer_ip, "c", False,
-                                                     revert=True))  # will get stuck if you change it to respect db_lock
+                                                     peer_ip, "c", False, revert=True))  # will get stuck if you change it to respect db_lock
                                 logger.app_log.warning(f"Moved tx back to mempool: {tx_short}")
                             except Exception as e:
                                 logger.app_log.warning(f"Error during moving tx back to mempool: {e}")
@@ -1562,7 +1562,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                     del blocks_fetched[:]
                                     while sys.getsizeof(
                                             str(blocks_fetched)) < 500000:  # limited size based on txs in blocks
-                                        # db_handler.execute_param("h3", ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"),(str(int(client_block)),) + (str(int(client_block + 1)),))
                                         db_handler.execute_param("h3", (
                                             "SELECT timestamp,address,recipient,amount,signature,public_key,operation,openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"),
                                                       (str(int(client_block)), str(int(client_block + 1)),))
@@ -1595,6 +1594,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                 logger.app_log.warning(f"Inbound: Block {data[:8]} of {peer_ip} not found ({e})")
                                 connections.send(self.request, "blocknf")
                                 connections.send(self.request, data)
+
                     except Exception as e:
                         logger.app_log.info(f"Inbound: Sync failed {e}")
 
@@ -1803,7 +1803,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         logger.app_log.info(f"{peer_ip} not whitelisted for balancegetjson command")
 
                 elif data == "balancegethyperjson":
-                    # if (peer_ip in allowed or "any" in allowed):
                     if node.peers.is_allowed(peer_ip, data):
                         balance_address = connections.receive(self.request)  # for which address
 
@@ -1915,7 +1914,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         logger.app_log.info(f"{peer_ip} not whitelisted for listlimjson command")
 
                 elif data == "listlim":
-                    # if (peer_ip in allowed or "any" in allowed):
                     if node.peers.is_allowed(peer_ip, data):
                         list_limit = connections.receive(self.request)
                         # print(address_tx_list_limit)
@@ -1927,7 +1925,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         logger.app_log.info(f"{peer_ip} not whitelisted for listlim command")
 
                 elif data == "addlistlim":
-                    # if (peer_ip in allowed or "any" in allowed):
                     if node.peers.is_allowed(peer_ip, data):
                         address_tx_list = connections.receive(self.request)
                         address_tx_list_limit = connections.receive(self.request)
@@ -1942,7 +1939,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         logger.app_log.info(f"{peer_ip} not whitelisted for addlistlim command")
 
                 elif data == "addlistlimjson":
-                    # if (peer_ip in allowed or "any" in allowed):
                     if node.peers.is_allowed(peer_ip, data):
                         address_tx_list = connections.receive(self.request)
                         address_tx_list_limit = connections.receive(self.request)
@@ -1975,7 +1971,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         logger.app_log.info(f"{peer_ip} not whitelisted for addlistlimjson command")
 
                 elif data == "addlistlimmir":
-                    # if (peer_ip in allowed or "any" in allowed):
                     if node.peers.is_allowed(peer_ip, data):
                         address_tx_list = connections.receive(self.request)
                         address_tx_list_limit = connections.receive(self.request)
@@ -1990,7 +1985,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         logger.app_log.info(f"{peer_ip} not whitelisted for addlistlimmir command")
 
                 elif data == "addlistlimmirjson":
-                    # if (peer_ip in allowed or "any" in allowed):
                     if node.peers.is_allowed(peer_ip, data):
                         address_tx_list = connections.receive(self.request)
                         address_tx_list_limit = connections.receive(self.request)
@@ -2026,7 +2020,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
 
                 elif data == "aliasget":  # all for a single address, no protection against overlapping
-                    # if (peer_ip in allowed or "any" in allowed):
                     if node.peers.is_allowed(peer_ip, data):
                         aliases.aliases_update(node.index_db, node.ledger_path_conf, "normal", logger.app_log)
 
@@ -2045,7 +2038,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         logger.app_log.info(f"{peer_ip} not whitelisted for aliasget command")
 
                 elif data == "aliasesget":  # only gets the first one, for multiple addresses
-                    # if (peer_ip in allowed or "any" in allowed):
                     if node.peers.is_allowed(peer_ip, data):
                         aliases.aliases_update(node.index_db, node.ledger_path_conf, "normal", logger.app_log)
 
@@ -2126,7 +2118,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         logger.app_log.info(f"{peer_ip} not whitelisted for addfromalias command")
 
                 elif data == "pubkeyget":
-                    # if (peer_ip in allowed or "any" in allowed):
                     if node.peers.is_allowed(peer_ip, data):
                         pub_key_address = connections.receive(self.request)
 
@@ -2140,7 +2131,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         logger.app_log.info(f"{peer_ip} not whitelisted for pubkeyget command")
 
                 elif data == "aliascheck":
-                    # if (peer_ip in allowed or "any" in allowed):
                     if node.peers.is_allowed(peer_ip, data):
                         reg_string = connections.receive(self.request)
 
@@ -2159,7 +2149,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         logger.app_log.info(f"{peer_ip} not whitelisted for aliascheck command")
 
                 elif data == "txsend":
-                    # if (peer_ip in allowed or "any" in allowed):
                     if node.peers.is_allowed(peer_ip, data):
                         tx_remote = connections.receive(self.request)
 
@@ -2208,7 +2197,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                 # less important methods
                 elif data == "addvalidate":
-                    # if (peer_ip in allowed or "any" in allowed):
                     if node.peers.is_allowed(peer_ip, data):
 
                         address_to_validate = connections.receive(self.request)
@@ -2222,7 +2210,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         logger.app_log.info(f"{peer_ip} not whitelisted for addvalidate command")
 
                 elif data == "annget":
-                    # if (peer_ip in allowed or "any" in allowed):
                     if node.peers.is_allowed(peer_ip, data):
 
                         # with open(peerlist, "r") as peer_list:
@@ -2238,7 +2225,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         logger.app_log.info(f"{peer_ip} not whitelisted for annget command")
 
                 elif data == "annverget":
-                    # if (peer_ip in allowed or "any" in allowed):
                     if node.peers.is_allowed(peer_ip, data):
 
                         db_handler.execute("h3","SELECT openfield FROM transactions WHERE address = ? AND openfield LIKE ? ORDER BY block_height DESC LIMIT 1", (data, "annver=%"))
@@ -2251,18 +2237,13 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         logger.app_log.info(f"{peer_ip} not whitelisted for annget command")
 
                 elif data == "peersget":
-                    # if (peer_ip in allowed or "any" in allowed):
                     if node.peers.is_allowed(peer_ip, data):
-
-                        # with open(peerlist, "r") as peer_list:
-                        #    peers_file = peer_list.read()
                         connections.send(self.request, node.peers.peer_list_disk_format())
 
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for peersget command")
 
                 elif data == "statusget":
-                    # if (peer_ip in allowed or "any" in allowed):
                     if node.peers.is_allowed(peer_ip, data):
 
                         nodes_count = node.peers.consensus_size
@@ -2320,7 +2301,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             print(e)
 
                 elif data == "diffget":
-                    # if (peer_ip in allowed or "any" in allowed):
                     if node.peers.is_allowed(peer_ip, data):
                         diff = difficulty()
                         connections.send(self.request, diff)
@@ -2328,7 +2308,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         logger.app_log.info(f"{peer_ip} not whitelisted for diffget command")
 
                 elif data == "diffgetjson":
-                    # if (peer_ip in allowed or "any" in allowed):
                     if node.peers.is_allowed(peer_ip, data):
                         diff = difficulty()
                         response = {"difficulty": diff[0],
@@ -2345,7 +2324,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         logger.app_log.info(f"{peer_ip} not whitelisted for diffgetjson command")
 
                 elif data == "difflast":
-                    # if (peer_ip in allowed or "any" in allowed):
                     if node.peers.is_allowed(peer_ip, data):
 
                         db_handler.execute("h3",
@@ -2356,7 +2334,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         logger.app_log.info("f{peer_ip} not whitelisted for difflastget command")
 
                 elif data == "difflastjson":
-                    # if (peer_ip in allowed or "any" in allowed):
                     if node.peers.is_allowed(peer_ip, data):
 
                         db_handler.execute("h3",
@@ -2370,7 +2347,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         logger.app_log.info(f"{peer_ip} not whitelisted for difflastjson command")
 
                 elif data == "stop":
-                    # if (peer_ip in allowed or "any" in allowed):
                     if node.peers.is_allowed(peer_ip, data):
                         logger.app_log.warning(f"Received stop from {peer_ip}")
                         node.IS_STOPPING = True
@@ -2930,14 +2906,14 @@ def verify():
     try:
         logger.app_log.warning("Blockchain verification started...")
         # verify blockchain
-        init_db_handler.execute("h3", ("SELECT Count(*) FROM transactions"))
+        db_handler.execute("h3", ("SELECT Count(*) FROM transactions"))
         db_rows = db_handler.fetchone("h3")[0]
         logger.app_log.warning("Total steps: {}".format(db_rows))
 
         # verify genesis
         if node.full_ledger:
-            init_db_handler.execute("h3", ("SELECT block_height, recipient FROM transactions WHERE block_height = 1"))
-            result = init_db_handler.fetchall("h3")[0]
+            db_handler.execute("h3", ("SELECT block_height, recipient FROM transactions WHERE block_height = 1"))
+            result = db_handler.fetchall("h3")[0]
             block_height = result[0]
             genesis = result[1]
             logger.app_log.warning("Genesis: {}".format(genesis))
@@ -2966,7 +2942,7 @@ def verify():
             '70094-1494032933.14': '2ca4403387e84b95ed558e7c9350c43efff8225c'
         }
         invalid = 0
-        for row in init_db_handler.execute("h3",
+        for row in db_handler.execute("h3",
                            ('SELECT * FROM transactions WHERE block_height > 1 and reward = 0 ORDER BY block_height')):
 
             db_block_height = str(row[0])
@@ -3006,6 +2982,7 @@ def verify():
 
 if __name__ == "__main__":
     # classes
+    q = queue.Queue()
     node = classes.Node()
     logger = classes.Logger()
     node_keys = classes.Keys()
@@ -3082,10 +3059,9 @@ if __name__ == "__main__":
             #if node.rebuild_db_conf: #does nothing
             #    db_maintenance(init_database)
 
-            db_handler = dbhandler.DbHandler(node.index_db, node.ledger_path_conf, node.hyper_path_conf, node.full_ledger, node.ram_conf, node.ledger_ram_file, logger)
-            init_db_handler = db_handler #for now keep this
+            db_handler = dbhandler.DbHandler(node.index_db, node.ledger_path_conf, node.hyper_path_conf, node.full_ledger, node.ram_conf, node.ledger_ram_file, logger, q)
 
-            initial_db_check(init_db_handler)
+            initial_db_check(db_handler)
 
             coherence_check()
 
@@ -3120,7 +3096,7 @@ if __name__ == "__main__":
             # hyperlane_manager = hyperlane.HyperlaneManager(logger.app_log).hyperlane_manager()
             # hyperlane_manager.start()
 
-
+            db_manager = db_looper.DbManager(logger.app_log).hyperlane_manager()
 
             # start connection manager
             t_manager = threading.Thread(target=manager())

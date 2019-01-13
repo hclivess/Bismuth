@@ -11,6 +11,7 @@ import threading
 import time
 
 # from decimal import *
+import dbhandler
 from Cryptodome.Hash import SHA
 from Cryptodome.PublicKey import RSA
 from Cryptodome.Signature import PKCS1_v1_5
@@ -19,6 +20,7 @@ import essentials
 from quantizer import *
 # import json
 
+
 __version__ = "0.0.5e"
 
 """
@@ -26,6 +28,9 @@ __version__ = "0.0.5e"
          quicker unfreeze
          less strict freezing
 """
+
+
+
 
 MEMPOOL = None
 
@@ -107,7 +112,7 @@ class Mempool:
                 self.mempool_ram_file = "file:mempool_testnet?mode=memory&cache=shared"
 
             self.check()
-
+           
         except Exception as e:
             self.app_log.error("Error creating mempool: {}".format(e))
             raise
@@ -536,15 +541,15 @@ class Mempool:
                         mempool_in = self.sig_check(mempool_signature_enc)
 
                         # Temp: get last block for HF reason
-                        essentials.execute_param_c(c, "SELECT block_height FROM transactions WHERE 1 ORDER by block_height DESC limit ?",
+                        self.db.execute("SELECT block_height FROM transactions WHERE 1 ORDER by block_height DESC limit ?",
                                                    (1,), self.app_log)
-                        last_block = c.fetchone()[0]
+                        last_block = self.db.fetchone()[0]
                         # reject transactions which are already in the ledger
                         # TODO: not clean, will need to have ledger as a module too.
                         # TODO: need better txid index, this is very sloooooooow
-                        essentials.execute_param_c(c, "SELECT timestamp FROM transactions WHERE signature = ?",
+                        self.db.execute("SELECT timestamp FROM transactions WHERE signature = ?",
                                                    (mempool_signature_enc,), self.app_log)
-                        ledger_in = bool(c.fetchone())
+                        ledger_in = bool(self.db.fetchone())
                         # remove from mempool if it's in both ledger and mempool already
                         if mempool_in and ledger_in:
                             try:
@@ -588,27 +593,23 @@ class Mempool:
                                 debit_mempool = quantize_eight(debit_mempool + debit_tx + fee)
 
                         credit = 0
-                        for entry in essentials.execute_param_c(c,
-                                                                "SELECT amount FROM transactions WHERE recipient = ?",
+                        for entry in self.db.execute("SELECT amount FROM transactions WHERE recipient = ?",
                                                                 (mempool_address,), self.app_log):
                             credit = quantize_eight(credit) + quantize_eight(entry[0])
 
                         debit_ledger = 0
-                        for entry in essentials.execute_param_c(c,
-                                                                "SELECT amount FROM transactions WHERE address = ?",
+                        for entry in self.db.execute("SELECT amount FROM transactions WHERE address = ?",
                                                                 (mempool_address,), self.app_log):
                             debit_ledger = quantize_eight(debit_ledger) + quantize_eight(entry[0])
                         debit = debit_ledger + debit_mempool
 
                         fees = 0
-                        for entry in essentials.execute_param_c(c,
-                                                                "SELECT fee FROM transactions WHERE address = ?",
+                        for entry in self.db.execute("SELECT fee FROM transactions WHERE address = ?",
                                                                 (mempool_address,), self.app_log):
                             fees = quantize_eight(fees) + quantize_eight(entry[0])
 
                         rewards = 0
-                        for entry in essentials.execute_param_c(c,
-                                                                "SELECT sum(reward) FROM transactions WHERE recipient = ?",
+                        for entry in self.db.execute("SELECT sum(reward) FROM transactions WHERE recipient = ?",
                                                                 (mempool_address,), self.app_log):
                             rewards = quantize_eight(rewards) + quantize_eight(entry[0])
 
@@ -643,6 +644,6 @@ class Mempool:
                 # TODO: Here maybe commit() on c to release the write lock?
             except Exception as e:
                 self.app_log.warning("Mempool: Error processing: {} {}".format(data, e))
-                if self.config.debug_conf == 1:
+                if self.config.debug_conf:
                     raise
         return mempool_result

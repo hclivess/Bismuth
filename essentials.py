@@ -186,23 +186,6 @@ def fee_calculate(openfield, operation='', block=0):
     return quantize_eight(fee)
 
 
-def execute_param_c(cursor, query, param, app_log):
-    """Secure execute w/ param for slow nodes"""
-    while True:
-        try:
-            cursor.execute(query, param)
-            break
-        except UnicodeEncodeError as e:
-            app_log.warning("Database query: {} {} {}".format(cursor, query, param))
-            app_log.warning("Database skip reason: {}".format(e))
-            break
-        except Exception as e:
-            app_log.warning("Database query: {} {} {}".format(cursor, query, param))
-            app_log.warning("Database retry reason: {}".format(e))
-            time.sleep(0.1)
-    return cursor
-
-
 def is_sequence(arg):
     return (not hasattr(arg, "strip") and
             hasattr(arg, "__getitem__") or
