@@ -48,9 +48,6 @@ FORK_DIFF = 108.9
 getcontext().rounding = ROUND_HALF_EVEN
 
 db_lock = threading.Lock()
-# mem_lock = threading.Lock()
-# peersync_lock = threading.Lock()
-
 
 from appdirs import *
 
@@ -465,6 +462,8 @@ def difficulty(db_handler):
 
     previous = db_handler.fetchone("c")
 
+    node.last_block_ago = int(time.time() - int(timestamp_last))
+
     # Failsafe for regtest starting at block 1}
     timestamp_before_last = timestamp_last if previous is None else Decimal(previous[1])
 
@@ -719,7 +718,6 @@ def manager():
     # reset_time = node.startup_time
     # peers_test("peers.txt")
     # peers_test("suggested_peers.txt")
-    db_handler_instance = dbhandler.DbHandler(node.index_db, node.ledger_path_conf, node.hyper_path_conf, node.full_ledger, node.ram_conf, node.ledger_ram_file, logger, q)
 
     until_purge = 0
 
@@ -746,21 +744,15 @@ def manager():
         node.peers.status_log()
         mp.MEMPOOL.status()
 
-        # last block
-        db_handler_instance.execute("c","SELECT block_height, timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
-        result = db_handler_instance.fetchall("c")[0]
-        node.last_block = result[0]
-
-        node.last_block_ago = int(time.time() - result[1])
         logger.app_log.warning(f"Status: Last block {node.last_block} was generated {'%.2f' % (node.last_block_ago / 60)} minutes ago")
         # last block
         # status Hook
         uptime = int(time.time() - node.startup_time)
-        tempdiff = difficulty(db_handler_instance)  # Can we avoid recalc that ? yes, save it in the node object
+
         status = {"protocolversion": node.version, "walletversion": VERSION, "testnet": node.is_testnet,
                   # config data
                   "blocks": node.last_block, "timeoffset": 0, "connections": node.peers.consensus_size,
-                  "difficulty": tempdiff[0],  # live status, bitcoind format
+                  "difficulty": node.diffculty[0],  # live status, bitcoind format
                   "threads": threading.active_count(), "uptime": uptime, "consensus": node.peers.consensus,
                   "consensus_percent": node.peers.consensus_percentage,
                   "node.last_block_ago": node.last_block_ago}  # extra data
@@ -956,6 +948,7 @@ def digest_block(data, sdef, peer_ip, db_handler):
 
                 # calculate current difficulty
                 diff = difficulty(db_handler)
+                node.diffculty = diff
 
                 logger.app_log.warning(f"Time to generate block {db_block_height + 1}: {'%.2f' % diff[2]}")
                 logger.app_log.warning(f"Current difficulty: {diff[3]}")
@@ -1154,6 +1147,7 @@ def digest_block(data, sdef, peer_ip, db_handler):
 
                 # This new block may change the int(diff). Trigger the hook whether it changed or not.
                 diff = difficulty(db_handler)
+                node.diffculty = diff
                 node.plugin_manager.execute_action_hook('diff', diff[0])
                 # We could recalc diff after inserting block, and then only trigger the block hook, but I fear this would delay the new block event.
 
@@ -2247,7 +2241,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         nodes_list = node.peers.peer_opinion_dict
                         threads_count = threading.active_count()
                         uptime = int(time.time() - node.startup_time)
-                        diff = difficulty(db_handler_instance)
+                        diff = node.diffculty
                         server_timestamp = '%.2f' % time.time()
 
                         if node.reveal_address:
@@ -2266,7 +2260,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "statusjson":
                     if node.peers.is_allowed(peer_ip, data):
                         uptime = int(time.time() - node.startup_time)
-                        tempdiff = difficulty(db_handler_instance)
+                        tempdiff = node.diffculty
 
                         if node.reveal_address:
                             revealed_address = node_keys.address
@@ -2299,14 +2293,14 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                 elif data == "diffget":
                     if node.peers.is_allowed(peer_ip, data):
-                        diff = difficulty(db_handler_instance)
+                        diff = node.diffculty
                         connections.send(self.request, diff)
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for diffget command")
 
                 elif data == "diffgetjson":
                     if node.peers.is_allowed(peer_ip, data):
-                        diff = difficulty(db_handler_instance)
+                        diff = node.diffculty
                         response = {"difficulty": diff[0],
                                     "diff_dropped": diff[0],
                                     "time_to_generate": diff[0],

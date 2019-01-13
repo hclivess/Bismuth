@@ -124,15 +124,15 @@ class DbHandler:
                 cursor.executemany(query, param)
                 break
             except sqlite3.InterfaceError as e:
-                self.logger.app_log.warning(f"Database query to abort: {cursor} {query[:100]} {param}")
+                self.logger.app_log.warning(f"Database query to abort: {cursor} {str(query)[:100]} {param}")
                 self.logger.app_log.warning(f"Database abortion reason: {e}")
                 break
             except sqlite3.IntegrityError as e:
-                self.logger.app_log.warning(f"Database query to abort: {cursor} {query[:100]}")
+                self.logger.app_log.warning(f"Database query to abort: {cursor} {str(query)[:100]}")
                 self.logger.app_log.warning(f"Database abortion reason: {e}")
                 break
             except Exception as e:
-                self.logger.app_log.warning(f"Database query: {cursor} {query[:100]} {param}")
+                self.logger.app_log.warning(f"Database query: {cursor} {str(query)[:100]} {param}")
                 self.logger.app_log.warning(f"Database retry reason: {e}")
                 time.sleep(5)
 
@@ -148,15 +148,15 @@ class DbHandler:
                 cursor.execute(query, param)
                 break
             except sqlite3.InterfaceError as e:
-                self.logger.app_log.warning(f"Database query to abort: {cursor} {query[:100]} {param}")
+                self.logger.app_log.warning(f"Database query to abort: {cursor} {str(query)[:100]} {param}")
                 self.logger.app_log.warning(f"Database abortion reason: {e}")
                 break
             except sqlite3.IntegrityError as e:
-                self.logger.app_log.warning(f"Database query to abort: {cursor} {query[:100]}")
+                self.logger.app_log.warning(f"Database query to abort: {cursor} {str(query)[:100]}")
                 self.logger.app_log.warning(f"Database abortion reason: {e}")
                 break
             except Exception as e:
-                self.logger.app_log.warning(f"Database query: {cursor} {query[:100]} {param}")
+                self.logger.app_log.warning(f"Database query: {cursor} {str(query)[:100]} {param}")
                 self.logger.app_log.warning(f"Database retry reason: {e}")
                 time.sleep(5)
 
