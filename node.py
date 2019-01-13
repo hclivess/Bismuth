@@ -280,19 +280,23 @@ def db_to_drive(db_handler):
 
         if node.full_ledger:  # we want to save to ledger.db
             db_handler.execute_many(db_handler.h,("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"), result1)
+            db_handler.commit(db_handler.hdd)
 
         if node.ram_conf:  # we want to save to hyper.db from RAM/hyper.db depending on ram conf
             db_handler.execute_many(db_handler.h2,("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"), result1)
+            db_handler.commit(db_handler.hdd2)
 
         db_handler.execute_param(db_handler.sc, ("SELECT * FROM misc WHERE block_height > ? ORDER BY block_height ASC"), (node.hdd_block,))
         result2 = db_handler.sc.fetchall()
 
         if node.full_ledger:  # we want to save to ledger.db from RAM/hyper.db depending on ram conf
             db_handler.execute_many(db_handler.h,("INSERT INTO misc VALUES (?,?)"), result2)
+            db_handler.commit(db_handler.hdd)
 
 
         if node.ram_conf:  # we want to save to hyper.db from RAM
             db_handler.execute_many(db_handler.h2,("INSERT INTO misc VALUES (?,?)"), result2)
+            db_handler.commit(db_handler.hdd2)
 
         db_handler.h2.execute(("SELECT max(block_height) FROM transactions"))
         node.hdd_block = db_handler.h2.fetchone()[0]
@@ -680,7 +684,6 @@ def blocknf(block_hash_delete, peer_ip, db_handler): #FIXTHIS
 
         finally:
             db_lock.release()
-
             if skip:
                 rollback = {"timestamp": my_time, "height": db_block_height, "ip": peer_ip,
                             "hash": db_block_hash, "skipped": True, "reason": reason}
@@ -749,7 +752,8 @@ def manager():
         node.peers.status_log()
         mp.MEMPOOL.status()
 
-        logger.app_log.warning(f"Status: Last block {node.last_block} was generated {'%.2f' % (node.last_block_ago / 60)} minutes ago")
+        if node.last_block_ago:
+            logger.app_log.warning(f"Status: Last block {node.last_block} was generated {'%.2f' % (node.last_block_ago / 60)} minutes ago")
         # last block
         # status Hook
         uptime = int(time.time() - node.startup_time)
@@ -1107,7 +1111,7 @@ def digest_block(data, sdef, peer_ip, db_handler):
 
 
                 db_handler.execute_many(db_handler.c,("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"), block_transactions)
-
+                db_handler.commit(db_handler.conn)
 
                 # savings
                 if node.is_testnet or block_height_new >= 843000:

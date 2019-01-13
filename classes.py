@@ -47,7 +47,7 @@ class Node():
         self.terminal_output = None
         self.egress = None
         self.genesis_conf = None
-        self.last_block_ago = 0
+        self.last_block_ago = None
         self.last_block_timestamp = 0
         self.accept_peers = True
         self.diffculty = [0]
