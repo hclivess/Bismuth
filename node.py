@@ -267,6 +267,9 @@ def percentage(percent, whole):
 
 
 def db_to_drive(db_handler):
+
+    db_handler.ram_connect()
+
     logger.app_log.warning("Chain: Moving new data to HDD")
     try:
 
@@ -299,6 +302,8 @@ def db_to_drive(db_handler):
     except Exception as e:
         logger.app_log.warning(f"Chain: Exception Moving new data to HDD: {e}")
         # app_log.warning("Ledger digestion ended")  # dup with more informative digest_block notice.
+    finally:
+        db_handler.ram_close()
 
 
 

@@ -8,6 +8,10 @@ import queue
 
 class DbHandler:
     def __init__(self, index_db, ledger_path_conf, hyper_path_conf, full_ledger, ram_conf, ledger_ram_file, logger, queue):
+        self.ram_conf = ram_conf
+        self.ledger_ram_file = ledger_ram_file
+        self.hyper_path_conf = hyper_path_conf
+
         self.logger = logger
         self.full_ledger = full_ledger
 
@@ -26,31 +30,27 @@ class DbHandler:
         self.hdd2.execute("PRAGMA page_size = 4096;")
         self.h2 = self.hdd2.cursor()
 
-        if ram_conf:  # select RAM as source database
-            self.source_db = sqlite3.connect(ledger_ram_file, uri=True, timeout=1)
-        else:  # select hyper.db as source database
-            self.source_db = sqlite3.connect(hyper_path_conf, timeout=1)
-        self.source_db.text_factory = str
-        self.sc = self.source_db.cursor()
-
-        try:
-            if ram_conf:
-                self.conn = sqlite3.connect(ledger_ram_file, uri=True, isolation_level=None)
-            else:
-                self.conn = sqlite3.connect(hyper_path_conf, uri=True, isolation_level=None)
-
-            self.conn.execute('PRAGMA journal_mode = WAL;')
-            self.conn.execute("PRAGMA page_size = 4096;")
-            self.conn.text_factory = str
-            self.c = self.conn.cursor()
-
-        except Exception as e:
-            logger.app_log.info(e)
+        if self.ram_conf:
+            self.conn = sqlite3.connect(ledger_ram_file, uri=True, isolation_level=None)
+        else:
+            self.conn = sqlite3.connect(hyper_path_conf, uri=True, isolation_level=None)
+        self.conn.execute('PRAGMA journal_mode = WAL;')
+        self.conn.execute("PRAGMA page_size = 4096;")
+        self.conn.text_factory = str
+        self.c = self.conn.cursor()
 
         if self.full_ledger:
             self.h3 = self.hdd.cursor()
         else:
             self.h3 = self.hdd2.cursor()
+
+    def ram_connect(self):
+        if self.ram_conf:  # select RAM as source database
+            self.source_db = sqlite3.connect(self.ledger_ram_file, uri=True, timeout=1)
+        else:  # select hyper.db as source database
+            self.source_db = sqlite3.connect(self.hyper_path_conf, timeout=1)
+        self.source_db.text_factory = str
+        self.sc = self.source_db.cursor()
 
     def connection_define(self, connection):
         if connection == "conn":
@@ -89,7 +89,6 @@ class DbHandler:
                 self.logger.app_log.warning(f"Database connection: {connection}")
                 self.logger.app_log.warning(f"Database retry reason: {e}")
                 time.sleep(5)
-        return self
 
     def execute(self, c, query):
         cursor = self.cursor_define(c)
@@ -124,7 +123,7 @@ class DbHandler:
                 cursor.executemany(query, param)
                 break
             except sqlite3.InterfaceError as e:
-                self.logger.app_log.warning(f"Database query to abort: {cursor} {str(query)[:100]} {param}")
+                self.logger.app_log.warning(f"Database query to abort: {cursor} {str(query)[:100]} {str(param)[:100]}")
                 self.logger.app_log.warning(f"Database abortion reason: {e}")
                 break
             except sqlite3.IntegrityError as e:
@@ -132,12 +131,9 @@ class DbHandler:
                 self.logger.app_log.warning(f"Database abortion reason: {e}")
                 break
             except Exception as e:
-                self.logger.app_log.warning(f"Database query: {cursor} {str(query)[:100]} {param}")
+                self.logger.app_log.warning(f"Database query: {cursor} {str(query)[:100]} {str(param)[:100]}")
                 self.logger.app_log.warning(f"Database retry reason: {e}")
                 time.sleep(5)
-
-
-        return self
 
     def execute_param(self, c, query, param):
         """Secure execute w/ param for slow nodes"""
@@ -148,7 +144,7 @@ class DbHandler:
                 cursor.execute(query, param)
                 break
             except sqlite3.InterfaceError as e:
-                self.logger.app_log.warning(f"Database query to abort: {cursor} {str(query)[:100]} {param}")
+                self.logger.app_log.warning(f"Database query to abort: {cursor} {str(query)[:100]} {str(param)[:100]}")
                 self.logger.app_log.warning(f"Database abortion reason: {e}")
                 break
             except sqlite3.IntegrityError as e:
@@ -156,13 +152,9 @@ class DbHandler:
                 self.logger.app_log.warning(f"Database abortion reason: {e}")
                 break
             except Exception as e:
-                self.logger.app_log.warning(f"Database query: {cursor} {str(query)[:100]} {param}")
+                self.logger.app_log.warning(f"Database query: {cursor} {str(query)[:100]} {str(param)[:100]}")
                 self.logger.app_log.warning(f"Database retry reason: {e}")
                 time.sleep(5)
-
-
-
-        return self
 
     def fetchall(self, c):
         cursor = self.cursor_define(c)
@@ -175,8 +167,10 @@ class DbHandler:
         return result
 
     def close_all(self):
-            self.conn.close()
-            self.hdd.close()
-            self.hdd2.close()
-            self.index.close()
-            self.source_db.close()
+        self.conn.close()
+        self.hdd.close()
+        self.hdd2.close()
+        self.index.close()
+
+    def ram_close(self):
+        self.source_db.close()
