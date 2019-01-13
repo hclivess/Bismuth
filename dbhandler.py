@@ -6,8 +6,6 @@ import time
 import sqlite3
 import queue
 
-q = queue.Queue()
-
 class DbHandler:
     def __init__(self, index_db, ledger_path_conf, hyper_path_conf, full_ledger, ram_conf, ledger_ram_file, logger, queue):
         self.logger = logger
@@ -90,7 +88,7 @@ class DbHandler:
             except Exception as e:
                 self.logger.app_log.warning(f"Database connection: {connection}")
                 self.logger.app_log.warning(f"Database retry reason: {e}")
-                time.sleep(1)
+                time.sleep(5)
         return self
 
     def execute(self, c, query):
@@ -102,17 +100,17 @@ class DbHandler:
                 cursor.execute(query)
                 break
             except sqlite3.InterfaceError as e:
-                self.logger.app_log.warning(f"Database query to abort: {cursor} {query}")
+                self.logger.app_log.warning(f"Database query to abort: {cursor} {query[:100]}")
                 self.logger.app_log.warning(f"Database abortion reason: {e}")
                 break
             except sqlite3.IntegrityError as e:
-                self.logger.app_log.warning(f"Database query to abort: {cursor} {query}")
+                self.logger.app_log.warning(f"Database query to abort: {cursor} {query[:100]}")
                 self.logger.app_log.warning(f"Database abortion reason: {e}")
                 break
             except Exception as e:
-                self.logger.app_log.warning(f"Database query: {cursor} {query}")
+                self.logger.app_log.warning(f"Database query: {cursor} {query[:100]}")
                 self.logger.app_log.warning(f"Database retry reason: {e}")
-                time.sleep(1)
+                time.sleep(5)
                 raise
 
 
@@ -126,17 +124,17 @@ class DbHandler:
                 cursor.executemany(query, param)
                 break
             except sqlite3.InterfaceError as e:
-                self.logger.app_log.warning(f"Database query to abort: {cursor} {query} {param}")
+                self.logger.app_log.warning(f"Database query to abort: {cursor} {query[:100]} {param}")
                 self.logger.app_log.warning(f"Database abortion reason: {e}")
                 break
             except sqlite3.IntegrityError as e:
-                self.logger.app_log.warning(f"Database query to abort: {cursor} {query}")
+                self.logger.app_log.warning(f"Database query to abort: {cursor} {query[:100]}")
                 self.logger.app_log.warning(f"Database abortion reason: {e}")
                 break
             except Exception as e:
-                self.logger.app_log.warning(f"Database query: {cursor} {query} {param}")
+                self.logger.app_log.warning(f"Database query: {cursor} {query[:100]} {param}")
                 self.logger.app_log.warning(f"Database retry reason: {e}")
-                time.sleep(0.1)
+                time.sleep(5)
 
 
         return self
@@ -150,17 +148,17 @@ class DbHandler:
                 cursor.execute(query, param)
                 break
             except sqlite3.InterfaceError as e:
-                self.logger.app_log.warning(f"Database query to abort: {cursor} {query} {param}")
+                self.logger.app_log.warning(f"Database query to abort: {cursor} {query[:100]} {param}")
                 self.logger.app_log.warning(f"Database abortion reason: {e}")
                 break
             except sqlite3.IntegrityError as e:
-                self.logger.app_log.warning(f"Database query to abort: {cursor} {query}")
+                self.logger.app_log.warning(f"Database query to abort: {cursor} {query[:100]}")
                 self.logger.app_log.warning(f"Database abortion reason: {e}")
                 break
             except Exception as e:
-                self.logger.app_log.warning(f"Database query: {cursor} {query} {param}")
+                self.logger.app_log.warning(f"Database query: {cursor} {query[:100]} {param}")
                 self.logger.app_log.warning(f"Database retry reason: {e}")
-                time.sleep(1)
+                time.sleep(5)
 
 
 
@@ -175,3 +173,10 @@ class DbHandler:
         cursor = self.cursor_define(c)
         result = cursor.fetchone()
         return result
+
+    def close_all(self):
+            self.conn.close()
+            self.hdd.close()
+            self.hdd2.close()
+            self.index.close()
+            self.source_db.close()

@@ -645,9 +645,6 @@ def blocknf(block_hash_delete, peer_ip, db_handler):
                 db_handler.execute_param("c", "DELETE FROM misc WHERE block_height >= ?;", (db_block_height,))
                 db_handler.commit("conn")
 
-                # db_handler.execute_param("c", ('DELETE FROM transactions WHERE address = "Development Reward" AND block_height <= ?'), (-db_block_height,))
-                # db_handler.commit("conn")
-
                 logger.app_log.warning(f"Node {peer_ip} didn't find block {db_block_height}({db_block_hash})")
 
                 # roll back hdd too
@@ -679,6 +676,7 @@ def blocknf(block_hash_delete, peer_ip, db_handler):
 
         finally:
             db_lock.release()
+
             if skip:
                 rollback = {"timestamp": my_time, "height": db_block_height, "ip": peer_ip,
                             "hash": db_block_hash, "skipped": True, "reason": reason}
@@ -1136,12 +1134,12 @@ def digest_block(data, sdef, peer_ip, db_handler):
                 # dev reward
                 if int(block_height_new) % 10 == 0:  # every 10 blocks
                     db_handler.execute_param("c", "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                                  (-block_height_new, str(q_time_now), "Development Reward", str(node.genesis_conf),
+                                  (-block_height_new, str(q_block_timestamp), "Development Reward", str(node.genesis_conf),
                                    str(mining_reward), "0", "0", mirror_hash, "0", "0", "0", "0"))
                     db_handler.commit("conn")
 
                     db_handler.execute_param("c", "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                                  (-block_height_new, str(q_time_now), "Hypernode Payouts",
+                                  (-block_height_new, str(q_block_timestamp), "Hypernode Payouts",
                                    "3e08b5538a4509d9daa99e01ca5912cda3e98a7f79ca01248c2bde16",
                                    "8", "0", "0", mirror_hash, "0", "0", "0", "0"))
                     db_handler.commit("conn")
@@ -2712,6 +2710,7 @@ def worker(HOST, PORT):
             logger.app_log.info(f"Connection to {this_client} terminated due to {e}")
             logger.app_log.info(f"---thread {threading.currentThread()} ended---")
 
+            db_handler_instance.close_all()
             # properly end the connection
             if s:
                 s.close()
@@ -2724,6 +2723,7 @@ def worker(HOST, PORT):
 
     if not node.peers.version_allowed(HOST, node.version_allow):
         logger.app_log.warning(f"Outbound: Ending thread, because {HOST} has too old a version: {node.peers.ip_to_mainnet[HOST]}")
+
 
 
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
@@ -3070,6 +3070,8 @@ if __name__ == "__main__":
             coherence_check(db_handler_initial)
             if node.verify_conf:
                 verify(db_handler_initial)
+
+            db_handler_initial.close_all()
 
             if not node.tor_conf:
                 # Port 0 means to select an arbitrary unused port
