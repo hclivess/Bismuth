@@ -52,40 +52,9 @@ class DbHandler:
         self.source_db.text_factory = str
         self.sc = self.source_db.cursor()
 
-    def connection_define(self, connection):
-        if connection == "conn":
-            return self.conn
-        if connection == "hdd":
-            return self.hdd
-        if connection == "hdd2":
-            return self.hdd2
-        if connection == "index":
-            return self.index
-        if connection == "source_db":
-            return self.source_db
-        else:
-            raise ValueError("Connection undefined")
-
-    def cursor_define(self,cursor):
-        if cursor == "c":
-            return self.c
-        if cursor == "h":
-            return self.h
-        if cursor == "h2":
-            return self.h2
-        if cursor == "h3":
-            return self.h3
-        if cursor == "index_cursor":
-            return self.index_cursor
-        if cursor == "sc":
-            return self.sc
-        else:
-            raise ValueError("Cursor undefined")
 
 
-    def commit(self, conn):
-
-        connection = self.connection_define(conn)
+    def commit(self, connection):
         """Secure commit for slow nodes"""
         while True:
             try:
@@ -96,10 +65,7 @@ class DbHandler:
                 self.logger.app_log.warning(f"Database retry reason: {e}")
                 time.sleep(5)
 
-    def execute(self, c, query):
-
-        cursor = self.cursor_define(c)
-
+    def execute(self, cursor, query):
         """Secure execute for slow nodes"""
         while True:
             try:
@@ -118,8 +84,7 @@ class DbHandler:
                 self.logger.app_log.warning(f"Database retry reason: {e}")
                 time.sleep(5)
 
-    def execute_many(self, c, query, param):
-        cursor = self.cursor_define(c)
+    def execute_many(self, cursor, query, param):
 
         while True:
             try:
@@ -138,9 +103,8 @@ class DbHandler:
                 self.logger.app_log.warning(f"Database retry reason: {e}")
                 time.sleep(5)
 
-    def execute_param(self, c, query, param):
+    def execute_param(self, cursor, query, param):
         """Secure execute w/ param for slow nodes"""
-        cursor = self.cursor_define(c)
 
         while True:
             try:
@@ -158,16 +122,6 @@ class DbHandler:
                 self.logger.app_log.warning(f"Database query: {cursor} {str(query)[:100]} {str(param)[:100]}")
                 self.logger.app_log.warning(f"Database retry reason: {e}")
                 time.sleep(5)
-
-    def fetchall(self, c):
-        cursor = self.cursor_define(c)
-        result = cursor.fetchall()
-        return result
-
-    def fetchone(self, c):
-        cursor = self.cursor_define(c)
-        result = cursor.fetchone()
-        return result
 
     def close_all(self):
         self.conn.close()
