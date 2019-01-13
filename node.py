@@ -3093,10 +3093,11 @@ if __name__ == "__main__":
             else:
                 logger.app_log.warning("Status: Not starting a local server to conceal identity on Tor network")
 
-            # hyperlane_manager = hyperlane.HyperlaneManager(logger.app_log).hyperlane_manager()
-            # hyperlane_manager.start()
+            #hyperlane_manager = hyperlane.HyperlaneManager(logger.app_log)
+            #hyperlane_manager.start()
 
-            db_manager = db_looper.DbManager(logger.app_log).hyperlane_manager()
+            db_manager = db_looper.DbManager(logger.app_log)
+            db_manager.start()
 
             # start connection manager
             t_manager = threading.Thread(target=manager())
