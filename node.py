@@ -568,42 +568,64 @@ def balanceget(balance_address, db_handler):
     # include mempool fees
 
     credit_ledger = Decimal("0")
-    for entry in db_handler.execute_param(db_handler.h3,("SELECT amount FROM transactions WHERE recipient = ?;"), (balance_address,)):
-        try:
+    db_handler.execute_param(db_handler.h3,("SELECT amount FROM transactions WHERE recipient = ?;"), (balance_address,))
+
+    try:
+        entries = db_handler.h3.fetchall()
+    except:
+        entries = []
+
+    try:
+        for entry in entries:
             credit_ledger = quantize_eight(credit_ledger) + quantize_eight(entry[0])
             credit_ledger = 0 if credit_ledger is None else credit_ledger
-        except:
+    except:
             credit_ledger = 0
 
     fees = Decimal("0")
     debit_ledger = Decimal("0")
 
-    for entry in db_handler.execute_param(db_handler.h3,("SELECT fee, amount FROM transactions WHERE address = ?;"), (balance_address,)):
-        try:
+    db_handler.execute_param(db_handler.h3,("SELECT fee, amount FROM transactions WHERE address = ?;"), (balance_address,))
+    try:
+        entries = db_handler.h3.fetchall()
+    except:
+        entries = []
+
+    try:
+        for entry in entries:
             fees = quantize_eight(fees) + quantize_eight(entry[0])
             fees = 0 if fees is None else fees
-        except:
-            fees = 0
+    except:
+        fees = 0
 
-        try:
+    try:
+        for entry in entries:
             debit_ledger = debit_ledger + Decimal(entry[1])
             debit_ledger = 0 if debit_ledger is None else debit_ledger
-        except:
-            debit_ledger = 0
+    except:
+        debit_ledger = 0
 
     debit = quantize_eight(debit_ledger + debit_mempool)
 
     rewards = Decimal("0")
-    for entry in db_handler.execute_param(db_handler.h3, ("SELECT reward FROM transactions WHERE recipient = ?;"), (balance_address,)):
-        try:
+
+    db_handler.execute_param(db_handler.h3, ("SELECT reward FROM transactions WHERE recipient = ?;"), (balance_address,))
+    try:
+        entries = db_handler.c.fetchall()
+    except:
+        entries = []
+
+
+    try:
+        for entry in entries:
             rewards = quantize_eight(rewards) + quantize_eight(entry[0])
             rewards = 0 if rewards is None else rewards
-        except:
-            rewards = 0
+    except:
+        rewards = 0
 
     balance = quantize_eight(credit_ledger - debit - fees + rewards)
     balance_no_mempool = float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)
-    # logger.app_log.info("Mempool: Projected transction address balance: " + str(balance))
+    #logger.app_log.info("Mempool: Projected transction address balance: " + str(balance))
     return str(balance), str(credit_ledger), str(debit), str(fees), str(rewards), str(balance_no_mempool)
 
 
@@ -754,7 +776,7 @@ def manager():
         mp.MEMPOOL.status()
 
         if node.last_block_ago:
-            logger.app_log.warning(f"Status: Last block {node.last_block} was generated {'%.2f' % (node.last_block_ago / 60)} minutes ago")
+            logger.app_log.warning(f"Status: Last block {node.last_block} was generated {'%.2f' % node.last_block_ago } minutes ago")
         # last block
         # status Hook
         uptime = int(time.time() - node.startup_time)
@@ -762,7 +784,7 @@ def manager():
         status = {"protocolversion": node.version, "walletversion": VERSION, "testnet": node.is_testnet,
                   # config data
                   "blocks": node.last_block, "timeoffset": 0, "connections": node.peers.consensus_size,
-                  "difficulty": node.diffculty[0],  # live status, bitcoind format
+                  "difficulty": node.difficulty[0],  # live status, bitcoind format
                   "threads": threading.active_count(), "uptime": uptime, "consensus": node.peers.consensus,
                   "consensus_percent": node.peers.consensus_percentage,
                   "node.last_block_ago": node.last_block_ago}  # extra data
@@ -958,7 +980,7 @@ def digest_block(data, sdef, peer_ip, db_handler):
 
                 # calculate current difficulty
                 diff = difficulty(db_handler)
-                node.diffculty = diff
+                node.difficulty = diff
 
                 logger.app_log.warning(f"Time to generate block {db_block_height + 1}: {'%.2f' % diff[2]}")
                 logger.app_log.warning(f"Current difficulty: {diff[3]}")
@@ -1157,7 +1179,7 @@ def digest_block(data, sdef, peer_ip, db_handler):
 
                 # This new block may change the int(diff). Trigger the hook whether it changed or not.
                 diff = difficulty(db_handler)
-                node.diffculty = diff
+                node.difficulty = diff
                 node.plugin_manager.execute_action_hook('diff', diff[0])
                 # We could recalc diff after inserting block, and then only trigger the block hook, but I fear this would delay the new block event.
 
@@ -1452,7 +1474,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     else:
                         db_handler_instance.c.execute(
                                 "SELECT timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
-                        node.last_block_ago = quantize_two(db_handler_instance.c.fetchone()[0])
+                        node.last_block_ago = quantize_two(db_handler_instance.c.fetchone()[0] / 60)
 
                         if node.last_block_ago < time.time() - 600:
                             # block_req = most_common(consensus_blockheight_list)
@@ -2207,12 +2229,12 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         logger.app_log.info(f"{peer_ip} not whitelisted for addvalidate command")
 
                 elif data == "annget":
-                    if node.peers.is_allowed(peer_ip, data):
+                    if node.peers.is_allowed(peer_ip):
 
                         # with open(peerlist, "r") as peer_list:
                         #    peers_file = peer_list.read()
 
-                        db_handler_instance.execute_param(db_handler_instance.h3,"SELECT openfield FROM transactions WHERE address = ? AND openfield LIKE ? ORDER BY block_height DESC LIMIT 1", (data, "ann=%"))
+                        db_handler_instance.execute_param(db_handler_instance.h3,"SELECT openfield FROM transactions WHERE address = ? AND openfield LIKE ? ORDER BY block_height DESC LIMIT 1", (node.genesis_conf, "ann=%"))
                         result = db_handler_instance.h3.fetchone()[0]
 
                         ann_stripped = replace_regex(result, "ann=")
@@ -2222,9 +2244,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         logger.app_log.info(f"{peer_ip} not whitelisted for annget command")
 
                 elif data == "annverget":
-                    if node.peers.is_allowed(peer_ip, data):
+                    if node.peers.is_allowed(peer_ip):
 
-                        db_handler_instance.h3.execute("SELECT openfield FROM transactions WHERE address = ? AND openfield LIKE ? ORDER BY block_height DESC LIMIT 1", (data, "annver=%"))
+                        db_handler_instance.h3.execute("SELECT openfield FROM transactions WHERE address = ? AND openfield LIKE ? ORDER BY block_height DESC LIMIT 1", (node.genesis_conf, "annver=%"))
                         result = db_handler_instance.h3.fetchone()[0]
                         ann_ver_stripped = replace_regex(result, "annver=")
 
@@ -2247,7 +2269,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         nodes_list = node.peers.peer_opinion_dict
                         threads_count = threading.active_count()
                         uptime = int(time.time() - node.startup_time)
-                        diff = node.diffculty
+                        diff = node.difficulty
                         server_timestamp = '%.2f' % time.time()
 
                         if node.reveal_address:
@@ -2266,7 +2288,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "statusjson":
                     if node.peers.is_allowed(peer_ip, data):
                         uptime = int(time.time() - node.startup_time)
-                        tempdiff = node.diffculty
+                        tempdiff = node.difficulty
 
                         if node.reveal_address:
                             revealed_address = node_keys.address
@@ -2299,14 +2321,14 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                 elif data == "diffget":
                     if node.peers.is_allowed(peer_ip, data):
-                        diff = node.diffculty
+                        diff = node.difficulty
                         connections.send(self.request, diff)
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for diffget command")
 
                 elif data == "diffgetjson":
                     if node.peers.is_allowed(peer_ip, data):
-                        diff = node.diffculty
+                        diff = node.difficulty
                         response = {"difficulty": diff[0],
                                     "diff_dropped": diff[0],
                                     "time_to_generate": diff[0],

@@ -50,7 +50,7 @@ class Node():
         self.last_block_ago = None
         self.last_block_timestamp = 0
         self.accept_peers = True
-        self.diffculty = [0]
+        self.difficulty = [0,0,0,0,0,0,0,0]
 
 
 

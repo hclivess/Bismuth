@@ -1277,6 +1277,8 @@ def refresh(address, s):
         server_timestamp_var.set("GMT: {}".format(time.strftime("%H:%M:%S", time.gmtime(int(float(stats_timestamp))))))
 
         # data for charts
+
+        """
         block_height = statusget[8][7]  # move chart only if the block height changes, returned from diff 7
         try:
             block_height_old
@@ -1303,6 +1305,7 @@ def refresh(address, s):
         else:
             print("Chart update skipped, block hasn't moved")
         # data for charts
+        """
 
         connections.send(s, "balanceget", 10)
         connections.send(s, address, 10)  # change address here to view other people's transactions
@@ -1406,8 +1409,10 @@ def refresh(address, s):
 
 
     except Exception as e:
+        raise
         app_log.warning(e)
         node_connect()
+
 
 
 def sign():
