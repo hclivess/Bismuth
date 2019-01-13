@@ -269,7 +269,6 @@ def percentage(percent, whole):
 def db_to_drive(db_handler):
 
     db_handler.ram_connect()
-
     logger.app_log.warning("Chain: Moving new data to HDD")
     try:
 
@@ -696,7 +695,7 @@ def blocknf(block_hash_delete, peer_ip, db_handler):
                                 nb_tx += 1
                                 logger.app_log.info(
                                     mp.MEMPOOL.merge((tx[1], tx[2], tx[3], tx[4], tx[5], tx[6], tx[10], tx[11]),
-                                                     peer_ip, "c", False, revert=True))  # will get stuck if you change it to respect db_lock
+                                                     peer_ip, db_handler.c, False, revert=True))  # will get stuck if you change it to respect db_lock
                                 logger.app_log.warning(f"Moved tx back to mempool: {tx_short}")
                             except Exception as e:
                                 logger.app_log.warning(f"Error during moving tx back to mempool: {e}")

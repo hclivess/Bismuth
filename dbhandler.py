@@ -4,7 +4,6 @@ Database handler module for Bismuth nodes
 
 import time
 import sqlite3
-import queue
 
 class DbHandler:
     def __init__(self, index_db, ledger_path_conf, hyper_path_conf, full_ledger, ram_conf, ledger_ram_file, logger, queue):
@@ -34,15 +33,16 @@ class DbHandler:
             self.conn = sqlite3.connect(ledger_ram_file, uri=True, isolation_level=None)
         else:
             self.conn = sqlite3.connect(hyper_path_conf, uri=True, isolation_level=None)
+
         self.conn.execute('PRAGMA journal_mode = WAL;')
         self.conn.execute("PRAGMA page_size = 4096;")
         self.conn.text_factory = str
         self.c = self.conn.cursor()
 
         if self.full_ledger:
-            self.h3 = self.hdd.cursor()
+            self.h3 = self.h
         else:
-            self.h3 = self.hdd2.cursor()
+            self.h3 = self.h2
 
     def ram_connect(self):
         if self.ram_conf:  # select RAM as source database
@@ -63,6 +63,8 @@ class DbHandler:
             return self.index
         if connection == "source_db":
             return self.source_db
+        else:
+            raise ValueError("Connection undefined")
 
     def cursor_define(self,cursor):
         if cursor == "c":
@@ -77,8 +79,12 @@ class DbHandler:
             return self.index_cursor
         if cursor == "sc":
             return self.sc
+        else:
+            raise ValueError("Cursor undefined")
+
 
     def commit(self, conn):
+
         connection = self.connection_define(conn)
         """Secure commit for slow nodes"""
         while True:
@@ -91,6 +97,7 @@ class DbHandler:
                 time.sleep(5)
 
     def execute(self, c, query):
+
         cursor = self.cursor_define(c)
 
         """Secure execute for slow nodes"""
@@ -110,10 +117,6 @@ class DbHandler:
                 self.logger.app_log.warning(f"Database query: {cursor} {query[:100]}")
                 self.logger.app_log.warning(f"Database retry reason: {e}")
                 time.sleep(5)
-                raise
-
-
-        return self
 
     def execute_many(self, c, query, param):
         cursor = self.cursor_define(c)
