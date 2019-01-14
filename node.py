@@ -88,11 +88,13 @@ def tokens_rollback(height, db_handler):
 
     returns None
     """
-    db_handler.execute(db_handler.index_cursor, "DELETE FROM tokens WHERE block_height >= ?;", (height - 1,))
-    db_handler.commit(db_handler.index)
+    try:
+        db_handler.execute(db_handler.index_cursor, "DELETE FROM tokens WHERE block_height >= ?;", (height - 1,))
+        db_handler.commit(db_handler.index)
 
-    logger.app_log.warning(f"Rolled back the token index to {(height - 1)}")
-
+        logger.app_log.warning(f"Rolled back the token index to {(height - 1)}")
+    except Exception as e:
+        logger.app_log.warning(f"Failed to roll back the token index to {(height - 1)} due to {e}")
 
 def staking_rollback(height, db_handler):
     """Rollback staking index
@@ -104,11 +106,13 @@ def staking_rollback(height, db_handler):
 
     returns None
     """
+    try:
+        db_handler.execute(db_handler.index_cursor, "DELETE FROM staking WHERE block_height >= ?;", (height - 1,))
+        db_handler.commit(db_handler.index)
 
-    db_handler.execute(db_handler.index_cursor, "DELETE FROM staking WHERE block_height >= ?;", (height - 1,))
-    db_handler.commit(db_handler.index)
-
-    logger.app_log.warning(f"Rolled back the staking index to {(height - 1)}")
+        logger.app_log.warning(f"Rolled back the staking index to {(height - 1)}")
+    except Exception as e:
+        logger.app_log.warning(f"Failed to roll back the staking index to {(height - 1)} due to {e}")
 
 
 def aliases_rollback(height, db_handler):
@@ -121,12 +125,13 @@ def aliases_rollback(height, db_handler):
 
     returns None
     """
+    try:
+        db_handler.execute(db_handler.index_cursor, "DELETE FROM aliases WHERE block_height >= ?;", (height - 1,))
+        db_handler.commit(db_handler.index)
 
-    db_handler.execute(db_handler.index_cursor, "DELETE FROM aliases WHERE block_height >= ?;", (height - 1,))
-    db_handler.commit(db_handler.index)
-
-    logger.app_log.warning(f"Rolled back the alias index to {(height - 1)}")
-
+        logger.app_log.warning(f"Rolled back the alias index to {(height - 1)}")
+    except Exception as e:
+        logger.app_log.warning(f"Failed to roll back the alias index to {(height - 1)} due to {e}")
 
 def sendsync(sdef, peer_ip, status, provider):
     """ Save peer_ip to peerlist and send `sendsync`
