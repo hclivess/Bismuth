@@ -78,57 +78,53 @@ def limit_version():
         node.version_allow.remove('mainnet0018')
 
 
-def tokens_rollback(height):
+def tokens_rollback(height, db_handler):
     """Rollback Token index
 
     :param height: height index of token in chain
-    :param app_log: logger to use
 
     Simply deletes from the `tokens` table where the block_height is
     greater than or equal to the :param height: and logs the new height
 
     returns None
     """
-    with sqlite3.connect(node.index_db) as tok:
-        t = tok.cursor()
-        t.execute("DELETE FROM tokens WHERE block_height >= ?;", (height - 1,))
-        tok.commit()
+    db_handler.index.execute("DELETE FROM tokens WHERE block_height >= ?;", (height - 1,))
+    db_handler.commit(db_handler.index_cursor)
+
     logger.app_log.warning(f"Rolled back the token index to {(height - 1)}")
 
 
-def staking_rollback(height):
+def staking_rollback(height, db_handler):
     """Rollback staking index
 
     :param height: height index of token in chain
-    :param app_log: logger to use
 
     Simply deletes from the `staking` table where the block_height is
     greater than or equal to the :param height: and logs the new height
 
     returns None
     """
-    with sqlite3.connect(node.index_db) as sta:
-        s = sta.cursor()
-        s.execute("DELETE FROM staking WHERE block_height >= ?;", (height - 1,))
-        sta.commit()
+
+    db_handler.execute(db_handler.index, "DELETE FROM staking WHERE block_height >= ?;", (height - 1,))
+    db_handler.commit(db_handler.index_cursor)
+
     logger.app_log.warning(f"Rolled back the staking index to {(height - 1)}")
 
 
-def aliases_rollback(height):
+def aliases_rollback(height, db_handler):
     """Rollback Alias index
 
     :param height: height index of token in chain
-    :param app_log: logger to use
 
     Simply deletes from the `aliases` table where the block_height is
     greater than or equal to the :param height: and logs the new height
 
     returns None
     """
-    with sqlite3.connect(node.index_db) as ali:
-        a = ali.cursor()
-        a.execute("DELETE FROM aliases WHERE block_height >= ?;", (height - 1,))
-        ali.commit()
+
+    db_handler.execute(db_handler.index, "DELETE FROM aliases WHERE block_height >= ?;", (height - 1,))
+    db_handler.commit(db_handler.index_cursor)
+
     logger.app_log.warning(f"Rolled back the alias index to {(height - 1)}")
 
 
@@ -697,9 +693,9 @@ def blocknf(block_hash_delete, peer_ip, db_handler): #FIXTHIS
                 # /roll back hdd too
 
                 # rollback indices
-                tokens_rollback(db_block_height)
-                aliases_rollback(db_block_height)
-                staking_rollback(db_block_height)
+                tokens_rollback(db_block_height, db_handler)
+                aliases_rollback(db_block_height, db_handler)
+                staking_rollback(db_block_height, db_handler)
                 # /rollback indices
 
         except Exception as e:
@@ -776,7 +772,7 @@ def manager():
         mp.MEMPOOL.status()
 
         if node.last_block_ago:
-            logger.app_log.warning(f"Status: Last block {node.last_block} was generated {'%.2f' % node.last_block_ago } minutes ago")
+            logger.app_log.warning(f"Status: Last block {node.last_block} was generated {'%.2f' % (node.last_block_ago/60) } minutes ago")
         # last block
         # status Hook
         uptime = int(time.time() - node.startup_time)
@@ -1264,9 +1260,9 @@ def coherence_check(db_handler):
                     conn2.commit()
 
                     # rollback indices
-                    tokens_rollback(y)
-                    aliases_rollback(y)
-                    staking_rollback(y)
+                    tokens_rollback(y, db_handler)
+                    aliases_rollback(y, db_handler)
+                    staking_rollback(y, db_handler)
 
                     # rollback indices
 
@@ -1306,9 +1302,9 @@ def coherence_check(db_handler):
                     conn2.close()
 
                     # rollback indices
-                    tokens_rollback(y)
-                    aliases_rollback(y)
-                    staking_rollback(y)
+                    tokens_rollback(y, db_handler)
+                    aliases_rollback(y, db_handler)
+                    staking_rollback(y, db_handler)
                     # rollback indices
 
                     logger.app_log.warning(f"Status: Due to a coherence issue at block {y}, {chain} has been rolled back and will be resynchronized")
@@ -2420,14 +2416,16 @@ def ensure_good_peer_version(peer_ip):
 
 # client thread
 # if you "return" from the function, the exception code will node be executed and client thread will hang
-def worker(HOST, PORT):
+def worker(host, port):
+    this_client = f"{host}:{port}"
+
     if node.IS_STOPPING:
         return
 
-    dict_ip = {'ip': HOST}
+    dict_ip = {'ip': host}
     node.plugin_manager.execute_filter_hook('peer_ip', dict_ip)
-    if node.peers.is_banned(HOST) or dict_ip['ip'] == 'banned':
-        logger.app_log.warning(f"IP {HOST} is banned, won't connect")
+    if node.peers.is_banned(host) or dict_ip['ip'] == 'banned':
+        logger.app_log.warning(f"IP {host} is banned, won't connect")
         return
 
     timeout_operation = 60  # timeout
@@ -2435,13 +2433,12 @@ def worker(HOST, PORT):
 
     try:
         db_handler_instance = dbhandler.DbHandler(node.index_db, node.ledger_path_conf, node.hyper_path_conf, node.full_ledger, node.ram_conf, node.ledger_ram_file, logger, q)
-
-        this_client = (HOST + ":" + str(PORT))
+        
         s = socks.socksocket()
         if node.tor_conf:
             s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
         # s.setblocking(0)
-        s.connect((HOST, PORT))
+        s.connect((host, port))
         logger.app_log.info(f"Outbound: Connected to {this_client}")
 
         # communication starter
@@ -2475,7 +2472,7 @@ def worker(HOST, PORT):
 
     banned = False
     # if node.last_block >= POW_FORK - FORK_AHEAD:
-    node.peers.store_mainnet(HOST, peer_version)
+    node.peers.store_mainnet(host, peer_version)
     try:
         peer_ip = s.getpeername()[0]
     except:
@@ -2488,9 +2485,9 @@ def worker(HOST, PORT):
         logger.app_log.info(f"Connected to {this_client}")
         logger.app_log.info(f"Current active pool: {node.peers.connection_pool}")
 
-    while not banned and node.peers.version_allowed(HOST, node.version_allow) and not node.IS_STOPPING:
+    while not banned and node.peers.version_allowed(host, node.version_allow) and not node.IS_STOPPING:
         try:
-            ensure_good_peer_version(HOST)
+            ensure_good_peer_version(host)
 
             data = connections.receive(s)  # receive data, one and the only root point
             # print(data)
@@ -2609,7 +2606,7 @@ def worker(HOST, PORT):
                         logger.app_log.info(f"Outbound: block_hash to send: {db_block_hash}")
                         connections.send(s, db_block_hash)
 
-                        ensure_good_peer_version(HOST)
+                        ensure_good_peer_version(host)
 
                         # consensus pool 2 (active connection)
                         consensus_blockheight = int(received_block_height)  # str int to remove leading zeros
@@ -2654,7 +2651,7 @@ def worker(HOST, PORT):
                         block_req = node.peers.consensus_max
                         logger.app_log.warning("Longest chain rule triggered")
 
-                    ensure_good_peer_version(HOST)
+                    ensure_good_peer_version(host)
 
                     if int(received_block_height) >= block_req:
                         try:  # they claim to have the longest chain, things must go smooth or ban
@@ -2662,7 +2659,7 @@ def worker(HOST, PORT):
 
                             connections.send(s, "blockscf")
                             segments = connections.receive(s)
-                            ensure_good_peer_version(HOST)
+                            ensure_good_peer_version(host)
 
                         except:
                             if node.peers.warning(s, peer_ip, "Failed to deliver the longest chain", 2):
@@ -2743,8 +2740,8 @@ def worker(HOST, PORT):
                 logger.app_log.info(f"Ending thread, because {e}")
                 return
 
-    if not node.peers.version_allowed(HOST, node.version_allow):
-        logger.app_log.warning(f"Outbound: Ending thread, because {HOST} has too old a version: {node.peers.ip_to_mainnet[HOST]}")
+    if not node.peers.version_allowed(host, node.version_allow):
+        logger.app_log.warning(f"Outbound: Ending thread, because {host} has too old a version: {node.peers.ip_to_mainnet[host]}")
 
 
 
@@ -3097,14 +3094,14 @@ if __name__ == "__main__":
 
             if not node.tor_conf:
                 # Port 0 means to select an arbitrary unused port
-                HOST, PORT = "0.0.0.0", int(node.port)
+                host, port = "0.0.0.0", int(node.port)
 
                 ThreadedTCPServer.allow_reuse_address = True
                 ThreadedTCPServer.daemon_threads = True
                 ThreadedTCPServer.timeout = 60
                 ThreadedTCPServer.request_queue_size = 100
 
-                server = ThreadedTCPServer((HOST, PORT), ThreadedTCPRequestHandler)
+                server = ThreadedTCPServer((host, port), ThreadedTCPRequestHandler)
                 ip, node.port = server.server_address
 
                 # Start a thread with the server -- that thread will then start one
