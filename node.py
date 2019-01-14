@@ -2934,20 +2934,20 @@ def verify(db_handler):
     try:
         logger.app_log.warning("Blockchain verification started...")
         # verify blockchain
-        db_handler.execute(db_handler.h3, ("SELECT Count(*) FROM transactions"))
+        db_handler.execute(db_handler.h3, "SELECT Count(*) FROM transactions")
         db_rows = db_handler.h3.fetchone()[0]
         logger.app_log.warning("Total steps: {}".format(db_rows))
 
         # verify genesis
         if node.full_ledger:
-            db_handler.execute(db_handler.h3, ("SELECT block_height, recipient FROM transactions WHERE block_height = 1"))
+            db_handler.execute(db_handler.h3, "SELECT block_height, recipient FROM transactions WHERE block_height = 1")
             result = db_handler.h3.fetchall()[0]
             block_height = result[0]
             genesis = result[1]
-            logger.app_log.warning("Genesis: {}".format(genesis))
+            logger.app_log.warning(f"Genesis: {genesis}")
             if str(genesis) != node.genesis_conf and int(
-                    block_height) == 0:  # change this line to your genesis address if you want to clone
-                node.app_log.warning("Invalid genesis address")
+                    block_height) == 0:
+                logger.app_log.warning("Invalid genesis address")
                 sys.exit(1)
         # verify genesis
 
@@ -2970,6 +2970,7 @@ def verify(db_handler):
             '70094-1494032933.14': '2ca4403387e84b95ed558e7c9350c43efff8225c'
         }
         invalid = 0
+
         for row in db_handler.execute(db_handler.h3,
                            ('SELECT * FROM transactions WHERE block_height > 1 and reward = 0 ORDER BY block_height')):
 
