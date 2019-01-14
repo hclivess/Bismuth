@@ -2230,26 +2230,28 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         # with open(peerlist, "r") as peer_list:
                         #    peers_file = peer_list.read()
 
-                        db_handler_instance.execute_param(db_handler_instance.h3,"SELECT openfield FROM transactions WHERE address = ? AND openfield LIKE ? ORDER BY block_height DESC LIMIT 1", (node.genesis_conf, "ann=%"))
+                        db_handler_instance.execute_param(db_handler_instance.h3,"SELECT openfield FROM transactions WHERE address = ? AND operation = ? ORDER BY block_height DESC LIMIT 1", (node.genesis_conf, "ann"))
 
                         try:
                             result = db_handler_instance.h3.fetchone()[0]
-                            ann = replace_regex(result, "ann=")
                         except:
-                            ann = ""
+                            result = ""
 
-                        connections.send(self.request, ann)
+                        connections.send(self.request, result)
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for annget command")
 
                 elif data == "annverget":
                     if node.peers.is_allowed(peer_ip):
 
-                        db_handler_instance.h3.execute("SELECT openfield FROM transactions WHERE address = ? AND openfield LIKE ? ORDER BY block_height DESC LIMIT 1", (node.genesis_conf, "annver=%"))
-                        result = db_handler_instance.h3.fetchone()[0]
-                        ann_ver_stripped = replace_regex(result, "annver=")
+                        db_handler_instance.h3.execute("SELECT openfield FROM transactions WHERE address = ? AND operation = ? ORDER BY block_height DESC LIMIT 1", (node.genesis_conf, "annver"))
 
-                        connections.send(self.request, ann_ver_stripped)
+                        try:
+                            result = db_handler_instance.h3.fetchone()[0]
+                        except:
+                            result = ""
+
+                        connections.send(self.request, result)
 
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for annget command")
