@@ -459,7 +459,7 @@ def bin_convert(string):
     return ''.join(format(ord(x), '8b').replace(' ', '0') for x in string)
 
 def difficulty(db_handler):
-    db_handler.c.execute("SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 2")
+    db_handler.execute(db_handler.c,"SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 2")
     result = db_handler.c.fetchone()
 
     timestamp_last = Decimal(result[1])
@@ -636,7 +636,7 @@ def blocknf(block_hash_delete, peer_ip, db_handler): #FIXTHIS
         reason = ""
 
         try:
-            db_handler.c.execute('SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1')
+            db_handler.execute(db_handler.c,'SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1')
             results = db_handler.c.fetchone()
             db_block_height = results[0]
             db_block_hash = results[7]
@@ -899,7 +899,7 @@ def digest_block(data, sdef, peer_ip, db_handler):
                 del signature_list[:]
 
                 # previous block info
-                db_handler.c.execute(
+                db_handler.execute(db_handler.c,
                         "SELECT block_hash, block_height, timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")
                 result = db_handler.c.fetchall()
                 db_block_hash = result[0][0]
@@ -1145,7 +1145,7 @@ def digest_block(data, sdef, peer_ip, db_handler):
                                                    block_height_new, logger.app_log)
 
                 # new hash
-                db_handler.c.execute("SELECT * FROM transactions WHERE block_height = (SELECT max(block_height) FROM transactions)")
+                db_handler.execute(db_handler.c,"SELECT * FROM transactions WHERE block_height = (SELECT max(block_height) FROM transactions)")
                 # Was trying to simplify, but it's the latest mirror hash. not the latest block, nor the mirror of the latest block.
                 # c.execute("SELECT * FROM transactions WHERE block_height = ?", (block_height_new -1,))
                 tx_list_to_hash = db_handler.c.fetchall()
@@ -1559,7 +1559,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                                 logger.app_log.info(f"Inbound: Client is at block {client_block}")  # now check if we have any newer
 
-                                db_handler_instance.h3.execute(
+                                db_handler_instance.execute(db_handler_instance.h3,
                                         ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
                                 db_block_hash = db_handler_instance.h3.fetchone()[0]  # get latest block_hash
                                 if db_block_hash == data or not node.egress:
@@ -2244,7 +2244,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "annverget":
                     if node.peers.is_allowed(peer_ip):
 
-                        db_handler_instance.h3.execute("SELECT openfield FROM transactions WHERE address = ? AND operation = ? ORDER BY block_height DESC LIMIT 1", (node.genesis_conf, "annver"))
+                        db_handler_instance.execute_param(db_handler_instance.h3,"SELECT openfield FROM transactions WHERE address = ? AND operation = ? ORDER BY block_height DESC LIMIT 1", (node.genesis_conf, "annver"))
 
                         try:
                             result = db_handler_instance.h3.fetchone()[0]
@@ -2346,7 +2346,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "difflast":
                     if node.peers.is_allowed(peer_ip, data):
 
-                        db_handler_instance.h3.execute(
+                        db_handler_instance.execute(db_handler_instance.h3,
                                 ("SELECT block_height, difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
                         difflast = db_handler_instance.h3.fetchone()
                         connections.send(self.request, difflast)
@@ -2356,7 +2356,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "difflastjson":
                     if node.peers.is_allowed(peer_ip, data):
 
-                        db_handler_instance.h3.execute(
+                        db_handler_instance.execute(db_handler_instance.h3,
                                 ("SELECT block_height, difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
                         difflast = db_handler_instance.h3.fetchone()
                         response = {"block": difflast[0],
@@ -2550,7 +2550,7 @@ def worker(host, port):
                             logger.app_log.info(
                                 f"Outbound: Node is at block {client_block}")  # now check if we have any newer
 
-                            db_handler_instance.h3.execute(
+                            db_handler_instance.execute(db_handler_instance.h3,
                                     ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
                             db_block_hash = db_handler_instance.h3.fetchone()[0]  # get latest block_hash
 
@@ -2932,13 +2932,13 @@ def verify(db_handler):
     try:
         logger.app_log.warning("Blockchain verification started...")
         # verify blockchain
-        db_handler.h3.execute( ("SELECT Count(*) FROM transactions"))
+        db_handler.execute(db_handler.h3, ("SELECT Count(*) FROM transactions"))
         db_rows = db_handler.h3.fetchone()[0]
         logger.app_log.warning("Total steps: {}".format(db_rows))
 
         # verify genesis
         if node.full_ledger:
-            db_handler.h3.execute( ("SELECT block_height, recipient FROM transactions WHERE block_height = 1"))
+            db_handler.execute(db_handler.h3, ("SELECT block_height, recipient FROM transactions WHERE block_height = 1"))
             result = db_handler.h3.fetchall()[0]
             block_height = result[0]
             genesis = result[1]
@@ -2968,7 +2968,7 @@ def verify(db_handler):
             '70094-1494032933.14': '2ca4403387e84b95ed558e7c9350c43efff8225c'
         }
         invalid = 0
-        for row in db_handler.h3.execute(
+        for row in db_handler.execute(db_handler.h3,
                            ('SELECT * FROM transactions WHERE block_height > 1 and reward = 0 ORDER BY block_height')):
 
             db_block_height = str(row[0])

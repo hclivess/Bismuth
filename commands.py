@@ -81,11 +81,22 @@ elif "regnet" in version:
     print("Regtest mode")
     s.connect (("127.0.0.1", 3030))
 else:
-    #s.connect(("127.0.0.1", 5658))
     s.connect(("127.0.0.1", 5658))
+    #s.connect(("bismuth.live", 5658))
 
 def stop(socket):
     connections.send(s, "stop")
+
+
+def annverget(socket):
+    connections.send(s, "annverget")
+    result = connections.receive(s)
+    print (result)
+
+def annget(socket):
+    connections.send(s, "annget")
+    result = connections.receive(s)
+    print (result)
 
 def diffget(socket):
     #check difficulty
@@ -437,6 +448,12 @@ elif command == "balancegethyper":
 
 elif command == "balancegethyperjson":
     balancegethyperjson(s, arg1)
+
+elif command == "annget":
+    annget(s)
+
+elif command == "annverget":
+    annverget(s)
 
 elif command == "mpget":
     mpget(s)
