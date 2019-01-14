@@ -564,9 +564,9 @@ def balanceget(balance_address, db_handler):
     # include mempool fees
 
     credit_ledger = Decimal("0")
-    db_handler.execute_param(db_handler.h3,("SELECT amount FROM transactions WHERE recipient = ?;"), (balance_address,))
 
     try:
+        db_handler.execute_param(db_handler.h3, ("SELECT amount FROM transactions WHERE recipient = ?;"), (balance_address,))
         entries = db_handler.h3.fetchall()
     except:
         entries = []
@@ -581,8 +581,8 @@ def balanceget(balance_address, db_handler):
     fees = Decimal("0")
     debit_ledger = Decimal("0")
 
-    db_handler.execute_param(db_handler.h3,("SELECT fee, amount FROM transactions WHERE address = ?;"), (balance_address,))
     try:
+        db_handler.execute_param(db_handler.h3, ("SELECT fee, amount FROM transactions WHERE address = ?;"), (balance_address,))
         entries = db_handler.h3.fetchall()
     except:
         entries = []
@@ -605,8 +605,8 @@ def balanceget(balance_address, db_handler):
 
     rewards = Decimal("0")
 
-    db_handler.execute_param(db_handler.h3, ("SELECT reward FROM transactions WHERE recipient = ?;"), (balance_address,))
     try:
+        db_handler.execute_param(db_handler.h3, ("SELECT reward FROM transactions WHERE recipient = ?;"), (balance_address,))
         entries = db_handler.c.fetchall()
     except:
         entries = []
@@ -2230,9 +2230,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         # with open(peerlist, "r") as peer_list:
                         #    peers_file = peer_list.read()
 
-                        db_handler_instance.execute_param(db_handler_instance.h3,"SELECT openfield FROM transactions WHERE address = ? AND operation = ? ORDER BY block_height DESC LIMIT 1", (node.genesis_conf, "ann"))
-
                         try:
+                            db_handler_instance.execute_param(db_handler_instance.h3, "SELECT openfield FROM transactions WHERE address = ? AND operation = ? ORDER BY block_height DESC LIMIT 1", (node.genesis_conf, "ann"))
                             result = db_handler_instance.h3.fetchone()[0]
                         except:
                             result = ""
@@ -2244,9 +2243,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "annverget":
                     if node.peers.is_allowed(peer_ip):
 
-                        db_handler_instance.execute_param(db_handler_instance.h3,"SELECT openfield FROM transactions WHERE address = ? AND operation = ? ORDER BY block_height DESC LIMIT 1", (node.genesis_conf, "annver"))
-
                         try:
+                            db_handler_instance.execute_param(db_handler_instance.h3, "SELECT openfield FROM transactions WHERE address = ? AND operation = ? ORDER BY block_height DESC LIMIT 1", (node.genesis_conf, "annver"))
                             result = db_handler_instance.h3.fetchone()[0]
                         except:
                             result = ""
