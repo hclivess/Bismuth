@@ -2231,11 +2231,14 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         #    peers_file = peer_list.read()
 
                         db_handler_instance.execute_param(db_handler_instance.h3,"SELECT openfield FROM transactions WHERE address = ? AND openfield LIKE ? ORDER BY block_height DESC LIMIT 1", (node.genesis_conf, "ann=%"))
-                        result = db_handler_instance.h3.fetchone()[0]
 
-                        ann_stripped = replace_regex(result, "ann=")
+                        try:
+                            result = db_handler_instance.h3.fetchone()[0]
+                            ann = replace_regex(result, "ann=")
+                        except:
+                            ann = ""
 
-                        connections.send(self.request, ann_stripped)
+                        connections.send(self.request, ann)
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for annget command")
 
