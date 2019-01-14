@@ -630,7 +630,8 @@ def balanceget(balance_address, db_handler):
     return str(balance), str(credit_ledger), str(debit), str(fees), str(rewards), str(balance_no_mempool)
 
 
-def blocknf(block_hash_delete, peer_ip, db_handler): #FIXTHIS
+def blocknf(block_hash_delete, peer_ip, db_handler):
+    logger.app_log.info(f"Rollback operation on {block_hash_delete} initiated by {peer_ip}")
     
     my_time = time.time()
 
@@ -663,8 +664,6 @@ def blocknf(block_hash_delete, peer_ip, db_handler): #FIXTHIS
                 skip = True
 
             else:
-                # backup
-
                 db_handler.execute_param(db_handler.c,"SELECT * FROM transactions WHERE block_height >= ?;", (db_block_height,))
                 backup_data = db_handler.c.fetchall()
                 # this code continues at the bottom because of ledger presence check
@@ -704,7 +703,7 @@ def blocknf(block_hash_delete, peer_ip, db_handler): #FIXTHIS
                 # /rollback indices
 
         except Exception as e:
-            logger.app_log.info(e)
+            logger.app_log.warning(e)
 
         finally:
             db_lock.release()
