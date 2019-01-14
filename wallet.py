@@ -1409,7 +1409,6 @@ def refresh(address, s):
 
 
     except Exception as e:
-        raise
         app_log.warning(e)
         node_connect()
 

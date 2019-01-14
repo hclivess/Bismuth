@@ -787,7 +787,7 @@ def manager():
                   "difficulty": node.difficulty[0],  # live status, bitcoind format
                   "threads": threading.active_count(), "uptime": uptime, "consensus": node.peers.consensus,
                   "consensus_percent": node.peers.consensus_percentage,
-                  "node.last_block_ago": node.last_block_ago}  # extra data
+                  "last_block_ago": node.last_block_ago}  # extra data
         if node.is_regnet:
             status['regnet'] = True
         node.plugin_manager.execute_action_hook('status', status)
@@ -1474,9 +1474,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     else:
                         db_handler_instance.c.execute(
                                 "SELECT timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
-                        node.last_block_ago = quantize_two(db_handler_instance.c.fetchone()[0] / 60)
+                        node.last_block_timestamp = quantize_two(db_handler_instance.c.fetchone()[0])
 
-                        if node.last_block_ago < time.time() - 600:
+                        if node.last_block_timestamp < time.time() - 600:
                             # block_req = most_common(consensus_blockheight_list)
                             block_req = node.peers.consensus_most_common
                             logger.app_log.warning("Most common block rule triggered")
@@ -2644,9 +2644,9 @@ def worker(HOST, PORT):
                 else:
                     db_handler_instance.c.execute(
                             "SELECT timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
-                    node.last_block_ago = Decimal(db_handler_instance.c.fetchone()[0])
+                    node.last_block_timestamp = quantize_two(db_handler_instance.c.fetchone()[0])
 
-                    if int(node.last_block_ago) < (time.time() - 600):
+                    if int(node.last_block_timestamp) < (time.time() - 600):
                         block_req = node.peers.consensus_most_common
                         logger.app_log.warning("Most common block rule triggered")
 
