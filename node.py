@@ -89,7 +89,7 @@ def tokens_rollback(height, db_handler):
     returns None
     """
     try:
-        db_handler.execute(db_handler.index_cursor, "DELETE FROM tokens WHERE block_height >= ?;", (height - 1,))
+        db_handler.execute_param(db_handler.index_cursor, "DELETE FROM tokens WHERE block_height >= ?;", (height - 1,))
         db_handler.commit(db_handler.index)
 
         logger.app_log.warning(f"Rolled back the token index to {(height - 1)}")
@@ -107,7 +107,7 @@ def staking_rollback(height, db_handler):
     returns None
     """
     try:
-        db_handler.execute(db_handler.index_cursor, "DELETE FROM staking WHERE block_height >= ?;", (height - 1,))
+        db_handler.execute_param(db_handler.index_cursor, "DELETE FROM staking WHERE block_height >= ?;", (height - 1,))
         db_handler.commit(db_handler.index)
 
         logger.app_log.warning(f"Rolled back the staking index to {(height - 1)}")
@@ -126,7 +126,7 @@ def aliases_rollback(height, db_handler):
     returns None
     """
     try:
-        db_handler.execute(db_handler.index_cursor, "DELETE FROM aliases WHERE block_height >= ?;", (height - 1,))
+        db_handler.execute_param(db_handler.index_cursor, "DELETE FROM aliases WHERE block_height >= ?;", (height - 1,))
         db_handler.commit(db_handler.index)
 
         logger.app_log.warning(f"Rolled back the alias index to {(height - 1)}")
