@@ -295,7 +295,7 @@ def db_to_drive(db_handler):
             db_handler.execute_many(db_handler.h2,("INSERT INTO misc VALUES (?,?)"), result2)
             db_handler.commit(db_handler.hdd2)
 
-        db_handler.h2.execute(("SELECT max(block_height) FROM transactions"))
+        db_handler.execute(db_handler.h2,"SELECT max(block_height) FROM transactions")
         node.hdd_block = db_handler.h2.fetchone()[0]
 
         logger.app_log.warning(f"Chain: {len(result1)} txs moved to HDD")
@@ -480,7 +480,7 @@ def difficulty(db_handler):
     temp = db_handler.c.fetchone()
     timestamp_1440 = timestamp_1441 if temp is None else Decimal(temp[0])
     block_time = Decimal(timestamp_last - timestamp_1440) / 1440
-    db_handler.c.execute(("SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
+    db_handler.execute(db_handler.c,"SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1")
     diff_block_previous = Decimal(db_handler.c.fetchone()[0])
 
     time_to_generate = timestamp_last - timestamp_before_last
@@ -1387,7 +1387,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         connections.send(self.request, "notok")
                         return
                     else:
-                        db_handler_instance.c.execute(("SELECT block_hash FROM transactions WHERE block_height= (select max(block_height) from transactions)"))
+                        db_handler_instance.execute(db_handler_instance.c,"SELECT block_hash FROM transactions WHERE block_height= (select max(block_height) from transactions)")
                         block_hash = db_handler_instance.c.fetchone()[0]
                         # feed regnet with current thread db handle. refactor needed.
                         regnet.conn, regnet.c, regnet.hdd, regnet.h, regnet.hdd2, regnet.h2, regnet.h3 = db_handler_instance.conn, db_handler_instance.c, db_handler_instance.hdd, db_handler_instance.h, db_handler_instance.hdd2, db_handler_instance.h2, db_handler_instance.h3
@@ -1468,7 +1468,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         logger.app_log.info(f"Skipping sync from {peer_ip}, syncing already in progress")
 
                     else:
-                        db_handler_instance.c.execute(
+                        db_handler_instance.execute(db_handler_instance.c,
                                 "SELECT timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
                         node.last_block_timestamp = quantize_two(db_handler_instance.c.fetchone()[0])
 
@@ -1519,7 +1519,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         node.peers.consensus_add(peer_ip, consensus_blockheight, self.request, node.last_block)
                         # consensus pool 1 (connection from them)
 
-                        db_handler_instance.c.execute(('SELECT max(block_height) FROM transactions'))
+                        db_handler_instance.execute(db_handler_instance.c,'SELECT max(block_height) FROM transactions')
                         db_block_height = db_handler_instance.c.fetchone()[0]
 
                         # append zeroes to get static length
@@ -1529,7 +1529,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         if int(received_block_height) > db_block_height:
                             logger.app_log.warning("Inbound: Client has higher block")
 
-                            db_handler_instance.c.execute(
+                            db_handler_instance.execute(db_handler_instance.c,
                                     ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
                             db_block_hash = db_handler_instance.c.fetchone()[0]  # get latest block_hash
 
@@ -1644,7 +1644,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                         # check if we have the latest block
 
-                        db_handler_instance.c.execute(('SELECT max(block_height) FROM transactions'))
+                        db_handler_instance.execute(db_handler_instance.c,'SELECT max(block_height) FROM transactions')
                         db_block_height = int(db_handler_instance.c.fetchone()[0])
 
                         # check if we have the latest block
@@ -1685,7 +1685,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "blocklast":
                     # if (peer_ip in allowed or "any" in allowed):  # only sends the miner part of the block!
                     if node.peers.is_allowed(peer_ip, data):
-                        db_handler_instance.c.execute(
+                        db_handler_instance.execute(db_handler_instance.c,
                                 ("SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
                         block_last = db_handler_instance.c.fetchall()[0]
 
@@ -1696,7 +1696,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "blocklastjson":
                     # if (peer_ip in allowed or "any" in allowed):  # only sends the miner part of the block!
                     if node.peers.is_allowed(peer_ip, data):
-                        db_handler_instance.c.execute(
+                        db_handler_instance.execute(db_handler_instance.c,
                                 ("SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
                         block_last = db_handler_instance.c.fetchall()[0]
 
@@ -2515,7 +2515,7 @@ def worker(host, port):
                     # send block height, receive block height
                     connections.send(s, "blockheight")
 
-                    db_handler_instance.c.execute(('SELECT max(block_height) FROM transactions'))
+                    db_handler_instance.execute(db_handler_instance.c,'SELECT max(block_height) FROM transactions')
                     db_block_height = db_handler_instance.c.fetchone()[0]
 
                     logger.app_log.info(f"Outbound: Sending block height to compare: {db_block_height}")
@@ -2603,7 +2603,7 @@ def worker(host, port):
                         else:
                             logger.app_log.warning(f"Outbound: We have a lower block ({db_block_height}) than {peer_ip} ({received_block_height}), hash will be verified")
 
-                        db_handler_instance.c.execute(('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
+                        db_handler_instance.execute(db_handler_instance.c,'SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1')
                         db_block_hash = db_handler_instance.c.fetchone()[0]  # get latest block_hash
 
                         logger.app_log.info(f"Outbound: block_hash to send: {db_block_hash}")
@@ -2642,7 +2642,7 @@ def worker(host, port):
                     logger.app_log.warning(f"Skipping sync from {peer_ip}, syncing already in progress")
 
                 else:
-                    db_handler_instance.c.execute(
+                    db_handler_instance.execute(db_handler_instance.c,
                             "SELECT timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
                     node.last_block_timestamp = quantize_two(db_handler_instance.c.fetchone()[0])
 
