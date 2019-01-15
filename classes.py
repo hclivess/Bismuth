@@ -57,7 +57,6 @@ class Client:
     def __init__(self):
         self.banned = False
 
-
 class Logger():
     def __init__(self):
         self.app_log = None

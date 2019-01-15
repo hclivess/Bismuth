@@ -38,7 +38,9 @@ import aliases
 # Bis specific modules
 import apihandler
 import classes
-import connections
+
+from connections import send, receive
+
 import dbhandler
 import essentials
 import keys
@@ -182,7 +184,7 @@ def sendsync(sdef, peer_ip, status, provider):
             return
         time.sleep(Decimal(node.pause_conf))
 
-    connections.send(sdef, "sendsync")
+    send(sdef, "sendsync")
 
 
 def validate_pem(public_key):
@@ -1396,14 +1398,14 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                     raise ValueError(f"Inbound: Operation timeout from {peer_ip}")
 
-                data = connections.receive(self.request)
+                data = receive(self.request)
 
                 logger.app_log.info(
                     f"Inbound: Received: {data} from {peer_ip}")  # will add custom ports later
 
                 if data.startswith('regtest_'):
                     if not node.is_regnet:
-                        connections.send(self.request, "notok")
+                        send(self.request, "notok")
                         return
                     else:
                         db_handler_instance.execute(db_handler_instance.c, "SELECT block_hash FROM transactions WHERE block_height= (select max(block_height) from transactions)")
@@ -1413,24 +1415,24 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         regnet.command(self.request, data, block_hash)
 
                 if data == 'version':
-                    data = connections.receive(self.request)
+                    data = receive(self.request)
                     if data not in node.version_allow:
                         logger.app_log.warning(
                             f"Protocol version mismatch: {data}, should be {node.version_allow}")
-                        connections.send(self.request, "notok")
+                        send(self.request, "notok")
                         return
                     else:
                         logger.app_log.warning(f"Inbound: Protocol version matched: {data}")
-                        connections.send(self.request, "ok")
+                        send(self.request, "ok")
                         node.peers.store_mainnet(peer_ip, data)
 
                 elif data == 'getversion':
-                    connections.send(self.request, node.version)
+                    send(self.request, node.version)
 
                 elif data == 'mempool':
 
                     # receive theirs
-                    segments = connections.receive(self.request)
+                    segments = receive(self.request)
                     logger.app_log.info(mp.MEMPOOL.merge(segments, peer_ip, db_handler_instance.c, False))
 
                     # receive theirs
@@ -1449,7 +1451,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # logger.app_log.info("Inbound: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
 
                     # if len(mempool_txs) > 0: same as the other
-                    connections.send(self.request, mempool_txs)
+                    send(self.request, mempool_txs)
 
                     # send own
 
@@ -1458,14 +1460,14 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         logger.app_log.info("Inbound: Got hello but I'm in regtest mode, closing.")
                         return
 
-                    connections.send(self.request, "peers")
-                    connections.send(self.request, node.peers.peer_list_old_format())  # INCOMPATIBLE WITH THE OLD WAY
+                    send(self.request, "peers")
+                    send(self.request, node.peers.peer_list_old_format())  # INCOMPATIBLE WITH THE OLD WAY
 
                     while db_lock.locked():
                         time.sleep(quantize_two(node.pause_conf))
                     logger.app_log.info("Inbound: Sending sync request")
 
-                    connections.send(self.request, "sync")
+                    send(self.request, "sync")
 
                 elif data == "sendsync":
                     while db_lock.locked():
@@ -1476,7 +1478,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             return
                         time.sleep(int(node.pause_conf))
 
-                    connections.send(self.request, "sync")
+                    send(self.request, "sync")
 
                 elif data == "blocksfnd":
                     logger.app_log.info(f"Inbound: Client {peer_ip} has the block(s)")  # node should start sending txs in this step
@@ -1506,9 +1508,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             try:  # they claim to have the longest chain, things must go smooth or ban
                                 logger.app_log.warning(f"Confirming to sync from {peer_ip}")
                                 node.plugin_manager.execute_action_hook('sync', {'what': 'syncing_from', 'ip': peer_ip})
-                                connections.send(self.request, "blockscf")
+                                send(self.request, "blockscf")
 
-                                segments = connections.receive(self.request)
+                                segments = receive(self.request)
 
                             except:
                                 if node.peers.warning(self.request, peer_ip, "Failed to deliver the longest chain"):
@@ -1520,15 +1522,15 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                 # receive theirs
                         else:
                             logger.app_log.warning(f"Rejecting to sync from {peer_ip}")
-                            connections.send(self.request, "blocksrj")
+                            send(self.request, "blocksrj")
                             logger.app_log.info(
                                 f"Inbound: Distant peer {peer_ip} is at {received_block_height}, should be at least {block_req}")
 
-                    connections.send(self.request, "sync")
+                    send(self.request, "sync")
 
                 elif data == "blockheight":
                     try:
-                        received_block_height = connections.receive(self.request)  # receive client's last block height
+                        received_block_height = receive(self.request)  # receive client's last block height
                         logger.app_log.info(
                             f"Inbound: Received block height {received_block_height} from {peer_ip} ")
 
@@ -1542,7 +1544,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         db_block_height = db_handler_instance.c.fetchone()[0]
 
                         # append zeroes to get static length
-                        connections.send(self.request, db_block_height)
+                        send(self.request, db_block_height)
                         # send own block height
 
                         if int(received_block_height) > db_block_height:
@@ -1553,7 +1555,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             db_block_hash = db_handler_instance.c.fetchone()[0]  # get latest block_hash
 
                             logger.app_log.info(f"Inbound: block_hash to send: {db_block_hash}")
-                            connections.send(self.request, db_block_hash)
+                            send(self.request, db_block_hash)
 
                             # receive their latest sha_hash
                             # confirm you know that sha_hash or continue receiving
@@ -1566,7 +1568,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                 logger.app_log.warning(
                                     f"Inbound: We have higher ({db_block_height}) block height than {peer_ip} ({received_block_height}), sha_hash will be verified")
 
-                            data = connections.receive(self.request)  # receive client's last block_hash
+                            data = receive(self.request)  # receive client's last block_hash
                             # send all our followup hashes
 
                             logger.app_log.info(f"Inbound: Will seek the following block: {data}")
@@ -1577,8 +1579,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                 client_block = db_handler_instance.h3.fetchone()[0]
                             except Exception:
                                 logger.app_log.warning(f"Inbound: Block {data[:8]} of {peer_ip}")
-                                connections.send(self.request, "blocknf")
-                                connections.send(self.request, data)
+                                send(self.request, "blocknf")
+                                send(self.request, data)
 
                             else:
                                 logger.app_log.info(f"Inbound: Client is at block {client_block}")  # now check if we have any newer
@@ -1593,7 +1595,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                         logger.app_log.info(f"Inbound: Client {peer_ip} has the latest block")
 
                                     time.sleep(int(node.pause_conf))  # reduce CPU usage
-                                    connections.send(self.request, "nonewblk")
+                                    send(self.request, "nonewblk")
 
                                 else:
 
@@ -1614,13 +1616,13 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                                     # logger.app_log.info("Inbound: Selected " + str(blocks_fetched) + " to send")
 
-                                    connections.send(self.request, "blocksfnd")
+                                    send(self.request, "blocksfnd")
 
-                                    confirmation = connections.receive(self.request)
+                                    confirmation = receive(self.request)
 
                                     if confirmation == "blockscf":
                                         logger.app_log.info("Inbound: Client confirmed they want to sync from us")
-                                        connections.send(self.request, blocks_fetched)
+                                        send(self.request, blocks_fetched)
 
                                     elif confirmation == "blocksrj":
                                         logger.app_log.info(
@@ -1632,10 +1634,10 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         logger.app_log.info(f"Inbound: Sync failed {e}")
 
                 elif data == "nonewblk":
-                    connections.send(self.request, "sync")
+                    send(self.request, "sync")
 
                 elif data == "blocknf":
-                    block_hash_delete = connections.receive(self.request)
+                    block_hash_delete = receive(self.request)
                     # print peer_ip
                     if consensus_blockheight == node.peers.consensus_max:
                         blocknf(block_hash_delete, peer_ip, db_handler_instance)
@@ -1648,7 +1650,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         if node.IS_STOPPING:
                             return
                         time.sleep(node.pause_conf)
-                    connections.send(self.request, "sync")
+                    send(self.request, "sync")
 
                 elif data == "block":
                     # if (peer_ip in allowed or "any" in allowed):  # from miner
@@ -1657,7 +1659,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                         logger.app_log.info(f"Outbound: Received a block from miner {peer_ip}")
                         # receive block
-                        segments = connections.receive(self.request)
+                        segments = receive(self.request)
                         # logger.app_log.info("Inbound: Combined mined segments: " + segments)
 
                         # check if we have the latest block
@@ -1697,7 +1699,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         else:
                             digest_block(segments, self.request, peer_ip, db_handler_instance)
                     else:
-                        connections.receive(self.request)  # receive block, but do nothing about it
+                        receive(self.request)  # receive block, but do nothing about it
                         logger.app_log.info(f"{peer_ip} not whitelisted for block command")
 
                 elif data == "blocklast":
@@ -1707,7 +1709,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                                     "SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")
                         block_last = db_handler_instance.c.fetchall()[0]
 
-                        connections.send(self.request, block_last)
+                        send(self.request, block_last)
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for blocklast command")
 
@@ -1731,27 +1733,27 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                     "operation": block_last[10],
                                     "nonce": block_last[11]}
 
-                        connections.send(self.request, response)
+                        send(self.request, response)
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for blocklastjson command")
 
                 elif data == "blockget":
                     # if (peer_ip in allowed or "any" in allowed):
                     if node.peers.is_allowed(peer_ip, data):
-                        block_desired = connections.receive(self.request)
+                        block_desired = receive(self.request)
 
                         db_handler_instance.execute_param(db_handler_instance.h3, "SELECT * FROM transactions WHERE block_height = ?;",
                                                           (block_desired,))
                         block_desired_result = db_handler_instance.h3.fetchall()
 
-                        connections.send(self.request, block_desired_result)
+                        send(self.request, block_desired_result)
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for blockget command")
 
                 elif data == "blockgetjson":
                     # if (peer_ip in allowed or "any" in allowed):
                     if node.peers.is_allowed(peer_ip, data):
-                        block_desired = connections.receive(self.request)
+                        block_desired = receive(self.request)
 
                         db_handler_instance.execute_param(db_handler_instance.h3, "SELECT * FROM transactions WHERE block_height = ?;",
                                                           (block_desired,))
@@ -1774,39 +1776,39 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                             response_list.append(response)
 
-                        connections.send(self.request, response_list)
+                        send(self.request, response_list)
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for blockget command")
 
                 elif data == "mpinsert":
                     # if (peer_ip in allowed or "any" in allowed):
                     if node.peers.is_allowed(peer_ip, data):
-                        mempool_insert = connections.receive(self.request)
+                        mempool_insert = receive(self.request)
                         logger.app_log.warning("mpinsert command")
 
                         mpinsert_result = mp.MEMPOOL.merge(mempool_insert, peer_ip, db_handler_instance.c, True, True)
                         logger.app_log.warning(f"mpinsert result: {mpinsert_result}")
-                        connections.send(self.request, mpinsert_result)
+                        send(self.request, mpinsert_result)
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for mpinsert command")
 
                 elif data == "balanceget":
                     # if (peer_ip in allowed or "any" in allowed):
                     if node.peers.is_allowed(peer_ip, data):
-                        balance_address = connections.receive(self.request)  # for which address
+                        balance_address = receive(self.request)  # for which address
 
                         balanceget_result = balanceget(balance_address, db_handler_instance)
 
-                        connections.send(self.request,
+                        send(self.request,
                                          balanceget_result)  # return balance of the address to the client, including mempool
-                        # connections.send(self.request, balance_pre)  # return balance of the address to the client, no mempool
+                        # send(self.request, balance_pre)  # return balance of the address to the client, no mempool
                     else:
                         logger.app_log.info("{peer_ip} not whitelisted for balanceget command")
 
                 elif data == "balancegetjson":
                     # if (peer_ip in allowed or "any" in allowed):
                     if node.peers.is_allowed(peer_ip, data):
-                        balance_address = connections.receive(self.request)  # for which address
+                        balance_address = receive(self.request)  # for which address
 
                         balanceget_result = balanceget(balance_address, db_handler_instance)
                         response = {"balance": balanceget_result[0],
@@ -1816,35 +1818,35 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                     "rewards": balanceget_result[4],
                                     "balance_no_mempool": balanceget_result[5]}
 
-                        connections.send(self.request,
+                        send(self.request,
                                          response)  # return balance of the address to the client, including mempool
-                        # connections.send(self.request, balance_pre)  # return balance of the address to the client, no mempool
+                        # send(self.request, balance_pre)  # return balance of the address to the client, no mempool
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for balancegetjson command")
 
                 elif data == "balancegethyper":
                     # if (peer_ip in allowed or "any" in allowed):
                     if node.peers.is_allowed(peer_ip, data):
-                        balance_address = connections.receive(self.request)  # for which address
+                        balance_address = receive(self.request)  # for which address
 
                         balanceget_result = balanceget(balance_address, db_handler_instance)[0]
 
-                        connections.send(self.request,
+                        send(self.request,
                                          balanceget_result)  # return balance of the address to the client, including mempool
-                        # connections.send(self.request, balance_pre)  # return balance of the address to the client, no mempool
+                        # send(self.request, balance_pre)  # return balance of the address to the client, no mempool
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for balancegetjson command")
 
                 elif data == "balancegethyperjson":
                     if node.peers.is_allowed(peer_ip, data):
-                        balance_address = connections.receive(self.request)  # for which address
+                        balance_address = receive(self.request)  # for which address
 
                         balanceget_result = balanceget(balance_address, db_handler_instance)
                         response = {"balance": balanceget_result[0]}
 
-                        connections.send(self.request,
+                        send(self.request,
                                          response)  # return balance of the address to the client, including mempool
-                        # connections.send(self.request, balance_pre)  # return balance of the address to the client, no mempool
+                        # send(self.request, balance_pre)  # return balance of the address to the client, no mempool
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for balancegethyperjson command")
 
@@ -1868,7 +1870,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                     # if len(mempool_txs) > 0: #wont sync mempool until we send something, which is bad
                     # send own
-                    connections.send(self.request, response_list)
+                    send(self.request, response_list)
 
                 elif data == "mpget" and node.peers.is_allowed(peer_ip, data):
                     mempool_txs = mp.MEMPOOL.fetchall(mp.SQL_SELECT_TX_TO_SEND)
@@ -1877,7 +1879,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                     # if len(mempool_txs) > 0: #wont sync mempool until we send something, which is bad
                     # send own
-                    connections.send(self.request, mempool_txs)
+                    send(self.request, mempool_txs)
 
                 elif data == "mpclear" and peer_ip == "127.0.0.1":  # reserved for localhost
                     mp.MEMPOOL.clear()
@@ -1886,7 +1888,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # if (peer_ip in allowed or "any" in allowed):
                     if node.peers.is_allowed(peer_ip, data):
                         (gen_private_key_readable, gen_public_key_readable, gen_address) = keys.generate()
-                        connections.send(self.request, (gen_private_key_readable, gen_public_key_readable, gen_address))
+                        send(self.request, (gen_private_key_readable, gen_public_key_readable, gen_address))
                         (gen_private_key_readable, gen_public_key_readable, gen_address) = (None, None, None)
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for keygen command")
@@ -1899,7 +1901,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                     "public_key": gen_public_key_readable,
                                     "address": gen_address}
 
-                        connections.send(self.request, response)
+                        send(self.request, response)
                         (gen_private_key_readable, gen_public_key_readable, gen_address) = (None, None, None)
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for keygen command")
@@ -1907,19 +1909,19 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "addlist":
                     # if (peer_ip in allowed or "any" in allowed):
                     if node.peers.is_allowed(peer_ip, data):
-                        address_tx_list = connections.receive(self.request)
+                        address_tx_list = receive(self.request)
                         db_handler_instance.execute_param(db_handler_instance.h3, (
                             "SELECT * FROM transactions WHERE (address = ? OR recipient = ?) ORDER BY block_height DESC"),
                                                           (address_tx_list, address_tx_list,))
                         result = db_handler_instance.h3.fetchall()
-                        connections.send(self.request, result)
+                        send(self.request, result)
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for addlist command")
 
                 elif data == "listlimjson":
                     # if (peer_ip in allowed or "any" in allowed):
                     if node.peers.is_allowed(peer_ip, data):
-                        list_limit = connections.receive(self.request)
+                        list_limit = receive(self.request)
                         # print(address_tx_list_limit)
                         db_handler_instance.execute_param(db_handler_instance.h3, "SELECT * FROM transactions ORDER BY block_height DESC LIMIT ?",
                                                           (list_limit,))
@@ -1942,39 +1944,39 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                             response_list.append(response)
 
-                        connections.send(self.request, response_list)
+                        send(self.request, response_list)
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for listlimjson command")
 
                 elif data == "listlim":
                     if node.peers.is_allowed(peer_ip, data):
-                        list_limit = connections.receive(self.request)
+                        list_limit = receive(self.request)
                         # print(address_tx_list_limit)
                         db_handler_instance.execute_param(db_handler_instance.h3, "SELECT * FROM transactions ORDER BY block_height DESC LIMIT ?",
                                                           (list_limit,))
                         result = db_handler_instance.h3.fetchall()
-                        connections.send(self.request, result)
+                        send(self.request, result)
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for listlim command")
 
                 elif data == "addlistlim":
                     if node.peers.is_allowed(peer_ip, data):
-                        address_tx_list = connections.receive(self.request)
-                        address_tx_list_limit = connections.receive(self.request)
+                        address_tx_list = receive(self.request)
+                        address_tx_list_limit = receive(self.request)
 
                         # print(address_tx_list_limit)
                         db_handler_instance.execute_param(db_handler_instance.h3, (
                             "SELECT * FROM transactions WHERE (address = ? OR recipient = ?) ORDER BY block_height DESC LIMIT ?"),
                                                           (address_tx_list, address_tx_list, address_tx_list_limit,))
                         result = db_handler_instance.h3.fetchall()
-                        connections.send(self.request, result)
+                        send(self.request, result)
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for addlistlim command")
 
                 elif data == "addlistlimjson":
                     if node.peers.is_allowed(peer_ip, data):
-                        address_tx_list = connections.receive(self.request)
-                        address_tx_list_limit = connections.receive(self.request)
+                        address_tx_list = receive(self.request)
+                        address_tx_list_limit = receive(self.request)
 
                         # print(address_tx_list_limit)
                         db_handler_instance.execute_param(db_handler_instance.h3, (
@@ -1999,28 +2001,28 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                             response_list.append(response)
 
-                        connections.send(self.request, response_list)
+                        send(self.request, response_list)
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for addlistlimjson command")
 
                 elif data == "addlistlimmir":
                     if node.peers.is_allowed(peer_ip, data):
-                        address_tx_list = connections.receive(self.request)
-                        address_tx_list_limit = connections.receive(self.request)
+                        address_tx_list = receive(self.request)
+                        address_tx_list_limit = receive(self.request)
 
                         # print(address_tx_list_limit)
                         db_handler_instance.execute_param(db_handler_instance.h3, (
                             "SELECT * FROM transactions WHERE (address = ? OR recipient = ?) AND block_height < 1 ORDER BY block_height ASC LIMIT ?"),
                                                           (address_tx_list, address_tx_list, address_tx_list_limit,))
                         result = db_handler_instance.h3.fetchall()
-                        connections.send(self.request, result)
+                        send(self.request, result)
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for addlistlimmir command")
 
                 elif data == "addlistlimmirjson":
                     if node.peers.is_allowed(peer_ip, data):
-                        address_tx_list = connections.receive(self.request)
-                        address_tx_list_limit = connections.receive(self.request)
+                        address_tx_list = receive(self.request)
+                        address_tx_list_limit = receive(self.request)
 
                         # print(address_tx_list_limit)
                         db_handler_instance.execute_param(db_handler_instance.h3, (
@@ -2045,9 +2047,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                             response_list.append(response)
 
-                        connections.send(self.request, response_list)
+                        send(self.request, response_list)
 
-                        connections.send(self.request, result)
+                        send(self.request, result)
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for addlistlimmir command")
 
@@ -2056,7 +2058,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if node.peers.is_allowed(peer_ip, data):
                         aliases.aliases_update(node.index_db, node.ledger_path_conf, "normal", logger.app_log)
 
-                        alias_address = connections.receive(self.request)
+                        alias_address = receive(self.request)
 
                         db_handler_instance.execute_param(db_handler_instance.index_cursor, "SELECT alias FROM aliases WHERE address = ? ",
                                                           (alias_address,))
@@ -2066,7 +2068,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         if not result:
                             result = [[alias_address]]
 
-                        connections.send(self.request, result)
+                        send(self.request, result)
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for aliasget command")
 
@@ -2074,7 +2076,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if node.peers.is_allowed(peer_ip, data):
                         aliases.aliases_update(node.index_db, node.ledger_path_conf, "normal", logger.app_log)
 
-                        aliases_request = connections.receive(self.request)
+                        aliases_request = receive(self.request)
 
                         results = []
                         for alias_address in aliases_request:
@@ -2087,7 +2089,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                 result = alias_address
                             results.append(result)
 
-                        connections.send(self.request, results)
+                        send(self.request, results)
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for aliasesget command")
 
@@ -2101,7 +2103,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if node.peers.is_allowed(peer_ip, data):
                         tokens.tokens_update(node.index_db, node.ledger_path_conf, "normal", logger.app_log,
                                              node.plugin_manager)
-                        tokens_address = connections.receive(self.request)
+                        tokens_address = receive(self.request)
 
                         db_handler_instance.index_cursor.execute(
                             "SELECT DISTINCT token FROM tokens WHERE address OR recipient = ?", (tokens_address,))
@@ -2126,7 +2128,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                             tokens_list.append((token, balance))
 
-                        connections.send(self.request, tokens_list)
+                        send(self.request, tokens_list)
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for tokensget command")
 
@@ -2135,7 +2137,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                         aliases.aliases_update(node.index_db, node.ledger_path_conf, "normal", logger.app_log)
 
-                        alias_address = connections.receive(self.request)
+                        alias_address = receive(self.request)
                         db_handler_instance.execute_param(db_handler_instance.index_cursor,
                                                           "SELECT address FROM aliases WHERE alias = ? ORDER BY block_height ASC LIMIT 1;",
                                                           (alias_address,))  # asc for first entry
@@ -2145,27 +2147,27 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             address_fetch = "No alias"
                         logger.app_log.warning(f"Fetched the following alias address: {address_fetch}")
 
-                        connections.send(self.request, address_fetch)
+                        send(self.request, address_fetch)
 
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for addfromalias command")
 
                 elif data == "pubkeyget":
                     if node.peers.is_allowed(peer_ip, data):
-                        pub_key_address = connections.receive(self.request)
+                        pub_key_address = receive(self.request)
 
                         db_handler_instance.c.execute_param(
                             "SELECT public_key FROM transactions WHERE address = ? and reward = 0 LIMIT 1",
                             pub_key_address, )
                         target_public_key_hashed = db_handler_instance.c.fetchone()[0]
-                        connections.send(self.request, target_public_key_hashed)
+                        send(self.request, target_public_key_hashed)
 
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for pubkeyget command")
 
                 elif data == "aliascheck":
                     if node.peers.is_allowed(peer_ip, data):
-                        reg_string = connections.receive(self.request)
+                        reg_string = receive(self.request)
 
                         registered_pending = mp.MEMPOOL.fetchone(
                             "SELECT timestamp FROM transactions WHERE openfield = ?;",
@@ -2175,15 +2177,15 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         registered_already = db_handler_instance.h3.fetchone()
 
                         if registered_already is None and registered_pending is None:
-                            connections.send(self.request, "Alias free")
+                            send(self.request, "Alias free")
                         else:
-                            connections.send(self.request, "Alias registered")
+                            send(self.request, "Alias registered")
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for aliascheck command")
 
                 elif data == "txsend":
                     if node.peers.is_allowed(peer_ip, data):
-                        tx_remote = connections.receive(self.request)
+                        tx_remote = receive(self.request)
 
                         # receive data necessary for remote tx construction
                         remote_tx_timestamp = tx_remote[0]
@@ -2222,7 +2224,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                         logger.app_log.info(mp.MEMPOOL.merge(mempool_data, peer_ip, db_handler_instance.c, True, True))
 
-                        connections.send(self.request, str(remote_signature_enc))
+                        send(self.request, str(remote_signature_enc))
                         # wipe variables
                         (tx_remote, remote_tx_privkey, tx_remote_key) = (None, None, None)
                     else:
@@ -2232,13 +2234,13 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "addvalidate":
                     if node.peers.is_allowed(peer_ip, data):
 
-                        address_to_validate = connections.receive(self.request)
+                        address_to_validate = receive(self.request)
                         if essentials.address_validate(address_to_validate):
                             result = "valid"
                         else:
                             result = "invalid"
 
-                        connections.send(self.request, result)
+                        send(self.request, result)
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for addvalidate command")
 
@@ -2254,7 +2256,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         except:
                             result = ""
 
-                        connections.send(self.request, result)
+                        send(self.request, result)
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for annget command")
 
@@ -2267,14 +2269,14 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         except:
                             result = ""
 
-                        connections.send(self.request, result)
+                        send(self.request, result)
 
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for annget command")
 
                 elif data == "peersget":
                     if node.peers.is_allowed(peer_ip, data):
-                        connections.send(self.request, node.peers.peer_list_disk_format())
+                        send(self.request, node.peers.peer_list_disk_format())
 
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for peersget command")
@@ -2295,7 +2297,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         else:
                             revealed_address = "private"
 
-                        connections.send(self.request, (
+                        send(self.request, (
                             revealed_address, nodes_count, nodes_list, threads_count, uptime, node.peers.consensus,
                             node.peers.consensus_percentage, VERSION, diff, server_timestamp))
 
@@ -2326,7 +2328,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                   "server_timestamp": '%.2f' % time.time()}  # extra data
                         if node.is_regnet:
                             status['regnet'] = True
-                        connections.send(self.request, status)
+                        send(self.request, status)
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for statusjson command")
                 elif data[:4] == 'api_':
@@ -2339,7 +2341,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "diffget":
                     if node.peers.is_allowed(peer_ip, data):
                         diff = node.difficulty
-                        connections.send(self.request, diff)
+                        send(self.request, diff)
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for diffget command")
 
@@ -2355,7 +2357,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                     "diff_adjustment": diff[0],
                                     "block_height": diff[0]}
 
-                        connections.send(self.request, response)
+                        send(self.request, response)
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for diffgetjson command")
 
@@ -2365,7 +2367,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         db_handler_instance.execute(db_handler_instance.h3,
                                                     "SELECT block_height, difficulty FROM misc ORDER BY block_height DESC LIMIT 1")
                         difflast = db_handler_instance.h3.fetchone()
-                        connections.send(self.request, difflast)
+                        send(self.request, difflast)
                     else:
                         logger.app_log.info("f{peer_ip} not whitelisted for difflastget command")
 
@@ -2378,7 +2380,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         response = {"block": difflast[0],
                                     "difficulty": difflast[1]
                                     }
-                        connections.send(self.request, response)
+                        send(self.request, response)
                     else:
                         logger.app_log.info(f"{peer_ip} not whitelisted for difflastjson command")
 
@@ -2459,6 +2461,8 @@ def worker(host, port):
         db_handler_instance = dbhandler.DbHandler(node.index_db, node.ledger_path_conf, node.hyper_path_conf, node.full_ledger, node.ram_conf, node.ledger_ram_file, logger, q)
 
         s = socks.socksocket()
+        
+        
         if node.tor_conf:
             s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
         # s.setblocking(0)
@@ -2467,10 +2471,10 @@ def worker(host, port):
 
         # communication starter
 
-        connections.send(s, "version")
-        connections.send(s, node.version)
+        send(s, "version")
+        send(s, node.version)
 
-        data = connections.receive(s)
+        data = receive(s)
 
         if data == "ok":
             logger.app_log.info(f"Outbound: Node protocol version of {this_client} matches our client")
@@ -2481,12 +2485,12 @@ def worker(host, port):
         # if node.last_block >= POW_FORK - FORK_AHEAD:
         # Peers that are not up to date will disconnect since they don't know that command.
         # That is precisely what we need :D
-        connections.send(s, "getversion")
-        peer_version = connections.receive(s)
+        send(s, "getversion")
+        peer_version = receive(s)
         if peer_version not in node.version_allow:
             raise ValueError(f"Outbound: Incompatible peer version {peer_version} from {this_client}")
 
-        connections.send(s, "hello")
+        send(s, "hello")
 
         # communication starter
 
@@ -2512,11 +2516,11 @@ def worker(host, port):
         try:
             ensure_good_peer_version(host)
 
-            data = connections.receive(s)  # receive data, one and the only root point
+            data = receive(s)  # receive data, one and the only root point
             # print(data)
 
             if data == "peers":
-                subdata = connections.receive(s)
+                subdata = receive(s)
                 node.peers.peersync(subdata)
 
             elif data == "sync":
@@ -2533,16 +2537,16 @@ def worker(host, port):
                     # sync start
 
                     # send block height, receive block height
-                    connections.send(s, "blockheight")
+                    send(s, "blockheight")
 
                     db_handler_instance.execute(db_handler_instance.c, 'SELECT max(block_height) FROM transactions')
                     db_block_height = db_handler_instance.c.fetchone()[0]
 
                     logger.app_log.info(f"Outbound: Sending block height to compare: {db_block_height}")
                     # append zeroes to get static length
-                    connections.send(s, db_block_height)
+                    send(s, db_block_height)
 
-                    received_block_height = connections.receive(s)  # receive node's block height
+                    received_block_height = receive(s)  # receive node's block height
                     logger.app_log.info(
                         f"Outbound: Node {peer_ip} is at block height: {received_block_height}")
 
@@ -2550,7 +2554,7 @@ def worker(host, port):
                         logger.app_log.warning(
                             f"Outbound: We have a higher block ({db_block_height}) than {peer_ip} ({received_block_height}), sending")
 
-                        data = connections.receive(s)  # receive client's last block_hash
+                        data = receive(s)  # receive client's last block_hash
 
                         # send all our followup hashes
                         logger.app_log.info(f"Outbound: Will seek the following block: {data}")
@@ -2566,8 +2570,8 @@ def worker(host, port):
                             client_block = db_handler_instance.h3.fetchone()[0]
                         except Exception:
                             logger.app_log.warning(f"Outbound: Block {data[:8]} of {peer_ip} not found")
-                            connections.send(s, "blocknf")
-                            connections.send(s, data)
+                            send(s, "blocknf")
+                            send(s, data)
 
                         else:
 
@@ -2585,7 +2589,7 @@ def worker(host, port):
                                 else:
                                     logger.app_log.info(f"Outbound: Node {peer_ip} has the latest block")
                                     # TODO: this is unlikely to happen due to conditions above, consider removing
-                                connections.send(s, "nonewblk")
+                                send(s, "nonewblk")
 
                             else:
                                 blocks_fetched = []
@@ -2605,13 +2609,13 @@ def worker(host, port):
 
                                 logger.app_log.info(f"Outbound: Selected {blocks_fetched}")
 
-                                connections.send(s, "blocksfnd")
+                                send(s, "blocksfnd")
 
-                                confirmation = connections.receive(s)
+                                confirmation = receive(s)
 
                                 if confirmation == "blockscf":
                                     logger.app_log.info("Outbound: Client confirmed they want to sync from us")
-                                    connections.send(s, blocks_fetched)
+                                    send(s, blocks_fetched)
 
                                 elif confirmation == "blocksrj":
                                     logger.app_log.info(
@@ -2629,7 +2633,7 @@ def worker(host, port):
                         db_block_hash = db_handler_instance.c.fetchone()[0]  # get latest block_hash
 
                         logger.app_log.info(f"Outbound: block_hash to send: {db_block_hash}")
-                        connections.send(s, db_block_hash)
+                        send(s, db_block_hash)
 
                         ensure_good_peer_version(host)
 
@@ -2644,7 +2648,7 @@ def worker(host, port):
                     node.syncing.remove(peer_ip)
 
             elif data == "blocknf":  # one of the possible outcomes
-                block_hash_delete = connections.receive(s)
+                block_hash_delete = receive(s)
                 # print peer_ip
                 # if max(consensus_blockheight_list) == int(received_block_height):
                 if int(received_block_height) == node.peers.consensus_max:
@@ -2682,8 +2686,8 @@ def worker(host, port):
                         try:  # they claim to have the longest chain, things must go smooth or ban
                             logger.app_log.warning(f"Confirming to sync from {peer_ip}")
 
-                            connections.send(s, "blockscf")
-                            segments = connections.receive(s)
+                            send(s, "blockscf")
+                            segments = receive(s)
                             ensure_good_peer_version(host)
 
                         except:
@@ -2695,7 +2699,7 @@ def worker(host, port):
 
                             # receive theirs
                     else:
-                        connections.send(s, "blocksrj")
+                        send(s, "blocksrj")
                         logger.app_log.warning(f"Inbound: Distant peer {peer_ip} is at {received_block_height}, should be at least {block_req}")
 
                 sendsync(s, peer_ip, "Block found", True)
@@ -2709,11 +2713,11 @@ def worker(host, port):
                     # logger.app_log.info("Outbound: Extracted from the mempool: " + str(mempool_txs))  # improve: sync based on signatures only
                     # if len(mempool_txs) > 0: #wont sync mempool until we send something, which is bad
                     # send own
-                    connections.send(s, "mempool")
-                    connections.send(s, mempool_txs)
+                    send(s, "mempool")
+                    send(s, mempool_txs)
                     # send own
                     # receive theirs
-                    segments = connections.receive(s)
+                    segments = receive(s)
                     logger.app_log.info(mp.MEMPOOL.merge(segments, peer_ip, db_handler_instance.c, True))
                     # receive theirs
                     # Tell the mempool we just send our pool to a peer
