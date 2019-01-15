@@ -51,7 +51,11 @@ class Node():
         self.last_block_timestamp = 0
         self.accept_peers = True
         self.difficulty = [0,0,0,0,0,0,0,0]
+        self.capacity = True
 
+class Client:
+    def __init__(self):
+        self.banned = False
 
 
 class Logger():

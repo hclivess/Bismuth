@@ -228,7 +228,7 @@ def download_file(url, filename):
                 if chunk:
                     chunkno = chunkno + 1
                     if chunkno % 10000 == 0:  # every x chunks
-                        print(f"Downloaded {int(100 * ((chunkno) / total_size))} %")
+                        print(f"Downloaded {int(100 * (chunkno / total_size))} %")
 
                     filename.write(chunk)
                     filename.flush()
@@ -301,22 +301,22 @@ def db_to_drive(db_handler):
         result1 = db_handler.sc.fetchall()
 
         if node.full_ledger:  # we want to save to ledger.db
-            db_handler.execute_many(db_handler.h, ("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"), result1)
+            db_handler.execute_many(db_handler.h, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", result1)
             db_handler.commit(db_handler.hdd)
 
         if node.ram_conf:  # we want to save to hyper.db from RAM/hyper.db depending on ram conf
-            db_handler.execute_many(db_handler.h2, ("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"), result1)
+            db_handler.execute_many(db_handler.h2, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", result1)
             db_handler.commit(db_handler.hdd2)
 
-        db_handler.execute_param(db_handler.sc, ("SELECT * FROM misc WHERE block_height > ? ORDER BY block_height ASC"), (node.hdd_block,))
+        db_handler.execute_param(db_handler.sc, "SELECT * FROM misc WHERE block_height > ? ORDER BY block_height ASC", (node.hdd_block,))
         result2 = db_handler.sc.fetchall()
 
         if node.full_ledger:  # we want to save to ledger.db from RAM/hyper.db depending on ram conf
-            db_handler.execute_many(db_handler.h, ("INSERT INTO misc VALUES (?,?)"), result2)
+            db_handler.execute_many(db_handler.h, "INSERT INTO misc VALUES (?,?)", result2)
             db_handler.commit(db_handler.hdd)
 
         if node.ram_conf:  # we want to save to hyper.db from RAM
-            db_handler.execute_many(db_handler.h2, ("INSERT INTO misc VALUES (?,?)"), result2)
+            db_handler.execute_many(db_handler.h2, "INSERT INTO misc VALUES (?,?)", result2)
             db_handler.commit(db_handler.hdd2)
 
         db_handler.execute(db_handler.h2, "SELECT max(block_height) FROM transactions")
@@ -397,8 +397,6 @@ def ledger_compress():
             hyper.text_factory = str
             hyp = hyper.cursor()
 
-            addresses = []
-
             hyp.execute("UPDATE transactions SET address = 'Hypoblock' WHERE address = 'Hyperblock'")
 
             hyp.execute("SELECT max(block_height) FROM transactions")
@@ -418,7 +416,7 @@ def ledger_compress():
                     try:
                         credit = quantize_eight(credit) + quantize_eight(entry[0]) + quantize_eight(entry[1])
                         credit = 0 if credit is None else credit
-                    except Exception as e:
+                    except Exception:
                         credit = 0
 
                 debit = Decimal("0")
@@ -428,7 +426,7 @@ def ledger_compress():
                     try:
                         debit = quantize_eight(debit) + quantize_eight(entry[0]) + quantize_eight(entry[1])
                         debit = 0 if debit is None else debit
-                    except Exception as e:
+                    except Exception:
                         debit = 0
 
                 end_balance = quantize_eight(credit - debit)
@@ -590,7 +588,7 @@ def balanceget(balance_address, db_handler):
     credit_ledger = Decimal("0")
 
     try:
-        db_handler.execute_param(db_handler.h3, ("SELECT amount FROM transactions WHERE recipient = ?;"), (balance_address,))
+        db_handler.execute_param(db_handler.h3, "SELECT amount FROM transactions WHERE recipient = ?;", (balance_address,))
         entries = db_handler.h3.fetchall()
     except:
         entries = []
@@ -606,7 +604,7 @@ def balanceget(balance_address, db_handler):
     debit_ledger = Decimal("0")
 
     try:
-        db_handler.execute_param(db_handler.h3, ("SELECT fee, amount FROM transactions WHERE address = ?;"), (balance_address,))
+        db_handler.execute_param(db_handler.h3, "SELECT fee, amount FROM transactions WHERE address = ?;", (balance_address,))
         entries = db_handler.h3.fetchall()
     except:
         entries = []
@@ -630,7 +628,7 @@ def balanceget(balance_address, db_handler):
     rewards = Decimal("0")
 
     try:
-        db_handler.execute_param(db_handler.h3, ("SELECT reward FROM transactions WHERE recipient = ?;"), (balance_address,))
+        db_handler.execute_param(db_handler.h3, "SELECT reward FROM transactions WHERE recipient = ?;", (balance_address,))
         entries = db_handler.c.fetchall()
     except:
         entries = []
@@ -727,7 +725,7 @@ def blocknf(block_hash_delete, peer_ip, db_handler):
             db_lock.release()
             if skip:
                 rollback = {"timestamp": my_time, "height": db_block_height, "ip": peer_ip,
-                            "hash": db_block_hash, "skipped": True, "reason": reason}
+                            "sha_hash": db_block_hash, "skipped": True, "reason": reason}
                 node.plugin_manager.execute_action_hook('rollback', rollback)
                 logger.app_log.info(f"Skipping rollback: {reason}")
             else:
@@ -749,7 +747,7 @@ def blocknf(block_hash_delete, peer_ip, db_handler):
                             miner = tx[3]
                             height = tx[0]
                     rollback = {"timestamp": my_time, "height": height, "ip": peer_ip, "miner": miner,
-                                "hash": db_block_hash, "tx_count": nb_tx, "skipped": False, "reason": ""}
+                                "sha_hash": db_block_hash, "tx_count": nb_tx, "skipped": False, "reason": ""}
                     node.plugin_manager.execute_action_hook('rollback', rollback)
 
                 except Exception as e:
@@ -966,9 +964,9 @@ def digest_block(data, sdef, peer_ip, db_handler):
 
                     validate_pem(received_public_key_hashed)
 
-                    hash = SHA.new(str((received_timestamp, received_address, received_recipient, received_amount,
+                    sha_hash = SHA.new(str((received_timestamp, received_address, received_recipient, received_amount,
                                         received_operation, received_openfield)).encode("utf-8"))
-                    if not verifier.verify(hash, received_signature_dec):
+                    if not verifier.verify(sha_hash, received_signature_dec):
                         raise ValueError(f"Invalid signature from {received_address}")
                     else:
                         logger.app_log.info(f"Valid signature from {received_address} to {received_recipient} amount {received_amount}")
@@ -1010,11 +1008,11 @@ def digest_block(data, sdef, peer_ip, db_handler):
                 # logger.app_log.info("Transaction list: {}".format(transaction_list_converted))
                 block_hash = hashlib.sha224(
                     (str(transaction_list_converted) + db_block_hash).encode("utf-8")).hexdigest()
-                # logger.app_log.info("Last block hash: {}".format(db_block_hash))
-                logger.app_log.info(f"Calculated block hash: {block_hash}")
+                # logger.app_log.info("Last block sha_hash: {}".format(db_block_hash))
+                logger.app_log.info(f"Calculated block sha_hash: {block_hash}")
                 # logger.app_log.info("Nonce: {}".format(nonce))
 
-                # check if we already have the hash
+                # check if we already have the sha_hash
                 db_handler.execute_param(db_handler.h3, "SELECT block_height FROM transactions WHERE block_hash = ?", (block_hash,))
                 dummy = db_handler.h3.fetchone()
                 if dummy:
@@ -1139,18 +1137,18 @@ def digest_block(data, sdef, peer_ip, db_handler):
                 # quantized vars have to be converted, since Decimal is not json serializable...
                 node.plugin_manager.execute_action_hook('block',
                                                         {'height': block_height_new, 'diff': diff_save,
-                                                         'hash': block_hash, 'timestamp': float(q_block_timestamp),
+                                                         'sha_hash': block_hash, 'timestamp': float(q_block_timestamp),
                                                          'miner': miner_address, 'ip': peer_ip})
 
                 node.plugin_manager.execute_action_hook('fullblock',
                                                         {'height': block_height_new, 'diff': diff_save,
-                                                         'hash': block_hash, 'timestamp': float(q_block_timestamp),
+                                                         'sha_hash': block_hash, 'timestamp': float(q_block_timestamp),
                                                          'miner': miner_address, 'ip': peer_ip,
                                                          'transactions': block_transactions})
 
                 # do not use "transaction" as it masks upper level variable.
 
-                db_handler.execute_many(db_handler.c, ("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"), block_transactions)
+                db_handler.execute_many(db_handler.c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", block_transactions)
                 db_handler.commit(db_handler.conn)
 
                 # savings
@@ -1165,13 +1163,13 @@ def digest_block(data, sdef, peer_ip, db_handler):
                         staking.staking_revalidate(db_handler.conn, db_handler.c, db_handler.index, db_handler.index_cursor,
                                                    block_height_new, logger.app_log)
 
-                # new hash
+                # new sha_hash
                 db_handler.execute(db_handler.c, "SELECT * FROM transactions WHERE block_height = (SELECT max(block_height) FROM transactions)")
-                # Was trying to simplify, but it's the latest mirror hash. not the latest block, nor the mirror of the latest block.
+                # Was trying to simplify, but it's the latest mirror sha_hash. not the latest block, nor the mirror of the latest block.
                 # c.execute("SELECT * FROM transactions WHERE block_height = ?", (block_height_new -1,))
                 tx_list_to_hash = db_handler.c.fetchall()
                 mirror_hash = blake2b(str(tx_list_to_hash).encode(), digest_size=20).hexdigest()
-                # /new hash
+                # /new sha_hash
 
                 # dev reward
                 if int(block_height_new) % 10 == 0:  # every 10 blocks
@@ -1201,7 +1199,7 @@ def digest_block(data, sdef, peer_ip, db_handler):
                 # We could recalc diff after inserting block, and then only trigger the block hook, but I fear this would delay the new block event.
 
                 # /whole block validation
-                # NEW: returns new block hash
+                # NEW: returns new block sha_hash
 
             checkpoint_set(block_height_new)
             return block_hash
@@ -1347,6 +1345,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         if node.IS_STOPPING:
             return
 
+        client_instance = classes.Client()
         db_handler_instance = dbhandler.DbHandler(node.index_db, node.ledger_path_conf, node.hyper_path_conf, node.full_ledger, node.ram_conf, node.ledger_ram_file, logger, q)
 
         try:
@@ -1357,9 +1356,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         # if threading.active_count() < node.thread_limit_conf or peer_ip == "127.0.0.1":
         # Always keep a slot for whitelisted (wallet could be there)
         if threading.active_count() < node.thread_limit_conf / 3 * 2 or node.peers.is_whitelisted(peer_ip):  # inbound
-            capacity = True
+            node.capacity = True
         else:
-            capacity = False
+            node.capacity = False
             try:
                 self.request.close()
                 logger.app_log.info(f"Free capacity for {peer_ip} unavailable, disconnected")
@@ -1369,11 +1368,10 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
             finally:
                 return
 
-        banned = False
         dict_ip = {'ip': peer_ip}
         node.plugin_manager.execute_filter_hook('peer_ip', dict_ip)
         if node.peers.is_banned(peer_ip) or dict_ip['ip'] == 'banned':
-            banned = True
+            client_instance.banned = True
             try:
                 self.request.close()
                 logger.app_log.info(f"IP {peer_ip} banned, disconnected")
@@ -1385,7 +1383,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         timeout_operation = 120  # timeout
         timer_operation = time.time()  # start counting
 
-        while not banned and capacity and node.peers.version_allowed(peer_ip, node.version_allow) and not node.IS_STOPPING:
+        while not client_instance.banned and node.capacity and node.peers.version_allowed(peer_ip, node.version_allow) and not node.IS_STOPPING:
             try:
                 # Failsafe
                 if self.request == -1:
@@ -1551,22 +1549,22 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             logger.app_log.warning("Inbound: Client has higher block")
 
                             db_handler_instance.execute(db_handler_instance.c,
-                                                        ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
+                                                        'SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1')
                             db_block_hash = db_handler_instance.c.fetchone()[0]  # get latest block_hash
 
                             logger.app_log.info(f"Inbound: block_hash to send: {db_block_hash}")
                             connections.send(self.request, db_block_hash)
 
-                            # receive their latest hash
-                            # confirm you know that hash or continue receiving
+                            # receive their latest sha_hash
+                            # confirm you know that sha_hash or continue receiving
 
                         elif int(received_block_height) <= db_block_height:
                             if int(received_block_height) == db_block_height:
                                 logger.app_log.info(
-                                    f"Inbound: We have the same height as {peer_ip} ({received_block_height}), hash will be verified")
+                                    f"Inbound: We have the same height as {peer_ip} ({received_block_height}), sha_hash will be verified")
                             else:
                                 logger.app_log.warning(
-                                    f"Inbound: We have higher ({db_block_height}) block height than {peer_ip} ({received_block_height}), hash will be verified")
+                                    f"Inbound: We have higher ({db_block_height}) block height than {peer_ip} ({received_block_height}), sha_hash will be verified")
 
                             data = connections.receive(self.request)  # receive client's last block_hash
                             # send all our followup hashes
@@ -1575,13 +1573,13 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                             try:
                                 db_handler_instance.execute_param(db_handler_instance.h3,
-                                                                  ("SELECT block_height FROM transactions WHERE block_hash = ?;"), (data,))
+                                                                  "SELECT block_height FROM transactions WHERE block_hash = ?;", (data,))
                                 client_block = db_handler_instance.h3.fetchone()[0]
 
                                 logger.app_log.info(f"Inbound: Client is at block {client_block}")  # now check if we have any newer
 
                                 db_handler_instance.execute(db_handler_instance.h3,
-                                                            ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
+                                                            'SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1')
                                 db_block_hash = db_handler_instance.h3.fetchone()[0]  # get latest block_hash
                                 if db_block_hash == data or not node.egress:
                                     if not node.egress:
@@ -1707,7 +1705,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # if (peer_ip in allowed or "any" in allowed):  # only sends the miner part of the block!
                     if node.peers.is_allowed(peer_ip, data):
                         db_handler_instance.execute(db_handler_instance.c,
-                                                    ("SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
+                                                    "SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")
                         block_last = db_handler_instance.c.fetchall()[0]
 
                         connections.send(self.request, block_last)
@@ -1718,7 +1716,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # if (peer_ip in allowed or "any" in allowed):  # only sends the miner part of the block!
                     if node.peers.is_allowed(peer_ip, data):
                         db_handler_instance.execute(db_handler_instance.c,
-                                                    ("SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;"))
+                                                    "SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")
                         block_last = db_handler_instance.c.fetchall()[0]
 
                         response = {"block_height": block_last[0],
@@ -1743,7 +1741,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if node.peers.is_allowed(peer_ip, data):
                         block_desired = connections.receive(self.request)
 
-                        db_handler_instance.execute_param(db_handler_instance.h3, ("SELECT * FROM transactions WHERE block_height = ?;"),
+                        db_handler_instance.execute_param(db_handler_instance.h3, "SELECT * FROM transactions WHERE block_height = ?;",
                                                           (block_desired,))
                         block_desired_result = db_handler_instance.h3.fetchall()
 
@@ -1756,7 +1754,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if node.peers.is_allowed(peer_ip, data):
                         block_desired = connections.receive(self.request)
 
-                        db_handler_instance.execute_param(db_handler_instance.h3, ("SELECT * FROM transactions WHERE block_height = ?;"),
+                        db_handler_instance.execute_param(db_handler_instance.h3, "SELECT * FROM transactions WHERE block_height = ?;",
                                                           (block_desired,))
                         block_desired_result = db_handler_instance.h3.fetchall()
 
@@ -1924,7 +1922,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if node.peers.is_allowed(peer_ip, data):
                         list_limit = connections.receive(self.request)
                         # print(address_tx_list_limit)
-                        db_handler_instance.execute_param(db_handler_instance.h3, ("SELECT * FROM transactions ORDER BY block_height DESC LIMIT ?"),
+                        db_handler_instance.execute_param(db_handler_instance.h3, "SELECT * FROM transactions ORDER BY block_height DESC LIMIT ?",
                                                           (list_limit,))
                         result = db_handler_instance.h3.fetchall()
 
@@ -1953,7 +1951,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if node.peers.is_allowed(peer_ip, data):
                         list_limit = connections.receive(self.request)
                         # print(address_tx_list_limit)
-                        db_handler_instance.execute_param(db_handler_instance.h3, ("SELECT * FROM transactions ORDER BY block_height DESC LIMIT ?"),
+                        db_handler_instance.execute_param(db_handler_instance.h3, "SELECT * FROM transactions ORDER BY block_height DESC LIMIT ?",
                                                           (list_limit,))
                         result = db_handler_instance.h3.fetchall()
                         connections.send(self.request, result)
@@ -2061,7 +2059,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                         alias_address = connections.receive(self.request)
 
-                        db_handler_instance.execute_param(db_handler_instance.index_cursor, ("SELECT alias FROM aliases WHERE address = ? "),
+                        db_handler_instance.execute_param(db_handler_instance.index_cursor, "SELECT alias FROM aliases WHERE address = ? ",
                                                           (alias_address,))
 
                         result = db_handler_instance.index_cursor.fetchall()
@@ -2366,7 +2364,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if node.peers.is_allowed(peer_ip, data):
 
                         db_handler_instance.execute(db_handler_instance.h3,
-                                                    ("SELECT block_height, difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
+                                                    "SELECT block_height, difficulty FROM misc ORDER BY block_height DESC LIMIT 1")
                         difflast = db_handler_instance.h3.fetchone()
                         connections.send(self.request, difflast)
                     else:
@@ -2376,7 +2374,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if node.peers.is_allowed(peer_ip, data):
 
                         db_handler_instance.execute(db_handler_instance.h3,
-                                                    ("SELECT block_height, difficulty FROM misc ORDER BY block_height DESC LIMIT 1"))
+                                                    "SELECT block_height, difficulty FROM misc ORDER BY block_height DESC LIMIT 1")
                         difflast = db_handler_instance.h3.fetchone()
                         response = {"block": difflast[0],
                                     "difficulty": difflast[1]
@@ -2448,7 +2446,10 @@ def worker(host, port):
 
     dict_ip = {'ip': host}
     node.plugin_manager.execute_filter_hook('peer_ip', dict_ip)
+    client_instance_worker = classes.Client()
+
     if node.peers.is_banned(host) or dict_ip['ip'] == 'banned':
+        client_instance_worker.banned = True
         logger.app_log.warning(f"IP {host} is banned, won't connect")
         return
 
@@ -2494,7 +2495,6 @@ def worker(host, port):
         logger.app_log.info(f"Could not connect to {this_client}: {e}")
         return  # can return here, because no lists are affected yet
 
-    banned = False
     # if node.last_block >= POW_FORK - FORK_AHEAD:
     node.peers.store_mainnet(host, peer_version)
     try:
@@ -2509,7 +2509,7 @@ def worker(host, port):
         logger.app_log.info(f"Connected to {this_client}")
         logger.app_log.info(f"Current active pool: {node.peers.connection_pool}")
 
-    while not banned and node.peers.version_allowed(host, node.version_allow) and not node.IS_STOPPING:
+    while not client_instance_worker.banned and node.peers.version_allowed(host, node.version_allow) and not node.IS_STOPPING:
         try:
             ensure_good_peer_version(host)
 
@@ -2562,7 +2562,7 @@ def worker(host, port):
                         # consensus pool 2 (active connection)
 
                         try:
-                            db_handler_instance.execute_param(db_handler_instance.h3, ("SELECT block_height FROM transactions WHERE block_hash = ?;"),
+                            db_handler_instance.execute_param(db_handler_instance.h3, "SELECT block_height FROM transactions WHERE block_hash = ?;",
                                                               (data,))
                             client_block = db_handler_instance.h3.fetchone()[0]
 
@@ -2570,7 +2570,7 @@ def worker(host, port):
                                 f"Outbound: Node is at block {client_block}")  # now check if we have any newer
 
                             db_handler_instance.execute(db_handler_instance.h3,
-                                                        ('SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1'))
+                                                        'SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1')
                             db_block_hash = db_handler_instance.h3.fetchone()[0]  # get latest block_hash
 
                             if db_block_hash == data or not node.egress:
@@ -2620,9 +2620,9 @@ def worker(host, port):
 
                     elif int(received_block_height) >= db_block_height:
                         if int(received_block_height) == db_block_height:
-                            logger.app_log.info(f"Outbound: We have the same block as {peer_ip} ({received_block_height}), hash will be verified")
+                            logger.app_log.info(f"Outbound: We have the same block as {peer_ip} ({received_block_height}), sha_hash will be verified")
                         else:
-                            logger.app_log.warning(f"Outbound: We have a lower block ({db_block_height}) than {peer_ip} ({received_block_height}), hash will be verified")
+                            logger.app_log.warning(f"Outbound: We have a lower block ({db_block_height}) than {peer_ip} ({received_block_height}), sha_hash will be verified")
 
                         db_handler_instance.execute(db_handler_instance.c, 'SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1')
                         db_block_hash = db_handler_instance.c.fetchone()[0]  # get latest block_hash
@@ -3004,12 +3004,12 @@ def verify(db_handler):
 
             db_signature_dec = base64.b64decode(db_signature_enc)
             verifier = PKCS1_v1_5.new(db_public_key)
-            hash = SHA.new(str(db_transaction).encode("utf-8"))
-            if verifier.verify(hash, db_signature_dec):
+            sha_hash = SHA.new(str(db_transaction).encode("utf-8"))
+            if verifier.verify(sha_hash, db_signature_dec):
                 pass
             else:
                 try:
-                    if hash.hexdigest() != db_hashes[db_block_height + "-" + db_timestamp]:
+                    if sha_hash.hexdigest() != db_hashes[db_block_height + "-" + db_timestamp]:
                         logger.app_log.warning("Signature validation problem: {} {}".format(db_block_height, db_transaction))
                         invalid = invalid + 1
                 except:
