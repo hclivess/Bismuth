@@ -73,7 +73,7 @@ if "Linux" in platform.system():
             except Exception as e2:
                 pass
                 #print ("Exception unregistering: {}".format(e2))
-            raise RuntimeError("Connections: {}".format(e))
+            raise RuntimeError(f"Connections: {e}")
 
 
 else:
@@ -86,10 +86,10 @@ else:
                 data = int(sdef.recv(slen))  # receive length
                 #print ("To receive: {}".format(data))
             except:
-                raise RuntimeError("Connection closed by the remote host") #do away with the invalid literal for int
+                raise RuntimeError("Connection closed by the remote host")
 
         else:
-            # logical timeout
+            # logical timeoutsha_hash
             return "*"
             #raise RuntimeError("Socket timeout")
 

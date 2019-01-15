@@ -1563,10 +1563,10 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         elif int(received_block_height) <= db_block_height:
                             if int(received_block_height) == db_block_height:
                                 logger.app_log.info(
-                                    f"Inbound: We have the same height as {peer_ip} ({received_block_height}), sha_hash will be verified")
+                                    f"Inbound: We have the same height as {peer_ip} ({received_block_height}), hash will be verified")
                             else:
                                 logger.app_log.warning(
-                                    f"Inbound: We have higher ({db_block_height}) block height than {peer_ip} ({received_block_height}), sha_hash will be verified")
+                                    f"Inbound: We have higher ({db_block_height}) block height than {peer_ip} ({received_block_height}), hash will be verified")
 
                             data = receive(self.request)  # receive client's last block_hash
                             # send all our followup hashes
@@ -2625,9 +2625,9 @@ def worker(host, port):
 
                     elif int(received_block_height) >= db_block_height:
                         if int(received_block_height) == db_block_height:
-                            logger.app_log.info(f"Outbound: We have the same block as {peer_ip} ({received_block_height}), sha_hash will be verified")
+                            logger.app_log.info(f"Outbound: We have the same block as {peer_ip} ({received_block_height}), hash will be verified")
                         else:
-                            logger.app_log.warning(f"Outbound: We have a lower block ({db_block_height}) than {peer_ip} ({received_block_height}), sha_hash will be verified")
+                            logger.app_log.warning(f"Outbound: We have a lower block ({db_block_height}) than {peer_ip} ({received_block_height}), hash will be verified")
 
                         db_handler_instance.execute(db_handler_instance.c, 'SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1')
                         db_block_hash = db_handler_instance.c.fetchone()[0]  # get latest block_hash
