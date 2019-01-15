@@ -1575,7 +1575,12 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                 db_handler_instance.execute_param(db_handler_instance.h3,
                                                                   "SELECT block_height FROM transactions WHERE block_hash = ?;", (data,))
                                 client_block = db_handler_instance.h3.fetchone()[0]
+                            except Exception:
+                                logger.app_log.warning(f"Inbound: Block {data[:8]} of {peer_ip}")
+                                connections.send(self.request, "blocknf")
+                                connections.send(self.request, data)
 
+                            else:
                                 logger.app_log.info(f"Inbound: Client is at block {client_block}")  # now check if we have any newer
 
                                 db_handler_instance.execute(db_handler_instance.h3,
@@ -1620,14 +1625,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                     elif confirmation == "blocksrj":
                                         logger.app_log.info(
                                             "Inbound: Client rejected to sync from us because we're don't have the latest block")
-                                        pass
 
-                                        # send own
 
-                            except Exception as e:
-                                logger.app_log.warning(f"Inbound: Block {data[:8]} of {peer_ip} not found ({e})")
-                                connections.send(self.request, "blocknf")
-                                connections.send(self.request, data)
 
                     except Exception as e:
                         logger.app_log.info(f"Inbound: Sync failed {e}")
@@ -2565,6 +2564,12 @@ def worker(host, port):
                             db_handler_instance.execute_param(db_handler_instance.h3, "SELECT block_height FROM transactions WHERE block_hash = ?;",
                                                               (data,))
                             client_block = db_handler_instance.h3.fetchone()[0]
+                        except Exception:
+                            logger.app_log.warning(f"Outbound: Block {data[:8]} of {peer_ip} not found")
+                            connections.send(s, "blocknf")
+                            connections.send(s, data)
+
+                        else:
 
                             logger.app_log.info(
                                 f"Outbound: Node is at block {client_block}")  # now check if we have any newer
@@ -2611,12 +2616,8 @@ def worker(host, port):
                                 elif confirmation == "blocksrj":
                                     logger.app_log.info(
                                         "Outbound: Client rejected to sync from us because we're dont have the latest block")
-                                    pass
 
-                        except Exception:
-                            logger.app_log.warning(f"Outbound: Block {data[:8]} of {peer_ip} not found")
-                            connections.send(s, "blocknf")
-                            connections.send(s, data)
+
 
                     elif int(received_block_height) >= db_block_height:
                         if int(received_block_height) == db_block_height:
