@@ -2971,8 +2971,7 @@ def verify(db_handler):
         }
         invalid = 0
 
-        for row in db_handler.execute(db_handler.h3,
-                           ('SELECT * FROM transactions WHERE block_height > 1 and reward = 0 ORDER BY block_height')):
+        for row in db_handler.h3.execute('SELECT * FROM transactions WHERE block_height > 1 and reward = 0 ORDER BY block_height'): #native sql fx to keep compatibility
 
             db_block_height = str(row[0])
             db_timestamp = '%.2f' % (quantize_two(row[1]))
