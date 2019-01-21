@@ -488,6 +488,7 @@ def difficulty(db_handler):
 
     timestamp_last = Decimal(result[1])
     block_height = int(result[0])
+    node.last_block = block_height
 
     previous = db_handler.c.fetchone()
 
@@ -928,6 +929,7 @@ def digest_block(data, sdef, peer_ip, db_handler):
                 db_block_height = result[0][1]
                 q_db_timestamp_last = quantize_two(result[0][2])
                 block_height_new = db_block_height + 1
+                node.last_block = block_height_new
                 # previous block info
 
                 transaction_list_converted = []  # makes sure all the data are properly converted
