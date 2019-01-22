@@ -1338,8 +1338,9 @@ def coherence_check(db_handler):
         logger.app_log.warning(f"Status: Chain coherence test complete for {chain}")
         conn.close()
 
-        with open("coherence_last", 'w') as filename:
-            filename.write(str(y - 1000))  # room for rollbacks
+        if y:
+            with open("coherence_last", 'w') as filename:
+                filename.write(str(y - 1000))  # room for rollbacks
 
 
 # init
