@@ -8,6 +8,7 @@ SLEN = 10
 def send(sdef, data, slen=SLEN):
     sdef.setblocking(1)
     # Make sure the packet is sent in one call
+
     sdef.sendall(str(len(str(json.dumps(data)))).encode("utf-8").zfill(slen) + str(json.dumps(data)).encode("utf-8"))
 
 if "Linux" in platform.system():

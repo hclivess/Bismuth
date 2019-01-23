@@ -14,7 +14,7 @@ import socks
 
 import regnet
 
-__version__ = "0.0.11"
+__version__ = "0.0.12"
 
 
 # TODO : some config options are _conf and others without => clean up later on
@@ -77,9 +77,6 @@ class Peers:
             self.peerfile = regnet.REGNET_PEERS
             self.suggested_peerfile = regnet.REGNET_SUGGESTED_PEERS
 
-        self.load_and_convert_if_needed()
-
-
     @property
     def is_testnet(self):
         """Helper to check if testnet or not. Only one place to change variable names and test"""
@@ -97,41 +94,6 @@ class Peers:
             # regnet takes over testnet
             return True
         return "regnet" in self.config.version_conf
-
-    def is_old_format(self, peerfile=''):
-        """Tells whether peers file is old format"""
-        if not peerfile:
-            peerfile = self.peerfile
-        with open(peerfile, 'r') as f:
-            line = f.readline(1)
-            return '(' in line
-
-    def convert_old_to_new(self, peerfile=''):
-        if not peerfile:
-            peerfile = self.peerfile
-        with open(peerfile, "r") as peer_file:
-            peer_tuples = []
-            for line in peer_file:
-                extension = re.findall("'([\d.]+)', '([\d]+)'", line)
-                peer_tuples.extend(extension)
-        peer_dict = {ip: port for ip, port in peer_tuples}
-        # print(peer_dict)
-        with open(peerfile, "w") as peer_file:
-            json.dump(peer_dict, peer_file)
-
-    def load_and_convert_if_needed(self):
-        """if peers.txt was old format, convert to new json format while in single thread mode"""
-        if self.is_old_format(self.peerfile):
-            self.app_log.warning("Converting Peers to new format")
-            self.convert_old_to_new()
-        else:
-            self.app_log.warning("Peers file is in new format")
-        self.peer_dict = self.peers_get()
-        if self.is_old_format(self.suggested_peerfile):
-            self.app_log.warning("Converting Suggested Peers to new format")
-            self.convert_old_to_new(self.suggested_peerfile)
-        else:
-            self.app_log.warning("Suggested Peers file is in new format")
 
     def status_dict(self):
         """Returns a status as a dict"""
@@ -252,13 +214,6 @@ class Peers:
             peers = peer_list.read()
         return peers
 
-    def peer_list_old_format(self):
-        """
-        Returns the peerdict as old simple text format, whatever is on disk, for old nodes compatibility.
-        Could be deprecated later on, at next HF.
-        """
-        return '\n'.join([f'("{ip}", {port})' for ip, port in self.peer_dict.items()])
-
     @property
     def consensus_most_common(self):
         """Consensus vote"""
@@ -352,6 +307,7 @@ class Peers:
                 self.app_log.info(f"Received following {len(server_peer_tuples)} peers: {server_peer_tuples}")
                 with open(self.peerfile, "r") as peer_file:
                     peers = json.load(peer_file)
+
                 for pair in set(server_peer_tuples):  # set removes duplicates
                     if pair not in peers and self.accept_peers:
                         self.app_log.info(f"Outbound: {pair} is a new peer, saving if connectible")
@@ -359,6 +315,7 @@ class Peers:
                             s_purge = socks.socksocket()
                             if self.config.tor_conf == 1:
                                 s_purge.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+
                             s_purge.connect((pair[0], int(pair[1])))  # save a new peer file with only active nodes
                             s_purge.close()
                             # suggested
@@ -385,28 +342,29 @@ class Peers:
                     peers = json.load(peer_file)
                 with open(self.suggested_peerfile) as peers_existing:
                     peers_suggested = json.load(peers_existing)
-                for pair in json.loads(subdata):
-                    if pair not in peers:
-                        self.app_log.info(f"Outbound: {pair} is a new peer, saving if connectible")
+
+                for ip,port in json.loads(subdata).items():
+
+                    if ip not in peers.keys():
+                        self.app_log.info(f"Outbound: {ip}:{port} is a new peer, saving if connectible")
                         try:
                             s_purge = socks.socksocket()
                             if self.config.tor_conf == 1:
                                 s_purge.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                            s_purge.connect((pair[0], int(pair[1])))  # save a new peer file with only active nodes
+                            s_purge.connect((ip, int(port)))  # save a new peer file with only active nodes
                             s_purge.close()
-                            if pair not in peers_suggested and pair not in peers:
-                                peers_suggested[pair[0]] = pair[1]
-                            peers[pair[0]] = pair[1]
+                            if ip not in peers_suggested.keys() and ip not in peers.keys():
+                                peers_suggested[ip] = port
+                            peers[ip] = port
                         except:
                             pass
                             self.app_log.info("Not connectible")
                     else:
-                        self.app_log.info(f"Outbound: {pair} is not a new peer")
+                        self.app_log.info(f"Outbound: {ip}:{port} is not a new peer")
 
+                self.peers_save(peers_suggested)
                 with open(self.suggested_peerfile, "w") as peer_file:
                     json.dump(peers_suggested, peer_file)
-                with open(self.peerfile, "w") as peer_file:
-                    json.dump(peers, peer_file)
 
         finally:
             self.peersync_lock.release()

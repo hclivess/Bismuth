@@ -795,6 +795,7 @@ def manager():
         mp.MEMPOOL.status()
 
         if node.last_block_ago:
+            node.last_block_ago = time.time() - int(node.last_block_timestamp)
             logger.app_log.warning(f"Status: Last block {node.last_block} was generated {'%.2f' % (node.last_block_ago / 60) } minutes ago")
         # last block
         # status Hook
@@ -812,9 +813,9 @@ def manager():
         node.plugin_manager.execute_action_hook('status', status)
         # end status hook
 
-        if node.peerlist:  # if it is not empty
+        if node.peerlist_suggested:  # if it is not empty
             try:
-                node.peers.peers_dump(node.peerlist, node.peers.peer_dict)
+                node.peers.peers_dump(node.peerlist_suggested, node.peers.peer_dict)
             except Exception as e:
                 logger.app_log.warning(f"There was an issue saving peers ({e}), skipped")
                 pass
@@ -1425,7 +1426,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         send(self.request, "notok")
                         return
                     else:
-                        logger.app_log.warning(f"Inbound: Protocol version matched: {data}")
+                        logger.app_log.warning(f"Inbound: Protocol version matched with {peer_ip}: {data}")
                         send(self.request, "ok")
                         node.peers.store_mainnet(peer_ip, data)
 
@@ -1464,7 +1465,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         return
 
                     send(self.request, "peers")
-                    send(self.request, node.peers.peer_list_old_format())  # INCOMPATIBLE WITH THE OLD WAY
+                    peers_send = node.peers.peer_list_disk_format()
+                    send(self.request, peers_send)
 
                     while db_lock.locked():
                         time.sleep(quantize_two(node.pause_conf))
@@ -2746,7 +2748,6 @@ def worker(host, port):
                 logger.app_log.info(
                     f"Will remove {this_client} from active pool {node.peers.connection_pool}")
                 logger.app_log.warning(f"Outbound: Disconnected from {this_client}: {e}")
-
                 node.peers.remove_client(this_client)
 
             # remove from active pool

@@ -23,6 +23,7 @@ class Node():
         self.ledger_path_conf = None
         self.ledger_ram_file = None
         self.peerlist = None
+        self.peerlist_suggested = None
         self.index_db = None
         self.version = None
         self.version_allow = None
