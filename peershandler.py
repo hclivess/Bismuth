@@ -117,9 +117,13 @@ class Peers:
             return True
         return self.ip_to_mainnet[ip] in version_allow
 
-    def peers_save(self, peer_ip):
-        """peers saved to memory"""
-        self.peer_dict[peer_ip] = self.config.port
+    def peer_dump(self, file, peer):
+        """saves single peer to drive"""
+        with open(file, "r") as peer_file:
+            peers_pairs = json.load(peer_file)
+            peers_pairs[peer] = self.config.port
+        with open(file, "w") as peer_file:
+            json.dump(peers_pairs, peer_file)
 
     def peers_dump(self, file, peerdict):
         """Validates then adds a peer to the peer list on disk"""
@@ -319,16 +323,19 @@ class Peers:
                             s_purge.connect((pair[0], int(pair[1])))  # save a new peer file with only active nodes
                             s_purge.close()
                             # suggested
+
                             with open(self.suggested_peerfile) as peers_existing:
                                 peers_suggested = json.load(peers_existing)
                                 if pair not in peers_suggested:
                                     peers_suggested[pair[0]] = pair[1]
+
                                     with open(self.suggested_peerfile, "w") as peer_list_file:
                                         json.dump(peers_suggested, peer_list_file)
                             # suggested
                             peers[pair[0]] = pair[1]
                             with open(self.peerfile, "w") as peer_file:
                                 json.dump(peers, peer_file)
+
                         except:
                             pass
                             self.app_log.info("Not connectible")
@@ -337,7 +344,7 @@ class Peers:
 
             else:
                 # json format
-                self.app_log.info(f"Received following {len(subdata)} peers: {subdata}")
+                self.app_log.info(f"Received following {len(json.loads(subdata))} peers: {subdata}")
                 with open(self.peerfile, "r") as peer_file:
                     peers = json.load(peer_file)
                 with open(self.suggested_peerfile) as peers_existing:
@@ -353,19 +360,15 @@ class Peers:
                                 s_purge.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
                             s_purge.connect((ip, int(port)))  # save a new peer file with only active nodes
                             s_purge.close()
-                            if ip not in peers_suggested.keys() and ip not in peers.keys():
-                                peers_suggested[ip] = port
-                            peers[ip] = port
+
+                            if ip not in peers.keys():
+                                self.peer_dict[ip] = port
+
                         except:
                             pass
                             self.app_log.info("Not connectible")
                     else:
                         self.app_log.info(f"Outbound: {ip}:{port} is not a new peer")
-
-                self.peers_save(peers_suggested)
-                with open(self.suggested_peerfile, "w") as peer_file:
-                    json.dump(peers_suggested, peer_file)
-
         finally:
             self.peersync_lock.release()
 
@@ -414,6 +417,7 @@ class Peers:
             self.consensus_lock.release()
 
     def can_connect_to(self, host, port):
+
         """
         Tells if we can connect to this host
         :param host:
@@ -555,6 +559,8 @@ class Peers:
             if int(time.time() - self.startup_time) > 15:  # refreshes peers from drive
                 self.peer_dict.update(self.peers_get(self.peerfile))
 
+            self.peers_dump(self.suggested_peerfile,self.peer_dict)
+
 
         except Exception as e:
             self.app_log.warning(f"Status: Manager run skipped due to error: {e}")
@@ -568,6 +574,7 @@ class Peers:
         if self.whitelist:
             self.app_log.warning(f"Status: Whitelist: {self.whitelist}")
 
+        self.app_log.info(f"Status: Peer dictionary: {self.peer_dict}")
         self.app_log.info(f"Status: Tried: {self.tried}")
         self.app_log.info(f"Status: Tried Count: {len(self.tried)}")
         self.app_log.info(f"Status: List of Outbound connections: {self.connection_pool}")

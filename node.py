@@ -162,7 +162,7 @@ def sendsync(sdef, peer_ip, status, provider):
     :param sdef: socket object
     :param peer_ip: IP of peer synchronization has been completed with
     :param status: Status synchronization was completed in/as
-    :param provider: <Documentation N/A>
+    :param provider: Provided a valid block
 
     Log the synchronization status
     Save peer IP to peers list if applicable
@@ -176,8 +176,7 @@ def sendsync(sdef, peer_ip, status, provider):
 
     if provider:
         logger.app_log.info(f"Outbound: Saving peer {peer_ip}")
-        node.peers.peers_save(peer_ip)
-        node.peers.peers_dump(node.peerlist, peer_ip)
+        node.peers.peer_dump(node.peerfile, peer_ip)
 
     time.sleep(Decimal(node.pause_conf))
     while db_lock.locked():
@@ -814,9 +813,9 @@ def manager():
         node.plugin_manager.execute_action_hook('status', status)
         # end status hook
 
-        if node.peerlist_suggested:  # if it is not empty
+        if node.peerfile_suggested:  # if it is not empty
             try:
-                node.peers.peers_dump(node.peerlist_suggested, node.peers.peer_dict)
+                node.peers.peers_dump(node.peerfile_suggested, node.peers.peer_dict)
             except Exception as e:
                 logger.app_log.warning(f"There was an issue saving peers ({e}), skipped")
                 pass
@@ -2808,7 +2807,7 @@ def setup_net_type():
     logger.app_log.warning(f"Regnet : {node.is_regnet}")
 
     # default mainnet config
-    node.peerlist = "peers.txt"
+    node.peerfile = "peers.txt"
     node.ledger_ram_file = "file:ledger?mode=memory&cache=shared"
     node.index_db = "static/index.db"
 
@@ -2839,7 +2838,7 @@ def setup_net_type():
         node.ledger_path_conf = "static/test.db"  # for tokens
         node.ledger_ram_file = "file:ledger_testnet?mode=memory&cache=shared"
         node.hyper_recompress_conf = False
-        node.peerlist = "peers_test.txt"
+        node.peerfile = "peers_test.txt"
         node.index_db = "static/index_test.db"
         if not 'testnet' in node.version:
             logger.app_log.error("Bad testnet version, check config.txt")
@@ -2864,7 +2863,7 @@ def setup_net_type():
         node.ledger_path_conf = regnet.REGNET_DB
         node.ledger_ram_file = "file:ledger_regnet?mode=memory&cache=shared"
         node.hyper_recompress_conf = False
-        node.peerlist = regnet.REGNET_PEERS
+        node.peerfile = regnet.REGNET_PEERS
         node.index_db = regnet.REGNET_INDEX
         if not 'regnet' in node.version:
             logger.app_log.error("Bad regnet version, check config.txt")
