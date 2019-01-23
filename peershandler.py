@@ -345,14 +345,10 @@ class Peers:
             else:
                 # json format
                 self.app_log.info(f"Received following {len(json.loads(subdata))} peers: {subdata}")
-                with open(self.peerfile, "r") as peer_file:
-                    peers = json.load(peer_file)
-                with open(self.suggested_peerfile) as peers_existing:
-                    peers_suggested = json.load(peers_existing)
 
                 for ip,port in json.loads(subdata).items():
 
-                    if ip not in peers.keys():
+                    if ip not in self.peer_dict.keys():
                         self.app_log.info(f"Outbound: {ip}:{port} is a new peer, saving if connectible")
                         try:
                             s_purge = socks.socksocket()
@@ -361,7 +357,7 @@ class Peers:
                             s_purge.connect((ip, int(port)))  # save a new peer file with only active nodes
                             s_purge.close()
 
-                            if ip not in peers.keys():
+                            if ip not in self.peer_dict.keys():
                                 self.peer_dict[ip] = port
 
                         except:
@@ -574,7 +570,7 @@ class Peers:
         if self.whitelist:
             self.app_log.warning(f"Status: Whitelist: {self.whitelist}")
 
-        self.app_log.info(f"Status: Peer dictionary: {self.peer_dict}")
+        self.app_log.warning(f"Status: Peer dictionary: {self.peer_dict}")
         self.app_log.info(f"Status: Tried: {self.tried}")
         self.app_log.info(f"Status: Tried Count: {len(self.tried)}")
         self.app_log.info(f"Status: List of Outbound connections: {self.connection_pool}")
