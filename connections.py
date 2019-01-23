@@ -108,6 +108,7 @@ else:
                  raise RuntimeError("Socket timeout")
 
         segments = b''.join(chunks).decode("utf-8")
-        #print("Received segments: {}".format(segments))
+        #print(f"Received segments: {segments} from {sdef.getpeername()[0]}")
+
 
         return json.loads(segments)
