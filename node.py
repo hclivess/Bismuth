@@ -12,7 +12,7 @@
 # issues with db? perhaps you missed a commit() or two
 
 
-VERSION = "4.2.9"  # 3. regnet support
+VERSION = "4.2.9.1"  # 3. regnet support
 
 import base64
 import glob
