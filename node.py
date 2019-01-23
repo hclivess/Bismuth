@@ -177,6 +177,7 @@ def sendsync(sdef, peer_ip, status, provider):
     if provider:
         logger.app_log.info(f"Outbound: Saving peer {peer_ip}")
         node.peers.peers_save(peer_ip)
+        node.peers.peers_dump(node.peerlist, peer_ip)
 
     time.sleep(Decimal(node.pause_conf))
     while db_lock.locked():
