@@ -474,11 +474,16 @@ def decrypt_fn(destroy_this):
 def send_confirm(amount_input, recipient_input, operation_input, openfield_input):
     amount_input = quantize_eight(amount_input)
 
-    # cryptopia check
-    if recipient_input == "edf2d63cdf0b6275ead22c9e6d66aa8ea31dc0ccb367fad2e7c08a25" and len(openfield_input) not in [16, 20]:
-        messagebox.showinfo("Cannot send", "Identification message is missing for Cryptopia, please include it")
+    # Exchange check
+    exchange_addresses = {
+        "edf2d63cdf0b6275ead22c9e6d66aa8ea31dc0ccb367fad2e7c08a25": "Cryptopia",
+        "f6c0363ca1c5aa28cc584252e65a63998493ff0a5ec1bb16beda9bac": "qTrade",
+    }
+    if recipient_input in exchange_addresses and len(openfield_input) < 16:
+        messagebox.showinfo("Cannot send",
+            "Identification message is missing for {}, please include it"
+            .format(exchange_addresses[recipient_input]))
         return
-    # cryptopia check
 
     top10 = Toplevel()
     top10.title("Confirm")
