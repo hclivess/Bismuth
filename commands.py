@@ -81,8 +81,8 @@ elif "regnet" in version:
     print("Regtest mode")
     s.connect (("127.0.0.1", 3030))
 else:
-    #s.connect(("127.0.0.1", 5658))
-    s.connect(("bismuth.live", 5658))
+    s.connect(("127.0.0.1", 5658))
+    #s.connect(("bismuth.live", 5658))
 
 def stop(socket):
     connections.send(s, "stop")
