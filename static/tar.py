@@ -88,7 +88,7 @@ def balance_from_cursor(cursor, address):
 
     return quantize_eight(credit-debit)
 
-def balance_differences ():
+def balance_differences():
     
     print ("Selecting all addresses from full ledger for errors")
     tar_obj.h.execute ("SELECT distinct(recipient) FROM transactions group by recipient;")
@@ -116,13 +116,6 @@ def balance_differences ():
 
     print(f"Done, {tar_obj.errors} errors.")
 
-    if tar_obj.errors > 0:
-        return_value = True
-    else:
-        return_value = False
-
-    return return_value
-
 dupes_check_rows_transactions(tar_obj.h, tar_obj.h_name)
 dupes_check_rows_transactions(tar_obj.h2, tar_obj.h2_name)
 dupes_check_rows_misc(tar_obj.h, tar_obj.h_name)
@@ -130,16 +123,17 @@ dupes_check_rows_misc(tar_obj.h2, tar_obj.h2_name)
 dupes_check_sigs(tar_obj.h, tar_obj.h_name)
 dupes_check_sigs(tar_obj.h2, tar_obj.h2_name)
 balance_differences()
-vacuum(tar_obj.h, tar_obj.h_name)
-vacuum(tar_obj.h2, tar_obj.h2_name)
-
-tar_obj.hdd.close()
-tar_obj.hdd2.close()
 
 if tar_obj.errors > 0:
     print("There were errors, cannot continue")
+    tar_obj.hdd.close()
+    tar_obj.hdd2.close()
     
 else:
+    vacuum(tar_obj.h, tar_obj.h_name)
+    vacuum(tar_obj.h2, tar_obj.h2_name)
+    tar_obj.hdd.close()
+    tar_obj.hdd2.close()
 
     if not process_search.proccess_presence ("node.py"):
         files = ["ledger.db-wal","ledger.db-shm","ledger.db","hyper.db-shm", "hyper.db-wal", "hyper.db", "index.db"]
