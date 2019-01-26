@@ -1265,7 +1265,7 @@ def coherence_check(db_handler):
         y = None
         # Egg: not sure block_height != (0 OR 1)  gives the proper result, 0 or 1  = 1. not in (0, 1) could be better.
         for row in c.execute(
-                "SELECT block_height FROM transactions WHERE reward != 0 AND block_height != (0 OR 1) AND block_height >= ? ORDER BY block_height ASC",
+                "SELECT block_height FROM transactions WHERE reward != 0 AND block_height > 1 AND block_height >= ? ORDER BY block_height ASC",
                 (coherence_last,)):
             y_init = row[0]
 

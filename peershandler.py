@@ -563,14 +563,13 @@ class Peers:
 
     def status_log(self):
         """Prints the peers part of the node status"""
-        self.app_log.warning(f"Total number of known peers: {len(self.peer_dict)}")
         if self.banlist:
             self.app_log.warning(f"Status: Banlist: {self.banlist}")
             self.app_log.warning(f"Status: Banlist Count : {len(self.banlist)}")
         if self.whitelist:
             self.app_log.warning(f"Status: Whitelist: {self.whitelist}")
 
-        self.app_log.warning(f"Status: Peer dictionary: {self.peer_dict}")
+        self.app_log.warning(f"Status: Known Peers: {len(self.peer_dict)}")
         self.app_log.info(f"Status: Tried: {self.tried}")
         self.app_log.info(f"Status: Tried Count: {len(self.tried)}")
         self.app_log.info(f"Status: List of Outbound connections: {self.connection_pool}")

@@ -68,7 +68,6 @@ PUBLIC_KEY_HASHED = 'matching pub key b64'
 DIGEST_BLOCK = None
 
 # because of compatibility - huge node refactor wanted.
-conn, c, hdd, h, hdd2, h2, h3 = [None] * 7
 
 
 def generate_one_block(blockhash, mempool_txs):
@@ -126,7 +125,8 @@ def generate_one_block(blockhash, mempool_txs):
                         print("Block to send: {}".format(block_send))
                     # calc hash
 
-                    new_hash = DIGEST_BLOCK([block_send], None, 'regtest', conn, c, hdd, h, hdd2, h2, h3, None, None)
+
+                    new_hash = DIGEST_BLOCK([block_send], None, 'regtest',  None)
                     # post block to self or better, send to db to make sure it is. when we add the next one?
                     # use a link to the block digest function
                     # embed at mot TX_PER_BLOCK txs from the mp

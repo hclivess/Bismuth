@@ -116,13 +116,14 @@ def balance_differences():
 
     print(f"Done, {tar_obj.errors} errors.")
 
+balance_differences()
 dupes_check_rows_transactions(tar_obj.h, tar_obj.h_name)
 dupes_check_rows_transactions(tar_obj.h2, tar_obj.h2_name)
 dupes_check_rows_misc(tar_obj.h, tar_obj.h_name)
 dupes_check_rows_misc(tar_obj.h2, tar_obj.h2_name)
 dupes_check_sigs(tar_obj.h, tar_obj.h_name)
 dupes_check_sigs(tar_obj.h2, tar_obj.h2_name)
-balance_differences()
+
 
 if tar_obj.errors > 0:
     print("There were errors, cannot continue")
