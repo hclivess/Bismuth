@@ -386,7 +386,6 @@ def api_getaddresssince(socket, arg1, arg2, arg3):
     response = connections.receive(s)
     print(json.dumps(response))
 
-
 if command == "getversion":
     connections.send(s, "getversion")
     print(connections.receive(s))

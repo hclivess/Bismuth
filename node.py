@@ -56,7 +56,7 @@ import staking
 import tokensv2 as tokens
 from essentials import fee_calculate
 from quantizer import *
-import status_reporter_file
+import connectionmanager
 
 # load config
 
@@ -2730,8 +2730,8 @@ if __name__ == "__main__":
             # hyperlane_manager.start()
 
             # start connection manager
-            status_reporter = status_reporter_file.StatusReporter(node, mp)
-            status_reporter.start()
+            connection_manager = connectionmanager.ConnectionManager(node, mp)
+            connection_manager.start()
             # start connection manager
 
 
@@ -2745,10 +2745,13 @@ if __name__ == "__main__":
 
     node.logger.app_log.warning("Status: Bismuth loop running.")
 
-    while not node.IS_STOPPING: #prevents shutdown
+
+    while True:
+        if node.IS_STOPPING:
+            if node.db_lock.locked():
+                time.sleep(0.1)
+            else:
+                mining_heavy3.mining_close()
+                node.logger.app_log.warning("Status: Successfully stopped.")
+                break
         time.sleep(1)
-
-    mining_heavy3.mining_close()
-    node.logger.app_log.warning("Status: Successfully stopped.")
-
-    sys.exit(0)

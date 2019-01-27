@@ -2,7 +2,7 @@ import threading
 import time
 from worker_file import worker
 
-class StatusReporter (threading.Thread):
+class ConnectionManager (threading.Thread):
 	def __init__(self, node, mp):
 		threading.Thread.__init__(self)
 		self.node = node
@@ -11,11 +11,12 @@ class StatusReporter (threading.Thread):
 		self.mp = mp
 
 	def run(self):
-		self.status_reporter()
+		self.connection_manager()
 
-	def status_reporter(self):
+	def connection_manager(self):
 		self.logger.app_log.warning("Status: Starting connection manager")
 		until_purge = 0
+
 		while not self.node.IS_STOPPING or self.db_lock.locked():
 			# dict_keys = peer_dict.keys()
 			# random.shuffle(peer_dict.items())
