@@ -94,13 +94,13 @@ def checkpoint_set(node, block_reference):
         node.logger.app_log.warning(f"Checkpoint set to {node.checkpoint}")
 
 
-def limit_version():
+def limit_version(node):
     if 'mainnet0018' in node.version_allow:
         node.logger.app_log.warning(f"Beginning to reject mainnet0018 - block {node.last_block}")
         node.version_allow.remove('mainnet0018')
 
 
-def tokens_rollback(height, db_handler):
+def tokens_rollback(node, height, db_handler):
     """Rollback Token index
 
     :param height: height index of token in chain
@@ -119,7 +119,7 @@ def tokens_rollback(height, db_handler):
         node.logger.app_log.warning(f"Failed to roll back the token index to {(height - 1)} due to {e}")
 
 
-def staking_rollback(height, db_handler):
+def staking_rollback(node, height, db_handler):
     """Rollback staking index
 
     :param height: height index of token in chain
@@ -138,7 +138,7 @@ def staking_rollback(height, db_handler):
         node.logger.app_log.warning(f"Failed to roll back the staking index to {(height - 1)} due to {e}")
 
 
-def aliases_rollback(height, db_handler):
+def aliases_rollback(node, height, db_handler):
     """Rollback Alias index
 
     :param height: height index of token in chain
@@ -506,13 +506,13 @@ def difficulty(node, db_handler):
 
     if node.is_mainnet:
         if block_height == POW_FORK - FORK_AHEAD:
-            limit_version()
+            limit_version(node)
         if block_height == POW_FORK - 1:
             difficulty = FORK_DIFF
         if block_height == POW_FORK:
             difficulty = FORK_DIFF
             # Remove mainnet0018 from allowed
-            limit_version()
+            limit_version(node)
             # disconnect our outgoing connections
 
     diff_drop_time = Decimal(180)
@@ -695,6 +695,7 @@ def blocknf(node, block_hash_delete, peer_ip, db_handler):
 
         except Exception as e:
             node.logger.app_log.warning(e)
+
 
         finally:
             node.db_lock.release()
@@ -2500,7 +2501,7 @@ def initial_db_check(database):
         checkpoint_set(node, node.hdd_block)
 
         if node.is_mainnet and (node.hdd_block >= POW_FORK - FORK_AHEAD):
-            limit_version()
+            limit_version(node)
 
         if node.ram_conf:
             node.logger.app_log.warning("Status: Moving database to RAM")
