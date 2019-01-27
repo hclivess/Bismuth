@@ -545,7 +545,7 @@ class Peers:
                 self.reset_tried()
                 self.reset_time = time.time()
 
-            if self.first_run:
+            if self.first_run and int(time.time() - self.startup_time) > 90:
                 self.app_log.warning("Status: First run, testing peers")
                 self.peers_test(self.peerfile)
                 self.peers_test(self.suggested_peerfile)

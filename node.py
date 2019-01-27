@@ -764,14 +764,9 @@ def blocknf(block_hash_delete, peer_ip, db_handler):
 
 
 def manager():
-    # moved to peershandler
-    # reset_time = node.startup_time
-    # peers_test("peers.txt")
-    # peers_test("suggested_peers.txt")
-
     until_purge = 0
 
-    while not node.IS_STOPPING:
+    while not node.IS_STOPPING or db_lock.locked():
         # dict_keys = peer_dict.keys()
         # random.shuffle(peer_dict.items())
         if until_purge == 0:
@@ -821,10 +816,13 @@ def manager():
                 pass
 
         # logger.app_log.info(threading.enumerate() all threads)
+        time.sleep(30)
+        """
         for i in range(30):
             # faster stop
             if not node.IS_STOPPING:
                 time.sleep(1)
+        """
 
 
 def ledger_balance3(address, cache, db_handler):

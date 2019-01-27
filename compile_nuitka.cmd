@@ -5,14 +5,15 @@ mkdir dist
 python -m nuitka --follow-imports commands.py --windows-icon=graphics\icon.ico --standalone --show-progress -j 8 --recurse-all
 python -m nuitka --follow-imports node.py --windows-icon=graphics\icon.ico --standalone --show-progress -j 8 --recurse-all
 python -m nuitka --follow-imports wallet.py --windows-icon=graphics\icon.ico --standalone --show-progress -j 8 --recurse-all
+python -m nuitka --follow-imports node_stop.py --windows-icon=graphics\icon.ico --standalone --show-progress -j 8 --recurse-all
 
 robocopy node.dist dist\files /MOVE /E
 robocopy wallet.dist dist\files /MOVE /E
 robocopy commands.dist dist\files /MOVE /E
+robocopy node_stop.dist dist\files /MOVE /E
 
 robocopy nuitka\Cryptodome dist\files\Cryptodome /MIR
 robocopy nuitka\lib dist\lib /MIR
-
 
 mkdir dist\files\static
 copy static\backup.py dist\files\static\backup.py
