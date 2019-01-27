@@ -6,7 +6,7 @@ import time
 import sqlite3
 
 class DbHandler:
-    def __init__(self, index_db, ledger_path_conf, hyper_path_conf, full_ledger, ram_conf, ledger_ram_file, logger, queue):
+    def __init__(self, index_db, ledger_path_conf, hyper_path_conf, full_ledger, ram_conf, ledger_ram_file, logger):
         self.ram_conf = ram_conf
         self.ledger_ram_file = ledger_ram_file
         self.hyper_path_conf = hyper_path_conf

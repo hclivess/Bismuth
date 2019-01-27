@@ -1,6 +1,10 @@
+import threading
+
 class Node():
 
     def __init__(self):
+        self.db_lock = threading.Lock()
+        self.app_version = None
         self.startup_time = None
         self.version_allow = None
         self.hdd_block = None
