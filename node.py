@@ -621,7 +621,7 @@ def balanceget(balance_address, db_handler):
     return str(balance), str(credit_ledger), str(debit), str(fees), str(rewards), str(balance_no_mempool)
 
 
-def blocknf(block_hash_delete, peer_ip, db_handler):
+def blocknf(node, block_hash_delete, peer_ip, db_handler):
     node.logger.app_log.info(f"Rollback operation on {block_hash_delete} initiated by {peer_ip}")
 
     my_time = time.time()
@@ -1556,7 +1556,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     block_hash_delete = receive(self.request)
                     # print peer_ip
                     if consensus_blockheight == node.peers.consensus_max:
-                        blocknf(block_hash_delete, peer_ip, db_handler_instance)
+                        blocknf(node, block_hash_delete, peer_ip, db_handler_instance)
                         if node.peers.warning(self.request, peer_ip, "Rollback", 2):
                             node.logger.app_log.info(f"{peer_ip} banned")
                             break
