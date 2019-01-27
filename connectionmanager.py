@@ -1,6 +1,6 @@
 import threading
 import time
-from worker_file import worker
+from worker import worker
 
 class ConnectionManager (threading.Thread):
 	def __init__(self, node, mp):

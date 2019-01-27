@@ -12,7 +12,7 @@
 # issues with db? perhaps you missed a commit() or two
 
 
-app_version = "4.2.9.1"    
+app_version = "4.2.9.2"
 
 import base64
 import glob
@@ -1434,7 +1434,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                     node.logger.app_log.info(f"{peer_ip} banned")
                                     break
                             else:
-                                digest_block(segments, self.request, peer_ip, db_handler_instance)
+                                digest_block(node, segments, self.request, peer_ip, db_handler_instance)
 
                                 # receive theirs
                         else:
@@ -1607,14 +1607,14 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                 mined['result'] = True
                                 node.plugin_manager.execute_action_hook('mined', mined)
                                 node.logger.app_log.info("Outbound: Processing block from miner")
-                                digest_block(segments, self.request, peer_ip, db_handler_instance)
+                                digest_block(node, segments, self.request, peer_ip, db_handler_instance)
                             else:
                                 reason = f"Outbound: Mined block was orphaned because node was not synced, we are at block {db_block_height}, should be at least {node.peers.consensus_max - 3}"
                                 mined['reason'] = reason
                                 node.plugin_manager.execute_action_hook('mined', mined)
                                 node.logger.app_log.warning(reason)
                         else:
-                            digest_block(segments, self.request, peer_ip, db_handler_instance)
+                            digest_block(node, segments, self.request, peer_ip, db_handler_instance)
                     else:
                         receive(self.request)  # receive block, but do nothing about it
                         node.logger.app_log.info(f"{peer_ip} not whitelisted for block command")
