@@ -311,11 +311,6 @@ def ledger_compress():
     """conversion of normal blocks into hyperblocks from ledger.db or hyper.db to hyper.db"""
     try:
 
-        # if os.path.exists(node.hyper_path_conf+".temp"):
-        #    os.remove(node.hyper_path_conf+".temp")
-        #    node.logger.app_log.warning("Status: Removed old temporary hyperblock file")
-        #    time.sleep(100)
-
         if os.path.exists(node.hyper_path_conf):
 
             if node.full_ledger:
@@ -688,9 +683,9 @@ def blocknf(node, block_hash_delete, peer_ip, db_handler):
                 # /roll back hdd too
 
                 # rollback indices
-                tokens_rollback(db_block_height, db_handler)
-                aliases_rollback(db_block_height, db_handler)
-                staking_rollback(db_block_height, db_handler)
+                tokens_rollback(node, db_block_height, db_handler)
+                aliases_rollback(node, db_block_height, db_handler)
+                staking_rollback(node, db_block_height, db_handler)
                 # /rollback indices
 
         except Exception as e:
@@ -1196,9 +1191,9 @@ def coherence_check(db_handler):
                     conn2.commit()
 
                     # rollback indices
-                    tokens_rollback(y, db_handler)
-                    aliases_rollback(y, db_handler)
-                    staking_rollback(y, db_handler)
+                    tokens_rollback(node, y, db_handler)
+                    aliases_rollback(node, y, db_handler)
+                    staking_rollback(node, y, db_handler)
 
                     # rollback indices
 
@@ -1238,9 +1233,9 @@ def coherence_check(db_handler):
                     conn2.close()
 
                     # rollback indices
-                    tokens_rollback(y, db_handler)
-                    aliases_rollback(y, db_handler)
-                    staking_rollback(y, db_handler)
+                    tokens_rollback(node, y, db_handler)
+                    aliases_rollback(node, y, db_handler)
+                    staking_rollback(node, y, db_handler)
                     # rollback indices
 
                     node.logger.app_log.warning(f"Status: Due to a coherence issue at block {y}, {chain} has been rolled back and will be resynchronized")
