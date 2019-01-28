@@ -67,30 +67,6 @@ class Logger():
     def __init__(self):
         self.app_log = None
 
-class Database():
-    def __init__(self):
-        self.to_ram = None
-        self.tr = None
-
-        self.conn = None
-        self.c = None
-
-        self.hdd = None
-        self.h = None
-
-        self.hdd2 = None
-        self.h2 = None
-
-        self.hdd3 = None
-        self.h3 = None
-
-        self.index = None
-        self.index_cursor = None
-
-        self.source_db = None
-        self.sc = None
-
-
 class Keys():
     def __init__(self):
         self.public_key_readable = None

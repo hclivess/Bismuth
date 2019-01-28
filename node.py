@@ -111,12 +111,12 @@ def tokens_rollback(node, height, db_handler):
     returns None
     """
     try:
-        db_handler.execute_param(db_handler.index_cursor, "DELETE FROM tokens WHERE block_height >= ?;", (height - 1,))
+        db_handler.execute_param(db_handler.index_cursor, "DELETE FROM tokens WHERE block_height >= ?;", (height,))
         db_handler.commit(db_handler.index)
 
-        node.logger.app_log.warning(f"Rolled back the token index to {(height - 1)}")
+        node.logger.app_log.warning(f"Rolled back the token index below {(height)}")
     except Exception as e:
-        node.logger.app_log.warning(f"Failed to roll back the token index to {(height - 1)} due to {e}")
+        node.logger.app_log.warning(f"Failed to roll back the token index below {(height)} due to {e}")
 
 
 def staking_rollback(node, height, db_handler):
@@ -130,12 +130,12 @@ def staking_rollback(node, height, db_handler):
     returns None
     """
     try:
-        db_handler.execute_param(db_handler.index_cursor, "DELETE FROM staking WHERE block_height >= ?;", (height - 1,))
+        db_handler.execute_param(db_handler.index_cursor, "DELETE FROM staking WHERE block_height >= ?;", (height,))
         db_handler.commit(db_handler.index)
 
-        node.logger.app_log.warning(f"Rolled back the staking index to {(height - 1)}")
+        node.logger.app_log.warning(f"Rolled back the staking index below {(height)}")
     except Exception as e:
-        node.logger.app_log.warning(f"Failed to roll back the staking index to {(height - 1)} due to {e}")
+        node.logger.app_log.warning(f"Failed to roll back the staking index below {(height)} due to {e}")
 
 
 def aliases_rollback(node, height, db_handler):
@@ -149,12 +149,12 @@ def aliases_rollback(node, height, db_handler):
     returns None
     """
     try:
-        db_handler.execute_param(db_handler.index_cursor, "DELETE FROM aliases WHERE block_height >= ?;", (height - 1,))
+        db_handler.execute_param(db_handler.index_cursor, "DELETE FROM aliases WHERE block_height >= ?;", (height,))
         db_handler.commit(db_handler.index)
 
-        node.logger.app_log.warning(f"Rolled back the alias index to {(height - 1)}")
+        node.logger.app_log.warning(f"Rolled back the alias index below {(height)}")
     except Exception as e:
-        node.logger.app_log.warning(f"Failed to roll back the alias index to {(height - 1)} due to {e}")
+        node.logger.app_log.warning(f"Failed to roll back the alias index below {(height)} due to {e}")
 
 
 
@@ -304,43 +304,71 @@ def db_to_drive(node, db_handler):
         db_handler.ram_close()
 
 
-def ledger_compress():
+def rollback_to(node, db_handler, block_height):
+    node.logger.app_log.warning(f"Status: Rolling back below: {block_height}")
+
+    db_handler.h.execute("DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?", (block_height,-block_height,))
+    db_handler.commit(db_handler.hdd)
+    db_handler.h.execute("DELETE FROM misc WHERE block_height >= ?", (block_height,))
+    db_handler.commit(db_handler.hdd)
+
+    db_handler.h2.execute("DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?", (block_height, -block_height,))
+    db_handler.commit(db_handler.hdd2)
+    db_handler.h2.execute("DELETE FROM misc WHERE block_height >= ?", (block_height,))
+    db_handler.commit(db_handler.hdd2)
+
+    # rollback indices
+    tokens_rollback(node, block_height, db_handler)
+    aliases_rollback(node, block_height, db_handler)
+    staking_rollback(node, block_height, db_handler)
+    # rollback indices
+
+    node.logger.app_log.warning(f"Status: Chain rolled back to {block_height_rollback} and will be resynchronized")
+
+def ledger_compress(node, db_handler):
+    """conversion of normal blocks into hyperblocks from ledger.db or hyper.db to hyper.db"""
+
     local_ledger_path_conf = node.ledger_path_conf
     local_hyper_path_conf = node.hyper_path_conf
 
-    """conversion of normal blocks into hyperblocks from ledger.db or hyper.db to hyper.db"""
     try:
 
         if os.path.exists(node.hyper_path_conf):
 
             if node.full_ledger:
                 # cross-integrity check
-                local_hdd = sqlite3.connect(node.ledger_path_conf, timeout=1)
-                local_hdd.text_factory = str
-                local_h = local_hdd.cursor()
-                local_h.execute("SELECT max(block_height) FROM transactions")
-                local_hdd_block_last = local_h.fetchone()[0]
-                local_hdd.close()
+                db_handler.h.execute("SELECT max(block_height) FROM transactions")                
+                hdd_block_last = db_handler.h.fetchone()[0] 
+                db_handler.h.execute("SELECT max(block_height) FROM misc")                
+                hdd_block_last_misc = db_handler.h.fetchone()[0] 
 
-                local_hdd2 = sqlite3.connect(node.hyper_path_conf, timeout=1)
-                local_hdd2.text_factory = str
-                local_h2 = local_hdd2.cursor()
-                local_h2.execute("SELECT max(block_height) FROM transactions")
-                local_hdd2_block_last = local_h2.fetchone()[0]
-                local_hdd2.close()
+                db_handler.h2.execute("SELECT max(block_height) FROM transactions")                
+                hdd2_block_last = db_handler.h2.fetchone()[0]
+                db_handler.h2.execute("SELECT max(block_height) FROM misc")                
+                hdd2_block_last_misc = db_handler.h2.fetchone()[0]
                 # cross-integrity check
 
-                if local_hdd_block_last == local_hdd2_block_last and node.hyper_recompress_conf:  # cross-integrity check
-                    local_ledger_path_conf = local_hyper_path_conf  # only valid within the function, this temporarily sets hyper.db as source
+                if hdd_block_last == hdd2_block_last and hdd2_block_last_misc == hdd_block_last_misc and node.hyper_recompress_conf:  # cross-integrity check
+                    local_ledger_path_conf = local_hyper_path_conf  # only valid within the function, this temporarily sets hyper.db as source; REWORK THIS HACK
                     node.logger.app_log.warning("Status: Recompressing hyperblocks (keeping full ledger)")
                     recompress = True
-                elif local_hdd_block_last == local_hdd2_block_last and not node.hyper_recompress_conf:
+                elif hdd_block_last == hdd2_block_last and not node.hyper_recompress_conf:
                     node.logger.app_log.warning("Status: Hyperblock recompression skipped")
                     recompress = False
                 else:
+                    lowest_block = min(hdd_block_last, hdd2_block_last, hdd_block_last_misc, hdd2_block_last_misc)
+                    highest_block = max(hdd_block_last, hdd2_block_last, hdd_block_last_misc, hdd2_block_last_misc)
+                    
+                    
                     node.logger.app_log.warning(
-                        f"Status: Cross-integrity check failed {local_hdd_block_last} not equal to {local_hdd2_block_last}, hyperblocks will be rebuilt from full ledger")
+                        f"Status: Cross-integrity check failed, {highest_block} will be rolled back below {lowest_block}")
+
+                    rollback_to(node,db_handler_initial,lowest_block) #rollback to the lowest value
+
                     recompress = True
+                    local_ledger_path_conf = local_hyper_path_conf  # only valid within the function, this temporarily sets hyper.db as source; REWORK THIS HACK
+
+
             else:
                 if node.hyper_recompress_conf:
                     node.logger.app_log.warning("Status: Recompressing hyperblocks (without full ledger)")
@@ -352,6 +380,7 @@ def ledger_compress():
         else:
             node.logger.app_log.warning("Status: Compressing ledger to Hyperblocks")
             recompress = True
+
 
         if recompress:
             depth = 15000  # REWORK TO REFLECT TIME INSTEAD OF BLOCKS
@@ -400,15 +429,6 @@ def ledger_compress():
 
                 end_balance = quantize_eight(credit - debit)
 
-                # node.logger.app_log.info("Address: "+ str(x))
-                # node.logger.app_log.info("Credit: " + str(credit))
-                # node.logger.app_log.info("Debit: " + str(debit))
-                # node.logger.app_log.info("Fees: " + str(fees))
-                # node.logger.app_log.info("Rewards: " + str(rewards))
-                # node.logger.app_log.info("Balance: " + str(end_balance))
-
-                # print(x[0],end_balance)
-
                 if end_balance > 0:
                     timestamp = str(time.time())
                     hyp.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
@@ -427,11 +447,13 @@ def ledger_compress():
 
             hyp.execute("VACUUM")
             hyper.close()
-
+            
+            """ THIS IS NECESSARY FOR HYPERBLOCK COMPLETE REBUILDS
             if os.path.exists(node.hyper_path_conf):
                 os.remove(node.hyper_path_conf)  # remove the old hyperblocks
 
             os.rename(local_ledger_path_conf + '.temp', local_hyper_path_conf)
+            """
 
         if node.full_ledger == 0 and os.path.exists(local_ledger_path_conf) and node.is_mainnet:
             os.remove(local_ledger_path_conf)
@@ -1185,7 +1207,7 @@ def coherence_check(db_handler):
                     conn2 = sqlite3.connect(chain2)
                     c2 = conn2.cursor()
                     node.logger.app_log.warning(f"Status: Chain {chain} transaction coherence error at: {row[0] - 1}. {row[0]} instead of {y}")
-                    c2.execute("DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?", (row[0] - 1, -(row[0] + 1)))
+                    c2.execute("DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?", (row[0] - 1, -(row[0] + 1,)))
                     conn2.commit()
                     c2.execute("DELETE FROM misc WHERE block_height >= ?", (row[0] - 1,))
                     conn2.commit()
@@ -2681,7 +2703,7 @@ if __name__ == "__main__":
             mp.MEMPOOL = mp.Mempool(node.logger.app_log, config, node.db_lock, node.is_testnet)
 
             check_integrity(node.hyper_path_conf)
-            ledger_compress()  # this does not work after init_database is loaded
+            #PLACEHOLDER FOR FRESH HYPERBLOCK BUILDER
 
             # if node.rebuild_db_conf: #does nothing
             #    db_maintenance(init_database)
@@ -2690,6 +2712,9 @@ if __name__ == "__main__":
             # db_manager.start()
 
             db_handler_initial = dbhandler.DbHandler(node.index_db, node.ledger_path_conf, node.hyper_path_conf, node.full_ledger, node.ram_conf, node.ledger_ram_file, node.logger)
+            ledger_compress(node, db_handler_initial)
+            
+
             initial_db_check(db_handler_initial)
             coherence_check(db_handler_initial)
             if node.verify_conf:
