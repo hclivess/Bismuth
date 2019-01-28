@@ -13,6 +13,7 @@
 
 
 app_version = "4.2.9.2"
+VERSION = app_version #compat hypernodes
 
 import base64
 import glob
