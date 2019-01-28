@@ -406,7 +406,7 @@ def recompress_ledger(node, rebuild=False, depth=15000):
 
 
 
-def ledger_compress(node, db_handler):
+def ledger_check_heights(node, db_handler):
     """conversion of normal blocks into hyperblocks from ledger.db or hyper.db to hyper.db"""
 
     if os.path.exists(node.hyper_path_conf):
@@ -424,7 +424,7 @@ def ledger_compress(node, db_handler):
             hdd2_block_last_misc = db_handler.h2.fetchone()[0]
             # cross-integrity check
 
-            if hdd_block_last == hdd2_block_last and hdd2_block_last_misc == hdd_block_last_misc and node.hyper_recompress_conf:  # cross-integrity check
+            if hdd_block_last == hdd2_block_last == hdd2_block_last_misc == hdd_block_last_misc and node.hyper_recompress_conf:  # cross-integrity check
                 node.logger.app_log.warning("Status: Recompressing hyperblocks (keeping full ledger)")
                 recompress = True
             elif hdd_block_last == hdd2_block_last and not node.hyper_recompress_conf:
@@ -1167,16 +1167,16 @@ def digest_block(node, data, sdef, peer_ip, db_handler):
         node.plugin_manager.execute_action_hook('digestblock', {'failed': "skipped", 'ip': peer_ip})
 
 
-def coherence_check(db_handler):
+def sequencing_check(db_handler):
     try:
-        with open("coherence_last", 'r') as filename:
-            coherence_last = int(filename.read())
+        with open("sequencing_last", 'r') as filename:
+            sequencing_last = int(filename.read())
 
     except:
-        node.logger.app_log.warning("Coherence anchor not found, going through the whole chain")
-        coherence_last = 0
+        node.logger.app_log.warning("Sequencing anchor not found, going through the whole chain")
+        sequencing_last = 0
 
-    node.logger.app_log.warning(f"Status: Testing chain coherence, starting with block {coherence_last}")
+    node.logger.app_log.warning(f"Status: Testing chain sequencing, starting with block {sequencing_last}")
 
     if node.full_ledger:
         chains_to_check = [node.ledger_path_conf, node.hyper_path_conf]
@@ -1192,7 +1192,7 @@ def coherence_check(db_handler):
         # Egg: not sure block_height != (0 OR 1)  gives the proper result, 0 or 1  = 1. not in (0, 1) could be better.
         for row in c.execute(
                 "SELECT block_height FROM transactions WHERE reward != 0 AND block_height > 1 AND block_height >= ? ORDER BY block_height ASC",
-                (coherence_last,)):
+                (sequencing_last,)):
             y_init = row[0]
 
             if y is None:
@@ -1203,7 +1203,7 @@ def coherence_check(db_handler):
                 for chain2 in chains_to_check:
                     conn2 = sqlite3.connect(chain2)
                     c2 = conn2.cursor()
-                    node.logger.app_log.warning(f"Status: Chain {chain} transaction coherence error at: {row[0] - 1}. {row[0]} instead of {y}")
+                    node.logger.app_log.warning(f"Status: Chain {chain} transaction sequencing error at: {row[0] - 1}. {row[0]} instead of {y}")
                     c2.execute("DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?", (row[0] - 1, -(row[0] + 1,)))
                     conn2.commit()
                     c2.execute("DELETE FROM misc WHERE block_height >= ?", (row[0] - 1,))
@@ -1216,7 +1216,7 @@ def coherence_check(db_handler):
 
                     # rollback indices
 
-                    node.logger.app_log.warning(f"Status: Due to a coherence issue at block {y}, {chain} has been rolled back and will be resynchronized")
+                    node.logger.app_log.warning(f"Status: Due to a sequencing issue at block {y}, {chain} has been rolled back and will be resynchronized")
                 break
 
             y = y + 1
@@ -1239,7 +1239,7 @@ def coherence_check(db_handler):
                     conn2 = sqlite3.connect(chain2)
                     c2 = conn2.cursor()
                     node.logger.app_log.warning(
-                        f"Status: Chain {chain} difficulty coherence error at: {row[0] - 1} {row[0]} instead of {y}")
+                        f"Status: Chain {chain} difficulty sequencing error at: {row[0] - 1} {row[0]} instead of {y}")
                     c2.execute("DELETE FROM transactions WHERE block_height >= ?", (row[0] - 1,))
                     conn2.commit()
                     c2.execute("DELETE FROM misc WHERE block_height >= ?", (row[0] - 1,))
@@ -1257,16 +1257,16 @@ def coherence_check(db_handler):
                     staking_rollback(node, y, db_handler)
                     # rollback indices
 
-                    node.logger.app_log.warning(f"Status: Due to a coherence issue at block {y}, {chain} has been rolled back and will be resynchronized")
+                    node.logger.app_log.warning(f"Status: Due to a sequencing issue at block {y}, {chain} has been rolled back and will be resynchronized")
                 break
 
             y = y + 1
 
-        node.logger.app_log.warning(f"Status: Chain coherence test complete for {chain}")
+        node.logger.app_log.warning(f"Status: Chain sequencing test complete for {chain}")
         conn.close()
 
         if y:
-            with open("coherence_last", 'w') as filename:
+            with open("sequencing_last", 'w') as filename:
                 filename.write(str(y - 1000))  # room for rollbacks
 
 
@@ -2709,11 +2709,11 @@ if __name__ == "__main__":
             # db_manager.start()
 
             db_handler_initial = dbhandler.DbHandler(node.index_db, node.ledger_path_conf, node.hyper_path_conf, node.full_ledger, node.ram_conf, node.ledger_ram_file, node.logger)
-            ledger_compress(node, db_handler_initial)
+            ledger_check_heights(node, db_handler_initial)
             
 
             initial_db_check(db_handler_initial)
-            coherence_check(db_handler_initial)
+            sequencing_check(db_handler_initial)
             if node.verify_conf:
                 verify(db_handler_initial)
 
