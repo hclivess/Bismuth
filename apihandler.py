@@ -444,8 +444,7 @@ class ApiHandler:
 
     def api_gettransaction(self, socket_handler, ledger_db, peers):
         """
-        returns total balance for a list of addresses and minconf
-        BEWARE: this is NOT the json rpc getbalance (that get balance for an account, not an address)
+        Returns the full transaction matching a tx id. Takes txid anf format as params (json output if format is True)  
         :param socket_handler:
         :param ledger_db:
         :param peers:
@@ -513,4 +512,59 @@ class ApiHandler:
         except Exception as e:
             pass
 
+def api_gettransaction_for_recipients(self, socket_handler, ledger_db, peers):
+        """
+        Returns the full transaction matching a tx id for a list of recipient addresses. 
+        Takes txid anf format as params (json output if format is True)        
+        :param socket_handler:
+        :param ledger_db:
+        :param peers:
+        :return:
+        """
+        transaction = {}
+        try:
+            # get the txid
+            transaction_id = connections.receive(socket_handler)
+            # then the recipient list
+            addresses = connections.receive(socket_handler)
+            # and format
+            format = connections.receive(socket_handler)
+            recipients = json.dumps(addresses).replace("[", "(").replace(']', ')')  # format as sql
+            # raw tx details
+            dbhandler.execute_param(self.app_log, ledger_db,
+                                    "SELECT * FROM transactions WHERE recipient IN {} AND signature LIKE ?".format(recipients),
+                                    (transaction_id + '%', ))
+            raw = ledger_db.fetchone()
+            if not format:
+                connections.send(socket_handler, raw)
+                print('api_gettransaction_for_recipients', format, raw)
+                return
 
+            # current block height, needed for confirmations #
+            dbhandler.execute(self.app_log, ledger_db, "SELECT MAX(block_height) FROM transactions")
+            block_height = ledger_db.fetchone()[0]
+            transaction['txid'] = transaction_id
+            transaction['time'] = raw[1]
+            transaction['hash'] = raw[5]
+            transaction['address'] = raw[2]
+            transaction['recipient'] = raw[3]
+            transaction['amount'] = raw[4]
+            transaction['fee'] = raw[8]
+            transaction['reward'] = raw[9]
+            transaction['keep'] = raw[10]
+            transaction['openfield'] = raw[11]
+            transaction['pubkey'] = base64.b64decode(raw[6]).decode('utf-8')
+            transaction['blockhash'] = raw[7]
+            transaction['blockheight'] = raw[0]
+            transaction['confirmations'] = block_height - raw[0]
+            # Get more info on the block the tx is in.
+            dbhandler.execute_param(self.app_log, ledger_db,
+                                    "SELECT timestamp, recipient FROM transactions WHERE block_height= ? AND reward > 0",
+                                    (raw[0],))
+            block_data = ledger_db.fetchone()
+            transaction['blocktime'] = block_data[0]
+            transaction['blockminer'] = block_data[1]
+            print('api_gettransaction_for_recipients', format, transaction)
+            connections.send(socket_handler, transaction)
+        except Exception as e:
+            raise
