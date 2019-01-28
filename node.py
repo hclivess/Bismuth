@@ -324,144 +324,140 @@ def rollback_to(node, db_handler, block_height):
     staking_rollback(node, block_height, db_handler)
     # rollback indices
 
-    node.logger.app_log.warning(f"Status: Chain rolled back to {block_height_rollback} and will be resynchronized")
+    node.logger.app_log.warning(f"Status: Chain rolled back below {block_height} and will be resynchronized")
+
+
+def recompress_ledger(node, rebuild=False, depth=15000):
+
+    if node.full_ledger and rebuild:
+        node.logger.app_log.warning(f"Status: Hyperblocks will be rebuilt")
+
+        shutil.copy(node.ledger_path_conf, node.ledger_path_conf + '.temp')
+        hyper = sqlite3.connect(node.ledger_path_conf + '.temp')
+    else:
+        shutil.copy(node.hyper_path_conf, node.ledger_path_conf + '.temp')
+        hyper = sqlite3.connect(node.ledger_path_conf + '.temp')
+
+    hyper.text_factory = str
+    hyp = hyper.cursor()
+
+    hyp.execute("UPDATE transactions SET address = 'Hypoblock' WHERE address = 'Hyperblock'")
+
+    hyp.execute("SELECT max(block_height) FROM transactions")
+    db_block_height = int(hyp.fetchone()[0])
+    depth_specific = db_block_height - depth
+
+    hyp.execute(
+        "SELECT distinct(recipient) FROM transactions WHERE (block_height < ? AND block_height > ?) ORDER BY block_height;",
+        (depth_specific, -depth_specific,))  # new addresses will be ignored until depth passed
+    unique_addressess = hyp.fetchall()
+
+    for x in set(unique_addressess):
+        credit = Decimal("0")
+        for entry in hyp.execute(
+                "SELECT amount,reward FROM transactions WHERE recipient = ? AND (block_height < ? AND block_height > ?);",
+                (x[0],) + (depth_specific, -depth_specific,)):
+            try:
+                credit = quantize_eight(credit) + quantize_eight(entry[0]) + quantize_eight(entry[1])
+                credit = 0 if credit is None else credit
+            except Exception:
+                credit = 0
+
+        debit = Decimal("0")
+        for entry in hyp.execute(
+                "SELECT amount,fee FROM transactions WHERE address = ? AND (block_height < ? AND block_height > ?);",
+                (x[0],) + (depth_specific, -depth_specific,)):
+            try:
+                debit = quantize_eight(debit) + quantize_eight(entry[0]) + quantize_eight(entry[1])
+                debit = 0 if debit is None else debit
+            except Exception:
+                debit = 0
+
+        end_balance = quantize_eight(credit - debit)
+
+        if end_balance > 0:
+            timestamp = str(time.time())
+            hyp.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
+                depth_specific - 1, timestamp, "Hyperblock", x[0], str(end_balance), "0", "0", "0", "0",
+                "0", "0", "0"))
+    hyper.commit()
+
+    hyp.execute(
+        "DELETE FROM transactions WHERE address != 'Hyperblock' AND (block_height < ? AND block_height > ?);",
+        (depth_specific, -depth_specific,))
+    hyper.commit()
+
+    hyp.execute("DELETE FROM misc WHERE (block_height < ? AND block_height > ?);",
+                (depth_specific, -depth_specific,))  # remove diff calc
+    hyper.commit()
+
+    hyp.execute("VACUUM")
+    hyper.close()
+
+
+    if os.path.exists(node.hyper_path_conf) and rebuild:
+        os.remove(node.hyper_path_conf)  # remove the old hyperblocks to rebuild
+        os.rename(node.ledger_path_conf + '.temp', node.hyper_path_conf)
+
+    if node.full_ledger == 0 and os.path.exists(node.ledger_path_conf) and node.is_mainnet:
+        os.remove(node.ledger_path_conf)
+        node.logger.app_log.warning("Removed full ledger and only kept hyperblocks")
+
+
+
 
 def ledger_compress(node, db_handler):
     """conversion of normal blocks into hyperblocks from ledger.db or hyper.db to hyper.db"""
 
-    local_ledger_path_conf = node.ledger_path_conf
-    local_hyper_path_conf = node.hyper_path_conf
+    if os.path.exists(node.hyper_path_conf):
 
-    try:
+        if node.full_ledger:
+            # cross-integrity check
+            db_handler.h.execute("SELECT max(block_height) FROM transactions")
+            hdd_block_last = db_handler.h.fetchone()[0]
+            db_handler.h.execute("SELECT max(block_height) FROM misc")
+            hdd_block_last_misc = db_handler.h.fetchone()[0]
 
-        if os.path.exists(node.hyper_path_conf):
+            db_handler.h2.execute("SELECT max(block_height) FROM transactions")
+            hdd2_block_last = db_handler.h2.fetchone()[0]
+            db_handler.h2.execute("SELECT max(block_height) FROM misc")
+            hdd2_block_last_misc = db_handler.h2.fetchone()[0]
+            # cross-integrity check
 
-            if node.full_ledger:
-                # cross-integrity check
-                db_handler.h.execute("SELECT max(block_height) FROM transactions")                
-                hdd_block_last = db_handler.h.fetchone()[0] 
-                db_handler.h.execute("SELECT max(block_height) FROM misc")                
-                hdd_block_last_misc = db_handler.h.fetchone()[0] 
-
-                db_handler.h2.execute("SELECT max(block_height) FROM transactions")                
-                hdd2_block_last = db_handler.h2.fetchone()[0]
-                db_handler.h2.execute("SELECT max(block_height) FROM misc")                
-                hdd2_block_last_misc = db_handler.h2.fetchone()[0]
-                # cross-integrity check
-
-                if hdd_block_last == hdd2_block_last and hdd2_block_last_misc == hdd_block_last_misc and node.hyper_recompress_conf:  # cross-integrity check
-                    local_ledger_path_conf = local_hyper_path_conf  # only valid within the function, this temporarily sets hyper.db as source; REWORK THIS HACK
-                    node.logger.app_log.warning("Status: Recompressing hyperblocks (keeping full ledger)")
-                    recompress = True
-                elif hdd_block_last == hdd2_block_last and not node.hyper_recompress_conf:
-                    node.logger.app_log.warning("Status: Hyperblock recompression skipped")
-                    recompress = False
-                else:
-                    lowest_block = min(hdd_block_last, hdd2_block_last, hdd_block_last_misc, hdd2_block_last_misc)
-                    highest_block = max(hdd_block_last, hdd2_block_last, hdd_block_last_misc, hdd2_block_last_misc)
-                    
-                    
-                    node.logger.app_log.warning(
-                        f"Status: Cross-integrity check failed, {highest_block} will be rolled back below {lowest_block}")
-
-                    rollback_to(node,db_handler_initial,lowest_block) #rollback to the lowest value
-
-                    recompress = True
-                    local_ledger_path_conf = local_hyper_path_conf  # only valid within the function, this temporarily sets hyper.db as source; REWORK THIS HACK
-
-
+            if hdd_block_last == hdd2_block_last and hdd2_block_last_misc == hdd_block_last_misc and node.hyper_recompress_conf:  # cross-integrity check
+                node.logger.app_log.warning("Status: Recompressing hyperblocks (keeping full ledger)")
+                recompress = True
+            elif hdd_block_last == hdd2_block_last and not node.hyper_recompress_conf:
+                node.logger.app_log.warning("Status: Hyperblock recompression skipped")
+                recompress = False
             else:
-                if node.hyper_recompress_conf:
-                    node.logger.app_log.warning("Status: Recompressing hyperblocks (without full ledger)")
-                    recompress = True
-                else:
-                    node.logger.app_log.warning("Status: Hyperblock recompression skipped")
-                    recompress = False
+                lowest_block = min(hdd_block_last, hdd2_block_last, hdd_block_last_misc, hdd2_block_last_misc)
+                highest_block = max(hdd_block_last, hdd2_block_last, hdd_block_last_misc, hdd2_block_last_misc)
 
+
+                node.logger.app_log.warning(
+                    f"Status: Cross-integrity check failed, {highest_block} will be rolled back below {lowest_block}")
+
+                rollback_to(node,db_handler_initial,lowest_block) #rollback to the lowest value
+
+                recompress = True
         else:
-            node.logger.app_log.warning("Status: Compressing ledger to Hyperblocks")
-            recompress = True
-
-
-        if recompress:
-            depth = 15000  # REWORK TO REFLECT TIME INSTEAD OF BLOCKS
-
-            if node.full_ledger:
-                shutil.copy(local_ledger_path_conf, local_ledger_path_conf + '.temp')
-                hyper = sqlite3.connect(local_ledger_path_conf + '.temp')
+            if node.hyper_recompress_conf:
+                node.logger.app_log.warning("Status: Recompressing hyperblocks (without full ledger)")
+                recompress = True
             else:
-                shutil.copy(local_hyper_path_conf, local_ledger_path_conf + '.temp')
-                hyper = sqlite3.connect(local_ledger_path_conf + '.temp')
+                node.logger.app_log.warning("Status: Hyperblock recompression skipped")
+                recompress = False
 
-            hyper.text_factory = str
-            hyp = hyper.cursor()
+    else:
+        node.logger.app_log.warning("Status: Compressing ledger to Hyperblocks")
+        recompress = True
 
-            hyp.execute("UPDATE transactions SET address = 'Hypoblock' WHERE address = 'Hyperblock'")
+    if recompress:
+        recompress_ledger(node)
 
-            hyp.execute("SELECT max(block_height) FROM transactions")
-            db_block_height = int(hyp.fetchone()[0])
-            depth_specific = db_block_height - depth
 
-            hyp.execute(
-                "SELECT distinct(recipient) FROM transactions WHERE (block_height < ? AND block_height > ?) ORDER BY block_height;",
-                (depth_specific, -depth_specific,))  # new addresses will be ignored until depth passed
-            unique_addressess = hyp.fetchall()
 
-            for x in set(unique_addressess):
-                credit = Decimal("0")
-                for entry in hyp.execute(
-                        "SELECT amount,reward FROM transactions WHERE recipient = ? AND (block_height < ? AND block_height > ?);",
-                        (x[0],) + (depth_specific, -depth_specific,)):
-                    try:
-                        credit = quantize_eight(credit) + quantize_eight(entry[0]) + quantize_eight(entry[1])
-                        credit = 0 if credit is None else credit
-                    except Exception:
-                        credit = 0
-
-                debit = Decimal("0")
-                for entry in hyp.execute(
-                        "SELECT amount,fee FROM transactions WHERE address = ? AND (block_height < ? AND block_height > ?);",
-                        (x[0],) + (depth_specific, -depth_specific,)):
-                    try:
-                        debit = quantize_eight(debit) + quantize_eight(entry[0]) + quantize_eight(entry[1])
-                        debit = 0 if debit is None else debit
-                    except Exception:
-                        debit = 0
-
-                end_balance = quantize_eight(credit - debit)
-
-                if end_balance > 0:
-                    timestamp = str(time.time())
-                    hyp.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
-                        depth_specific - 1, timestamp, "Hyperblock", x[0], str(end_balance), "0", "0", "0", "0",
-                        "0", "0", "0"))
-            hyper.commit()
-
-            hyp.execute(
-                "DELETE FROM transactions WHERE address != 'Hyperblock' AND (block_height < ? AND block_height > ?);",
-                (depth_specific, -depth_specific,))
-            hyper.commit()
-
-            hyp.execute("DELETE FROM misc WHERE (block_height < ? AND block_height > ?);",
-                        (depth_specific, -depth_specific,))  # remove diff calc
-            hyper.commit()
-
-            hyp.execute("VACUUM")
-            hyper.close()
-            
-            """ THIS IS NECESSARY FOR HYPERBLOCK COMPLETE REBUILDS
-            if os.path.exists(node.hyper_path_conf):
-                os.remove(node.hyper_path_conf)  # remove the old hyperblocks
-
-            os.rename(local_ledger_path_conf + '.temp', local_hyper_path_conf)
-            """
-
-        if node.full_ledger == 0 and os.path.exists(local_ledger_path_conf) and node.is_mainnet:
-            os.remove(local_ledger_path_conf)
-            node.logger.app_log.warning("Removed full ledger and only kept hyperblocks")
-
-    except Exception as e:
-        raise ValueError(f"There was an issue converting to Hyperblocks: {e}")
 
 
 def most_common(lst):
