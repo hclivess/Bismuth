@@ -329,6 +329,12 @@ def rollback_to(node, db_handler, block_height):
 
 def recompress_ledger(node, rebuild=False, depth=15000):
 
+    files_remove = [node.ledger_path_conf + '.temp',node.ledger_path_conf + '.temp-shm',node.ledger_path_conf + '.temp-wal']
+    for file in files_remove:
+        if os.path.exists(file):
+            os.remove(file)
+            node.logger.app_log.warning(f"Removed old {file}")
+
     if node.full_ledger and rebuild:
         node.logger.app_log.warning(f"Status: Hyperblocks will be rebuilt")
 

@@ -58,6 +58,8 @@ class Node():
         self.accept_peers = True
         self.difficulty = [0,0,0,0,0,0,0,0]
         self.capacity = True
+        self.ledger_temp = None
+        self.hyper_temp = None
 
 class Client:
     def __init__(self):
