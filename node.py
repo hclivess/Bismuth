@@ -1346,7 +1346,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         block_hash = db_handler_instance.c.fetchone()[0]
                         # feed regnet with current thread db handle. refactor needed.
                         regnet.conn, regnet.c, regnet.hdd, regnet.h, regnet.hdd2, regnet.h2, regnet.h3 = db_handler_instance.conn, db_handler_instance.c, db_handler_instance.hdd, db_handler_instance.h, db_handler_instance.hdd2, db_handler_instance.h2, db_handler_instance.h3
-                        regnet.command(self.request, data, block_hash)
+                        regnet.command(self.request, data, block_hash, node, db_handler_instance)
 
                 if data == 'version':
                     data = receive(self.request)

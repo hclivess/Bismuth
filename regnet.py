@@ -18,13 +18,6 @@ import connections
 import mempool as mp
 import mining_heavy3 as mining
 
-import classes
-import dbhandler
-import peershandler
-import log
-import options
-import plugins
-
 # fixed diff for regnet
 REGNET_DIFF = 24
 
@@ -66,7 +59,7 @@ TX_PER_BLOCK = 2
 
 
 # Do not edit below, it's fed by node.py
-APP_LOG = None
+
 ADDRESS = 'This is a fake address placeholder for regtest mode only'
 KEY = None
 PRIVATE_KEY_READABLE = 'matching priv key'
@@ -77,10 +70,11 @@ DIGEST_BLOCK = None
 # because of compatibility - huge node refactor wanted.
 
 
-def generate_one_block(blockhash, mempool_txs):
+
+def generate_one_block(blockhash, mempool_txs, node, db_handler):
     try:
         if not blockhash:
-            APP_LOG.warning("Bad blockhash")
+            node.logger.app_log.warning("Bad blockhash")
             return
         diff_hex = math.floor((REGNET_DIFF / 8) - 1)
         mining_condition = blockhash[0:diff_hex]
@@ -96,7 +90,7 @@ def generate_one_block(blockhash, mempool_txs):
                              sha224((prefix + nonce + blockhash).encode("utf-8")).digest(), 'big')))]
                 if possibles:
                     nonce = seed + possibles[0]
-                    APP_LOG.warning("Generate got a block in {} tries len {}".format(i, len(possibles)))
+                    node.logger.app_log.warning("Generate got a block in {} tries len {}".format(i, len(possibles)))
                     # assemble block with mp data
                     txs = []
                     for i in range(TX_PER_BLOCK):
@@ -132,20 +126,6 @@ def generate_one_block(blockhash, mempool_txs):
                         print("Block to send: {}".format(block_send))
                     # calc hash
 
-                    #new in 4.2.9+
-                    node = classes.Node()
-                    node.logger = classes.Logger()
-                    config = options.Get()
-                    config.read()
-
-                    node.logger.app_log = log.log("regtest.log", "INFO", True)
-                    db_handler = dbhandler.DbHandler(REGNET_INDEX, REGNET_DB, REGNET_DB, True, False, "file:ledger?mode=memory&cache=shared", classes.Logger())
-                    node.last_block = 1
-                    node.difficulty = [REGNET_DIFF,REGNET_DIFF,0,0,0,0,0,0]
-                    node.peers = peershandler.Peers(node.logger.app_log, config, node)
-                    node.plugin_manager = plugins.PluginManager(app_log=node.logger.app_log, init=True)
-                    # new in 4.2.9+
-
                     new_hash = DIGEST_BLOCK(node, [block_send], None, 'regtest',  db_handler)
                     # post block to self or better, send to db to make sure it is. when we add the next one?
                     # use a link to the block digest function
@@ -153,32 +133,29 @@ def generate_one_block(blockhash, mempool_txs):
                     return new_hash
 
     except Exception as e:
-        APP_LOG.warning(e)
+        node.logger.app_log.warning(e)
         exc_type, exc_obj, exc_tb = sys.exc_info()
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
         print(exc_type, fname, exc_tb.tb_lineno)
 
-def command(sdef, data, blockhash):
+def command(sdef, data, blockhash, node, db_handler):
     try:
-        APP_LOG.warning("Regnet got command {}".format(data))
+        node.logger.app_log.warning("Regnet got command {}".format(data))
         if data == 'regtest_generate':
             how_many = int(connections.receive(sdef))
-            APP_LOG.warning("regtest_generate {} {}".format(how_many, blockhash))
+            node.logger.app_log.warning("regtest_generate {} {}".format(how_many, blockhash))
             mempool_txs = mp.MEMPOOL.fetchall(mp.SQL_SELECT_TX_TO_SEND)
             for i in range(how_many):
-                blockhash = generate_one_block(blockhash, mempool_txs)
+                blockhash = generate_one_block(blockhash, mempool_txs, node, db_handler)
             connections.send(sdef, 'OK')
     except Exception as e:
-        APP_LOG.warning(e)
+        node.logger.app_log.warning(e)
         exc_type, exc_obj, exc_tb = sys.exc_info()
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
         print(exc_type, fname, exc_tb.tb_lineno)
 
 
 def init(app_log):
-    global APP_LOG
-    APP_LOG = app_log
-
     # Empty peers
     with open(REGNET_PEERS, 'w') as f:
         f.write("{}")
