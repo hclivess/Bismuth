@@ -18,6 +18,13 @@ import connections
 import mempool as mp
 import mining_heavy3 as mining
 
+import classes
+import dbhandler
+import peershandler
+import log
+import options
+import plugins
+
 # fixed diff for regnet
 REGNET_DIFF = 24
 
@@ -125,8 +132,21 @@ def generate_one_block(blockhash, mempool_txs):
                         print("Block to send: {}".format(block_send))
                     # calc hash
 
+                    #new in 4.2.9+
+                    node = classes.Node()
+                    node.logger = classes.Logger()
+                    config = options.Get()
+                    config.read()
 
-                    new_hash = DIGEST_BLOCK([block_send], None, 'regtest',  None)
+                    node.logger.app_log = log.log("regtest.log", "INFO", True)
+                    db_handler = dbhandler.DbHandler(REGNET_INDEX, REGNET_DB, REGNET_DB, True, False, "file:ledger?mode=memory&cache=shared", classes.Logger())
+                    node.last_block = 1
+                    node.difficulty = [REGNET_DIFF,REGNET_DIFF,0,0,0,0,0,0]
+                    node.peers = peershandler.Peers(node.logger.app_log, config, node)
+                    node.plugin_manager = plugins.PluginManager(app_log=node.logger.app_log, init=True)
+                    # new in 4.2.9+
+
+                    new_hash = DIGEST_BLOCK(node, [block_send], None, 'regtest',  db_handler)
                     # post block to self or better, send to db to make sure it is. when we add the next one?
                     # use a link to the block digest function
                     # embed at mot TX_PER_BLOCK txs from the mp
@@ -137,7 +157,6 @@ def generate_one_block(blockhash, mempool_txs):
         exc_type, exc_obj, exc_tb = sys.exc_info()
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
         print(exc_type, fname, exc_tb.tb_lineno)
-
 
 def command(sdef, data, blockhash):
     try:
