@@ -1203,10 +1203,10 @@ def sequencing_check(db_handler):
                 for chain2 in chains_to_check:
                     conn2 = sqlite3.connect(chain2)
                     c2 = conn2.cursor()
-                    node.logger.app_log.warning(f"Status: Chain {chain} transaction sequencing error at: {row[0] - 1}. {row[0]} instead of {y}")
-                    c2.execute("DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?", (row[0] - 1, -(row[0] + 1,)))
+                    node.logger.app_log.warning(f"Status: Chain {chain} transaction sequencing error at: {row[0]}. {row[0]} instead of {y}")
+                    c2.execute("DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?", (row[0], -row[0],))
                     conn2.commit()
-                    c2.execute("DELETE FROM misc WHERE block_height >= ?", (row[0] - 1,))
+                    c2.execute("DELETE FROM misc WHERE block_height >= ?", (row[0],))
                     conn2.commit()
 
                     # rollback indices
@@ -1239,15 +1239,15 @@ def sequencing_check(db_handler):
                     conn2 = sqlite3.connect(chain2)
                     c2 = conn2.cursor()
                     node.logger.app_log.warning(
-                        f"Status: Chain {chain} difficulty sequencing error at: {row[0] - 1} {row[0]} instead of {y}")
-                    c2.execute("DELETE FROM transactions WHERE block_height >= ?", (row[0] - 1,))
+                        f"Status: Chain {chain} difficulty sequencing error at: {row[0]} {row[0]} instead of {y}")
+                    c2.execute("DELETE FROM transactions WHERE block_height >= ?", row[0],)
                     conn2.commit()
-                    c2.execute("DELETE FROM misc WHERE block_height >= ?", (row[0] - 1,))
+                    c2.execute("DELETE FROM misc WHERE block_height >= ?", row[0],)
                     conn2.commit()
 
                     db_handler.execute_param(conn2, (
                         'DELETE FROM transactions WHERE address = "Development Reward" AND block_height <= ?'),
-                                             (-(row[0] + 1),))
+                                             (-row[0],))
                     conn2.commit()
                     conn2.close()
 
