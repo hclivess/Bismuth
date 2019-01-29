@@ -104,14 +104,14 @@ def generate_one_block(blockhash, mempool_txs, node, db_handler):
                             str(mpdata[0]), str(mpdata[1][:56]), str(mpdata[2][:56]), '%.8f' % float(mpdata[3]),
                             str(mpdata[4]), str(mpdata[5]), str(mpdata[6]),
                             str(mpdata[7]))  # create tuple
-                        # print transaction
+                        # node.logger.app_log.warning transaction
                         block_send.append(transaction)  # append tuple to list for each run
                         removal_signature.append(str(mpdata[4]))  # for removal after successful mining
                     # claim reward
                     block_timestamp = '%.2f' % time.time()
                     transaction_reward = (str(block_timestamp), str(ADDRESS[:56]), str(ADDRESS[:56]),
                                           '%.8f' % float(0), "0", str(nonce))  # only this part is signed!
-                    # print transaction_reward
+                    # node.logger.app_log.warning transaction_reward
 
                     hash = SHA.new(str(transaction_reward).encode("utf-8"))
                     signer = PKCS1_v1_5.new(KEY)
@@ -119,11 +119,11 @@ def generate_one_block(blockhash, mempool_txs, node, db_handler):
                     signature_enc = base64.b64encode(signature)
 
                     if signer.verify(hash, signature):
-                        print("Signature valid")
+                        node.logger.app_log.warning("Signature valid")
                         block_send.append((str(block_timestamp), str(ADDRESS[:56]), str(ADDRESS[:56]), '%.8f' % float(0),
                                            str(signature_enc.decode("utf-8")), str(PUBLIC_KEY_HASHED.decode("utf-8")),
                                            "0", str(nonce)))  # mining reward tx
-                        print("Block to send: {}".format(block_send))
+                        node.logger.app_log.warning("Block to send: {}".format(block_send))
                     # calc hash
 
                     new_hash = DIGEST_BLOCK(node, [block_send], None, 'regtest',  db_handler)
@@ -136,7 +136,7 @@ def generate_one_block(blockhash, mempool_txs, node, db_handler):
         node.logger.app_log.warning(e)
         exc_type, exc_obj, exc_tb = sys.exc_info()
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-        print(exc_type, fname, exc_tb.tb_lineno)
+        node.logger.app_log.warning(exc_type, fname, exc_tb.tb_lineno)
 
 def command(sdef, data, blockhash, node, db_handler):
     try:
@@ -152,7 +152,7 @@ def command(sdef, data, blockhash, node, db_handler):
         node.logger.app_log.warning(e)
         exc_type, exc_obj, exc_tb = sys.exc_info()
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-        print(exc_type, fname, exc_tb.tb_lineno)
+        node.logger.app_log.warning(exc_type, fname, exc_tb.tb_lineno)
 
 
 def init(app_log):
