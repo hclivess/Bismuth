@@ -58,15 +58,15 @@ import tokensv2 as tokens
 from essentials import fee_calculate
 from quantizer import *
 import connectionmanager
+from difficulty import *
+from fork import *
 
 # load config
 
-POW_FORK = 854660
-FORK_AHEAD = 5
-FORK_DIFF = 108.9
+
 
 getcontext().rounding = ROUND_HALF_EVEN
-
+POW_FORK, FORK_AHEAD, FORK_DIFF = fork()
 
 
 from appdirs import *
@@ -93,13 +93,6 @@ def checkpoint_set(node, block_reference):
     if block_reference > 2000:
         node.checkpoint = round_down(block_reference, 1000) - 1000
         node.logger.app_log.warning(f"Checkpoint set to {node.checkpoint}")
-
-
-def limit_version(node):
-    if 'mainnet0018' in node.version_allow:
-        node.logger.app_log.warning(f"Beginning to reject mainnet0018 - block {node.last_block}")
-        node.version_allow.remove('mainnet0018')
-
 
 def tokens_rollback(node, height, db_handler):
     """Rollback Token index
@@ -474,93 +467,6 @@ def bin_convert(string):
     return ''.join(format(ord(x), '8b').replace(' ', '0') for x in string)
 
 
-def difficulty(node, db_handler):
-    try:
-        db_handler.execute(db_handler.c, "SELECT * FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 2")
-        result = db_handler.c.fetchone()
-
-        timestamp_last = Decimal(result[1])
-        block_height = int(result[0])
-        node.last_block = block_height
-
-        previous = db_handler.c.fetchone()
-
-        node.last_block_ago = int(time.time() - int(timestamp_last))
-
-        # Failsafe for regtest starting at block 1}
-        timestamp_before_last = timestamp_last if previous is None else Decimal(previous[1])
-
-        db_handler.execute_param(db_handler.c, (
-            "SELECT timestamp FROM transactions WHERE block_height > ? AND reward != 0 ORDER BY timestamp ASC LIMIT 2"),
-                                 (block_height - 1441,))
-        timestamp_1441 = Decimal(db_handler.c.fetchone()[0])
-        block_time_prev = (timestamp_before_last - timestamp_1441) / 1440
-        temp = db_handler.c.fetchone()
-        timestamp_1440 = timestamp_1441 if temp is None else Decimal(temp[0])
-        block_time = Decimal(timestamp_last - timestamp_1440) / 1440
-        db_handler.execute(db_handler.c, "SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1")
-        diff_block_previous = Decimal(db_handler.c.fetchone()[0])
-
-        time_to_generate = timestamp_last - timestamp_before_last
-
-        if node.is_regnet:
-            return (float('%.10f' % regnet.REGNET_DIFF), float('%.10f' % (regnet.REGNET_DIFF - 8)), float(time_to_generate),
-                    float(regnet.REGNET_DIFF), float(block_time), float(0), float(0), block_height)
-
-        hashrate = pow(2, diff_block_previous / Decimal(2.0)) / (
-                block_time * math.ceil(28 - diff_block_previous / Decimal(16.0)))
-        # Calculate new difficulty for desired blocktime of 60 seconds
-        target = Decimal(60.00)
-        ##D0 = diff_block_previous
-        difficulty_new = Decimal(
-            (2 / math.log(2)) * math.log(hashrate * target * math.ceil(28 - diff_block_previous / Decimal(16.0))))
-        # Feedback controller
-        Kd = 10
-        difficulty_new = difficulty_new - Kd * (block_time - block_time_prev)
-        diff_adjustment = (difficulty_new - diff_block_previous) / 720  # reduce by factor of 720
-
-        if diff_adjustment > Decimal(1.0):
-            diff_adjustment = Decimal(1.0)
-
-        difficulty_new_adjusted = quantize_ten(diff_block_previous + diff_adjustment)
-        difficulty = difficulty_new_adjusted
-
-        if node.is_mainnet:
-            if block_height == POW_FORK - FORK_AHEAD:
-                limit_version(node)
-            if block_height == POW_FORK - 1:
-                difficulty = FORK_DIFF
-            if block_height == POW_FORK:
-                difficulty = FORK_DIFF
-                # Remove mainnet0018 from allowed
-                limit_version(node)
-                # disconnect our outgoing connections
-
-        diff_drop_time = Decimal(180)
-
-        if Decimal(time.time()) > Decimal(timestamp_last) + Decimal(2 * diff_drop_time):
-            # Emergency diff drop
-            time_difference = quantize_two(time.time()) - quantize_two(timestamp_last)
-            diff_dropped = quantize_ten(difficulty) - quantize_ten(1) \
-                           - quantize_ten(10 * (time_difference - 2 * diff_drop_time) / diff_drop_time)
-        elif Decimal(time.time()) > Decimal(timestamp_last) + Decimal(diff_drop_time):
-            time_difference = quantize_two(time.time()) - quantize_two(timestamp_last)
-            diff_dropped = quantize_ten(difficulty) + quantize_ten(1) - quantize_ten(time_difference / diff_drop_time)
-        else:
-            diff_dropped = difficulty
-
-        if difficulty < 50:
-            difficulty = 50
-        if diff_dropped < 50:
-            diff_dropped = 50
-
-        return (
-            float('%.10f' % difficulty), float('%.10f' % diff_dropped), float(time_to_generate), float(diff_block_previous),
-            float(block_time), float(hashrate), float(diff_adjustment),
-            block_height)  # need to keep float here for database inserts support
-    except: #new chain or regnet
-        difficulty = [24,24,0,0,0,0,0,0]
-        return difficulty
 
 
 def balanceget(balance_address, db_handler):
@@ -786,7 +692,7 @@ def ledger_balance3(address, cache, db_handler):
     return cache[address]
 
 
-def digest_block(node, data, sdef, peer_ip, db_handler):
+def digest_block(diff, node, data, sdef, peer_ip, db_handler):
     """node param for imports"""
     block_height_new = node.last_block + 1  # for logging purposes.
     block_hash = 'N/A'
@@ -934,10 +840,6 @@ def digest_block(node, data, sdef, peer_ip, db_handler):
                 # reject blocks older than latest block
                 if q_block_timestamp <= q_db_timestamp_last:
                     raise ValueError("Block is older than the previous one, will be rejected")
-
-                # calculate current difficulty
-                diff = difficulty(node, db_handler)
-                node.difficulty = diff
 
                 node.logger.app_log.warning(f"Time to generate block {db_block_height + 1}: {'%.2f' % diff[2]}")
                 node.logger.app_log.warning(f"Current difficulty: {diff[3]}")
@@ -1132,12 +1034,6 @@ def digest_block(node, data, sdef, peer_ip, db_handler):
 
                 del block_transactions[:]
                 node.peers.unban(peer_ip)
-
-                # This new block may change the int(diff). Trigger the hook whether it changed or not.
-                diff = difficulty(node, db_handler)
-                node.difficulty = diff
-                node.plugin_manager.execute_action_hook('diff', diff[0])
-                # We could recalc diff after inserting block, and then only trigger the block hook, but I fear this would delay the new block event.
 
                 # /whole block validation
                 # NEW: returns new block sha_hash
@@ -1458,8 +1354,16 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                     node.logger.app_log.info(f"{peer_ip} banned")
                                     break
                             else:
-                                digest_block(node, segments, self.request, peer_ip, db_handler_instance)
 
+                                # calculate current difficulty
+                                diff = difficulty(node, db_handler_instance)
+                                node.difficulty = diff
+                                digest_block(diff, node, segments, self.request, peer_ip, db_handler_instance)
+                                # This new block may change the int(diff). Trigger the hook whether it changed or not.
+                                diff = difficulty(node, db_handler_instance)
+                                node.difficulty = diff
+                                node.plugin_manager.execute_action_hook('diff', diff[0])
+                                # We could recalc diff after inserting block, and then only trigger the block hook, but I fear this would delay the new block event.
                                 # receive theirs
                         else:
                             node.logger.app_log.warning(f"Rejecting to sync from {peer_ip}")
@@ -1631,14 +1535,31 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                 mined['result'] = True
                                 node.plugin_manager.execute_action_hook('mined', mined)
                                 node.logger.app_log.info("Outbound: Processing block from miner")
-                                digest_block(node, segments, self.request, peer_ip, db_handler_instance)
+
+                                # calculate current difficulty
+                                diff = difficulty(node, db_handler_instance)
+                                node.difficulty = diff
+                                digest_block(diff, node, segments, self.request, peer_ip, db_handler_instance)
+                                # This new block may change the int(diff). Trigger the hook whether it changed or not.
+                                diff = difficulty(node, db_handler_instance)
+                                node.difficulty = diff
+                                node.plugin_manager.execute_action_hook('diff', diff[0])
+                                # We could recalc diff after inserting block, and then only trigger the block hook, but I fear this would delay the new block event.
                             else:
                                 reason = f"Outbound: Mined block was orphaned because node was not synced, we are at block {db_block_height}, should be at least {node.peers.consensus_max - 3}"
                                 mined['reason'] = reason
                                 node.plugin_manager.execute_action_hook('mined', mined)
                                 node.logger.app_log.warning(reason)
                         else:
-                            digest_block(node, segments, self.request, peer_ip, db_handler_instance)
+                            # calculate current difficulty
+                            diff = difficulty(node, db_handler_instance)
+                            node.difficulty = diff
+                            digest_block(diff, node, segments, self.request, peer_ip, db_handler_instance)
+                            # This new block may change the int(diff). Trigger the hook whether it changed or not.
+                            diff = difficulty(node, db_handler_instance)
+                            node.difficulty = diff
+                            node.plugin_manager.execute_action_hook('diff', diff[0])
+                            # We could recalc diff after inserting block, and then only trigger the block hook, but I fear this would delay the new block event.
                     else:
                         receive(self.request)  # receive block, but do nothing about it
                         node.logger.app_log.info(f"{peer_ip} not whitelisted for block command")
@@ -2654,6 +2575,8 @@ if __name__ == "__main__":
     config = options.Get()
     config.read()
     # classes
+
+
 
     node.app_version = app_version
     node.version = config.version_conf

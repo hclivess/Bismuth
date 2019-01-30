@@ -9,6 +9,7 @@ from connections import send, receive
 from decimal import *
 from quantizer import *
 import mempool as mp
+from difficulty import *
 
 def sendsync(sdef, peer_ip, status, provider, node):
     """ Save peer_ip to peerlist and send `sendsync`
@@ -298,7 +299,9 @@ def worker(host, port, node):
                                 raise ValueError(f"{peer_ip} is banned")
 
                         else:
-                            digest_block(node, segments, s, peer_ip, db_handler_instance)
+                            diff = difficulty(node, db_handler_instance)
+                            node.difficulty = diff
+                            digest_block(diff, node, segments, s, peer_ip, db_handler_instance)
 
                             # receive theirs
                     else:
