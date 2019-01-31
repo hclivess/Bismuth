@@ -14,6 +14,7 @@ import threading
 import os, sys
 #import math
 import mempool as mp
+import json
 
 __version__ = "0.0.5"
 
