@@ -2183,7 +2183,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data[:4] == 'api_':
                     if node.peers.is_allowed(peer_ip, data):
                         try:
-                            node.apihandler.dispatch(data, self.request, db_handler_instance.h3, node.peers)
+                            node.apihandler.dispatch(data, self.request, db_handler_instance, node.peers)
                         except Exception as e:
                             print(e)
 
@@ -2690,5 +2690,5 @@ if __name__ == "__main__":
             else:
                 mining_heavy3.mining_close()
                 node.logger.app_log.warning("Status: Successfully stopped.")
-                break
+                sys.exit(0)
         time.sleep(1)
