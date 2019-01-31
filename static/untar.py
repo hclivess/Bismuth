@@ -8,5 +8,5 @@ for t in types:
         os.remove(f)
         print(f, "deleted")
 
-with tarfile.open("ledger.db.tar.gz") as tar:
+with tarfile.open("ledger.tar.gz") as tar:
     tar.extractall("")

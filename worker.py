@@ -299,10 +299,7 @@ def worker(host, port, node):
                                 raise ValueError(f"{peer_ip} is banned")
 
                         else:
-                            diff = difficulty(node, db_handler_instance)
-                            node.difficulty = diff
-                            digest_block(diff, node, segments, s, peer_ip, db_handler_instance)
-
+                            digest_block(node, segments, s, peer_ip, db_handler_instance)
                             # receive theirs
                     else:
                         send(s, "blocksrj")

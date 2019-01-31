@@ -692,7 +692,7 @@ def ledger_balance3(address, cache, db_handler):
     return cache[address]
 
 
-def digest_block(diff, node, data, sdef, peer_ip, db_handler):
+def digest_block(node, data, sdef, peer_ip, db_handler):
     """node param for imports"""
     block_height_new = node.last_block + 1  # for logging purposes.
     block_hash = 'N/A'
@@ -840,6 +840,10 @@ def digest_block(diff, node, data, sdef, peer_ip, db_handler):
                 # reject blocks older than latest block
                 if q_block_timestamp <= q_db_timestamp_last:
                     raise ValueError("Block is older than the previous one, will be rejected")
+
+                # calculate current difficulty (is done for each block in block array, not super easy to isolate)
+                diff = difficulty(node, db_handler)
+                node.difficulty = diff
 
                 node.logger.app_log.warning(f"Time to generate block {db_block_height + 1}: {'%.2f' % diff[2]}")
                 node.logger.app_log.warning(f"Current difficulty: {diff[3]}")
@@ -1034,6 +1038,12 @@ def digest_block(diff, node, data, sdef, peer_ip, db_handler):
 
                 del block_transactions[:]
                 node.peers.unban(peer_ip)
+
+                # This new block may change the int(diff). Trigger the hook whether it changed or not.
+                diff = difficulty(node, db_handler)
+                node.difficulty = diff
+                node.plugin_manager.execute_action_hook('diff', diff[0])
+                # We could recalc diff after inserting block, and then only trigger the block hook, but I fear this would delay the new block event.
 
                 # /whole block validation
                 # NEW: returns new block sha_hash
@@ -1354,17 +1364,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                     node.logger.app_log.info(f"{peer_ip} banned")
                                     break
                             else:
-
-                                # calculate current difficulty
-                                diff = difficulty(node, db_handler_instance)
-                                node.difficulty = diff
-                                digest_block(diff, node, segments, self.request, peer_ip, db_handler_instance)
-                                # This new block may change the int(diff). Trigger the hook whether it changed or not.
-                                diff = difficulty(node, db_handler_instance)
-                                node.difficulty = diff
-                                node.plugin_manager.execute_action_hook('diff', diff[0])
-                                # We could recalc diff after inserting block, and then only trigger the block hook, but I fear this would delay the new block event.
-                                # receive theirs
+                                digest_block(node, segments, self.request, peer_ip, db_handler_instance)
                         else:
                             node.logger.app_log.warning(f"Rejecting to sync from {peer_ip}")
                             send(self.request, "blocksrj")
@@ -1535,31 +1535,18 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                 mined['result'] = True
                                 node.plugin_manager.execute_action_hook('mined', mined)
                                 node.logger.app_log.info("Outbound: Processing block from miner")
-
-                                # calculate current difficulty
-                                diff = difficulty(node, db_handler_instance)
-                                node.difficulty = diff
-                                digest_block(diff, node, segments, self.request, peer_ip, db_handler_instance)
+                                digest_block(node, segments, self.request, peer_ip, db_handler_instance)
                                 # This new block may change the int(diff). Trigger the hook whether it changed or not.
                                 diff = difficulty(node, db_handler_instance)
-                                node.difficulty = diff
-                                node.plugin_manager.execute_action_hook('diff', diff[0])
-                                # We could recalc diff after inserting block, and then only trigger the block hook, but I fear this would delay the new block event.
+
                             else:
                                 reason = f"Outbound: Mined block was orphaned because node was not synced, we are at block {db_block_height}, should be at least {node.peers.consensus_max - 3}"
                                 mined['reason'] = reason
                                 node.plugin_manager.execute_action_hook('mined', mined)
                                 node.logger.app_log.warning(reason)
                         else:
-                            # calculate current difficulty
-                            diff = difficulty(node, db_handler_instance)
-                            node.difficulty = diff
-                            digest_block(diff, node, segments, self.request, peer_ip, db_handler_instance)
-                            # This new block may change the int(diff). Trigger the hook whether it changed or not.
-                            diff = difficulty(node, db_handler_instance)
-                            node.difficulty = diff
-                            node.plugin_manager.execute_action_hook('diff', diff[0])
-                            # We could recalc diff after inserting block, and then only trigger the block hook, but I fear this would delay the new block event.
+                            digest_block(node, segments, self.request, peer_ip, db_handler_instance)
+
                     else:
                         receive(self.request)  # receive block, but do nothing about it
                         node.logger.app_log.info(f"{peer_ip} not whitelisted for block command")
