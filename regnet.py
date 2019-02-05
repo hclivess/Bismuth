@@ -19,7 +19,7 @@ import mempool as mp
 import mining_heavy3 as mining
 
 # fixed diff for regnet
-REGNET_DIFF = [24,24,0,0,0,0,0,0]
+REGNET_DIFF = 16
 
 REGNET_PORT = 3030
 

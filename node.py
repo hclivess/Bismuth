@@ -2633,8 +2633,10 @@ if __name__ == "__main__":
             ledger_check_heights(node, db_handler_initial)
             
 
-            initial_db_check(db_handler_initial)
-            sequencing_check(db_handler_initial)
+            if not node.is_regnet:
+                initial_db_check(db_handler_initial)
+                sequencing_check(db_handler_initial)
+
             if node.verify_conf:
                 verify(db_handler_initial)
 
