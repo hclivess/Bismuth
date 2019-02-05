@@ -1201,12 +1201,13 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         except:
             node.logger.app_log.warning("Inbound: Transport endpoint was not connected")
             return
+
         # if threading.active_count() < node.thread_limit_conf or peer_ip == "127.0.0.1":
         # Always keep a slot for whitelisted (wallet could be there)
         if threading.active_count() < node.thread_limit_conf / 3 * 2 or node.peers.is_whitelisted(peer_ip):  # inbound
             node.capacity = True
+            client_instance.connected = True
         else:
-            node.capacity = False
             try:
                 self.request.close()
                 node.logger.app_log.info(f"Free capacity for {peer_ip} unavailable, disconnected")
@@ -1231,7 +1232,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         timeout_operation = 120  # timeout
         timer_operation = time.time()  # start counting
 
-        while not client_instance.banned and node.capacity and node.peers.version_allowed(peer_ip, node.version_allow) and not node.IS_STOPPING:
+        while not client_instance.banned and node.peers.version_allowed(peer_ip, node.version_allow) and client_instance.connected and not node.IS_STOPPING:
             try:
                 # Failsafe
                 if self.request == -1:
