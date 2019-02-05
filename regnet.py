@@ -76,7 +76,7 @@ def generate_one_block(blockhash, mempool_txs, node, db_handler):
         if not blockhash:
             node.logger.app_log.warning("Bad blockhash")
             return
-        diff_hex = math.floor((REGNET_DIFF[0] / 8) - 1)
+        diff_hex = math.floor((REGNET_DIFF / 8) - 1)
         mining_condition = blockhash[0:diff_hex]
         while True:
             try_arr = [('%0x' % getrandbits(32)) for i in range(HASHCOUNT)]
@@ -126,7 +126,7 @@ def generate_one_block(blockhash, mempool_txs, node, db_handler):
                         node.logger.app_log.warning("Block to send: {}".format(block_send))
                     # calc hash
 
-                    new_hash = DIGEST_BLOCK(REGNET_DIFF, node, [block_send], None, 'regtest',  db_handler)
+                    new_hash = DIGEST_BLOCK(node, [block_send], None, 'regtest',  db_handler)
                     # post block to self or better, send to db to make sure it is. when we add the next one?
                     # use a link to the block digest function
                     # embed at mot TX_PER_BLOCK txs from the mp
