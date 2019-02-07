@@ -55,11 +55,12 @@ import plugins
 import regnet
 import staking
 import tokensv2 as tokens
-from essentials import fee_calculate
+from essentials import fee_calculate, db_to_drive, ledger_balance3, checkpoint_set
 from quantizer import *
 import connectionmanager
 from difficulty import *
 from fork import *
+from digest import *
 
 # load config
 
@@ -83,16 +84,6 @@ PEM_END = re.compile(r"-----END (.*)-----\s*$")
 def replace_regex(string, replace):
     replaced_string = re.sub(r'^{}'.format(replace), "", string)
     return replaced_string
-
-
-def round_down(number, order):
-    return int(math.floor(number / order)) * order
-
-
-def checkpoint_set(node, block_reference):
-    if block_reference > 2000:
-        node.checkpoint = round_down(block_reference, 1000) - 1000
-        node.logger.app_log.warning(f"Checkpoint set to {node.checkpoint}")
 
 def tokens_rollback(node, height, db_handler):
     """Rollback Token index
@@ -255,48 +246,6 @@ def check_integrity(database):
 
 def percentage(percent, whole):
     return Decimal(percent) * Decimal(whole) / 100
-
-
-def db_to_drive(node, db_handler):
-    db_handler.ram_connect()
-    node.logger.app_log.warning("Chain: Moving new data to HDD")
-    try:
-
-        db_handler.execute_param(db_handler.sc, (
-            "SELECT * FROM transactions WHERE block_height > ? OR block_height < ? ORDER BY block_height ASC"),
-                                 (node.hdd_block, -node.hdd_block))
-
-        result1 = db_handler.sc.fetchall()
-
-        if node.full_ledger:  # we want to save to ledger.db
-            db_handler.execute_many(db_handler.h, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", result1)
-            db_handler.commit(db_handler.hdd)
-
-        if node.ram_conf:  # we want to save to hyper.db from RAM/hyper.db depending on ram conf
-            db_handler.execute_many(db_handler.h2, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", result1)
-            db_handler.commit(db_handler.hdd2)
-
-        db_handler.execute_param(db_handler.sc, "SELECT * FROM misc WHERE block_height > ? ORDER BY block_height ASC", (node.hdd_block,))
-        result2 = db_handler.sc.fetchall()
-
-        if node.full_ledger:  # we want to save to ledger.db from RAM/hyper.db depending on ram conf
-            db_handler.execute_many(db_handler.h, "INSERT INTO misc VALUES (?,?)", result2)
-            db_handler.commit(db_handler.hdd)
-
-        if node.ram_conf:  # we want to save to hyper.db from RAM
-            db_handler.execute_many(db_handler.h2, "INSERT INTO misc VALUES (?,?)", result2)
-            db_handler.commit(db_handler.hdd2)
-
-        db_handler.execute(db_handler.h2, "SELECT max(block_height) FROM transactions")
-        node.hdd_block = db_handler.h2.fetchone()[0]
-
-        node.logger.app_log.warning(f"Chain: {len(result1)} txs moved to HDD")
-    except Exception as e:
-        node.logger.app_log.warning(f"Chain: Exception Moving new data to HDD: {e}")
-        # app_log.warning("Ledger digestion ended")  # dup with more informative digest_block notice.
-    finally:
-        db_handler.ram_close()
-
 
 def rollback_to(node, db_handler, block_height):
     node.logger.app_log.warning(f"Status: Rolling back below: {block_height}")
@@ -668,28 +617,6 @@ def blocknf(node, block_hash_delete, peer_ip, db_handler):
 
 
 
-def ledger_balance3(address, cache, db_handler):
-    # Many heavy blocks are pool payouts, same address.
-    # Cache pre_balance instead of recalc for every tx
-    if address in cache:
-        return cache[address]
-    credit_ledger = Decimal(0)
-
-    db_handler.execute_param(db_handler.c, "SELECT amount, reward FROM transactions WHERE recipient = ?;", (address,))
-    entries = db_handler.c.fetchall()
-
-    for entry in entries:
-        credit_ledger += quantize_eight(entry[0]) + quantize_eight(entry[1])
-
-    debit_ledger = Decimal(0)
-    db_handler.execute_param(db_handler.c, "SELECT amount, fee FROM transactions WHERE address = ?;", (address,))
-    entries = db_handler.c.fetchall()
-
-    for entry in entries:
-        debit_ledger += quantize_eight(entry[0]) + quantize_eight(entry[1])
-
-    cache[address] = quantize_eight(credit_ledger - debit_ledger)
-    return cache[address]
 
 
 def digest_block(node, data, sdef, peer_ip, db_handler):
@@ -1205,7 +1132,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         # if threading.active_count() < node.thread_limit_conf or peer_ip == "127.0.0.1":
         # Always keep a slot for whitelisted (wallet could be there)
         if threading.active_count() < node.thread_limit_conf / 3 * 2 or node.peers.is_whitelisted(peer_ip):  # inbound
-            node.capacity = True
             client_instance.connected = True
         else:
             try:

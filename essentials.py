@@ -8,6 +8,7 @@ from Cryptodome.PublicKey import RSA
 import getpass
 import re
 import time
+import math
 import json
 from simplecrypt import *
 
@@ -15,6 +16,76 @@ from quantizer import *
 
 __version__ = "0.0.3"
 
+def round_down(number, order):
+    return int(math.floor(number / order)) * order
+
+def checkpoint_set(node, block_reference):
+    if block_reference > 2000:
+        node.checkpoint = round_down(block_reference, 1000) - 1000
+        node.logger.app_log.warning(f"Checkpoint set to {node.checkpoint}")
+
+def ledger_balance3(address, cache, db_handler):
+    # Many heavy blocks are pool payouts, same address.
+    # Cache pre_balance instead of recalc for every tx
+    if address in cache:
+        return cache[address]
+    credit_ledger = Decimal(0)
+
+    db_handler.execute_param(db_handler.c, "SELECT amount, reward FROM transactions WHERE recipient = ?;", (address,))
+    entries = db_handler.c.fetchall()
+
+    for entry in entries:
+        credit_ledger += quantize_eight(entry[0]) + quantize_eight(entry[1])
+
+    debit_ledger = Decimal(0)
+    db_handler.execute_param(db_handler.c, "SELECT amount, fee FROM transactions WHERE address = ?;", (address,))
+    entries = db_handler.c.fetchall()
+
+    for entry in entries:
+        debit_ledger += quantize_eight(entry[0]) + quantize_eight(entry[1])
+
+    cache[address] = quantize_eight(credit_ledger - debit_ledger)
+    return cache[address]
+
+def db_to_drive(node, db_handler):
+    db_handler.ram_connect()
+    node.logger.app_log.warning("Chain: Moving new data to HDD")
+    try:
+
+        db_handler.execute_param(db_handler.sc, (
+            "SELECT * FROM transactions WHERE block_height > ? OR block_height < ? ORDER BY block_height ASC"),
+                                 (node.hdd_block, -node.hdd_block))
+
+        result1 = db_handler.sc.fetchall()
+
+        if node.full_ledger:  # we want to save to ledger.db
+            db_handler.execute_many(db_handler.h, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", result1)
+            db_handler.commit(db_handler.hdd)
+
+        if node.ram_conf:  # we want to save to hyper.db from RAM/hyper.db depending on ram conf
+            db_handler.execute_many(db_handler.h2, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", result1)
+            db_handler.commit(db_handler.hdd2)
+
+        db_handler.execute_param(db_handler.sc, "SELECT * FROM misc WHERE block_height > ? ORDER BY block_height ASC", (node.hdd_block,))
+        result2 = db_handler.sc.fetchall()
+
+        if node.full_ledger:  # we want to save to ledger.db from RAM/hyper.db depending on ram conf
+            db_handler.execute_many(db_handler.h, "INSERT INTO misc VALUES (?,?)", result2)
+            db_handler.commit(db_handler.hdd)
+
+        if node.ram_conf:  # we want to save to hyper.db from RAM
+            db_handler.execute_many(db_handler.h2, "INSERT INTO misc VALUES (?,?)", result2)
+            db_handler.commit(db_handler.hdd2)
+
+        db_handler.execute(db_handler.h2, "SELECT max(block_height) FROM transactions")
+        node.hdd_block = db_handler.h2.fetchone()[0]
+
+        node.logger.app_log.warning(f"Chain: {len(result1)} txs moved to HDD")
+    except Exception as e:
+        node.logger.app_log.warning(f"Chain: Exception Moving new data to HDD: {e}")
+        # app_log.warning("Ledger digestion ended")  # dup with more informative digest_block notice.
+    finally:
+        db_handler.ram_close()
 
 def sign_rsa(timestamp, address, recipient, amount, operation, openfield, key, public_key_hashed):
     from Cryptodome.Signature import PKCS1_v1_5

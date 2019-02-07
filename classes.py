@@ -57,7 +57,6 @@ class Node():
         self.last_block_timestamp = 0
         self.accept_peers = True
         self.difficulty = [0,0,0,0,0,0,0,0]
-        self.capacity = True
         self.ledger_temp = None
         self.hyper_temp = None
 
