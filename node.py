@@ -1949,7 +1949,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             "SELECT timestamp FROM transactions WHERE openfield = ?;",
                             ("alias=" + reg_string,))
 
-                        db_handler_instance.execute_param(db_handler_instance.h3, "SELECT timestamp FROM transactions WHERE openfield = ?;", "alias=" + reg_string, )
+                        db_handler_instance.execute_param(db_handler_instance.h3, "SELECT timestamp FROM transactions WHERE openfield = ?;", ("alias=" + reg_string,) )
                         registered_already = db_handler_instance.h3.fetchone()
 
                         if registered_already is None and registered_pending is None:
@@ -2620,5 +2620,4 @@ if __name__ == "__main__":
             else:
                 mining_heavy3.mining_close()
                 node.logger.app_log.warning("Status: Successfully stopped.")
-                sys.exit(0)
         time.sleep(1)
