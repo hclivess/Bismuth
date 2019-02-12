@@ -81,11 +81,22 @@ elif "regnet" in version:
     print("Regtest mode")
     s.connect (("127.0.0.1", 3030))
 else:
-    s.connect(("127.0.0.1", 5658))
-#s.connect(("94.113.207.67", 5658))
+    s.connect(("34.192.6.105", 5658))
+    #s.connect(("bismuth.live", 5658))
 
 def stop(socket):
     connections.send(s, "stop")
+
+
+def annverget(socket):
+    connections.send(s, "annverget")
+    result = connections.receive(s)
+    print (result)
+
+def annget(socket):
+    connections.send(s, "annget")
+    result = connections.receive(s)
+    print (result)
 
 def diffget(socket):
     #check difficulty
@@ -375,7 +386,6 @@ def api_getaddresssince(socket, arg1, arg2, arg3):
     response = connections.receive(s)
     print(json.dumps(response))
 
-
 if command == "getversion":
     connections.send(s, "getversion")
     print(connections.receive(s))
@@ -437,6 +447,12 @@ elif command == "balancegethyper":
 
 elif command == "balancegethyperjson":
     balancegethyperjson(s, arg1)
+
+elif command == "annget":
+    annget(s)
+
+elif command == "annverget":
+    annverget(s)
 
 elif command == "mpget":
     mpget(s)

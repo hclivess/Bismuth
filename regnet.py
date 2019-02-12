@@ -19,7 +19,7 @@ import mempool as mp
 import mining_heavy3 as mining
 
 # fixed diff for regnet
-REGNET_DIFF = 24
+REGNET_DIFF = 16
 
 REGNET_PORT = 3030
 
@@ -59,7 +59,7 @@ TX_PER_BLOCK = 2
 
 
 # Do not edit below, it's fed by node.py
-APP_LOG = None
+
 ADDRESS = 'This is a fake address placeholder for regtest mode only'
 KEY = None
 PRIVATE_KEY_READABLE = 'matching priv key'
@@ -68,13 +68,13 @@ PUBLIC_KEY_HASHED = 'matching pub key b64'
 DIGEST_BLOCK = None
 
 # because of compatibility - huge node refactor wanted.
-conn, c, hdd, h, hdd2, h2, h3 = [None] * 7
 
 
-def generate_one_block(blockhash, mempool_txs):
+
+def generate_one_block(blockhash, mempool_txs, node, db_handler):
     try:
         if not blockhash:
-            APP_LOG.warning("Bad blockhash")
+            node.logger.app_log.warning("Bad blockhash")
             return
         diff_hex = math.floor((REGNET_DIFF / 8) - 1)
         mining_condition = blockhash[0:diff_hex]
@@ -90,7 +90,7 @@ def generate_one_block(blockhash, mempool_txs):
                              sha224((prefix + nonce + blockhash).encode("utf-8")).digest(), 'big')))]
                 if possibles:
                     nonce = seed + possibles[0]
-                    APP_LOG.warning("Generate got a block in {} tries len {}".format(i, len(possibles)))
+                    node.logger.app_log.warning("Generate got a block in {} tries len {}".format(i, len(possibles)))
                     # assemble block with mp data
                     txs = []
                     for i in range(TX_PER_BLOCK):
@@ -104,14 +104,14 @@ def generate_one_block(blockhash, mempool_txs):
                             str(mpdata[0]), str(mpdata[1][:56]), str(mpdata[2][:56]), '%.8f' % float(mpdata[3]),
                             str(mpdata[4]), str(mpdata[5]), str(mpdata[6]),
                             str(mpdata[7]))  # create tuple
-                        # print transaction
+                        # node.logger.app_log.warning transaction
                         block_send.append(transaction)  # append tuple to list for each run
                         removal_signature.append(str(mpdata[4]))  # for removal after successful mining
                     # claim reward
                     block_timestamp = '%.2f' % time.time()
                     transaction_reward = (str(block_timestamp), str(ADDRESS[:56]), str(ADDRESS[:56]),
                                           '%.8f' % float(0), "0", str(nonce))  # only this part is signed!
-                    # print transaction_reward
+                    # node.logger.app_log.warning transaction_reward
 
                     hash = SHA.new(str(transaction_reward).encode("utf-8"))
                     signer = PKCS1_v1_5.new(KEY)
@@ -119,47 +119,43 @@ def generate_one_block(blockhash, mempool_txs):
                     signature_enc = base64.b64encode(signature)
 
                     if signer.verify(hash, signature):
-                        print("Signature valid")
+                        node.logger.app_log.warning("Signature valid")
                         block_send.append((str(block_timestamp), str(ADDRESS[:56]), str(ADDRESS[:56]), '%.8f' % float(0),
                                            str(signature_enc.decode("utf-8")), str(PUBLIC_KEY_HASHED.decode("utf-8")),
                                            "0", str(nonce)))  # mining reward tx
-                        print("Block to send: {}".format(block_send))
+                        node.logger.app_log.warning("Block to send: {}".format(block_send))
                     # calc hash
 
-                    new_hash = DIGEST_BLOCK([block_send], None, 'regtest', conn, c, hdd, h, hdd2, h2, h3, None, None)
+                    new_hash = DIGEST_BLOCK(node, [block_send], None, 'regtest',  db_handler)
                     # post block to self or better, send to db to make sure it is. when we add the next one?
                     # use a link to the block digest function
                     # embed at mot TX_PER_BLOCK txs from the mp
                     return new_hash
 
     except Exception as e:
-        APP_LOG.warning(e)
+        node.logger.app_log.warning(e)
         exc_type, exc_obj, exc_tb = sys.exc_info()
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-        print(exc_type, fname, exc_tb.tb_lineno)
+        node.logger.app_log.warning(exc_type, fname, exc_tb.tb_lineno)
 
-
-def command(sdef, data, blockhash):
+def command(sdef, data, blockhash, node, db_handler):
     try:
-        APP_LOG.warning("Regnet got command {}".format(data))
+        node.logger.app_log.warning("Regnet got command {}".format(data))
         if data == 'regtest_generate':
             how_many = int(connections.receive(sdef))
-            APP_LOG.warning("regtest_generate {} {}".format(how_many, blockhash))
+            node.logger.app_log.warning("regtest_generate {} {}".format(how_many, blockhash))
             mempool_txs = mp.MEMPOOL.fetchall(mp.SQL_SELECT_TX_TO_SEND)
             for i in range(how_many):
-                blockhash = generate_one_block(blockhash, mempool_txs)
+                blockhash = generate_one_block(blockhash, mempool_txs, node, db_handler)
             connections.send(sdef, 'OK')
     except Exception as e:
-        APP_LOG.warning(e)
+        node.logger.app_log.warning(e)
         exc_type, exc_obj, exc_tb = sys.exc_info()
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-        print(exc_type, fname, exc_tb.tb_lineno)
+        node.logger.app_log.warning(exc_type, fname, exc_tb.tb_lineno)
 
 
 def init(app_log):
-    global APP_LOG
-    APP_LOG = app_log
-
     # Empty peers
     with open(REGNET_PEERS, 'w') as f:
         f.write("{}")

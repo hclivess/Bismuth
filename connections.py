@@ -8,6 +8,7 @@ SLEN = 10
 def send(sdef, data, slen=SLEN):
     sdef.setblocking(1)
     # Make sure the packet is sent in one call
+
     sdef.sendall(str(len(str(json.dumps(data)))).encode("utf-8").zfill(slen) + str(json.dumps(data)).encode("utf-8"))
 
 if "Linux" in platform.system():
@@ -73,7 +74,7 @@ if "Linux" in platform.system():
             except Exception as e2:
                 pass
                 #print ("Exception unregistering: {}".format(e2))
-            raise RuntimeError("Connections: {}".format(e))
+            raise RuntimeError(f"Connections: {e}")
 
 
 else:
@@ -86,10 +87,10 @@ else:
                 data = int(sdef.recv(slen))  # receive length
                 #print ("To receive: {}".format(data))
             except:
-                raise RuntimeError("Connection closed by the remote host") #do away with the invalid literal for int
+                raise RuntimeError("Connection closed by the remote host")
 
         else:
-            # logical timeout
+            # logical timeoutsha_hash
             return "*"
             #raise RuntimeError("Socket timeout")
 
@@ -107,6 +108,7 @@ else:
                  raise RuntimeError("Socket timeout")
 
         segments = b''.join(chunks).decode("utf-8")
-        #print("Received segments: {}".format(segments))
+        #print(f"Received segments: {segments} from {sdef.getpeername()[0]}")
+
 
         return json.loads(segments)
