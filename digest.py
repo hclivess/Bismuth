@@ -107,10 +107,10 @@ def digest_block(node, data, sdef, peer_ip, db_handler):
                 block_height_new = db_block_height + 1
                 node.last_block = block_height_new
                 # previous block info
-
+                start_time_block = quantize_two(time.time())
                 transaction_list_converted = []  # makes sure all the data are properly converted
                 for tx_index, transaction in enumerate(transaction_list):
-                    q_time_now = quantize_two(time.time())
+                    start_time_tx = quantize_two(time.time())
                     # verify signatures
                     q_received_timestamp = quantize_two(transaction[0])  # we use this several times
                     received_timestamp = '%.2f' % q_received_timestamp
@@ -134,7 +134,7 @@ def digest_block(node, data, sdef, peer_ip, db_handler):
                                                        received_public_key_hashed, received_operation,
                                                        received_openfield))
 
-                    # if (q_time_now < q_received_timestamp + 432000) or not quicksync:
+                    # if (start_time_tx < q_received_timestamp + 432000) or not quicksync:
 
                     # convert readable key to instance
                     received_public_key = RSA.importKey(base64.b64decode(received_public_key_hashed))
@@ -162,8 +162,8 @@ def digest_block(node, data, sdef, peer_ip, db_handler):
                     if not essentials.address_validate(received_recipient):
                         raise ValueError("Not a valid recipient address")
 
-                    if q_time_now < q_received_timestamp:
-                        raise ValueError(f"Future transaction not allowed, timestamp {quantize_two((q_received_timestamp - q_time_now) / 60)} minutes in the future")
+                    if start_time_tx < q_received_timestamp:
+                        raise ValueError(f"Future transaction not allowed, timestamp {quantize_two((q_received_timestamp - start_time_tx) / 60)} minutes in the future")
                     if q_db_timestamp_last - 86400 > q_received_timestamp:
                         raise ValueError("Transaction older than 24h not allowed.")
                         # verify signatures
@@ -256,7 +256,7 @@ def digest_block(node, data, sdef, peer_ip, db_handler):
                     # node.logger.app_log.info("Digest: Inbound block debit: " + str(block_debit))
                     # include the new block
 
-                    # if (q_time_now < q_received_timestamp + 432000) and not quicksync:
+                    # if (start_time_tx < q_received_timestamp + 432000) and not quicksync:
                     # balance_pre = quantize_eight(credit_ledger - debit_ledger - fees + rewards)  # without projection
                     balance_pre = ledger_balance3(db_address, balances, db_handler)  # keep this as c (ram hyperblock access)
 
@@ -367,7 +367,7 @@ def digest_block(node, data, sdef, peer_ip, db_handler):
 
                 # node.logger.app_log.warning("Block: {}: {} valid and saved from {}".format(block_height_new, block_hash[:10], peer_ip))
                 node.logger.app_log.warning(
-                    f"Valid block: {block_height_new}: {block_hash[:10]} with {len(transaction_list)} txs, digestion from {peer_ip} completed in {str(time.time() - float(q_time_now))[:5]}s.")
+                    f"Valid block: {block_height_new}: {block_hash[:10]} with {len(transaction_list)} txs, digestion from {peer_ip} completed in {str(time.time() - float(start_time_block))[:5]}s.")
 
                 del block_transactions[:]
                 node.peers.unban(peer_ip)
@@ -405,7 +405,7 @@ def digest_block(node, data, sdef, peer_ip, db_handler):
                 # first case move stuff from hyper.db to ledger.db; second case move stuff from ram to both
                 db_to_drive(node, db_handler)
             node.db_lock.release()
-            delta_t = time.time() - float(q_time_now)
+            delta_t = time.time() - float(start_time_tx)
             # node.logger.app_log.warning("Block: {}: {} digestion completed in {}s.".format(block_height_new,  block_hash[:10], delta_t))
             node.plugin_manager.execute_action_hook('digestblock',
                                                     {'failed': failed_cause, 'ip': peer_ip, 'deltat': delta_t,
