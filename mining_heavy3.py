@@ -184,6 +184,7 @@ def mining_close():
     """
     global F
     global MMAP
+
     if MMAP:
         MMAP.close()
     if F:
