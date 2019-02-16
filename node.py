@@ -19,11 +19,13 @@ import base64
 import glob
 import hashlib
 import math
+import os
 import queue
 import re
 import shutil
 import socketserver
 import sqlite3
+import sys
 import tarfile
 import threading
 import time
