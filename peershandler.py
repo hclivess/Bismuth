@@ -541,7 +541,7 @@ class Peers:
             if self.config.nodes_ban_reset and len(self.connection_pool) <= len(self.banlist) \
                     and int(time.time() - self.reset_time) > 60*10:
                 # do not reset too often. 10 minutes here
-                self.app_log.warning(f"Less active connections ({len(self.connection_pool)}) than banlist ({len(self.banlist)}), resetting banlist and tried")
+                self.app_log.warning(f"Less active connections ({len(self.connection_pool)}) than banlist ({len(self.banlist)}), resetting banlist and tried list")
                 del self.banlist[:]
                 self.banlist.extend(self.config.banlist)  # reset to config version
                 del self.warning_list[:]
@@ -554,7 +554,6 @@ class Peers:
                 self.peers_test(self.suggested_peerfile)
                 self.first_run = False
 
-            #now moved after testing of peers
             if int(time.time() - self.startup_time) > 15:  # refreshes peers from drive
                 self.peer_dict.update(self.peers_get(self.peerfile))
 

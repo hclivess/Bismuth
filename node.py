@@ -1729,13 +1729,13 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if node.peers.is_allowed(peer_ip, data):
                         diff = node.difficulty
                         response = {"difficulty": diff[0],
-                                    "diff_dropped": diff[0],
-                                    "time_to_generate": diff[0],
-                                    "diff_block_previous": diff[0],
-                                    "block_time": diff[0],
-                                    "hashrate": diff[0],
-                                    "diff_adjustment": diff[0],
-                                    "block_height": diff[0]}
+                                    "diff_dropped": diff[1],
+                                    "time_to_generate": diff[2],
+                                    "diff_block_previous": diff[3],
+                                    "block_time": diff[4],
+                                    "hashrate": diff[5],
+                                    "diff_adjustment": diff[6],
+                                    "block_height": diff[7]}
 
                         send(self.request, response)
                     else:
@@ -1978,7 +1978,7 @@ def initial_db_check(database):
             node.logger.app_log.warning("Status: Moved database to RAM")
 
     except Exception as e:
-        node.logger.app_log.error(e)
+        node.logger.app_log.warning(e)
         sys.exit()
 
 
