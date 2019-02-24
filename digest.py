@@ -293,7 +293,7 @@ def digest_block(node, data, sdef, peer_ip, db_handler):
 
                     if quantize_eight(balance) - quantize_eight(block_fees_address) < 0:
                         # exclude fee check for the mining/header tx
-                        raise ValueError(f"{db_address} Cannot afford to pay fees")
+                        raise ValueError(f"{db_address} Cannot afford to pay fees (balance: {balance}, block fees: {block_fees_address})")
 
                     # append, but do not insert to ledger before whole block is validated, note that it takes already validated values (decimals, length)
                     node.logger.app_log.info(f"Chain: Appending transaction back to block with {len(block_transactions)} transactions in it")

@@ -407,9 +407,6 @@ def ledger_check_heights(node, db_handler):
         recompress_ledger(node)
 
 
-
-
-
 def most_common(lst):
     return max(set(lst), key=lst.count)
 
