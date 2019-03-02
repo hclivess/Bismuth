@@ -1929,9 +1929,8 @@ def ram_init(database):
             #dest = sqlite3.connect(':memory:')
             #source.backup(dest)
 
-            database.execute(database.hdd3, "SELECT max(block_height) FROM transactions")
+            database.execute(database.h3, "SELECT max(block_height) FROM transactions")
             node.hdd_block = database.h3.fetchone()[0]
-
 
             node.last_block = node.hdd_block
             checkpoint_set(node, node.hdd_block)
@@ -2156,6 +2155,7 @@ if __name__ == "__main__":
 
             db_handler_initial = dbhandler.DbHandler(node.index_db, node.ledger_path_conf, node.hyper_path_conf, node.full_ledger, node.ram_conf, node.ledger_ram_file, node.logger)
             ledger_check_heights(node, db_handler_initial)
+
             ram_init(db_handler_initial)
             initial_db_check()
 

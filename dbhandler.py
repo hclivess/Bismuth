@@ -40,10 +40,8 @@ class DbHandler:
         self.c = self.conn.cursor()
 
         if self.full_ledger:
-            self.hdd3 = self.h
             self.h3 = self.h
         else:
-            self.hdd3 = self.h2
             self.h3 = self.h2
 
     def commit(self, connection):
