@@ -63,7 +63,7 @@ class DbHandler:
             except Exception as e:
                 self.logger.app_log.warning(f"Database connection: {connection}")
                 self.logger.app_log.warning(f"Database retry reason: {e}")
-                time.sleep(5)
+                time.sleep(1)
 
     def execute(self, cursor, query):
         """Secure execute for slow nodes"""
@@ -82,7 +82,7 @@ class DbHandler:
             except Exception as e:
                 self.logger.app_log.warning(f"Database query: {cursor} {query[:100]}")
                 self.logger.app_log.warning(f"Database retry reason: {e}")
-                time.sleep(5)
+                time.sleep(1)
 
     def execute_many(self, cursor, query, param):
 
@@ -101,7 +101,7 @@ class DbHandler:
             except Exception as e:
                 self.logger.app_log.warning(f"Database query: {cursor} {str(query)[:100]} {str(param)[:100]}")
                 self.logger.app_log.warning(f"Database retry reason: {e}")
-                time.sleep(5)
+                time.sleep(1)
 
     def execute_param(self, cursor, query, param):
         """Secure execute w/ param for slow nodes"""

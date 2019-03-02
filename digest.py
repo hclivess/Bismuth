@@ -109,6 +109,7 @@ def digest_block(node, data, sdef, peer_ip, db_handler):
                 # previous block info
                 start_time_block = quantize_two(time.time())
                 transaction_list_converted = []  # makes sure all the data are properly converted
+
                 for tx_index, transaction in enumerate(transaction_list):
                     start_time_tx = quantize_two(time.time())
                     # verify signatures

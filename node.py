@@ -57,7 +57,7 @@ import plugins
 import regnet
 import staking
 import tokensv2 as tokens
-from essentials import fee_calculate, db_to_drive, ledger_balance3, checkpoint_set
+from essentials import fee_calculate, checkpoint_set
 from quantizer import *
 import connectionmanager
 from difficulty import *
@@ -1067,7 +1067,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                 node.logger.app_log.info("Outbound: Processing block from miner")
                                 digest_block(node, segments, self.request, peer_ip, db_handler_instance)
                                 # This new block may change the int(diff). Trigger the hook whether it changed or not.
-                                diff = difficulty(node, db_handler_instance)
+                                #node.difficulty = difficulty(node, db_handler_instance)
 
                             else:
                                 reason = f"Outbound: Mined block was orphaned because node was not synced, we are at block {db_block_height}, should be at least {node.peers.consensus_max - 3}"
