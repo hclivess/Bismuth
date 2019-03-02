@@ -1780,6 +1780,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
             except Exception as e:
                 node.logger.app_log.info(f"Inbound: Lost connection to {peer_ip}")
                 node.logger.app_log.info(f"Inbound: {e}")
+                db_handler_instance.close_all()
 
                 # remove from consensus (connection from them)
                 node.peers.consensus_remove(peer_ip)
@@ -2215,7 +2216,6 @@ if __name__ == "__main__":
             if node.db_lock.locked():
                 time.sleep(0.5)
             else:
-                db_handler_instance.close_all()
                 mining_heavy3.mining_close()
                 node.logger.app_log.warning("Status: Successfully stopped.")
                 break
