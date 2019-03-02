@@ -52,11 +52,11 @@ def db_to_drive(node, db_handler):
 
     try:
 
-        db_handler.execute_param(db_handler.sc, (
+        db_handler.execute_param(db_handler.c, (
             "SELECT * FROM transactions WHERE block_height > ? OR block_height < ? ORDER BY block_height ASC"),
                                  (node.hdd_block, -node.hdd_block))
 
-        result1 = db_handler.sc.fetchall()
+        result1 = db_handler.c.fetchall()
 
         if node.full_ledger:  # we want to save to ledger.db
             db_handler.execute_many(db_handler.h, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", result1)
@@ -66,8 +66,8 @@ def db_to_drive(node, db_handler):
             db_handler.execute_many(db_handler.h2, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", result1)
             db_handler.commit(db_handler.hdd2)
 
-        db_handler.execute_param(db_handler.sc, "SELECT * FROM misc WHERE block_height > ? ORDER BY block_height ASC", (node.hdd_block,))
-        result2 = db_handler.sc.fetchall()
+        db_handler.execute_param(db_handler.c, "SELECT * FROM misc WHERE block_height > ? ORDER BY block_height ASC", (node.hdd_block,))
+        result2 = db_handler.c.fetchall()
 
         if node.full_ledger:  # we want to save to ledger.db from RAM/hyper.db depending on ram conf
             db_handler.execute_many(db_handler.h, "INSERT INTO misc VALUES (?,?)", result2)

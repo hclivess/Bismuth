@@ -1928,8 +1928,8 @@ def ram_init(database):
             #dest = sqlite3.connect(':memory:')
             #source.backup(dest)
 
-            database.execute(database.sc, "SELECT max(block_height) FROM transactions")
-            node.hdd_block = database.sc.fetchone()[0]
+            database.execute(database.c, "SELECT max(block_height) FROM transactions")
+            node.hdd_block = database.c.fetchone()[0]
 
 
             node.last_block = node.hdd_block
@@ -2218,4 +2218,5 @@ if __name__ == "__main__":
             else:
                 mining_heavy3.mining_close()
                 node.logger.app_log.warning("Status: Successfully stopped.")
+                break
         time.sleep(1)

@@ -30,9 +30,11 @@ class DbHandler:
         self.h2 = self.hdd2.cursor()
 
         if self.ram_conf:
-            self.conn = sqlite3.connect(ledger_ram_file, uri=True, isolation_level=None)
+            self.conn = sqlite3.connect(self.ledger_ram_file, uri=True, isolation_level=None)
+
         else:
-            self.conn = sqlite3.connect(hyper_path_conf, uri=True, isolation_level=None)
+            self.conn = sqlite3.connect(self.hyper_path_conf, uri=True, isolation_level=None)
+
 
         self.conn.execute('PRAGMA journal_mode = WAL;')
         self.conn.execute("PRAGMA page_size = 4096;")
@@ -43,17 +45,6 @@ class DbHandler:
             self.h3 = self.h
         else:
             self.h3 = self.h2
-
-
-        # ram
-        if self.ram_conf:  # select RAM as source database
-            self.source_db = sqlite3.connect(self.ledger_ram_file, uri=True, timeout=1)
-        else:  # select hyper.db as source database
-            self.source_db = sqlite3.connect(self.hyper_path_conf, timeout=1)
-
-        self.source_db.text_factory = str
-        self.sc = self.source_db.cursor()
-        # ram
 
 
     def commit(self, connection):
@@ -126,7 +117,7 @@ class DbHandler:
                 time.sleep(5)
 
     def close_all(self):
-        self.conn.close()
+        #self.conn.close() leave ram open
         self.hdd.close()
         self.hdd2.close()
         self.index.close()
