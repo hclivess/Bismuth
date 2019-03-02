@@ -6,9 +6,7 @@ install:
   - pip install -r requirements.txt
   - pip install nuitka
 script: 
-  - python -m nuitka --follow-imports commands.py --windows-icon=graphics\icon.ico --standalone --show-progress -j 8 --recurse-all
   - python -m nuitka --follow-imports node.py --windows-icon=graphics\icon.ico --standalone --show-progress -j 8 --recurse-all
-  - python -m nuitka --follow-imports wallet.py --windows-icon=graphics\icon.ico --standalone --show-progress -j 8 --recurse-all
 
 notifications:
   slack: cryptobismuth:Mtd8QY1ElBCfM7ijzsyCE7HU
