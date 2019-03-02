@@ -4,9 +4,9 @@ python:
 cache: pip
 install:
   - pip install -r requirements.txt
-  - pip install nuitka
+  - pip install pyinstaller
 script: 
-  - python -m nuitka --follow-imports node.py --windows-icon=graphics\icon.ico --standalone --show-progress -j 8 --recurse-all
+  - pyinstaller --uac-admin --log-level=INFO node.py --icon=graphics\icon.ico --hidden-import=pycryptodomex --hidden-import=PySocks
 
 notifications:
   slack: cryptobismuth:Mtd8QY1ElBCfM7ijzsyCE7HU
