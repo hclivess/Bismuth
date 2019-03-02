@@ -520,7 +520,7 @@ class Peers:
                     t.daemon = True
                     t.start()
 
-            if len(self.peer_dict) < 3 and int(time.time() - self.startup_time) > 15:
+            if len(self.peer_dict) < 3 and int(time.time() - self.startup_time) > 120:
                 # join in random peers after x seconds
                 self.app_log.warning("Not enough peers in consensus, joining in peers suggested by other nodes")
                 self.peer_dict.update(self.peers_get(self.suggested_peerfile))
