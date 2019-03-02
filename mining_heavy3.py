@@ -185,7 +185,14 @@ def mining_close():
     global F
     global MMAP
 
-    if MMAP:
+    try:
+        assert MMAP
         MMAP.close()
-    if F:
+    except:
+        pass
+
+    try:
+        assert F
         F.close()
+    except:
+        pass

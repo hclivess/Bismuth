@@ -1771,6 +1771,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         raise ValueError("Broken pipe")
                     raise ValueError("Unexpected error, received: " + str(data)[:32] + ' ...')
 
+
                 if not time.time() <= timer_operation + timeout_operation:
                     timer_operation = time.time()  # reset timer
                 # time.sleep(float(node.pause_conf))  # prevent cpu overload
@@ -1928,8 +1929,8 @@ def ram_init(database):
             #dest = sqlite3.connect(':memory:')
             #source.backup(dest)
 
-            database.execute(database.sc, "SELECT max(block_height) FROM transactions")
-            node.hdd_block = database.sc.fetchone()[0]
+            database.execute(database.hdd3, "SELECT max(block_height) FROM transactions")
+            node.hdd_block = database.h3.fetchone()[0]
 
 
             node.last_block = node.hdd_block
@@ -2218,4 +2219,5 @@ if __name__ == "__main__":
             else:
                 mining_heavy3.mining_close()
                 node.logger.app_log.warning("Status: Successfully stopped.")
+                break
         time.sleep(1)

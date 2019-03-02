@@ -40,21 +40,11 @@ class DbHandler:
         self.c = self.conn.cursor()
 
         if self.full_ledger:
+            self.hdd3 = self.h
             self.h3 = self.h
         else:
+            self.hdd3 = self.h2
             self.h3 = self.h2
-
-
-        # ram
-        if self.ram_conf:  # select RAM as source database
-            self.source_db = sqlite3.connect(self.ledger_ram_file, uri=True, timeout=1)
-        else:  # select hyper.db as source database
-            self.source_db = sqlite3.connect(self.hyper_path_conf, timeout=1)
-
-        self.source_db.text_factory = str
-        self.sc = self.source_db.cursor()
-        # ram
-
 
     def commit(self, connection):
         """Secure commit for slow nodes"""
