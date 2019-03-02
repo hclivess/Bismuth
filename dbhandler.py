@@ -44,14 +44,16 @@ class DbHandler:
         else:
             self.h3 = self.h2
 
-    def ram_connect(self):
+
+        # ram
         if self.ram_conf:  # select RAM as source database
             self.source_db = sqlite3.connect(self.ledger_ram_file, uri=True, timeout=1)
         else:  # select hyper.db as source database
             self.source_db = sqlite3.connect(self.hyper_path_conf, timeout=1)
+
         self.source_db.text_factory = str
         self.sc = self.source_db.cursor()
-
+        # ram
 
 
     def commit(self, connection):
@@ -128,6 +130,3 @@ class DbHandler:
         self.hdd.close()
         self.hdd2.close()
         self.index.close()
-
-    def ram_close(self):
-        self.source_db.close()

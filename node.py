@@ -720,8 +720,6 @@ def sequencing_check(db_handler):
 
 class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
     def handle(self):
-        if node.IS_STOPPING:
-            return
 
         client_instance = classes.Client()
         db_handler_instance = dbhandler.DbHandler(node.index_db, node.ledger_path_conf, node.hyper_path_conf, node.full_ledger, node.ram_conf, node.ledger_ram_file, node.logger)
@@ -761,7 +759,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         timeout_operation = 120  # timeout
         timer_operation = time.time()  # start counting
 
-        while not client_instance.banned and node.peers.version_allowed(peer_ip, node.version_allow) and client_instance.connected and not node.IS_STOPPING:
+        while not client_instance.banned and node.peers.version_allowed(peer_ip, node.version_allow) and client_instance.connected:
             try:
                 # Failsafe
                 if self.request == -1:
@@ -851,8 +849,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         time.sleep(quantize_two(node.pause_conf))
 
                     while len(node.syncing) >= 3:
-                        if node.IS_STOPPING:
-                            return
                         time.sleep(int(node.pause_conf))
 
                     send(self.request, "sync")
@@ -1022,8 +1018,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     node.logger.app_log.info("Outbound: Deletion complete, sending sync request")
 
                     while node.db_lock.locked():
-                        if node.IS_STOPPING:
-                            return
                         time.sleep(node.pause_conf)
                     send(self.request, "sync")
 
@@ -1920,8 +1914,37 @@ def setup_net_type():
         sys.exit()
         """
 
+def ram_init(database):
+    try:
+        if node.ram_conf:
+            node.logger.app_log.warning("Status: Moving database to RAM")
 
-def initial_db_check(database):
+            temp_target = sqlite3.connect(node.ledger_ram_file, uri=True, timeout=1)
+            temp_source = sqlite3.connect(node.hyper_path_conf, uri=True, timeout=1)
+            temp_source.backup(temp_target)
+            temp_source.close()
+
+            #source = sqlite3.connect('existing_db.db')
+            #dest = sqlite3.connect(':memory:')
+            #source.backup(dest)
+
+            database.execute(database.sc, "SELECT max(block_height) FROM transactions")
+            node.hdd_block = database.sc.fetchone()[0]
+
+
+            node.last_block = node.hdd_block
+            checkpoint_set(node, node.hdd_block)
+
+            if node.is_mainnet and (node.hdd_block >= POW_FORK - FORK_AHEAD):
+                limit_version(node)
+
+            node.logger.app_log.warning("Status: Moved database to RAM")
+
+    except Exception as e:
+        node.logger.app_log.warning(e)
+        raise
+
+def initial_db_check():
     """
     Initial bootstrap check and chain validity control
     """
@@ -1951,34 +1974,8 @@ def initial_db_check(database):
     node.logger.app_log.warning("Status: Indexing aliases")
     aliases.aliases_update(node.index_db, node.ledger_path_conf, "normal", node.logger.app_log)
 
-    try:
-        source_db = sqlite3.connect(node.hyper_path_conf, timeout=1)
-        source_db.text_factory = str
-        sc = source_db.cursor()
 
-        sc.execute("SELECT max(block_height) FROM transactions")
-        node.hdd_block = sc.fetchone()[0]
 
-        node.last_block = node.hdd_block
-        checkpoint_set(node, node.hdd_block)
-
-        if node.is_mainnet and (node.hdd_block >= POW_FORK - FORK_AHEAD):
-            limit_version(node)
-
-        if node.ram_conf:
-            node.logger.app_log.warning("Status: Moving database to RAM")
-            database.to_ram = sqlite3.connect(node.ledger_ram_file, uri=True, timeout=1, isolation_level=None)
-            database.to_ram.text_factory = str
-            database.tr = database.to_ram.cursor()
-
-            query = "".join(line for line in source_db.iterdump())
-            database.to_ram.executescript(query)
-            # do not close
-            node.logger.app_log.warning("Status: Moved database to RAM")
-
-    except Exception as e:
-        node.logger.app_log.warning(e)
-        sys.exit()
 
 
 def load_keys():
@@ -2118,8 +2115,6 @@ if __name__ == "__main__":
     node.genesis_conf = config.genesis_conf
     node.accept_peers = config.accept_peers
 
-    node.IS_STOPPING = False
-
     node.logger.app_log = log.log("node.log", node.debug_level_conf, node.terminal_output)
     node.logger.app_log.warning("Configuration settings loaded")
 
@@ -2160,10 +2155,10 @@ if __name__ == "__main__":
 
             db_handler_initial = dbhandler.DbHandler(node.index_db, node.ledger_path_conf, node.hyper_path_conf, node.full_ledger, node.ram_conf, node.ledger_ram_file, node.logger)
             ledger_check_heights(node, db_handler_initial)
-            
+            ram_init(db_handler_initial)
+            initial_db_check()
 
 
-            initial_db_check(db_handler_initial)
             if not node.is_regnet:
                 sequencing_check(db_handler_initial)
 
@@ -2219,7 +2214,7 @@ if __name__ == "__main__":
     while True:
         if node.IS_STOPPING:
             if node.db_lock.locked():
-                time.sleep(0.1)
+                time.sleep(0.5)
             else:
                 mining_heavy3.mining_close()
                 node.logger.app_log.warning("Status: Successfully stopped.")

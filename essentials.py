@@ -48,8 +48,8 @@ def ledger_balance3(address, cache, db_handler):
     return cache[address]
 
 def db_to_drive(node, db_handler):
-    db_handler.ram_connect()
     node.logger.app_log.warning("Chain: Moving new data to HDD")
+
     try:
 
         db_handler.execute_param(db_handler.sc, (
@@ -84,8 +84,6 @@ def db_to_drive(node, db_handler):
     except Exception as e:
         node.logger.app_log.warning(f"Chain: Exception Moving new data to HDD: {e}")
         # app_log.warning("Ledger digestion ended")  # dup with more informative digest_block notice.
-    finally:
-        db_handler.ram_close()
 
 def sign_rsa(timestamp, address, recipient, amount, operation, openfield, key, public_key_hashed):
     from Cryptodome.Signature import PKCS1_v1_5
