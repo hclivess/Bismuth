@@ -1919,8 +1919,8 @@ def ram_init(database):
         if node.ram_conf:
             node.logger.app_log.warning("Status: Moving database to RAM")
 
-            temp_target = sqlite3.connect(node.ledger_ram_file, uri=True, timeout=1)
-            temp_source = sqlite3.connect(node.hyper_path_conf, uri=True, timeout=1)
+            temp_target = sqlite3.connect(node.ledger_ram_file, uri=True, isolation_level=None)
+            temp_source = sqlite3.connect(node.hyper_path_conf, uri=True, isolation_level=None)
             temp_source.backup(temp_target)
             temp_source.close()
 
@@ -1930,7 +1930,6 @@ def ram_init(database):
 
             database.execute(database.c, "SELECT max(block_height) FROM transactions")
             node.hdd_block = database.c.fetchone()[0]
-
 
             node.last_block = node.hdd_block
             checkpoint_set(node, node.hdd_block)
@@ -2216,6 +2215,7 @@ if __name__ == "__main__":
             if node.db_lock.locked():
                 time.sleep(0.5)
             else:
+                db_handler_instance.close_all()
                 mining_heavy3.mining_close()
                 node.logger.app_log.warning("Status: Successfully stopped.")
                 break

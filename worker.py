@@ -369,7 +369,9 @@ def worker(host, port, node):
                 raise  # major debug client
             else:
                 node.logger.app_log.info(f"Ending thread, because {e}")
-                return
+
+
+            db_handler_instance.close_all()
 
     if not node.peers.version_allowed(host, node.version_allow):
         node.logger.app_log.warning(f"Outbound: Ending thread, because {host} has too old a version: {node.peers.ip_to_mainnet[host]}")
