@@ -2217,6 +2217,6 @@ if __name__ == "__main__":
                 time.sleep(0.5)
             else:
                 mining_heavy3.mining_close()
-                node.logger.app_log.warning("Status: Successfully stopped.")
+                node.logger.app_log.warning("Status: Securely disconnected main processes, subprocess termination in progress.")
                 break
         time.sleep(1)
