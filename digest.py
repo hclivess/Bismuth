@@ -52,9 +52,9 @@ def digest_block(node, data, sdef, peer_ip, db_handler):
             db_handler.execute(db_handler.c, "SELECT block_hash, block_height, timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")            
             result = db_handler.c.fetchall()
             
-            self.db_block_hash = result[0][0]
-            self.db_block_height = result[0][1]
-            self.q_db_timestamp_last = quantize_two(result[0][2])
+            self.block_hash = result[0][0]
+            self.block_height = result[0][1]
+            self.q_timestamp_last = quantize_two(result[0][2])
 
     class BlockArray():
         def __init__(self):
@@ -95,7 +95,7 @@ def digest_block(node, data, sdef, peer_ip, db_handler):
 
         if tx.start_time_tx < tx.q_received_timestamp:
             raise ValueError(f"Future transaction not allowed, timestamp {quantize_two((tx.q_received_timestamp - tx.start_time_tx) / 60)} minutes in the future")
-        if previous_block.q_db_timestamp_last - 86400 > tx.q_received_timestamp:
+        if previous_block.q_timestamp_last - 86400 > tx.q_received_timestamp:
             raise ValueError("Transaction older than 24h not allowed.")
 
     def dev_reward():
@@ -161,13 +161,13 @@ def digest_block(node, data, sdef, peer_ip, db_handler):
 
         try:
 
-            block_array = data
+            block_array_data = data
 
             # reject block with duplicate transactions
             signature_list = []
             block_transactions = []
 
-            for block in block_array:
+            for block in block_array_data:
 
                 block_array.block_count += 1
 
@@ -233,7 +233,7 @@ def digest_block(node, data, sdef, peer_ip, db_handler):
                     transaction_validate()
 
                 # reject blocks older than latest block
-                if miner_tx.q_block_timestamp <= previous_block.q_db_timestamp_last:
+                if miner_tx.q_block_timestamp <= previous_block.q_timestamp_last:
                     raise ValueError("Block is older than the previous one, will be rejected")
 
                 # calculate current difficulty (is done for each block in block array, not super easy to isolate)
@@ -249,8 +249,8 @@ def digest_block(node, data, sdef, peer_ip, db_handler):
 
                 # node.logger.app_log.info("Transaction list: {}".format(transaction_list_converted))
                 block_array.block_hash = hashlib.sha224(
-                    (str(transaction_list_converted) + previous_block.db_block_hash).encode("utf-8")).hexdigest()
-                # node.logger.app_log.info("Last block sha_hash: {}".format(db_block_hash))
+                    (str(transaction_list_converted) + previous_block.block_hash).encode("utf-8")).hexdigest()
+                # node.logger.app_log.info("Last block sha_hash: {}".format(block_hash))
                 node.logger.app_log.info(f"Calculated block sha_hash: {block_array.block_hash}")
                 # node.logger.app_log.info("Nonce: {}".format(nonce))
 
@@ -264,25 +264,25 @@ def digest_block(node, data, sdef, peer_ip, db_handler):
 
                 if node.is_mainnet:
                     if block_array.block_height_new < POW_FORK:
-                        diff_save = mining.check_block(block_array.block_height_new, miner_tx.miner_address, miner_tx.nonce, previous_block.db_block_hash, diff[0],
-                                                       tx.received_timestamp, tx.q_received_timestamp, previous_block.q_db_timestamp_last,
+                        diff_save = mining.check_block(block_array.block_height_new, miner_tx.miner_address, miner_tx.nonce, previous_block.block_hash, diff[0],
+                                                       tx.received_timestamp, tx.q_received_timestamp, previous_block.q_timestamp_last,
                                                        peer_ip=peer_ip, app_log=node.logger.app_log)
                     else:
-                        diff_save = mining_heavy3.check_block(block_array.block_height_new, miner_tx.miner_address, miner_tx.nonce, previous_block.db_block_hash,
+                        diff_save = mining_heavy3.check_block(block_array.block_height_new, miner_tx.miner_address, miner_tx.nonce, previous_block.block_hash,
                                                               diff[0],
                                                               tx.received_timestamp, tx.q_received_timestamp,
-                                                              previous_block.q_db_timestamp_last,
+                                                              previous_block.q_timestamp_last,
                                                               peer_ip=peer_ip, app_log=node.logger.app_log)
                 elif node.is_testnet:
-                    diff_save = mining_heavy3.check_block(block_array.block_height_new, miner_tx.miner_address, miner_tx.nonce, previous_block.db_block_hash,
+                    diff_save = mining_heavy3.check_block(block_array.block_height_new, miner_tx.miner_address, miner_tx.nonce, previous_block.block_hash,
                                                           diff[0],
-                                                          tx.received_timestamp, tx.q_received_timestamp, previous_block.q_db_timestamp_last,
+                                                          tx.received_timestamp, tx.q_received_timestamp, previous_block.q_timestamp_last,
                                                           peer_ip=peer_ip, app_log=node.logger.app_log)
                 else:
                     # it's regnet then, will use a specific fake method here.
-                    diff_save = mining_heavy3.check_block(block_array.block_height_new, miner_tx.miner_address, miner_tx.nonce, previous_block.db_block_hash,
+                    diff_save = mining_heavy3.check_block(block_array.block_height_new, miner_tx.miner_address, miner_tx.nonce, previous_block.block_hash,
                                                           regnet.REGNET_DIFF,
-                                                          tx.received_timestamp, tx.q_received_timestamp, previous_block.q_db_timestamp_last,
+                                                          tx.received_timestamp, tx.q_received_timestamp, previous_block.q_timestamp_last,
                                                           peer_ip=peer_ip, app_log=node.logger.app_log)
 
                 fees_block = []
