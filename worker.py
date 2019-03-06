@@ -62,7 +62,6 @@ def worker(host, port, node):
     timer_operation = time.time()  # start counting
 
     try:
-        db_handler_instance = dbhandler.DbHandler(node.index_db, node.ledger_path_conf, node.hyper_path_conf, node.full_ledger, node.ram_conf, node.ledger_ram_file, logger)
 
         s = socks.socksocket()
 
@@ -117,6 +116,7 @@ def worker(host, port, node):
 
     while not client_instance_worker.banned and node.peers.version_allowed(host, node.version_allow) and not node.IS_STOPPING:
         try:
+            db_handler_instance = dbhandler.DbHandler(node.index_db, node.ledger_path_conf, node.hyper_path_conf, node.full_ledger, node.ram_conf, node.ledger_ram_file, logger)
             #ensure_good_peer_version(host)
 
             data = receive(s)  # receive data, one and the only root point
@@ -341,6 +341,17 @@ def worker(host, port, node):
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
             print(exc_type, fname, exc_tb.tb_lineno)
             """
+
+            try:
+                db_handler_instance.close_all()
+            except:
+                pass
+
+            try:
+                del db_handler_instance
+            except:
+                pass
+
             # remove from active pool
             if this_client in node.peers.connection_pool:
                 node.logger.app_log.info(
@@ -360,7 +371,6 @@ def worker(host, port, node):
             node.logger.app_log.info(f"Connection to {this_client} terminated due to {e}")
             node.logger.app_log.info(f"---thread {threading.currentThread()} ended---")
 
-            db_handler_instance.close_all()
             # properly end the connection
             if s:
                 s.close()
@@ -370,8 +380,6 @@ def worker(host, port, node):
             else:
                 node.logger.app_log.info(f"Ending thread, because {e}")
 
-
-            db_handler_instance.close_all()
 
     if not node.peers.version_allowed(host, node.version_allow):
         node.logger.app_log.warning(f"Outbound: Ending thread, because {host} has too old a version: {node.peers.ip_to_mainnet[host]}")

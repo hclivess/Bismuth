@@ -175,7 +175,10 @@ class Peers:
 
     def remove_client(self, client):
         # TODO: thread safe?
-        self.connection_pool.remove(client)
+        try:
+            self.connection_pool.remove(client)
+        except:
+            self.app_log.warning(f"Client {client} not removed from connection pool, already not there")
 
     def unban(self, peer_ip):
         """Removes the peer_ip from the warning list"""
@@ -548,8 +551,8 @@ class Peers:
                 self.reset_tried()
                 self.reset_time = time.time()
 
-            if self.first_run and int(time.time() - self.startup_time) > 90:
-                self.app_log.warning("Status: First run, testing peers")
+            if self.first_run and int(time.time() - self.startup_time) > 180:
+                self.app_log.warning("Status: Testing peers")
                 self.peers_test(self.peerfile)
                 self.peers_test(self.suggested_peerfile)
                 self.first_run = False

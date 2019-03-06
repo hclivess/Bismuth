@@ -2219,4 +2219,4 @@ if __name__ == "__main__":
                 mining_heavy3.mining_close()
                 node.logger.app_log.warning("Status: Securely disconnected main processes, subprocess termination in progress.")
                 break
-        time.sleep(1)
+        time.sleep(0.1)
