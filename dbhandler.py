@@ -30,9 +30,9 @@ class DbHandler:
         self.h2 = self.hdd2.cursor()
 
         if self.ram_conf:
-            self.conn = sqlite3.connect(self.ledger_ram_file, uri=True, isolation_level=None)
+            self.conn = sqlite3.connect(self.ledger_ram_file, uri=True, isolation_level=None, timeout=1)
         else:
-            self.conn = sqlite3.connect(self.hyper_path_conf, uri=True)
+            self.conn = sqlite3.connect(self.hyper_path_conf, uri=True, timeout=1)
 
 
         self.conn.execute('PRAGMA journal_mode = WAL;')
@@ -120,6 +120,7 @@ class DbHandler:
             # closing a connection to RAM database would delete it
             self.conn.close()
 
+        self.index.close()
         self.hdd.close()
         self.hdd2.close()
         self.index.close()

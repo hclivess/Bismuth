@@ -1,4 +1,5 @@
 import threading
+import queue
 
 class Node():
 
@@ -59,6 +60,8 @@ class Node():
         self.difficulty = [0,0,0,0,0,0,0,0]
         self.ledger_temp = None
         self.hyper_temp = None
+
+        self.q = queue.Queue()
 
 class Client:
     def __init__(self):

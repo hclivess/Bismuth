@@ -388,9 +388,6 @@ def digest_block(node, data, sdef, peer_ip, db_handler):
                                                          'miner': miner_tx.miner_address, 'ip': peer_ip,
                                                          'transactions': block_transactions})
 
-                # do not use "transaction" as it masks upper level variable.
-
-
                 db_handler.execute_many(db_handler.c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", block_transactions)
                 db_handler.commit(db_handler.conn)
 

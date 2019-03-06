@@ -1920,8 +1920,8 @@ def ram_init(database):
         if node.ram_conf:
             node.logger.app_log.warning("Status: Moving database to RAM")
 
-            temp_target = sqlite3.connect(node.ledger_ram_file, uri=True, isolation_level=None)
-            temp_source = sqlite3.connect(node.hyper_path_conf, uri=True, isolation_level=None)
+            temp_target = sqlite3.connect(node.ledger_ram_file, uri=True, isolation_level=None, timeout=1)
+            temp_source = sqlite3.connect(node.hyper_path_conf, uri=True, isolation_level=None, timeout=1)
             temp_source.backup(temp_target)
             temp_source.close()
 
@@ -2075,7 +2075,6 @@ def verify(db_handler):
 
 if __name__ == "__main__":
     # classes
-    q = queue.Queue()
     node = classes.Node()
     node.logger = classes.Logger()
     node_keys = classes.Keys()
