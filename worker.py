@@ -70,6 +70,7 @@ def worker(host, port, node):
         # s.setblocking(0)
         s.connect((host, port))
         node.logger.app_log.info(f"Outbound: Connected to {this_client}")
+        client_instance_worker.connected = True
 
         # communication starter
 
@@ -343,32 +344,25 @@ def worker(host, port, node):
             """
 
             # remove from active pool
-            if this_client in node.peers.connection_pool:
-                node.logger.app_log.info(
-                    f"Will remove {this_client} from active pool {node.peers.connection_pool}")
-                node.logger.app_log.warning(f"Outbound: Disconnected from {this_client}: {e}")
-                node.peers.remove_client(this_client)
-
+            node.peers.remove_client(this_client)
+            node.logger.app_log.warning(f"Outbound: Disconnected from {this_client}: {e}")
             # remove from active pool
 
             # remove from consensus 2
-            try:
-                node.peers.consensus_remove(peer_ip)
-            except:
-                pass
+            node.peers.consensus_remove(peer_ip)
             # remove from consensus 2
 
             node.logger.app_log.info(f"Connection to {this_client} terminated due to {e}")
             node.logger.app_log.info(f"---thread {threading.currentThread()} ended---")
 
             # properly end the connection
-            if s:
-                s.close()
+            s.close()
             # properly end the connection
             if node.debug_conf:
                 raise  # major debug client
             else:
                 node.logger.app_log.info(f"Ending thread, because {e}")
+                return
 
 
     if not node.peers.version_allowed(host, node.version_allow):

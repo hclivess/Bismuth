@@ -735,25 +735,23 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
             client_instance.connected = True
         else:
             try:
+                node.logger.app_log.warning(f"Free capacity for {peer_ip} unavailable, disconnected")
                 self.request.close()
-                node.logger.app_log.info(f"Free capacity for {peer_ip} unavailable, disconnected")
                 # if you raise here, you kill the whole server
-            except:
+            except Exception as e:
+                node.logger.app_log.warning(f"{e}")
                 pass
             finally:
                 return
 
         dict_ip = {'ip': peer_ip}
         node.plugin_manager.execute_filter_hook('peer_ip', dict_ip)
+
         if node.peers.is_banned(peer_ip) or dict_ip['ip'] == 'banned':
             client_instance.banned = True
-            try:
-                self.request.close()
-                node.logger.app_log.info(f"IP {peer_ip} banned, disconnected")
-            except:
-                pass
-            finally:
-                return
+            self.request.close()
+            node.logger.app_log.info(f"IP {peer_ip} banned, disconnected")
+
 
         timeout_operation = 120  # timeout
         timer_operation = time.time()  # start counting
@@ -1785,8 +1783,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 # remove from consensus (connection from them)
                 node.peers.consensus_remove(peer_ip)
                 # remove from consensus (connection from them)
-                if self.request:
-                    self.request.close()
+                self.request.close()
 
                 if node.debug_conf:
                     raise  # major debug client
@@ -1795,6 +1792,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
         if not node.peers.version_allowed(peer_ip, node.version_allow):
             node.logger.app_log.warning(f"Inbound: Closing connection to old {peer_ip} node: {node.peers.ip_to_mainnet['peer_ip']}")
+        return
 
 
 def ensure_good_peer_version(peer_ip):

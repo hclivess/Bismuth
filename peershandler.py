@@ -38,7 +38,7 @@ class Peers:
     __slots__ = ('app_log','config','logstats','node','peersync_lock','startup_time','reset_time','warning_list','stats',
                  'connection_pool','peer_opinion_dict','consensus_percentage','consensus',
                  'tried','peer_dict','peerfile','suggested_peerfile','banlist','whitelist','ban_threshold',
-                 'ip_to_mainnet', 'peers', 'consensus_lock', 'first_run', 'accept_peers')
+                 'ip_to_mainnet', 'peers', 'first_run', 'accept_peers')
 
     def __init__(self, app_log, config=None, logstats=True, node=None):
         self.app_log = app_log
@@ -46,7 +46,6 @@ class Peers:
         self.logstats = logstats
 
         self.peersync_lock = threading.Lock()
-        self.consensus_lock = threading.Lock()
         self.startup_time = time.time()
         self.reset_time = self.startup_time
         self.warning_list = []
@@ -175,10 +174,12 @@ class Peers:
 
     def remove_client(self, client):
         # TODO: thread safe?
-        try:
-            self.connection_pool.remove(client)
-        except:
-            self.app_log.warning(f"Client {client} not removed from connection pool, already not there")
+        if client in self.connection_pool:
+            try:
+                self.app_log.info(f"Will remove {client} from active pool")
+                self.connection_pool.remove(client)
+            except:
+                raise
 
     def unban(self, peer_ip):
         """Removes the peer_ip from the warning list"""
@@ -378,11 +379,9 @@ class Peers:
         # no ban, they can (should) be syncing but they can't possibly be in consensus list.
         too_old = last_block - 720
         try:
-            self.consensus_lock.acquire()
-
             if peer_ip not in self.peer_opinion_dict:
                 if consensus_blockheight < too_old:
-                    self.app_log.warning(f"{peer_ip} got too old a block ({consensus_blockheight}) for consensus")
+                    self.app_log.warning(f"{peer_ip} received block too old ({consensus_blockheight}) for consensus")
                     return
 
             self.app_log.info(f"Updating {peer_ip} in consensus")
@@ -393,8 +392,8 @@ class Peers:
             self.consensus_percentage = percentage_in(self.peer_opinion_dict[peer_ip],self.peer_opinion_dict.values())
 
             if int(consensus_blockheight) > int(self.consensus) + 30 and self.consensus_percentage > 50 and len(self.peer_opinion_dict) > 10:
-                if self.warning(sdef, peer_ip, "Consensus deviation too high", 10):
-                    raise ValueError("{} banned".format(peer_ip))
+                if self.warning(sdef, peer_ip, f"Consensus deviation too high, {peer_ip} banned", 10):
+                    return
 
         except Exception as e:
             self.app_log.warning(e)
@@ -402,20 +401,15 @@ class Peers:
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
             print(exc_type, fname, exc_tb.tb_lineno)
             raise
-        finally:
-            self.consensus_lock.release()
+
 
     def consensus_remove(self, peer_ip):
-        self.consensus_lock.acquire()
-        try:
-            self.app_log.info(f"Consensus opinion list: {self.peer_opinion_dict}")
-            self.app_log.info(f"Will remove {peer_ip} from consensus pool {self.peer_opinion_dict}")
-            self.peer_opinion_dict.pop(peer_ip)
-        except:
-            self.app_log.info(f"IP of {peer_ip} not present in the consensus pool")
-            pass
-        finally:
-            self.consensus_lock.release()
+        if peer_ip in self.peer_opinion_dict:
+            try:
+                self.app_log.info(f"Will remove {peer_ip} from consensus pool {self.peer_opinion_dict}")
+                self.peer_opinion_dict.pop(peer_ip)
+            except:
+                raise
 
     def can_connect_to(self, host, port):
 
