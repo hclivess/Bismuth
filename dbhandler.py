@@ -34,12 +34,11 @@ class DbHandler:
         else:
             self.conn = sqlite3.connect(self.hyper_path_conf, uri=True, timeout=1)
 
-
         self.conn.execute('PRAGMA journal_mode = WAL;')
         self.conn.execute("PRAGMA page_size = 4096;")
         self.conn.text_factory = str
         self.c = self.conn.cursor()
-
+        
         if self.full_ledger:
             self.h3 = self.h
         else:
@@ -116,10 +115,6 @@ class DbHandler:
                 time.sleep(0.1)
 
     def close_all(self):
-        if not self.ram_conf:
-            # closing a connection to RAM database would delete it
-            self.conn.close()
-
         self.index.close()
         self.hdd.close()
         self.hdd2.close()

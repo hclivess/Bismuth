@@ -949,7 +949,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                                                   "SELECT block_height FROM transactions WHERE block_hash = ?;", (data,))
                                 client_block = db_handler_instance.h3.fetchone()[0]
                             except Exception:
-                                node.logger.app_log.warning(f"Inbound: Block {data[:8]} of {peer_ip}")
+                                node.logger.app_log.warning(f"Inbound: Block {data[:8]} of {peer_ip} not found")
                                 send(self.request, "blocknf")
                                 send(self.request, data)
 
@@ -1780,7 +1780,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
             except Exception as e:
                 node.logger.app_log.info(f"Inbound: Lost connection to {peer_ip}")
                 node.logger.app_log.info(f"Inbound: {e}")
-                db_handler_instance.close_all()
 
                 # remove from consensus (connection from them)
                 node.peers.consensus_remove(peer_ip)
@@ -2090,7 +2089,6 @@ if __name__ == "__main__":
     # classes
 
 
-
     node.app_version = app_version
     node.version = config.version_conf
     node.debug_level = config.debug_level_conf
@@ -2164,7 +2162,7 @@ if __name__ == "__main__":
             if node.verify_conf:
                 verify(db_handler_initial)
 
-            db_handler_initial.close_all()
+            #db_handler_initial.close_all()
 
             if not node.tor_conf:
                 # Port 0 means to select an arbitrary unused port

@@ -342,16 +342,6 @@ def worker(host, port, node):
             print(exc_type, fname, exc_tb.tb_lineno)
             """
 
-            try:
-                db_handler_instance.close_all()
-            except:
-                pass
-
-            try:
-                del db_handler_instance
-            except:
-                pass
-
             # remove from active pool
             if this_client in node.peers.connection_pool:
                 node.logger.app_log.info(
