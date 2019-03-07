@@ -29,6 +29,7 @@ class DbHandler:
         self.hdd2.execute("PRAGMA page_size = 4096;")
         self.h2 = self.hdd2.cursor()
 
+
         if self.ram_conf:
             self.conn = sqlite3.connect(self.ledger_ram_file, uri=True, isolation_level=None, timeout=1)
         else:

@@ -722,7 +722,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
     def handle(self):
 
         client_instance = classes.Client()
-        db_handler_instance = dbhandler.DbHandler(node.index_db, node.ledger_path_conf, node.hyper_path_conf, node.full_ledger, node.ram_conf, node.ledger_ram_file, node.logger)
 
         try:
             peer_ip = self.request.getpeername()[0]
@@ -761,6 +760,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
         while not client_instance.banned and node.peers.version_allowed(peer_ip, node.version_allow) and client_instance.connected:
             try:
+                db_handler_instance = dbhandler.DbHandler(node.index_db, node.ledger_path_conf, node.hyper_path_conf, node.full_ledger, node.ram_conf, node.ledger_ram_file, node.logger)
+
                 # Failsafe
                 if self.request == -1:
                     raise ValueError(f"Inbound: Closed socket from {peer_ip}")
