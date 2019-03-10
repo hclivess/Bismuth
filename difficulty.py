@@ -13,6 +13,8 @@ def difficulty(node, db_handler):
 
         timestamp_last = Decimal(result[1])
         block_height = int(result[0])
+
+        node.last_block_timestamp = timestamp_last
         node.last_block = block_height
 
         previous = db_handler.c.fetchone()
@@ -30,6 +32,7 @@ def difficulty(node, db_handler):
         temp = db_handler.c.fetchone()
         timestamp_1440 = timestamp_1441 if temp is None else Decimal(temp[0])
         block_time = Decimal(timestamp_last - timestamp_1440) / 1440
+
         db_handler.execute(db_handler.c, "SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1")
         diff_block_previous = Decimal(db_handler.c.fetchone()[0])
 
