@@ -1929,7 +1929,6 @@ def ram_init(database):
             else:
                 source_db = sqlite3.connect(node.hyper_path_conf, timeout=1)
                 source_db.text_factory = str
-                sc = source_db.cursor()
 
                 database.to_ram = sqlite3.connect(node.ledger_ram_file, uri=True, timeout=1, isolation_level=None)
                 database.to_ram.text_factory = str
