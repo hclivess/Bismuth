@@ -1918,10 +1918,27 @@ def ram_init(database):
         if node.ram_conf:
             node.logger.app_log.warning("Status: Moving database to RAM")
 
-            temp_target = sqlite3.connect(node.ledger_ram_file, uri=True, isolation_level=None, timeout=1)
-            temp_source = sqlite3.connect(node.hyper_path_conf, uri=True, isolation_level=None, timeout=1)
-            temp_source.backup(temp_target)
-            temp_source.close()
+            py_version = int(str(sys.version_info.major) + str(sys.version_info.minor) + str(sys.version_info.micro))
+
+            if py_version < 370:
+                temp_target = sqlite3.connect(node.ledger_ram_file, uri=True, isolation_level=None, timeout=1)
+                temp_source = sqlite3.connect(node.hyper_path_conf, uri=True, isolation_level=None, timeout=1)
+                temp_source.backup(temp_target)
+                temp_source.close()
+
+            else:
+                source_db = sqlite3.connect(node.hyper_path_conf, timeout=1)
+                source_db.text_factory = str
+                sc = source_db.cursor()
+
+                database.to_ram = sqlite3.connect(node.ledger_ram_file, uri=True, timeout=1, isolation_level=None)
+                database.to_ram.text_factory = str
+                database.tr = database.to_ram.cursor()
+
+                query = "".join(line for line in source_db.to_ram.iterdump())
+                database.to_ram.executescript(query)
+
+            node.logger.app_log.warning("Status: Moved database to RAM")
 
             #source = sqlite3.connect('existing_db.db')
             #dest = sqlite3.connect(':memory:')
