@@ -62,6 +62,8 @@ class Node():
         self.hyper_temp = None
         self.q = queue.Queue()
 
+        self.py_version=None
+
 class Client:
     def __init__(self):
         self.banned = False
