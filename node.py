@@ -2100,7 +2100,6 @@ if __name__ == "__main__":
     config.read()
     # classes
 
-    node.py_version = int(str(sys.version_info.major) + str(sys.version_info.minor) + str(sys.version_info.micro))
     node.app_version = app_version
     node.version = config.version_conf
     node.debug_level = config.debug_level_conf

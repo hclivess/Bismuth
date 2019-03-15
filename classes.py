@@ -1,5 +1,6 @@
 import threading
 import queue
+import sys
 
 class Node():
 
@@ -61,8 +62,7 @@ class Node():
         self.ledger_temp = None
         self.hyper_temp = None
         self.q = queue.Queue()
-
-        self.py_version=None
+        self.py_version= int(str(sys.version_info.major) + str(sys.version_info.minor) + str(sys.version_info.micro))
 
 class Client:
     def __init__(self):
