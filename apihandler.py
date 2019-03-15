@@ -479,7 +479,7 @@ class ApiHandler:
             transaction['amount'] = raw[4]
             transaction['fee'] = raw[8]
             transaction['reward'] = raw[9]
-            transaction['keep'] = raw[10]
+            transaction['operation']= raw[10]
             transaction['openfield'] = raw[11]
             transaction['pubkey'] = base64.b64decode(raw[6]).decode('utf-8')
             transaction['blockhash'] = raw[7]
@@ -532,7 +532,7 @@ class ApiHandler:
             transaction['amount'] = raw[4]
             transaction['fee'] = raw[8]
             transaction['reward'] = raw[9]
-            transaction['keep'] = raw[10]
+            transaction['operation'] = raw[10]
             transaction['openfield'] = raw[11]
             transaction['pubkey'] = base64.b64decode(raw[6]).decode('utf-8')
             transaction['blockhash'] = raw[7]
@@ -607,7 +607,7 @@ def api_gettransaction_for_recipients(self, socket_handler, db_handler, peers):
             transaction['amount'] = raw[4]
             transaction['fee'] = raw[8]
             transaction['reward'] = raw[9]
-            transaction['keep'] = raw[10]
+            transaction['operation']= raw[10]
             transaction['openfield'] = raw[11]
             transaction['pubkey'] = base64.b64decode(raw[6]).decode('utf-8')
             transaction['blockhash'] = raw[7]
