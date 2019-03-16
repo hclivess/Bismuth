@@ -12,7 +12,7 @@
 # issues with db? perhaps you missed a commit() or two
 
 
-app_version = "4.2.9.2"
+app_version = "4.2.9.3"
 VERSION = app_version #compat hypernodes
 
 import base64
