@@ -15,7 +15,7 @@ def difficulty(node, db_handler):
         block_height = int(result[0])
 
         node.last_block_timestamp = timestamp_last
-        node.last_block = block_height
+        #node.last_block = block_height do not fetch this here, could interfere with block saving
 
         previous = db_handler.c.fetchone()
 

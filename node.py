@@ -560,7 +560,8 @@ def blocknf(node, block_hash_delete, peer_ip, db_handler):
                     db_handler.execute_param(db_handler.h2, "DELETE FROM misc WHERE block_height >= ?;", (db_block_height,))
                     db_handler.commit(db_handler.hdd2)
 
-                node.hdd_block = db_block_height - 1 #must be inside lock
+                db_handler.execute(db_handler.c, "SELECT max(block_height) FROM transactions")
+                node.hdd_block = db_handler.c.fetchone()[0]
                 # /roll back hdd too
 
                 # rollback indices

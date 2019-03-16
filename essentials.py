@@ -93,8 +93,8 @@ def db_to_drive(node, db_handler):
             db_handler.execute_many(db_handler.h2, "INSERT INTO misc VALUES (?,?)", result2)
             db_handler.commit(db_handler.hdd2)
 
-        db_handler.execute(db_handler.h2, "SELECT max(block_height) FROM transactions")
-        node.hdd_block = db_handler.h2.fetchone()[0] #must be inside lock
+        db_handler.execute(db_handler.h, "SELECT max(block_height) FROM transactions")
+        node.hdd_block = db_handler.h.fetchone()[0]
 
         node.logger.app_log.warning(f"Chain: {len(result1)} txs moved to HDD")
     except Exception as e:
