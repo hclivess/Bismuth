@@ -65,7 +65,7 @@ def ledger_balance3(address, cache, db_handler):
     return cache[address]
 
 def db_to_drive(node, db_handler):
-    node.logger.app_log.warning(f"Chain: Moving new data to HDD, starting with {node.hdd_block}")
+    node.logger.app_log.warning(f"Chain: Moving new data to HDD, {node.hdd_block + 1} to {node.last_block}")
 
     try:
 
