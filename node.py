@@ -560,8 +560,8 @@ def blocknf(node, block_hash_delete, peer_ip, db_handler):
                     db_handler.execute_param(db_handler.h2, "DELETE FROM misc WHERE block_height >= ?;", (db_block_height,))
                     db_handler.commit(db_handler.hdd2)
 
-                db_handler.execute(db_handler.c, "SELECT max(block_height) FROM transactions")
-                node.hdd_block = db_handler.c.fetchone()[0]
+                db_handler.execute(db_handler.h, "SELECT max(block_height) FROM transactions")
+                node.hdd_block = db_handler.h.fetchone()[0]
                 # /roll back hdd too
 
                 # rollback indices
@@ -1941,10 +1941,11 @@ def ram_init(database):
             #dest = sqlite3.connect(':memory:')
             #source.backup(dest)
 
-            database.execute(database.c, "SELECT max(block_height) FROM transactions")
-            node.hdd_block = database.c.fetchone()[0]
+            database.execute(database.h, "SELECT max(block_height) FROM transactions")
+            node.hdd_block = database.h.fetchone()[0]
 
-            node.last_block = node.hdd_block
+            node.last_block = node.hdd_block #ram equals drive at this point
+
             checkpoint_set(node, node.hdd_block)
 
             if node.is_mainnet and (node.hdd_block >= POW_FORK - FORK_AHEAD):
