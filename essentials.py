@@ -65,9 +65,11 @@ def ledger_balance3(address, cache, db_handler):
     return cache[address]
 
 def db_to_drive(node, db_handler):
-    node.logger.app_log.warning(f"Chain: Moving new data to HDD, {node.hdd_block + 1} to {node.last_block}")
-
     try:
+        db_handler.execute(db_handler.c, "SELECT max(block_height) FROM transactions")
+        node.last_block = db_handler.c.fetchone()[0]
+
+        node.logger.app_log.warning(f"Chain: Moving new data to HDD, {node.hdd_block + 1} to {node.last_block} ")
 
         db_handler.execute_param(db_handler.c, (
             "SELECT * FROM transactions WHERE block_height > ? OR block_height < ? ORDER BY block_height ASC"), (node.hdd_block, -node.hdd_block))
