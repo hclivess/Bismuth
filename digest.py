@@ -191,8 +191,8 @@ def digest_block(node, data, sdef, peer_ip, db_handler):
                 
                 block_array.block_height_new = previous_block.block_height + 1
 
-                db_handler.execute(db_handler.h, "SELECT max(block_height) FROM transactions")
-                node.last_block = db_handler.h.fetchone()[0]
+                db_handler.execute(db_handler.c, "SELECT max(block_height) FROM transactions")
+                node.last_block = db_handler.c.fetchone()[0]
                 
                 start_time_block = quantize_two(time.time())
                 transaction_list_converted = []  # makes sure all the data are properly converted
