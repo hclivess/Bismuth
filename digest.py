@@ -147,6 +147,7 @@ def digest_block(node, data, sdef, peer_ip, db_handler):
 
     if not node.db_lock.locked():
         node.db_lock.acquire()
+        node.logger.app_log.warning(f"Database lock acquired")
 
         while mp.MEMPOOL.lock.locked():
             time.sleep(0.1)
@@ -373,8 +374,6 @@ def digest_block(node, data, sdef, peer_ip, db_handler):
                 # end for block
 
                 # save current diff (before the new block)
-                db_handler.execute_param(db_handler.c, "INSERT INTO misc VALUES (?, ?)", (block_array.block_height_new, diff_save))
-                db_handler.commit(db_handler.conn)
 
                 # quantized vars have to be converted, since Decimal is not json serializable...
                 node.plugin_manager.execute_action_hook('block',
@@ -387,6 +386,9 @@ def digest_block(node, data, sdef, peer_ip, db_handler):
                                                          'sha_hash': block_array.block_hash, 'timestamp': float(miner_tx.q_block_timestamp),
                                                          'miner': miner_tx.miner_address, 'ip': peer_ip,
                                                          'transactions': block_transactions})
+
+                db_handler.execute_param(db_handler.c, "INSERT INTO misc VALUES (?, ?)", (block_array.block_height_new, diff_save))
+                db_handler.commit(db_handler.conn)
 
                 db_handler.execute_many(db_handler.c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", block_transactions)
                 db_handler.commit(db_handler.conn)
@@ -453,6 +455,8 @@ def digest_block(node, data, sdef, peer_ip, db_handler):
                 # first case move stuff from hyper.db to ledger.db; second case move stuff from ram to both
                 db_to_drive(node, db_handler)
             node.db_lock.release()
+            node.logger.app_log.warning(f"Database lock released")
+
             delta_t = time.time() - float(start_time_block)
             # node.logger.app_log.warning("Block: {}: {} digestion completed in {}s.".format(block_array.block_height_new,  block_hash[:10], delta_t))
             node.plugin_manager.execute_action_hook('digestblock',

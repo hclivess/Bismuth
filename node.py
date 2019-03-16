@@ -506,6 +506,7 @@ def blocknf(node, block_hash_delete, peer_ip, db_handler):
 
     if not node.db_lock.locked():
         node.db_lock.acquire()
+        node.logger.app_log.warning(f"Database lock acquired")
         backup_data = None  # used in "finally" section
         skip = False
         reason = ""
@@ -538,8 +539,7 @@ def blocknf(node, block_hash_delete, peer_ip, db_handler):
                 # this code continues at the bottom because of ledger presence check
 
                 # delete followups
-                db_handler.execute_param(db_handler.c, "DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?",
-                                         (db_block_height, -db_block_height))
+                db_handler.execute_param(db_handler.c, "DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?", (db_block_height, -db_block_height))
                 db_handler.commit(db_handler.conn)
 
                 db_handler.execute_param(db_handler.c, "DELETE FROM misc WHERE block_height >= ?;", (db_block_height,))
@@ -549,20 +549,18 @@ def blocknf(node, block_hash_delete, peer_ip, db_handler):
 
                 # roll back hdd too
                 if node.full_ledger:  # rollback ledger.db
-                    db_handler.execute_param(db_handler.h, "DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?",
-                                             (db_block_height, -db_block_height))
+                    db_handler.execute_param(db_handler.h, "DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?", (db_block_height, -db_block_height))
                     db_handler.commit(db_handler.hdd)
                     db_handler.execute_param(db_handler.h, "DELETE FROM misc WHERE block_height >= ?;", (db_block_height,))
                     db_handler.commit(db_handler.hdd)
 
                 if node.ram_conf:  # rollback hyper.db
-                    db_handler.execute_param(db_handler.h2, "DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?",
-                                             (db_block_height, -db_block_height))
+                    db_handler.execute_param(db_handler.h2, "DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?", (db_block_height, -db_block_height))
                     db_handler.commit(db_handler.hdd2)
                     db_handler.execute_param(db_handler.h2, "DELETE FROM misc WHERE block_height >= ?;", (db_block_height,))
                     db_handler.commit(db_handler.hdd2)
 
-                node.hdd_block = db_block_height - 1
+                node.hdd_block = db_block_height - 1 #must be inside lock
                 # /roll back hdd too
 
                 # rollback indices
@@ -577,6 +575,8 @@ def blocknf(node, block_hash_delete, peer_ip, db_handler):
 
         finally:
             node.db_lock.release()
+            node.logger.app_log.warning(f"Database lock released")
+
             if skip:
                 rollback = {"timestamp": my_time, "height": db_block_height, "ip": peer_ip,
                             "sha_hash": db_block_hash, "skipped": True, "reason": reason}
