@@ -509,7 +509,7 @@ class Peers:
 
                 if self.is_testnet:
                     port = 2829
-                if threading.active_count()/3 < self.config.thread_limit_conf and self.can_connect_to(host, port):
+                if threading.active_count() < node.thread_limit_conf / 3 * 2 and self.can_connect_to(host, port):
                     self.app_log.info(f"Will attempt to connect to {host}:{port}")
                     self.add_try(host, port)
                     t = threading.Thread(target=target, args=(host, port, node))  # threaded connectivity to nodes here
