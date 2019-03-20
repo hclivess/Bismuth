@@ -12,8 +12,8 @@
 # issues with db? perhaps you missed a commit() or two
 
 
-app_version = "4.2.9.3"
-VERSION = app_version #compat hypernodes
+
+VERSION = "4.2.9.3"
 
 import base64
 import glob
@@ -2105,7 +2105,7 @@ if __name__ == "__main__":
     config.read()
     # classes
 
-    node.app_version = app_version
+    node.app_version = VERSION
     node.version = config.version_conf
     node.debug_level = config.debug_level_conf
     node.port = config.port
