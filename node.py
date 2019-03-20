@@ -758,9 +758,11 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         timeout_operation = 120  # timeout
         timer_operation = time.time()  # start counting
 
+        if not client_instance.banned and node.peers.version_allowed(peer_ip, node.version_allow) and client_instance.connected:
+            db_handler_instance = dbhandler.DbHandler(node.index_db, node.ledger_path_conf, node.hyper_path_conf, node.full_ledger, node.ram_conf, node.ledger_ram_file, node.logger)
+
         while not client_instance.banned and node.peers.version_allowed(peer_ip, node.version_allow) and client_instance.connected:
             try:
-                db_handler_instance = dbhandler.DbHandler(node.index_db, node.ledger_path_conf, node.hyper_path_conf, node.full_ledger, node.ram_conf, node.ledger_ram_file, node.logger)
 
                 # Failsafe
                 if self.request == -1:

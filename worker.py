@@ -115,9 +115,11 @@ def worker(host, port, node):
         node.logger.app_log.info(f"Connected to {this_client}")
         node.logger.app_log.info(f"Current active pool: {node.peers.connection_pool}")
 
+    if not client_instance_worker.banned and node.peers.version_allowed(host, node.version_allow) and not node.IS_STOPPING:
+        db_handler_instance = dbhandler.DbHandler(node.index_db, node.ledger_path_conf, node.hyper_path_conf, node.full_ledger, node.ram_conf, node.ledger_ram_file, logger)
+
     while not client_instance_worker.banned and node.peers.version_allowed(host, node.version_allow) and not node.IS_STOPPING:
         try:
-            db_handler_instance = dbhandler.DbHandler(node.index_db, node.ledger_path_conf, node.hyper_path_conf, node.full_ledger, node.ram_conf, node.ledger_ram_file, logger)
             #ensure_good_peer_version(host)
 
             data = receive(s)  # receive data, one and the only root point
