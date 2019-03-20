@@ -76,6 +76,7 @@ class DbHandler:
                 self.logger.app_log.warning(f"Database retry reason: {e}")
                 time.sleep(0.1)
 
+    """
     def execute_many(self, cursor, query, param):
 
         while True:
@@ -94,7 +95,7 @@ class DbHandler:
                 self.logger.app_log.warning(f"Database query: {cursor} {str(query)[:100]} {str(param)[:100]}")
                 self.logger.app_log.warning(f"Database retry reason: {e}")
                 time.sleep(0.1)
-
+    """
     def execute_param(self, cursor, query, param):
         """Secure execute w/ param for slow nodes"""
 

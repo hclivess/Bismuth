@@ -391,8 +391,18 @@ def digest_block(node, data, sdef, peer_ip, db_handler):
                 db_handler.execute_param(db_handler.c, "INSERT INTO misc VALUES (?, ?)", (block_array.block_height_new, diff_save))
                 db_handler.commit(db_handler.conn)
 
-                db_handler.execute_many(db_handler.c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", block_transactions)
-                db_handler.commit(db_handler.conn)
+                #db_handler.execute_many(db_handler.c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", block_transactions)
+
+                for transaction2 in block_transactions:
+                    db_handler.execute_param(db_handler.c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
+                        str(transaction2[0]), str(transaction2[1]),
+                        str(transaction2[2]), str(transaction2[3]),
+                        str(transaction2[4]), str(transaction2[5]),
+                        str(transaction2[6]), str(transaction2[7]),
+                        str(transaction2[8]), str(transaction2[9]),
+                        str(transaction2[10]), str(transaction2[11])))
+                    # secure commit for slow nodes
+                    db_handler.commit(db_handler.conn)
 
                 # savings
                 if node.is_testnet or block_array.block_height_new >= 843000:

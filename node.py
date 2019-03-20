@@ -730,6 +730,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
             node.logger.app_log.warning("Inbound: Transport endpoint was not connected")
             return
 
+        threading.current_thread().name = f"in_{peer_ip}"
         # if threading.active_count() < node.thread_limit_conf or peer_ip == "127.0.0.1":
         # Always keep a slot for whitelisted (wallet could be there)
         if threading.active_count() < node.thread_limit_conf / 3 * 2 or node.peers.is_whitelisted(peer_ip):  # inbound
