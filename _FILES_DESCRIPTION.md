@@ -6,9 +6,6 @@ Each file maybe a *module* (library of functions, to be included but not run) or
 
 See also the most useful files: https://github.com/EggPool/Bismuth/blob/patch-51/_MOST_USEFUL_FILES.md
 
-## classes.py (*module*)
-Initialization of classes commonly used by node (Node, Client, Logger, Keys), which are then populated by the node code.
-
 ## aliases.py (*module*)
 Handles the aliases index (ie: labels for bismuth addresses)
 
@@ -29,6 +26,9 @@ bisurl encoding and decoding functions.
 A bisurl is a single string that encodes recipient, amount, data and a checksum into a single url like string, to be used in the wallet.  
 Exchanges could use this feature to give each user a bis url for deposit. The bis url would include the required custom data field, and the user would only have to adjust the required amount.
 
+## classes.py (*module*)
+Initialization of classes commonly used by node (Node, Client, Logger, Keys), which are then populated by the node code.
+
 ## commands.py  (*script*)
 Command line interface to node commands. Undocumented.
 Better refer to the dedicated API repo. 
@@ -36,6 +36,9 @@ Better refer to the dedicated API repo.
 ## connections.py (*module*)
 Low level protocol functions, header + json over raw socket.  
 Len of payload, decimal, on 10 chars, followed by json encoded data. See API repo.
+
+## compile_nuitka.cmd (*script*)
+Compiles executables for Windows. Nuitka is cross-platform, however.
 
 ## dbhandler.py (*module*)
 Standard database handler class for initiation and closing of database connections per thread, includes error handling.
@@ -112,6 +115,9 @@ Does **not** send anything sensitive to the node.
 ## send_nogui_noconf.py  (*script*)
 As send_nogui.py, without confirmation.
 
+## setup_nuitka.iss (*script*)
+Windows installer generator for Inno Setup when compiled with nuitka.
+
 ## simplecrypt.py (*module*)
 Helper. Handles wallet encryption/decryption with password.
 
@@ -127,10 +133,7 @@ Bundled/Legacy GUI Wallet.
 ## wallet_async.py  (*script*)
 Proof of concept asyncio GUI wallet.
 
-## setup_nuitka.iss (*script*)
-Windows installer generator for Inno Setup when compiled with nuitka.
-
-## compile_nuitka.cmd (*script*)
-Compiles executables for Windows. Nuitka is cross-platform, however.
+## worker.py (*module*)
+Outgoing traffic thread node module.
 
 Some files have been moved to https://github.com/hclivess/BismuthProjects
