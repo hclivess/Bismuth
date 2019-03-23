@@ -10,12 +10,6 @@ See also the most useful files: https://github.com/EggPool/Bismuth/blob/patch-51
 ## aliases.py (*module*)
 Handles the aliases index (ie: labels for bismuth addresses)
 
-## ann.py (*module*)
-Extract the latest announce and version from the chain.
-
-## anon_dappie.py (*script*)
-Non documented, probably outdated.
-
 ## apihandler.py (*module*)
 Class to handle extra API commands, that are not part of the core nodes protocol.  
 Used by Json-RPC server and other third party interaction.  
@@ -23,9 +17,6 @@ Prefered entry point for adding new generic features.
 
 ## apidirs.py (*module*)
 To be used by GUI wallet.  Finds local user storage location.
-
-## arches_client.py (*script*)
-Non documented arches client.
 
 ## async_client.py (*module*)
 Async TCP Client class for use by asyncio Bismuth Wallet or other async clients.
@@ -67,22 +58,15 @@ Len of payload, decimal, on 10 chars, followed by json encoded data. See API rep
 Database helpers - sqlite.
 
 ## dbhandler.py (*module*)
-Outdated WIP
-
-## decryptor.py (*script*)
-Decrypt an encrypted wallet.  
-Only privkey is encrypted in an encrypted wallet. Address and pubkey stay in clear format.
+Standard database handler class for initiation and closing of database connections per thread, includes error handling.
 
 ## demo_txsend.py (*script*)
 **!!Do not use unless you know what you do!!**. 
 Assemble and sends a transaction to be signed and sent by a node.
 **sends the privkey to the node**
 
-## difficulty_calculator.py (*script*)
-Undocumented 
-
 ## essentials.py (*module*)
-Common helpers. Some DB related, mainly crypto helpers.
+Common helpers. Some DB related, mainly crypto helpers and common abstract operations.
 
 ## exchange.py (*script*)
 Old helper script for use by exchanges, to be used with a local node only.  
@@ -90,19 +74,10 @@ Old helper script for use by exchanges, to be used with a local node only.
 
 ## genesis.py (*script*)
 Do not use.  
-Helper script to create a new genesis block, from an empty chain.
+Helper script to create a new genesis block, from an empty chain. Not maintained.
 
 ## hmac_drbg.py (*module*)
 HMAC_DRBG (sha512) helper class, used by the "heavy3" PoW algorithm.
-
-## html_dappie.py (*script*)
-Undocumented
-
-## hyper_test.py (*script*)
-Test. Recompress the ledger into hyperblocks.
-
-## icons.py (*module*)
-Undocumented
 
 ## keygen.py (*script*)
 Sample script to generate a new address.
@@ -112,9 +87,6 @@ Helpers to generate and read wallet.der (privkey, pubkey, address)
 
 ## ledger_explorer.py (*script*)
 Early version of a block explorer. Not maintained.
-
-## legacy_gui.py (*script*)
-Early version of a wallet. Not maintained.
 
 ## log.py (*module*)
 Logging - console, file - helpers.
@@ -146,15 +118,6 @@ Peers handler class.
 ## plugins.py (*module*)
 Plugin manager class for nodes. See the plugins repo for usage and sample plugins.
 
-## poolware_dappie (*script*)
-Unmaintained pool interface. Do not use.
-
-## poolware_explorer (*script*)
-Unmaintained pool interface. Do not use.
-
-## probability_analyzer.py  (*script*)
-One time script to analyse the outcome of the casino.
-
 ## process_search.py (*module*)
 Helper to test for a process presence.
 
@@ -165,13 +128,13 @@ Helpers. Workaround for float rounding.
 Helper. Recovers pubkey and address from privkey alone.
 
 ## rewards_reindex.py  (*script*)
-System script to reindex dev rewards. Do not use.
+System script to reindex dev rewards, manual block level input. Do not use.
 
 ## rewards_test.py  (*script*)
-Test. Do not use.
+Tests if there is a dev reward every 10 blocks. Do not use.
 
 ## rollback.py (*module*)
-Helper. rollbacks indexs on block rollback.
+Helper. rollbacks indexes on block rollback.
 
 ## send_nogui.py  (*script*)
 Command line script to send a transaction.  
@@ -203,17 +166,9 @@ Current GUI Wallet.
 ## wallet_async.py  (*script*)
 Proof of concept asyncio GUI wallet.
 
-## wallet_async_old.py  (*script*)
-outdated
+## setup_nuitka.iss (*script*)
+Windows installer generator for Inno Setup when compiled with nuitka.
 
-## wallet_old.py  (*script*)
-outdated
+## compile_nuitka.cmd (*script*)
+Compiles executables for Windows. Nuitka is cross-platform, however.
 
-## wallet_recovery_tool.py  (*script*)
-Util. Tries to recover a wallet from privkey.
-
-## zircodice_dappie.py  (*script*)
-Dapp part of the zircodice casino.
-
-## zircodice_web.py  (*script*)
-Web part of the zircodice casino.
