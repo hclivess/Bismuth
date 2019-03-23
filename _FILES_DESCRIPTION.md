@@ -6,6 +6,8 @@ Each file maybe a *module* (library of functions, to be included but not run) or
 
 See also the most useful files: https://github.com/EggPool/Bismuth/blob/patch-51/_MOST_USEFUL_FILES.md
 
+## classes.py (*module*)
+Initialization of classes commonly used by node (Node, Client, Logger, Keys), which are then populated by the node code.
 
 ## aliases.py (*module*)
 Handles the aliases index (ie: labels for bismuth addresses)
@@ -18,15 +20,9 @@ Prefered entry point for adding new generic features.
 ## apidirs.py (*module*)
 To be used by GUI wallet.  Finds local user storage location.
 
-## async_client.py (*module*)
-Async TCP Client class for use by asyncio Bismuth Wallet or other async clients.
-
 ## balance_nogui.py (*script*)
 Get balance from the command line.  
 Outdated, still uses privkey.der/pubkey.der instead or modern wallet.der
-
-## bisecdsa.py (*script*)
-Unused poc for ecdsa functions. Do not use.
 
 ## bisprocmon.py (*script*)
 Simple process monitor with http interface.
@@ -54,23 +50,11 @@ Undocumented WIP.
 Low level protocol functions, header + json over raw socket.  
 Len of payload, decimal, on 10 chars, followed by json encoded data. See API repo.
 
-## db.py (*module*)
-Database helpers - sqlite.
-
 ## dbhandler.py (*module*)
 Standard database handler class for initiation and closing of database connections per thread, includes error handling.
 
-## demo_txsend.py (*script*)
-**!!Do not use unless you know what you do!!**. 
-Assemble and sends a transaction to be signed and sent by a node.
-**sends the privkey to the node**
-
 ## essentials.py (*module*)
 Common helpers. Some DB related, mainly crypto helpers and common abstract operations.
-
-## exchange.py (*script*)
-Old helper script for use by exchanges, to be used with a local node only.  
-**sends privkey to the node**
 
 ## genesis.py (*script*)
 Do not use.  
@@ -153,13 +137,6 @@ Helper. Proof of concept for offline staking.
 ## tokensv2.py (*module*)
 Tokens functions.
 
-## twitterizer.py  (*script*)
-App: reward users who register their bismuth tweets.
-
-## vanity.py  (*script*)
-Try to generate addresses with specific chars in it.  
-Concept only, do not use for real world use without prior testing that the wallet works.
-
 ## wallet.py  (*script*)
 Current GUI Wallet.
 
@@ -172,3 +149,4 @@ Windows installer generator for Inno Setup when compiled with nuitka.
 ## compile_nuitka.cmd (*script*)
 Compiles executables for Windows. Nuitka is cross-platform, however.
 
+Some files have been moved to https://github.com/hclivess/BismuthProjects
