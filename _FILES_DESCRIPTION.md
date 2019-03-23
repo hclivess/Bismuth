@@ -81,9 +81,6 @@ Benchmark Helper for wallet.
 ## mempool.py (*module*)
 Mempool module for Bismuth nodes
 
-## miner.py (*script*)
-Legacy miner. Not maintained, not "heavy3" compatible.
-
 ## mining.py (*module*)
 Legacy mining algo: block validity check.
 
