@@ -10,6 +10,7 @@ import re
 import time
 import math
 import json
+import requests
 from simplecrypt import *
 
 from quantizer import *
@@ -32,6 +33,78 @@ def format_raw_tx(raw):
     transaction['openfield'] = raw[11]
 
     return transaction
+
+def replace_regex(string, replace):
+    replaced_string = re.sub(r'^{}'.format(replace), "", string)
+    return replaced_string
+
+def validate_pem(public_key):
+    PEM_BEGIN = re.compile(r"\s*-----BEGIN (.*)-----\s+")
+    PEM_END = re.compile(r"-----END (.*)-----\s*$")
+
+    """ Validate PEM data against :param public key:
+
+    :param public_key: public key to validate PEM against
+
+    The PEM data is constructed by base64 decoding the public key
+    Then, the data is tested against the PEM_BEGIN and PEM_END
+    to ensure the `pem_data` is valid, thus validating the public key.
+
+    returns None
+    """
+    # verify pem as cryptodome does
+    pem_data = base64.b64decode(public_key).decode("utf-8")
+    match = PEM_BEGIN.match(pem_data)
+    if not match:
+        raise ValueError("Not a valid PEM pre boundary")
+
+    marker = match.group(1)
+
+    match = PEM_END.search(pem_data)
+    if not match or match.group(1) != marker:
+        raise ValueError("Not a valid PEM post boundary")
+        # verify pem as cryptodome does
+
+
+def download_file(url, filename):
+    """Download a file from URL to filename
+
+    :param url: URL to download file from
+    :param filename: Filename to save downloaded data as
+
+    returns `filename`
+    """
+    try:
+        r = requests.get(url, stream=True)
+        total_size = int(r.headers.get('content-length')) / 1024
+
+        with open(filename, 'wb') as filename:
+            chunkno = 0
+            for chunk in r.iter_content(chunk_size=1024):
+                if chunk:
+                    chunkno = chunkno + 1
+                    if chunkno % 10000 == 0:  # every x chunks
+                        print(f"Downloaded {int(100 * (chunkno / total_size))} %")
+
+                    filename.write(chunk)
+                    filename.flush()
+            print("Downloaded 100 %")
+
+        return filename
+    except:
+        raise
+
+def most_common(lst: list):
+    """Used by consensus"""
+    # TODO: factorize the two helpers in one. and use a less cpu hungry method (counter)
+    return max(set(lst), key=lst.count)
+
+def most_common_dict(a_dict: dict):
+    """Returns the most common value from a dict. Used by consensus"""
+    return max(a_dict.values())
+
+def percentage_in(individual, whole):
+    return (float(list(whole).count(individual) / float(len(whole)))) * 100
 
 def round_down(number, order):
     return int(math.floor(number / order)) * order

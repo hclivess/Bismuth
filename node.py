@@ -57,7 +57,7 @@ import plugins
 import regnet
 import staking
 import tokensv2 as tokens
-from essentials import fee_calculate, checkpoint_set
+from essentials import fee_calculate, checkpoint_set, replace_regex, download_file, most_common
 from quantizer import *
 import connectionmanager
 from difficulty import *
@@ -78,14 +78,6 @@ appname = "Bismuth"
 appauthor = "Bismuth Foundation"
 
 # nodes_ban_reset=config.nodes_ban_reset
-
-PEM_BEGIN = re.compile(r"\s*-----BEGIN (.*)-----\s+")
-PEM_END = re.compile(r"-----END (.*)-----\s*$")
-
-
-def replace_regex(string, replace):
-    replaced_string = re.sub(r'^{}'.format(replace), "", string)
-    return replaced_string
 
 def tokens_rollback(node, height, db_handler):
     """Rollback Token index
@@ -146,64 +138,10 @@ def aliases_rollback(node, height, db_handler):
 
 
 
-def validate_pem(public_key):
-    """ Validate PEM data against :param public key:
 
-    :param public_key: public key to validate PEM against
-
-    The PEM data is constructed by base64 decoding the public key
-    Then, the data is tested against the PEM_BEGIN and PEM_END
-    to ensure the `pem_data` is valid, thus validating the public key.
-
-    returns None
-    """
-    # verify pem as cryptodome does
-    pem_data = base64.b64decode(public_key).decode("utf-8")
-    match = PEM_BEGIN.match(pem_data)
-    if not match:
-        raise ValueError("Not a valid PEM pre boundary")
-
-    marker = match.group(1)
-
-    match = PEM_END.search(pem_data)
-    if not match or match.group(1) != marker:
-        raise ValueError("Not a valid PEM post boundary")
-        # verify pem as cryptodome does
-
-
-def download_file(url, filename):
-    """Download a file from URL to filename
-
-    :param url: URL to download file from
-    :param filename: Filename to save downloaded data as
-
-    returns `filename`
-    """
-    try:
-        r = requests.get(url, stream=True)
-        total_size = int(r.headers.get('content-length')) / 1024
-
-        with open(filename, 'wb') as filename:
-            chunkno = 0
-            for chunk in r.iter_content(chunk_size=1024):
-                if chunk:
-                    chunkno = chunkno + 1
-                    if chunkno % 10000 == 0:  # every x chunks
-                        print(f"Downloaded {int(100 * (chunkno / total_size))} %")
-
-                    filename.write(chunk)
-                    filename.flush()
-            print("Downloaded 100 %")
-
-        return filename
-    except:
-        raise
 
 
 # load config
-
-def most_common(lst):
-    return max(set(lst), key=lst.count)
 
 
 def bootstrap():

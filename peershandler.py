@@ -14,23 +14,12 @@ import socks
 
 import regnet
 
+from essentials import most_common, most_common_dict, percentage_in
+
 __version__ = "0.0.12"
 
 
 # TODO : some config options are _conf and others without => clean up later on
-
-def most_common(lst: list):
-    """Used by consensus"""
-    # TODO: factorize the two helpers in one. and use a less cpu hungry method (counter)
-    return max(set(lst), key=lst.count)
-
-def most_common_dict(a_dict: dict):
-    """Returns the most common value from a dict. Used by consensus"""
-    return max(a_dict.values())
-
-def percentage_in(individual, whole):
-    return (float(list(whole).count(individual) / float(len(whole)))) * 100
-
 
 class Peers:
     """The peers manager. A thread safe peers manager"""
