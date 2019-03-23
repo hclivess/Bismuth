@@ -24,27 +24,14 @@ To be used by GUI wallet.  Finds local user storage location.
 Get balance from the command line.  
 Outdated, still uses privkey.der/pubkey.der instead or modern wallet.der
 
-## bisprocmon.py (*script*)
-Simple process monitor with http interface.
-
 ## bisurl.py (*module*)
 bisurl encoding and decoding functions.  
 A bisurl is a single string that encodes recipient, amount, data and a checksum into a single url like string, to be used in the wallet.  
 Exchanges could use this feature to give each user a bis url for deposit. The bis url would include the required custom data field, and the user would only have to adjust the required amount.
 
-## block_time_calc.py  (*script*)
-Outdated block time calculator. Do not use.
-
-## check_tx.py  (*script*)
-A Demo script that takes a transaction id as input, and sends back a json with is status.  
-Comes with a doc https://github.com/hclivess/Bismuth/blob/master/check_tx.md
-
 ## commands.py  (*script*)
-Command line interface to node commands. Undocumented.  
-Rather refer to the dedicated API repo. 
-
-## commands_new_not_working.py  (*script*)
-Undocumented WIP.
+Command line interface to node commands. Undocumented.
+Better refer to the dedicated API repo. 
 
 ## connections.py (*module*)
 Low level protocol functions, header + json over raw socket.  
@@ -135,7 +122,7 @@ Helper. Proof of concept for offline staking.
 Tokens functions.
 
 ## wallet.py  (*script*)
-Current GUI Wallet.
+Bundled/Legacy GUI Wallet.
 
 ## wallet_async.py  (*script*)
 Proof of concept asyncio GUI wallet.
