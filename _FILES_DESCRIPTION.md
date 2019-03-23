@@ -38,11 +38,17 @@ Better refer to the dedicated API repo.
 Low level protocol functions, header + json over raw socket.  
 Len of payload, decimal, on 10 chars, followed by json encoded data. See API repo.
 
+## connectionmanager.py (*module*)
+Connection manager thread module. Reports status to output.
+
 ## compile_nuitka.cmd (*script*)
 Compiles executables for Windows. Nuitka is cross-platform, however.
 
 ## dbhandler.py (*module*)
 Standard database handler class for initiation and closing of database connections per thread, includes error handling.
+
+## difficulty.py (*module*)
+Difficulty calculation.
 
 ## digest.py (*module*)
 Block processing.
