@@ -5,6 +5,7 @@ This repo will likely go through some refactoring, but in the mean time here is 
 Each file maybe a *module* (library of functions, to be included but not run) or a *script* (to be run).
 
 See also the most useful files: https://github.com/EggPool/Bismuth/blob/patch-51/_MOST_USEFUL_FILES.md
+Some files have been moved to https://github.com/hclivess/BismuthProjects
 
 ## aliases.py (*module*)
 Handles the aliases index (ie: labels for bismuth addresses)
@@ -37,14 +38,26 @@ Better refer to the dedicated API repo.
 Low level protocol functions, header + json over raw socket.  
 Len of payload, decimal, on 10 chars, followed by json encoded data. See API repo.
 
+## connectionmanager.py (*module*)
+Connection manager thread module. Reports status to output.
+
 ## compile_nuitka.cmd (*script*)
 Compiles executables for Windows. Nuitka is cross-platform, however.
 
 ## dbhandler.py (*module*)
 Standard database handler class for initiation and closing of database connections per thread, includes error handling.
 
+## difficulty.py (*module*)
+Difficulty calculation.
+
+## digest.py (*module*)
+Block processing.
+
 ## essentials.py (*module*)
 Common helpers. Some DB related, mainly crypto helpers and common abstract operations.
+
+## fork.py (*module*)
+Rules for upcoming hardforks should be stored here.
 
 ## genesis.py (*script*)
 Do not use.  
@@ -52,6 +65,9 @@ Helper script to create a new genesis block, from an empty chain. Not maintained
 
 ## hmac_drbg.py (*module*)
 HMAC_DRBG (sha512) helper class, used by the "heavy3" PoW algorithm.
+
+## hyperlane_asyncio.py (*module*)
+Module that handles hyperlane integration to node.
 
 ## keygen.py (*script*)
 Sample script to generate a new address.
@@ -98,6 +114,9 @@ Helpers. Workaround for float rounding.
 ## recovery.py (*module*)
 Helper. Recovers pubkey and address from privkey alone.
 
+## regnet.py (*module*)
+Regnet mode for bismuth testing.
+
 ## rewards_reindex.py  (*script*)
 System script to reindex dev rewards, manual block level input. Do not use.
 
@@ -136,4 +155,4 @@ Proof of concept asyncio GUI wallet.
 ## worker.py (*module*)
 Outgoing traffic thread node module.
 
-Some files have been moved to https://github.com/hclivess/BismuthProjects
+
