@@ -78,6 +78,7 @@ SQL_SELECT_TX_TO_SEND = 'SELECT * FROM transactions ORDER BY amount DESC'
 # Select Tx to be sent to a peer since the given ts - what counts is the merged time, not the tx time.
 SQL_SELECT_TX_TO_SEND_SINCE = 'SELECT * FROM transactions where mergedts > ? ORDER BY amount DESC'
 
+SQL_MEMPOOL_GET = "SELECT amount, openfield, operation FROM transactions WHERE address = ?;"
 
 class Mempool:
     """The mempool manager. Thread safe"""
@@ -111,6 +112,13 @@ class Mempool:
         except Exception as e:
             self.app_log.error("Error creating mempool: {}".format(e))
             raise
+
+    def mp_get(self, balance_address):
+        """
+        base mempool
+        :return:
+        """
+        return self.fetchall(SQL_MEMPOOL_GET, (balance_address,))
 
     def check(self):
         """

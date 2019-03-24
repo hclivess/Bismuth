@@ -356,8 +356,7 @@ def balanceget(balance_address, db_handler):
     # node.logger.app_log.info("Mempool: Verifying balance")
     # node.logger.app_log.info("Mempool: Received address: " + str(balance_address))
 
-    base_mempool = mp.MEMPOOL.fetchall("SELECT amount, openfield, operation FROM transactions WHERE address = ?;",
-                                       (balance_address,))
+    base_mempool = mp.MEMPOOL.mp_get(balance_address)
 
     # include mempool fees
 
@@ -2079,7 +2078,7 @@ if __name__ == "__main__":
         setup_net_type()
         load_keys()
 
-        node.logger.app_log.warning(f"Status: Starting node version {app_version}")
+        node.logger.app_log.warning(f"Status: Starting node version {VERSION}")
         node.startup_time = time.time()
         try:
 
