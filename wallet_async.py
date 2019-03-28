@@ -410,9 +410,9 @@ def lock_fn(button):
 def encrypt_fn(destroy_this):
     global key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, myaddress
     password = password_var_enc.get()
-    password_conf = password_var_con.get()
+    password = password_var_con.get()
 
-    if password == password_conf:
+    if password == password:
 
         ciphertext = encrypt(password, private_key_readable)
         ciphertext_export = base64.b64encode(ciphertext).decode()
@@ -466,7 +466,7 @@ def decrypt_fn(destroy_this):
     return key
 
 
-def send_confirm(amount_input, recipient_input, operation_input, openfield_input):
+def sendirm(amount_input, recipient_input, operation_input, openfield_input):
     amount_input = quantize_eight(amount_input)
 
     # Exchange check
@@ -539,14 +539,14 @@ def send_confirm(amount_input, recipient_input, operation_input, openfield_input
     confirmation_dialog.configure(state="disabled")
     confirmation_dialog.grid(row=0, pady=0)
 
-    enter = Button(top10, text="Confirm", command=lambda: send_confirmed(amount_input, recipient_input, operation_input, openfield_input, top10))
+    enter = Button(top10, text="Confirm", command=lambda: sendirmed(amount_input, recipient_input, operation_input, openfield_input, top10))
     enter.grid(row=1, column=0, sticky=W + E, padx=15, pady=(5, 5))
 
     done = Button(top10, text="Cancel", command=top10.destroy)
     done.grid(row=2, column=0, sticky=W + E, padx=15, pady=(5, 5))
 
 
-def send_confirmed(amount_input, recipient_input, operation_input ,openfield_input, top10):
+def sendirmed(amount_input, recipient_input, operation_input ,openfield_input, top10):
     send(amount_input, recipient_input, operation_input, openfield_input)
     top10.destroy()
 
@@ -1025,7 +1025,7 @@ def token_transfer(token, amount, window):
     openfield.insert(INSERT, "{}:{}".format(token, amount))
     window.destroy()
 
-    send_confirm(0, recipient.get(),"token:transfer", "{}:{}".format(token, amount))
+    sendirm(0, recipient.get(),"token:transfer", "{}:{}".format(token, amount))
 
 
 def token_issue(token, amount, window):
@@ -1038,7 +1038,7 @@ def token_issue(token, amount, window):
     recipient.insert(INSERT, myaddress)
     window.destroy()
 
-    send_confirm(0, recipient.get(),"token:issue", "{}:{}".format(token, amount))
+    sendirm(0, recipient.get(),"token:issue", "{}:{}".format(token, amount))
 
 
 def tokens():
@@ -1185,8 +1185,8 @@ def table(address, addlist_20, mempool_total):
 
         tx_tree.insert('', 'end', text=datetime.fromtimestamp(float(tx[1])).strftime('%y-%m-%d %H:%M'), values=(tx[2], tx[3], tx[4], symbol), tags=tag)
 
-        tx_tree.tag_configure("received", background='palegreen1')
-        tx_tree.tag_configure("sent", background='chocolate1')
+        tx_tree.tagigure("received", background='palegreen1')
+        tx_tree.tagigure("sent", background='chocolate1')
 
     # table
 
@@ -1570,10 +1570,9 @@ if __name__ == "__main__":
 
     config = options.Get()
     config.read()
-    full_ledger = config.full_ledger_conf
     port = config.port
     light_ip = config.light_ip
-    version = config.version_conf
+    version = config.version
     gui_scaling = config.gui_scaling
 
 	
@@ -1582,7 +1581,7 @@ if __name__ == "__main__":
         light_ip = ["127.0.0.1"]
 
     # app_log = log.log("gui.log", debug_level)
-    app_log = log.log("wallet.log", config.debug_level_conf, config.terminal_output)
+    app_log = log.log("wallet.log", config.debug_level, config.terminal_output)
 
     essentials.keys_check(app_log, "wallet.der")
     essentials.db_check(app_log)
@@ -1811,7 +1810,7 @@ if __name__ == "__main__":
     # buttons
 
     send_b = Button(frame_send, text="Send Bismuth",
-                    command=lambda: send_confirm(str(amount.get()).strip(), recipient.get().strip(),
+                    command=lambda: sendirm(str(amount.get()).strip(), recipient.get().strip(),
                                                  operation.get().strip(),(openfield.get("1.0", END)).strip()),
                     height=2, width=22, font=("Tahoma", 12))
     send_b.grid(row=0, column=0)

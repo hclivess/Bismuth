@@ -36,6 +36,7 @@ from quantizer import quantize_eight
 from simplecrypt import encrypt, decrypt
 from tokensv2 import *
 
+
 class Keys:
     def __init__(self):
         self.key = None
@@ -48,15 +49,14 @@ class Keys:
         self.keyfile = None
 
 
-
 # Wallet needs a version for itself
 __version__ = '0.8.2'
 
-#upgrade wallet location after nuitka-required "files" folder introduction
+# upgrade wallet location after nuitka-required "files" folder introduction
 if os.path.exists("../wallet.der") and not os.path.exists("wallet.der") and "Windows" in platform.system():
     print("Upgrading wallet location")
     os.rename("../wallet.der", "wallet.der")
-#upgrade wallet location after nuitka-required "files" folder introduction
+# upgrade wallet location after nuitka-required "files" folder introduction
 
 
 """nuitka
@@ -71,7 +71,6 @@ from matplotlib.figure import Figure3
 global block_height_old
 global statusget
 global s
-
 
 
 def mempool_clear(s):
@@ -322,8 +321,6 @@ def keys_untar(archive):
 
 
 def keys_load_dialog():
-
-
     wallet_load = filedialog.askopenfilename(multiple=False, initialdir="", title="Select wallet")
 
     if wallet_load.endswith('.gz'):
@@ -434,6 +431,11 @@ def recipient_copy():
     root.clipboard_clear()
     root.clipboard_append(recipient.get())
 
+
+def percentage(percent, whole):
+    return (Decimal(percent) * Decimal(whole) / 100)
+
+
 def alias():
     alias_var = StringVar()
 
@@ -495,7 +497,6 @@ def lock_fn(button):
 
 
 def encrypt_fn(destroy_this):
-
     password = password_var_enc.get()
     password_conf = password_var_con.get()
 
@@ -568,8 +569,8 @@ def send_confirm(amount_input, recipient_input, operation_input, openfield_input
     }
     if recipient_input in exchange_addresses and len(openfield_input) < 16:
         messagebox.showinfo("Cannot send",
-            "Identification message is missing for {}, please include it"
-            .format(exchange_addresses[recipient_input]))
+                            "Identification message is missing for {}, please include it"
+                            .format(exchange_addresses[recipient_input]))
         return
 
     top10 = Toplevel()
@@ -1054,6 +1055,7 @@ def stats():
     refresh_stats_auto()
     """
 
+
 def csv_export(s):
     connections.send(s, "addlist", 10)  # senders
     connections.send(s, keyring.myaddress, 10)
@@ -1353,7 +1355,7 @@ def refresh(address, s):
         # fees_current_var.set("Current Fee: {}".format('%.8f' % float(fee)))
         balance_var.set("Balance: {:.8f} BIS".format(Decimal(balance)))
         balance_raw.set(balance)
-        #address_var.set("Address: {}".format(address))
+        # address_var.set("Address: {}".format(address))
         debit_var.set("Sent Total: {:.8f} BIS".format(Decimal(debit)))
         credit_var.set("Received Total: {:.8f} BIS".format(Decimal(credit)))
         fees_var.set("Fees Paid: {:.8f} BIS".format(Decimal(fees)))
@@ -1411,7 +1413,6 @@ def refresh(address, s):
     except Exception as e:
         app_log.warning(e)
         node_connect()
-
 
 
 def sign():
@@ -1585,7 +1586,7 @@ def get_best_ipport_to_use(light_ip_list):
             rep = requests.get("http://api.bismuth.live/servers/wallet/legacy.json")
             if rep.status_code == 200:
                 wallets = rep.json()
-                #print(wallets)
+                # print(wallets)
         except Exception as e:
             app_log.warning("Error {} getting Server list from API, using lwbench instead".format(e))
 
@@ -1595,8 +1596,8 @@ def get_best_ipport_to_use(light_ip_list):
             return ipport_list
 
         # We have a server list, order by load
-        sorted_wallets = sorted([wallet for wallet in wallets if wallet['active']], key=lambda k: (k['clients']+1)/(k['total_slots']+2))
-        #print(sorted_wallets)
+        sorted_wallets = sorted([wallet for wallet in wallets if wallet['active']], key=lambda k: (k['clients'] + 1) / (k['total_slots'] + 2))
+        # print(sorted_wallets)
         """
         # try to connect in sequence, keep the first one ok.
         for wallet in sorted_wallets:
@@ -1651,12 +1652,11 @@ if __name__ == "__main__":
     config = options.Get()
 
     config.read()
-    debug_level = config.debug_level_conf
-    full_ledger = config.full_ledger_conf
+    debug_level = config.debug_level
     port = config.port
     light_ip = config.light_ip
     node_ip = config.node_ip
-    version = config.version_conf
+    version = config.version
     terminal_output = config.terminal_output
     gui_scaling = config.gui_scaling
 
@@ -1674,8 +1674,8 @@ if __name__ == "__main__":
     light_ip_conf = light_ip
 
     light_ip = get_best_ipport_to_use(light_ip_conf)
-    #light_ip.insert(0,node_ip)
-    #light_ip = "127.0.0.1:8150"
+    # light_ip.insert(0,node_ip)
+    # light_ip = "127.0.0.1:8150"
 
     root = Tk()
 
@@ -1683,7 +1683,6 @@ if __name__ == "__main__":
     # root.geometry("1310x700") #You want the size of the app to be 500x500
 
     # root['bg']="black"
-
 
     """nuitka
     root.resizable(0, 0)  # Don't allow resizing in the x or y direction / resize #nuitka
@@ -1731,7 +1730,6 @@ if __name__ == "__main__":
 
     # frame_mainstats = Frame(tab_main, relief = 'ridge', borderwidth = 4)
     # frame_mainstats.grid(row=5, column=1, sticky=W + E + N, pady=5, padx=5)
-
 
     # tab_transactions transactions
     tab_transactions = ttk.Frame(nbtabs)
@@ -1792,7 +1790,6 @@ if __name__ == "__main__":
     # tab5 tokens
     tab_tokens = ttk.Frame(nbtabs)
     nbtabs.add(tab_tokens, text='Tokens')
-
 
     nbtabs.bind('<<NotebookTabChanged>>', click_on_tab_tokens)
 
@@ -1882,13 +1879,11 @@ if __name__ == "__main__":
 
     # canvas
 
-
     # display the menu
     root.config(menu=menubar)
     # menu
 
     # buttons
-
 
     send_b = Button(frame_send, text="Send Bismuth", command=lambda: send_confirm(str(amount.get()).strip(), recipient.get().strip(), operation.get().strip(), (openfield.get("1.0", END)).strip()), height=2, width=22, font=("Tahoma", 12))
     send_b.grid(row=0, column=0)
@@ -1903,7 +1898,6 @@ if __name__ == "__main__":
     lock_b = Button(frame_logo_buttons, text="Locked", command=lambda: lock_fn(lock_b), height=1, width=8, state=DISABLED)
     lock_b.grid(row=0, column=2)
 
-
     encryption_button_refresh()
     # buttons
 
@@ -1913,9 +1907,9 @@ if __name__ == "__main__":
     balance_raw = StringVar()
     balance_var = StringVar()
 
-    #address_var = StringVar()
-    #address_var_label = Label(frame_coins, textvariable=address_var, font=("Tahoma", 8, "bold"))
-    #address_var_label.grid(row=0, column=0, sticky=S, padx=15)
+    # address_var = StringVar()
+    # address_var_label = Label(frame_coins, textvariable=address_var, font=("Tahoma", 8, "bold"))
+    # address_var_label.grid(row=0, column=0, sticky=S, padx=15)
 
     balance_msg_label = Label(frame_coins, textvariable=balance_var, font=("Tahoma", 16, "bold"))
     balance_msg_label.grid(row=1, column=0, sticky=S, padx=15)
@@ -2109,7 +2103,7 @@ if __name__ == "__main__":
     """nuitka
     logo_img = PIL.Image.open("graphics/logo.png")
     logo = PIL.ImageTk.PhotoImage(logo_img)
-    
+
     Label(frame_logo, image=logo).grid(column=0, row=0)
     # logo
     """

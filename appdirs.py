@@ -163,7 +163,7 @@ def site_data_dir(appname=None, appauthor=None, version=None, multipath=False):
     return path
 
 
-def userig_dir(appname=None, appauthor=None, version=None, roaming=False):
+def user_config_dir(appname=None, appauthor=None, version=None, roaming=False):
     r"""Return full path to the user-specific config dir for this application.
 
         "appname" is the name of application.
@@ -186,16 +186,16 @@ def userig_dir(appname=None, appauthor=None, version=None, roaming=False):
 
     Typical user config directories are:
         Mac OS X:               same as user_data_dir
-        Unix:                   ~/.config/<AppName>     # or in $XDGIG_HOME, if defined
+        Unix:                   ~/.config/<AppName>     # or in $XDG_CONFIG_HOME, if defined
         Win *:                  same as user_data_dir
 
-    For Unix, we follow the XDG spec and support $XDGIG_HOME.
+    For Unix, we follow the XDG spec and support $XDG_CONFIG_HOME.
     That means, by default "~/.config/<AppName>".
     """
     if system in ["win32", "darwin"]:
         path = user_data_dir(appname, appauthor, None, roaming)
     else:
-        path = os.getenv('XDGIG_HOME', os.path.expanduser("~/.config"))
+        path = os.getenv('XDG_CONFIG_HOME', os.path.expanduser("~/.config"))
         if appname:
             path = os.path.join(path, appname)
     if appname and version:
@@ -203,7 +203,7 @@ def userig_dir(appname=None, appauthor=None, version=None, roaming=False):
     return path
 
 
-def siteig_dir(appname=None, appauthor=None, version=None, multipath=False):
+def site_config_dir(appname=None, appauthor=None, version=None, multipath=False):
     r"""Return full path to the user-shared data dir for this application.
 
         "appname" is the name of application.
@@ -219,17 +219,17 @@ def siteig_dir(appname=None, appauthor=None, version=None, multipath=False):
             Only applied when appname is present.
         "multipath" is an optional parameter only applicable to *nix
             which indicates that the entire list of config dirs should be
-            returned. By default, the first item from XDGIG_DIRS is
-            returned, or '/etc/xdg/<AppName>', if XDGIG_DIRS is not set
+            returned. By default, the first item from XDG_CONFIG_DIRS is
+            returned, or '/etc/xdg/<AppName>', if XDG_CONFIG_DIRS is not set
 
     Typical site config directories are:
         Mac OS X:   same as site_data_dir
-        Unix:       /etc/xdg/<AppName> or $XDGIG_DIRS[i]/<AppName> for each value in
-                    $XDGIG_DIRS
+        Unix:       /etc/xdg/<AppName> or $XDG_CONFIG_DIRS[i]/<AppName> for each value in
+                    $XDG_CONFIG_DIRS
         Win *:      same as site_data_dir
         Vista:      (Fail! "C:\ProgramData" is a hidden *system* directory on Vista.)
 
-    For Unix, this is using the $XDGIG_DIRS[0] default, if multipath=False
+    For Unix, this is using the $XDG_CONFIG_DIRS[0] default, if multipath=False
 
     WARNING: Do not use this on Windows. See the Vista-Fail note above for why.
     """
@@ -238,9 +238,9 @@ def siteig_dir(appname=None, appauthor=None, version=None, multipath=False):
         if appname and version:
             path = os.path.join(path, version)
     else:
-        # XDG default for $XDGIG_DIRS
+        # XDG default for $XDG_CONFIG_DIRS
         # only first, if multipath is False
-        path = os.getenv('XDGIG_DIRS', '/etc/xdg')
+        path = os.getenv('XDG_CONFIG_DIRS', '/etc/xdg')
         pathlist = [os.path.expanduser(x.rstrip(os.sep)) for x in path.split(os.pathsep)]
         if appname:
             if version:
@@ -425,13 +425,13 @@ class AppDirs(object):
                              version=self.version, multipath=self.multipath)
 
     @property
-    def userig_dir(self):
-        return userig_dir(self.appname, self.appauthor,
+    def user_config_dir(self):
+        return user_config_dir(self.appname, self.appauthor,
                                version=self.version, roaming=self.roaming)
 
     @property
-    def siteig_dir(self):
-        return siteig_dir(self.appname, self.appauthor,
+    def site_config_dir(self):
+        return site_config_dir(self.appname, self.appauthor,
                              version=self.version, multipath=self.multipath)
 
     @property
@@ -578,12 +578,12 @@ if __name__ == "__main__":
     appauthor = "MyCompany"
 
     props = ("user_data_dir",
-             "userig_dir",
+             "user_config_dir",
              "user_cache_dir",
              "user_state_dir",
              "user_log_dir",
              "site_data_dir",
-             "siteig_dir")
+             "site_config_dir")
 
     print("-- app dirs %s --" % __version__)
 
