@@ -101,16 +101,7 @@ def digest_block(node, data, sdef, peer_ip, db_handler):
     def dev_reward():
         # dev reward
         if int(block_array.block_height_new) % 10 == 0:  # every 10 blocks
-            db_handler.execute_param(db_handler.c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                                     (-block_array.block_height_new, str(miner_tx.q_block_timestamp), "Development Reward", str(node.genesis_conf),
-                                      str(mining_reward), "0", "0", mirror_hash, "0", "0", "0", "0"))
-            db_handler.commit(db_handler.conn)
-
-            db_handler.execute_param(db_handler.c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                                     (-block_array.block_height_new, str(miner_tx.q_block_timestamp), "Hypernode Payouts",
-                                      "3e08b5538a4509d9daa99e01ca5912cda3e98a7f79ca01248c2bde16",
-                                      "8", "0", "0", mirror_hash, "0", "0", "0", "0"))
-            db_handler.commit(db_handler.conn)
+            db_handler.dev_reward()
         # /dev reward
 
     def check_signature(block):
@@ -424,7 +415,7 @@ def digest_block(node, data, sdef, peer_ip, db_handler):
                 mirror_hash = hashlib.blake2b(str(tx_list_to_hash).encode(), digest_size=20).hexdigest()
                 # /new sha_hash
 
-                dev_reward()
+                db_handler.dev_reward(node,block_array,miner_tx,mining_reward,mirror_hash)
 
                 # node.logger.app_log.warning("Block: {}: {} valid and saved from {}".format(block_array.block_height_new, block_hash[:10], peer_ip))
                 node.logger.app_log.warning(

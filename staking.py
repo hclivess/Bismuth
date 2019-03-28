@@ -10,9 +10,8 @@ from quantizer import *
 import mempool as mp
 from hashlib import blake2b
 import re
+from essentials import percentage
 
-def percentage(percent, whole):
-    return ((Decimal(percent) * Decimal(whole)) / 100)
 
 def execute_param(cursor, query, param):
     """Secure execute w/ param for slow nodes"""

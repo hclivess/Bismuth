@@ -79,67 +79,6 @@ appauthor = "Bismuth Foundation"
 
 # nodes_ban_reset=config.nodes_ban_reset
 
-def tokens_rollback(node, height, db_handler):
-    """Rollback Token index
-
-    :param height: height index of token in chain
-
-    Simply deletes from the `tokens` table where the block_height is
-    greater than or equal to the :param height: and logs the new height
-
-    returns None
-    """
-    try:
-        db_handler.execute_param(db_handler.index_cursor, "DELETE FROM tokens WHERE block_height >= ?;", (height,))
-        db_handler.commit(db_handler.index)
-
-        node.logger.app_log.warning(f"Rolled back the token index below {(height)}")
-    except Exception as e:
-        node.logger.app_log.warning(f"Failed to roll back the token index below {(height)} due to {e}")
-
-
-def staking_rollback(node, height, db_handler):
-    """Rollback staking index
-
-    :param height: height index of token in chain
-
-    Simply deletes from the `staking` table where the block_height is
-    greater than or equal to the :param height: and logs the new height
-
-    returns None
-    """
-    try:
-        db_handler.execute_param(db_handler.index_cursor, "DELETE FROM staking WHERE block_height >= ?;", (height,))
-        db_handler.commit(db_handler.index)
-
-        node.logger.app_log.warning(f"Rolled back the staking index below {(height)}")
-    except Exception as e:
-        node.logger.app_log.warning(f"Failed to roll back the staking index below {(height)} due to {e}")
-
-
-def aliases_rollback(node, height, db_handler):
-    """Rollback Alias index
-
-    :param height: height index of token in chain
-
-    Simply deletes from the `aliases` table where the block_height is
-    greater than or equal to the :param height: and logs the new height
-
-    returns None
-    """
-    try:
-        db_handler.execute_param(db_handler.index_cursor, "DELETE FROM aliases WHERE block_height >= ?;", (height,))
-        db_handler.commit(db_handler.index)
-
-        node.logger.app_log.warning(f"Rolled back the alias index below {(height)}")
-    except Exception as e:
-        node.logger.app_log.warning(f"Failed to roll back the alias index below {(height)} due to {e}")
-
-
-
-
-
-
 
 # load config
 
@@ -183,27 +122,15 @@ def check_integrity(database):
     if redownload and node.is_mainnet:
         bootstrap()
 
-
-def percentage(percent, whole):
-    return Decimal(percent) * Decimal(whole) / 100
-
-def rollback_to(node, db_handler, block_height):
+def rollback(node, db_handler, block_height):
     node.logger.app_log.warning(f"Status: Rolling back below: {block_height}")
 
-    db_handler.h.execute("DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?", (block_height,-block_height,))
-    db_handler.commit(db_handler.hdd)
-    db_handler.h.execute("DELETE FROM misc WHERE block_height >= ?", (block_height,))
-    db_handler.commit(db_handler.hdd)
-
-    db_handler.h2.execute("DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?", (block_height, -block_height,))
-    db_handler.commit(db_handler.hdd2)
-    db_handler.h2.execute("DELETE FROM misc WHERE block_height >= ?", (block_height,))
-    db_handler.commit(db_handler.hdd2)
+    db_handler.rollback_to(block_height)
 
     # rollback indices
-    tokens_rollback(node, block_height, db_handler)
-    aliases_rollback(node, block_height, db_handler)
-    staking_rollback(node, block_height, db_handler)
+    db_handler.tokens_rollback(node, block_height)
+    db_handler.aliases_rollback(node, block_height)
+    db_handler.staking_rollback(node, block_height)
     # rollback indices
 
     node.logger.app_log.warning(f"Status: Chain rolled back below {block_height} and will be resynchronized")
@@ -301,32 +228,28 @@ def ledger_check_heights(node, db_handler):
 
         if node.full_ledger:
             # cross-integrity check
-            db_handler.h.execute("SELECT max(block_height) FROM transactions")
-            hdd_block_last = db_handler.h.fetchone()[0]
-            db_handler.h.execute("SELECT max(block_height) FROM misc")
-            hdd_block_last_misc = db_handler.h.fetchone()[0]
+            hdd_block_max = db_handler.block_height_max()
+            hdd_block_max_diff = db_handler.block_height_max_diff()
+            hdd2_block_last = db_handler.block_height_max_hyper()
+            hdd2_block_last_misc = db_handler.block_height_max_diff_hyper()
 
-            db_handler.h2.execute("SELECT max(block_height) FROM transactions")
-            hdd2_block_last = db_handler.h2.fetchone()[0]
-            db_handler.h2.execute("SELECT max(block_height) FROM misc")
-            hdd2_block_last_misc = db_handler.h2.fetchone()[0]
             # cross-integrity check
 
-            if hdd_block_last == hdd2_block_last == hdd2_block_last_misc == hdd_block_last_misc and node.hyper_recompress_conf:  # cross-integrity check
+            if hdd_block_max == hdd2_block_last == hdd2_block_last_misc == hdd_block_max_diff and node.hyper_recompress_conf:  # cross-integrity check
                 node.logger.app_log.warning("Status: Recompressing hyperblocks (keeping full ledger)")
                 recompress = True
-            elif hdd_block_last == hdd2_block_last and not node.hyper_recompress_conf:
+            elif hdd_block_max == hdd2_block_last and not node.hyper_recompress_conf:
                 node.logger.app_log.warning("Status: Hyperblock recompression skipped")
                 recompress = False
             else:
-                lowest_block = min(hdd_block_last, hdd2_block_last, hdd_block_last_misc, hdd2_block_last_misc)
-                highest_block = max(hdd_block_last, hdd2_block_last, hdd_block_last_misc, hdd2_block_last_misc)
+                lowest_block = min(hdd_block_max, hdd2_block_last, hdd_block_max_diff, hdd2_block_last_misc)
+                highest_block = max(hdd_block_max, hdd2_block_last, hdd_block_max_diff, hdd2_block_last_misc)
 
 
                 node.logger.app_log.warning(
                     f"Status: Cross-integrity check failed, {highest_block} will be rolled back below {lowest_block}")
 
-                rollback_to(node,db_handler_initial,lowest_block) #rollback to the lowest value
+                rollback(node,db_handler_initial,lowest_block) #rollback to the lowest value
 
                 recompress = True
         else:
@@ -444,10 +367,10 @@ def blocknf(node, block_hash_delete, peer_ip, db_handler):
         reason = ""
 
         try:
-            db_handler.execute(db_handler.c, 'SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1')
-            results = db_handler.c.fetchone()
-            db_block_height = results[0]
-            db_block_hash = results[7]
+            block_max_ram = db_handler.block_max_ram()
+            db_block_height = block_max_ram ['block_height']
+            db_block_hash = block_max_ram ['block_hash']
+
 
             ip = {'ip': peer_ip}
             node.plugin_manager.execute_filter_hook('filter_rollback_ip', ip)
@@ -466,40 +389,21 @@ def blocknf(node, block_hash_delete, peer_ip, db_handler):
                 skip = True
 
             else:
-                db_handler.execute_param(db_handler.c, "SELECT * FROM transactions WHERE block_height >= ?;", (db_block_height,))
-                backup_data = db_handler.c.fetchall()
-                # this code continues at the bottom because of ledger presence check
-
-                # delete followups
-                db_handler.execute_param(db_handler.c, "DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?", (db_block_height, -db_block_height))
-                db_handler.commit(db_handler.conn)
-
-                db_handler.execute_param(db_handler.c, "DELETE FROM misc WHERE block_height >= ?;", (db_block_height,))
-                db_handler.commit(db_handler.conn)
+                backup_data = db_handler.backup_higher(db_block_height)
 
                 node.logger.app_log.warning(f"Node {peer_ip} didn't find block {db_block_height}({db_block_hash})")
 
                 # roll back hdd too
-                if node.full_ledger:  # rollback ledger.db
-                    db_handler.execute_param(db_handler.h, "DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?", (db_block_height, -db_block_height))
-                    db_handler.commit(db_handler.hdd)
-                    db_handler.execute_param(db_handler.h, "DELETE FROM misc WHERE block_height >= ?;", (db_block_height,))
-                    db_handler.commit(db_handler.hdd)
-
-                if node.ram_conf:  # rollback hyper.db
-                    db_handler.execute_param(db_handler.h2, "DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?", (db_block_height, -db_block_height))
-                    db_handler.commit(db_handler.hdd2)
-                    db_handler.execute_param(db_handler.h2, "DELETE FROM misc WHERE block_height >= ?;", (db_block_height,))
-                    db_handler.commit(db_handler.hdd2)
+                dbhandler.rollback_to(db_block_height)
 
                 db_handler.execute(db_handler.h, "SELECT max(block_height) FROM transactions")
                 node.hdd_block = db_handler.h.fetchone()[0]
                 # /roll back hdd too
 
                 # rollback indices
-                tokens_rollback(node, db_block_height, db_handler)
-                aliases_rollback(node, db_block_height, db_handler)
-                staking_rollback(node, db_block_height, db_handler)
+                db_handler.tokens_rollback(node, db_block_height)
+                db_handler.aliases_rollback(node, db_block_height)
+                db_handler.staking_rollback(node, db_block_height)
                 # /rollback indices
 
         except Exception as e:
@@ -589,9 +493,9 @@ def sequencing_check(db_handler):
                     conn2.commit()
 
                     # rollback indices
-                    tokens_rollback(node, y, db_handler)
-                    aliases_rollback(node, y, db_handler)
-                    staking_rollback(node, y, db_handler)
+                    db_handler.tokens_rollback(node, y)
+                    db_handler.aliases_rollback(node, y)
+                    db_handler.staking_rollback(node, y)
 
                     # rollback indices
 
@@ -631,9 +535,9 @@ def sequencing_check(db_handler):
                     conn2.close()
 
                     # rollback indices
-                    tokens_rollback(node, y, db_handler)
-                    aliases_rollback(node, y, db_handler)
-                    staking_rollback(node, y, db_handler)
+                    db_handler.tokens_rollback(node, y)
+                    db_handler.aliases_rollback(node, y)
+                    db_handler.staking_rollback(node, y)
                     # rollback indices
 
                     node.logger.app_log.warning(f"Status: Due to a sequencing issue at block {y}, {chain} has been rolled back and will be resynchronized")
@@ -1607,7 +1511,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                         send(self.request, (
                             revealed_address, nodes_count, nodes_list, threads_count, uptime, node.peers.consensus,
-                            node.peers.consensus_percentage, app_version, diff, server_timestamp))
+                            node.peers.consensus_percentage, VERSION, diff, server_timestamp))
 
                     else:
                         node.logger.app_log.info(f"{peer_ip} not whitelisted for statusget command")

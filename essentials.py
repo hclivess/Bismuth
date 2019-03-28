@@ -34,6 +34,9 @@ def format_raw_tx(raw):
 
     return transaction
 
+def percentage(percent, whole):
+    return Decimal(percent) * Decimal(whole) / 100
+
 def replace_regex(string, replace):
     replaced_string = re.sub(r'^{}'.format(replace), "", string)
     return replaced_string

@@ -353,11 +353,6 @@ def recipient_copy():
     root.clipboard_clear()
     root.clipboard_append(recipient.get())
 
-
-def percentage(percent, whole):
-    return(Decimal(percent) * Decimal(whole) / 100)
-
-
 def alias():
     alias_var = StringVar()
 
