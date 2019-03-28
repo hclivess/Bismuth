@@ -2,14 +2,14 @@ import essentials, options, connections, socks
 
 config = options.Get()
 config.read()
-node_ip_conf = config.node_ip_conf
+node_ip = config.node_ip
 port = config.port
 
 key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, address = essentials.keys_load("privkey.der", "pubkey.der")
 
 s = socks.socksocket()
 s.settimeout(10)
-s.connect((node_ip_conf, int(port)))
+s.connect((node_ip, int(port)))
 
 connections.send (s, "balanceget", 10)
 connections.send (s, address, 10)

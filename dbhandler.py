@@ -7,40 +7,34 @@ import sqlite3
 import essentials
 
 class DbHandler:
-    def __init__(self, index_db, ledger_path_conf, hyper_path_conf, full_ledger, ram_conf, ledger_ram_file, logger):
-        self.ram_conf = ram_conf
+    def __init__(self, index_db, ledger_path, hyper_path, ram, ledger_ram_file, logger):
+        self.ram = ram
         self.ledger_ram_file = ledger_ram_file
-        self.hyper_path_conf = hyper_path_conf
+        self.hyper_path = hyper_path
 
         self.logger = logger
-        self.full_ledger = full_ledger
 
         self.index = sqlite3.connect(index_db, timeout=1)
         self.index.text_factory = str
         self.index_cursor = self.index.cursor()
 
-        self.hdd = sqlite3.connect(ledger_path_conf, timeout=1)
+        self.hdd = sqlite3.connect(ledger_path, timeout=1)
         self.hdd.text_factory = str
         self.h = self.hdd.cursor()
 
-        self.hdd2 = sqlite3.connect(hyper_path_conf, timeout=1)
+        self.hdd2 = sqlite3.connect(hyper_path, timeout=1)
         self.hdd2.text_factory = str
         self.h2 = self.hdd2.cursor()
 
 
-        if self.ram_conf:
+        if self.ram:
             self.conn = sqlite3.connect(self.ledger_ram_file, uri=True, isolation_level=None, timeout=1)
         else:
-            self.conn = sqlite3.connect(self.hyper_path_conf, uri=True, timeout=1)
+            self.conn = sqlite3.connect(self.hyper_path, uri=True, timeout=1)
 
         self.conn.execute('PRAGMA journal_mode = WAL;')
         self.conn.text_factory = str
         self.c = self.conn.cursor()
-        
-        if self.full_ledger:
-            self.h3 = self.h
-        else:
-            self.h3 = self.h2
 
     def block_max_ram(self):
         self.execute(self.c, 'SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1')
@@ -147,7 +141,7 @@ class DbHandler:
 
     def dev_reward(self,node,block_array,miner_tx,mining_reward,mirror_hash):
         self.execute_param(self.c, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                                 (-block_array.block_height_new, str(miner_tx.q_block_timestamp), "Development Reward", str(node.genesis_conf),
+                                 (-block_array.block_height_new, str(miner_tx.q_block_timestamp), "Development Reward", str(node.genesis),
                                   str(mining_reward), "0", "0", mirror_hash, "0", "0", "0", "0"))
         self.commit(self.conn)
 

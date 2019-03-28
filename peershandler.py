@@ -19,7 +19,7 @@ from essentials import most_common, most_common_dict, percentage_in
 __version__ = "0.0.12"
 
 
-# TODO : some config options are _conf and others without => clean up later on
+# TODO : some config options are  and others without => clean up later on
 
 class Peers:
     """The peers manager. A thread safe peers manager"""
@@ -75,7 +75,7 @@ class Peers:
             return False
         if self.config.testnet:
             return True
-        return "testnet" in self.config.version_conf
+        return "testnet" in self.config.version
 
     @property
     def is_regnet(self):
@@ -83,7 +83,7 @@ class Peers:
         if self.config.regnet:
             # regnet takes over testnet
             return True
-        return "regnet" in self.config.version_conf
+        return "regnet" in self.config.version
 
     def status_dict(self):
         """Returns a status as a dict"""
@@ -130,7 +130,7 @@ class Peers:
                 if peer_ip not in peers_pairs:
                     self.app_log.warning(f"Testing connectivity to: {peer_ip}")
                     peer_test = socks.socksocket()
-                    if self.config.tor_conf == 1:
+                    if self.config.tor == 1:
                         peer_test.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
                     peer_test.connect((str(peer_ip), int(self.config.port)))  # double parentheses mean tuple
                     self.app_log.info("Inbound: Distant peer connectible")
@@ -244,7 +244,7 @@ class Peers:
         # only allow local host for "stop" command
         if 'stop' == command:
             return peer_ip == '127.0.0.1'
-        return peer_ip in self.config.allowed_conf or "any" in self.config.allowed_conf
+        return peer_ip in self.config.allowed or "any" in self.config.allowed
 
     def is_whitelisted(self, peer_ip, command=''):
         # TODO: could be handled later on via "allowed" and rights.
@@ -267,14 +267,14 @@ class Peers:
                     try:
                         s = socks.socksocket()
                         s.settimeout(0.6)
-                        if self.config.tor_conf == 1:
+                        if self.config.tor == 1:
                             s.settimeout(5)
                             s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
                         s.connect((host, port))
                         s.close()
                         self.app_log.info(f"Connection to {host} {port} successful, keeping the peer")
                     except:
-                        if self.config.purge_conf == 1 and not self.is_testnet:
+                        if self.config.purge == 1 and not self.is_testnet:
                             # remove from peerfile if not connectible
 
                             peers_remove[key] = value
@@ -312,7 +312,7 @@ class Peers:
                         self.app_log.info(f"Outbound: {pair} is a new peer, saving if connectible")
                         try:
                             s_purge = socks.socksocket()
-                            if self.config.tor_conf == 1:
+                            if self.config.tor == 1:
                                 s_purge.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
 
                             s_purge.connect((pair[0], int(pair[1])))  # save a new peer file with only active nodes
@@ -347,7 +347,7 @@ class Peers:
                         self.app_log.info(f"Outbound: {ip}:{port} is a new peer, saving if connectible")
                         try:
                             s_purge = socks.socksocket()
-                            if self.config.tor_conf == 1:
+                            if self.config.tor == 1:
                                 s_purge.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
                             s_purge.connect((ip, int(port)))  # save a new peer file with only active nodes
                             s_purge.close()
@@ -498,7 +498,7 @@ class Peers:
 
                 if self.is_testnet:
                     port = 2829
-                if threading.active_count() / 3 < self.config.thread_limit_conf and self.can_connect_to(host, port):
+                if threading.active_count() / 3 < self.config.thread_limit and self.can_connect_to(host, port):
                     self.app_log.info(f"Will attempt to connect to {host}:{port}")
                     self.add_try(host, port)
                     t = threading.Thread(target=target, args=(host, port, node), name=f"out_{host}_{port}")  # threaded connectivity to nodes here

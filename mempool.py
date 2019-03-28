@@ -88,8 +88,8 @@ class Mempool:
             self.app_log = app_log
             self.config = config
             self.db_lock = db_lock
-            self.ram = self.config.mempool_ram_conf
-            if self.config.version_conf == 'regnet':
+            self.ram = self.config.mempool_ram
+            if self.config.version == 'regnet':
                 self.app_log.warning("Regtest mode, ram mempool")
                 self.ram = True
 
@@ -651,6 +651,6 @@ class Mempool:
                 # TODO: Here maybe commit() on c to release the write lock?
             except Exception as e:
                 self.app_log.warning("Mempool: Error processing: {} {}".format(data, e))
-                if self.config.debug_conf == 1:
+                if self.config.debug == 1:
                     raise
         return mempool_result

@@ -112,9 +112,9 @@ def digest_block(node, data, sdef, peer_ip, db_handler):
                 signature_list.append(entry_signature)
                 # reject block with transactions which are already in the ledger ram
 
-                db_handler.execute_param(db_handler.h3, "SELECT block_height FROM transactions WHERE signature = ?;",
+                db_handler.execute_param(db_handler.h, "SELECT block_height FROM transactions WHERE signature = ?;",
                                          (entry_signature,))
-                tx_presence_check = db_handler.h3.fetchone()
+                tx_presence_check = db_handler.h.fetchone()
                 if tx_presence_check:
                     # print(node.last_block)
                     raise ValueError(f"That transaction {entry_signature[:10]} is already in our ram ledger, block_height {tx_presence_check[0]}")
@@ -248,8 +248,8 @@ def digest_block(node, data, sdef, peer_ip, db_handler):
                 # node.logger.app_log.info("Nonce: {}".format(nonce))
 
                 # check if we already have the sha_hash
-                db_handler.execute_param(db_handler.h3, "SELECT block_height FROM transactions WHERE block_hash = ?", (block_array.block_hash,))
-                dummy = db_handler.h3.fetchone()
+                db_handler.execute_param(db_handler.h, "SELECT block_height FROM transactions WHERE block_hash = ?", (block_array.block_hash,))
+                dummy = db_handler.h.fetchone()
                 if dummy:
                     raise ValueError(
                         "Skipping digestion of block {} from {}, because we already have it on block_height {}".
@@ -453,9 +453,9 @@ def digest_block(node, data, sdef, peer_ip, db_handler):
             raise ValueError("Chain: digestion aborted")
 
         finally:
-            if node.full_ledger or node.ram_conf:
-                # first case move stuff from hyper.db to ledger.db; second case move stuff from ram to both
+            if node.ram:
                 db_to_drive(node, db_handler)
+
             node.db_lock.release()
             node.logger.app_log.warning(f"Database lock released")
 

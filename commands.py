@@ -2,7 +2,7 @@ import socks, connections, time, sys, json
 import options
 config = options.Get()
 config.read()
-version = config.version_conf
+version = config.version
 
 print ('Number of arguments:', len(sys.argv), 'arguments.')
 print ('Argument List:', str(sys.argv))

@@ -152,17 +152,17 @@ def db_to_drive(node, db_handler):
 
         result1 = db_handler.c.fetchall()
 
-        if node.full_ledger:  # we want to save to ledger.db
-            for x in result1:
-                db_handler.execute_param(db_handler.h, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                          (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
-            db_handler.commit(db_handler.hdd)
 
-            #db_handler.execute_many(db_handler.h, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", result1)
+        for x in result1:# we want to save to ledger.db
+            db_handler.execute_param(db_handler.h, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                      (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
+        db_handler.commit(db_handler.hdd)
+
+        #db_handler.execute_many(db_handler.h, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", result1)
 
 
 
-        if node.ram_conf:  # we want to save to hyper.db from RAM/hyper.db depending on ram conf
+        if node.ram:  # we want to save to hyper.db from RAM/hyper.db depending on ram conf
             for x in result1:
                 db_handler.execute_param(db_handler.h2, "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                            (x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]))
@@ -174,15 +174,15 @@ def db_to_drive(node, db_handler):
         db_handler.execute_param(db_handler.c, "SELECT * FROM misc WHERE block_height > ? ORDER BY block_height ASC", (node.hdd_block,))
         result2 = db_handler.c.fetchall()
 
-        if node.full_ledger:  # we want to save to ledger.db from RAM/hyper.db depending on ram conf
-            for x in result2:
-                db_handler.execute_param(db_handler.h, "INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
-            db_handler.commit(db_handler.hdd)
 
-            #db_handler.execute_many(db_handler.h, "INSERT INTO misc VALUES (?,?)", result2)
+        for x in result2: # we want to save to ledger.db from RAM/hyper.db depending on ram conf
+            db_handler.execute_param(db_handler.h, "INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
+        db_handler.commit(db_handler.hdd)
+
+        #db_handler.execute_many(db_handler.h, "INSERT INTO misc VALUES (?,?)", result2)
 
 
-        if node.ram_conf:  # we want to save to hyper.db from RAM
+        if node.ram:  # we want to save to hyper.db from RAM
             for x in result2:
                 db_handler.execute_param(db_handler.h2, "INSERT INTO misc VALUES (?,?)", (x[0], x[1]))
             db_handler.commit(db_handler.hdd2)

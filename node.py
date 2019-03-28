@@ -1,7 +1,6 @@
-# c = hyperblock in ram OR hyperblock file when running only hyperblocks
-# h = ledger file
+# c = hyperblock in ram OR hyperblock file when running only hyperblocks without ram mode on
+# h = ledger file or hyperblock clone in hyperblock mode
 # h2 = hyperblock file
-# h3 = ledger file OR hyperblock file when running only hyperblocks
 
 # never remove the str() conversion in data evaluation or database inserts or you will debug for 14 days as signed types mismatch
 # if you raise in the server thread, the server will die and node will stop
@@ -91,7 +90,7 @@ def bootstrap():
                 os.remove(f)
                 print(f, "deleted")
 
-        archive_path = node.ledger_path_conf + ".tar.gz"
+        archive_path = node.ledger_path + ".tar.gz"
         download_file("https://bismuth.cz/ledger.tar.gz", archive_path)
 
         with tarfile.open(archive_path) as tar:
@@ -138,20 +137,20 @@ def rollback(node, db_handler, block_height):
 
 def recompress_ledger(node, rebuild=False, depth=15000):
 
-    files_remove = [node.ledger_path_conf + '.temp',node.ledger_path_conf + '.temp-shm',node.ledger_path_conf + '.temp-wal']
+    files_remove = [node.ledger_path + '.temp',node.ledger_path + '.temp-shm',node.ledger_path + '.temp-wal']
     for file in files_remove:
         if os.path.exists(file):
             os.remove(file)
             node.logger.app_log.warning(f"Removed old {file}")
 
-    if node.full_ledger and rebuild:
+    if rebuild:
         node.logger.app_log.warning(f"Status: Hyperblocks will be rebuilt")
 
-        shutil.copy(node.ledger_path_conf, node.ledger_path_conf + '.temp')
-        hyper = sqlite3.connect(node.ledger_path_conf + '.temp')
+        shutil.copy(node.ledger_path, node.ledger_path + '.temp')
+        hyper = sqlite3.connect(node.ledger_path + '.temp')
     else:
-        shutil.copy(node.hyper_path_conf, node.ledger_path_conf + '.temp')
-        hyper = sqlite3.connect(node.ledger_path_conf + '.temp')
+        shutil.copy(node.hyper_path, node.ledger_path + '.temp')
+        hyper = sqlite3.connect(node.ledger_path + '.temp')
 
     hyper.text_factory = str
     hyp = hyper.cursor()
@@ -210,55 +209,43 @@ def recompress_ledger(node, rebuild=False, depth=15000):
     hyper.close()
 
 
-    if os.path.exists(node.hyper_path_conf) and rebuild:
-        os.remove(node.hyper_path_conf)  # remove the old hyperblocks to rebuild
-        os.rename(node.ledger_path_conf + '.temp', node.hyper_path_conf)
-
-    if node.full_ledger == 0 and os.path.exists(node.ledger_path_conf) and node.is_mainnet:
-        os.remove(node.ledger_path_conf)
-        node.logger.app_log.warning("Removed full ledger and only kept hyperblocks")
-
-
+    if os.path.exists(node.hyper_path) and rebuild:
+        os.remove(node.hyper_path)  # remove the old hyperblocks to rebuild
+        os.rename(node.ledger_path + '.temp', node.hyper_path)
 
 
 def ledger_check_heights(node, db_handler):
     """conversion of normal blocks into hyperblocks from ledger.db or hyper.db to hyper.db"""
 
-    if os.path.exists(node.hyper_path_conf):
-
-        if node.full_ledger:
-            # cross-integrity check
-            hdd_block_max = db_handler.block_height_max()
-            hdd_block_max_diff = db_handler.block_height_max_diff()
-            hdd2_block_last = db_handler.block_height_max_hyper()
-            hdd2_block_last_misc = db_handler.block_height_max_diff_hyper()
-
-            # cross-integrity check
-
-            if hdd_block_max == hdd2_block_last == hdd2_block_last_misc == hdd_block_max_diff and node.hyper_recompress_conf:  # cross-integrity check
-                node.logger.app_log.warning("Status: Recompressing hyperblocks (keeping full ledger)")
-                recompress = True
-            elif hdd_block_max == hdd2_block_last and not node.hyper_recompress_conf:
-                node.logger.app_log.warning("Status: Hyperblock recompression skipped")
-                recompress = False
-            else:
-                lowest_block = min(hdd_block_max, hdd2_block_last, hdd_block_max_diff, hdd2_block_last_misc)
-                highest_block = max(hdd_block_max, hdd2_block_last, hdd_block_max_diff, hdd2_block_last_misc)
+    if os.path.exists(node.hyper_path):
 
 
-                node.logger.app_log.warning(
-                    f"Status: Cross-integrity check failed, {highest_block} will be rolled back below {lowest_block}")
+        # cross-integrity check
+        hdd_block_max = db_handler.block_height_max()
+        hdd_block_max_diff = db_handler.block_height_max_diff()
+        hdd2_block_last = db_handler.block_height_max_hyper()
+        hdd2_block_last_misc = db_handler.block_height_max_diff_hyper()
 
-                rollback(node,db_handler_initial,lowest_block) #rollback to the lowest value
+        # cross-integrity check
 
-                recompress = True
+        if hdd_block_max == hdd2_block_last == hdd2_block_last_misc == hdd_block_max_diff and node.hyper_recompress:  # cross-integrity check
+            node.logger.app_log.warning("Status: Recompressing hyperblocks (keeping full ledger)")
+            recompress = True
+        elif hdd_block_max == hdd2_block_last and not node.hyper_recompress:
+            node.logger.app_log.warning("Status: Hyperblock recompression skipped")
+            recompress = False
         else:
-            if node.hyper_recompress_conf:
-                node.logger.app_log.warning("Status: Recompressing hyperblocks (without full ledger)")
-                recompress = True
-            else:
-                node.logger.app_log.warning("Status: Hyperblock recompression skipped")
-                recompress = False
+            lowest_block = min(hdd_block_max, hdd2_block_last, hdd_block_max_diff, hdd2_block_last_misc)
+            highest_block = max(hdd_block_max, hdd2_block_last, hdd_block_max_diff, hdd2_block_last_misc)
+
+
+            node.logger.app_log.warning(
+                f"Status: Cross-integrity check failed, {highest_block} will be rolled back below {lowest_block}")
+
+            rollback(node,db_handler_initial,lowest_block) #rollback to the lowest value
+
+            recompress = True
+
 
     else:
         node.logger.app_log.warning("Status: Compressing ledger to Hyperblocks")
@@ -266,6 +253,7 @@ def ledger_check_heights(node, db_handler):
 
     if recompress:
         recompress_ledger(node)
+
 
 def bin_convert(string):
     return ''.join(format(ord(x), '8b').replace(' ', '0') for x in string)
@@ -296,8 +284,8 @@ def balanceget(balance_address, db_handler):
     credit_ledger = Decimal("0")
 
     try:
-        db_handler.execute_param(db_handler.h3, "SELECT amount FROM transactions WHERE recipient = ?;", (balance_address,))
-        entries = db_handler.h3.fetchall()
+        db_handler.execute_param(db_handler.h, "SELECT amount FROM transactions WHERE recipient = ?;", (balance_address,))
+        entries = db_handler.h.fetchall()
     except:
         entries = []
 
@@ -312,8 +300,8 @@ def balanceget(balance_address, db_handler):
     debit_ledger = Decimal("0")
 
     try:
-        db_handler.execute_param(db_handler.h3, "SELECT fee, amount FROM transactions WHERE address = ?;", (balance_address,))
-        entries = db_handler.h3.fetchall()
+        db_handler.execute_param(db_handler.h, "SELECT fee, amount FROM transactions WHERE address = ?;", (balance_address,))
+        entries = db_handler.h.fetchall()
     except:
         entries = []
 
@@ -336,7 +324,7 @@ def balanceget(balance_address, db_handler):
     rewards = Decimal("0")
 
     try:
-        db_handler.execute_param(db_handler.h3, "SELECT reward FROM transactions WHERE recipient = ?;", (balance_address,))
+        db_handler.execute_param(db_handler.h, "SELECT reward FROM transactions WHERE recipient = ?;", (balance_address,))
         entries = db_handler.c.fetchall()
     except:
         entries = []
@@ -461,10 +449,8 @@ def sequencing_check(db_handler):
 
     node.logger.app_log.warning(f"Status: Testing chain sequencing, starting with block {sequencing_last}")
 
-    if node.full_ledger:
-        chains_to_check = [node.ledger_path_conf, node.hyper_path_conf]
-    else:
-        chains_to_check = [node.hyper_path_conf]
+
+    chains_to_check = [node.ledger_path, node.hyper_path]
 
     for chain in chains_to_check:
         conn = sqlite3.connect(chain)
@@ -567,9 +553,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
             return
 
         threading.current_thread().name = f"in_{peer_ip}"
-        # if threading.active_count() < node.thread_limit_conf or peer_ip == "127.0.0.1":
+        # if threading.active_count() < node.thread_limit or peer_ip == "127.0.0.1":
         # Always keep a slot for whitelisted (wallet could be there)
-        if threading.active_count() < node.thread_limit_conf / 3 * 2 or node.peers.is_whitelisted(peer_ip):  # inbound
+        if threading.active_count() < node.thread_limit / 3 * 2 or node.peers.is_whitelisted(peer_ip):  # inbound
             client_instance.connected = True
         else:
             try:
@@ -595,7 +581,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         timer_operation = time.time()  # start counting
 
         if not client_instance.banned and node.peers.version_allowed(peer_ip, node.version_allow) and client_instance.connected:
-            db_handler_instance = dbhandler.DbHandler(node.index_db, node.ledger_path_conf, node.hyper_path_conf, node.full_ledger, node.ram_conf, node.ledger_ram_file, node.logger)
+            db_handler_instance = dbhandler.DbHandler(node.index_db, node.ledger_path, node.hyper_path, node.ram, node.ledger_ram_file, node.logger)
 
         while not client_instance.banned and node.peers.version_allowed(peer_ip, node.version_allow) and client_instance.connected:
             try:
@@ -624,7 +610,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         db_handler_instance.execute(db_handler_instance.c, "SELECT block_hash FROM transactions WHERE block_height= (select max(block_height) from transactions)")
                         block_hash = db_handler_instance.c.fetchone()[0]
                         # feed regnet with current thread db handle. refactor needed.
-                        regnet.conn, regnet.c, regnet.hdd, regnet.h, regnet.hdd2, regnet.h2, regnet.h3 = db_handler_instance.conn, db_handler_instance.c, db_handler_instance.hdd, db_handler_instance.h, db_handler_instance.hdd2, db_handler_instance.h2, db_handler_instance.h3
+                        regnet.conn, regnet.c, regnet.hdd, regnet.h, regnet.hdd2, regnet.h2, regnet.h = db_handler_instance.conn, db_handler_instance.c, db_handler_instance.hdd, db_handler_instance.h, db_handler_instance.hdd2, db_handler_instance.h2, db_handler_instance.h
                         regnet.command(self.request, data, block_hash, node, db_handler_instance)
 
                 if data == 'version':
@@ -678,17 +664,17 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     send(self.request, peers_send)
 
                     while node.db_lock.locked():
-                        time.sleep(quantize_two(node.pause_conf))
+                        time.sleep(quantize_two(node.pause))
                     node.logger.app_log.info("Inbound: Sending sync request")
 
                     send(self.request, "sync")
 
                 elif data == "sendsync":
                     while node.db_lock.locked():
-                        time.sleep(quantize_two(node.pause_conf))
+                        time.sleep(quantize_two(node.pause))
 
                     while len(node.syncing) >= 3:
-                        time.sleep(int(node.pause_conf))
+                        time.sleep(int(node.pause))
 
                     send(self.request, "sync")
 
@@ -784,9 +770,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             node.logger.app_log.info(f"Inbound: Will seek the following block: {data}")
 
                             try:
-                                db_handler_instance.execute_param(db_handler_instance.h3,
+                                db_handler_instance.execute_param(db_handler_instance.h,
                                                                   "SELECT block_height FROM transactions WHERE block_hash = ?;", (data,))
-                                client_block = db_handler_instance.h3.fetchone()[0]
+                                client_block = db_handler_instance.h.fetchone()[0]
                             except Exception:
                                 node.logger.app_log.warning(f"Inbound: Block {data[:8]} of {peer_ip} not found")
                                 send(self.request, "blocknf")
@@ -795,16 +781,16 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             else:
                                 node.logger.app_log.info(f"Inbound: Client is at block {client_block}")  # now check if we have any newer
 
-                                db_handler_instance.execute(db_handler_instance.h3,
+                                db_handler_instance.execute(db_handler_instance.h,
                                                             'SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1')
-                                db_block_hash = db_handler_instance.h3.fetchone()[0]  # get latest block_hash
+                                db_block_hash = db_handler_instance.h.fetchone()[0]  # get latest block_hash
                                 if db_block_hash == data or not node.egress:
                                     if not node.egress:
                                         node.logger.app_log.warning(f"Outbound: Egress disabled for {peer_ip}")
                                     else:
                                         node.logger.app_log.info(f"Inbound: Client {peer_ip} has the latest block")
 
-                                    time.sleep(int(node.pause_conf))  # reduce CPU usage
+                                    time.sleep(int(node.pause))  # reduce CPU usage
                                     send(self.request, "nonewblk")
 
                                 else:
@@ -813,10 +799,10 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                     del blocks_fetched[:]
                                     while sys.getsizeof(
                                             str(blocks_fetched)) < 500000:  # limited size based on txs in blocks
-                                        db_handler_instance.execute_param(db_handler_instance.h3, (
+                                        db_handler_instance.execute_param(db_handler_instance.h, (
                                             "SELECT timestamp,address,recipient,amount,signature,public_key,operation,openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"),
                                                                           (str(int(client_block)), str(int(client_block + 1)),))
-                                        result = db_handler_instance.h3.fetchall()
+                                        result = db_handler_instance.h.fetchall()
                                         if not result:
                                             break
                                         blocks_fetched.extend([result])
@@ -857,7 +843,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     node.logger.app_log.info("Outbound: Deletion complete, sending sync request")
 
                     while node.db_lock.locked():
-                        time.sleep(node.pause_conf)
+                        time.sleep(node.pause)
                     send(self.request, "sync")
 
                 elif data == "block":
@@ -954,9 +940,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if node.peers.is_allowed(peer_ip, data):
                         block_desired = receive(self.request)
 
-                        db_handler_instance.execute_param(db_handler_instance.h3, "SELECT * FROM transactions WHERE block_height = ?;",
+                        db_handler_instance.execute_param(db_handler_instance.h, "SELECT * FROM transactions WHERE block_height = ?;",
                                                           (block_desired,))
-                        block_desired_result = db_handler_instance.h3.fetchall()
+                        block_desired_result = db_handler_instance.h.fetchall()
 
                         send(self.request, block_desired_result)
                     else:
@@ -967,9 +953,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if node.peers.is_allowed(peer_ip, data):
                         block_desired = receive(self.request)
 
-                        db_handler_instance.execute_param(db_handler_instance.h3, "SELECT * FROM transactions WHERE block_height = ?;",
+                        db_handler_instance.execute_param(db_handler_instance.h, "SELECT * FROM transactions WHERE block_height = ?;",
                                                           (block_desired,))
-                        block_desired_result = db_handler_instance.h3.fetchall()
+                        block_desired_result = db_handler_instance.h.fetchall()
 
                         response_list = []
                         for transaction in block_desired_result:
@@ -1122,10 +1108,10 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # if (peer_ip in allowed or "any" in allowed):
                     if node.peers.is_allowed(peer_ip, data):
                         address_tx_list = receive(self.request)
-                        db_handler_instance.execute_param(db_handler_instance.h3, (
+                        db_handler_instance.execute_param(db_handler_instance.h, (
                             "SELECT * FROM transactions WHERE (address = ? OR recipient = ?) ORDER BY block_height DESC"),
                                                           (address_tx_list, address_tx_list,))
-                        result = db_handler_instance.h3.fetchall()
+                        result = db_handler_instance.h.fetchall()
                         send(self.request, result)
                     else:
                         node.logger.app_log.info(f"{peer_ip} not whitelisted for addlist command")
@@ -1135,9 +1121,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if node.peers.is_allowed(peer_ip, data):
                         list_limit = receive(self.request)
                         # print(address_tx_list_limit)
-                        db_handler_instance.execute_param(db_handler_instance.h3, "SELECT * FROM transactions ORDER BY block_height DESC LIMIT ?",
+                        db_handler_instance.execute_param(db_handler_instance.h, "SELECT * FROM transactions ORDER BY block_height DESC LIMIT ?",
                                                           (list_limit,))
-                        result = db_handler_instance.h3.fetchall()
+                        result = db_handler_instance.h.fetchall()
 
                         response_list = []
                         for transaction in result:
@@ -1164,9 +1150,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if node.peers.is_allowed(peer_ip, data):
                         list_limit = receive(self.request)
                         # print(address_tx_list_limit)
-                        db_handler_instance.execute_param(db_handler_instance.h3, "SELECT * FROM transactions ORDER BY block_height DESC LIMIT ?",
+                        db_handler_instance.execute_param(db_handler_instance.h, "SELECT * FROM transactions ORDER BY block_height DESC LIMIT ?",
                                                           (list_limit,))
-                        result = db_handler_instance.h3.fetchall()
+                        result = db_handler_instance.h.fetchall()
                         send(self.request, result)
                     else:
                         node.logger.app_log.info(f"{peer_ip} not whitelisted for listlim command")
@@ -1177,10 +1163,10 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         address_tx_list_limit = receive(self.request)
 
                         # print(address_tx_list_limit)
-                        db_handler_instance.execute_param(db_handler_instance.h3, (
+                        db_handler_instance.execute_param(db_handler_instance.h, (
                             "SELECT * FROM transactions WHERE (address = ? OR recipient = ?) ORDER BY block_height DESC LIMIT ?"),
                                                           (address_tx_list, address_tx_list, address_tx_list_limit,))
-                        result = db_handler_instance.h3.fetchall()
+                        result = db_handler_instance.h.fetchall()
                         send(self.request, result)
                     else:
                         node.logger.app_log.info(f"{peer_ip} not whitelisted for addlistlim command")
@@ -1191,10 +1177,10 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         address_tx_list_limit = receive(self.request)
 
                         # print(address_tx_list_limit)
-                        db_handler_instance.execute_param(db_handler_instance.h3, (
+                        db_handler_instance.execute_param(db_handler_instance.h, (
                             "SELECT * FROM transactions WHERE (address = ? OR recipient = ?) ORDER BY block_height DESC LIMIT ?"),
                                                           (address_tx_list, address_tx_list, address_tx_list_limit,))
-                        result = db_handler_instance.h3.fetchall()
+                        result = db_handler_instance.h.fetchall()
 
                         response_list = []
                         for transaction in result:
@@ -1223,10 +1209,10 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         address_tx_list_limit = receive(self.request)
 
                         # print(address_tx_list_limit)
-                        db_handler_instance.execute_param(db_handler_instance.h3, (
+                        db_handler_instance.execute_param(db_handler_instance.h, (
                             "SELECT * FROM transactions WHERE (address = ? OR recipient = ?) AND block_height < 1 ORDER BY block_height ASC LIMIT ?"),
                                                           (address_tx_list, address_tx_list, address_tx_list_limit,))
-                        result = db_handler_instance.h3.fetchall()
+                        result = db_handler_instance.h.fetchall()
                         send(self.request, result)
                     else:
                         node.logger.app_log.info(f"{peer_ip} not whitelisted for addlistlimmir command")
@@ -1237,10 +1223,10 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         address_tx_list_limit = receive(self.request)
 
                         # print(address_tx_list_limit)
-                        db_handler_instance.execute_param(db_handler_instance.h3, (
+                        db_handler_instance.execute_param(db_handler_instance.h, (
                             "SELECT * FROM transactions WHERE (address = ? OR recipient = ?) AND block_height < 1 ORDER BY block_height ASC LIMIT ?"),
                                                           (address_tx_list, address_tx_list, address_tx_list_limit,))
-                        result = db_handler_instance.h3.fetchall()
+                        result = db_handler_instance.h.fetchall()
 
                         response_list = []
                         for transaction in result:
@@ -1268,7 +1254,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                 elif data == "aliasget":  # all for a single address, no protection against overlapping
                     if node.peers.is_allowed(peer_ip, data):
-                        aliases.aliases_update(node.index_db, node.ledger_path_conf, "normal", node.logger.app_log)
+                        aliases.aliases_update(node.index_db, node.ledger_path, "normal", node.logger.app_log)
 
                         alias_address = receive(self.request)
 
@@ -1286,7 +1272,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                 elif data == "aliasesget":  # only gets the first one, for multiple addresses
                     if node.peers.is_allowed(peer_ip, data):
-                        aliases.aliases_update(node.index_db, node.ledger_path_conf, "normal", node.logger.app_log)
+                        aliases.aliases_update(node.index_db, node.ledger_path, "normal", node.logger.app_log)
 
                         aliases_request = receive(self.request)
 
@@ -1308,12 +1294,12 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 # Not mandatory, but may help to reindex with minimal sql queries
                 elif data == "tokensupdate":
                     if node.peers.is_allowed(peer_ip, data):
-                        tokens.tokens_update(node.index_db, node.ledger_path_conf, "normal", node.logger.app_log,
+                        tokens.tokens_update(node.index_db, node.ledger_path, "normal", node.logger.app_log,
                                              node.plugin_manager)
                 #
                 elif data == "tokensget":
                     if node.peers.is_allowed(peer_ip, data):
-                        tokens.tokens_update(node.index_db, node.ledger_path_conf, "normal", node.logger.app_log,
+                        tokens.tokens_update(node.index_db, node.ledger_path, "normal", node.logger.app_log,
                                              node.plugin_manager)
                         tokens_address = receive(self.request)
 
@@ -1347,7 +1333,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "addfromalias":
                     if node.peers.is_allowed(peer_ip, data):
 
-                        aliases.aliases_update(node.index_db, node.ledger_path_conf, "normal", node.logger.app_log)
+                        aliases.aliases_update(node.index_db, node.ledger_path, "normal", node.logger.app_log)
 
                         alias_address = receive(self.request)
                         db_handler_instance.execute_param(db_handler_instance.index_cursor,
@@ -1385,8 +1371,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             "SELECT timestamp FROM transactions WHERE openfield = ?;",
                             ("alias=" + reg_string,))
 
-                        db_handler_instance.execute_param(db_handler_instance.h3, "SELECT timestamp FROM transactions WHERE openfield = ?;", ("alias=" + reg_string,) )
-                        registered_already = db_handler_instance.h3.fetchone()
+                        db_handler_instance.execute_param(db_handler_instance.h, "SELECT timestamp FROM transactions WHERE openfield = ?;", ("alias=" + reg_string,) )
+                        registered_already = db_handler_instance.h.fetchone()
 
                         if registered_already is None and registered_pending is None:
                             send(self.request, "Alias free")
@@ -1463,8 +1449,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         #    peers_file = peer_list.read()
 
                         try:
-                            db_handler_instance.execute_param(db_handler_instance.h3, "SELECT openfield FROM transactions WHERE address = ? AND operation = ? ORDER BY block_height DESC LIMIT 1", (node.genesis_conf, "ann"))
-                            result = db_handler_instance.h3.fetchone()[0]
+                            db_handler_instance.execute_param(db_handler_instance.h, "SELECT openfield FROM transactions WHERE address = ? AND operation = ? ORDER BY block_height DESC LIMIT 1", (node.genesis, "ann"))
+                            result = db_handler_instance.h.fetchone()[0]
                         except:
                             result = ""
 
@@ -1476,8 +1462,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if node.peers.is_allowed(peer_ip):
 
                         try:
-                            db_handler_instance.execute_param(db_handler_instance.h3, "SELECT openfield FROM transactions WHERE address = ? AND operation = ? ORDER BY block_height DESC LIMIT 1", (node.genesis_conf, "annver"))
-                            result = db_handler_instance.h3.fetchone()[0]
+                            db_handler_instance.execute_param(db_handler_instance.h, "SELECT openfield FROM transactions WHERE address = ? AND operation = ? ORDER BY block_height DESC LIMIT 1", (node.genesis, "annver"))
+                            result = db_handler_instance.h.fetchone()[0]
                         except:
                             result = ""
 
@@ -1576,9 +1562,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "difflast":
                     if node.peers.is_allowed(peer_ip, data):
 
-                        db_handler_instance.execute(db_handler_instance.h3,
+                        db_handler_instance.execute(db_handler_instance.h,
                                                     "SELECT block_height, difficulty FROM misc ORDER BY block_height DESC LIMIT 1")
-                        difflast = db_handler_instance.h3.fetchone()
+                        difflast = db_handler_instance.h.fetchone()
                         send(self.request, difflast)
                     else:
                         node.logger.app_log.info("f{peer_ip} not whitelisted for difflastget command")
@@ -1586,9 +1572,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "difflastjson":
                     if node.peers.is_allowed(peer_ip, data):
 
-                        db_handler_instance.execute(db_handler_instance.h3,
+                        db_handler_instance.execute(db_handler_instance.h,
                                                     "SELECT block_height, difficulty FROM misc ORDER BY block_height DESC LIMIT 1")
-                        difflast = db_handler_instance.h3.fetchone()
+                        difflast = db_handler_instance.h.fetchone()
                         response = {"block": difflast[0],
                                     "difficulty": difflast[1]
                                     }
@@ -1612,7 +1598,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                 if not time.time() <= timer_operation + timeout_operation:
                     timer_operation = time.time()  # reset timer
-                # time.sleep(float(node.pause_conf))  # prevent cpu overload
+                # time.sleep(float(node.pause))  # prevent cpu overload
                 node.logger.app_log.info(f"Server loop finished for {peer_ip}")
 
 
@@ -1625,7 +1611,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 # remove from consensus (connection from them)
                 self.request.close()
 
-                if node.debug_conf:
+                if node.debug:
                     raise  # major debug client
                 else:
                     return
@@ -1709,11 +1695,10 @@ def setup_net_type():
 
     if node.is_testnet:
         node.port = 2829
-        node.full_ledger = False
-        node.hyper_path_conf = "static/test.db"
-        node.ledger_path_conf = "static/test.db"  # for tokens
+        node.hyper_path = "static/test.db"
+        node.ledger_path = "static/test.db"  # for tokens
         node.ledger_ram_file = "file:ledger_testnet?mode=memory&cache=shared"
-        node.hyper_recompress_conf = False
+        node.hyper_recompress = False
         node.peerfile = "peers_test.txt"
         node.index_db = "static/index_test.db"
         if not 'testnet' in node.version:
@@ -1734,11 +1719,10 @@ def setup_net_type():
 
     if node.is_regnet:
         node.port = regnet.REGNET_PORT
-        node.full_ledger = False
-        node.hyper_path_conf = regnet.REGNET_DB
-        node.ledger_path_conf = regnet.REGNET_DB
+        node.hyper_path = regnet.REGNET_DB
+        node.ledger_path = regnet.REGNET_DB
         node.ledger_ram_file = "file:ledger_regnet?mode=memory&cache=shared"
-        node.hyper_recompress_conf = False
+        node.hyper_recompress = False
         node.peerfile = regnet.REGNET_PEERS
         node.index_db = regnet.REGNET_INDEX
         if not 'regnet' in node.version:
@@ -1755,17 +1739,17 @@ def setup_net_type():
 
 def ram_init(database):
     try:
-        if node.ram_conf:
+        if node.ram:
             node.logger.app_log.warning("Status: Moving database to RAM")
 
             if node.py_version >= 370:
                 temp_target = sqlite3.connect(node.ledger_ram_file, uri=True, isolation_level=None, timeout=1)
-                temp_source = sqlite3.connect(node.hyper_path_conf, uri=True, isolation_level=None, timeout=1)
+                temp_source = sqlite3.connect(node.hyper_path, uri=True, isolation_level=None, timeout=1)
                 temp_source.backup(temp_target)
                 temp_source.close()
 
             else:
-                source_db = sqlite3.connect(node.hyper_path_conf, timeout=1)
+                source_db = sqlite3.connect(node.hyper_path, timeout=1)
                 database.to_ram = sqlite3.connect(node.ledger_ram_file, uri=True, timeout=1, isolation_level=None)
                 database.to_ram.text_factory = str
                 database.tr = database.to_ram.cursor()
@@ -1807,7 +1791,7 @@ def initial_db_check():
         bootstrap()
     # UPDATE mainnet DB if required
     if node.is_mainnet:
-        upgrade = sqlite3.connect(node.ledger_path_conf)
+        upgrade = sqlite3.connect(node.ledger_path)
         u = upgrade.cursor()
         try:
             u.execute("PRAGMA table_info(transactions);")
@@ -1821,10 +1805,10 @@ def initial_db_check():
             print("Database needs upgrading, bootstrapping...")
             bootstrap()
 
-    node.logger.app_log.warning(f"Status: Indexing tokens from ledger {node.ledger_path_conf}")
-    tokens.tokens_update(node.index_db, node.ledger_path_conf, "normal", node.logger.app_log, node.plugin_manager)
+    node.logger.app_log.warning(f"Status: Indexing tokens from ledger {node.ledger_path}")
+    tokens.tokens_update(node.index_db, node.ledger_path, "normal", node.logger.app_log, node.plugin_manager)
     node.logger.app_log.warning("Status: Indexing aliases")
-    aliases.aliases_update(node.index_db, node.ledger_path_conf, "normal", node.logger.app_log)
+    aliases.aliases_update(node.index_db, node.ledger_path, "normal", node.logger.app_log)
 
 
 
@@ -1851,21 +1835,23 @@ def verify(db_handler):
     try:
         node.logger.app_log.warning("Blockchain verification started...")
         # verify blockchain
-        db_handler.execute(db_handler.h3, "SELECT Count(*) FROM transactions")
-        db_rows = db_handler.h3.fetchone()[0]
+        db_handler.execute(db_handler.h, "SELECT Count(*) FROM transactions")
+        db_rows = db_handler.h.fetchone()[0]
         node.logger.app_log.warning("Total steps: {}".format(db_rows))
 
         # verify genesis
-        if node.full_ledger:
-            db_handler.execute(db_handler.h3, "SELECT block_height, recipient FROM transactions WHERE block_height = 1")
-            result = db_handler.h3.fetchall()[0]
+        try:
+            db_handler.execute(db_handler.h, "SELECT block_height, recipient FROM transactions WHERE block_height = 1")
+            result = db_handler.h.fetchall()[0]
             block_height = result[0]
             genesis = result[1]
             node.logger.app_log.warning(f"Genesis: {genesis}")
-            if str(genesis) != node.genesis_conf and int(
+            if str(genesis) != node.genesis and int(
                     block_height) == 0:
                 node.logger.app_log.warning("Invalid genesis address")
                 sys.exit(1)
+        except:
+            node.logger.app_log.warning("Hyperblock mode in use")
         # verify genesis
 
         db_hashes = {
@@ -1888,7 +1874,7 @@ def verify(db_handler):
         }
         invalid = 0
 
-        for row in db_handler.h3.execute('SELECT * FROM transactions WHERE block_height > 1 and reward = 0 ORDER BY block_height'):  # native sql fx to keep compatibility
+        for row in db_handler.h.execute('SELECT * FROM transactions WHERE block_height > 1 and reward = 0 ORDER BY block_height'):  # native sql fx to keep compatibility
 
             db_block_height = str(row[0])
             db_timestamp = '%.2f' % (quantize_two(row[1]))
@@ -1942,29 +1928,29 @@ if __name__ == "__main__":
     # classes
 
     node.app_version = VERSION
-    node.version = config.version_conf
-    node.debug_level = config.debug_level_conf
+    node.version = config.version
+    node.debug_level = config.debug_level
     node.port = config.port
-    node.verify_conf = config.verify_conf
-    node.thread_limit_conf = config.thread_limit_conf
-    node.rebuild_db_conf = config.rebuild_db_conf
-    node.debug_conf = config.debug_conf
-    node.debug_level_conf = config.debug_level_conf
-    node.pause_conf = config.pause_conf
-    node.ledger_path_conf = config.ledger_path_conf
-    node.hyper_path_conf = config.hyper_path_conf
-    node.hyper_recompress_conf = config.hyper_recompress_conf
-    node.tor_conf = config.tor_conf
-    node.ram_conf = config.ram_conf
+    node.verify = config.verify
+    node.thread_limit = config.thread_limit
+    node.rebuild_db = config.rebuild_db
+    node.debug = config.debug
+    node.debug_level = config.debug_level
+    node.pause = config.pause
+    node.ledger_path = config.ledger_path
+    node.hyper_path = config.hyper_path
+    node.hyper_recompress = config.hyper_recompress
+    node.tor = config.tor
+    node.ram = config.ram
     node.version_allow = config.version_allow
-    node.full_ledger = config.full_ledger_conf
     node.reveal_address = config.reveal_address
     node.terminal_output = config.terminal_output
     node.egress = config.egress
-    node.genesis_conf = config.genesis_conf
+    node.genesis = config.genesis
     node.accept_peers = config.accept_peers
+    node.full_ledger = config.full_ledger
 
-    node.logger.app_log = log.log("node.log", node.debug_level_conf, node.terminal_output)
+    node.logger.app_log = log.log("node.log", node.debug_level, node.terminal_output)
     node.logger.app_log.warning("Configuration settings loaded")
     node.logger.app_log.warning(f"Python version: {node.py_version}")
 
@@ -1973,6 +1959,13 @@ if __name__ == "__main__":
         print("Upgrading wallet location")
         os.rename("../wallet.der", "wallet.der")
     # upgrade wallet location after nuitka-required "files" folder introduction
+
+    if not node.full_ledger and os.path.exists(node.ledger_path) and node.is_mainnet:
+        os.remove(node.ledger_path)
+        node.logger.app_log.warning("Removed full ledger for hyperblock mode")
+    if not node.full_ledger:
+        node.logger.app_log.warning("Cloning hyperblocks to ledger file")
+        shutil.copy(node.hyper_path, node.ledger_path)  # hacked to remove all the endless checks
 
     mining_heavy3.mining_open()
     try:
@@ -1994,16 +1987,16 @@ if __name__ == "__main__":
             node.apihandler = apihandler.ApiHandler(node.logger.app_log, config)
             mp.MEMPOOL = mp.Mempool(node.logger.app_log, config, node.db_lock, node.is_testnet)
 
-            check_integrity(node.hyper_path_conf)
+            check_integrity(node.hyper_path)
             #PLACEHOLDER FOR FRESH HYPERBLOCK BUILDER
 
-            # if node.rebuild_db_conf: #does nothing
+            # if node.rebuild_db: #does nothing
             #    db_maintenance(init_database)
 
             # db_manager = db_looper.DbManager(node.logger.app_log)
             # db_manager.start()
 
-            db_handler_initial = dbhandler.DbHandler(node.index_db, node.ledger_path_conf, node.hyper_path_conf, node.full_ledger, node.ram_conf, node.ledger_ram_file, node.logger)
+            db_handler_initial = dbhandler.DbHandler(node.index_db, node.ledger_path, node.hyper_path, node.ram, node.ledger_ram_file, node.logger)
             ledger_check_heights(node, db_handler_initial)
             ram_init(db_handler_initial)
             initial_db_check()
@@ -2012,12 +2005,12 @@ if __name__ == "__main__":
             if not node.is_regnet:
                 sequencing_check(db_handler_initial)
 
-            if node.verify_conf:
+            if node.verify:
                 verify(db_handler_initial)
 
             #db_handler_initial.close_all()
 
-            if not node.tor_conf:
+            if not node.tor:
                 # Port 0 means to select an arbitrary unused port
                 host, port = "0.0.0.0", int(node.port)
 

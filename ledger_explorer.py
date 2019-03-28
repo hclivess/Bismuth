@@ -5,14 +5,12 @@ import tornado.web
 
 config = options.Get()
 config.read()
-full_ledger = config.full_ledger_conf
-hyper_path = config.hyper_path_conf
+hyper_path = config.hyper_path
 #hyper_path = "backup.db"
-version = config.version_conf
+version = config.version
 
 if "testnet" in version:
     port = 2829
-    full_ledger = 0
     hyper_path = "static/test.db"
 
 def execute(cursor, query):

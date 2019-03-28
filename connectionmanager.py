@@ -33,7 +33,7 @@ class ConnectionManager (threading.Thread):
 				# regnet never tries to connect
 				self.node.peers.client_loop(self.node, target = worker)
 
-			self.logger.app_log.warning(f"Status: Threads at {threading.active_count()} / {self.node.thread_limit_conf}")
+			self.logger.app_log.warning(f"Status: Threads at {threading.active_count()} / {self.node.thread_limit}")
 			self.logger.app_log.info(f"Status: Syncing nodes: {self.node.syncing}")
 			self.logger.app_log.info(f"Status: Syncing nodes: {len(self.node.syncing)}/3")
 

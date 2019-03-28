@@ -33,11 +33,11 @@ def sendsync(sdef, peer_ip, status, provider, node):
         node.logger.app_log.info(f"Outbound: Saving peer {peer_ip}")
         node.peers.peer_dump(node.peerfile, peer_ip)
 
-    time.sleep(Decimal(node.pause_conf))
+    time.sleep(Decimal(node.pause))
     while node.db_lock.locked():
         if node.IS_STOPPING:
             return
-        time.sleep(Decimal(node.pause_conf))
+        time.sleep(Decimal(node.pause))
 
     send(sdef, "sendsync")
 
@@ -65,7 +65,7 @@ def worker(host, port, node):
 
         s = socks.socksocket()
 
-        if node.tor_conf:
+        if node.tor:
             s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
         # s.setblocking(0)
         s.connect((host, port))
@@ -116,7 +116,7 @@ def worker(host, port, node):
         node.logger.app_log.info(f"Current active pool: {node.peers.connection_pool}")
 
     if not client_instance_worker.banned and node.peers.version_allowed(host, node.version_allow) and not node.IS_STOPPING:
-        db_handler_instance = dbhandler.DbHandler(node.index_db, node.ledger_path_conf, node.hyper_path_conf, node.full_ledger, node.ram_conf, node.ledger_ram_file, logger)
+        db_handler_instance = dbhandler.DbHandler(node.index_db, node.ledger_path, node.hyper_path, node.ram, node.ledger_ram_file, logger)
 
     while not client_instance_worker.banned and node.peers.version_allowed(host, node.version_allow) and not node.IS_STOPPING:
         try:
@@ -137,7 +137,7 @@ def worker(host, port, node):
                     while len(node.syncing) >= 3:
                         if node.IS_STOPPING:
                             return
-                        time.sleep(int(node.pause_conf))
+                        time.sleep(int(node.pause))
 
                     node.syncing.append(peer_ip)
                     # sync start
@@ -171,9 +171,9 @@ def worker(host, port, node):
                         # consensus pool 2 (active connection)
 
                         try:
-                            db_handler_instance.execute_param(db_handler_instance.h3, "SELECT block_height FROM transactions WHERE block_hash = ?;",
+                            db_handler_instance.execute_param(db_handler_instance.h, "SELECT block_height FROM transactions WHERE block_hash = ?;",
                                                               (data,))
-                            client_block = db_handler_instance.h3.fetchone()[0]
+                            client_block = db_handler_instance.h.fetchone()[0]
                         except Exception:
                             node.logger.app_log.warning(f"Outbound: Block {data[:8]} of {peer_ip} not found")
                             send(s, "blocknf")
@@ -184,14 +184,14 @@ def worker(host, port, node):
                             node.logger.app_log.info(
                                 f"Outbound: Node is at block {client_block}")  # now check if we have any newer
 
-                            db_handler_instance.execute(db_handler_instance.h3,
+                            db_handler_instance.execute(db_handler_instance.h,
                                                         'SELECT block_hash FROM transactions ORDER BY block_height DESC LIMIT 1')
-                            db_block_hash = db_handler_instance.h3.fetchone()[0]  # get latest block_hash
+                            db_block_hash = db_handler_instance.h.fetchone()[0]  # get latest block_hash
 
                             if db_block_hash == data or not node.egress:
                                 if not node.egress:
                                     node.logger.app_log.warning(f"Outbound: Egress disabled for {peer_ip}")
-                                    time.sleep(int(node.pause_conf))  # reduce CPU usage
+                                    time.sleep(int(node.pause))  # reduce CPU usage
                                 else:
                                     node.logger.app_log.info(f"Outbound: Node {peer_ip} has the latest block")
                                     # TODO: this is unlikely to happen due to conditions above, consider removing
@@ -201,11 +201,11 @@ def worker(host, port, node):
                                 blocks_fetched = []
                                 while sys.getsizeof(
                                         str(blocks_fetched)) < 500000:  # limited size based on txs in blocks
-                                    # db_handler.execute_param(db_handler.h3, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"),(str(int(client_block)),) + (str(int(client_block + 1)),))
-                                    db_handler_instance.execute_param(db_handler_instance.h3, (
+                                    # db_handler.execute_param(db_handler.h, ("SELECT block_height, timestamp,address,recipient,amount,signature,public_key,keep,openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"),(str(int(client_block)),) + (str(int(client_block + 1)),))
+                                    db_handler_instance.execute_param(db_handler_instance.h, (
                                         "SELECT timestamp,address,recipient,amount,signature,public_key,operation,openfield FROM transactions WHERE block_height > ? AND block_height <= ?;"),
                                                                       (str(int(client_block)), str(int(client_block + 1)),))
-                                    result = db_handler_instance.h3.fetchall()
+                                    result = db_handler_instance.h.fetchall()
                                     if not result:
                                         break
                                     blocks_fetched.extend([result])
@@ -360,7 +360,7 @@ def worker(host, port, node):
             # properly end the connection
             s.close()
             # properly end the connection
-            if node.debug_conf:
+            if node.debug:
                 raise  # major debug client
             else:
                 node.logger.app_log.info(f"Ending thread, because {e}")
