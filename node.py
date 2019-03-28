@@ -394,7 +394,7 @@ def blocknf(node, block_hash_delete, peer_ip, db_handler):
                 node.logger.app_log.warning(f"Node {peer_ip} didn't find block {db_block_height}({db_block_hash})")
 
                 # roll back hdd too
-                dbhandler.rollback_to(db_block_height)
+                db_handler.rollback_to(db_block_height)
 
                 db_handler.execute(db_handler.h, "SELECT max(block_height) FROM transactions")
                 node.hdd_block = db_handler.h.fetchone()[0]
@@ -1528,7 +1528,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                         status = {"protocolversion": node.version,
                                   "address": revealed_address,
-                                  "walletversion": app_version,
+                                  "walletversion": VERSION,
                                   "testnet": node.is_testnet,  # config data
                                   "blocks": node.last_block, "timeoffset": 0,
                                   "connections": node.peers.consensus_size,
