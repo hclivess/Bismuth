@@ -2,7 +2,7 @@
 
 # icons created using http://www.winterdrache.de/freeware/png2ico/
 
-import ast
+import threading
 import csv
 import glob
 import os
@@ -344,7 +344,10 @@ def keys_load_dialog():
     sender_address.insert(INSERT, keyring.myaddress)
     sender_address.config(state=DISABLED)
 
-    refresh(keyring.myaddress, s)
+    t = threading.Thread(target=refresh,args=(keyring.myaddress, s))
+    t.start()
+
+
 
 
 def keys_backup():
@@ -364,13 +367,15 @@ def keys_backup():
 
 def watch():
     address = gui_address_t.get()
-    refresh(address, s)
+    t = threading.Thread(target=refresh,args=(address, s))
+    t.start()
 
 
 def unwatch():
     gui_address_t.delete(0, END)
     gui_address_t.insert(INSERT, keyring.myaddress)
-    refresh(keyring.myaddress, s)
+    t = threading.Thread(target=refresh,args=(keyring.myaddress, s))
+    t.start()
 
 
 def aliases_list():
@@ -690,7 +695,9 @@ def send(amount_input, recipient_input, operation_input, openfield_input):
                     messagebox.showerror("Error", "There was a problem with transaction processing. Full message: {}".format(reply))
                 break
 
-            refresh(gui_address_t.get(), s)
+            t = threading.Thread(target=refresh, args=(gui_address_t.get(), s))
+            t.start()
+
         else:
             app_log.warning("Client: Invalid signature")
         # enter transaction end
@@ -866,7 +873,10 @@ def msg_dialogue(address):
 
 
 def refresh_auto():
-    root.after(0, refresh(gui_address_t.get(), s))
+    t = threading.Thread(target=refresh, args=(gui_address_t.get(), s))
+    root.after(0, t.start())
+
+
     root.after(30000, refresh_auto)
 
 
@@ -1264,6 +1274,8 @@ def table(address, addlist_20, mempool_total):
 
 
 def refresh(address, s):
+
+
     global balance
     global statusget
     global block_height_old
