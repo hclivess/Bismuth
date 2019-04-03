@@ -1737,6 +1737,17 @@ def setup_net_type():
         sys.exit()
         """
 
+def node_block_init(database):
+    database.execute(database.h, "SELECT max(block_height) FROM transactions")
+    node.hdd_block = database.h.fetchone()[0]
+
+    node.last_block = node.hdd_block  # ram equals drive at this point
+
+    checkpoint_set(node, node.hdd_block)
+
+    if node.is_mainnet and (node.hdd_block >= POW_FORK - FORK_AHEAD):
+        limit_version(node)
+
 def ram_init(database):
     try:
         if node.ram:
@@ -1763,18 +1774,6 @@ def ram_init(database):
             #source = sqlite3.connect('existing_db.db')
             #dest = sqlite3.connect(':memory:')
             #source.backup(dest)
-
-            database.execute(database.h, "SELECT max(block_height) FROM transactions")
-            node.hdd_block = database.h.fetchone()[0]
-
-            node.last_block = node.hdd_block #ram equals drive at this point
-
-            checkpoint_set(node, node.hdd_block)
-
-            if node.is_mainnet and (node.hdd_block >= POW_FORK - FORK_AHEAD):
-                limit_version(node)
-
-            node.logger.app_log.warning("Status: Moved database to RAM")
 
     except Exception as e:
         node.logger.app_log.warning(e)
@@ -1999,6 +1998,7 @@ if __name__ == "__main__":
             db_handler_initial = dbhandler.DbHandler(node.index_db, node.ledger_path, node.hyper_path, node.ram, node.ledger_ram_file, node.logger)
             ledger_check_heights(node, db_handler_initial)
             ram_init(db_handler_initial)
+            node_block_init(db_handler_initial)
             initial_db_check()
 
 
