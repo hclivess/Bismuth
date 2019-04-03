@@ -85,7 +85,7 @@ class DbHandler:
         self.h2.execute("DELETE FROM misc WHERE block_height >= ?", (block_height,))
         self.commit(self.hdd2)
 
-    def tokens_rollback(self, node, height, db_handler):
+    def tokens_rollback(self, node, height):
         """Rollback Token index
 
         :param height: height index of token in chain
@@ -96,8 +96,8 @@ class DbHandler:
         returns None
         """
         try:
-            self.execute_param(db_handler.index_cursor, "DELETE FROM tokens WHERE block_height >= ?;", (height,))
-            self.commit(db_handler.index)
+            self.execute_param(self.index_cursor, "DELETE FROM tokens WHERE block_height >= ?;", (height,))
+            self.commit(self.index)
 
             node.logger.app_log.warning(f"Rolled back the token index below {(height)}")
         except Exception as e:

@@ -389,9 +389,9 @@ def blocknf(node, block_hash_delete, peer_ip, db_handler):
                 # /roll back hdd too
 
                 # rollback indices
-                db_handler.tokens_rollback(node, db_block_height, db_handler)
-                db_handler.aliases_rollback(node, db_block_height, db_handler)
-                db_handler.staking_rollback(node, db_block_height, db_handler)
+                db_handler.tokens_rollback(node, db_block_height)
+                db_handler.aliases_rollback(node, db_block_height)
+                db_handler.staking_rollback(node, db_block_height)
                 # /rollback indices
 
         except Exception as e:
@@ -479,9 +479,9 @@ def sequencing_check(db_handler):
                     conn2.commit()
 
                     # rollback indices
-                    db_handler.tokens_rollback(node, y, db_handler)
-                    db_handler.aliases_rollback(node, y, db_handler)
-                    db_handler.staking_rollback(node, y, db_handler)
+                    db_handler.tokens_rollback(node, y)
+                    db_handler.aliases_rollback(node, y)
+                    db_handler.staking_rollback(node, y)
 
                     # rollback indices
 
@@ -521,9 +521,9 @@ def sequencing_check(db_handler):
                     conn2.close()
 
                     # rollback indices
-                    db_handler.tokens_rollback(node, y, db_handler)
-                    db_handler.aliases_rollback(node, y, db_handler)
-                    db_handler.staking_rollback(node, y, db_handler)
+                    db_handler.tokens_rollback(node, y)
+                    db_handler.aliases_rollback(node, y)
+                    db_handler.staking_rollback(node, y)
                     # rollback indices
 
                     node.logger.app_log.warning(f"Status: Due to a sequencing issue at block {y}, {chain} has been rolled back and will be resynchronized")
