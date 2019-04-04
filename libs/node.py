@@ -59,20 +59,4 @@ class Node():
         self.hyper_temp = None
         self.q = queue.Queue()
         self.py_version= int(str(sys.version_info.major) + str(sys.version_info.minor) + str(sys.version_info.micro))
-
-class Client:
-    def __init__(self):
-        self.banned = False
-        self.connected = False
-
-class Logger():
-    def __init__(self):
-        self.app_log = None
-
-class Keys():
-    def __init__(self):
-        self.public_key_readable = None
-        self.public_key_hashed = None
-        self.address = None
-        self.keyfile = None
-
+        self.keys = None

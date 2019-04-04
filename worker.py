@@ -10,6 +10,7 @@ from decimal import *
 from quantizer import *
 import mempool as mp
 from difficulty import *
+from libs import client
 
 def sendsync(sdef, peer_ip, status, provider, node):
     """ Save peer_ip to peerlist and send `sendsync`
@@ -51,7 +52,7 @@ def worker(host, port, node):
 
     dict_ip = {'ip': host}
     node.plugin_manager.execute_filter_hook('peer_ip', dict_ip)
-    client_instance_worker = classes.Client()
+    client_instance_worker = client.Client()
 
     if node.peers.is_banned(host) or dict_ip['ip'] == 'banned':
         client_instance_worker.banned = True

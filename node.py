@@ -39,13 +39,13 @@ from Cryptodome.Signature import PKCS1_v1_5
 import aliases
 # Bis specific modules
 import apihandler
-import classes
+from libs import node, logger, keys, client
 
 from connections import send, receive
 
 import dbhandler
 import essentials
-import keys
+import wallet_keys
 import log
 import mempool as mp
 import mining
@@ -544,7 +544,7 @@ def sequencing_check(db_handler):
 class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
     def handle(self):
 
-        client_instance = classes.Client()
+        client_instance = client.Client()
 
         try:
             peer_ip = self.request.getpeername()[0]
@@ -1085,7 +1085,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "keygen":
                     # if (peer_ip in allowed or "any" in allowed):
                     if node.peers.is_allowed(peer_ip, data):
-                        (gen_private_key_readable, gen_public_key_readable, gen_address) = keys.generate()
+                        (gen_private_key_readable, gen_public_key_readable, gen_address) = wallet_keys.generate()
                         send(self.request, (gen_private_key_readable, gen_public_key_readable, gen_address))
                         (gen_private_key_readable, gen_public_key_readable, gen_address) = (None, None, None)
                     else:
@@ -1094,7 +1094,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "keygenjson":
                     # if (peer_ip in allowed or "any" in allowed):
                     if node.peers.is_allowed(peer_ip, data):
-                        (gen_private_key_readable, gen_public_key_readable, gen_address) = keys.generate()
+                        (gen_private_key_readable, gen_public_key_readable, gen_address) = wallet_keys.generate()
                         response = {"private_key": gen_private_key_readable,
                                     "public_key": gen_public_key_readable,
                                     "address": gen_address}
@@ -1490,7 +1490,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         server_timestamp = '%.2f' % time.time()
 
                         if node.reveal_address:
-                            revealed_address = node_keys.address
+                            revealed_address = node.keys.address
 
                         else:
                             revealed_address = "private"
@@ -1508,7 +1508,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         tempdiff = node.difficulty
 
                         if node.reveal_address:
-                            revealed_address = node_keys.address
+                            revealed_address = node.keys.address
                         else:
                             revealed_address = "private"
 
@@ -1818,16 +1818,16 @@ def load_keys():
 
     essentials.keys_check(node.logger.app_log, "wallet.der")
 
-    node_keys.key, node_keys.public_key_readable, node_keys.private_key_readable, _, _, node_keys.public_key_hashed, node_keys.address, node_keys.keyfile = essentials.keys_load(
+    node.keys.key, node.keys.public_key_readable, node.keys.private_key_readable, _, _, node.keys.public_key_hashed, node.keys.address, node.keys.keyfile = essentials.keys_load(
         "privkey.der", "pubkey.der")
 
     if node.is_regnet:
-        regnet.PRIVATE_KEY_READABLE = node_keys.private_key_readable
-        regnet.PUBLIC_KEY_HASHED = node_keys.public_key_hashed
-        regnet.ADDRESS = node_keys.address
-        regnet.KEY = node_keys.key
+        regnet.PRIVATE_KEY_READABLE = node.keys.private_key_readable
+        regnet.PUBLIC_KEY_HASHED = node.keys.public_key_hashed
+        regnet.ADDRESS = node.keys.address
+        regnet.KEY = node.keys.key
 
-    node.logger.app_log.warning(f"Status: Local address: {node_keys.address}")
+    node.logger.app_log.warning(f"Status: Local address: {node.keys.address}")
 
 
 def verify(db_handler):
@@ -1912,9 +1912,9 @@ def verify(db_handler):
 
 if __name__ == "__main__":
     # classes
-    node = classes.Node()
-    node.logger = classes.Logger()
-    node_keys = classes.Keys()
+    node = node.Node()
+    node.logger = logger.Logger()
+    node.keys = keys.Keys()
 
     node.is_testnet = False
     # regnet takes over testnet
