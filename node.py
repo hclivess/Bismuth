@@ -332,6 +332,7 @@ def balanceget(balance_address, db_handler):
     try:
         for entry in entries:
             rewards = quantize_eight(rewards) + quantize_eight(entry[0])
+            rewards = 0 if str(rewards) == "0E-8" else rewards
             rewards = 0 if rewards is None else rewards
     except:
         rewards = 0
