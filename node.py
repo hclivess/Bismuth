@@ -325,7 +325,7 @@ def balanceget(balance_address, db_handler):
 
     try:
         db_handler.execute_param(db_handler.h, "SELECT reward FROM transactions WHERE recipient = ?;", (balance_address,))
-        entries = db_handler.c.fetchall()
+        entries = db_handler.h.fetchall()
     except:
         entries = []
 
