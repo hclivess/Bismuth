@@ -50,7 +50,7 @@ class Keys:
 
 
 # Wallet needs a version for itself
-__version__ = '0.8.2'
+__version__ = '0.8.3'
 
 # upgrade wallet location after nuitka-required "files" folder introduction
 if os.path.exists("../wallet.der") and not os.path.exists("wallet.der") and "Windows" in platform.system():
@@ -1414,6 +1414,9 @@ def refresh(address, s):
 
         connections.send(s, "annget", 10)
         annget = connections.receive(s, 10)
+
+        print("kokot",annget)
+
         ann_var_text.config(state=NORMAL)
         ann_var_text.delete('1.0', END)
         ann_var_text.insert(INSERT, annget)

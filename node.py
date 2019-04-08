@@ -385,8 +385,8 @@ def blocknf(node, block_hash_delete, peer_ip, db_handler):
                 # roll back hdd too
                 db_handler.rollback_to(db_block_height)
 
-                db_handler.execute(db_handler.h, "SELECT max(block_height) FROM transactions")
-                node.hdd_block = db_handler.h.fetchone()[0]
+
+                node.hdd_block = db_handler.block_height_max()
                 # /roll back hdd too
 
                 # rollback indices
@@ -688,9 +688,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         node.logger.app_log.info(f"Skipping sync from {peer_ip}, syncing already in progress")
 
                     else:
-                        db_handler_instance.execute(db_handler_instance.c,
-                                                    "SELECT timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")  # or it takes the first
-                        node.last_block_timestamp = quantize_two(db_handler_instance.c.fetchone()[0])
+                        node.last_block_timestamp = db_handler_instance.last_block_timestamp()
 
                         if node.last_block_timestamp < time.time() - 600:
                             # block_req = most_common(consensus_blockheight_list)
@@ -737,8 +735,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         node.peers.consensus_add(peer_ip, consensus_blockheight, self.request, node.last_block)
                         # consensus pool 1 (connection from them)
 
-                        db_handler_instance.execute(db_handler_instance.c, 'SELECT max(block_height) FROM transactions')
-                        db_block_height = db_handler_instance.c.fetchone()[0]
+                        db_block_height = db_handler_instance.block_height_max()
 
                         # append zeroes to get static length
                         send(self.request, db_block_height)
@@ -859,8 +856,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                         # check if we have the latest block
 
-                        db_handler_instance.execute(db_handler_instance.c, 'SELECT max(block_height) FROM transactions')
-                        db_block_height = int(db_handler_instance.c.fetchone()[0])
+                        db_block_height = db_handler_instance.block_height_max()
 
                         # check if we have the latest block
 
@@ -1258,14 +1254,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         aliases.aliases_update(node.index_db, node.ledger_path, "normal", node.logger.app_log)
 
                         alias_address = receive(self.request)
-
-                        db_handler_instance.execute_param(db_handler_instance.index_cursor, "SELECT alias FROM aliases WHERE address = ? ",
-                                                          (alias_address,))
-
-                        result = db_handler_instance.index_cursor.fetchall()
-
-                        if not result:
-                            result = [[alias_address]]
+                        result = db_handler_instance.aliasget(alias_address)
 
                         send(self.request, result)
                     else:
@@ -1274,20 +1263,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "aliasesget":  # only gets the first one, for multiple addresses
                     if node.peers.is_allowed(peer_ip, data):
                         aliases.aliases_update(node.index_db, node.ledger_path, "normal", node.logger.app_log)
-
                         aliases_request = receive(self.request)
-
-                        results = []
-                        for alias_address in aliases_request:
-                            db_handler_instance.execute_param(db_handler_instance.index_cursor, (
-                                "SELECT alias FROM aliases WHERE address = ? ORDER BY block_height ASC LIMIT 1"),
-                                                              (alias_address,))
-                            try:
-                                result = db_handler_instance.index_cursor.fetchall()[0][0]
-                            except:
-                                result = alias_address
-                            results.append(result)
-
+                        results = db_handler_instance.aliasesget(aliases_request)
                         send(self.request, results)
                     else:
                         node.logger.app_log.info(f"{peer_ip} not whitelisted for aliasesget command")
@@ -1304,9 +1281,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                              node.plugin_manager)
                         tokens_address = receive(self.request)
 
-                        db_handler_instance.index_cursor.execute(
-                            "SELECT DISTINCT token FROM tokens WHERE address OR recipient = ?", (tokens_address,))
-                        tokens_user = db_handler_instance.index_cursor.fetchall()
+                        tokens_user = db_handler_instance.tokens_user(tokens_address)
 
                         tokens_list = []
                         for token in tokens_user:
@@ -1335,17 +1310,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if node.peers.is_allowed(peer_ip, data):
 
                         aliases.aliases_update(node.index_db, node.ledger_path, "normal", node.logger.app_log)
-
                         alias_address = receive(self.request)
-                        db_handler_instance.execute_param(db_handler_instance.index_cursor,
-                                                          "SELECT address FROM aliases WHERE alias = ? ORDER BY block_height ASC LIMIT 1;",
-                                                          (alias_address,))  # asc for first entry
-                        try:
-                            address_fetch = db_handler_instance.index_cursor.fetchone()[0]
-                        except:
-                            address_fetch = "No alias"
+                        address_fetch = db_handler_instance.addfromalias(alias_address)
                         node.logger.app_log.warning(f"Fetched the following alias address: {address_fetch}")
-
                         send(self.request, address_fetch)
 
                     else:
@@ -1354,11 +1321,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "pubkeyget":
                     if node.peers.is_allowed(peer_ip, data):
                         pub_key_address = receive(self.request)
-
-                        db_handler_instance.c.execute_param(
-                            "SELECT public_key FROM transactions WHERE address = ? and reward = 0 LIMIT 1",
-                            pub_key_address, )
-                        target_public_key_hashed = db_handler_instance.c.fetchone()[0]
+                        target_public_key_hashed = db_handler_instance.pubkeyget(pub_key_address)
                         send(self.request, target_public_key_hashed)
 
                     else:
@@ -1449,11 +1412,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         # with open(peerlist, "r") as peer_list:
                         #    peers_file = peer_list.read()
 
-                        try:
-                            db_handler_instance.execute_param(db_handler_instance.h, "SELECT openfield FROM transactions WHERE address = ? AND operation = ? ORDER BY block_height DESC LIMIT 1", (node.genesis, "ann"))
-                            result = db_handler_instance.h.fetchone()[0]
-                        except:
-                            result = ""
+                        result = db_handler_instance.annget(node)
 
                         send(self.request, result)
                     else:
@@ -1461,13 +1420,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                 elif data == "annverget":
                     if node.peers.is_allowed(peer_ip):
-
-                        try:
-                            db_handler_instance.execute_param(db_handler_instance.h, "SELECT openfield FROM transactions WHERE address = ? AND operation = ? ORDER BY block_height DESC LIMIT 1", (node.genesis, "annver"))
-                            result = db_handler_instance.h.fetchone()[0]
-                        except:
-                            result = ""
-
+                        result = db_handler_instance.annverget(node)
                         send(self.request, result)
 
                     else:
@@ -1562,10 +1515,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                 elif data == "difflast":
                     if node.peers.is_allowed(peer_ip, data):
+                        difflast = db_handler_instance.difflast()
 
-                        db_handler_instance.execute(db_handler_instance.h,
-                                                    "SELECT block_height, difficulty FROM misc ORDER BY block_height DESC LIMIT 1")
-                        difflast = db_handler_instance.h.fetchone()
                         send(self.request, difflast)
                     else:
                         node.logger.app_log.info("f{peer_ip} not whitelisted for difflastget command")
@@ -1573,9 +1524,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif data == "difflastjson":
                     if node.peers.is_allowed(peer_ip, data):
 
-                        db_handler_instance.execute(db_handler_instance.h,
-                                                    "SELECT block_height, difficulty FROM misc ORDER BY block_height DESC LIMIT 1")
-                        difflast = db_handler_instance.h.fetchone()
+                        difflast = db_handler_instance.difflast()
                         response = {"block": difflast[0],
                                     "difficulty": difflast[1]
                                     }
@@ -1739,11 +1688,8 @@ def setup_net_type():
         """
 
 def node_block_init(database):
-    database.execute(database.h, "SELECT max(block_height) FROM transactions")
-    node.hdd_block = database.h.fetchone()[0]
-
+    node.hdd_block = database.block_height_max()
     node.last_block = node.hdd_block  # ram equals drive at this point
-
     checkpoint_set(node, node.hdd_block)
 
     if node.is_mainnet and (node.hdd_block >= POW_FORK - FORK_AHEAD):

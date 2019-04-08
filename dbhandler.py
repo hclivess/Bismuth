@@ -5,6 +5,7 @@ Database handler module for Bismuth nodes
 import time
 import sqlite3
 import essentials
+from quantizer import *
 
 class DbHandler:
     def __init__(self, index_db, ledger_path, hyper_path, ram, ledger_ram_file, logger):
@@ -36,10 +37,71 @@ class DbHandler:
         self.conn.text_factory = str
         self.c = self.conn.cursor()
 
+    def pubkeyget(self, address):
+        self.execute_param(self.c, "SELECT public_key FROM transactions WHERE address = ? and reward = 0 LIMIT 1", address,)
+        result = self.c.fetchone()[0]
+        return result
+
+    def addfromalias(self, alias):
+        self.execute_param(self.index_cursor, "SELECT address FROM aliases WHERE alias = ? ORDER BY block_height ASC LIMIT 1;", (alias,))
+        try:
+            address_fetch = self.index_cursor.fetchone()[0]
+        except:
+            address_fetch = "No alias"
+        return address_fetch
+
+    def tokens_user(self, tokens_address):
+        self.index_cursor.execute("SELECT DISTINCT token FROM tokens WHERE address OR recipient = ?", (tokens_address,))
+        result = self.index_cursor.fetchall()
+        return result
+
+    def last_block_timestamp(self):
+        self.execute(self.c, "SELECT timestamp FROM transactions WHERE reward != 0 ORDER BY block_height DESC LIMIT 1;")
+        return quantize_two(self.c.fetchone()[0])
+
+    def difflast(self):
+        self.execute(self.h, "SELECT block_height, difficulty FROM misc ORDER BY block_height DESC LIMIT 1")
+        difflast = self.h.fetchone()
+        return difflast
+
+    def annverget(self, node):
+        try:
+            self.execute_param(self.h, "SELECT openfield FROM transactions WHERE address = ? AND operation = ? ORDER BY block_height DESC LIMIT 1", (node.genesis, "annver",))
+            result = self.h.fetchone()[0]
+        except:
+            result = "?"
+        return result
+
+    def annget(self, node):
+        try:
+            self.execute_param(self.h, "SELECT openfield FROM transactions WHERE address = ? AND operation = ? ORDER BY block_height DESC LIMIT 1", (node.genesis, "ann",))
+            result = self.h.fetchone()[0]
+        except:
+            result = "No announcement"
+        return result
+
     def block_max_ram(self):
         self.execute(self.c, 'SELECT * FROM transactions ORDER BY block_height DESC LIMIT 1')
         return essentials.format_raw_tx(self.c.fetchone())
 
+    def aliasget(self, alias_address):
+        self.execute_param(self.index_cursor, "SELECT alias FROM aliases WHERE address = ? ", (alias_address,))
+        result = self.index_cursor.fetchall()
+        if not result:
+            result = [[alias_address]]
+        return result
+
+    def aliasesget(self, aliases_request):
+        results = []
+        for alias_address in aliases_request:
+            self.execute_param(self.index_cursor, (
+                "SELECT alias FROM aliases WHERE address = ? ORDER BY block_height ASC LIMIT 1"), (alias_address,))
+            try:
+                result = self.index_cursor.fetchall()[0][0]
+            except:
+                result = alias_address
+            results.append(result)
+        return results
 
     def block_height_max(self):
         self.h.execute("SELECT max(block_height) FROM transactions")
