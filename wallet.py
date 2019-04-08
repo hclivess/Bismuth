@@ -1415,8 +1415,6 @@ def refresh(address, s):
         connections.send(s, "annget", 10)
         annget = connections.receive(s, 10)
 
-        print("kokot",annget)
-
         ann_var_text.config(state=NORMAL)
         ann_var_text.delete('1.0', END)
         ann_var_text.insert(INSERT, annget)
