@@ -1544,7 +1544,15 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 else:
                     if data == '*':
                         raise ValueError("Broken pipe")
-                    raise ValueError("Unexpected error, received: " + str(data)[:32] + ' ...')
+
+                    extra = False  # This is the entry point for all extra commands from plugins
+                    for prefix, callback in extra_commands.items():
+                        if data.startswith(prefix):
+                            extra = True
+                            callback(data, self.request)
+
+                    if not extra:                        
+                        raise ValueError("Unexpected error, received: " + str(data)[:32] + ' ...')
 
                 if not time.time() <= timer_operation + timeout_operation:
                     timer_operation = time.time()  # reset timer
@@ -1917,6 +1925,10 @@ if __name__ == "__main__":
     try:
         # create a plugin manager, load all plugin modules and init
         node.plugin_manager = plugins.PluginManager(app_log=node.logger.app_log, init=True)
+        # get the potential extra command prefixes from plugin
+        extra_commands = {}  # global var, used by the server part.
+        extra_commands = node.plugin_manager.execute_filter_hook('extra_commands_prefixes', extra_commands)
+        print("Extra prefixes: ", ",".join(extra_commands.keys()))                                        
 
         setup_net_type()
         load_keys()
