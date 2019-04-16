@@ -1,7 +1,7 @@
 from node import blocknf, digest_block
 import sys
 import threading
-import classes
+from libs import node, logger, keys, client
 import time
 import dbhandler
 import socks
