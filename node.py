@@ -29,7 +29,7 @@ import tarfile
 import threading
 import time
 from hashlib import blake2b
-
+import platform
 import requests
 import socks
 from Cryptodome.Hash import SHA
@@ -342,8 +342,7 @@ def balanceget(balance_address, db_handler):
     # node.logger.app_log.info("Mempool: Projected transction address balance: " + str(balance))
     return str(balance), str(credit_ledger), str(debit), str(fees), str(rewards), str(balance_no_mempool)
 
-
-def blocknf(node, block_hash_delete, peer_ip, db_handler):
+def blocknf(node, block_hash_delete, peer_ip, db_handler, hyperblocks=False):
     node.logger.app_log.info(f"Rollback operation on {block_hash_delete} initiated by {peer_ip}")
 
     my_time = time.time()
@@ -377,6 +376,10 @@ def blocknf(node, block_hash_delete, peer_ip, db_handler):
                 reason = "We moved away from the block to rollback, skipping"
                 skip = True
 
+            elif hyperblocks and node.last_block_ago > 30000: #more than 5000 minutes/target blocks away
+                reason = f"{peer_ip} is running on hyperblocks and our last block is too old, skipping"
+                skip = True
+
             else:
                 backup_data = db_handler.backup_higher(db_block_height)
 
@@ -384,8 +387,6 @@ def blocknf(node, block_hash_delete, peer_ip, db_handler):
 
                 # roll back hdd too
                 db_handler.rollback_to(db_block_height)
-
-
                 node.hdd_block = db_handler.block_height_max()
                 # /roll back hdd too
 
@@ -773,7 +774,10 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                 client_block = db_handler_instance.h.fetchone()[0]
                             except Exception:
                                 node.logger.app_log.warning(f"Inbound: Block {data[:8]} of {peer_ip} not found")
-                                send(self.request, "blocknf")
+                                if node.full_ledger:
+                                    send(self.request, "blocknf") #announce block hash was not found
+                                else:
+                                    send(self.request, "blocknfhb") #announce we are on hyperblocks
                                 send(self.request, data)
 
                             else:
@@ -835,6 +839,20 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     # print peer_ip
                     if consensus_blockheight == node.peers.consensus_max:
                         blocknf(node, block_hash_delete, peer_ip, db_handler_instance)
+                        if node.peers.warning(self.request, peer_ip, "Rollback", 2):
+                            node.logger.app_log.info(f"{peer_ip} banned")
+                            break
+                    node.logger.app_log.info("Outbound: Deletion complete, sending sync request")
+
+                    while node.db_lock.locked():
+                        time.sleep(node.pause)
+                    send(self.request, "sync")
+
+                elif data == "blocknfhb": #node announces it's running hyperblocks
+                    block_hash_delete = receive(self.request)
+                    # print peer_ip
+                    if consensus_blockheight == node.peers.consensus_max:
+                        blocknf(node, block_hash_delete, peer_ip, db_handler_instance, hyperblocks=True)
                         if node.peers.warning(self.request, peer_ip, "Rollback", 2):
                             node.logger.app_log.info(f"{peer_ip} banned")
                             break

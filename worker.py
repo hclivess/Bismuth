@@ -177,7 +177,10 @@ def worker(host, port, node):
                             client_block = db_handler_instance.h.fetchone()[0]
                         except Exception:
                             node.logger.app_log.warning(f"Outbound: Block {data[:8]} of {peer_ip} not found")
-                            send(s, "blocknf")
+                            if node.full_ledger:
+                                send(s, "blocknf")
+                            else:
+                                send(s, "blocknfhb")
                             send(s, data)
 
                         else:
@@ -253,6 +256,20 @@ def worker(host, port, node):
                     node.logger.app_log.info(f"Outbound: Sync failed {e}")
                 finally:
                     node.syncing.remove(peer_ip)
+
+
+            elif data == "blocknfhb":  # one of the possible outcomes
+                block_hash_delete = receive(s)
+                # print peer_ip
+                # if max(consensus_blockheight_list) == int(received_block_height):
+                if int(received_block_height) == node.peers.consensus_max:
+
+                    blocknf(node, block_hash_delete, peer_ip, db_handler_instance, hyperblocks=False)
+
+                    if node.peers.warning(s, peer_ip, "Rollback", 2):
+                        raise ValueError(f"{peer_ip} is banned")
+
+                sendsync(s, peer_ip, "Block not found", False, node)
 
             elif data == "blocknf":  # one of the possible outcomes
                 block_hash_delete = receive(s)
