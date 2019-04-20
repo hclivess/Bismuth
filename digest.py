@@ -98,12 +98,6 @@ def digest_block(node, data, sdef, peer_ip, db_handler):
         if previous_block.q_timestamp_last - 86400 > tx.q_received_timestamp:
             raise ValueError("Transaction older than 24h not allowed.")
 
-    def dev_reward():
-        # dev reward
-        if int(block_array.block_height_new) % 10 == 0:  # every 10 blocks
-            db_handler.dev_reward()
-        # /dev reward
-
     def check_signature(block):
         for entry in block:  # sig 4
             block_array.tx_count += 1
@@ -415,7 +409,8 @@ def digest_block(node, data, sdef, peer_ip, db_handler):
                 mirror_hash = hashlib.blake2b(str(tx_list_to_hash).encode(), digest_size=20).hexdigest()
                 # /new sha_hash
 
-                db_handler.dev_reward(node,block_array,miner_tx,mining_reward,mirror_hash)
+                if int(block_array.block_height_new) % 10 == 0:  # every 10 blocks
+                    db_handler.dev_reward()
 
                 # node.logger.app_log.warning("Block: {}: {} valid and saved from {}".format(block_array.block_height_new, block_hash[:10], peer_ip))
                 node.logger.app_log.warning(
