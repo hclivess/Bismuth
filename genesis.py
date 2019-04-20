@@ -1,3 +1,5 @@
+#WARNING: this file uses the old wallet structure, there is no need to update it at the moment
+
 import hashlib
 import socket
 import re
@@ -84,7 +86,7 @@ else:
         mempool.commit()
         mempool.close()
 
-        print("Genesis created, don't forget to change genesis address in the config file")
+        print("Genesis created.")
     except sqlite3.Error as e:
         print("Error %s:" % e.args[0])
         sys.exit(1)
