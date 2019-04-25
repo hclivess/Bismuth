@@ -24,6 +24,7 @@ from Cryptodome.Hash import SHA
 from Cryptodome.PublicKey import RSA
 from Cryptodome.Signature import PKCS1_v1_5
 
+
    
 def digest_block(node, data, sdef, peer_ip, db_handler):
     """node param for imports"""
@@ -97,6 +98,10 @@ def digest_block(node, data, sdef, peer_ip, db_handler):
             raise ValueError(f"Future transaction not allowed, timestamp {quantize_two((tx.q_received_timestamp - tx.start_time_tx) / 60)} minutes in the future")
         if previous_block.q_timestamp_last - 86400 > tx.q_received_timestamp:
             raise ValueError("Transaction older than 24h not allowed.")
+
+    def dev_reward():
+        if int(block_array.block_height_new) % 10 == 0:  # every 10 blocks
+            db_handler.dev_reward(node, block_array, miner_tx, mining_reward, mirror_hash)
 
     def check_signature(block):
         for entry in block:  # sig 4
@@ -409,8 +414,7 @@ def digest_block(node, data, sdef, peer_ip, db_handler):
                 mirror_hash = hashlib.blake2b(str(tx_list_to_hash).encode(), digest_size=20).hexdigest()
                 # /new sha_hash
 
-                if int(block_array.block_height_new) % 10 == 0:  # every 10 blocks
-                    db_handler.dev_reward()
+                dev_reward()
 
                 # node.logger.app_log.warning("Block: {}: {} valid and saved from {}".format(block_array.block_height_new, block_hash[:10], peer_ip))
                 node.logger.app_log.warning(
