@@ -1,7 +1,7 @@
 Bismuth Readme
 =======
 
-Warning: This repository is no longer maintained, will continue to be maintained here: https://github.com/bismuthfoundation/Bismuth
+# Warning: This repository is no longer maintained, will continue to be maintained here: https://github.com/bismuthfoundation/Bismuth
 
 License:
 
