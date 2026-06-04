@@ -52,13 +52,26 @@
    `test_consensus_block_hash_is_frozen`) and gated end-to-end by `test_ledger.test_db_blockhash`
    (which recomputes real block hashes). This is the safety net for everything below: storage may now
    change freely **as long as these bytes do not**.
-2. **Integer amounts behind the boundary. ◑ FOUNDATION done.** `amounts.py` provides the canonical,
-   exact converter (`to_units` / `from_units`, 1 BIS = 100_000_000 units), unit-tested
-   (`tests/test_amounts.py`) including legacy-`'%.8f'` parity for 8-dp values. The remaining (large)
-   work is migrating the storage columns and call sites to integers behind this converter, keeping
-   the legacy string only at the consensus / legacy-API edge and replay-verifying block hashes. This
-   is the prerequisite for the exact incremental balance index (phase 4) and the schema cleanup
-   (phase 5).
+2. **Integer amounts behind the boundary. ◑ FOUNDATION + verification gate done.** `amounts.py`
+   provides the canonical, exact converter (`to_units` / `from_units`, 1 BIS = 100_000_000 units),
+   unit-tested (`tests/test_amounts.py`). `replay_verify.py` recomputes every block hash from stored
+   rows through the frozen boundary in two modes — as-stored (chain integrity) and with every amount
+   round-tripped through integer units — and `tests/test_replay.py` proves on a regnet chain that the
+   integer round-trip changes **no** block hash. The storage migration now has its safety gate (run
+   before/after, require zero mismatches; operators can run `python3 replay_verify.py
+   static/ledger.db` on mainnet).
+
+   **Finding — type standardization (do in the migration):** the harness exposed that the
+   `transactions` columns use SQLite NUMERIC affinity, so string fields like `timestamp` / `amount`
+   are coerced to float/int on read — lossy, and a source of balance-math drift. The migration must
+   declare **explicit column types**: integer atomic units for `amount` / `fee` / `reward`, `TEXT`
+   for `timestamp` and the text fields, so storage is lossless and consistent. Consensus bytes stay
+   frozen in `bismuth_serialize`; the `'%.2f'` / `'%.8f'` strings are produced only at the consensus
+   / legacy-API edge.
+
+   Remaining (large) work: migrate the columns + call sites to integers behind the converter, gated
+   by `replay_verify`. Prerequisite for the exact incremental balance index (phase 4) and schema
+   cleanup (phase 5).
 3. **Schema versioning + migrations. ✅ DONE.** `db_migrations.py` applies idempotent, ordered
    migrations tracked via SQLite `PRAGMA user_version`; `node.add_indices` now routes through it
    (v1 = the historical TXID4 partial-signature + misc block-height indexes). Unit-tested in
