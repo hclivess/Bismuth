@@ -31,8 +31,7 @@ heavy3a.bin
 heavy3a.bin_
 config_custom.txt
 sequencing_last
-# ignore polysign, so devs can have a symlink or local dev version.
-polysign
+# polysign is now vendored in-tree (reintegrated into the core); it is committed, not ignored.
 bismuthcore
 # ignore ledger queries, for the time being.
 ledger_queries.py

@@ -34,11 +34,27 @@ import log
 import options
 import peershandler
 import plugins
-# import tokensv2 as tokens  # TODO: unused here
 import wallet_keys
 from connections import send, receive
-from digest import *
-from essentials import fee_calculate, download_file
+# Consensus / digestion helpers — explicit imports (previously `from digest import *`, which
+# silently relied on digest.py's own imports leaking through. That left `regnet` undefined at
+# startup, because digest.py imports regnet only locally. See doc/14-known-issues-and-improvements.)
+import hashlib
+import os
+import sys
+import time
+from decimal import Decimal
+
+import essentials
+import mempool as mp
+import mining_heavy3
+import regnet
+import tokensv2 as tokens
+from digest import digest_block
+from difficulty import difficulty
+from essentials import checkpoint_set, fee_calculate, download_file
+from quantizer import quantize_eight, quantize_two
+from polysign.signerfactory import SignerFactory
 from libs import node, logger, keys, client
 from fork import Fork
 from db_hashes import db_hashes
@@ -1295,7 +1311,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                             response_list.append(response)
 
                         send(self.request, response_list)
-                        send(self.request, result)
                     else:
                         node.logger.app_log.info(f"{peer_ip} not whitelisted for addlistlimmir command")
 
