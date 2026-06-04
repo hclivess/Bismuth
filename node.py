@@ -29,6 +29,7 @@ import aliases  # PREFORK_ALIASES
 # Bis specific modules
 import apihandler
 import connectionmanager
+import db_migrations
 import dbhandler
 import log
 import options
@@ -1970,29 +1971,16 @@ def verify(db_handler):
 
 
 def add_indices(db_handler: dbhandler.DbHandler):
-    CREATE_TXID4_INDEX_IF_NOT_EXISTS = "CREATE INDEX IF NOT EXISTS TXID4_Index ON transactions(substr(signature,1,4))"
-    CREATE_MISC_BLOCK_HEIGHT_INDEX_IF_NOT_EXISTS = "CREATE INDEX IF NOT EXISTS 'Misc Block Height Index' on misc(block_height)"
-
-    node.logger.app_log.warning("Creating indices")
-
-    # ledger.db
-    if not node.old_sqlite:
-        db_handler.execute(db_handler.h, CREATE_TXID4_INDEX_IF_NOT_EXISTS)
-    else:
-        node.logger.app_log.warning("Setting old_sqlite is True, lookups will be slower.")
-    db_handler.execute(db_handler.h, CREATE_MISC_BLOCK_HEIGHT_INDEX_IF_NOT_EXISTS)
-
-    # hyper.db
-    if not node.old_sqlite:
-        db_handler.execute(db_handler.h2, CREATE_TXID4_INDEX_IF_NOT_EXISTS)
-    db_handler.execute(db_handler.h2, CREATE_MISC_BLOCK_HEIGHT_INDEX_IF_NOT_EXISTS)
-
-    # RAM or hyper.db
-    if not node.old_sqlite:
-        db_handler.execute(db_handler.c, CREATE_TXID4_INDEX_IF_NOT_EXISTS)
-    db_handler.execute(db_handler.c, CREATE_MISC_BLOCK_HEIGHT_INDEX_IF_NOT_EXISTS)
-
-    node.logger.app_log.warning("Finished creating indices")
+    # Versioned, idempotent schema migrations (db_migrations.py, see doc/16). v1 creates exactly the
+    # indexes this function historically created -- the TXID4 partial-signature index (skipped when
+    # old_sqlite) and the misc block-height index -- now tracked via PRAGMA user_version on each DB.
+    node.logger.app_log.warning("Applying schema migrations / creating indices")
+    if node.old_sqlite:
+        node.logger.app_log.warning("old_sqlite is True, skipping the signature-prefix index; lookups will be slower.")
+    migrations = db_migrations.ledger_migrations(old_sqlite=node.old_sqlite)
+    for cursor in (db_handler.h, db_handler.h2, db_handler.c):
+        db_migrations.run(cursor, migrations, app_log=node.logger.app_log)
+    node.logger.app_log.warning("Finished schema migrations")
 
 
 if __name__ == "__main__":

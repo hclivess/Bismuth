@@ -54,9 +54,11 @@
    change freely **as long as these bytes do not**.
 2. **Integer amounts behind the boundary.** Store amounts as integers; convert at the consensus
    boundary and legacy API edge. Removes `Decimal`/text churn from the hot path.
-3. **Schema versioning + migrations.** Add a `schema_version` table and an idempotent migration
-   runner; fold `static/migrate.py` and `ensure_indexes` into versioned migrations; add covering
-   indexes for the real query patterns (address, recipient, block_height, signature-prefix).
+3. **Schema versioning + migrations. ✅ DONE.** `db_migrations.py` applies idempotent, ordered
+   migrations tracked via SQLite `PRAGMA user_version`; `node.add_indices` now routes through it
+   (v1 = the historical TXID4 partial-signature + misc block-height indexes). Unit-tested in
+   `tests/test_db_migrations.py`. This is the mechanism the phases below use to add tables/indexes
+   safely.
 4. **Maintained account-balance index.** A `balances(address, balance, last_height)` table updated on
    block apply and rollback, giving **O(1)** balance lookups instead of O(history) sums. Must be
    rollback-safe (updated under `db_lock`, reverted by `blocknf`/`rollback_under`, and consistent with
