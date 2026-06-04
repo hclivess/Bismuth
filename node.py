@@ -978,7 +978,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                                                            "ORDER BY block_height DESC LIMIT 1;")
                         block_last = db_handler_instance.c.fetchall()[0]
 
-                        send(self.request, block_last)
+                        send(self.request, amounts.display_row(block_last))
                     else:
                         node.logger.app_log.info(f"{peer_ip} not whitelisted for blocklast command")
 
@@ -993,12 +993,12 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                     "timestamp": block_last[1],
                                     "address": block_last[2],
                                     "recipient": block_last[3],
-                                    "amount": block_last[4],
+                                    "amount": amounts.display_amount(block_last[4]),
                                     "signature": block_last[5],
                                     "public_key": block_last[6],
                                     "block_hash": block_last[7],
-                                    "fee": block_last[8],
-                                    "reward": block_last[9],
+                                    "fee": amounts.display_amount(block_last[8]),
+                                    "reward": amounts.display_amount(block_last[9]),
                                     "operation": block_last[10],
                                     "nonce": block_last[11]}
 
@@ -1034,12 +1034,12 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                         "timestamp": transaction[1],
                                         "address": transaction[2],
                                         "recipient": transaction[3],
-                                        "amount": transaction[4],
+                                        "amount": amounts.display_amount(transaction[4]),
                                         "signature": transaction[5],
                                         "public_key": transaction[6],
                                         "block_hash": transaction[7],
-                                        "fee": transaction[8],
-                                        "reward": transaction[9],
+                                        "fee": amounts.display_amount(transaction[8]),
+                                        "reward": amounts.display_amount(transaction[9]),
                                         "operation": transaction[10],
                                         "openfield": transaction[11]}
 
@@ -1201,12 +1201,12 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                         "timestamp": transaction[1],
                                         "address": transaction[2],
                                         "recipient": transaction[3],
-                                        "amount": transaction[4],
+                                        "amount": amounts.display_amount(transaction[4]),
                                         "signature": transaction[5],
                                         "public_key": transaction[6],
                                         "block_hash": transaction[7],
-                                        "fee": transaction[8],
-                                        "reward": transaction[9],
+                                        "fee": amounts.display_amount(transaction[8]),
+                                        "reward": amounts.display_amount(transaction[9]),
                                         "operation": transaction[10],
                                         "openfield": transaction[11]}
 
@@ -1236,7 +1236,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         db_handler_instance.execute_param(db_handler_instance.h, (
                             "SELECT * FROM transactions WHERE (address = ? OR recipient = ?) ORDER BY block_height DESC LIMIT ?"),
                                                           (address_tx_list, address_tx_list, address_tx_list_limit,))
-                        result = db_handler_instance.h.fetchall()
+                        result = [amounts.display_row(r) for r in db_handler_instance.h.fetchall()]
                         send(self.request, result)
                     else:
                         node.logger.app_log.info(f"{peer_ip} not whitelisted for addlistlim command")
@@ -1258,12 +1258,12 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                         "timestamp": transaction[1],
                                         "address": transaction[2],
                                         "recipient": transaction[3],
-                                        "amount": transaction[4],
+                                        "amount": amounts.display_amount(transaction[4]),
                                         "signature": transaction[5],
                                         "public_key": transaction[6],
                                         "block_hash": transaction[7],
-                                        "fee": transaction[8],
-                                        "reward": transaction[9],
+                                        "fee": amounts.display_amount(transaction[8]),
+                                        "reward": amounts.display_amount(transaction[9]),
                                         "operation": transaction[10],
                                         "openfield": transaction[11]}
 
@@ -1304,12 +1304,12 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                         "timestamp": transaction[1],
                                         "address": transaction[2],
                                         "recipient": transaction[3],
-                                        "amount": transaction[4],
+                                        "amount": amounts.display_amount(transaction[4]),
                                         "signature": transaction[5],
                                         "public_key": transaction[6],
                                         "block_hash": transaction[7],
-                                        "fee": transaction[8],
-                                        "reward": transaction[9],
+                                        "fee": amounts.display_amount(transaction[8]),
+                                        "reward": amounts.display_amount(transaction[9]),
                                         "operation": transaction[10],
                                         "openfield": transaction[11]}
 

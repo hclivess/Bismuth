@@ -50,3 +50,21 @@ def ledger_value(raw) -> Decimal:
     if LEDGER_INTEGER:
         return to_decimal(raw)
     return quantize_eight(raw)
+
+
+def display_amount(value):
+    """A stored amount/fee/reward -> the value to emit to clients (legacy decimal string in integer
+    mode, otherwise the stored value unchanged). Use at every client-facing display edge."""
+    return from_units(value) if LEDGER_INTEGER else value
+
+
+def display_row(row):
+    """Return a 12-field ledger row tuple with amount/fee/reward converted to the client (decimal)
+    form. No-op when the ledger holds legacy decimals."""
+    if not LEDGER_INTEGER or row is None:
+        return row
+    row = list(row)
+    row[4] = from_units(row[4])  # amount
+    row[8] = from_units(row[8])  # fee
+    row[9] = from_units(row[9])  # reward
+    return row
