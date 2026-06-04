@@ -23,6 +23,7 @@ from typing import Union
 from polysign.signer import SignerType
 from polysign.signerfactory import SignerFactory
 
+import bismuth_serialize
 import db_helpers
 
 __version__ = "0.0.7"
@@ -244,7 +245,7 @@ def sign_rsa(timestamp, address, recipient, amount, operation, openfield, key, p
     try:
         transaction = (str(timestamp), str(address), str(recipient), '%.8f' % float(amount), str(operation), str(openfield))
         # this is signed, float kept for compatibility
-        buffer = str(transaction).encode("utf-8")
+        buffer = bismuth_serialize.signature_buffer(*transaction)
         signer = SignerFactory.from_private_key(key.exportKey().decode("utf-8"), SignerType.RSA)
         signature_enc = signer.sign_buffer_for_bis(buffer)
         # Extra: recheck - Raises if Error

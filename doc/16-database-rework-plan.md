@@ -1,6 +1,6 @@
 # 16 — Database rework plan (design)
 
-> Status: **design / roadmap** (not yet implemented). This captures a complete rework of the storage
+> Status: **phase 1 implemented; phases 2–7 are design / roadmap.** This captures a complete rework of the storage
 > layer, which today is a 2014-era SQLite design that is sluggish and awkward. The guiding constraint
 > is that **consensus must not change**: the same blocks must produce the same hashes and validate
 > identically, and the legacy socket protocol ([06](06-networking-protocol.md)) must keep working for
@@ -45,10 +45,13 @@
 
 ## Phased plan
 
-1. **Consensus-serialization extraction + characterization.** Add `Transaction`/serialization helpers
-   that reproduce the current signing buffer and block-hash bytes *exactly*; lock with vectors
-   (extend `tests/test_characterization.py` with known mainnet blocks → known hashes). No storage
-   change yet. This is the safety net for everything below.
+1. **Consensus-serialization extraction + characterization. ✅ DONE.** `bismuth_serialize.py` now
+   holds the frozen signing-buffer and block-hash byte forms, and `digest.py`, `essentials.sign_rsa`
+   and `mempool.merge` all route through it instead of spelling the bytes out inline. Locked by
+   `tests/test_characterization.py` (`test_consensus_signature_buffer_is_frozen`,
+   `test_consensus_block_hash_is_frozen`) and gated end-to-end by `test_ledger.test_db_blockhash`
+   (which recomputes real block hashes). This is the safety net for everything below: storage may now
+   change freely **as long as these bytes do not**.
 2. **Integer amounts behind the boundary.** Store amounts as integers; convert at the consensus
    boundary and legacy API edge. Removes `Decimal`/text churn from the hot path.
 3. **Schema versioning + migrations.** Add a `schema_version` table and an idempotent migration

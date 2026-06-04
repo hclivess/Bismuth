@@ -14,6 +14,7 @@ import time
 
 from polysign.signerfactory import SignerFactory
 
+import bismuth_serialize
 import db_helpers
 import essentials
 from quantizer import quantize_two, quantize_eight, quantize_ten
@@ -570,8 +571,9 @@ class Mempool:
                             continue
 
                         # Then more cpu heavy tests
-                        buffer = str((mempool_timestamp, mempool_address, mempool_recipient, mempool_amount,
-                                      mempool_operation, mempool_openfield)).encode("utf-8")
+                        buffer = bismuth_serialize.signature_buffer(
+                            mempool_timestamp, mempool_address, mempool_recipient, mempool_amount,
+                            mempool_operation, mempool_openfield)
 
                         #  Will raise if error
                         try:

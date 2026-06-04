@@ -5,6 +5,7 @@ import time
 from decimal import Decimal
 from typing import List, Dict, Any, Optional, Tuple
 
+import bismuth_serialize
 import essentials
 import mempool as mp
 import mining_heavy3
@@ -82,14 +83,14 @@ class Transaction:
             raise ValueError("Not a valid recipient address")
 
         # Signature verification (expensive operation last)
-        buffer = str((
+        buffer = bismuth_serialize.signature_buffer(
             self.received_timestamp,
             self.received_address,
             self.received_recipient,
             self.received_amount,
             self.received_operation,
-            self.received_openfield
-        )).encode("utf-8")
+            self.received_openfield,
+        )
 
         SignerFactory.verify_bis_signature(
             self.received_signature_enc,
@@ -492,9 +493,9 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
         log_difficulty_info(node, diff)
 
         # Calculate block hash
-        block_instance.block_hash = hashlib.sha224(
-            (str(block_instance.transaction_list_converted) + node.last_block_hash).encode("utf-8")
-        ).hexdigest()
+        block_instance.block_hash = bismuth_serialize.block_hash(
+            block_instance.transaction_list_converted, node.last_block_hash
+        )
 
         # Check if we already have this block
         if block_already_exists(db_handler, block_instance.block_hash, peer_ip):

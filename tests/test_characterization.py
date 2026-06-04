@@ -165,3 +165,23 @@ def test_rollback_allowed_policy():
     # deep rollback with a strong supermajority over enough peers -> allowed (honest self-resolution)
     n.peers = _Peers(size=5, pct=80)
     assert rollback_allowed(n, 900) is True
+
+
+# --- frozen consensus serialization boundary (doc/16 phase 1) ------------------------------------
+
+def test_consensus_signature_buffer_is_frozen():
+    import bismuth_serialize
+    # The exact bytes a transaction signature is computed over. Changing this forks the network.
+    buf = bismuth_serialize.signature_buffer("1500000000.00", "sender", "recipient",
+                                             "1.00000000", "op", "data")
+    assert buf == b"('1500000000.00', 'sender', 'recipient', '1.00000000', 'op', 'data')"
+
+
+def test_consensus_block_hash_is_frozen():
+    import hashlib
+    import bismuth_serialize
+    txs = [("1500000000.00", "a", "r", "0.00000000", "sig", "pk", "0", "of")]
+    prev = "0" * 56
+    # must equal the canonical legacy formula exactly
+    assert (bismuth_serialize.block_hash(txs, prev)
+            == hashlib.sha224((str(txs) + prev).encode("utf-8")).hexdigest())
