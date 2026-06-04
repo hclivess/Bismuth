@@ -10,6 +10,12 @@ so they don't have to deal with low level, and possibly changing, db structure.
 Borrows code from Hypernodes, pow_interface
 
 Still very alpha and not optimized.
+
+HARDFORK / cleanup (doc/16): the SQL below sums amount/fee/reward in the ledger's *native* unit —
+integer atomic units when ``ledger_integer_amounts`` is on, legacy decimals otherwise. Callers
+(hypernode quick-balance / pow_interface) must therefore convert any SUM result through
+``amounts.ledger_value`` rather than ``quantize_eight`` before treating it as BIS. These paths are not
+exercised by regnet/tests and are knowingly left legacy until the integer-storage cutover reaches them.
 """
 import math
 from logging import getLogger

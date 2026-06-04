@@ -527,6 +527,10 @@ class Mempool:
                             continue
                         mempool_recipient = str(transaction[2])[:56]
                         try:
+                            # HARDFORK (doc/16): consensus boundary — mempool re-derives the legacy
+                            # '%.8f' decimal-string amount to verify the signature over the exact signed
+                            # bytes. transaction[3] is the received wire amount (decimal); stays until the
+                            # hard fork signs native integer units.
                             mempool_amount = '%.8f' % (quantize_eight(transaction[3]))  # convert scientific notation
                             mempool_amount_float = float(transaction[3])
                         except Exception as e:

@@ -41,6 +41,10 @@ class Transaction:
         self.received_timestamp = '%.2f' % self.q_received_timestamp
         self.received_address = str(transaction[1])[:56]
         self.received_recipient = str(transaction[2])[:56]
+        # HARDFORK (doc/16): consensus boundary — the signature/hash are computed over the legacy
+        # '%.8f' decimal-string amount (and the '%.2f' timestamp above), so even integer storage must
+        # reconstruct these strings here. transaction[3] is the received wire amount (always decimal),
+        # so this stays until the hard fork signs/hashes native integer units and these conversions go.
         self.received_amount = '%.8f' % (quantize_eight(transaction[3]))
         self.received_signature_enc = str(transaction[4])[:684]
         self.received_public_key_b64encoded = str(transaction[5])[:1068]
@@ -264,6 +268,10 @@ class BlockProcessor:
                 )
 
             # Parse transaction fields
+            # HARDFORK (doc/16): db_timestamp/db_amount are rebuilt into the frozen legacy '%.2f'/'%.8f'
+            # string forms so the stored row matches what consensus signed/hashed. In integer-storage
+            # mode the amount string is then re-parsed to units below (decimal -> string -> int, a
+            # double conversion). The hard fork that signs native integers deletes this.
             db_timestamp = '%.2f' % quantize_two(transaction[0])
             db_address = str(transaction[1])[:56]
             db_recipient = str(transaction[2])[:56]

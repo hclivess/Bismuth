@@ -167,6 +167,12 @@ def rollback(node, db_handler, block_height):
 
 def recompress_ledger(node, rebuild=False, depth=15000):
     # TODO: Candidate for single user mode
+    # HARDFORK / cleanup (doc/16): NOT integer-storage safe — this hyperblock rollup sums amount/reward
+    # with bare quantize_eight() (which would read integer atomic units as whole BIS) and writes the
+    # collapsed balance into a synthetic address='Hyperblock' mirror row as a decimal STRING. It also
+    # swallows conversion errors with `except: credit = 0`. Regnet/tests don't exercise pruning, so it
+    # is knowingly left legacy; it MUST be converted (amounts.ledger_value on reads, integer units on
+    # write) and the mirror-row hack replaced (phase 5) before ledger_integer_amounts is set on mainnet.
     node.logger.app_log.warning(f"Status: Recompressing, please be patient")
 
     files_remove = [node.ledger_path + '.temp',node.ledger_path + '.temp-shm',node.ledger_path + '.temp-wal']
@@ -312,6 +318,11 @@ def balanceget(balance_address, db_handler):
 
     credit_ledger = Decimal("0")
 
+    # HARDFORK / cleanup (doc/16): this O(history) balance reads each amount/fee/reward and converts it
+    # with amounts.ledger_value (mode-aware: integer units -> Decimal, else legacy quantize). The bare
+    # `except: <value> = 0` guards below are a code smell — a conversion error silently ZEROES a balance
+    # instead of failing loudly. Replace with the maintained integer balance index (phase 4) and narrow
+    # the exception handling once amounts are integer end-to-end.
     try:
         db_handler.execute_param(db_handler.h, "SELECT amount FROM transactions WHERE recipient = ?;", (balance_address,))
         entries = db_handler.h.fetchall()
@@ -1013,7 +1024,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                         db_handler_instance.execute_param(db_handler_instance.h, "SELECT * FROM transactions WHERE block_height = ?;",
                                                           (block_desired,))
-                        block_desired_result = db_handler_instance.h.fetchall()
+                        # display-edge (doc/16 phase 2): reconstruct legacy decimal amounts when the
+                        # ledger stores integer units (matches the blockgetjson sibling below).
+                        block_desired_result = [amounts.display_row(r) for r in db_handler_instance.h.fetchall()]
 
                         send(self.request, block_desired_result)
                     else:
@@ -1883,6 +1896,10 @@ def initial_db_check():
         u = upgrade.cursor()
         try:
             u.execute("PRAGMA table_info(transactions);")
+            # HARDFORK / cleanup (doc/16): brittle schema sniff — a hardcoded column index [10]
+            # (operation) plus a string-equality type check. The integer-storage migration declares
+            # explicit column types (amount/fee/reward INTEGER, timestamp/text TEXT), so this ad-hoc
+            # probe should become a real schema-version check (PRAGMA user_version; see db_migrations.py).
             result = u.fetchall()[10][2]
             if result != "TEXT":
                 raise ValueError("Database column type outdated for Command field")
@@ -1943,7 +1960,11 @@ def verify(db_handler):
             db_timestamp = '%.2f' % (quantize_two(row[1]))
             db_address = str(row[2])[:56]
             db_recipient = str(row[3])[:56]
-            db_amount = '%.8f' % (quantize_eight(row[4]))
+            # HARDFORK (doc/16): rebuild the consensus signing buffer in the frozen legacy '%.8f' form.
+            # In integer-storage mode row[4] is atomic units (e.g. 250000000), so it MUST go through
+            # from_units -> '2.50000000'; quantize_eight(250000000) would yield '250000000.00000000' and
+            # fail EVERY signature. The hard fork that signs native integers deletes this branch.
+            db_amount = amounts.from_units(row[4]) if amounts.LEDGER_INTEGER else '%.8f' % (quantize_eight(row[4]))
             db_signature_enc = str(row[5])[:684]
             db_public_key_b64encoded = str(row[6])[:1068]
             db_operation = str(row[10])[:30]

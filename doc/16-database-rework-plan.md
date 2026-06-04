@@ -1,6 +1,6 @@
 # 16 — Database rework plan (design)
 
-> Status: **phases 1 & 3 done; 4 & 6 partial (safe read-side slices); 2, 5, 7 are design / roadmap.** This captures a complete rework of the storage
+> Status: **phases 1 & 3 done; phase 2 live on regnet (integer storage behind `ledger_integer_amounts`, default off); 4 & 6 partial (safe read-side slices); 5, 7 are design / roadmap.** This captures a complete rework of the storage
 > layer, which today is a 2014-era SQLite design that is sluggish and awkward. The guiding constraint
 > is that **consensus must not change**: the same blocks must produce the same hashes and validate
 > identically, and the legacy socket protocol ([06](06-networking-protocol.md)) must keep working for
@@ -45,6 +45,17 @@
    > sign/hash over native types (integer atomic units + a binary/struct transaction encoding);
    > afterwards storage, the boundary and the APIs are integer end-to-end and the string conversions
    > are removed entirely. The integer-storage migration here is the stepping stone toward that fork.
+   >
+   > *Concretely, the kludge looks like this:* a stored amount of `250000000` atomic units (2.5 BIS)
+   > must be reconstructed as the string `'2.50000000'` (via `amounts.from_units`) before it is
+   > signed/hashed — because feeding the raw integer straight through the legacy `'%.8f'` path yields
+   > `'250000000.00000000'`, which does not match the signed bytes and fails verification. Every site
+   > that performs one of these consensus/display string conversions (or guards one with a broad
+   > `except`) is tagged `# HARDFORK (doc/16)` in the code — run `grep -rn "HARDFORK (doc/16)"` to find
+   > them all: the consensus boundaries in `digest.py`, `mempool.py` and `node.verify`; the display-edge
+   > reconstruction in `essentials.format_raw_tx`; and the O(history)-balance / `recompress_ledger` /
+   > schema-sniff smells in `node.py` (plus `ledger_queries.py`). The hard fork signs/hashes native
+   > integer units and deletes the lot.
 
    > **Transaction id.** Today a txid is the first 56 chars of the base64 signature
    > (`signature[:56]`), matched with `signature LIKE '<txid>%'` — an ad-hoc slice of the signature
@@ -70,7 +81,7 @@
    `test_consensus_block_hash_is_frozen`) and gated end-to-end by `test_ledger.test_db_blockhash`
    (which recomputes real block hashes). This is the safety net for everything below: storage may now
    change freely **as long as these bytes do not**.
-2. **Integer amounts behind the boundary. ◑ FOUNDATION + verification gate done.** `amounts.py`
+2. **Integer amounts behind the boundary. ◑ LIVE on regnet (default off); mainnet sweep pending.** `amounts.py`
    provides the canonical, exact converter (`to_units` / `from_units`, 1 BIS = 100_000_000 units),
    unit-tested (`tests/test_amounts.py`). `replay_verify.py` recomputes every block hash from stored
    rows through the frozen boundary in two modes — as-stored (chain integrity) and with every amount
@@ -104,13 +115,33 @@
    `mempool.merge`) and `essentials.format_raw_tx` convert with `amounts.ledger_value` / `from_units`.
    Helpers `amounts.to_decimal` / `ledger_value` are unit-tested.
 
-   **Remaining before flipping it on — the display-edge sweep.** The ~25 client-facing handlers that
-   emit raw amounts (`node.py`'s `addlistlim` / `*json` / `blocklast` / `blockget` / `listlim`, and
-   `apihandler.api_getblocksince` / `api_gettransaction*` / range / recipients) must reconstruct
-   decimals via `from_units` for backward-compatible output, and `tests/test_replay.py` must pass
-   `amounts_are_units` when the node is in integer mode. After that mechanical sweep, set
-   `ledger_integer_amounts=True` on regnet and the whole node runs on integer storage. Prerequisite for
-   the exact incremental balance index (phase 4) and schema cleanup (phase 5).
+   **Live cutover — DONE (regnet-enabled, default off).** The display-edge sweep is complete: every
+   client-facing handler that emits amount/fee/reward now reconstructs the backward-compatible form
+   through the `amounts` boundary — `essentials.format_raw_tx` (the linchpin for `blockstojson` /
+   `blocktojsondiffs`, hence `api_getblockfromhash*` / `fromheight` / `addressrange` / `getblockrange`),
+   `node.py`'s `addlist` / `listlim` / `addlistlimmir` / `blocklast` / `blockget` (and their `*json`
+   siblings), and `apihandler.api_getblocksince` / range / recipients / `addresssince` /
+   `gettransaction*`. Crucially, `display_amount` / `display_row` return **floats** in integer mode
+   (matching the legacy NUMERIC-coerced output), which is load-bearing for the `reward == 0`
+   mining/normal split in `blocktojsondiffs` — a string `'0.00000000'` would be `!= 0` and misclassify
+   every normal tx. The optional full-chain `node.verify` was also fixed to rebuild the signing buffer
+   via `from_units` in integer mode (it reads the *stored* column, so a raw integer `250000000` would
+   have produced `'250000000.00000000'` and failed every signature). With `ledger_integer_amounts=True`
+   in `tests/config_custom.txt`, the regnet node and the **whole suite (82 passed)** run on integer
+   storage; `tests/test_replay.py` proves block hashes stay byte-identical, while
+   `tests/test_integer_storage.py` (live on-disk `INTEGER` columns) and
+   `test_api_getblockrange_classifies_normal_tx` (the `blocktojsondiffs` split) lock the cutover.
+   Default stays off, so mainnet is untouched.
+
+   **Left legacy (sweep before enabling on mainnet).** The hyperblock rollup `recompress_ledger` (sums
+   `amount+reward` with bare `quantize_eight` and writes the collapsed balance as a decimal-string
+   `address='Hyperblock'` mirror row) and the hypernode quick-balance / `ledger_queries.py` callers
+   (must convert SUM results via `amounts.ledger_value`, not `quantize_eight`) are **not** integer-safe
+   yet. Regnet/tests don't exercise pruning or hypernode balances, so these are knowingly unconverted
+   and tagged `# HARDFORK (doc/16)`; they must be converted (and the mirror-row hack replaced, phase 5)
+   before `ledger_integer_amounts` is ever set on a mainnet ledger.
+
+   This unblocks the exact incremental balance index (phase 4) and the schema cleanup (phase 5).
 3. **Schema versioning + migrations. ✅ DONE.** `db_migrations.py` applies idempotent, ordered
    migrations tracked via SQLite `PRAGMA user_version`; `node.add_indices` now routes through it
    (v1 = the historical TXID4 partial-signature + misc block-height indexes). Unit-tested in

@@ -70,12 +70,20 @@ def format_raw_tx(raw: list) -> dict:
         'timestamp': raw[1],
         'address': raw[2],
         'recipient': raw[3],
-        'amount': amounts.from_units(raw[4]) if amounts.LEDGER_INTEGER else raw[4],
+        # display-edge (doc/16 phase 2): display_amount returns a FLOAT in integer-storage mode,
+        # matching the legacy NUMERIC-coerced float output. This is load-bearing: blocktojsondiffs
+        # classifies txs with `reward == 0`, so a string '0.00000000' (what from_units returns) would
+        # be `!= 0` and misclassify every normal tx as a mining tx.
+        # HARDFORK (doc/16): once consensus signs/hashes native integers, amounts are integer
+        # end-to-end and this reconstruction disappears.
+        'amount': amounts.display_amount(raw[4]),
         'signature': raw[5],
+        # HARDFORK (doc/16): txid is an ad-hoc signature[:56] slice; adopt nado's fixed-length
+        # content-hash txid (blake2b of tx content; the signature signs the txid).
         'txid': raw[5][:56],
         'block_hash': raw[7],
-        'fee': amounts.from_units(raw[8]) if amounts.LEDGER_INTEGER else raw[8],
-        'reward': amounts.from_units(raw[9]) if amounts.LEDGER_INTEGER else raw[9],
+        'fee': amounts.display_amount(raw[8]),
+        'reward': amounts.display_amount(raw[9]),
         'operation': raw[10],
         'openfield': raw[11]
     }
