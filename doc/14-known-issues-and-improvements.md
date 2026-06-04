@@ -29,6 +29,29 @@ identical under the available test coverage).
 | `node.py` | `addlistlimmirjson` sent its response twice | removed the stray second `send()` |
 | `aliases.py` | private duplicate of `replace_regex` (uncached) | reuse `essentials.replace_regex` |
 
+### Consensus: fork-stall mitigation (the 59-block checkpoint)
+`blocknf()` rolls back one block at a time and refuses once the tip drops below `node.checkpoint`
+(`node.py`), where `checkpoint = round_down(last_block, 30) - 30` (≈30–59 blocks below the tip). The
+checkpoint is **not** recomputed mid-rollback, so the maximum rollback is ~59 blocks. A node that
+diverges onto a minority/alternate fork by more than ~59 blocks — e.g. after a network partition of
+~1 h at 60 s/block — can therefore never roll back far enough to rejoin the longest chain and
+**stalls on the wrong fork**. This matches the periodic fork-stall reports.
+
+The checkpoint is a deliberate anti-deep-reorg guard, so it must not simply be removed. Changes made:
+- **Diagnosability** — the checkpoint-skip now logs at **WARNING** (it was `INFO`, invisible at the
+  default level) with actionable guidance, so a stalled node says *why* it won't roll back.
+- **Configurable depth** — `rollback_depth` (`config.txt`, default **30** = unchanged) sets the
+  post-fork checkpoint distance. A stuck operator can raise it so the node rolls back deeper and
+  rejoins the longest chain. This trades some deep-reorg resistance for liveness — an informed,
+  local policy choice; it changes no validation rule and does **not** hard-fork the network. Gated by
+  `tests/test_characterization.py::test_checkpoint_set_depth_default_and_configurable`.
+
+Recommended follow-up (needs design, not done here): make the tolerance **consensus-aware** — allow a
+deeper rollback only when a supermajority of peers agree on a strictly longer valid-PoW chain — to
+restore liveness without weakening deep-reorg resistance. Also investigate the *root cause* of the
+>59-block divergences: partition handling and the `consensus_most_common` vs `consensus_max`
+selection in `worker.py`.
+
 ### Tooling
 - A **dependency-light pytest suite** replaces the `bismuthclient`/`bismuthcore`-based tests (which
   don't run on 3.12). See [12](12-tooling-build-tests.md). `.travis.yml` now targets Python 3.12.

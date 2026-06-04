@@ -101,3 +101,29 @@ def test_fee_calculate_cases():
     assert str(fee_calculate("alias=name")) == "1.01010000"
     assert str(fee_calculate("", "token:issue")) == "10.01000000"
     assert str(fee_calculate("", "token:transfer")) == "0.01000000"  # no surcharge for transfers
+
+
+# --- rollback checkpoint depth (configurable; default preserves historical behavior) -------------
+
+def test_checkpoint_set_depth_default_and_configurable():
+    from essentials import checkpoint_set, round_down
+
+    class _Log:
+        class app_log:
+            @staticmethod
+            def warning(*a, **k):
+                pass
+
+    class _N:
+        last_block = 1450100
+        checkpoint = 0
+        logger = _Log()
+
+    n = _N()
+    checkpoint_set(n)  # default depth 30 == historical behavior
+    assert n.checkpoint == round_down(1450100, 30) - 30
+
+    deep = _N()
+    deep.rollback_depth = 720
+    checkpoint_set(deep)  # operator-raised depth lets the node roll back further
+    assert deep.checkpoint == round_down(1450100, 720) - 720

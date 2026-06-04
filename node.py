@@ -401,7 +401,10 @@ def blocknf(node, block_hash_delete, peer_ip, db_handler, hyperblocks=False):
                 skip = True
 
             elif db_block_height < node.checkpoint:
-                reason = "Block is past checkpoint, will not be rolled back"
+                reason = (f"Block {db_block_height} is at/below the rollback checkpoint {node.checkpoint}; "
+                          f"refusing to roll back. If this node is stuck on a minority fork deeper than the "
+                          f"checkpoint, raise 'rollback_depth' in config.txt or resync from a snapshot.")
+                node.logger.app_log.warning(reason)  # visible at default log level so the stall is diagnosable
                 skip = True
 
             elif db_block_hash != block_hash_delete:
@@ -2039,6 +2042,7 @@ if __name__ == "__main__":
     node.heavy3_path = config.heavy3_path
     node.old_sqlite = config.old_sqlite
     node.heavy = config.heavy
+    node.rollback_depth = config.rollback_depth  # max blocks the node will roll back to rejoin a longer chain
 
     node.logger.app_log = log.log("node.log", node.debug_level, node.terminal_output)
     node.logger.app_log.warning("Configuration settings loaded")

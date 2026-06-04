@@ -44,6 +44,7 @@ class Get:
         "mempool_path": ["str"],
         "old_sqlite": ["bool"],
         "mandatory_message": ["list"],
+        "rollback_depth": ["int"],
     }
 
     # Optional default values so we don't bug if they are not in the config.
@@ -57,6 +58,7 @@ class Get:
         "heavy3_path": "./heavy3a.bin",
         "mempool_path": "./mempool.db",
         "old_sqlite": False,
+        "rollback_depth": 30,  # max blocks the node will roll back to rejoin a longer chain (see doc/14)
         "mandatory_message": {
             "Address": "Comment - Dict for addresses that require a message. tx to these addresses withjout a message will not be accepted by mempool.",
             "f6c0363ca1c5aa28cc584252e65a63998493ff0a5ec1bb16beda9bac": "qTrade Exchange needs a message to route the deposit to your account",
