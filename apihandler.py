@@ -391,7 +391,7 @@ class ApiHandler:
                 db_handler.execute_param(db_handler.h,
                                         ('SELECT * FROM transactions WHERE block_height > ?;'),
                                         (block_height, ))
-                info = db_handler.h.fetchall()
+                info = [amounts.display_row(r) for r in db_handler.h.fetchall()]
                 # it's a list of tuples, send as is.
                 #print(all)
             except Exception as e:
@@ -427,7 +427,7 @@ class ApiHandler:
                 db_handler.execute_param(db_handler.h,
                                         'SELECT * FROM transactions WHERE block_height > ? and block_height <= ? and openfield like ?',
                                         (since_height, block_height, where_openfield_like) )
-                info = db_handler.h.fetchall()
+                info = [amounts.display_row(r) for r in db_handler.h.fetchall()]
                 # it's a list of tuples, send as is.
                 #print("info", info)
             except Exception as e:
@@ -484,7 +484,7 @@ class ApiHandler:
                 db_handler.execute_param(db_handler.h,
                                         ('SELECT * FROM transactions WHERE block_height > ? and block_height <= ? and ( '+where_assembled+')'),
                                         (since_height, block_height)+conditions_assembled)
-                info = db_handler.h.fetchall()
+                info = [amounts.display_row(r) for r in db_handler.h.fetchall()]
                 # it's a list of tuples, send as is.
                 # print(all)
             except Exception as e:
@@ -522,7 +522,7 @@ class ApiHandler:
                                         ('SELECT * FROM transactions WHERE block_height > ? AND block_height <= ? '
                                          'AND ((address = ?) OR (recipient = ?)) ORDER BY block_height ASC'),
                                         (since_height, block_height, address, address))
-                info = db_handler.h.fetchall()
+                info = [amounts.display_row(r) for r in db_handler.h.fetchall()]
             except Exception as e:
                 print("Exception api_getaddresssince:".format(e))
                 raise
@@ -728,9 +728,9 @@ class ApiHandler:
             transaction['hash'] = raw[5]
             transaction['address'] = raw[2]
             transaction['recipient'] = raw[3]
-            transaction['amount'] = raw[4]
-            transaction['fee'] = raw[8]
-            transaction['reward'] = raw[9]
+            transaction['amount'] = amounts.display_amount(raw[4])
+            transaction['fee'] = amounts.display_amount(raw[8])
+            transaction['reward'] = amounts.display_amount(raw[9])
             transaction['operation']= raw[10]
             transaction['openfield'] = raw[11]
             try:
@@ -790,9 +790,9 @@ class ApiHandler:
             transaction['hash'] = raw[5]
             transaction['address'] = raw[2]
             transaction['recipient'] = raw[3]
-            transaction['amount'] = raw[4]
-            transaction['fee'] = raw[8]
-            transaction['reward'] = raw[9]
+            transaction['amount'] = amounts.display_amount(raw[4])
+            transaction['fee'] = amounts.display_amount(raw[8])
+            transaction['reward'] = amounts.display_amount(raw[9])
             transaction['operation'] = raw[10]
             transaction['openfield'] = raw[11]
             try:

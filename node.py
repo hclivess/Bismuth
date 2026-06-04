@@ -1181,7 +1181,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         db_handler_instance.execute_param(db_handler_instance.h, (
                             "SELECT * FROM transactions WHERE (address = ? OR recipient = ?) ORDER BY block_height DESC"),
                                                           (address_tx_list, address_tx_list,))
-                        result = db_handler_instance.h.fetchall()
+                        result = [amounts.display_row(r) for r in db_handler_instance.h.fetchall()]
                         send(self.request, result)
                     else:
                         node.logger.app_log.info(f"{peer_ip} not whitelisted for addlist command")
@@ -1222,7 +1222,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         # print(address_tx_list_limit)
                         db_handler_instance.execute_param(db_handler_instance.h, "SELECT * FROM transactions ORDER BY block_height DESC LIMIT ?",
                                                           (list_limit,))
-                        result = db_handler_instance.h.fetchall()
+                        result = [amounts.display_row(r) for r in db_handler_instance.h.fetchall()]
                         send(self.request, result)
                     else:
                         node.logger.app_log.info(f"{peer_ip} not whitelisted for listlim command")
@@ -1282,7 +1282,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         db_handler_instance.execute_param(db_handler_instance.h, (
                             "SELECT * FROM transactions WHERE (address = ? OR recipient = ?) AND block_height < 1 ORDER BY block_height ASC LIMIT ?"),
                                                           (address_tx_list, address_tx_list, address_tx_list_limit,))
-                        result = db_handler_instance.h.fetchall()
+                        result = [amounts.display_row(r) for r in db_handler_instance.h.fetchall()]
                         send(self.request, result)
                     else:
                         node.logger.app_log.info(f"{peer_ip} not whitelisted for addlistlimmir command")

@@ -53,18 +53,19 @@ def ledger_value(raw) -> Decimal:
 
 
 def display_amount(value):
-    """A stored amount/fee/reward -> the value to emit to clients (legacy decimal string in integer
-    mode, otherwise the stored value unchanged). Use at every client-facing display edge."""
-    return from_units(value) if LEDGER_INTEGER else value
+    """A stored amount/fee/reward -> the value to emit to clients. In integer mode return a float BIS
+    value, matching legacy output (the legacy NUMERIC columns are read back as floats), so downstream
+    numeric checks like ``reward == 0`` keep working. No-op (stored value) in legacy mode."""
+    return float(from_units(value)) if LEDGER_INTEGER else value
 
 
 def display_row(row):
-    """Return a 12-field ledger row tuple with amount/fee/reward converted to the client (decimal)
-    form. No-op when the ledger holds legacy decimals."""
+    """Return a 12-field ledger row tuple with amount/fee/reward converted to the client form
+    (float BIS, matching legacy). No-op when the ledger holds legacy decimals."""
     if not LEDGER_INTEGER or row is None:
         return row
     row = list(row)
-    row[4] = from_units(row[4])  # amount
-    row[8] = from_units(row[8])  # fee
-    row[9] = from_units(row[9])  # reward
+    row[4] = float(from_units(row[4]))  # amount
+    row[8] = float(from_units(row[8]))  # fee
+    row[9] = float(from_units(row[9]))  # reward
     return row

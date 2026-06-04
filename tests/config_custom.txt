@@ -13,4 +13,4 @@ version_allow=regnet
 old_sqlite=True
 rest_api=True
 rest_api_port=3031
-# ledger_integer_amounts=True  # integer-unit storage is wired but needs the display-edge sweep before enabling (doc/16)
+ledger_integer_amounts=True
