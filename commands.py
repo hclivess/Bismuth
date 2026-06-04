@@ -367,6 +367,11 @@ def peersget(socket):
     print (peers_received)
 
 def statusget(socket):
+    connections.send(s, "statusget")
+    response = connections.receive(s)
+    print(json.dumps(response))
+
+def statusjson(socket):
     connections.send(s, "statusjson")
     response = connections.receive(s)
     print(json.dumps(response))
@@ -477,6 +482,9 @@ elif command == "mpgetjson":
 
 elif command == "statusget":
     statusget(s)
+
+elif command == "statusjson":
+    statusjson(s)
 
 elif command == "portget":
     portget(s)
