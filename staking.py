@@ -14,15 +14,16 @@ import re
 from essentials import percentage
 from decimal import Decimal ## fixes the decimal not found error in this file where the Decimal() type is used.
 
-def execute_param(cursor, query, param):
+def execute_param(cursor, query, param, app_log=None):
     """Secure execute w/ param for slow nodes"""
     while True:
         try:
             cursor.execute(query, param)
             break
         except Exception as e:
-            app_log.warning("Database query: {} {} {}".format(cursor, query, param))
-            app_log.warning("Database retry reason: {}".format(e))
+            if app_log:
+                app_log.warning("Database query: {} {} {}".format(cursor, query, param))
+                app_log.warning("Database retry reason: {}".format(e))
     return cursor
 
 def balanceget_at_block(balance_address,block, h3):

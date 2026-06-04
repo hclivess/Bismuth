@@ -1,9 +1,7 @@
 import log
-import re
 
-def replace_regex(string,replace):
-    replaced_string = re.sub(r'^{}'.format(replace), "", string)
-    return replaced_string
+from essentials import replace_regex  # shared, lru-cached implementation (was duplicated here)
+
 
 def aliases_update(node, db_handler_instance):
     db_handler_instance.index_cursor.execute("SELECT block_height FROM aliases ORDER BY block_height DESC LIMIT 1;")

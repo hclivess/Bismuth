@@ -113,7 +113,7 @@ class PluginManager:
         """
         try:
             if plugin_name:
-                self.unload_plugin(plugin_name)
+                self._unload_plugin(plugin_name)
             else:
                 for plugin in self.get_loaded_plugins():
                     self._unload_plugin(plugin)

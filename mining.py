@@ -3,6 +3,7 @@ Modularize the mining algo check
 """
 
 import hashlib
+from decimal import Decimal
 from quantizer import quantize_two, quantize_eight, quantize_ten
 
 

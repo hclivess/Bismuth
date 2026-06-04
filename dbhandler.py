@@ -157,7 +157,7 @@ class DbHandler:
         return address_fetch
 
     def tokens_user(self, tokens_address):
-        self.index_cursor.execute("SELECT DISTINCT token FROM tokens WHERE address OR recipient = ?", (tokens_address,))
+        self.index_cursor.execute("SELECT DISTINCT token FROM tokens WHERE address = ? OR recipient = ?", (tokens_address, tokens_address))
         result = self.index_cursor.fetchall()
         return result
 

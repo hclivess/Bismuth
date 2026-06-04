@@ -38,7 +38,8 @@ parser.add_argument("-y", "--yes", action="count", default=False, help='Do send'
 parser.add_argument("-w", "--wallet", help='Path to wallet, use quotation marks')
 args = parser.parse_args()
 
-print(sys.argv[3])
+if not args.wallet:
+    parser.error("--wallet/-w is required (path to wallet.der)")
 
 total = 0
 nb = 0
@@ -49,7 +50,8 @@ for line in open('rewards.csv' , 'r'):
         try:
             total += float(data[1])
             data[1] = float(data[1]) - 0.01
-            command = f"{PYTHON_EXECUTABLE} {SEND_PATH} {data[1]} {data[0]} {None} {None} {sys.argv[3]} " #arguments are passed here
+            # send_nogui_noconf.py positional args: amount recipient operation openfield wallet
+            command = f'{PYTHON_EXECUTABLE} {SEND_PATH} {data[1]} {data[0]} "" "" "{args.wallet}"'
             if args.yes:
                 print(f"Running: {command} tx")
                 os.system(command)

@@ -2,8 +2,11 @@ import threading
 import asyncio
 
 class HyperlaneManager (threading.Thread):
-    def __init__(self,app_log):
-        threading.Thread.__init__(self,target=self.loop_in_thread, args=(self.loop,))
+    def __init__(self, app_log):
+        # Create a dedicated event loop per instance. (Previously a class-level
+        # asyncio.get_event_loop() ran at import time, which raises on Python 3.10+.)
+        self.loop = asyncio.new_event_loop()
+        threading.Thread.__init__(self, target=self.loop_in_thread, args=(self.loop,))
         self.app_log = app_log
 
     async def hyperlane_manager(self):
@@ -12,11 +15,9 @@ class HyperlaneManager (threading.Thread):
             self.app_log.warning("Hyperlane manager running")
             await asyncio.sleep(5)
 
-    def loop_in_thread(self,loop):
+    def loop_in_thread(self, loop):
         asyncio.set_event_loop(loop)
         loop.run_until_complete(self.hyperlane_manager())
-
-    loop = asyncio.get_event_loop()
 
 if __name__ == "__main__":
     import options

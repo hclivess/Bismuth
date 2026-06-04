@@ -529,6 +529,7 @@ class Mempool:
                             mempool_timestamp_float = float(transaction[0])  # limit Decimal where not needed
                         except Exception as e:
                             mempool_result.append("Mempool: Invalid timestamp {}".format(transaction[0]))
+                            continue
                         if not essentials.address_validate(transaction[1]):
                             mempool_result.append("Mempool: Invalid address {}".format(transaction[1]))
                             continue
