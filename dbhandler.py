@@ -9,6 +9,7 @@ from quantizer import quantize_two, quantize_eight, quantize_ten
 import functools
 from fork import Fork
 import sys
+import db_helpers
 
 
 def sql_trace_callback(log, id, statement):
@@ -447,54 +448,22 @@ class DbHandler:
         except Exception as e:
             node.logger.app_log.warning(f"Chain: Exception Moving new data to HDD: {e}")
 
+    # Aborts on InterfaceError/IntegrityError, retries other errors forever (sleep 1s).
+    _ABORT_ON = (sqlite3.InterfaceError, sqlite3.IntegrityError)
+
     def commit(self, connection):
         """Secure commit for slow nodes"""
-        while True:
-            try:
-                connection.commit()
-                break
-            except Exception as e:
-                self.logger.app_log.warning(f"Database connection: {connection}")
-                self.logger.app_log.warning(f"Database retry reason: {e}")
-                time.sleep(1)
+        db_helpers.retry_db(connection.commit, delay=1, log=self.logger.app_log, describe="commit")
 
     def execute(self, cursor, query):
         """Secure execute for slow nodes"""
-        while True:
-            try:
-                cursor.execute(query)
-                break
-            except sqlite3.InterfaceError as e:
-                self.logger.app_log.warning(f"Database query to abort: {cursor} {query[:100]}")
-                self.logger.app_log.warning(f"Database abortion reason: {e}")
-                break
-            except sqlite3.IntegrityError as e:
-                self.logger.app_log.warning(f"Database query to abort: {cursor} {query[:100]}")
-                self.logger.app_log.warning(f"Database abortion reason: {e}")
-                break
-            except Exception as e:
-                self.logger.app_log.warning(f"Database query: {cursor} {query[:100]}")
-                self.logger.app_log.warning(f"Database retry reason: {e}")
-                time.sleep(1)
+        db_helpers.retry_db(lambda: cursor.execute(query), abort_on=self._ABORT_ON,
+                            delay=1, log=self.logger.app_log, describe=str(query)[:100])
 
     def execute_param(self, cursor, query, param):
         """Secure execute w/ param for slow nodes"""
-        while True:
-            try:
-                cursor.execute(query, param)
-                break
-            except sqlite3.InterfaceError as e:
-                self.logger.app_log.warning(f"Database query to abort: {cursor} {str(query)[:100]} {str(param)[:100]}")
-                self.logger.app_log.warning(f"Database abortion reason: {e}")
-                break
-            except sqlite3.IntegrityError as e:
-                self.logger.app_log.warning(f"Database query to abort: {cursor} {str(query)[:100]}")
-                self.logger.app_log.warning(f"Database abortion reason: {e}")
-                break
-            except Exception as e:
-                self.logger.app_log.warning(f"Database query: {cursor} {str(query)[:100]} {str(param)[:100]}")
-                self.logger.app_log.warning(f"Database retry reason: {e}")
-                time.sleep(1)
+        db_helpers.retry_db(lambda: cursor.execute(query, param), abort_on=self._ABORT_ON,
+                            delay=1, log=self.logger.app_log, describe=str(query)[:100])
 
     def fetchall(self, cursor, query, param=None):
         """Helper to simplify calling code, execute and fetch in a single line instead of 2"""

@@ -15,6 +15,8 @@ import math
 from logging import getLogger
 from time import sleep, time
 
+import db_helpers
+
 # from typing import Union
 
 __version__ = "0.0.3"
@@ -89,26 +91,19 @@ class LedgerQueries:
         :param many: If True, will use an executemany call with param being a list of params.
         :return: cursor
         """
-        tries = 0
-        while True:
-            try:
-                if many:
-                    cursor = db.executemany(sql, param)
-                elif param:
-                    cursor = db.execute(sql, param)
-                else:
-                    cursor = db.execute(sql)
-                break
-            except Exception as e:
-                app_log.warning("LedgerQueries: {}".format(sql))
-                app_log.warning("LedgerQueries retry reason: {}".format(e))
-                tries += 1
-                if tries >= 10:
-                    app_log.error("Database Error, closing")
-                    # raise ValueError("Too many retries")
-                    exit()
-                sleep(0.1)
-        return cursor
+        if many:
+            op = lambda: db.executemany(sql, param)
+        elif param:
+            op = lambda: db.execute(sql, param)
+        else:
+            op = lambda: db.execute(sql)
+
+        def give_up():
+            app_log.error("Database Error, closing")
+            exit()  # preserve historical behavior: bail out of the process after 10 failed tries
+
+        return db_helpers.retry_db(op, delay=0.1, max_tries=10, on_give_up=give_up,
+                                   log=app_log, describe=str(sql)[:100])
 
     @classmethod
     def fetchone(cls, db, sql: str, param: tuple = None, as_dict: bool = False):

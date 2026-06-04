@@ -14,6 +14,7 @@ import time
 
 from polysign.signerfactory import SignerFactory
 
+import db_helpers
 import essentials
 from quantizer import quantize_two, quantize_eight, quantize_ten
 
@@ -204,20 +205,10 @@ class Mempool:
         :param cursor: optional. will use the locked shared cursor if None
         :return:
         """
-        # TODO: add a try count and die if we lock
-        while True:
-            try:
-                if not cursor:
-                    cursor = self.cursor
-                if param:
-                    cursor.execute(sql, param)
-                else:
-                    cursor.execute(sql)
-                break
-            except Exception as e:
-                self.app_log.warning("Database query: {} {}".format(cursor, sql))
-                self.app_log.warning("Database retry reason: {}".format(e))
-                time.sleep(0.1)
+        if not cursor:
+            cursor = self.cursor
+        op = (lambda: cursor.execute(sql, param)) if param else (lambda: cursor.execute(sql))
+        db_helpers.retry_db(op, delay=0.1, log=self.app_log, describe=str(sql)[:100])
 
     def commit(self):
         """
@@ -225,13 +216,7 @@ class Mempool:
         :return:
         """
         # no lock on execute and commit. locks are on full atomic operations only
-        while True:
-            try:
-                self.db.commit()
-                break
-            except Exception as e:
-                self.app_log.warning("Database retry reason: {}".format(e))
-                time.sleep(0.1)
+        db_helpers.retry_db(self.db.commit, delay=0.1, log=self.app_log, describe="commit")
 
     def fetchone(self, sql, param=None, write=False):
         """

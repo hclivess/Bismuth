@@ -6,6 +6,16 @@ from fork import *
 from quantizer import quantize_two, quantize_eight, quantize_ten
 from fork import Fork
 
+# Difficulty controller constants (a PID-style controller targeting a fixed block time).
+TARGET_BLOCK_TIME = Decimal(60.00)   # desired seconds per block
+DIFFICULTY_WINDOW = 1440             # rolling window (blocks) used to average block time
+KD_GAIN = 10                         # derivative gain of the feedback controller
+DIFF_ADJUST_DIVISOR = 720            # damps the per-block difficulty change
+MAX_DIFF_ADJUST = Decimal(1.0)       # cap on a single-block upward adjustment
+DIFF_DROP_TIME = Decimal(180)        # seconds before the broadcast difficulty begins to drop
+MIN_DIFFICULTY = 50                  # difficulty floor
+
+
 def difficulty(node, db_handler):
     try:
         fork = Fork()
@@ -28,12 +38,12 @@ def difficulty(node, db_handler):
 
         db_handler.execute_param(db_handler.c, (
             "SELECT timestamp FROM transactions WHERE block_height > ? AND reward != 0 ORDER BY block_height ASC LIMIT 2"),
-                                 (block_height - 1441,))
+                                 (block_height - DIFFICULTY_WINDOW - 1,))
         timestamp_1441 = Decimal(db_handler.c.fetchone()[0])
-        block_time_prev = (timestamp_before_last - timestamp_1441) / 1440
+        block_time_prev = (timestamp_before_last - timestamp_1441) / DIFFICULTY_WINDOW
         temp = db_handler.c.fetchone()
         timestamp_1440 = timestamp_1441 if temp is None else Decimal(temp[0])
-        block_time = Decimal(timestamp_last - timestamp_1440) / 1440
+        block_time = Decimal(timestamp_last - timestamp_1440) / DIFFICULTY_WINDOW
 
         db_handler.execute(db_handler.c, "SELECT difficulty FROM misc ORDER BY block_height DESC LIMIT 1")
         diff_block_previous = Decimal(db_handler.c.fetchone()[0])
@@ -46,18 +56,18 @@ def difficulty(node, db_handler):
 
         hashrate = pow(2, diff_block_previous / Decimal(2.0)) / (
                 block_time * math.ceil(28 - diff_block_previous / Decimal(16.0)))
-        # Calculate new difficulty for desired blocktime of 60 seconds
-        target = Decimal(60.00)
+        # Calculate new difficulty for the desired block time
+        target = TARGET_BLOCK_TIME
         ##D0 = diff_block_previous
         difficulty_new = Decimal(
             (2 / math.log(2)) * math.log(hashrate * target * math.ceil(28 - diff_block_previous / Decimal(16.0))))
         # Feedback controller
-        Kd = 10
+        Kd = KD_GAIN
         difficulty_new = difficulty_new - Kd * (block_time - block_time_prev)
-        diff_adjustment = (difficulty_new - diff_block_previous) / 720  # reduce by factor of 720
+        diff_adjustment = (difficulty_new - diff_block_previous) / DIFF_ADJUST_DIVISOR  # reduce by factor of 720
 
-        if diff_adjustment > Decimal(1.0):
-            diff_adjustment = Decimal(1.0)
+        if diff_adjustment > MAX_DIFF_ADJUST:
+            diff_adjustment = MAX_DIFF_ADJUST
 
         difficulty_new_adjusted = quantize_ten(diff_block_previous + diff_adjustment)
         difficulty = difficulty_new_adjusted
@@ -68,7 +78,7 @@ def difficulty(node, db_handler):
                 fork.limit_version(node)
         #fork handling
 
-        diff_drop_time = Decimal(180)
+        diff_drop_time = DIFF_DROP_TIME
 
         if Decimal(time.time()) > Decimal(timestamp_last) + Decimal(2 * diff_drop_time):
             # Emergency diff drop
@@ -81,10 +91,10 @@ def difficulty(node, db_handler):
         else:
             diff_dropped = difficulty
 
-        if difficulty < 50:
-            difficulty = 50
-        if diff_dropped < 50:
-            diff_dropped = 50
+        if difficulty < MIN_DIFFICULTY:
+            difficulty = MIN_DIFFICULTY
+        if diff_dropped < MIN_DIFFICULTY:
+            diff_dropped = MIN_DIFFICULTY
 
         return (
             float('%.10f' % difficulty), float('%.10f' % diff_dropped), float(time_to_generate), float(diff_block_previous),

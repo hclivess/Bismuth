@@ -23,6 +23,8 @@ from typing import Union
 from polysign.signer import SignerType
 from polysign.signerfactory import SignerFactory
 
+import db_helpers
+
 __version__ = "0.0.7"
 
 """
@@ -362,19 +364,9 @@ def fee_calculate(openfield: str, operation: str = '', block: int = 0) -> Decima
 
 
 def execute_param_c(cursor, query, param, app_log):
-    """Secure execute w/ param for slow nodes"""
-    while True:
-        try:
-            cursor.execute(query, param)
-            break
-        except UnicodeEncodeError as e:
-            app_log.warning("Database query: {} {} {}".format(cursor, query, param))
-            app_log.warning("Database skip reason: {}".format(e))
-            break
-        except Exception as e:
-            app_log.warning("Database query: {} {} {}".format(cursor, query, param))
-            app_log.warning("Database retry reason: {}".format(e))
-            time.sleep(0.1)
+    """Secure execute w/ param for slow nodes (aborts on UnicodeEncodeError, retries otherwise)."""
+    db_helpers.retry_db(lambda: cursor.execute(query, param), abort_on=(UnicodeEncodeError,),
+                        delay=0.1, log=app_log, describe=str(query)[:100])
     return cursor
 
 

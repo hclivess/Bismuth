@@ -50,7 +50,13 @@ identical under the available test coverage).
   `True` (its caller's `continue` is unreachable); a wrong return annotation on
   `Transaction.from_raw_transaction`.
 
-## Improvement roadmap (deferred — behavior-preserving, do behind tests)
+## Improvement roadmap (behavior-preserving, do behind tests)
+
+> Update: items 1 and 3 (difficulty) are now **implemented** and verified end-to-end — the shared
+> `db_helpers.retry_db` backs every module's retry loop, and difficulty.py's controller constants are
+> named. Both are gated by `tests/test_db_helpers.py` and `tests/test_characterization.py` (the latter
+> pins `difficulty()` outputs on a synthetic ledger so the renaming is provably identical). The
+> remaining items stand.
 
 These were scoped out deliberately: the regnet test suite covers the happy path well but not every
 consensus branch, so deeper consensus refactors should land with characterization tests for each
