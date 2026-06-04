@@ -59,10 +59,15 @@
    (v1 = the historical TXID4 partial-signature + misc block-height indexes). Unit-tested in
    `tests/test_db_migrations.py`. This is the mechanism the phases below use to add tables/indexes
    safely.
-4. **Maintained account-balance index.** A `balances(address, balance, last_height)` table updated on
-   block apply and rollback, giving **O(1)** balance lookups instead of O(history) sums. Must be
-   rollback-safe (updated under `db_lock`, reverted by `blocknf`/`rollback_under`, and consistent with
-   the configurable/consensus-aware rollback in [14](14-known-issues-and-improvements.md)).
+4. **Account-balance acceleration. ◑ PARTIAL (safe slice done).** A process-wide, height-stamped
+   balance cache (`balance_cache.py`, exposed as `DbHandler.balance_get`, used by REST `/balance`)
+   memoizes the authoritative balance per `(address, chain-height)`, so repeated reads are O(1) and
+   always identical to the authoritative computation; it auto-invalidates when the height changes
+   (block or rollback). Gated by
+   `tests/test_rest_api.py::test_rest_balance_matches_socket_and_is_cached`. The deeper, true
+   first-touch O(1) **incremental credit/debit index** (updated on apply/rollback) is deferred until
+   after phase 2 (integer amounts), so it can bit-match the legacy text/float precision exactly and be
+   maintained safely.
 5. **Explicit reward & pruning model.** Replace negative-height "mirror" rows and `Hyperblock` string
    rows with explicit columns/tables (e.g. `block_type`, a reward table, an "account snapshot at
    height H" table). Internal only; consensus serialization unchanged.

@@ -10,6 +10,7 @@ import functools
 from fork import Fork
 import sys
 import db_helpers
+import balance_cache
 
 
 def sql_trace_callback(log, id, statement):
@@ -483,6 +484,10 @@ class DbHandler:
         if res:
             return res[0]
         return None
+
+    def balance_get(self, address):
+        """Authoritative ledger balance for an address, memoized per chain height (read-side accelerator)."""
+        return balance_cache.get_balance(self, address)
 
     def close(self):
         self.index.close()

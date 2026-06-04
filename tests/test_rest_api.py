@@ -63,6 +63,18 @@ def test_rest_balance(client):
     assert code == 200 and float(body["balance"]) > 0
 
 
+def test_rest_balance_matches_socket_and_is_cached(client):
+    client.mine(2)
+    code, body = _get(f"/balance/{client.address}")
+    assert code == 200
+    # the cached read-side balance must equal the node's authoritative (no-mempool) balance
+    socket_bal = client.command("balancegetjson", [client.address])["balance_no_mempool"]
+    assert abs(float(body["balance"]) - float(socket_bal)) < 1e-8
+    # a second read at the same height returns the identical (cached) value
+    _, body2 = _get(f"/balance/{client.address}")
+    assert body2["balance"] == body["balance"]
+
+
 def test_rest_transaction(client):
     client.mine(1)
     txid = client.send(client.address, 1.0)
