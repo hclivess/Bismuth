@@ -1,3 +1,11 @@
-bismuthclient
-bismuthcore>=0.0.18
+# Test-suite requirements.
+#
+# The suite is dependency-light: it drives a regnet node over the in-tree protocol and signs with
+# the in-tree polysign, so it does NOT need bismuthclient / bismuthcore / tornado / ed25519
+# (those legacy client libs are incompatible with Python 3.12).
+#
+# You also need the node runtime deps:   pip install -r requirements-node.txt
+# Run the suite from the repo root:       python3 -m pytest -v
+
 pytest
+coincurve  # only needed for the optional ECDSA signer test (test_crypto.test_polysign_lazy_ecdsa)

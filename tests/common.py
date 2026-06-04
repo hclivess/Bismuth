@@ -1,33 +1,14 @@
-# Common functions used in tests
-# TODO: benchmark both, see use in polysign, signer_rsa (then take from there, class method)
+# Common test helpers (dependency-light; no bismuthclient).
 
-from bismuthclient.bismuthclient import BismuthClient
-from os.path import isfile
-
-def normalize_key(a):
-    b = "-----BEGIN PUBLIC KEY-----\n"
-    i = 0
-    n = 64
-    while i * n < len(a):
-        b = b + a[i * n:(i + 1) * n] + '\n'
-        i = i + 1
-    b = b + "-----END PUBLIC KEY-----"
-    return b
+def normalize_key(a: str) -> str:
+    """Wrap a raw base64 RSA public key into PEM form (64-char lines)."""
+    chunks = [a[i:i + 64] for i in range(0, len(a), 64)]
+    return "\n".join(["-----BEGIN PUBLIC KEY-----", *chunks, "-----END PUBLIC KEY-----"])
 
 
-def normalize_key_alt(s: str) -> str:
-    chunks = [s[i:i+64] for i in range(0, len(s), 64)]
-    chunks.insert(0, "-----BEGIN PUBLIC KEY-----")
-    chunks.append("-----END PUBLIC KEY-----")
-    return "\n".join(chunks)
-
-
-def get_client(verbose: bool=False):
-    # Helper to get a working and conencted BismuthClient no matter the test context
-    file_first = "../datadir/wallet.der"
-    file_second = "../wallet.der"
-    wallet_file =  file_first if isfile(file_first) else file_second
-    client = BismuthClient(servers_list={'127.0.0.1:3030'}, wallet_file=wallet_file, verbose=verbose)
-    # Will raise and fail test if node is not connectible
-    assert client is not None
-    return client
+def get_client(verbose: bool = False):
+    """Return a connected LiteClient (regnet, port 3030). Requires a running regnet node."""
+    import os
+    from _lite_client import LiteClient
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return LiteClient(os.path.join(root, "wallet.der"), port=3030)

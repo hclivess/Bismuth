@@ -8,7 +8,8 @@
 PySocks
 pycryptodomex
 requests
-polysign>=0.1.0
 base58
+# polysign is vendored in-tree (see polysign/); it is no longer a pip dependency.
+# coincurve / ed25519 below are only needed for the optional non-RSA (ECDSA/ED25519) signers.
 # coincurve
 # ed25519

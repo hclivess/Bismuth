@@ -1,12 +1,12 @@
 language: python
 
 python:
-  - "3.8"
+  - "3.12"
 
 cache: pip
 
 install:
-  - pip install -r requirements.txt
+  - pip install -r requirements-node.txt
   - pip install -r tests/requirements.txt
   - cp tests/config_custom.txt ./config_custom.txt
 
@@ -27,5 +27,4 @@ after_failure:
   - ./send.sh failure $WEBHOOK_URL
 
 script:
-  - cd tests
-  - pytest -v
+  - python -m pytest -v
