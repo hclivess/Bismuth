@@ -36,6 +36,8 @@ consensus. Transaction submission is intentionally deferred to a later, authenti
 | `GET /api/difficulty` | the current difficulty tuple as a named object |
 | `GET /api/block/height/{n}` | `{block_height, transactions[]}` |
 | `GET /api/block/hash/{hash}` | `{block_hash, block_height, transactions[]}` |
+| `GET /api/blocks/since/{h}?limit=N` | positive-height blocks after `h` (`limit` ≤ 1000) — for parallel sync |
+| `GET /api/blocks/range/{start}/{end}` | blocks in `[start, end]` (span capped at 1000) — for parallel sync |
 | `GET /api/balance/{address}` | `{address, balance}` (validated address; uses `ledger_balance3`) |
 | `GET /api/transaction/{txid}` | a transaction (matched by signature prefix) |
 | `GET /api/address/{address}/transactions?limit=N` | recent txs for an address (newest first; `limit` ≤ 500) |
@@ -63,8 +65,8 @@ exercises every endpoint plus 404 handling.
 ## Roadmap
 
 - **Writes** — authenticated `POST /api/transaction` (submit a signed tx), mapping to the mempool.
-- **Sync over REST** — block-range / since-height endpoints designed for parallel fetching, so new
-  nodes can sync via concurrent HTTP range requests instead of the serial socket pipeline (while the
-  socket sync stays for old peers). This pairs with the "optimize rollup & sync" work tracked in
-  [14](14-known-issues-and-improvements.md).
+- **Sync over REST** — ✅ read side added: `GET /api/blocks/since/{h}` and
+  `GET /api/blocks/range/{start}/{end}` return positive-height blocks for **parallel** HTTP fetching
+  (the serial socket sync stays for old peers). Still to do: a client-side parallel-fetch syncer and
+  incremental rollup (doc/16 phase 6).
 - **Pagination & filtering**, OpenAPI/Swagger description, optional API keys / rate limiting.

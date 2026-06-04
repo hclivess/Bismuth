@@ -57,6 +57,23 @@ def test_rest_block_by_height(client):
     assert body["transactions"]
 
 
+def test_rest_blocks_since_and_range(client):
+    client.mine(5)
+    top = client.command("blocklastjson")["block_height"]
+    code, body = _get(f"/blocks/since/{top - 3}")
+    assert code == 200
+    heights = [b["block_height"] for b in body["blocks"]]
+    assert heights == sorted(heights)                 # ascending, for ordered apply
+    assert all(h > top - 3 for h in heights)
+    assert len(heights) >= 3
+    code, body = _get(f"/blocks/range/{top - 2}/{top}")
+    assert code == 200
+    rheights = [b["block_height"] for b in body["blocks"]]
+    assert rheights == sorted(rheights)
+    assert min(rheights) >= top - 2 and max(rheights) <= top
+    assert all(b["transactions"] for b in body["blocks"])
+
+
 def test_rest_balance(client):
     client.mine(1)
     code, body = _get(f"/balance/{client.address}")

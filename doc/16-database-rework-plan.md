@@ -1,6 +1,6 @@
 # 16 — Database rework plan (design)
 
-> Status: **phase 1 implemented; phases 2–7 are design / roadmap.** This captures a complete rework of the storage
+> Status: **phases 1 & 3 done; 4 & 6 partial (safe read-side slices); 2, 5, 7 are design / roadmap.** This captures a complete rework of the storage
 > layer, which today is a 2014-era SQLite design that is sluggish and awkward. The guiding constraint
 > is that **consensus must not change**: the same blocks must produce the same hashes and validate
 > identically, and the legacy socket protocol ([06](06-networking-protocol.md)) must keep working for
@@ -71,10 +71,12 @@
 5. **Explicit reward & pruning model.** Replace negative-height "mirror" rows and `Hyperblock` string
    rows with explicit columns/tables (e.g. `block_type`, a reward table, an "account snapshot at
    height H" table). Internal only; consensus serialization unchanged.
-6. **Rollup & sync optimization.** Make hyperblock rollup *incremental* (derive the snapshot from the
-   balance index instead of rescanning ranges) and move it off the inline path. Add binary,
-   range-addressable block storage so blocks stream fast — pairs with REST range/since endpoints for
-   **parallel** sync (vs the serial socket pipeline), while the socket sync stays for old peers.
+6. **Rollup & sync optimization. ◑ PARTIAL (read side done).** The REST API now serves
+   `GET /api/blocks/since/{h}` and `GET /api/blocks/range/{start}/{end}` (positive-height blocks) for
+   **parallel** HTTP fetching, while the serial socket sync stays for old peers
+   (`tests/test_rest_api.py::test_rest_blocks_since_and_range`). Still to do: a client-side
+   parallel-fetch syncer, compact binary block streaming, and making hyperblock rollup *incremental*
+   (derive the snapshot from the balance index rather than rescanning ranges) and off the inline path.
 7. **Engine evaluation (optional, measured).** Modernise SQLite usage first (WAL, integer keys,
    prepared statements, covering indexes) and benchmark; only then consider an embedded KV
    (LMDB/RocksDB) for block bodies with SQLite kept for queryable indexes. Decide on data, not taste.
