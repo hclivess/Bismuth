@@ -52,8 +52,13 @@
    `test_consensus_block_hash_is_frozen`) and gated end-to-end by `test_ledger.test_db_blockhash`
    (which recomputes real block hashes). This is the safety net for everything below: storage may now
    change freely **as long as these bytes do not**.
-2. **Integer amounts behind the boundary.** Store amounts as integers; convert at the consensus
-   boundary and legacy API edge. Removes `Decimal`/text churn from the hot path.
+2. **Integer amounts behind the boundary. ◑ FOUNDATION done.** `amounts.py` provides the canonical,
+   exact converter (`to_units` / `from_units`, 1 BIS = 100_000_000 units), unit-tested
+   (`tests/test_amounts.py`) including legacy-`'%.8f'` parity for 8-dp values. The remaining (large)
+   work is migrating the storage columns and call sites to integers behind this converter, keeping
+   the legacy string only at the consensus / legacy-API edge and replay-verifying block hashes. This
+   is the prerequisite for the exact incremental balance index (phase 4) and the schema cleanup
+   (phase 5).
 3. **Schema versioning + migrations. ✅ DONE.** `db_migrations.py` applies idempotent, ordered
    migrations tracked via SQLite `PRAGMA user_version`; `node.add_indices` now routes through it
    (v1 = the historical TXID4 partial-signature + misc block-height indexes). Unit-tested in
