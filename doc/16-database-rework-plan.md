@@ -37,6 +37,20 @@
 2. **Separate representation from storage.** In memory and on disk, use integer atomic units
    (1 BIS = 100,000,000 units) and native types; convert to the frozen legacy form only at the
    consensus boundary and in legacy API responses.
+
+   > **Future hard fork — delete the type conversions.** Because the consensus signature and block
+   > hash are computed over the legacy decimal *string* forms (`'%.2f'` / `'%.8f'`), even integer
+   > storage must reconstruct those strings at the boundary (`bismuth_serialize`). Those conversions
+   > are a kludge. A scheduled **hard fork** should change the consensus serialization itself to
+   > sign/hash over native types (integer atomic units + a binary/struct transaction encoding);
+   > afterwards storage, the boundary and the APIs are integer end-to-end and the string conversions
+   > are removed entirely. The integer-storage migration here is the stepping stone toward that fork.
+
+   > **Transaction id.** Today a txid is the first 56 chars of the base64 signature
+   > (`signature[:56]`), matched with `signature LIKE '<txid>%'`. Per the Tornado ("nado") wallet
+   > convention, the txid should be an explicit **short, fixed, partial** identifier (a bounded
+   > signature prefix) used consistently across node, APIs and wallets — limited by design rather
+   > than as an ad-hoc 56-char slice. Revisit with the hard fork / API rework.
 3. **Behavior-preserving, replay-verified.** Every migration is validated by replaying the chain and
    asserting **identical block hashes** end-to-end (a consensus-equivalence test). No silent drift.
 4. **Backward compatible.** Old peers keep the socket protocol; legacy `*json` responses keep their
