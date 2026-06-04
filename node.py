@@ -400,10 +400,10 @@ def blocknf(node, block_hash_delete, peer_ip, db_handler, hyperblocks=False):
                 reason = "Filter blocked this rollback"
                 skip = True
 
-            elif db_block_height < node.checkpoint:
-                reason = (f"Block {db_block_height} is at/below the rollback checkpoint {node.checkpoint}; "
-                          f"refusing to roll back. If this node is stuck on a minority fork deeper than the "
-                          f"checkpoint, raise 'rollback_depth' in config.txt or resync from a snapshot.")
+            elif not essentials.rollback_allowed(node, db_block_height):
+                reason = (f"Block {db_block_height} is at/below the rollback checkpoint {node.checkpoint} and "
+                          f"peer consensus does not justify a deeper rollback; refusing. If this node is stuck "
+                          f"on a minority fork, raise 'rollback_depth', enable 'rollback_consensus', or resync.")
                 node.logger.app_log.warning(reason)  # visible at default log level so the stall is diagnosable
                 skip = True
 
@@ -2045,6 +2045,9 @@ if __name__ == "__main__":
     node.rollback_depth = config.rollback_depth  # max blocks the node will roll back to rejoin a longer chain
     node.rest_api = config.rest_api              # opt-in modern parallel REST API (see doc/15)
     node.rest_api_port = config.rest_api_port
+    node.rollback_consensus = config.rollback_consensus                      # opt-in consensus-aware deep rollback (doc/14)
+    node.rollback_consensus_threshold = config.rollback_consensus_threshold
+    node.rollback_consensus_min_peers = config.rollback_consensus_min_peers
 
     node.logger.app_log = log.log("node.log", node.debug_level, node.terminal_output)
     node.logger.app_log.warning("Configuration settings loaded")

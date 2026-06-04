@@ -41,16 +41,21 @@ The checkpoint is a deliberate anti-deep-reorg guard, so it must not simply be r
 - **Diagnosability** — the checkpoint-skip now logs at **WARNING** (it was `INFO`, invisible at the
   default level) with actionable guidance, so a stalled node says *why* it won't roll back.
 - **Configurable depth** — `rollback_depth` (`config.txt`, default **30** = unchanged) sets the
-  post-fork checkpoint distance. A stuck operator can raise it so the node rolls back deeper and
-  rejoins the longest chain. This trades some deep-reorg resistance for liveness — an informed,
-  local policy choice; it changes no validation rule and does **not** hard-fork the network. Gated by
+  post-fork checkpoint distance. Gated by
   `tests/test_characterization.py::test_checkpoint_set_depth_default_and_configurable`.
+- **Consensus-aware deep rollback (opt-in)** — `essentials.rollback_allowed(node, target_height)` now
+  governs the `blocknf()` guard. Shallow rollbacks (≥ checkpoint) are always allowed; a rollback
+  *below* the checkpoint is refused by default (historical behavior) unless `rollback_consensus=True`,
+  in which case it is allowed only when a supermajority (`rollback_consensus_threshold`, default 75%)
+  of enough peers (`rollback_consensus_min_peers`, default 3) agree. So an honestly-forked node can
+  resolve a deep fork on its own, while a malicious minority — or a single peer — cannot force a deep
+  reorg. Default-off preserves current mainnet behavior. Gated by
+  `tests/test_characterization.py::test_rollback_allowed_policy`.
 
-Recommended follow-up (needs design, not done here): make the tolerance **consensus-aware** — allow a
-deeper rollback only when a supermajority of peers agree on a strictly longer valid-PoW chain — to
-restore liveness without weakening deep-reorg resistance. Also investigate the *root cause* of the
->59-block divergences: partition handling and the `consensus_most_common` vs `consensus_max`
-selection in `worker.py`.
+Remaining root-cause work (not done here): investigate *why* >59-block divergences form in the first
+place — partition handling and the `consensus_most_common` vs `consensus_max` selection in
+`worker.py`. The Sybil-resistance of the consensus signal also bounds how strong the supermajority
+gate really is, and should be hardened (e.g. weight by distinct peers / known good versions).
 
 ### Tooling
 - A **dependency-light pytest suite** replaces the `bismuthclient`/`bismuthcore`-based tests (which

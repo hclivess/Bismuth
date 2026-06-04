@@ -167,6 +167,30 @@ def checkpoint_set(node):
         node.logger.app_log.warning(f"Checkpoint set to {node.checkpoint}")
 
 
+def rollback_allowed(node, target_height) -> bool:
+    """
+    Decide whether the node may roll its chain tip back to `target_height`.
+
+    - Shallow rollbacks (target at or above node.checkpoint) are always allowed: the normal small
+      reorgs, bounded by the usual ~rollback_depth window.
+    - Deeper rollbacks (below the checkpoint) are refused by default (the historical
+      anti-deep-reorg behavior). When the consensus-aware policy is enabled
+      (config rollback_consensus=True), a deep rollback is allowed ONLY when a supermajority of a
+      sufficient number of peers agree on a chain. That lets an honestly-forked node resolve a deep
+      fork on its own, while a malicious minority of peers cannot force a deep reorg. See doc/14.
+    """
+    if target_height >= node.checkpoint:
+        return True
+    if not getattr(node, "rollback_consensus", False):
+        return False
+    peers = getattr(node, "peers", None)
+    if peers is None:
+        return False
+    enough_peers = peers.consensus_size >= getattr(node, "rollback_consensus_min_peers", 3)
+    strong_majority = (peers.consensus_percentage or 0) >= getattr(node, "rollback_consensus_threshold", 75)
+    return enough_peers and strong_majority
+
+
 def ledger_balance3(address, cache, db_handler):
     # Many heavy blocks are pool payouts, same address.
     # Cache pre_balance instead of recalc for every tx
