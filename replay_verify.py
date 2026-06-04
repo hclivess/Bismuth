@@ -20,10 +20,15 @@ import amounts
 H, TS, ADDR, RECIP, AMOUNT, SIG, PUBKEY, BLOCKHASH, FEE, REWARD, OP, OPENFIELD = range(12)
 
 
-def verify_blocks(rows, integer_roundtrip=False):
+def verify_blocks(rows, integer_roundtrip=False, amounts_are_units=False):
     """`rows` is an ordered list of raw 12-field transaction tuples (ascending block_height, then
     insertion order). Returns a list of mismatch dicts (empty == all good). The first block present
     is used only as the previous-hash anchor (its own hash can't be checked without its predecessor).
+
+    amounts_are_units: rows come from an already-migrated ledger whose `amount` column holds integer
+    atomic units (the new storage); reconstruct the legacy decimal with ``amounts.from_units``.
+    integer_roundtrip: legacy decimal amounts, but route each through to_units/from_units to prove the
+    migration preserves the hash.
     """
     blocks = []
     by_height = {}
@@ -50,7 +55,9 @@ def verify_blocks(rows, integer_roundtrip=False):
             # '%.2f' / '%.8f' strings; the text fields come back as strings. (This lossy storage is
             # precisely what phase 2 replaces with integer amounts + explicit text columns.)
             timestamp = "%.2f" % float(r[TS])
-            if integer_roundtrip:
+            if amounts_are_units:
+                amount = amounts.from_units(r[AMOUNT])
+            elif integer_roundtrip:
                 amount = amounts.from_units(amounts.to_units(r[AMOUNT]))
             else:
                 amount = "%.8f" % float(r[AMOUNT])

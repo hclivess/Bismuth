@@ -69,9 +69,19 @@
    frozen in `bismuth_serialize`; the `'%.2f'` / `'%.8f'` strings are produced only at the consensus
    / legacy-API edge.
 
-   Remaining (large) work: migrate the columns + call sites to integers behind the converter, gated
-   by `replay_verify`. Prerequisite for the exact incremental balance index (phase 4) and schema
-   cleanup (phase 5).
+   **First bite done:** `migrate_amounts.py` is the offline, replay-gated column migration — it
+   rebuilds `transactions` with explicit types and integer atomic-unit `amount` / `fee` / `reward`
+   (`timestamp` and the text fields become explicit `TEXT`), and `tests/test_amount_migration.py`
+   proves on a chained ledger that it preserves **every block hash**, stores true integers
+   (1.5 BIS → `150000000`), and that integer-summed balances are correct. Cutover recipe:
+   `replay_verify legacy.db` → `migrate_amounts legacy.db new.db` → `migrate_amounts --verify new.db`
+   (expect 0 mismatches at each step).
+
+   Remaining (the live cutover): make the running node read/write the integer columns — update the
+   balance/arithmetic SQL (`SUM(amount+reward)`, `SUM(amount+fee)`, …) and the write paths to go
+   through the converter, plus an auto-migration. That is the larger, separately-staged step (each
+   consumer is consensus-sensitive). Prerequisite for the exact incremental balance index (phase 4)
+   and schema cleanup (phase 5).
 3. **Schema versioning + migrations. ✅ DONE.** `db_migrations.py` applies idempotent, ordered
    migrations tracked via SQLite `PRAGMA user_version`; `node.add_indices` now routes through it
    (v1 = the historical TXID4 partial-signature + misc block-height indexes). Unit-tested in
