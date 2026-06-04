@@ -47,10 +47,14 @@
    > are removed entirely. The integer-storage migration here is the stepping stone toward that fork.
 
    > **Transaction id.** Today a txid is the first 56 chars of the base64 signature
-   > (`signature[:56]`), matched with `signature LIKE '<txid>%'`. Per the Tornado ("nado") wallet
-   > convention, the txid should be an explicit **short, fixed, partial** identifier (a bounded
-   > signature prefix) used consistently across node, APIs and wallets — limited by design rather
-   > than as an ad-hoc 56-char slice. Revisit with the hard fork / API rework.
+   > (`signature[:56]`), matched with `signature LIKE '<txid>%'` — an ad-hoc slice of the signature
+   > itself. The **nado cryptocurrency** (github.com/hclivess/nado) instead uses a proper
+   > fixed-length txid: `create_txid(tx) = blake2b_hash(json.dumps(tx))` — a 32-byte / 64-hex BLAKE2b
+   > hash of the transaction content (signature excluded) — and the **signature signs the txid**
+   > (`message = unhex(tx["txid"])`). Bismuth should adopt the same model: a bounded, fixed-length,
+   > content-derived txid that is the canonical identifier across node, APIs and wallets, decoupled
+   > from the signature. Since the txid would become what is signed, this is a consensus change — do
+   > it together with the hard fork above.
 3. **Behavior-preserving, replay-verified.** Every migration is validated by replaying the chain and
    asserting **identical block hashes** end-to-end (a consensus-equivalence test). No silent drift.
 4. **Backward compatible.** Old peers keep the socket protocol; legacy `*json` responses keep their
