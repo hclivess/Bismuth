@@ -11,3 +11,5 @@ heavy=False
 version=regnet
 version_allow=regnet
 old_sqlite=True
+rest_api=True
+rest_api_port=3031

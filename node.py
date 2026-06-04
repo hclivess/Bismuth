@@ -2043,6 +2043,8 @@ if __name__ == "__main__":
     node.old_sqlite = config.old_sqlite
     node.heavy = config.heavy
     node.rollback_depth = config.rollback_depth  # max blocks the node will roll back to rejoin a longer chain
+    node.rest_api = config.rest_api              # opt-in modern parallel REST API (see doc/15)
+    node.rest_api_port = config.rest_api_port
 
     node.logger.app_log = log.log("node.log", node.debug_level, node.terminal_output)
     node.logger.app_log.warning("Configuration settings loaded")
@@ -2151,6 +2153,12 @@ if __name__ == "__main__":
             connection_manager = connectionmanager.ConnectionManager(node, mp)
             connection_manager.start()
             # start connection manager
+
+            # optional modern parallel REST API (read-only; see doc/15). Off unless rest_api=True.
+            if node.rest_api:
+                import rest_api
+                node.rest_server = rest_api.BismuthRESTServer(node, port=node.rest_api_port)
+                node.rest_server.start()
 
         except Exception as e:
             node.logger.app_log.info(e)

@@ -47,3 +47,4 @@ difficulty)** — treat those as authoritative for validation rules.
 | [12-tooling-build-tests.md](12-tooling-build-tests.md) | Send/balance scripts, the test suite, chain snapshot tooling, build & CI |
 | [13-file-reference.md](13-file-reference.md) | Accurate per‑file index of the whole tree |
 | [14-known-issues-and-improvements.md](14-known-issues-and-improvements.md) | Verified bugs, fragile wiring, and the refactor/upgrade roadmap |
+| [15-rest-api.md](15-rest-api.md) | The modern, parallel, opt-in REST/JSON API |
