@@ -32,3 +32,23 @@ def test_from_units_matches_legacy_8f_for_8dp_values():
     # legacy on-the-wire form is '%.8f'; for already-8dp values it must match exactly
     for s in ["0.00000000", "1.00000000", "12.34567890", "5.37309091"]:
         assert amounts.from_units(amounts.to_units(s)) == "%.8f" % float(s)
+
+
+def test_to_decimal():
+    assert amounts.to_decimal(0) == Decimal("0.00000000")
+    assert amounts.to_decimal(1) == Decimal("0.00000001")
+    assert amounts.to_decimal(100_000_000) == Decimal("1.00000000")
+    assert amounts.to_decimal(150_000_000) == Decimal("1.50000000")
+    assert amounts.to_decimal(None) == Decimal("0.00000000")
+
+
+def test_ledger_value_honors_mode():
+    # legacy mode: pass a decimal value through (quantize_eight)
+    amounts.LEDGER_INTEGER = False
+    assert amounts.ledger_value("1.50000000") == Decimal("1.50000000")
+    # integer mode: interpret the value as atomic units
+    amounts.LEDGER_INTEGER = True
+    try:
+        assert amounts.ledger_value(150_000_000) == Decimal("1.50000000")
+    finally:
+        amounts.LEDGER_INTEGER = False  # restore so other in-process tests are unaffected

@@ -9,6 +9,7 @@ import json
 import os
 import sys
 import threading
+import amounts
 from essentials import format_raw_tx
 
 # modular handlers will need access to the database methods under some form, so it needs to be modular too.
@@ -553,7 +554,10 @@ class ApiHandler:
                 debit = 0
             # keep as float
             # balance = '{:.8f}'.format(credit - debit)
-            balance = credit - debit
+            if amounts.LEDGER_INTEGER:
+                balance = float(amounts.to_decimal(credit) - amounts.to_decimal(debit))
+            else:
+                balance = credit - debit
         except Exception as e:
             # self.app_log.warning(e)
             raise
@@ -600,6 +604,8 @@ class ApiHandler:
             credit = db_handler.h.fetchone()[0]
             if not credit:
                 credit = 0
+            if amounts.LEDGER_INTEGER:
+                credit = float(amounts.to_decimal(credit))
         except Exception as e:
             # self.app_log.warning(e)
             raise

@@ -11,6 +11,7 @@ from fork import Fork
 import sys
 import db_helpers
 import balance_cache
+import amounts
 
 
 def sql_trace_callback(log, id, statement):
@@ -350,9 +351,10 @@ class DbHandler:
             node.logger.app_log.warning(f"Failed to roll back the alias index below {(height)} due to {e}")
 
     def dev_reward(self,node,block_array,miner_tx,mining_reward,mirror_hash):
+        dev_amount = str(amounts.to_units(mining_reward) if amounts.LEDGER_INTEGER else mining_reward)
         self.execute_param(self.c, self.SQL_TO_TRANSACTIONS,
                                  (-block_array.block_height_new, str(miner_tx.q_block_timestamp), "Development Reward", str(node.genesis),
-                                  str(mining_reward), "0", "0", mirror_hash, "0", "0", "0", "0"))
+                                  dev_amount, "0", "0", mirror_hash, "0", "0", "0", "0"))
         self.commit(self.conn)
 
     def hn_reward(self,node,block_array,miner_tx,mirror_hash):
@@ -371,10 +373,11 @@ class DbHandler:
 
         self.reward_sum = '{:.8f}'.format(self.reward_sum)
 
+        hn_amount = str(amounts.to_units(self.reward_sum) if amounts.LEDGER_INTEGER else self.reward_sum)
         self.execute_param(self.c, self.SQL_TO_TRANSACTIONS,
                            (-block_array.block_height_new, str(miner_tx.q_block_timestamp), "Hypernode Payouts",
                             "3e08b5538a4509d9daa99e01ca5912cda3e98a7f79ca01248c2bde16",
-                            self.reward_sum, "0", "0", mirror_hash, "0", "0", "0", "0"))
+                            hn_amount, "0", "0", mirror_hash, "0", "0", "0", "0"))
         self.commit(self.conn)
 
     def to_db(self, block_array, diff_save, block_transactions):

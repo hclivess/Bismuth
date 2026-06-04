@@ -5,6 +5,7 @@ import time
 from decimal import Decimal
 from typing import List, Dict, Any, Optional, Tuple
 
+import amounts
 import bismuth_serialize
 import essentials
 import mempool as mp
@@ -296,11 +297,16 @@ class BlockProcessor:
                 )
 
             # Append to block transactions
+            # storage form: amount/fee/reward as integer atomic units when enabled (the block hash
+            # uses the separate decimal-string to_tuple, so it is unaffected). doc/16 phase 2.
             self.block_transactions.append((
                 str(block_instance.block_height_new), str(db_timestamp), str(db_address),
-                str(db_recipient), str(db_amount), str(db_signature),
-                str(db_public_key_b64encoded), str(block_instance.block_hash), str(fee),
-                str(reward), str(db_operation), str(db_openfield)
+                str(db_recipient),
+                str(amounts.to_units(db_amount) if amounts.LEDGER_INTEGER else db_amount),
+                str(db_signature), str(db_public_key_b64encoded), str(block_instance.block_hash),
+                str(amounts.to_units(fee) if amounts.LEDGER_INTEGER else fee),
+                str(amounts.to_units(reward) if amounts.LEDGER_INTEGER else reward),
+                str(db_operation), str(db_openfield)
             ))
 
             # Remove from mempool if present

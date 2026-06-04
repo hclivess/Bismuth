@@ -14,6 +14,7 @@ import time
 
 from polysign.signerfactory import SignerFactory
 
+import amounts
 import bismuth_serialize
 import db_helpers
 import essentials
@@ -651,16 +652,16 @@ class Mempool:
                         for entry in essentials.execute_param_c(c,
                                                                 "SELECT amount, reward FROM transactions WHERE recipient = ?",
                                                                 (mempool_address, ), self.app_log):
-                            credit += quantize_eight(entry[0])
-                            rewards += quantize_eight(entry[1])
+                            credit += amounts.ledger_value(entry[0])
+                            rewards += amounts.ledger_value(entry[1])
 
                         debit_ledger = DECIMAL0
                         fees = DECIMAL0
                         for entry in essentials.execute_param_c(c,
                                                                 "SELECT amount, fee FROM transactions WHERE address = ?",
                                                                 (mempool_address,), self.app_log):
-                            debit_ledger += quantize_eight(entry[0])
-                            fees += quantize_eight(entry[1])
+                            debit_ledger += amounts.ledger_value(entry[0])
+                            fees += amounts.ledger_value(entry[1])
 
                         debit = debit_ledger + debit_mempool
 

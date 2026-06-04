@@ -23,6 +23,7 @@ from typing import Union
 from polysign.signer import SignerType
 from polysign.signerfactory import SignerFactory
 
+import amounts
 import bismuth_serialize
 import db_helpers
 
@@ -69,12 +70,12 @@ def format_raw_tx(raw: list) -> dict:
         'timestamp': raw[1],
         'address': raw[2],
         'recipient': raw[3],
-        'amount': raw[4],
+        'amount': amounts.from_units(raw[4]) if amounts.LEDGER_INTEGER else raw[4],
         'signature': raw[5],
         'txid': raw[5][:56],
         'block_hash': raw[7],
-        'fee': raw[8],
-        'reward': raw[9],
+        'fee': amounts.from_units(raw[8]) if amounts.LEDGER_INTEGER else raw[8],
+        'reward': amounts.from_units(raw[9]) if amounts.LEDGER_INTEGER else raw[9],
         'operation': raw[10],
         'openfield': raw[11]
     }
@@ -208,8 +209,12 @@ def ledger_balance3(address, cache, db_handler):
         (address, address, address, address))
 
     result = db_handler.c.fetchone()
-    credit = Decimal(result[0] or 0)
-    debit = Decimal(result[1] or 0)
+    if amounts.LEDGER_INTEGER:
+        credit = amounts.to_decimal(result[0])
+        debit = amounts.to_decimal(result[1])
+    else:
+        credit = Decimal(result[0] or 0)
+        debit = Decimal(result[1] or 0)
 
     cache[address] = quantize_eight(credit - debit)
     return cache[address]

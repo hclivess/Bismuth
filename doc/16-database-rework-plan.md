@@ -95,11 +95,22 @@
    `replay_verify legacy.db` → `migrate_amounts legacy.db new.db` → `migrate_amounts --verify new.db`
    (expect 0 mismatches at each step).
 
-   Remaining (the live cutover): make the running node read/write the integer columns — update the
-   balance/arithmetic SQL (`SUM(amount+reward)`, `SUM(amount+fee)`, …) and the write paths to go
-   through the converter, plus an auto-migration. That is the larger, separately-staged step (each
-   consumer is consensus-sensitive). Prerequisite for the exact incremental balance index (phase 4)
-   and schema cleanup (phase 5).
+   **Live cutover — infrastructure landed (flag-gated, default off).** A `ledger_integer_amounts`
+   config flag (module flag `amounts.LEDGER_INTEGER`, set once at startup) gates integer-unit storage.
+   The consensus-sensitive conversions are done and verified to be **exact no-ops when the flag is
+   off** (full suite green, mainnet untouched): regnet builds the integer schema; `digest`,
+   `dbhandler.dev_reward`/`hn_reward` write `to_units`; the balance reads
+   (`essentials.ledger_balance3`, `node.balanceget`, `apihandler._get_balance`/`_get_received`,
+   `mempool.merge`) and `essentials.format_raw_tx` convert with `amounts.ledger_value` / `from_units`.
+   Helpers `amounts.to_decimal` / `ledger_value` are unit-tested.
+
+   **Remaining before flipping it on — the display-edge sweep.** The ~25 client-facing handlers that
+   emit raw amounts (`node.py`'s `addlistlim` / `*json` / `blocklast` / `blockget` / `listlim`, and
+   `apihandler.api_getblocksince` / `api_gettransaction*` / range / recipients) must reconstruct
+   decimals via `from_units` for backward-compatible output, and `tests/test_replay.py` must pass
+   `amounts_are_units` when the node is in integer mode. After that mechanical sweep, set
+   `ledger_integer_amounts=True` on regnet and the whole node runs on integer storage. Prerequisite for
+   the exact incremental balance index (phase 4) and schema cleanup (phase 5).
 3. **Schema versioning + migrations. ✅ DONE.** `db_migrations.py` applies idempotent, ordered
    migrations tracked via SQLite `PRAGMA user_version`; `node.add_indices` now routes through it
    (v1 = the historical TXID4 partial-signature + misc block-height indexes). Unit-tested in

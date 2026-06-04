@@ -15,6 +15,7 @@ from Cryptodome.Signature import PKCS1_v1_5
 from hashlib import sha224
 from random import getrandbits
 
+import amounts
 import connections
 import mempool as mp
 import mining_heavy3 as mining
@@ -48,6 +49,17 @@ SQL_LEDGER = [ "CREATE TABLE misc (block_height INTEGER, difficulty TEXT)",
                0, '4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed', 'genesis', 1493640955.47, 1);",
 
                "INSERT INTO misc (difficulty, block_height) VALUES ({},1)".format(REGNET_DIFF)]
+
+# Integer-atomic-unit ledger schema (doc/16 phase 2 cutover): amount/fee/reward become INTEGER and the
+# genesis reward (1 BIS) is stored as 100000000 units. Derived from SQL_LEDGER so the long genesis
+# key/sig literals are not duplicated.
+SQL_LEDGER_INTEGER = [
+    s.replace("amount NUMERIC", "amount INTEGER")
+     .replace("fee NUMERIC", "fee INTEGER")
+     .replace("reward NUMERIC", "reward INTEGER")
+     .replace("VALUES ('genesis', 1, 1, 0,", "VALUES ('genesis', 1, 100000000, 0,")
+    for s in SQL_LEDGER
+]
 
 
 FILES_TO_REMOVE = [REGNET_DB, REGNET_INDEX]
@@ -186,7 +198,7 @@ def init(app_log, trace_db_calls=False):
     with sqlite3.connect(REGNET_DB) as source_db:
         if trace_db_calls:
             source_db.set_trace_callback(functools.partial(sql_trace_callback,app_log,"REGNET-INIT"))
-        for request in SQL_LEDGER:
+        for request in (SQL_LEDGER_INTEGER if amounts.LEDGER_INTEGER else SQL_LEDGER):
             source_db.execute(request)
         source_db.commit()
     # create empty reg db

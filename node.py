@@ -46,6 +46,7 @@ import sys
 import time
 from decimal import Decimal
 
+import amounts
 import essentials
 import mempool as mp
 import mining_heavy3
@@ -319,7 +320,7 @@ def balanceget(balance_address, db_handler):
 
     try:
         for entry in entries:
-            credit_ledger = quantize_eight(credit_ledger) + quantize_eight(entry[0])
+            credit_ledger = quantize_eight(credit_ledger) + amounts.ledger_value(entry[0])
             credit_ledger = 0 if credit_ledger is None else credit_ledger
     except:
         credit_ledger = 0
@@ -335,14 +336,14 @@ def balanceget(balance_address, db_handler):
 
     try:
         for entry in entries:
-            fees = quantize_eight(fees) + quantize_eight(entry[0])
+            fees = quantize_eight(fees) + amounts.ledger_value(entry[0])
             fees = 0 if fees is None else fees
     except:
         fees = 0
 
     try:
         for entry in entries:
-            debit_ledger = debit_ledger + Decimal(entry[1])
+            debit_ledger = debit_ledger + amounts.ledger_value(entry[1])
             debit_ledger = 0 if debit_ledger is None else debit_ledger
     except:
         debit_ledger = 0
@@ -359,7 +360,7 @@ def balanceget(balance_address, db_handler):
 
     try:
         for entry in entries:
-            rewards = quantize_eight(rewards) + quantize_eight(entry[0])
+            rewards = quantize_eight(rewards) + amounts.ledger_value(entry[0])
             rewards = 0 if str(rewards) == "0E-8" else rewards
             rewards = 0 if rewards is None else rewards
     except:
@@ -2036,6 +2037,8 @@ if __name__ == "__main__":
     node.rollback_consensus = config.rollback_consensus                      # opt-in consensus-aware deep rollback (doc/14)
     node.rollback_consensus_threshold = config.rollback_consensus_threshold
     node.rollback_consensus_min_peers = config.rollback_consensus_min_peers
+    node.ledger_integer_amounts = config.ledger_integer_amounts   # doc/16 phase 2 cutover (default off)
+    amounts.LEDGER_INTEGER = node.ledger_integer_amounts          # module flag read by every ledger amount site
 
     node.logger.app_log = log.log("node.log", node.debug_level, node.terminal_output)
     node.logger.app_log.warning("Configuration settings loaded")
