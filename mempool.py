@@ -208,6 +208,10 @@ class Mempool(MempoolQueriesMixin):
         :param size_bypass:
         :return:
         """
+        # ANTI-SPAM (doc/17): these congestion tiers are gameable and should be reworked. They
+        # prioritise by nominal `amount` (a spammer self-sends a large amount for one base fee) and by
+        # a config address allow-list (anyone can mint addresses). The fix is to gate by the tx's actual
+        # fee/cost, not amount, and to move rate limiting to the API ingestion layer. NOT per-address.
         # Allow whatever the tx is
         if mempool_size < 0.3:
             return True

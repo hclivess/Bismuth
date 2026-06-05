@@ -90,6 +90,21 @@
   - **Command dispatch** (`node.py` `handle()`) — the legacy socket command loop; superseded as new
     capability moves to REST (see the modularization note below for why it isn't split in place).
   Keep a compatibility bridge while the network upgrades; build new capability only on the API path.
+- **Mempool anti-spam — economic/resource-based, never identity-based.** Anyone can mint unlimited
+  addresses, so **per-address caps are Sybil-trivial** and a false comfort — do not add them. What
+  already works and must be kept: every tx pays a fee out of the sender's *funded* balance (`merge`'s
+  balance check), so flooding from N addresses costs N×fee in real BIS spread across funded addresses;
+  and total mempool size is bounded (`space_left_for_tx`, ~0.6 MB). The gaps to close:
+  1. The congestion-prioritisation tiers in `space_left_for_tx` are **gameable** — they admit by nominal
+     `amount` (a spammer self-sends a large amount for the price of one base fee) and by a config
+     address allow-list. Replace amount-priority with the tx's actual **fee/cost** (the one thing a
+     spammer cannot fake under a deterministic-fee model) and drop the address tier.
+  2. Put **rate limiting on the HTTP ingestion layer** when tx submission moves to the REST API (the
+     survivor path) — per-connection/token throttling + HTTP 429 — rather than bolting policy onto the
+     doomed socket `merge`.
+  3. If economic + rate limits prove insufficient, a structural fix (small **PoW-per-tx**, or a real
+     fee market) is a hard-fork consideration. Consensus tx-validity stays unchanged; only *local
+     admission* tightens.
 - **Storage-engine evaluation (phase 7).** Modernize SQLite usage (WAL, integer keys, covering
   indexes), benchmark, then consider a KV store (LMDB/RocksDB) for block bodies while keeping SQLite
   for queryable indexes. Decide on data, not taste.
