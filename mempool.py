@@ -9,7 +9,6 @@ import os
 import sqlite3
 import sys
 import threading
-from decimal import Decimal
 import time
 
 from polysign.signerfactory import SignerFactory
@@ -18,7 +17,7 @@ import amounts
 import bismuth_serialize
 import db_helpers
 import essentials
-from quantizer import quantize_two, quantize_eight, quantize_ten
+from quantizer import quantize_two, quantize_eight
 
 # from Cryptodome.Hash import SHA
 # from Cryptodome.PublicKey import RSA
@@ -40,69 +39,10 @@ __version__ = "0.0.7e"
 0.0.7e - exclude too old txs from mempool balance, simplify mempool merge.
 """
 
-DECIMAL0 = Decimal(0)
+from mempool_sql import *  # noqa: F401,F403  -- re-export SQL_* + tuning constants (external mp.X access)
+from mempool_queries import MempoolQueriesMixin
 
 MEMPOOL = None
-
-# If set to true, will always send empty Tx to other peers (but will accept theirs)
-# Only to be used for debug/testing purposes
-DEBUG_DO_NOT_SEND_TX = False
-
-# Tx age limit (in seconds) - Default 82800
-# REFUSE_OLDER_THAN = 82800
-REFUSE_OLDER_THAN = 60 * 60 * 2  # reduced to 2 hours
-# See also SQL_PURGE, SQL_MEMPOOL_GET and SQL_SELECT_ALL_VALID_TXS a few lines down.
-# I used a filter on some requests rather than calling purge() every time.
-# Maybe a systematic purge() would be easier and faster. To be tested.
-
-# How long for freeze nodes that send late enough tx we already have in ledger
-FREEZE_MIN = 5
-
-"""
-Common Sql requests
-"""
-
-# Create mempool table
-SQL_CREATE = "CREATE TABLE IF NOT EXISTS transactions (" \
-             "timestamp TEXT, address TEXT, recipient TEXT, amount TEXT, signature TEXT, " \
-             "public_key TEXT, operation TEXT, openfield TEXT, mergedts INTEGER(4) not null default (strftime('%s','now')) )"
-
-# Purge old txs that may be stuck
-SQL_PURGE = "DELETE FROM transactions WHERE timestamp <= strftime('%s', 'now', '-2 hour')"
-
-# Delete all transactions
-SQL_CLEAR = "DELETE FROM transactions"
-
-# Check for presence of a given tx signature
-SQL_SIG_CHECK = 'SELECT timestamp FROM transactions WHERE substr(signature,1,4) = substr(?1,1,4) and signature = ?1'
-SQL_SIG_CHECK_OLD = 'SELECT timestamp FROM transactions WHERE signature = ?1'
-
-# delete a single tx
-SQL_DELETE_TX = 'DELETE FROM transactions WHERE substr(signature,1,4) = substr(?1,1,4) and signature = ?1'
-SQL_DELETE_TX_OLD = 'DELETE FROM transactions WHERE signature = ?1'
-
-# Selects all tx from mempool - list fields so we don't send mergedts and keep compatibility
-SQL_SELECT_ALL_TXS = 'SELECT timestamp, address, recipient, amount, signature, public_key, operation, openfield FROM transactions'
-
-# Selects all tx from mempool - list fields so we don't send mergedts and keep compatibility
-SQL_SELECT_ALL_VALID_TXS = "SELECT timestamp, address, recipient, amount, signature, public_key, operation, openfield FROM transactions WHERE timestamp > strftime('%s', 'now', '-2 hour')"
-
-# Counts distinct senders from mempool
-SQL_COUNT_DISTINCT_SENDERS = 'SELECT COUNT(DISTINCT(address)) FROM transactions'
-
-# Counts distinct recipients from mempool
-SQL_COUNT_DISTINCT_RECIPIENTS = 'SELECT COUNT(DISTINCT(recipient)) FROM transactions'
-
-# A single requets for status info
-SQL_STATUS = 'SELECT COUNT(*) AS nb, SUM(LENGTH(openfield)) AS len, COUNT(DISTINCT(address)) as senders, COUNT(DISTINCT(recipient)) as recipients FROM transactions'
-
-# Select Tx to be sent to a peer
-SQL_SELECT_TX_TO_SEND = 'SELECT * FROM transactions ORDER BY amount DESC'
-
-# Select Tx to be sent to a peer since the given ts - what counts is the merged time, not the tx time.
-SQL_SELECT_TX_TO_SEND_SINCE = 'SELECT * FROM transactions where mergedts > ? ORDER BY amount DESC'
-
-SQL_MEMPOOL_GET = "SELECT amount, openfield, operation FROM transactions WHERE address = ? and timestamp > strftime('%s', 'now', '-2 hour')"
 
 
 def sql_trace_callback(log, id, statement):
@@ -110,7 +50,8 @@ def sql_trace_callback(log, id, statement):
     log.warning(line)
 
 
-class Mempool:
+
+class Mempool(MempoolQueriesMixin):
     """The mempool manager. Thread safe"""
 
     def __init__(self, app_log, config=None, db_lock=None, testnet=False, trace_db_calls=True):
@@ -146,13 +87,6 @@ class Mempool:
         except Exception as e:
             self.app_log.error("Error creating mempool: {}".format(e))
             raise
-
-    def mp_get(self, balance_address):
-        """
-        base mempool
-        :return:
-        """
-        return self.fetchall(SQL_MEMPOOL_GET, (balance_address,))
 
     def check(self):
         """
@@ -265,156 +199,6 @@ class Mempool:
     def close(self):
         if self.db:
             self.db.close()
-
-    def purge(self):
-        """
-        Purge old txs
-        :return:
-        """
-        with self.lock:
-            self.app_log.warning("Purging mempool")
-            try:
-                self.execute(SQL_PURGE)
-                self.commit()
-            except Exception as e:
-                self.app_log.error("Error {} on mempool purge".format(e))
-
-    def clear(self):
-        """
-        Empty mempool
-        :return:
-        """
-        with self.lock:
-            self.execute(SQL_CLEAR)
-            self.commit()
-
-    def delete_transaction(self, signature):
-        """
-        Delete a single tx by its id
-        :return:
-        """
-        with self.lock:
-            if self.config.old_sqlite:
-                self.execute(SQL_DELETE_TX_OLD, (signature,))
-            else:
-                self.execute(SQL_DELETE_TX, (signature,))
-            self.commit()
-
-    def sig_check(self, signature):
-        """
-        Returns presence of the sig in the mempool
-        :param signature:
-        :return: boolean
-        """
-        if self.config.old_sqlite:
-            return bool(self.fetchone(SQL_SIG_CHECK_OLD, (signature,)))
-        else:
-            return bool(self.fetchone(SQL_SIG_CHECK, (signature,)))
-
-    def status(self):
-        """
-        Stats on the current mempool
-        :return: tuple(tx#, openfield len, distinct sender#, distinct recipients#
-        """
-        try:
-            limit = time.time()
-            frozen = [peer for peer in self.peers_sent if self.peers_sent[peer] > limit]
-            self.app_log.warning("Status: MEMPOOL Frozen = {}".format(", ".join(frozen)))
-            # print(limit, self.peers_sent, frozen)
-            # Cleanup old nodes not synced since 15 min
-            limit = limit - 15 * 60
-            with self.peers_lock:
-                self.peers_sent = {peer: self.peers_sent[peer] for peer in self.peers_sent if
-                                   self.peers_sent[peer] > limit}
-            self.app_log.warning(
-                "Status: MEMPOOL Live = {}".format(", ".join(set(self.peers_sent.keys()) - set(frozen))))
-            status = self.fetchall(SQL_STATUS)
-            count, open_len, senders, recipients = status[0]
-            self.app_log.warning(
-                "Status: MEMPOOL {} Txs from {} senders to {} distinct recipients. Openfield len {}".
-                    format(count, senders, recipients, open_len))
-            return status[0]
-        except:
-            return 0
-
-    def size(self):
-        """
-        Curent size of the mempool in Mo
-        :return:
-        """
-        try:
-            mempool_txs = self.fetchall(SQL_SELECT_ALL_VALID_TXS)
-            mempool_size = sys.getsizeof(str(mempool_txs)) / 1000000.0
-            return mempool_size
-        except:
-            return 0
-
-    def sent(self, peer_ip):
-        """
-        record time of last mempool send to this peer
-        :param peer_ip:
-        :return:
-        """
-        # TODO: have a purge
-        when = time.time()
-        if peer_ip in self.peers_sent:
-            # can be frozen, no need to lock and update, time is already in the future.
-            if self.peers_sent[peer_ip] > when:
-                return
-        with self.peers_lock:
-            self.peers_sent[peer_ip] = when
-
-    def sendable(self, peer_ip):
-        """
-        Tells is the mempool is sendable to a given peers
-        (ie, we sent it more than 30 sec ago)
-        :param peer_ip:
-        :return:
-        """
-        if peer_ip not in self.peers_sent:
-            # New peer
-            return True
-        sendable = self.peers_sent[peer_ip] < time.time() - 30
-        # Temp
-        if not sendable:
-            pass
-            # self.app_log.warning("Mempool not sendable for {} yet.".format(peer_ip))
-        return sendable
-
-    def tx_to_send(self, peer_ip, peer_txs=None):
-        """
-        Selects the Tx to be sent to a given peer
-        :param peer_ip:
-        :return:
-        """
-        if DEBUG_DO_NOT_SEND_TX:
-            all = self.fetchall(SQL_SELECT_TX_TO_SEND)
-            tx_count = len(all)
-            tx_list = [tx[1] + ' ' + tx[2] + ' : ' + str(tx[3]) for tx in all]
-            # print("I have {} txs for {} but won't send: {}".format(tx_count, peer_ip, "\n".join(tx_list)))
-            print("I have {} txs for {} but won't send".format(tx_count, peer_ip))
-            return []
-        # Get our raw txs
-        if peer_ip not in self.peers_sent:
-            # new peer, never seen, send all
-            raw = self.fetchall(SQL_SELECT_TX_TO_SEND)
-        else:
-            # add some margin to account for tx in the future, 5 sec ?
-            last_sent = self.peers_sent[peer_ip] - 5
-            raw = self.fetchall(SQL_SELECT_TX_TO_SEND_SINCE, (last_sent,))
-        # Now filter out the tx we got from the peer
-        if peer_txs:
-            peers_sig = [tx[4] for tx in peer_txs]
-            # TEMP
-            # print("raw for", peer_ip, len(raw))
-            # print("peers_sig", peer_ip, len(peers_sig))
-
-            filtered = [tx for tx in raw if tx[4] not in peers_sig]
-            # TEMP
-            # print("filtered", peer_ip, len(filtered))
-            return filtered
-        else:
-            return raw
 
     def space_left_for_tx(self, transaction, mempool_size):
         """

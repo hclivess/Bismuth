@@ -103,8 +103,10 @@
   `class ApiHandler(BlockApiMixin, …)`, leaving a 115-line dispatcher core (its pure block→JSON
   formatters had already moved to `block_format.py`); the 498-line `dbhandler.py` (a survivor — storage)
   likewise split into `DbQueriesMixin` (`dbhandler_queries`) + `DbWriteMixin` (`dbhandler_write`),
-  leaving a 166-line connection/plumbing core that keeps the canonical `sql_trace_callback`; and the
-  chain-maintenance cluster
+  leaving a 166-line connection/plumbing core that keeps the canonical `sql_trace_callback`; the 714-line
+  `mempool.py` (also a survivor) split into `mempool_sql.py` (SQL + tuning constants), a
+  `MempoolQueriesMixin` (`mempool_queries`) for read/reporting/maintenance, and a 499-line core that
+  keeps DB plumbing + the consensus `merge`; and the chain-maintenance cluster
   (`rollback`, `recompress_ledger`, `ledger_check_heights`, `blocknf`, plus the boot/validation
   `bootstrap`, `check_integrity`, `sequencing_check`) lifted out of `node.py` into `chain_ops.py` by
   DI, with `blocknf` re-exported so `worker.py` is unaffected; the mempool-aware `balanceget` moved to

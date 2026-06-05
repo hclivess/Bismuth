@@ -39,7 +39,9 @@ imported library; *script* = run directly.
 | `balances.py` | module | `balanceget` — authoritative mempool-aware balance for the `balanceget*` socket commands (lifted from `node.py` by DI) |
 | `ledger_explorer.py` | script | early standalone block explorer (unmaintained) |
 | `quantizer.py` | module | `Decimal` rounding helpers (2/8/10 dp) |
-| `mempool.py` | module | the `Mempool` class |
+| `mempool.py` | module | `Mempool` — DB plumbing + consensus admission (`merge`, `space_left_for_tx`); composes the query mixin |
+| `mempool_queries.py` | module | `MempoolQueriesMixin` — mempool read/reporting & maintenance (`mp_get`, `status`, `tx_to_send`, `sig_check`, `purge`/`clear`…) |
+| `mempool_sql.py` | module | mempool SQL statements + tuning constants (re-exported by `mempool` via `import *`) |
 
 ## Networking
 
