@@ -62,6 +62,22 @@
   site is tagged `# HARDFORK (doc/16)` — `grep -rn "HARDFORK (doc/16)"`). Adopt a bounded,
   content-derived **txid** (nado-style: `blake2b(tx_content)`, the signature signs the txid) to replace
   the ad-hoc `signature[:56]` slice. After the fork, storage/boundary/APIs are integer end-to-end.
+- **Difficulty-retarget rework.** The current retarget (`difficulty.py:difficulty()`) needs replacing:
+  the **per-block jumps are too steep** and the **approach is convoluted**. Concretely — the steep
+  jumps: a single block can move difficulty by up to `MAX_DIFF_ADJUST = 1.0` in the log2-style
+  difficulty domain, i.e. a **full doubling of work in one block**; the upward step is capped but the
+  downward path is not (uncapped `diff_adjustment` plus a separate wall-clock "emergency diff drop"
+  ramp), so it is asymmetric; and the derivative term `Kd·(block_time − block_time_prev)` with
+  `KD_GAIN = 10` amplifies noisy block-time samples into large swings. The weird approach: instead of
+  the standard "actual vs. target timespan ratio" retarget, it **estimates hashrate from the previous
+  difficulty and then inverts that estimate** to back out a new difficulty, through opaque magic
+  constants (`28`, `/16`, `/720`); it layers a second control path (`diff_dropped`, the broadcast
+  difficulty that decays with wall-clock time since the last block) on top; and it wraps the whole
+  thing in a bare `except:` that silently resets difficulty to a hardcoded `[24,…]` on **any** error.
+  Target a single, well-understood, bounded controller (smooth, **symmetric** per-block clamping; one
+  difficulty value, not a retarget + a separate drop ramp; explicit named constants; no error-swallow).
+  This is **consensus** — `mining_heavy3.check_block` validates blocks against the retarget — so it is a
+  **hard fork**, gated and replay-validated like the items above, not a quiet swap.
 - **Retire the blocking socket protocol** for node-to-node traffic in favour of the HTTP API
   (parallel, compressed, non-stalling). Keep a compatibility bridge while the network upgrades.
 - **Storage-engine evaluation (phase 7).** Modernize SQLite usage (WAL, integer keys, covering
