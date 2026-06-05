@@ -10,7 +10,7 @@ imported library; *script* = run directly.
 | `node.py` | script | the full node (entry point); startup, threading, TCP server, command dispatch |
 | `node_stop.py` | script | sends `stop` to a local node |
 | `digest.py` | module | block & transaction validation/commit pipeline (consensus core) |
-| `chain_ops.py` | module | ledger-maintenance ops lifted from `node.py` by DI: `rollback`, `recompress_ledger`, `ledger_check_heights`, `blocknf` (block-not-found rollback) |
+| `chain_ops.py` | module | chain-maintenance ops lifted from `node.py` by DI: `rollback`, `recompress_ledger`, `ledger_check_heights`, `blocknf` (block-not-found rollback), plus boot/validation `bootstrap`, `check_integrity`, `sequencing_check` |
 | `fork.py` | module | hardfork heights & post-fork reward validation |
 | `genesis.py` | script | one-shot chain bootstrap (creates `ledger.db`); legacy wallet format |
 | `options.py` | module | config loader (imported as `config` in the node) |

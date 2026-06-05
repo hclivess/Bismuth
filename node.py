@@ -53,7 +53,7 @@ import mining_heavy3
 import regnet
 import tokensv2 as tokens
 from digest import digest_block
-from chain_ops import rollback, recompress_ledger, ledger_check_heights, blocknf
+from chain_ops import rollback, recompress_ledger, ledger_check_heights, blocknf, bootstrap, check_integrity, sequencing_check
 from difficulty import difficulty
 from essentials import checkpoint_set, fee_calculate, download_file
 from quantizer import quantize_eight, quantize_two
@@ -80,77 +80,6 @@ appauthor = "Bismuth Foundation"
 def sql_trace_callback(log, id, statement):
     line = f"SQL[{id}] {statement}"
     log.warning(line)
-
-
-def bootstrap():
-    # TODO: Candidate for single user mode
-    try:
-        types = ['static/*.db-wal', 'static/*.db-shm']
-        for t in types:
-            for f in glob.glob(t):
-                os.remove(f)
-                print(f, "deleted")
-
-        archive_path = node.ledger_path + ".tar.gz"
-        download_file("https://bismuth.cz/ledger.tar.gz", archive_path)
-
-        with tarfile.open(archive_path) as tar:
-            
-            import os
-            
-            def is_within_directory(directory, target):
-                
-                abs_directory = os.path.abspath(directory)
-                abs_target = os.path.abspath(target)
-            
-                prefix = os.path.commonprefix([abs_directory, abs_target])
-                
-                return prefix == abs_directory
-            
-            def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
-            
-                for member in tar.getmembers():
-                    member_path = os.path.join(path, member.name)
-                    if not is_within_directory(path, member_path):
-                        raise Exception("Attempted Path Traversal in Tar File")
-            
-                tar.extractall(path, members, numeric_owner=numeric_owner) 
-                
-            
-            safe_extract(tar, "static/")
-
-    except:
-        node.logger.app_log.warning("Something went wrong during bootstrapping, aborted")
-        raise
-
-
-def check_integrity(database):
-    # TODO: Candidate for single user mode
-    # check ledger integrity
-
-    if not os.path.exists("static"):
-        os.mkdir("static")
-
-    with sqlite3.connect(database) as ledger_check:
-        if node.trace_db_calls:
-            ledger_check.set_trace_callback(functools.partial(sql_trace_callback,node.logger.app_log,"CHECK_INTEGRITY"))
-
-        ledger_check.text_factory = str
-        l = ledger_check.cursor()
-
-        try:
-            l.execute("PRAGMA table_info('transactions')")
-            redownload = False
-        except:
-            redownload = True
-
-        if len(l.fetchall()) != 12:
-            node.logger.app_log.warning(
-                f"Status: Integrity check on database {database} failed, bootstrapping from the website")
-            redownload = True
-
-    if redownload and node.is_mainnet:
-        bootstrap()
 
 
 def balanceget(balance_address, db_handler):
@@ -239,116 +168,6 @@ def balanceget(balance_address, db_handler):
     balance_no_mempool = float(credit_ledger) - float(debit_ledger) - float(fees) + float(rewards)
     # node.logger.app_log.info("Mempool: Projected transction address balance: " + str(balance))
     return str(balance), str(credit_ledger), str(debit), str(fees), str(rewards), str(balance_no_mempool)
-
-
-def sequencing_check(db_handler):
-    # TODO: Candidate for single user mode
-    try:
-        with open("sequencing_last", 'r') as filename:
-            sequencing_last = int(filename.read())
-
-    except:
-        node.logger.app_log.warning("Sequencing anchor not found, going through the whole chain")
-        sequencing_last = 0
-
-    node.logger.app_log.warning(f"Status: Testing chain sequencing, starting with block {sequencing_last}")
-
-    chains_to_check = [node.ledger_path, node.hyper_path]
-
-    for chain in chains_to_check:
-        conn = sqlite3.connect(chain)
-        if node.trace_db_calls:
-            conn.set_trace_callback(functools.partial(sql_trace_callback,node.logger.app_log,"SEQUENCE-CHECK-CHAIN"))
-        c = conn.cursor()
-
-        # perform test on transaction table
-        y = None
-        # Egg: not sure block_height != (0 OR 1)  gives the proper result, 0 or 1  = 1. not in (0, 1) could be better.
-        for row in c.execute(
-                "SELECT block_height FROM transactions WHERE reward != 0 AND block_height > 1 AND block_height >= ? ORDER BY block_height ASC",
-                (sequencing_last,)):
-            y_init = row[0]
-
-            if y is None:
-                y = y_init
-
-            if row[0] != y:
-
-                for chain2 in chains_to_check:
-                    conn2 = sqlite3.connect(chain2)
-                    if node.trace_db_calls:
-                        conn2.set_trace_callback(functools.partial(sql_trace_callback,node.logger.app_log,"SEQUENCE-CHECK-CHAIN2"))
-                    c2 = conn2.cursor()
-                    node.logger.app_log.warning(f"Status: Chain {chain} transaction sequencing error at: {row[0]}. {row[0]} instead of {y}")
-                    c2.execute("DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?", (row[0], -row[0],))
-                    conn2.commit()
-                    c2.execute("DELETE FROM misc WHERE block_height >= ?", (row[0],))
-                    conn2.commit()
-
-                    # rollback indices
-                    db_handler.tokens_rollback(node, y)
-                    db_handler.aliases_rollback(node, y)
-
-                    # rollback indices
-
-                    node.logger.app_log.warning(f"Status: Due to a sequencing issue at block {y}, {chain} has been rolled back and will be resynchronized")
-                break
-
-            y = y + 1
-
-        # perform test on misc table
-        y = None
-
-        for row in c.execute("SELECT block_height FROM misc WHERE block_height > ? ORDER BY block_height ASC",
-                             (300000,)):
-            y_init = row[0]
-
-            if y is None:
-                y = y_init
-                # print("assigned")
-                # print(row[0], y)
-
-            if row[0] != y:
-                # print(row[0], y)
-                for chain2 in chains_to_check:
-                    conn2 = sqlite3.connect(chain2)
-                    if node.trace_db_calls:
-                        conn2.set_trace_callback(functools.partial(sql_trace_callback,node.logger.app_log,"SEQUENCE-CHECK-CHAIN2B"))
-                    c2 = conn2.cursor()
-                    node.logger.app_log.warning(
-                        f"Status: Chain {chain} difficulty sequencing error at: {row[0]}. {row[0]} instead of {y}")
-                    c2.execute("DELETE FROM transactions WHERE block_height >= ?", (row[0],))
-                    conn2.commit()
-                    c2.execute("DELETE FROM misc WHERE block_height >= ?", (row[0],))
-                    conn2.commit()
-
-                    db_handler.execute_param(conn2, (
-                        'DELETE FROM transactions WHERE address = "Development Reward" AND block_height <= ?'),
-                                             (-row[0],))
-                    conn2.commit()
-
-                    db_handler.execute_param(conn2, (
-                        'DELETE FROM transactions WHERE address = "Hypernode Payouts" AND block_height <= ?'),
-                                             (-row[0],))
-                    conn2.commit()
-                    conn2.close()
-
-                    # rollback indices
-                    db_handler.tokens_rollback(node, y)
-                    db_handler.aliases_rollback(node, y)
-                    # rollback indices
-
-                    node.logger.app_log.warning(f"Status: Due to a sequencing issue at block {y}, {chain} has been rolled back and will be resynchronized")
-                break
-
-            y = y + 1
-
-        node.logger.app_log.warning(f"Status: Chain sequencing test complete for {chain}")
-        conn.close()
-
-        if y:
-            with open("sequencing_last", 'w') as filename:
-                filename.write(str(y - 1000))  # room for rollbacks
 
 
 # init
@@ -1635,7 +1454,7 @@ def initial_db_check():
     if os.path.exists("fresh_sync") and node.is_mainnet:
         node.logger.app_log.warning("Status: Fresh sync required, bootstrapping from the website")
         os.remove("fresh_sync")
-        bootstrap()
+        bootstrap(node)
     # UPDATE mainnet DB if required
     if node.is_mainnet:
         upgrade = sqlite3.connect(node.ledger_path)
@@ -1656,7 +1475,7 @@ def initial_db_check():
             print(e)
             upgrade.close()
             print("Database needs upgrading, bootstrapping...")
-            bootstrap()
+            bootstrap(node)
 
 
 def load_keys():
@@ -1853,7 +1672,7 @@ if __name__ == "__main__":
             node.apihandler = apihandler.ApiHandler(node.logger.app_log, config)
             mp.MEMPOOL = mp.Mempool(node.logger.app_log, config, node.db_lock, node.is_testnet, trace_db_calls=node.trace_db_calls)
 
-            check_integrity(node.hyper_path)
+            check_integrity(node, node.hyper_path)
             #PLACEHOLDER FOR FRESH HYPERBLOCK BUILDER
 
             # if node.rebuild_db: #does nothing
@@ -1878,7 +1697,7 @@ if __name__ == "__main__":
             initial_db_check()
 
             if not node.is_regnet:
-                sequencing_check(db_handler_initial)
+                sequencing_check(node, db_handler_initial)
 
             if node.verify:
                 verify(db_handler_initial)

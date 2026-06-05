@@ -73,10 +73,11 @@
   target: turn the `if/elif` command chain into a dispatch table of small handlers, and lift the
   bootup/init and ledger-maintenance functions into focused modules (most already take `node`
   explicitly, so they extract by dependency injection). Cuts done so far: the pure block→JSON formatters
-  moved out of the 900-line `apihandler.py` into `block_format.py`; the ledger-maintenance cluster
-  (`rollback`, `recompress_ledger`, `ledger_check_heights`, `blocknf`) lifted out of `node.py`
-  (2200→1946 lines) into `chain_ops.py` by DI, with `blocknf` re-exported so `worker.py` is unaffected.
-  Each step keeps the flat-import layout working and the suite green.
+  moved out of the 900-line `apihandler.py` into `block_format.py`; and the chain-maintenance cluster
+  (`rollback`, `recompress_ledger`, `ledger_check_heights`, `blocknf`, plus the boot/validation
+  `bootstrap`, `check_integrity`, `sequencing_check`) lifted out of `node.py` (2200→1764 lines) into
+  `chain_ops.py` by DI, with `blocknf` re-exported so `worker.py` is unaffected. Each step keeps the
+  flat-import layout working and the suite green.
 
 ## How we work
 
