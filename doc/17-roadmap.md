@@ -78,8 +78,18 @@
   difficulty value, not a retarget + a separate drop ramp; explicit named constants; no error-swallow).
   This is **consensus** — `mining_heavy3.check_block` validates blocks against the retarget — so it is a
   **hard fork**, gated and replay-validated like the items above, not a quiet swap.
-- **Retire the blocking socket protocol** for node-to-node traffic in favour of the HTTP API
-  (parallel, compressed, non-stalling). Keep a compatibility bridge while the network upgrades.
+- **Replace the legacy socket / peer / block-processing stack with the API system** — *replace, do not
+  modularize*. This is the project's worst code and is slated for wholesale replacement, so it is not a
+  target for incremental refactoring:
+  - **Connectivity & peers** (`connections.py`, `connectionmanager.py`, `worker.py`, `peershandler.py`) —
+    blocking, no asyncio, stalls; to be superseded by the HTTP/REST API (parallel, compressed,
+    non-stalling). Don't invest in refactoring it.
+  - **Block processing** (`digest.py`) — needs a major rework and **will not be carried into the API
+    system**; the API sync path will do its own block ingestion. Stays frozen behind the consensus
+    boundary until then — do not modularize it for its own sake.
+  - **Command dispatch** (`node.py` `handle()`) — the legacy socket command loop; superseded as new
+    capability moves to REST (see the modularization note below for why it isn't split in place).
+  Keep a compatibility bridge while the network upgrades; build new capability only on the API path.
 - **Storage-engine evaluation (phase 7).** Modernize SQLite usage (WAL, integer keys, covering
   indexes), benchmark, then consider a KV store (LMDB/RocksDB) for block bodies while keeping SQLite
   for queryable indexes. Decide on data, not taste.
