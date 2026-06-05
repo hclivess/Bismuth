@@ -79,8 +79,19 @@ def _make_handler(node):
             self.wfile.write(body)
 
         def _negotiate_encoding(self):
-            """Pick an HTTP Content-Encoding from the request's Accept-Encoding that we can produce.
-            Returns (http_name, transport_codec) or ("", None) for an uncompressed (legacy) response."""
+            """Pick an HTTP Content-Encoding. An explicit ?compress= override wins (none/identity =>
+            plaintext, the documented way to read the raw API; gzip|br => force that codec); otherwise
+            fall back to the request's Accept-Encoding. Returns (http_name, transport_codec) or
+            ("", None) for an uncompressed response."""
+            override = getattr(self, "_compress_override", None)
+            if override is not None:
+                if override in ("", "none", "identity", "plain", "raw"):
+                    return "", None
+                forced = {"gzip": ("gzip", "gzip"), "br": ("br", "brotli"),
+                          "brotli": ("br", "brotli")}.get(override)
+                if forced and transport.is_supported(forced[1]):
+                    return forced
+                return "", None  # unknown/unsupported override -> safe plaintext
             accepted = {e.strip().split(";")[0]
                         for e in (self.headers.get("Accept-Encoding") or "").split(",")}
             for http_name, codec in (("br", "brotli"), ("gzip", "gzip")):  # preference order
@@ -92,6 +103,10 @@ def _make_handler(node):
             parsed = urlparse(self.path)
             parts = [p for p in parsed.path.split("/") if p]
             query = parse_qs(parsed.query)
+            # Explicit transport override (nado-style): ?compress=none forces plaintext (the documented
+            # way to read the raw API), ?compress=gzip|br forces that codec; absent => gzip/br is the
+            # default for any client that advertises Accept-Encoding (browsers, our rest_client).
+            self._compress_override = (query.get("compress") or [None])[0]
             db = None
             try:
                 # parts[0] must be "api"
@@ -155,6 +170,8 @@ def _make_handler(node):
             # each does, so the API is discoverable without external docs.
             return {"name": "Bismuth REST API", "version": __version__,
                     "node_version": node.app_version, "protocol": node.version,
+                    "transport": "responses are gzip/br compressed when the client sends Accept-Encoding; "
+                                 "add ?compress=none for plaintext, ?compress=gzip|br to force a codec",
                     "endpoints": {
                         "/api/status": "node status (height, peers, difficulty, consensus)",
                         "/api/capabilities": "REST/transport capabilities for peer sync (reachable = capable)",

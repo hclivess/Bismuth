@@ -70,6 +70,19 @@ def test_rest_gzip_compression(client):
     assert code == 200 and plain["regnet"] is True
 
 
+def test_rest_compress_override(client):
+    # ?compress=none is the documented way to read the raw API even from a gzip-capable client...
+    req = urllib.request.Request(BASE + "/status?compress=none", headers={"Accept-Encoding": "gzip"})
+    with urllib.request.urlopen(req, timeout=10) as r:
+        assert r.headers.get("Content-Encoding") in (None, "")     # forced plaintext
+        assert json.loads(r.read().decode("utf-8"))["regnet"] is True
+    # ...and ?compress=gzip forces gzip even when the client didn't advertise Accept-Encoding.
+    req = urllib.request.Request(BASE + "/status?compress=gzip")
+    with urllib.request.urlopen(req, timeout=10) as r:
+        assert r.headers.get("Content-Encoding") == "gzip"
+        assert json.loads(gzip.decompress(r.read()).decode("utf-8"))["regnet"] is True
+
+
 def test_rest_difficulty(client):
     code, body = _get("/difficulty")
     assert code == 200 and "difficulty" in body
