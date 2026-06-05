@@ -24,7 +24,7 @@ identical under the available test coverage).
 | `mempool.py` | invalid-timestamp tx fell through without `continue` (reused a stale value) | added `continue` |
 | `staking.py` | `execute_param` referenced an undefined module-global `app_log` | guarded optional parameter |
 | `send_csv.py` | module-level `print(sys.argv[3])` crashed on too few args; literal `None` args | use `--wallet`, pass empty operation/openfield |
-| `hyperlane_asyncio.py` | class-level `asyncio.get_event_loop()` raises on Python ≥3.10 | create a loop in `__init__` |
+| `attic/hyperlane_asyncio.py` | class-level `asyncio.get_event_loop()` raises on Python ≥3.10 | retired to `attic/` (unused, broken stub) |
 | `mining.py` | used `Decimal` without importing it | added `from decimal import Decimal` |
 | `node.py` | `addlistlimmirjson` sent its response twice | removed the stray second `send()` |
 | `aliases.py` | private duplicate of `replace_regex` (uncached) | reuse `essentials.replace_regex` |

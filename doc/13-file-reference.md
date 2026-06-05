@@ -45,7 +45,7 @@ imported library; *script* = run directly.
 | `peershandler.py` | module | the `Peers` class (discovery, bans, consensus, persistence) |
 | `worker.py` | module | outbound per-peer sync thread |
 | `rpcconnections.py` | module | client-side `Connection` class (for wallets/scripts) |
-| `hyperlane.py`, `hyperlane_asyncio.py` | modules | placeholder hyperlane managers (stubs) |
+| `hyperlane.py` | module | placeholder hyperlane manager (stub); `attic/hyperlane_asyncio.py` is the retired asyncio variant |
 
 ## API / CLI
 
@@ -54,7 +54,7 @@ imported library; *script* = run directly.
 | `apihandler.py` | module | `ApiHandler` — the `api_*` command surface |
 | `commands.py` | script | CLI wrapper over node socket commands |
 | `check_tx.py` | script | report a txid's status (reads the DBs directly) |
-| `demo_getstatus.py`, `demo_getaddresssince.py` | scripts | single-command examples |
+| `attic/demo_getstatus.py`, `attic/demo_getaddresssince.py` | scripts | single-command examples (retired to `attic/`; use the REST API) |
 | `cmd_addpeers.py`, `cmd_hn_reg_round.py`, `cmd_hn_last_block_ts.py` | scripts | peer add / hypernode-plugin queries |
 | `process_search.py` | module | check whether a process is running |
 
@@ -84,7 +84,7 @@ imported library; *script* = run directly.
 | `send_nogui_noconf.py` | script | build/sign/submit a transaction without prompts |
 | `send_csv.py` | script | batch payouts from `rewards.csv` (wraps `send_nogui_noconf.py`) |
 | `balance_nogui.py` | script | print an address balance breakdown |
-| `rewards_reindex.py`, `rewards_test.py` | scripts | one-off dev-reward backfill / check |
+| `attic/rewards_reindex.py`, `attic/rewards_test.py` | scripts | one-off dev-reward backfill / check (retired to `attic/`) |
 
 ## Config & data
 

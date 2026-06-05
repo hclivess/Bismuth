@@ -65,7 +65,7 @@ deliberately disabled (`api_getblocksafterwhere`) for injection-safety reasons �
   transmit private keys — localhost use only.
 - **`check_tx.py`** — reads `ledger.db`/`mempool.db` directly (no socket) and reports a txid's status
   (`Unknown` / `Mempool` / `Confirmed` + confirmations).
-- **`demo_getstatus.py`**, **`demo_getaddresssince.py`**, **`cmd_addpeers.py`**,
-  **`cmd_hn_reg_round.py`**, **`cmd_hn_last_block_ts.py`** — minimal examples of single commands
-  (the `HN_*` ones target the hypernode companion plugin).
+- **`attic/demo_getstatus.py`**, **`attic/demo_getaddresssince.py`** (retired to `attic/`),
+  **`cmd_addpeers.py`**, **`cmd_hn_reg_round.py`**, **`cmd_hn_last_block_ts.py`** — minimal examples of
+  single commands (the `HN_*` ones target the hypernode companion plugin).
 - **`process_search.py`** — `proccess_presence(name)` (sic) checks whether a process is running.

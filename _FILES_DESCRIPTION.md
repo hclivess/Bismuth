@@ -66,8 +66,8 @@ Helper script to create a new genesis block, from an empty chain. Not maintained
 ## hmac_drbg.py (*module*)
 HMAC_DRBG (sha512) helper class, used by the "heavy3" PoW algorithm.
 
-## hyperlane_asyncio.py (*module*)
-Module that handles hyperlane integration to node.
+## attic/hyperlane_asyncio.py (*module, retired*)
+Abandoned asyncio variant of the hyperlane stub; retired to `attic/` (unused, broken on Python ≥3.10).
 
 ## keygen.py (*script*)
 Sample script to generate a new address.
@@ -117,11 +117,11 @@ Helper. Recovers pubkey and address from privkey alone.
 ## regnet.py (*module*)
 Regnet mode for bismuth testing.
 
-## rewards_reindex.py  (*script*)
-System script to reindex dev rewards, manual block level input. Do not use.
+## attic/rewards_reindex.py  (*script, retired*)
+System script to reindex dev rewards, manual block level input. Do not use. Retired to `attic/`.
 
-## rewards_test.py  (*script*)
-Tests if there is a dev reward every 10 blocks. Do not use.
+## attic/rewards_test.py  (*script, retired*)
+Tests if there is a dev reward every 10 blocks. Do not use. Retired to `attic/`.
 
 ## rollback.py (*module*)
 Helper. rollbacks indexes on block rollback.
