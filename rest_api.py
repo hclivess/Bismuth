@@ -35,6 +35,7 @@ from urllib.parse import urlparse, parse_qs
 import dbhandler
 import essentials
 import mempool as mp
+import transport
 from quantizer import quantize_eight
 
 __version__ = "0.1.0"
@@ -76,7 +77,10 @@ def _make_handler(node):
             db = None
             try:
                 # parts[0] must be "api"
-                if not parts or parts[0] != "api":
+                # Self-describing welcome page, served at both "/" and "/api".
+                if not parts:
+                    return self._write(200, self._index())
+                if parts[0] != "api":
                     raise _NotFound("use /api")
                 route = parts[1:]
                 if not route:
@@ -87,6 +91,8 @@ def _make_handler(node):
                     return self._write(200, self._difficulty())
                 if route == ["peers"]:
                     return self._write(200, self._peers())
+                if route == ["capabilities"]:
+                    return self._write(200, self._capabilities())
 
                 db = self._db()
                 if route == ["mempool"]:
@@ -127,13 +133,24 @@ def _make_handler(node):
                                        trace_db_calls=node.trace_db_calls)
 
         def _index(self):
+            # Self-describing welcome page (served at "/" and "/api"): the list of API methods and what
+            # each does, so the API is discoverable without external docs.
             return {"name": "Bismuth REST API", "version": __version__,
                     "node_version": node.app_version, "protocol": node.version,
-                    "endpoints": ["/api/status", "/api/difficulty", "/api/block/height/{n}",
-                                  "/api/block/hash/{hash}", "/api/blocks/since/{height}",
-                                  "/api/blocks/range/{start}/{end}", "/api/balance/{address}",
-                                  "/api/transaction/{txid}", "/api/address/{address}/transactions",
-                                  "/api/mempool", "/api/peers"]}
+                    "endpoints": {
+                        "/api/status": "node status (height, peers, difficulty, consensus)",
+                        "/api/capabilities": "REST/transport capabilities for peer sync (reachable = capable)",
+                        "/api/difficulty": "current difficulty detail",
+                        "/api/block/height/{n}": "block at a given height",
+                        "/api/block/hash/{hash}": "block by hash",
+                        "/api/blocks/since/{height}": "positive-height blocks after {height} (?limit=N, parallel sync)",
+                        "/api/blocks/range/{start}/{end}": "blocks in the inclusive height range (parallel sync)",
+                        "/api/balance/{address}": "confirmed balance of an address",
+                        "/api/transaction/{txid}": "transaction by id (signature prefix)",
+                        "/api/address/{address}/transactions": "recent txs for an address (?limit=N, max 500)",
+                        "/api/mempool": "pending (unconfirmed) transactions",
+                        "/api/peers": "known peers",
+                    }}
 
         def _status(self):
             diff = node.difficulty[0] if getattr(node, "difficulty", None) else None
@@ -145,6 +162,16 @@ def _make_handler(node):
                     "consensus": node.peers.consensus, "threads": threading.active_count(),
                     "uptime": int(time.time() - node.startup_time),
                     "server_timestamp": "%.2f" % time.time()}
+
+        def _capabilities(self):
+            # Capability descriptor a peer fetches to decide whether to sync from us over the REST API
+            # and which transport codec to negotiate. Reachability of THIS endpoint is itself the test:
+            # if a peer can GET it, we are REST-capable — no socket handshake needed (doc/06, doc/15).
+            return {"version": node.version, "node_version": node.app_version,
+                    "rest_api": True, "rest_port": node.rest_api_port,
+                    "compress": transport.available_codecs(),
+                    "blocks": node.hdd_block,
+                    "testnet": node.is_testnet, "regnet": node.is_regnet}
 
         def _difficulty(self):
             d = getattr(node, "difficulty", None)

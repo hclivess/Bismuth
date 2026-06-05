@@ -1729,9 +1729,12 @@ def setup_net_type():
     node.index_db = "static/index.db"
 
     if node.is_mainnet:
-        # Allow only 21 and up
-        if node.version != 'mainnet0022':
-            node.version = 'mainnet0022'  # Force in code.
+        # Allow only 21 and up. mainnet0023 signals the modern capabilities (REST API + negotiated
+        # transport compression), advertised via the `getcapabilities` handshake; 0021/0022 peers still
+        # interoperate over the plain socket protocol. This bump is NOT a consensus change — nothing in
+        # digest.py / bismuth_serialize.py gates on the version string (verified).
+        if node.version != 'mainnet0023':
+            node.version = 'mainnet0023'  # Force in code.
         if "mainnet0021" not in node.version_allow:
             node.version_allow = ['mainnet0021', 'mainnet0022', 'mainnet0023']
         # Do not allow bad configs.

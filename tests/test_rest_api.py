@@ -35,6 +35,18 @@ def test_rest_api_is_up(client):
     assert code == 200 and body["name"] == "Bismuth REST API"
 
 
+def test_rest_welcome_lists_methods(client):
+    # The index is a self-describing welcome page listing the available API methods, served at /api...
+    code, body = _get("")
+    assert code == 200 and body["name"] == "Bismuth REST API"
+    assert "/api/capabilities" in body["endpoints"]
+    assert "/api/blocks/range/{start}/{end}" in body["endpoints"]
+    # ...and at the bare root too, for convenience.
+    with urllib.request.urlopen("http://127.0.0.1:3031/", timeout=10) as r:
+        root = json.loads(r.read().decode("utf-8"))
+    assert root["name"] == "Bismuth REST API"
+
+
 def test_rest_status(client):
     client.mine(2)
     code, body = _get("/status")
@@ -46,6 +58,18 @@ def test_rest_status(client):
 def test_rest_difficulty(client):
     code, body = _get("/difficulty")
     assert code == 200 and "difficulty" in body
+
+
+def test_rest_capabilities(client):
+    # Capability discovery is over the REST API: reachability of /api/capabilities IS the signal that a
+    # peer is REST-capable. It advertises the rest port (for peer block fetching) and the negotiable
+    # transport codecs (doc/06). If a peer can't serve this, it simply isn't REST-capable.
+    code, body = _get("/capabilities")
+    assert code == 200
+    assert body["rest_api"] is True
+    assert body["rest_port"] == 3031          # the regnet REST port (conftest/config_custom)
+    assert body["version"]                    # protocol version string
+    assert "zlib" in body["compress"] and "none" in body["compress"]
 
 
 def test_rest_block_by_height(client):
