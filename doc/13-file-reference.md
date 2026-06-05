@@ -31,7 +31,9 @@ imported library; *script* = run directly.
 
 | File | Kind | Description |
 |---|---|---|
-| `dbhandler.py` | module | `DbHandler` — all SQLite connections & queries |
+| `dbhandler.py` | module | `DbHandler` — SQLite connection lifecycle + low-level SQL plumbing + canonical `sql_trace_callback`; composes the two mixins below |
+| `dbhandler_queries.py` | module | `DbQueriesMixin` — read-only ledger/index queries (heights, hashes, aliases, balances) |
+| `dbhandler_write.py` | module | `DbWriteMixin` — ledger write & rollback ops (block commit, drive flush, dev/hn rewards, index rollbacks) |
 | `db_hashes.py` | module | static known-good early-block hash table |
 | `ledger_queries.py` | module | `LedgerQueries` classmethod helpers (plugins/hypernodes) |
 | `balances.py` | module | `balanceget` — authoritative mempool-aware balance for the `balanceget*` socket commands (lifted from `node.py` by DI) |

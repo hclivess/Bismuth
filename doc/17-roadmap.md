@@ -101,7 +101,10 @@
   explicitly, so they extract by dependency injection). Cuts done so far: the 837-line `apihandler.py`
   god-class split into domain mixins (`apihandler_blocks`/`_address`/`_tx`) recombined via
   `class ApiHandler(BlockApiMixin, …)`, leaving a 115-line dispatcher core (its pure block→JSON
-  formatters had already moved to `block_format.py`); and the chain-maintenance cluster
+  formatters had already moved to `block_format.py`); the 498-line `dbhandler.py` (a survivor — storage)
+  likewise split into `DbQueriesMixin` (`dbhandler_queries`) + `DbWriteMixin` (`dbhandler_write`),
+  leaving a 166-line connection/plumbing core that keeps the canonical `sql_trace_callback`; and the
+  chain-maintenance cluster
   (`rollback`, `recompress_ledger`, `ledger_check_heights`, `blocknf`, plus the boot/validation
   `bootstrap`, `check_integrity`, `sequencing_check`) lifted out of `node.py` into `chain_ops.py` by
   DI, with `blocknf` re-exported so `worker.py` is unaffected; the mempool-aware `balanceget` moved to
