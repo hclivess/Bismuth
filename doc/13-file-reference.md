@@ -52,6 +52,7 @@ imported library; *script* = run directly.
 | File | Kind | Description |
 |---|---|---|
 | `apihandler.py` | module | `ApiHandler` — the `api_*` command surface |
+| `block_format.py` | module | pure block→JSON formatters (`blockstojson` / `blocktojsondiffs`), extracted from `apihandler` |
 | `commands.py` | script | CLI wrapper over node socket commands |
 | `check_tx.py` | script | report a txid's status (reads the DBs directly) |
 | `attic/demo_getstatus.py`, `attic/demo_getaddresssince.py` | scripts | single-command examples (retired to `attic/`; use the REST API) |

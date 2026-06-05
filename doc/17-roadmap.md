@@ -67,8 +67,14 @@
 - **Storage-engine evaluation (phase 7).** Modernize SQLite usage (WAL, integer keys, covering
   indexes), benchmark, then consider a KV store (LMDB/RocksDB) for block bodies while keeping SQLite
   for queryable indexes. Decide on data, not taste.
-- **Repository reorganization.** Group modules sensibly and retire dead files (proven unused by import
-  analysis, moved aside rather than deleted), with the full suite green throughout.
+- **Repository reorganization & modularization.** Retire dead files (✅ done — moved to `attic/` by
+  import-graph analysis) and break up the over-long modules behind **behavior-preserving, test-green**
+  extractions. `node.py` (~2.2k lines, with a ~1080-line socket-command `handle()`) is the prime
+  target: turn the `if/elif` command chain into a dispatch table of small handlers, and lift the
+  bootup/init and ledger-maintenance functions into focused modules (most already take `node`
+  explicitly, so they extract by dependency injection). First cut done: the pure block→JSON formatters
+  moved out of the 900-line `apihandler.py` into `block_format.py`. Each step keeps the flat-import
+  layout working and the suite green.
 
 ## How we work
 

@@ -10,6 +10,7 @@ import os
 import sys
 import threading
 import amounts
+import block_format
 from essentials import format_raw_tx
 
 # modular handlers will need access to the database methods under some form, so it needs to be modular too.
@@ -57,74 +58,6 @@ class ApiHandler:
             # raise
             self.app_log.warning(f"API Method <{method}> does not exist.")
             return False
-
-    def blockstojson(self, raw_blocks: list):
-        tx_list = []
-        block = {}
-        blocks = {}
-
-        old = None
-        for transaction_raw in raw_blocks:
-            transaction = format_raw_tx(transaction_raw)
-            height = transaction['block_height']
-            hash = transaction['block_hash']
-
-            del transaction['block_height']
-            del transaction['block_hash']
-
-            if old != height:  # if same block
-                del tx_list[:]
-                block.clear()
-
-            tx_list.append(transaction)
-
-            block['block_height'] = height
-            block['block_hash'] = hash
-            block['transactions'] = list(tx_list)
-            blocks[height] = dict(block)
-
-            old = height  # update
-
-        return blocks
-
-    def blocktojsondiffs(self, list_of_txs:list, list_of_diffs:list):
-        i = 0
-        blocks_dict = {}
-        block_dict = {}
-        normal_transactions = []
-
-        old = None
-        for transaction in list_of_txs:
-            transaction_formatted = format_raw_tx(transaction)
-            height = transaction_formatted["block_height"]
-
-            del transaction_formatted["block_height"]
-
-            #  del transaction_formatted["signature"]  # optional
-            #  del transaction_formatted["pubkey"]  # optional
-
-            if old != height:
-                block_dict.clear()
-                del normal_transactions[:]
-
-            if transaction_formatted["reward"] == 0:  # if normal tx
-                del transaction_formatted["block_hash"]
-                del transaction_formatted["reward"]
-                normal_transactions.append(transaction_formatted)
-
-            else:
-                del transaction_formatted["address"]
-                del transaction_formatted["amount"]
-                transaction_formatted['difficulty'] = list_of_diffs[i][0]
-                block_dict['mining_tx'] = transaction_formatted
-
-                block_dict['transactions'] = list(normal_transactions)
-
-                blocks_dict[height] = dict(block_dict)
-                i += 1
-            old = height
-
-        return blocks_dict
 
     def api_mempool(self, socket_handler, db_handler, peers):
         """
@@ -231,7 +164,7 @@ class ApiHandler:
                                  (block_hash,))
 
         result = db_handler.h.fetchall()
-        blocks = self.blockstojson(result)
+        blocks = block_format.blockstojson(result)
         connections.send(socket_handler, blocks)
 
     def api_getblockfromhashextra(self, socket_handler, db_handler, peers):
@@ -253,7 +186,7 @@ class ApiHandler:
                                          "SELECT * FROM transactions "
                                          "WHERE block_hash = ? ",
                                          (block_hash,))
-            blocks = self.blockstojson(result)
+            blocks = block_format.blockstojson(result)
             block = list(blocks.values())[0]
 
             block["previous_block_hash"] = db_handler.fetchone(db_handler.h,
@@ -291,7 +224,7 @@ class ApiHandler:
                                  (height,))
 
         result = db_handler.h.fetchall()
-        blocks = self.blockstojson(result)
+        blocks = block_format.blockstojson(result)
         connections.send(socket_handler, blocks)
 
     def api_getaddressrange(self, socket_handler, db_handler, peers):
@@ -321,7 +254,7 @@ class ApiHandler:
                                  (address, starting_block, limit,))
 
         result = db_handler.h.fetchall()
-        blocks = self.blockstojson(result)
+        blocks = block_format.blockstojson(result)
         connections.send(socket_handler, blocks)
 
     def api_getblockrange(self, socket_handler, db_handler, peers):
@@ -355,7 +288,7 @@ class ApiHandler:
                                      (start_block, start_block+limit,))
             raw_diffs = db_handler.h.fetchall()
 
-            reply = json.dumps(self.blocktojsondiffs(raw_txs, raw_diffs))
+            reply = json.dumps(block_format.blocktojsondiffs(raw_txs, raw_diffs))
 
         except Exception as e:
             self.app_log.warning(e)
