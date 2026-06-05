@@ -8,6 +8,7 @@ imported library; *script* = run directly.
 | File | Kind | Description |
 |---|---|---|
 | `node.py` | script | the full node (entry point); startup, threading, TCP server, command dispatch |
+| `node_init.py` | module | node bootstrap/init helpers lifted from `node.py` by DI: `setup_net_type`, `node_block_init`, `ram_init`, `initial_db_check`, `load_keys`, `add_indices` |
 | `node_stop.py` | script | sends `stop` to a local node |
 | `digest.py` | module | block & transaction validation/commit pipeline (consensus core) |
 | `chain_ops.py` | module | chain-maintenance ops lifted from `node.py` by DI: `rollback`, `recompress_ledger`, `ledger_check_heights`, `blocknf` (block-not-found rollback), plus boot/validation `bootstrap`, `check_integrity`, `sequencing_check` |

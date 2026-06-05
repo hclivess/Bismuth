@@ -13,13 +13,9 @@
 
 VERSION = "4.5.0.1"
 
-import functools
-import glob
 import platform
 import shutil
 import socketserver
-import sqlite3
-import tarfile
 import threading
 from sys import version_info
 
@@ -29,7 +25,6 @@ import aliases  # PREFORK_ALIASES
 # Bis specific modules
 import apihandler
 import connectionmanager
-import db_migrations
 import dbhandler
 import log
 import options
@@ -51,12 +46,10 @@ import essentials
 import mempool as mp
 import mining_heavy3
 import regnet
-import tokensv2 as tokens
 from digest import digest_block
-from chain_ops import rollback, recompress_ledger, ledger_check_heights, blocknf, bootstrap, check_integrity, sequencing_check
+from chain_ops import recompress_ledger, ledger_check_heights, blocknf, check_integrity, sequencing_check
 from balances import balanceget
-from difficulty import difficulty
-from essentials import checkpoint_set, fee_calculate, download_file
+from node_init import setup_net_type, node_block_init, ram_init, initial_db_check, load_keys, add_indices
 from quantizer import quantize_eight, quantize_two
 from polysign.signerfactory import SignerFactory
 from libs import node, logger, keys, client
@@ -76,11 +69,6 @@ appname = "Bismuth"
 appauthor = "Bismuth Foundation"
 
 # nodes_ban_reset=config.nodes_ban_reset
-
-
-def sql_trace_callback(log, id, statement):
-    line = f"SQL[{id}] {statement}"
-    log.warning(line)
 
 
 # init
@@ -1172,242 +1160,6 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     pass
 
 
-def just_int_from(s):
-    # TODO: move to essentials.py
-    return int(''.join(i for i in s if i.isdigit()))
-
-
-def setup_net_type():
-    """
-    Adjust globals depending on mainnet, testnet or regnet
-    """
-    # TODO: only deals with 'node' structure, candidate for single user mode.
-    # Defaults value, dup'd here for clarity sake.
-    node.is_mainnet = True
-    node.is_testnet = False
-    node.is_regnet = False
-
-    if "testnet" in node.version or node.is_testnet:
-        node.is_testnet = True
-        node.is_mainnet = False
-        node.version_allow = "testnet"
-
-    if "regnet" in node.version or node.is_regnet:
-        node.is_regnet = True
-        node.is_testnet = False
-        node.is_mainnet = False
-
-    node.logger.app_log.warning(f"Testnet: {node.is_testnet}")
-    node.logger.app_log.warning(f"Regnet : {node.is_regnet}")
-
-    # default mainnet config
-    node.peerfile = "peers.txt"
-    node.ledger_ram_file = "file:ledger?mode=memory&cache=shared"
-    node.index_db = "static/index.db"
-
-    if node.is_mainnet:
-        # Allow only 21 and up. mainnet0023 signals the modern capabilities (REST API + negotiated
-        # transport compression), advertised via the `getcapabilities` handshake; 0021/0022 peers still
-        # interoperate over the plain socket protocol. This bump is NOT a consensus change — nothing in
-        # digest.py / bismuth_serialize.py gates on the version string (verified).
-        if node.version != 'mainnet0023':
-            node.version = 'mainnet0023'  # Force in code.
-        if "mainnet0021" not in node.version_allow:
-            node.version_allow = ['mainnet0021', 'mainnet0022', 'mainnet0023']
-        # Do not allow bad configs.
-        if not 'mainnet' in node.version:
-            node.logger.app_log.error("Bad mainnet version, check config.txt")
-            sys.exit()
-        num_ver = just_int_from(node.version)
-        if num_ver <21:
-            node.logger.app_log.error("Too low mainnet version, check config.txt")
-            sys.exit()
-        for allowed in node.version_allow:
-            num_ver = just_int_from(allowed)
-            if num_ver < 20:
-                node.logger.app_log.error("Too low allowed version, check config.txt")
-                sys.exit()
-
-    if "testnet" in node.version or node.is_testnet:
-        node.port = 2829
-        node.hyper_path = "static/hyper_test.db"
-        node.ledger_path = "static/ledger_test.db"
-
-        node.ledger_ram_file = "file:ledger_testnet?mode=memory&cache=shared"
-        #node.hyper_recompress = False
-        node.peerfile = "peers_test.txt"
-        node.index_db = "static/index_test.db"
-        if not 'testnet' in node.version:
-            node.logger.app_log.error("Bad testnet version, check config.txt")
-            sys.exit()
-
-        redownload_test = input("Status: Welcome to the testnet. Redownload test ledger? y/n")
-        if redownload_test == "y":
-            types = ['static/ledger_test.db-wal', 'static/ledger_test.db-shm', 'static/index_test.db', 'static/hyper_test.db-wal', 'static/hyper_test.db-shm']
-            for type in types:
-                for file in glob.glob(type):
-                    os.remove(file)
-                    print(file, "deleted")
-            download_file("https://bismuth.cz/test.tar.gz", "static/test.tar.gz")
-            with tarfile.open("static/test.tar.gz") as tar:
-                def is_within_directory(directory, target):
-                    
-                    abs_directory = os.path.abspath(directory)
-                    abs_target = os.path.abspath(target)
-                
-                    prefix = os.path.commonprefix([abs_directory, abs_target])
-                    
-                    return prefix == abs_directory
-                
-                def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
-                
-                    for member in tar.getmembers():
-                        member_path = os.path.join(path, member.name)
-                        if not is_within_directory(path, member_path):
-                            raise Exception("Attempted Path Traversal in Tar File")
-                
-                    tar.extractall(path, members, numeric_owner=numeric_owner) 
-                    
-                
-                safe_extract(tar, "static/")
-        else:
-            print("Not redownloading test db")
-
-    if "regnet" in node.version or node.is_regnet:
-        node.port = regnet.REGNET_PORT
-        node.hyper_path = regnet.REGNET_DB
-        node.ledger_path = regnet.REGNET_DB
-        node.ledger_ram_file = "file:ledger_regnet?mode=memory&cache=shared"
-        node.hyper_recompress = False
-        node.peerfile = regnet.REGNET_PEERS
-        node.index_db = regnet.REGNET_INDEX
-        if not 'regnet' in node.version:
-            node.logger.app_log.error("Bad regnet version, check config.txt")
-            sys.exit()
-        if not node.heavy:
-            node.logger.app_log.warning("Regnet with no heavy file...")
-            mining_heavy3.heavy = False
-        node.logger.app_log.warning("Regnet init...")
-        regnet.init(node.logger.app_log)
-        regnet.DIGEST_BLOCK = digest_block
-        mining_heavy3.is_regnet = True
-        """
-        node.logger.app_log.warning("Regnet still is WIP atm.")
-        sys.exit()
-        """
-
-
-def node_block_init(database):
-    # TODO: candidate for single user mode
-    node.hdd_block = database.block_height_max()
-    node.difficulty = difficulty(node, db_handler_initial)  # check diff for miner
-
-    node.last_block = node.hdd_block  # ram equals drive at this point
-
-    node.last_block_hash = database.last_block_hash()
-    node.hdd_hash = node.last_block_hash # ram equals drive at this point
-
-    node.last_block_timestamp = database.last_block_timestamp()
-
-    checkpoint_set(node)
-
-    node.logger.app_log.warning("Status: Indexing aliases")
-
-    aliases.aliases_update(node, database)
-
-
-def ram_init(database):
-    # TODO: candidate for single user mode
-    try:
-        if node.ram:
-            node.logger.app_log.warning("Status: Moving database to RAM")
-
-            if node.py_version >= 370:
-                temp_target = sqlite3.connect(node.ledger_ram_file, uri=True, isolation_level=None, timeout=1)
-                if node.trace_db_calls:
-                    temp_target.set_trace_callback(functools.partial(sql_trace_callback,node.logger.app_log,"TEMP-TARGET"))
-
-                temp_source = sqlite3.connect(node.hyper_path, uri=True, isolation_level=None, timeout=1)
-                if node.trace_db_calls:
-                    temp_source.set_trace_callback(functools.partial(sql_trace_callback,node.logger.app_log,"TEMP-SOURCE"))
-                temp_source.backup(temp_target)
-                temp_source.close()
-
-            else:
-                source_db = sqlite3.connect(node.hyper_path, timeout=1)
-                if node.trace_db_calls:
-                    source_db.set_trace_callback(functools.partial(sql_trace_callback,node.logger.app_log,"SOURCE-DB"))
-                database.to_ram = sqlite3.connect(node.ledger_ram_file, uri=True, timeout=1, isolation_level=None)
-                if node.trace_db_calls:
-                    database.to_ram.set_trace_callback(functools.partial(sql_trace_callback,node.logger.app_log,"DATABASE-TO-RAM"))
-                database.to_ram.text_factory = str
-                database.tr = database.to_ram.cursor()
-
-                query = "".join(line for line in source_db.iterdump())
-                database.to_ram.executescript(query)
-                source_db.close()
-
-            node.logger.app_log.warning("Status: Hyperblock ledger moved to RAM")
-
-            #source = sqlite3.connect('existing_db.db')
-            #dest = sqlite3.connect(':memory:')
-            #source.backup(dest)
-
-    except Exception as e:
-        node.logger.app_log.warning(e)
-        raise
-
-
-def initial_db_check():
-    """
-    Initial bootstrap check and chain validity control
-    """
-    # TODO: candidate for single user mode
-    # force bootstrap via adding an empty "fresh_sync" file in the dir.
-    if os.path.exists("fresh_sync") and node.is_mainnet:
-        node.logger.app_log.warning("Status: Fresh sync required, bootstrapping from the website")
-        os.remove("fresh_sync")
-        bootstrap(node)
-    # UPDATE mainnet DB if required
-    if node.is_mainnet:
-        upgrade = sqlite3.connect(node.ledger_path)
-        if node.trace_db_calls:
-            upgrade.set_trace_callback(functools.partial(sql_trace_callback,node.logger.app_log,"INITIAL_DB_CHECK"))
-        u = upgrade.cursor()
-        try:
-            u.execute("PRAGMA table_info(transactions);")
-            # HARDFORK / cleanup (doc/16): brittle schema sniff — a hardcoded column index [10]
-            # (operation) plus a string-equality type check. The integer-storage migration declares
-            # explicit column types (amount/fee/reward INTEGER, timestamp/text TEXT), so this ad-hoc
-            # probe should become a real schema-version check (PRAGMA user_version; see db_migrations.py).
-            result = u.fetchall()[10][2]
-            if result != "TEXT":
-                raise ValueError("Database column type outdated for Command field")
-            upgrade.close()
-        except Exception as e:
-            print(e)
-            upgrade.close()
-            print("Database needs upgrading, bootstrapping...")
-            bootstrap(node)
-
-
-def load_keys():
-    """Initial loading of crypto keys"""
-    # TODO: candidate for single user mode
-    essentials.keys_check(node.logger.app_log, "wallet.der")
-
-    node.keys.key, node.keys.public_key_readable, node.keys.private_key_readable, _, _, node.keys.public_key_b64encoded, node.keys.address, node.keys.keyfile = essentials.keys_load(
-        "privkey.der", "pubkey.der")
-
-    if node.is_regnet:
-        regnet.PRIVATE_KEY_READABLE = node.keys.private_key_readable
-        regnet.PUBLIC_KEY_B64ENCODED = node.keys.public_key_b64encoded
-        regnet.ADDRESS = node.keys.address
-        regnet.KEY = node.keys.key
-
-    node.logger.app_log.warning(f"Status: Local address: {node.keys.address}")
-
-
 def verify(db_handler):
     # TODO: candidate for single user mode
     try:
@@ -1470,19 +1222,6 @@ def verify(db_handler):
     except Exception as e:
         node.logger.app_log.warning("Error: {}".format(e))
         raise
-
-
-def add_indices(db_handler: dbhandler.DbHandler):
-    # Versioned, idempotent schema migrations (db_migrations.py, see doc/16). v1 creates exactly the
-    # indexes this function historically created -- the TXID4 partial-signature index (skipped when
-    # old_sqlite) and the misc block-height index -- now tracked via PRAGMA user_version on each DB.
-    node.logger.app_log.warning("Applying schema migrations / creating indices")
-    if node.old_sqlite:
-        node.logger.app_log.warning("old_sqlite is True, skipping the signature-prefix index; lookups will be slower.")
-    migrations = db_migrations.ledger_migrations(old_sqlite=node.old_sqlite)
-    for cursor in (db_handler.h, db_handler.h2, db_handler.c):
-        db_migrations.run(cursor, migrations, app_log=node.logger.app_log)
-    node.logger.app_log.warning("Finished schema migrations")
 
 
 if __name__ == "__main__":
@@ -1565,8 +1304,8 @@ if __name__ == "__main__":
         extra_commands = node.plugin_manager.execute_filter_hook('extra_commands_prefixes', extra_commands)
         print("Extra prefixes: ", ",".join(extra_commands.keys()))
 
-        setup_net_type()
-        load_keys()
+        setup_net_type(node)
+        load_keys(node)
 
         # needed for docker logs
         node.logger.app_log.warning(f"Checking Heavy3 file, can take up to 5 minutes...")
@@ -1605,9 +1344,9 @@ if __name__ == "__main__":
                 recompress_ledger(node)
                 db_handler_initial = dbhandler.DbHandler(node.index_db, node.ledger_path, node.hyper_path, node.ram, node.ledger_ram_file, node.logger, trace_db_calls=node.trace_db_calls)
 
-            ram_init(db_handler_initial)
-            node_block_init(db_handler_initial)
-            initial_db_check()
+            ram_init(node, db_handler_initial)
+            node_block_init(node, db_handler_initial)
+            initial_db_check(node)
 
             if not node.is_regnet:
                 sequencing_check(node, db_handler_initial)
@@ -1615,7 +1354,7 @@ if __name__ == "__main__":
             if node.verify:
                 verify(db_handler_initial)
 
-            add_indices(db_handler_initial)
+            add_indices(node, db_handler_initial)
 
             # TODO: until here, we are in single user mode.
             # All the above goes into a "bootup" function, with methods from single_user module only.
