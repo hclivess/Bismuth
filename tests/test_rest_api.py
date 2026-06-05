@@ -1,6 +1,7 @@
 # REST API tests on regnet. The regnet node (started by conftest) has rest_api=True on port 3031.
 # Run with: python3 -m pytest -v
 
+import gzip
 import json
 import socket
 import time
@@ -53,6 +54,20 @@ def test_rest_status(client):
     assert code == 200
     assert body["regnet"] is True
     assert body["blocks"] >= 1
+
+
+def test_rest_gzip_compression(client):
+    # HTTP-standard transport compression: a client that sends Accept-Encoding: gzip gets a
+    # Content-Encoding: gzip body that decompresses to the same JSON. This is the bandwidth win for
+    # parallel block fetching, applied at the HTTP layer (not the legacy socket protocol).
+    req = urllib.request.Request(BASE + "/status", headers={"Accept-Encoding": "gzip"})
+    with urllib.request.urlopen(req, timeout=10) as r:
+        assert r.headers.get("Content-Encoding") == "gzip"
+        body = json.loads(gzip.decompress(r.read()).decode("utf-8"))
+    assert body["regnet"] is True
+    # Backward compatible: with no Accept-Encoding (urllib's default), the body is plain JSON.
+    code, plain = _get("/status")
+    assert code == 200 and plain["regnet"] is True
 
 
 def test_rest_difficulty(client):

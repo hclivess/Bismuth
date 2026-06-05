@@ -63,12 +63,30 @@ def _make_handler(node):
 
         def _write(self, code, payload):
             body = json.dumps(payload).encode("utf-8")
+            # Transport compression at the HTTP layer (standard Content-Encoding) — this is where
+            # bandwidth savings for parallel block fetching live, not in the legacy socket protocol.
+            http_enc, codec = self._negotiate_encoding()
+            if codec:
+                body = transport.compress(codec, body)
             self.send_response(code)
             self.send_header("Content-Type", "application/json")
+            if http_enc:
+                self.send_header("Content-Encoding", http_enc)
+                self.send_header("Vary", "Accept-Encoding")
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             self.wfile.write(body)
+
+        def _negotiate_encoding(self):
+            """Pick an HTTP Content-Encoding from the request's Accept-Encoding that we can produce.
+            Returns (http_name, transport_codec) or ("", None) for an uncompressed (legacy) response."""
+            accepted = {e.strip().split(";")[0]
+                        for e in (self.headers.get("Accept-Encoding") or "").split(",")}
+            for http_name, codec in (("br", "brotli"), ("gzip", "gzip")):  # preference order
+                if http_name in accepted and transport.is_supported(codec):
+                    return http_name, codec
+            return "", None
 
         def do_GET(self):
             parsed = urlparse(self.path)
