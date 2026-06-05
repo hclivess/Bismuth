@@ -33,6 +33,7 @@ imported library; *script* = run directly.
 | `dbhandler.py` | module | `DbHandler` — all SQLite connections & queries |
 | `db_hashes.py` | module | static known-good early-block hash table |
 | `ledger_queries.py` | module | `LedgerQueries` classmethod helpers (plugins/hypernodes) |
+| `balances.py` | module | `balanceget` — authoritative mempool-aware balance for the `balanceget*` socket commands (lifted from `node.py` by DI) |
 | `ledger_explorer.py` | script | early standalone block explorer (unmaintained) |
 | `quantizer.py` | module | `Decimal` rounding helpers (2/8/10 dp) |
 | `mempool.py` | module | the `Mempool` class |

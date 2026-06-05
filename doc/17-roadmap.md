@@ -75,8 +75,12 @@
   explicitly, so they extract by dependency injection). Cuts done so far: the pure block→JSON formatters
   moved out of the 900-line `apihandler.py` into `block_format.py`; and the chain-maintenance cluster
   (`rollback`, `recompress_ledger`, `ledger_check_heights`, `blocknf`, plus the boot/validation
-  `bootstrap`, `check_integrity`, `sequencing_check`) lifted out of `node.py` (2200→1764 lines) into
-  `chain_ops.py` by DI, with `blocknf` re-exported so `worker.py` is unaffected. Each step keeps the
+  `bootstrap`, `check_integrity`, `sequencing_check`) lifted out of `node.py` into `chain_ops.py` by
+  DI, with `blocknf` re-exported so `worker.py` is unaffected; and the mempool-aware `balanceget`
+  moved to `balances.py`. `node.py` is down from 2200 to ~1680 lines. The remaining bulk is the
+  ~1080-line socket-command `handle()`: its branches use `break`/`continue` against the connection
+  loop and interleave consensus-critical sync, so turning it into a dispatch table needs a two-node
+  test harness first (tracked above under "API-based sync"), not a blind rewrite. Each step keeps the
   flat-import layout working and the suite green.
 
 ## How we work
