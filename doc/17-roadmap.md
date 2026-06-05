@@ -88,8 +88,10 @@
   extractions. `node.py` (~2.2k lines, with a ~1080-line socket-command `handle()`) is the prime
   target: turn the `if/elif` command chain into a dispatch table of small handlers, and lift the
   bootup/init and ledger-maintenance functions into focused modules (most already take `node`
-  explicitly, so they extract by dependency injection). Cuts done so far: the pure block→JSON formatters
-  moved out of the 900-line `apihandler.py` into `block_format.py`; and the chain-maintenance cluster
+  explicitly, so they extract by dependency injection). Cuts done so far: the 837-line `apihandler.py`
+  god-class split into domain mixins (`apihandler_blocks`/`_address`/`_tx`) recombined via
+  `class ApiHandler(BlockApiMixin, …)`, leaving a 115-line dispatcher core (its pure block→JSON
+  formatters had already moved to `block_format.py`); and the chain-maintenance cluster
   (`rollback`, `recompress_ledger`, `ledger_check_heights`, `blocknf`, plus the boot/validation
   `bootstrap`, `check_integrity`, `sequencing_check`) lifted out of `node.py` into `chain_ops.py` by
   DI, with `blocknf` re-exported so `worker.py` is unaffected; the mempool-aware `balanceget` moved to

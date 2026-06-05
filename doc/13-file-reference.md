@@ -54,7 +54,10 @@ imported library; *script* = run directly.
 
 | File | Kind | Description |
 |---|---|---|
-| `apihandler.py` | module | `ApiHandler` — the `api_*` command surface |
+| `apihandler.py` | module | `ApiHandler` — the `api_*` dispatcher + small control commands; composes the domain mixins below |
+| `apihandler_blocks.py` | module | `BlockApiMixin` — block-oriented read API (`api_getblock*`) |
+| `apihandler_address.py` | module | `AddressApiMixin` — address & balance read API (`api_getaddress*`, `api_*balance`, `api_*received`) |
+| `apihandler_tx.py` | module | `TxApiMixin` — transaction read API (`api_gettransaction*`) |
 | `block_format.py` | module | pure block→JSON formatters (`blockstojson` / `blocktojsondiffs`), extracted from `apihandler` |
 | `commands.py` | script | CLI wrapper over node socket commands |
 | `check_tx.py` | script | report a txid's status (reads the DBs directly) |
