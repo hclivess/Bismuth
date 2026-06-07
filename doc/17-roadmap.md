@@ -144,7 +144,23 @@
   Target a single, well-understood, bounded controller (smooth, **symmetric** per-block clamping; one
   difficulty value, not a retarget + a separate drop ramp; explicit named constants; no error-swallow).
   This is **consensus** — `mining_heavy3.check_block` validates blocks against the retarget — so it is a
-  **hard fork**, gated and replay-validated like the items above, not a quiet swap.
+  **hard fork**, gated and replay-validated like the items above, not a quiet swap. ✅ The replacement
+  is **implemented + unit-tested** (`difficulty_lwma.py`, `tests/test_difficulty_lwma.py`): LWMA —
+  symmetric (slow blocks lower difficulty by the same law fast blocks raise it), **delicate** (~1 %
+  block-time nudge per step under normal variance, never a cliff), and **deterministically calculable**
+  by every miner in advance from public chain data (one knowable challenge for all). Inert until the
+  fork gate (see [`18-hardfork-hf2.md`](18-hardfork-hf2.md)).
+- **External-ecosystem RPC compatibility (edge adapters, non-consensus).** Plug Bismuth into standard
+  tooling without bespoke integrations, beside `rest_api.py`, behind flags:
+  - **Bitcoin-compatible JSON-RPC** — translate the core `bitcoind` methods (`getblockcount`,
+    `getblockhash`/`getblock`, `getbalance`, `getnewaddress`, `sendtoaddress`, `sendrawtransaction`,
+    `getrawtransaction`, `gettransaction`) onto the ledger + wallet; enough for most exchange/explorer
+    integrations.
+  - **Ethereum/ERC-compatible interface** — the `eth_*` JSON-RPC subset (`eth_blockNumber`,
+    `eth_getBalance`, `eth_getTransactionByHash`, `eth_sendRawTransaction`) + ERC-20-style views of the
+    token layer, for web3/wallet tooling. Honestly bounded: Ethereum's account/gas/EVM model differs
+    fundamentally, so this is a **compatibility shim** (balances, tx submit, blocks, token views),
+    **not** an EVM — full smart-contract semantics are out of scope.
 - **Supersede the legacy socket / peer / block-processing stack with the API system.** This is the
   project's worst code — blocking, no asyncio, stall-prone — and the long-term plan moves its capability
   onto the HTTP/REST API (parallel, compressed, non-stalling). That replacement is the *destination*, but

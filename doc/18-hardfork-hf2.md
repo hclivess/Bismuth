@@ -58,6 +58,10 @@ small PoW chains:
   the most recent blocks highest → **fast, symmetric** response to hashrate changes.
 - **Bounded** solvetime clamps resist timestamp manipulation; no oscillation, no hand-tuned PID gains.
 - Adapted to emit Bismuth's bit-prefix difficulty domain.
+- ✅ **Implemented** (`difficulty_lwma.py`, `tests/test_difficulty_lwma.py`): symmetric response (slow
+  blocks lower difficulty by the same law fast blocks raise it — directly fixing the up-only ratchet),
+  bounded per-retarget steps, single-timestamp-spike resistance, and convergence to the target block
+  time under a feedback simulation — all unit-proven. Fork-gated, inert until activation.
 *Risk: moderate* — consensus-critical but well-understood and widely battle-tested; deterministic and
 unit-testable against recorded solvetime series before activation.
 
