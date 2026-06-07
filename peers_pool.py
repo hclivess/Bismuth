@@ -74,9 +74,12 @@ class PeersPoolMixin:
         host_port = f"{host}:{port}"
         tries, _ = self.tried.get(host_port, (0, 0))
 
-        # Optimization: Use lookup table for delays
-        delay_map = {0: 30, 1: 5*60, 2: 15*60}
-        delay = delay_map.get(tries, 30*60)
+        # Back-off between retries to the same peer. The old schedule (30s, 5min, 15min, 30min) made a
+        # catching-up node stall for many minutes: with only a handful of live peers, it churned through
+        # them and then could not re-attempt for 5-30 min. This gentler, capped schedule (30s, 1m, 2m,
+        # then 5m) still spaces retries politely but recovers from connection churn in about a minute.
+        delay_map = {0: 30, 1: 60, 2: 120}
+        delay = delay_map.get(tries, 5*60)
 
         tries = min(tries + 1, 3)
         self.tried[host_port] = (tries, time() + delay)
@@ -100,10 +103,14 @@ class PeersPoolMixin:
 
     def reset_tried(self):
         """
-        Remove the older timeouts from the tried list.
-        Keep the recent ones or we end up trying the first ones again and again
+        Drop back-off timers that are more than a short retry window out.
+
+        This is called when we are connection-starved (few outbound peers), exactly when we most need
+        to re-attempt known peers. The old window was 12 minutes, which *kept* the multi-minute
+        back-offs that cause catch-up stalls; a 60s window means a starved node re-attempts essentially
+        every peer within a minute instead of waiting out a long back-off, while peers cooling down for
+        only a few more seconds are left undisturbed.
         """
-        limit = time() + 12*60
-        # Optimization: Dict comprehension instead of multiple deletions
+        soon = time() + 60
         self.tried = {client: data for client, data in self.tried.items()
-                     if data[1] <= limit}
+                      if data[1] <= soon}
