@@ -39,7 +39,14 @@ class LiteClient:
 
     # --- convenience ------------------------------------------------------
     def mine(self, count=1):
-        return self.command("regtest_generate", [count])
+        before = self.block_height()
+        result = self.command("regtest_generate", [count])
+        # regtest_generate can return before the block is committed to the queryable ledger; wait until
+        # the chain has actually advanced so send->mine->read patterns are race-free (suite robustness).
+        deadline = time.time() + 10
+        while self.block_height() < before + count and time.time() < deadline:
+            time.sleep(0.05)
+        return result
 
     def block_height(self):
         return self.command("statusjson")["blocks"]
