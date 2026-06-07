@@ -2,6 +2,7 @@ import hashlib
 import os
 import sys
 import time
+import traceback
 from decimal import Decimal
 from typing import List, Any, Tuple
 
@@ -493,16 +494,21 @@ def execute_block_hooks(node, block_instance, miner_tx, diff_save, peer_ip, bloc
 
 def handle_processing_error(node, db_handler, sdef, peer_ip, error):
     """Handle errors during block processing."""
-    node.logger.app_log.warning(f"Chain processing failed: {error}")
+    # Pinpoint the REAL failure site (deepest traceback frame) and keep the cause. The previous bare
+    # `print(exc_type, file, lineno)` went to stdout (no timestamp/level), dropped the message, and
+    # always reported digest.py's process_block_data call site instead of where the block actually
+    # failed validation — making rejected-block diagnosis during sync impossible.
+    _exc_type, _exc, exc_tb = sys.exc_info()
+    frames = traceback.extract_tb(exc_tb)
+    where = f"{os.path.basename(frames[-1].filename)}:{frames[-1].lineno}" if frames else "?"
+    node.logger.app_log.warning(
+        f"Chain: digestion from {peer_ip} failed at {where} - {type(error).__name__}: {error}")
 
-    # Restore actual data from database
+    # Restore actual data from database (roll our view back to what is committed)
     node.last_block = db_handler.block_max_ram()['block_height']
     node.last_block_hash = db_handler.last_block_hash()
-
-    # Log error details
-    exc_type, exc_obj, exc_tb = sys.exc_info()
-    fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-    print(exc_type, fname, exc_tb.tb_lineno)
+    node.logger.app_log.warning(
+        f"Chain: fell back to block {node.last_block} after rejecting a block from {peer_ip}")
 
     # Ban peer if necessary
     if node.peers.warning(sdef, peer_ip, "Rejected block", 2):
