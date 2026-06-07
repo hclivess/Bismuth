@@ -205,31 +205,30 @@ class Mempool(MempoolQueriesMixin):
         Tells if we should let a specific tx in, depending on space left and its characteristics.
         :param transaction:
         :param mempool_size:
-        :param size_bypass:
         :return:
+
+        Anti-spam (doc/17): as the pool fills, admission tightens to higher-FEE txs. Priority is the
+        tx's actual deterministic fee — the one thing a spammer cannot inflate without paying it —
+        NOT the nominal `amount` (a self-send inflates that for free) and NOT a per-address allow-list
+        (addresses are free to mint, so it was Sybil-trivial). The hard protections — every tx pays a
+        fee out of a *funded* balance, and total pool size is bounded — live in `merge`; this routine
+        only orders admission under congestion. transaction[6]=operation, transaction[7]=openfield.
         """
-        # ANTI-SPAM (doc/17): these congestion tiers are gameable and should be reworked. They
-        # prioritise by nominal `amount` (a spammer self-sends a large amount for one base fee) and by
-        # a config address allow-list (anyone can mint addresses). The fix is to gate by the tx's actual
-        # fee/cost, not amount, and to move rate limiting to the API ingestion layer. NOT per-address.
-        # Allow whatever the tx is
+        # Plenty of room: accept anything.
         if mempool_size < 0.3:
             return True
-        # Low priority tx, token or openfield data
+        # Past 0.3 MB, scarcer space costs more fee. fee_calculate is deterministic (base + openfield
+        # length + token/alias surcharges), so this cannot be gamed without actually paying it.
+        fee = float(essentials.fee_calculate(transaction[7], transaction[6]))
         if mempool_size < 0.4:
-            if len(str(transaction[7])) > 200:
-                # Openfield > 200
-                return True
-            if "token:" == transaction[6][:6]:
-                return True
-        # Medium prio: 5 BIS or more
+            # data / token / alias txs — anything paying above the bare base fee
+            return fee > float(essentials.BASE_FEE)
         if mempool_size < 0.5:
-            if float(transaction[3]) > 5:
-                return True
-        # High prio: allowed by config
+            # alias-register / token-issue economic tier and up (fee >= 1 BIS)
+            return fee >= 1.0
         if mempool_size < 0.6:
-            if transaction[1] in self.config.mempool_allowed:
-                return True
+            # token-issue tier — the highest deterministic fee (fee >= 10 BIS)
+            return fee >= 10.0
         # Sorry, no space left for this tx type.
         return False
 

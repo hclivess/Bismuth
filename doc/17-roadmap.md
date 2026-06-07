@@ -110,10 +110,14 @@
   already works and must be kept: every tx pays a fee out of the sender's *funded* balance (`merge`'s
   balance check), so flooding from N addresses costs N×fee in real BIS spread across funded addresses;
   and total mempool size is bounded (`space_left_for_tx`, ~0.6 MB). The gaps to close:
-  1. The congestion-prioritisation tiers in `space_left_for_tx` are **gameable** — they admit by nominal
+  1. ✅ **Done.** The congestion-prioritisation tiers in `space_left_for_tx` admitted by nominal
      `amount` (a spammer self-sends a large amount for the price of one base fee) and by a config
-     address allow-list. Replace amount-priority with the tx's actual **fee/cost** (the one thing a
-     spammer cannot fake under a deterministic-fee model) and drop the address tier.
+     address allow-list (Sybil-trivial). Both are gone: admission is now gated by the tx's actual
+     **deterministic fee** (`fee_calculate` — base + openfield length + token/alias surcharge, the one
+     thing a spammer cannot inflate without paying it), in successive bands (`> base`, `>= 1`, `>= 10`).
+     The hard protections (every tx pays a fee from a *funded* balance; total pool bounded) are
+     untouched in `merge`. Covered by `tests/test_mempool_antispam.py`. The `mempool_allowed` config
+     option is left defined but unused (back-compat).
   2. Put **rate limiting on the HTTP ingestion layer** when tx submission moves to the REST API (the
      survivor path) — per-connection/token throttling + HTTP 429 — rather than bolting policy onto the
      doomed socket `merge`.
