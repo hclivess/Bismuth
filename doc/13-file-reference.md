@@ -10,7 +10,8 @@ imported library; *script* = run directly.
 | `node.py` | script | the full node (entry point); startup, threading, TCP server, command dispatch |
 | `node_init.py` | module | node bootstrap/init helpers lifted from `node.py` by DI: `setup_net_type`, `node_block_init`, `ram_init`, `initial_db_check`, `load_keys`, `add_indices` |
 | `node_stop.py` | script | sends `stop` to a local node |
-| `digest.py` | module | block & transaction validation/commit pipeline (consensus core) |
+| `digest.py` | module | block validation/commit pipeline (consensus core): the `BlockProcessor` engine + `digest_block`/`process_block_data` orchestration + helpers |
+| `digest_tx.py` | module | block/tx data model lifted from `digest`: `Transaction`/`MinerTransaction`/`Block` value objects + the consensus quantizers (`quantize_two`/`quantize_eight`, which differ from `quantizer.py`) |
 | `chain_ops.py` | module | chain-maintenance ops lifted from `node.py` by DI: `rollback`, `recompress_ledger`, `ledger_check_heights`, `blocknf` (block-not-found rollback), plus boot/validation `bootstrap`, `check_integrity`, `sequencing_check` |
 | `fork.py` | module | hardfork heights & post-fork reward validation |
 | `genesis.py` | script | one-shot chain bootstrap (creates `ledger.db`); legacy wallet format |

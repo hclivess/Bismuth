@@ -138,7 +138,11 @@
   four domain mixins (`peers_storage` / `peers_pool` / `peers_consensus` / `peers_access`) recombined via
   `class Peers(PeersStorageMixin, …)`, leaving a ~190-line core (`__slots__` + `__init__` + net-type
   helpers + the `client_loop` maintenance orchestrator); all 31 method bodies stayed byte-identical and
-  the mixins carry `__slots__ = ()` so the slotted layout is preserved.
+  the mixins carry `__slots__ = ()` so the slotted layout is preserved; and the 660-line `digest.py`
+  consensus pipeline had its block/tx **data model** (`Transaction` / `MinerTransaction` / `Block` value
+  objects + the local consensus quantizers, which intentionally differ from `quantizer.py`) lifted into
+  `digest_tx.py`, leaving the `BlockProcessor` engine + `digest_block` orchestration in a ~527-line core
+  — all five moved nodes byte-identical and `tests/test_replay.py` confirms the chain re-hashes the same.
   **`node.py` is down from 2200 to ~1420 lines (−36%).** The remaining
   bulk is the ~1080-line socket-command `handle()`: its branches use `break`/`continue` against the
   connection loop and interleave consensus-critical sync, so turning it into a dispatch table needs a
