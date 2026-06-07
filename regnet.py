@@ -179,6 +179,27 @@ def command(sdef, data, blockhash, node, db_handler):
             for i in range(how_many):
                 blockhash = generate_one_block(blockhash, mempool_txs, node, db_handler)
             connections.send(sdef, 'OK')
+        elif data == 'regtest_rollback':
+            # REGNET-ONLY test helper: drive the REAL chain rollback so the reorg path (ledger + all
+            # auxiliary stores) is exercised end-to-end. Destructive — hence this dispatcher is regnet-
+            # gated and we re-check is_regnet here (defence-in-depth: a rollback command must never be
+            # reachable on a live chain).
+            below = int(connections.receive(sdef))
+            if getattr(node, "is_regnet", False):
+                from decimal import Decimal
+                import chain_ops
+                chain_ops.rollback(node, db_handler, below)
+                # reflect the new tip in the node's height pointers (a resync does this in production)
+                node.hdd_block = below - 1
+                node.last_block = below - 1
+                db_handler.execute_param(db_handler.c,
+                    "SELECT timestamp, block_hash FROM transactions WHERE block_height = ? AND reward != 0 LIMIT 1",
+                    (below - 1,))
+                row = db_handler.c.fetchone()
+                if row:
+                    node.last_block_timestamp = Decimal(row[0])
+                    node.last_block_hash = row[1]
+            connections.send(sdef, 'OK')
     except Exception as e:
         node.logger.app_log.warning(e)
         exc_type, exc_obj, exc_tb = sys.exc_info()

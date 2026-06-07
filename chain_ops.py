@@ -26,6 +26,24 @@ from essentials import download_file
 from quantizer import quantize_eight
 
 
+def _rollback_aux_stores(node, keep_height):
+    """Roll back EVERY integrated height-keyed auxiliary store to ``keep_height`` (the new tip) in ONE
+    place, so a chain rollback (reorg) can never leave a store out of sync with the ledger. Each is
+    guarded + logged; stores that aren't enabled skip. The balance index / reward sidechain join this
+    list when they are wired into the read path. (Depth is bounded upstream by the blocknf /
+    rollback_depth / rollback_consensus checks — this only mirrors the already-bounded ledger rollback,
+    so it adds no new deep-reorg attack surface.)"""
+    for label, store in (("block store", getattr(node, "block_store", None)),
+                         ("reward sidechain", getattr(node, "reward_chain", None))):
+        if store is None:
+            continue
+        try:
+            removed = store.rollback(keep_height)
+            node.logger.app_log.warning(f"Status: {label} rolled back to {keep_height} ({removed} removed)")
+        except Exception as e:
+            node.logger.app_log.warning(f"{label} rollback failed: {e}")
+
+
 def rollback(node, db_handler, block_height):
     node.logger.app_log.warning(f"Status: Rolling back below: {block_height}")
 
@@ -36,13 +54,9 @@ def rollback(node, db_handler, block_height):
     db_handler.aliases_rollback(node, block_height)
     # rollback indices
 
-    # keep the optional LMDB block-store mirror consistent with the rolled-back chain (best-effort).
-    # rollback_under(block_height) drops heights >= block_height, so the store keeps <= block_height-1.
-    if getattr(node, "block_store", None) is not None:
-        try:
-            node.block_store.rollback(block_height - 1)
-        except Exception as e:
-            node.logger.app_log.warning(f"block store rollback failed: {e}")
+    # one unified place to keep every auxiliary store in sync with the rolled-back ledger.
+    # rollback_under(block_height) drops heights >= block_height, so the stores keep <= block_height-1.
+    _rollback_aux_stores(node, block_height - 1)
 
     node.logger.app_log.warning(f"Status: Chain rolled back below {block_height} and will be resynchronized")
 

@@ -129,7 +129,14 @@
     rather than base64 (~25 % smaller for RSA, and far smaller for the 32–33-byte ECDSA/ED25519 keys and
     64-byte sigs); (c) keep only the content-hash txid + signature on-chain. The same dedup can be done
     **pre-fork, locally** in the LMDB block store (transparent, lossless — the measured 4.3 GB→ below
-    SQLite); the fork makes it canonical and network-wide. The current retarget (`difficulty.py:difficulty()`) needs replacing:
+    SQLite); the fork makes it canonical and network-wide.
+  - **Coinbase compaction.** The coinbase (miner reward) is ingested as a *full* signed transaction — a
+    1068-byte RSA public key + 684-byte signature like any tx, plus (a Bismuth quirk) the PoW **nonce in
+    its openfield** (which the hf2 readiness signal currently rides in). Wasteful: the reward is
+    consensus-derived (needs no repeated key) and the nonce deserves its own field. The fork should give
+    the coinbase a compact, purpose-built encoding (Bitcoin-style special coinbase).
+
+  The current retarget (`difficulty.py:difficulty()`) needs replacing:
   the **per-block jumps are too steep** and the **approach is convoluted**. Concretely — the steep
   jumps: a single block can move difficulty by up to `MAX_DIFF_ADJUST = 1.0` in the log2-style
   difficulty domain, i.e. a **full doubling of work in one block**; the upward step is capped but the
@@ -161,6 +168,23 @@
     token layer, for web3/wallet tooling. Honestly bounded: Ethereum's account/gas/EVM model differs
     fundamentally, so this is a **compatibility shim** (balances, tx submit, blocks, token views),
     **not** an EVM — full smart-contract semantics are out of scope.
+- **Decentralized-apps v2 protocol — on-chain VM execution (the real smart-contract layer).** What the
+  shim above deliberately *isn't*: transactions carry program/call data, a **deterministic virtual
+  machine** executes it on every node, and the resulting **state + output are written back to the chain
+  and agreed by consensus** — the Ethereum model. A major, consensus-level addition layered on the hf2
+  binary tx encoding. Building blocks:
+  - a **sandboxed deterministic VM** — a WASM engine (modern, widely-vetted, multi-language) is the
+    sensible base over a bespoke bytecode; *every node must execute byte-identically*, so determinism is
+    the whole game (no floats, no wall-clock, fixed iteration order, fixed memory model);
+  - **gas / metering** to bound execution and halt runaway or adversarial programs;
+  - a **contract state trie committed into the block hash**, so state is verifiable and replay-checkable
+    like everything else behind the frozen boundary;
+  - a deploy/call **tx format** + a contract-storage model, generalising today's openfield + token layer.
+  - **Security is the hard part and designed-against from day one** (per the standing attack-vector
+    rule): reentrancy, integer overflow/underflow, **gas-exhaustion DoS**, and — uniquely fatal for a
+    chain — any **non-determinism** (floats, time, map ordering, uninitialised memory) that makes two
+    honest nodes disagree and forks the network. Also state-bloat / unbounded growth. This is its own
+    multi-stage effort and its own hard fork, well beyond the storage/serialization work.
 - **Supersede the legacy socket / peer / block-processing stack with the API system.** This is the
   project's worst code — blocking, no asyncio, stall-prone — and the long-term plan moves its capability
   onto the HTTP/REST API (parallel, compressed, non-stalling). That replacement is the *destination*, but

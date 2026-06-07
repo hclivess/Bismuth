@@ -140,7 +140,9 @@ class BitcoinRPCServer:
         self._thread = None
 
     def start(self):
-        self._httpd = ThreadingHTTPServer(("0.0.0.0", self.port), _make_handler(self.node))
+        # bind localhost only: read-only but UNAUTHENTICATED, so expose it deliberately via a reverse
+        # proxy (like the REST API behind nginx), never straight to the internet (DoS / info-exposure).
+        self._httpd = ThreadingHTTPServer(("127.0.0.1", self.port), _make_handler(self.node))
         self._thread = threading.Thread(target=self._httpd.serve_forever, daemon=True)
         self._thread.start()
         self.node.logger.app_log.warning("Status: Bitcoin-compatible JSON-RPC on port %s" % self.port)

@@ -48,6 +48,15 @@ class LiteClient:
             time.sleep(0.05)
         return result
 
+    def rollback(self, below_height):
+        """REGNET test helper: roll the chain back below `below_height` (drives chain_ops.rollback —
+        the ledger AND every integrated auxiliary store, in sync). Returns the new tip."""
+        self.command("regtest_rollback", [below_height])
+        deadline = time.time() + 10
+        while self.block_height() != below_height - 1 and time.time() < deadline:
+            time.sleep(0.05)
+        return self.block_height()
+
     def block_height(self):
         return self.command("statusjson")["blocks"]
 

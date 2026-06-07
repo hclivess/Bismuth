@@ -127,7 +127,8 @@ class EthereumRPCServer:
         self._httpd = None
 
     def start(self):
-        self._httpd = ThreadingHTTPServer(("0.0.0.0", self.port), _make_handler(self.node))
+        # bind localhost only: unauthenticated read shim, expose deliberately via a reverse proxy.
+        self._httpd = ThreadingHTTPServer(("127.0.0.1", self.port), _make_handler(self.node))
         threading.Thread(target=self._httpd.serve_forever, daemon=True).start()
         self.node.logger.app_log.warning("Status: Ethereum-compatible JSON-RPC shim on port %s" % self.port)
 
