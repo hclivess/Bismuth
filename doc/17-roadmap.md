@@ -168,13 +168,19 @@
   within 200 s** — that is the scalability wall, and `ledger.db` also grows without bound. The target,
   built **behind the frozen serialization boundary so block hashes stay byte-identical — replay-validated,
   no hard fork**:
-  1. **Immutable block bodies → an append-only KV store (LMDB).** Signatures, public keys and openfields
-     are write-once and fetched by height/hash, so they belong in an embedded, memory-mapped,
-     compaction-free KV store keyed by height (plus a `hash → height` map), not an ever-growing SQL
-     table. **LMDB over RocksDB:** a single mmap'd file, no background compaction, copy-on-write MVCC
+  1. **Immutable block bodies → an append-only KV store (LMDB).** ✅ **Foundation implemented**
+     (`block_store.py`): an LMDB `BlockStore` with two sub-dbs — `blocks` (big-endian uint64 height →
+     msgpack `{hash, txs}`) and `hashes` (block_hash → height) — giving O(1) tip, numeric-ordered range
+     scans, `height_by_hash`, and height-based `rollback` (with hash-index cleanup). Each stored tx
+     drops the redundant block_height (it is the key); `get_block` re-prepends it, so callers get the
+     exact 12-field ledger rows back — a **lossless mirror**, proven by `build_from_sqlite` +
+     `verify_against_sqlite` and `tests/test_block_store.py`. Storage only, behind the frozen boundary.
+     Chosen **LMDB over RocksDB:** a single mmap'd file, no background compaction, copy-on-write MVCC
      reads alongside a single writer — a near-perfect fit for an append-heavy, read-heavy, immutable
-     workload, and a trivial embedded dependency (`pip install lmdb`). Decide on data — the phase-7
-     benchmark — not taste.
+     workload, and a trivial embedded dependency (`pip install lmdb msgpack`). ◻ **Remaining:** wire it
+     into the node's read/write path behind a config flag (write-through shadow first, then primary),
+     each step replay-validated. Signatures, public keys and openfields are write-once and fetched by
+     height/hash, exactly this store's shape.
   2. **Maintained incremental indexes for queryable state** — balances, `txid → location`, address
      history — updated on apply/rollback and bit-matching the authoritative computation, turning that
      >200 s full-scan balance into an O(1)/O(log n) lookup. This is the phase-4 incremental balance
