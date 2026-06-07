@@ -188,10 +188,15 @@
      into the node's read/write path behind a config flag (write-through shadow first, then primary),
      each step replay-validated. Signatures, public keys and openfields are write-once and fetched by
      height/hash, exactly this store's shape.
-  2. **Maintained incremental indexes for queryable state** — balances, `txid → location`, address
-     history — updated on apply/rollback and bit-matching the authoritative computation, turning that
-     >200 s full-scan balance into an O(1)/O(log n) lookup. This is the phase-4 incremental balance
-     index generalised; it depends on integer storage to bit-match exactly.
+  2. **Maintained incremental indexes for queryable state.** ✅ **Balance index implemented**
+     (`balance_index.py`): a per-address running `(credit, debit)` total in integer units (LMDB),
+     `apply_rows`/`rollback_rows`/`rebuild_from_ledger`, turning the >200 s full-scan balance into an
+     O(1) lookup. It **bit-matches `ledger_balance3` for every address** on real regnet data
+     (`tests/test_balance_index.py`) — including the negative-height dev-reward / hypernode-payout
+     "mirror" rows the node mints locally at commit (so the rebuild scans the WHOLE ledger, no height
+     filter). Needs integer-amount storage to bit-match exactly. ◻ Remaining: `txid → location` +
+     address-history indexes, and wiring the apply/rollback into the digester behind a flag. (When
+     phase 5 retires the mirror-row hack, rewards apply from real columns instead.)
   3. **Integer atomic-unit amounts (phase 2) enabled** — compact exact integers instead of the current
      `REAL` floats / `'%.8f'` strings. Already replay-proven; currently default-off.
   4. **Bounded node footprint via a formalised pruning model (phase 5)** so a node need not retain the
