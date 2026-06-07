@@ -76,6 +76,33 @@ def test_rollback_removes_blocks_and_hashes(tmp_path):
         s.close()
 
 
+def test_pubkey_dedup(tmp_path):
+    s = BlockStore(str(tmp_path / "bs"), map_size=SMALL)
+    try:
+        # 3 blocks * 2 txs each = 6 txs, but only 2 distinct public keys (pubkey0 / pubkey1 from _row)
+        s.put_blocks([_block(h, ntx=2) for h in (1, 2, 3)])
+        with s.env.begin() as txn:
+            assert txn.stat(db=s.pk)["entries"] == 2     # deduped: 2 keys stored, not 6
+        for h in (1, 2, 3):                              # and still lossless
+            _, _, rows = _block(h, ntx=2)
+            assert s.get_block(h) == rows
+    finally:
+        s.close()
+
+
+def test_long_pubkey_roundtrip(tmp_path):
+    # a real RSA public key is ~1068 bytes, bigger than LMDB's 511-byte max key size; the dedup must
+    # hash it for the table key, not use it directly.
+    s = BlockStore(str(tmp_path / "bs"), map_size=SMALL)
+    try:
+        longpk = "A" * 1100
+        rows = [[7, "t", "addr", "recip", 5, "sig", longpk, "hashlong", 0, 0, "", ""]]
+        s.put_block(7, "hashlong", rows)
+        assert s.get_block(7) == rows
+    finally:
+        s.close()
+
+
 def test_build_and_verify_against_sqlite(tmp_path):
     ledger = str(tmp_path / "ledger.db")
     conn = sqlite3.connect(ledger)

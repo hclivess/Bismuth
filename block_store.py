@@ -19,6 +19,7 @@ behind a config flag, replay-validated, in a later step).
 
 Deps: ``lmdb`` (required), ``msgpack`` (optional — JSON fallback, larger).
 """
+import hashlib
 import struct
 
 import lmdb
@@ -52,24 +53,69 @@ def _uh(key):
 
 
 class BlockStore:
+    # stored-tx index of the public_key field (in the 11-field row after block_height is dropped:
+    # timestamp,address,recipient,amount,signature,public_key,block_hash,fee,reward,operation,openfield)
+    _PK = 5
+
     def __init__(self, path, map_size=64 * _GIB, readonly=False, sync=True):
-        self.env = lmdb.open(path, subdir=True, max_dbs=2, map_size=map_size,
+        self.env = lmdb.open(path, subdir=True, max_dbs=4, map_size=map_size,
                              readonly=readonly, lock=not readonly, sync=sync,
                              metasync=sync)
         self.blocks = self.env.open_db(b"blocks")
         self.hashes = self.env.open_db(b"hashes")
+        # Public-key dedup: the 1068-byte RSA public key is 1:1 with the sender address and repeats on
+        # every tx, so store each distinct key ONCE and reference it by a small integer id. Transparent
+        # + lossless: get_block re-expands the id to the original key string.
+        self.pk = self.env.open_db(b"pk")     # public_key bytes -> id (BE uint64)
+        self.pkr = self.env.open_db(b"pkr")   # id (BE uint64) -> public_key bytes
 
     @staticmethod
     def _bh(block_hash):
         return block_hash.encode() if isinstance(block_hash, str) else block_hash
 
+    def _pubkey_id(self, txn, pk, cache):
+        """Map a public key to its dedup id, assigning a new one (next = count) if unseen."""
+        if pk in cache:
+            return cache[pk]
+        pkb = pk.encode() if isinstance(pk, str) else pk
+        # key the dedup table by a fixed-size content hash: a public key (1068 B for RSA) exceeds LMDB's
+        # 511-byte max key size, so it can't be the key directly. blake2b-256 collisions are negligible,
+        # and verify_against_sqlite would catch any anyway. The full key is stored as the value in pkr.
+        hkey = hashlib.blake2b(pkb, digest_size=32).digest()
+        v = txn.get(hkey, db=self.pk)
+        if v is not None:
+            nid = _uh(v)
+        else:
+            nid = txn.stat(db=self.pk)["entries"]
+            txn.put(hkey, _hk(nid), db=self.pk)
+            txn.put(_hk(nid), pkb, db=self.pkr)
+        cache[pk] = nid
+        return nid
+
+    def _expand(self, txn, height, rec):
+        """Rebuild the full 12-field rows for a block, re-expanding the public-key id to the key str."""
+        out = []
+        for t in rec["t"]:
+            t = list(t)
+            pkb = txn.get(_hk(t[self._PK]), db=self.pkr)
+            if pkb is not None:
+                t[self._PK] = pkb.decode()
+            out.append([height] + t)
+        return out
+
     # --- write -------------------------------------------------------------
     def put_blocks(self, items):
         """Store an iterable of ``(height, block_hash, full_rows)`` in one transaction.
-        ``full_rows`` are 12-field ledger rows; the leading block_height is dropped (it is the key)."""
+        ``full_rows`` are 12-field ledger rows; block_height is dropped (the key) and the public key is
+        replaced by its dedup id."""
         with self.env.begin(write=True) as txn:
+            cache = {}
             for height, block_hash, rows in items:
-                txs = [list(r[1:]) for r in rows]
+                txs = []
+                for r in rows:
+                    t = list(r[1:])
+                    t[self._PK] = self._pubkey_id(txn, t[self._PK], cache)
+                    txs.append(t)
                 txn.put(_hk(height), _pack({"h": block_hash, "t": txs}), db=self.blocks)
                 txn.put(self._bh(block_hash), _hk(height), db=self.hashes)
 
@@ -91,13 +137,12 @@ class BlockStore:
 
     # --- read --------------------------------------------------------------
     def get_block(self, height):
-        """Full 12-field ledger rows for ``height`` (block_height re-prepended), or None."""
+        """Full 12-field ledger rows for ``height`` (block_height re-prepended, pubkey re-expanded)."""
         with self.env.begin() as txn:
             v = txn.get(_hk(height), db=self.blocks)
-        if v is None:
-            return None
-        rec = _unpack(v)
-        return [[height] + list(t) for t in rec["t"]]
+            if v is None:
+                return None
+            return self._expand(txn, height, _unpack(v))
 
     def block_hash(self, height):
         with self.env.begin() as txn:
@@ -118,8 +163,7 @@ class BlockStore:
                     h = _uh(k)
                     if h > end:
                         break
-                    rec = _unpack(v)
-                    yield h, [[h] + list(t) for t in rec["t"]]
+                    yield h, self._expand(txn, h, _unpack(v))
 
     def tip(self):
         with self.env.begin() as txn:
