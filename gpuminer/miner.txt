@@ -1,0 +1,9 @@
+port=8525
+mining_ip=127.0.0.1
+mining_threads=1
+tor=0
+miner_address=0a83f9b7aa6dabf986ab2f81c857d036c47e367940dc49093873614d
+max_diff=150
+miner_name=cuda_gpu
+nonce_time=10
+hashcount=20000
