@@ -32,6 +32,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
+import amounts
 import dbhandler
 import essentials
 import mempool as mp
@@ -137,7 +138,9 @@ def _make_handler(node):
                 if route[:2] == ["blocks", "since"] and len(route) == 3:
                     return self._write(200, self._blocks_since(db, route[2], query))
                 if route[:2] == ["blocks", "range"] and len(route) == 4:
-                    return self._write(200, self._blocks_range(db, route[2], route[3]))
+                    return self._write(200, self._blocks_range(db, route[2], route[3], query))
+                if route[:2] == ["headers", "range"] and len(route) == 4:
+                    return self._write(200, self._headers_range(db, route[2], route[3]))
                 if route[:1] == ["balance"] and len(route) == 2:
                     return self._write(200, self._balance(db, route[1]))
                 if route[:1] == ["transaction"] and len(route) >= 2:
@@ -179,7 +182,10 @@ def _make_handler(node):
                         "/api/block/height/{n}": "block at a given height",
                         "/api/block/hash/{hash}": "block by hash",
                         "/api/blocks/since/{height}": "positive-height blocks after {height} (?limit=N, parallel sync)",
-                        "/api/blocks/range/{start}/{end}": "blocks in the inclusive height range (parallel sync)",
+                        "/api/blocks/range/{start}/{end}": "blocks in the inclusive height range (parallel sync; "
+                                                          "?format=sync for consensus-faithful digester tuples)",
+                        "/api/headers/range/{start}/{end}": "compact block headers (height/hash/timestamp/txs) for "
+                                                            "Bitcoin-style headers-first quick sync",
                         "/api/balance/{address}": "confirmed balance of an address",
                         "/api/transaction/{txid}": "transaction by id (signature prefix)",
                         "/api/address/{address}/transactions": "recent txs for an address (?limit=N, max 500)",
@@ -246,6 +252,48 @@ def _make_handler(node):
                 blocks.setdefault(row[0], []).append(essentials.format_raw_tx(row))
             return [{"block_height": h, "transactions": txs} for h, txs in blocks.items()]
 
+        def _row_to_sync_tx(self, row):
+            # Consensus-faithful tx tuple in the EXACT order the digester consumes
+            # (timestamp, address, recipient, amount, signature, public_key, operation, openfield).
+            # Unlike format_raw_tx this keeps the public key BASE64-ENCODED as stored — decoding it (as
+            # the display API does) would corrupt the bytes the signature is verified against. amount is
+            # reconstructed to its decimal value so the digester re-derives the exact signed string.
+            return [row[1], row[2], row[3], amounts.display_amount(row[4]),
+                    row[5], row[6], row[10], row[11]]
+
+        def _grouped_sync_blocks(self, rows):
+            # Group rows into blocks (txs kept in stored/consensus order), carrying the block_hash so a
+            # headers-first client can verify each downloaded body against the header it already trusts.
+            blocks, order = {}, []
+            for row in rows:
+                h = row[0]
+                if h not in blocks:
+                    blocks[h] = {"block_height": h, "block_hash": row[7], "transactions": []}
+                    order.append(h)
+                blocks[h]["transactions"].append(self._row_to_sync_tx(row))
+            return [blocks[h] for h in order]
+
+        def _headers_range(self, db, raw_start, raw_end):
+            # Compact per-block headers (height, hash, timestamp, tx count) for Bitcoin-style
+            # headers-first sync: a client pulls the cheap header chain, validates linkage / picks the
+            # best chain, THEN fetches full bodies in parallel and checks each body re-hashes to its
+            # header. block_hash chains to the previous block (consensus), so a contiguous, hash-verified
+            # body sequence IS the validated chain — the header pass makes catch-up bandwidth-cheap first.
+            try:
+                start, end = int(raw_start), int(raw_end)
+            except ValueError:
+                raise _BadRequest("start and end must be integers")
+            if end < start:
+                raise _BadRequest("end must be >= start")
+            end = min(end, start + 5000)  # headers are tiny; allow a much wider span than full blocks
+            rows = db.fetchall(db.h,
+                               "SELECT block_height, MAX(block_hash), MIN(timestamp), COUNT(*) "
+                               "FROM transactions WHERE block_height >= ? AND block_height <= ? "
+                               "GROUP BY block_height ORDER BY block_height ASC", (start, end))
+            headers = [{"block_height": r[0], "block_hash": r[1], "timestamp": r[2], "txs": r[3]}
+                       for r in (rows or [])]
+            return {"start": start, "end": end, "count": len(headers), "headers": headers}
+
         def _blocks_since(self, db, raw_since, query):
             # Positive-height blocks after `since` (mirror reward rows are regenerated by the digester,
             # so they are not shipped). Designed for parallel range fetching by new sync clients.
@@ -262,7 +310,7 @@ def _make_handler(node):
                                      "ORDER BY block_height ASC", (since, since + limit))
             return {"since": since, "limit": limit, "blocks": self._grouped_blocks(rows or [])}
 
-        def _blocks_range(self, db, raw_start, raw_end):
+        def _blocks_range(self, db, raw_start, raw_end, query=None):
             try:
                 start, end = int(raw_start), int(raw_end)
             except ValueError:
@@ -272,6 +320,11 @@ def _make_handler(node):
             end = min(end, start + 1000)  # cap the span
             rows = db.fetchall(db.h, "SELECT * FROM transactions WHERE block_height >= ? AND block_height <= ? "
                                      "ORDER BY block_height ASC", (start, end))
+            fmt = (query or {}).get("format", ["json"])[0]
+            if fmt == "sync":
+                # consensus-faithful tuples a syncing peer can feed straight to its digester
+                return {"start": start, "end": end, "format": "sync",
+                        "blocks": self._grouped_sync_blocks(rows or [])}
             return {"start": start, "end": end, "blocks": self._grouped_blocks(rows or [])}
 
         def _balance(self, db, address):

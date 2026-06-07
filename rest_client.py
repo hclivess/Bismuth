@@ -84,3 +84,56 @@ def parallel_fetch(host, port, start, end, chunk=DEFAULT_CHUNK, workers=DEFAULT_
             blocks.extend(chunk_blocks)
     blocks.sort(key=lambda b: b["block_height"])
     return blocks
+
+
+# --- headers-first quick sync ------------------------------------------------------------------
+# Bitcoin-style: pull the cheap header chain first (height/hash, tiny), validate that it is
+# contiguous and that each body re-hashes to its header, THEN pull full bodies in parallel. The
+# header pass makes catch-up bandwidth-cheap and lets a client commit to a target chain before
+# spending bandwidth on bodies.
+
+def fetch_headers(host, port, start, end, timeout=DEFAULT_TIMEOUT):
+    """Compact block headers in ``[start, end]`` (``{block_height, block_hash, timestamp, txs}``)."""
+    data = _get_json("{}/headers/range/{}/{}".format(base_url(host, port), int(start), int(end)),
+                     timeout=timeout)
+    return data.get("headers", [])
+
+
+def fetch_sync_range(host, port, start, end, timeout=DEFAULT_TIMEOUT):
+    """Blocks in ``[start, end]`` as CONSENSUS-FAITHFUL digester tuples (``?format=sync``): the public
+    key is kept base64-encoded as stored (not decoded like the display API), so each block can be fed
+    straight to the digester / re-hashed without corrupting the signed bytes."""
+    data = _get_json("{}/blocks/range/{}/{}?format=sync".format(base_url(host, port), int(start), int(end)),
+                     timeout=timeout)
+    return data.get("blocks", [])
+
+
+def parallel_fetch_sync(host, port, start, end, chunk=DEFAULT_CHUNK, workers=DEFAULT_WORKERS,
+                        timeout=DEFAULT_TIMEOUT):
+    """Concurrent ``fetch_sync_range`` over ``[start, end]``; all blocks sorted ascending by height."""
+    if end < start:
+        return []
+    spans = [(s, min(s + chunk - 1, end)) for s in range(start, end + 1, chunk)]
+    blocks = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, min(workers, len(spans)))) as pool:
+        for chunk_blocks in pool.map(lambda se: fetch_sync_range(host, port, se[0], se[1], timeout), spans):
+            blocks.extend(chunk_blocks)
+    blocks.sort(key=lambda b: b["block_height"])
+    return blocks
+
+
+def blocks_to_digester(sync_blocks):
+    """Map ``?format=sync`` blocks to ``digest_block``'s input shape: a list of blocks, each a list of
+    tx tuples already in consensus field order. (The faithful tuples need no further conversion.)"""
+    return [b["transactions"] for b in sync_blocks]
+
+
+def headers_are_contiguous(headers, start):
+    """True iff ``headers`` is exactly ``start, start+1, … `` with a hash on every entry — the cheap
+    linkage pre-check before committing bandwidth to bodies."""
+    want = start
+    for h in headers:
+        if h.get("block_height") != want or not h.get("block_hash"):
+            return False
+        want += 1
+    return len(headers) > 0

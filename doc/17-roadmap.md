@@ -60,7 +60,23 @@
 - **API-based sync.** Wire `rest_client.parallel_fetch` into the actual catch-up path so a node syncs
   over the HTTP API when a peer is REST-capable, instead of the serial, blocking, no-asyncio socket
   loop (`connections.py`) that stalls. The socket protocol stays for old peers; it is no longer where
-  new capability is added. (Requires a careful REST-block → digester mapping and two-node validation.)
+  new capability is added.
+  - ✅ **Headers-first + consensus-faithful body mapping done.** `GET /api/headers/range` serves the
+    cheap header chain (height/hash/timestamp/txs) for a Bitcoin-style first pass; `GET
+    /api/blocks/range?format=sync` serves digester-ready tuples that keep the public key **base64 as
+    stored** (the display API decodes it, which would corrupt the signed bytes — the mapping hazard
+    that blocked this). `rest_client` gains `fetch_headers` / `parallel_fetch_sync` /
+    `blocks_to_digester` / `headers_are_contiguous`. `tests/test_headers_sync.py` proves every signed
+    tx still verifies through the sync serialization and each body re-hashes to its header — so the
+    blocks can be fed straight to the digester. This removes the "careful REST-block → digester
+    mapping" risk.
+  - ◻ **Remaining: the live wiring** — call this path in the catch-up loop behind a config flag
+    (default off) and validate node-to-node. Needs a two-node harness; the single-node regnet suite
+    can't exercise one node ingesting another's blocks. **Reality check (measured on mainnet 2026-06):**
+    no live peer is REST-capable yet (legacy peers expose only the socket port), so this path helps
+    only once peers upgrade and lets THIS node *serve* fast sync. Live catch-up against the current
+    network is stuck on the legacy socket protocol (measured ≈0.8 blocks/s, bursty, ~4 min to ramp
+    peer connections) — improvable only by tuning that protocol (see the legacy-stack item below).
 - **Incremental balance index (phase 4 deep).** A maintained O(1) credit/debit index, updated on
   apply/rollback, that bit-matches the authoritative computation. Depends on integer storage.
 - **Explicit reward & pruning model (phase 5).** Replace negative-height "mirror" reward rows and

@@ -35,3 +35,7 @@ sequencing_last
 bismuthcore
 # ignore ledger queries, for the time being.
 ledger_queries.py
+
+# operational scratch from mainnet bring-up / sync diagnostics (not part of the node)
+_start_mainnet.sh
+_restart.pid
