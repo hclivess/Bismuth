@@ -54,6 +54,10 @@ class Get:
         "bootstrap_url": ["str"],
         "bootstrap_file": ["str"],
         "block_store": ["bool"],
+        "fork_signal": ["bool"],
+        "fork_window": ["int"],
+        "fork_boundary": ["int"],
+        "fork_bury": ["int"],
     }
 
     # Optional default values so we don't bug if they are not in the config.
@@ -79,6 +83,10 @@ class Get:
         "bootstrap_url": "https://bismuth.cz/ledger.tar.gz",
         "bootstrap_file": "",                # path to a local bootstrap archive; if set/present, used instead of downloading
         "block_store": False,                # opt-in: also mirror block bodies into an LMDB store (doc/17 phase 7); off by default
+        "fork_signal": False,                # hf2: this node's miner stamps the readiness signal into the coinbase nonce
+        "fork_window": 1000,                 # consecutive all-signalled blocks to lock in (regnet overrides small)
+        "fork_boundary": 1000,               # activate on the next multiple of this
+        "fork_bury": 30,                     # blocks between lock-in and activation (reorg safety)
         "mandatory_message": {
             "Address": "Comment - Dict for addresses that require a message. tx to these addresses withjout a message will not be accepted by mempool.",
             "f6c0363ca1c5aa28cc584252e65a63998493ff0a5ec1bb16beda9bac": "qTrade Exchange needs a message to route the deposit to your account",

@@ -15,3 +15,7 @@ rest_api=True
 rest_api_port=3031
 ledger_integer_amounts=True
 block_store=True
+fork_signal=True
+fork_window=5
+fork_boundary=10
+fork_bury=2

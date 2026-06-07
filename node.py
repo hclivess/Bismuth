@@ -1283,6 +1283,11 @@ if __name__ == "__main__":
     node.bootstrap_file = config.bootstrap_file   # local bootstrap archive; if set/present, used instead of downloading
     node.block_store_enabled = config.block_store # opt-in LMDB block-body mirror (doc/17 phase 7)
     node.block_store = None                        # the store object, created at startup if enabled
+    node.fork_signal = config.fork_signal          # hf2: stamp the readiness signal when mining (doc/18)
+    node.fork_window = config.fork_window          # hf2 signal window / boundary / burial
+    node.fork_boundary = config.fork_boundary
+    node.fork_bury = config.fork_bury
+    node.fork_height = None                          # cached hf2 activation height (None until locked in)
 
     node.logger.app_log = log.log("node.log", node.debug_level, node.terminal_output)
     node.logger.app_log.warning("Configuration settings loaded")

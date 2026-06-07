@@ -148,6 +148,8 @@ def _make_handler(node):
                     return self._write(200, self._transaction(db, "/".join(route[1:])))
                 if route[:1] == ["address"] and len(route) == 3 and route[2] == "transactions":
                     return self._write(200, self._address_txs(db, route[1], query))
+                if route == ["fork"]:
+                    return self._write(200, self._fork(db))
                 raise _NotFound("unknown endpoint")
             except _NotFound as e:
                 self._write(404, {"error": "not_found", "detail": str(e)})
@@ -191,7 +193,17 @@ def _make_handler(node):
                         "/api/address/{address}/transactions": "recent txs for an address (?limit=N, max 500)",
                         "/api/mempool": "pending (unconfirmed) transactions",
                         "/api/peers": "known peers",
+                        "/api/fork": "hf2 auto-fork readiness: signalling run, lock-in, activation height",
                     }}
+
+        def _fork(self, db):
+            import fork
+            tip = node.hdd_block
+            reader = fork.db_fork_signal_reader(db)
+            return fork.fork_status(reader, tip,
+                                    getattr(node, "fork_window", fork.FORK2_WINDOW),
+                                    getattr(node, "fork_boundary", fork.FORK2_BOUNDARY),
+                                    getattr(node, "fork_bury", fork.FORK2_BURY))
 
         def _status(self):
             diff = node.difficulty[0] if getattr(node, "difficulty", None) else None

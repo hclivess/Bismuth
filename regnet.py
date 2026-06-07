@@ -99,7 +99,9 @@ def generate_one_block(blockhash, mempool_txs, node, db_handler):
             i = 0
             for i in range(100):
                 i += 1
-                seed = ('%0x' % getrandbits(128 - 32))
+                # hf2: a signalling node mines a coinbase nonce that carries the readiness marker
+                # (fork.FORK2_SIGNAL). It rides in the PoW nonce itself, so PoW still validates.
+                seed = ("hf2" if getattr(node, "fork_signal", False) else '') + ('%0x' % getrandbits(128 - 32))
                 prefix = ADDRESS + seed
                 # print("node heavy", node.heavy)
                 if node.heavy:

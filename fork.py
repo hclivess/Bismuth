@@ -52,13 +52,30 @@ def dynamic_fork_height(read_signal, tip,
 def db_fork_signal_reader(db_handler):
     """A read_signal(height) backed by the ledger: the coinbase (the reward!=0 row) openfield."""
     def read(height):
+        # the coinbase (miner tx) is the last tx of the block, so the highest rowid at this height;
+        # its openfield carries the nonce + any signal marker.
         db_handler.execute_param(
             db_handler.c,
-            "SELECT openfield FROM transactions WHERE block_height = ? AND reward != 0 LIMIT 1",
+            "SELECT openfield FROM transactions WHERE block_height = ? ORDER BY rowid DESC LIMIT 1",
             (height,))
         row = db_handler.c.fetchone()
         return has_fork_signal(row[0]) if row else False
     return read
+
+
+def fork_status(read_signal, tip, window=FORK2_WINDOW, boundary=FORK2_BOUNDARY, bury=FORK2_BURY):
+    """Readiness view: the current consecutive-signal run, lock-in, activation height, and whether the
+    tip is already past it. Pure (``read_signal`` injected); this is what ``/api/fork`` reports."""
+    fork_height = dynamic_fork_height(read_signal, tip, window, boundary, bury)
+    run = 0
+    if tip:
+        h = tip
+        while h >= 1 and read_signal(h):
+            run += 1
+            h -= 1
+    return {"tip": tip, "window": window, "signalling_run": run,
+            "locked_in": fork_height is not None, "fork_height": fork_height,
+            "active": fork_height is not None and tip is not None and tip >= fork_height}
 
 
 class Fork():
