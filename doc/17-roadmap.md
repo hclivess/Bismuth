@@ -175,6 +175,13 @@
      drops the redundant block_height (it is the key); `get_block` re-prepends it, so callers get the
      exact 12-field ledger rows back — a **lossless mirror**, proven by `build_from_sqlite` +
      `verify_against_sqlite` and `tests/test_block_store.py`. Storage only, behind the frozen boundary.
+     **Validated at scale** (`_lmdb_demo.py`): 995,531 real mainnet blocks (1.15M txs) built in 89 s
+     (~11k blk/s), byte-identical to the ledger, and every signed tx re-verified through the store (0
+     failures). Footprint 4.3 GB — *comparable* to SQLite for the same blocks (bodies are incompressible
+     sigs/pubkeys), so the size win is not yet realised: the **1068-byte public key repeated per tx** is
+     the obvious dedup target (a per-address pubkey table) to push it well below SQLite. The real
+     scalability gains are architectural — O(1) keyed access, append-only (no VACUUM/fragmentation), and
+     moving queryable balances to maintained indexes (step 2) instead of the >200 s full scan.
      Chosen **LMDB over RocksDB:** a single mmap'd file, no background compaction, copy-on-write MVCC
      reads alongside a single writer — a near-perfect fit for an append-heavy, read-heavy, immutable
      workload, and a trivial embedded dependency (`pip install lmdb msgpack`). ◻ **Remaining:** wire it
