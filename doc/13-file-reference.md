@@ -49,7 +49,11 @@ imported library; *script* = run directly.
 |---|---|---|
 | `connections.py` | module | low-level wire protocol (10-byte length + JSON) |
 | `connectionmanager.py` | module | the `ConnectionManager` thread |
-| `peershandler.py` | module | the `Peers` class (discovery, bans, consensus, persistence) |
+| `peershandler.py` | module | the `Peers` manager — `__slots__` + `__init__` + net-type helpers + the `client_loop` maintenance orchestrator; composes the four domain mixins below |
+| `peers_storage.py` | module | `PeersStorageMixin` — peer-file disk I/O (`peers_get`/`peers_test`/`peer_list_disk_format`) + inbound `peersync` |
+| `peers_pool.py` | module | `PeersPoolMixin` — outbound connection-pool membership + retry/back-off (`can_connect_to`, `add_try`/`del_try`/`reset_tried`) |
+| `peers_consensus.py` | module | `PeersConsensusMixin` — consensus-height tracking (`consensus_add`/`consensus_remove` + the `consensus_*` vote properties) |
+| `peers_access.py` | module | `PeersAccessMixin` — bans, weighted `warning`s, whitelist checks, mainnet-version gating |
 | `worker.py` | module | outbound per-peer sync thread |
 | `rpcconnections.py` | module | client-side `Connection` class (for wallets/scripts) |
 | `hyperlane.py` | module | placeholder hyperlane manager (stub); `attic/hyperlane_asyncio.py` is the retired asyncio variant |

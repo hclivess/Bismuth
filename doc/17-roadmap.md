@@ -133,7 +133,12 @@
   `verify` deliberately stays); and the wallet/key-management cluster (`sign_rsa` + the `keys_*`
   load/save/unlock functions) lifted out of the 415-line `essentials.py` into `wallet_helpers.py`
   (re-bound on `essentials` for back-compat, so every `essentials.keys_load` / `from essentials import …`
-  call site is unchanged), leaving `essentials.py` at ~280 lines of pure helpers.
+  call site is unchanged), leaving `essentials.py` at ~280 lines of pure helpers; and — now that the
+  legacy peer stack is no longer off-limits — the 550-line `peershandler.py` `Peers` god-class split into
+  four domain mixins (`peers_storage` / `peers_pool` / `peers_consensus` / `peers_access`) recombined via
+  `class Peers(PeersStorageMixin, …)`, leaving a ~190-line core (`__slots__` + `__init__` + net-type
+  helpers + the `client_loop` maintenance orchestrator); all 31 method bodies stayed byte-identical and
+  the mixins carry `__slots__ = ()` so the slotted layout is preserved.
   **`node.py` is down from 2200 to ~1420 lines (−36%).** The remaining
   bulk is the ~1080-line socket-command `handle()`: its branches use `break`/`continue` against the
   connection loop and interleave consensus-critical sync, so turning it into a dispatch table needs a
