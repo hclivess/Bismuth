@@ -73,7 +73,8 @@ imported library; *script* = run directly.
 
 | File | Kind | Description |
 |---|---|---|
-| `essentials.py` | module | crypto & helper functions (sign/verify, fees, balances, key load/save, checkpoints) |
+| `essentials.py` | module | helper functions (fees, balances, checkpoints, consensus tallies, tx formatting); the wallet/key cluster now lives in `wallet_helpers` and is re-bound here for back-compat |
+| `wallet_helpers.py` | module | wallet & key management lifted from `essentials`: `sign_rsa` + `keys_check`/`keys_save`/`keys_load`/`keys_unlock`/`keys_load_new` |
 | `polysign/` | package | **vendored** signatures library (RSA + lazy ECDSA/ED25519/BTC/CRW) |
 | `simplecrypt.py` | module | AES-256-CTR wallet encryption (vendored `simple-crypt`) |
 | `wallet_keys.py` | module | minimal `wallet.der` reader / keypair generator |

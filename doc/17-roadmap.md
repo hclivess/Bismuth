@@ -78,17 +78,20 @@
   difficulty value, not a retarget + a separate drop ramp; explicit named constants; no error-swallow).
   This is **consensus** — `mining_heavy3.check_block` validates blocks against the retarget — so it is a
   **hard fork**, gated and replay-validated like the items above, not a quiet swap.
-- **Replace the legacy socket / peer / block-processing stack with the API system** — *replace, do not
-  modularize*. This is the project's worst code and is slated for wholesale replacement, so it is not a
-  target for incremental refactoring:
+- **Supersede the legacy socket / peer / block-processing stack with the API system.** This is the
+  project's worst code — blocking, no asyncio, stall-prone — and the long-term plan moves its capability
+  onto the HTTP/REST API (parallel, compressed, non-stalling). That replacement is the *destination*, but
+  it is **not** a reason to leave the code frozen in the meantime: these modules are **legitimate targets
+  for behavior-preserving modularization and cleanup now — they are not off-limits.**
   - **Connectivity & peers** (`connections.py`, `connectionmanager.py`, `worker.py`, `peershandler.py`) —
-    blocking, no asyncio, stalls; to be superseded by the HTTP/REST API (parallel, compressed,
-    non-stalling). Don't invest in refactoring it.
-  - **Block processing** (`digest.py`) — needs a major rework and **will not be carried into the API
-    system**; the API sync path will do its own block ingestion. Stays frozen behind the consensus
-    boundary until then — do not modularize it for its own sake.
-  - **Command dispatch** (`node.py` `handle()`) — the legacy socket command loop; superseded as new
-    capability moves to REST (see the modularization note below for why it isn't split in place).
+    to be superseded by the REST API, but fair game for modularization/cleanup until then.
+  - **Block processing** (`digest.py`) — needs a major rework and will not be carried into the API system
+    (the API sync path does its own block ingestion), but it can and should be modularized/cleaned behind
+    the frozen consensus boundary in the meantime.
+  - **Command dispatch** (`node.py` `handle()` and the `commands.py` CLI wrapper) — the legacy socket
+    command path; capability moves to REST over time. `handle()` still needs a two-node harness before
+    its `if/elif` chain becomes a dispatch table (see the modularization note below); `commands.py` can be
+    modularized independently right now.
   Keep a compatibility bridge while the network upgrades; build new capability only on the API path.
 - **Mempool anti-spam — economic/resource-based, never identity-based.** Anyone can mint unlimited
   addresses, so **per-address caps are Sybil-trivial** and a false comfort — do not add them. What
@@ -127,7 +130,11 @@
   DI, with `blocknf` re-exported so `worker.py` is unaffected; the mempool-aware `balanceget` moved to
   `balances.py`; and the bootstrap/init helpers (`setup_net_type`, `node_block_init`, `ram_init`,
   `initial_db_check`, `load_keys`, `add_indices`) lifted into `node_init.py` by DI (the consensus chain
-  `verify` deliberately stays). **`node.py` is down from 2200 to ~1420 lines (−36%).** The remaining
+  `verify` deliberately stays); and the wallet/key-management cluster (`sign_rsa` + the `keys_*`
+  load/save/unlock functions) lifted out of the 415-line `essentials.py` into `wallet_helpers.py`
+  (re-bound on `essentials` for back-compat, so every `essentials.keys_load` / `from essentials import …`
+  call site is unchanged), leaving `essentials.py` at ~280 lines of pure helpers.
+  **`node.py` is down from 2200 to ~1420 lines (−36%).** The remaining
   bulk is the ~1080-line socket-command `handle()`: its branches use `break`/`continue` against the
   connection loop and interleave consensus-critical sync, so turning it into a dispatch table needs a
   two-node test harness first (tracked above under "API-based sync"), not a blind rewrite. Each step
