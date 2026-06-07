@@ -1288,6 +1288,8 @@ if __name__ == "__main__":
     node.fork_boundary = config.fork_boundary
     node.fork_bury = config.fork_bury
     node.fork_height = None                          # cached hf2 activation height (None until locked in)
+    node.rpc_bitcoin = config.rpc_bitcoin            # opt-in bitcoind-compatible JSON-RPC (doc/17)
+    node.rpc_bitcoin_port = config.rpc_bitcoin_port
 
     node.logger.app_log = log.log("node.log", node.debug_level, node.terminal_output)
     node.logger.app_log.warning("Configuration settings loaded")
@@ -1402,6 +1404,15 @@ if __name__ == "__main__":
                 import rest_api
                 node.rest_server = rest_api.BismuthRESTServer(node, port=node.rest_api_port)
                 node.rest_server.start()
+
+            # optional bitcoind-compatible JSON-RPC adapter (doc/17). Off unless rpc_bitcoin=True.
+            if getattr(node, "rpc_bitcoin", False):
+                try:
+                    import rpc_bitcoin
+                    node.rpc_bitcoin_server = rpc_bitcoin.BitcoinRPCServer(node, port=node.rpc_bitcoin_port)
+                    node.rpc_bitcoin_server.start()
+                except Exception as e:
+                    node.logger.app_log.warning("Status: Bitcoin RPC could not start: {}".format(e))
 
             # optional LMDB block-body store mirror (doc/17 phase 7). Off unless block_store=True.
             # Additive shadow: the digester writes blocks here AFTER the normal commit; reads/consensus

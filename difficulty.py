@@ -16,6 +16,17 @@ DIFF_DROP_TIME = Decimal(180)        # seconds before the broadcast difficulty b
 MIN_DIFFICULTY = 50                  # difficulty floor
 
 
+def _recent_solvetimes(db_handler, block_height, window):
+    """The last ~window inter-block solvetimes (seconds), oldest→newest, from the miner-tx (reward!=0)
+    timestamps — exactly the data the legacy controller already reads. Fed to the LWMA retarget."""
+    db_handler.execute_param(
+        db_handler.c,
+        "SELECT timestamp FROM transactions WHERE block_height > ? AND reward != 0 ORDER BY block_height ASC",
+        (block_height - window - 1,))
+    ts = [float(r[0]) for r in db_handler.c.fetchall()]
+    return [ts[i] - ts[i - 1] for i in range(1, len(ts))]
+
+
 def difficulty(node, db_handler):
     try:
         fork = Fork()
@@ -71,6 +82,18 @@ def difficulty(node, db_handler):
 
         difficulty_new_adjusted = quantize_ten(diff_block_previous + diff_adjustment)
         difficulty = difficulty_new_adjusted
+
+        # hf2: past the activation height the LWMA retarget replaces the legacy controller's output
+        # (symmetric, delicate, deterministically calculable — doc/18). Inert until a fork is signalled
+        # and reached (node.fork_height is None otherwise), so every historical block is unchanged;
+        # regnet never reaches here (it returns REGNET_DIFF above).
+        fh = getattr(node, "fork_height", None)
+        if fh is not None and (block_height + 1) >= fh:
+            import difficulty_lwma
+            solvetimes = _recent_solvetimes(db_handler, block_height, difficulty_lwma.WINDOW)
+            if solvetimes:
+                difficulty = quantize_ten(difficulty_lwma.lwma_next_difficulty(
+                    solvetimes, diff_block_previous, target=float(TARGET_BLOCK_TIME)))
 
         #fork handling
         if node.is_mainnet:

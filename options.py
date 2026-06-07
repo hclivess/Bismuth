@@ -58,6 +58,8 @@ class Get:
         "fork_window": ["int"],
         "fork_boundary": ["int"],
         "fork_bury": ["int"],
+        "rpc_bitcoin": ["bool"],
+        "rpc_bitcoin_port": ["int"],
     }
 
     # Optional default values so we don't bug if they are not in the config.
@@ -87,6 +89,8 @@ class Get:
         "fork_window": 1000,                 # consecutive all-signalled blocks to lock in (regnet overrides small)
         "fork_boundary": 1000,               # activate on the next multiple of this
         "fork_bury": 30,                     # blocks between lock-in and activation (reorg safety)
+        "rpc_bitcoin": False,                # opt-in bitcoind-compatible JSON-RPC adapter (doc/17); off by default
+        "rpc_bitcoin_port": 8332,
         "mandatory_message": {
             "Address": "Comment - Dict for addresses that require a message. tx to these addresses withjout a message will not be accepted by mempool.",
             "f6c0363ca1c5aa28cc584252e65a63998493ff0a5ec1bb16beda9bac": "qTrade Exchange needs a message to route the deposit to your account",

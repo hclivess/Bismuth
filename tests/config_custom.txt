@@ -19,3 +19,5 @@ fork_signal=True
 fork_window=5
 fork_boundary=10
 fork_bury=2
+rpc_bitcoin=True
+rpc_bitcoin_port=8331

@@ -360,8 +360,19 @@ def _make_handler(node):
             except ValueError:
                 raise _BadRequest("limit must be an integer")
             limit = max(1, min(limit, 500))
-            rows = db.fetchall(db.h, "SELECT * FROM transactions WHERE address = ? OR recipient = ? "
-                                     "ORDER BY block_height DESC LIMIT ?", (address, address, limit))
+            # Newest N where the address is sender OR recipient, WITHOUT sorting every matching row:
+            # two index-ordered subqueries (using the (party, block_height) composite indexes from
+            # db_migrations v2) each stop at LIMIT, then we merge. UNION dedups a self-send that matches
+            # both sides. Falls back fine on the old OR plan if the composite indexes aren't built yet.
+            rows = db.fetchall(db.h,
+                               "SELECT * FROM ("
+                               "  SELECT * FROM (SELECT * FROM transactions WHERE address = ? "
+                               "                 ORDER BY block_height DESC LIMIT ?) "
+                               "  UNION "
+                               "  SELECT * FROM (SELECT * FROM transactions WHERE recipient = ? "
+                               "                 ORDER BY block_height DESC LIMIT ?) "
+                               ") ORDER BY block_height DESC LIMIT ?",
+                               (address, limit, address, limit, limit))
             return {"address": address, "limit": limit,
                     "transactions": self._block_rows_to_json(rows or [])}
 

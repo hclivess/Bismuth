@@ -23,7 +23,15 @@ def ledger_migrations(old_sqlite=False):
     v1 = ["CREATE INDEX IF NOT EXISTS 'Misc Block Height Index' ON misc(block_height)"]
     if not old_sqlite:
         v1.insert(0, "CREATE INDEX IF NOT EXISTS TXID4_Index ON transactions(substr(signature,1,4))")
-    return [(1, v1)]
+    # v2: composite (party, block_height) indexes so address-history queries return the newest N
+    # without a full temp-B-tree sort of every matching row (an active address has tens of thousands).
+    # The single-column Address/Recipient indexes locate rows but lack block_height, forcing the sort;
+    # these let SQLite walk the index in height order and stop at LIMIT. See doc/16 / the address API.
+    v2 = [
+        "CREATE INDEX IF NOT EXISTS 'Address Height Index' ON transactions(address, block_height)",
+        "CREATE INDEX IF NOT EXISTS 'Recipient Height Index' ON transactions(recipient, block_height)",
+    ]
+    return [(1, v1), (2, v2)]
 
 
 def _user_version(cursor):
