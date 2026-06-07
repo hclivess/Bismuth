@@ -1,6 +1,4 @@
 """Outbound connection-pool membership and retry/back-off bookkeeping (mixin)."""
-import os
-import sys
 from time import time
 
 
@@ -92,14 +90,8 @@ class PeersPoolMixin:
         :param port: optional, port as an int
         :return:
         """
-        try:
-            host_port = f"{host}:{port}" if port else host
-            self.tried.pop(host_port, None)  # Optimization: Use pop with default
-        except Exception as e:
-            print(e)
-            exc_type, exc_obj, exc_tb = sys.exc_info()
-            fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-            print(exc_type, fname, exc_tb.tb_lineno)
+        host_port = f"{host}:{port}" if port else host
+        self.tried.pop(host_port, None)  # pop-with-default never raises
 
     def reset_tried(self):
         """

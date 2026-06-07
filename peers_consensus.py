@@ -1,7 +1,4 @@
 """Consensus-height tracking across peers (mixin)."""
-import os
-import sys
-
 from essentials import most_common_dict, percentage_in
 
 
@@ -51,10 +48,7 @@ class PeersConsensusMixin:
                     return
 
         except Exception as e:
-            self.app_log.warning(e)
-            exc_type, exc_obj, exc_tb = sys.exc_info()
-            fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-            print(exc_type, fname, exc_tb.tb_lineno)
+            self.app_log.warning(f"consensus_add failed for {peer_ip}: {type(e).__name__}: {e}")
             raise
 
     def consensus_remove(self, peer_ip):

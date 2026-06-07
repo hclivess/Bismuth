@@ -2,7 +2,6 @@
 import json
 import os
 import shutil
-import sys
 
 import socks
 
@@ -149,9 +148,6 @@ class PeersStorageMixin:
                     except:
                         self.app_log.info("Not connectible")
             except Exception as e:
-                self.app_log.warning(e)
-                exc_type, exc_obj, exc_tb = sys.exc_info()
-                fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-                print(exc_type, fname, exc_tb.tb_lineno)
+                self.app_log.warning(f"peersync failed: {type(e).__name__}: {e}")
                 raise
         return total_added

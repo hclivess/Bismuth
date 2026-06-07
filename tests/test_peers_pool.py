@@ -73,3 +73,14 @@ def test_can_connect_to_respects_active_cooldown_then_clears():
     assert p.can_connect_to(host, port) is True
     p.banlist.append(host)                 # banned overrides
     assert p.can_connect_to(host, port) is False
+
+
+def test_del_try_removes_entry_and_is_safe_on_missing():
+    p = _PeersStub()
+    p.tried["1.2.3.4:5658"] = (2, time() + 999)
+    p.del_try("1.2.3.4", 5658)
+    assert "1.2.3.4:5658" not in p.tried
+    p.del_try("9.9.9.9", 5658)             # missing peer -> no raise (pop-with-default)
+    p.tried["5.6.7.8:5658"] = (1, time() + 1)
+    p.del_try("5.6.7.8:5658")              # also accepts a prebuilt "ip:port"
+    assert "5.6.7.8:5658" not in p.tried
