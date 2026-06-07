@@ -203,10 +203,13 @@
      canonical sig/pubkey encoding belongs to the hard fork.)
      Chosen **LMDB over RocksDB:** a single mmap'd file, no background compaction, copy-on-write MVCC
      reads alongside a single writer — a near-perfect fit for an append-heavy, read-heavy, immutable
-     workload, and a trivial embedded dependency (`pip install lmdb msgpack`). ◻ **Remaining:** wire it
-     into the node's read/write path behind a config flag (write-through shadow first, then primary),
-     each step replay-validated. Signatures, public keys and openfields are write-once and fetched by
-     height/hash, exactly this store's shape.
+     workload, and a trivial embedded dependency (`pip install lmdb msgpack`). ✅ **Shadow-write
+     integration done** (behind the `block_store` flag, default off): the digester mirrors each
+     committed block into the store (additive, best-effort, AFTER the normal commit) with a matching
+     rollback hook. The whole regnet suite runs with it ON — including `test_replay` (byte-identical
+     chain), `test_characterization`, and the consensus invariants — proving it is additive and
+     **mining-invariant** (the block hash / validation path is untouched). ◻ Remaining: switch READS
+     to the store (sync serving + queries) behind the flag, then make it primary.
   2. **Maintained incremental indexes for queryable state.** ✅ **Balance index implemented**
      (`balance_index.py`): a per-address running `(credit, debit)` total in integer units (LMDB),
      `apply_rows`/`rollback_rows`/`rebuild_from_ledger`, turning the >200 s full-scan balance into an

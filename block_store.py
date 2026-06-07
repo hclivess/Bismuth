@@ -58,9 +58,10 @@ class BlockStore:
     _PK = 5
 
     def __init__(self, path, map_size=64 * _GIB, readonly=False, sync=True):
+        # lock=True even when readonly: it registers in the reader table so a separate process can read
+        # the store consistently WHILE the node writes it (the integration test does exactly this).
         self.env = lmdb.open(path, subdir=True, max_dbs=4, map_size=map_size,
-                             readonly=readonly, lock=not readonly, sync=sync,
-                             metasync=sync)
+                             readonly=readonly, lock=True, sync=sync, metasync=sync)
         self.blocks = self.env.open_db(b"blocks")
         self.hashes = self.env.open_db(b"hashes")
         # Public-key dedup: the 1068-byte RSA public key is 1:1 with the sender address and repeats on

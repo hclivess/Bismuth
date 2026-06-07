@@ -1281,6 +1281,8 @@ if __name__ == "__main__":
     amounts.LEDGER_INTEGER = node.ledger_integer_amounts          # module flag read by every ledger amount site
     node.bootstrap_url = config.bootstrap_url     # configurable bootstrap source (the old fixed host can vanish)
     node.bootstrap_file = config.bootstrap_file   # local bootstrap archive; if set/present, used instead of downloading
+    node.block_store_enabled = config.block_store # opt-in LMDB block-body mirror (doc/17 phase 7)
+    node.block_store = None                        # the store object, created at startup if enabled
 
     node.logger.app_log = log.log("node.log", node.debug_level, node.terminal_output)
     node.logger.app_log.warning("Configuration settings loaded")
@@ -1395,6 +1397,21 @@ if __name__ == "__main__":
                 import rest_api
                 node.rest_server = rest_api.BismuthRESTServer(node, port=node.rest_api_port)
                 node.rest_server.start()
+
+            # optional LMDB block-body store mirror (doc/17 phase 7). Off unless block_store=True.
+            # Additive shadow: the digester writes blocks here AFTER the normal commit; reads/consensus
+            # are untouched, so the block hash and mining are unaffected.
+            if node.block_store_enabled:
+                try:
+                    import os as _os
+                    import block_store
+                    bs_path = _os.path.join(_os.path.dirname(node.ledger_path) or ".", "blockstore")
+                    node.block_store = block_store.BlockStore(bs_path)
+                    node.logger.app_log.warning(
+                        f"Status: block store enabled at {bs_path} (tip {node.block_store.tip()})")
+                except Exception as e:
+                    node.logger.app_log.warning(f"Status: block store could not start: {e}")
+                    node.block_store = None
 
         except Exception as e:
             node.logger.app_log.info(e)

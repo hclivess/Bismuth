@@ -14,3 +14,4 @@ old_sqlite=True
 rest_api=True
 rest_api_port=3031
 ledger_integer_amounts=True
+block_store=True

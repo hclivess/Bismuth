@@ -404,6 +404,17 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
         # Save to database
         db_handler.to_db(block_instance, diff_save, processor.block_transactions)
 
+        # Optional LMDB block-store mirror (doc/17 phase 7): an ADDITIVE shadow write AFTER the normal
+        # commit, behind the block_store flag, best-effort. It never affects the block hash, validation,
+        # or mining — the consensus path above is untouched; this is a side copy only.
+        if getattr(node, "block_store", None) is not None:
+            try:
+                node.block_store.put_block(block_instance.block_height_new,
+                                           block_instance.block_hash, processor.block_transactions)
+            except Exception as e:
+                node.logger.app_log.warning(
+                    f"block store mirror failed at {block_instance.block_height_new}: {e}")
+
         # Calculate mirror hash
         block_instance.mirror_hash = calculate_mirror_hash(db_handler)
 

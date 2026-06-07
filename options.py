@@ -53,6 +53,7 @@ class Get:
         "ledger_integer_amounts": ["bool"],
         "bootstrap_url": ["str"],
         "bootstrap_file": ["str"],
+        "block_store": ["bool"],
     }
 
     # Optional default values so we don't bug if they are not in the config.
@@ -77,6 +78,7 @@ class Get:
         # configurable and a locally-provided archive takes precedence (see chain_ops.bootstrap).
         "bootstrap_url": "https://bismuth.cz/ledger.tar.gz",
         "bootstrap_file": "",                # path to a local bootstrap archive; if set/present, used instead of downloading
+        "block_store": False,                # opt-in: also mirror block bodies into an LMDB store (doc/17 phase 7); off by default
         "mandatory_message": {
             "Address": "Comment - Dict for addresses that require a message. tx to these addresses withjout a message will not be accepted by mempool.",
             "f6c0363ca1c5aa28cc584252e65a63998493ff0a5ec1bb16beda9bac": "qTrade Exchange needs a message to route the deposit to your account",

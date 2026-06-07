@@ -36,6 +36,14 @@ def rollback(node, db_handler, block_height):
     db_handler.aliases_rollback(node, block_height)
     # rollback indices
 
+    # keep the optional LMDB block-store mirror consistent with the rolled-back chain (best-effort).
+    # rollback_under(block_height) drops heights >= block_height, so the store keeps <= block_height-1.
+    if getattr(node, "block_store", None) is not None:
+        try:
+            node.block_store.rollback(block_height - 1)
+        except Exception as e:
+            node.logger.app_log.warning(f"block store rollback failed: {e}")
+
     node.logger.app_log.warning(f"Status: Chain rolled back below {block_height} and will be resynchronized")
 
 
