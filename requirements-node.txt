@@ -10,6 +10,11 @@ pycryptodomex
 requests
 base58
 # polysign is vendored in-tree (see polysign/); it is no longer a pip dependency.
-# coincurve / ed25519 below are only needed for the optional non-RSA (ECDSA/ED25519) signers.
-# coincurve
-# ed25519
+# REQUIRED for a full node (NOT optional): mainnet carries ECDSA and ED25519 transactions, so a node
+# missing these rejects every such block ("ModuleNotFoundError" in polysign/signer_*) and silently
+# stalls -- it cannot sync past the first ed25519/ecdsa block.
+coincurve
+# ed25519's sdist build is broken on Python 3.12 (bundled versioneer uses configparser.SafeConfigParser
+# / readfp, both removed in 3.12). On 3.12 install from source with setup.py's versioneer.get_version()
+# /get_cmdclass() calls replaced by a literal (e.g. "1.5"); older Pythons pip-install it directly.
+ed25519

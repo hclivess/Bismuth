@@ -54,6 +54,14 @@
   succeed against live peers (tip **4,845,284**). Note: legacy peers reject ancient checkpoints
   (`blocknf`/rollback), so a from-genesis forward sync is not served — a bootstrap snapshot is required,
   which is exactly what the resilience work above makes dependable.
+- **Non-RSA signer deps are mandatory for a node (the real sync-blocker).** mainnet carries ECDSA and
+  ED25519 transactions, so a node missing `coincurve`/`ed25519` rejects **every** such block
+  (`ModuleNotFoundError` in `polysign/signer_*`) and silently stalls at the first one. This — not "slow
+  sync" — is what stranded a freshly bootstrapped node (it had connected to real peers and they were
+  delivering blocks; the node rejected them all). The improved digest logging above is what revealed it.
+  `requirements*.txt` now mark these **required** (were wrongly "optional"), with the Python-3.12
+  `ed25519` build caveat documented (its bundled versioneer uses configparser APIs removed in 3.12).
+  With the dependency present the node syncs the legacy socket path at **~16 blocks/s**.
 
 ## ◑ In progress / next
 
