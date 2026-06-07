@@ -8,6 +8,7 @@ a 5-30 minute cooldown. Pure unit tests: no node, no sockets.
 
 Run with: python3 -m pytest tests/test_peers_pool.py -v
 """
+import types
 from time import time
 
 from peers_pool import PeersPoolMixin
@@ -31,6 +32,7 @@ class _PeersStub(PeersPoolMixin):
         self._connection_pool_set = set()
         self._c_class_cache = {}
         self.app_log = _Log()
+        self.config = types.SimpleNamespace(port="5658", node_ip="203.0.113.7")
 
     def is_whitelisted(self, host):
         return host in self.whitelist
@@ -73,6 +75,20 @@ def test_can_connect_to_respects_active_cooldown_then_clears():
     assert p.can_connect_to(host, port) is True
     p.banlist.append(host)                 # banned overrides
     assert p.can_connect_to(host, port) is False
+
+
+def test_can_connect_to_refuses_dialing_self():
+    p = _PeersStub()
+    p.whitelist = ["127.0.0.1"]  # even whitelisted, we must not dial ourselves
+    # our own listening address, via loopback and via our advertised node_ip, on our own port
+    assert p.can_connect_to("127.0.0.1", 5658) is False
+    assert p.can_connect_to("127.0.0.1", "5658") is False
+    assert p.can_connect_to("203.0.113.7", 5658) is False
+    assert p.can_connect_to("localhost", 5658) is False
+    # a different local service (different port) is still allowed
+    assert p.can_connect_to("127.0.0.1", 9999) is True
+    # a real remote peer is allowed
+    assert p.can_connect_to("185.184.192.210", 5658) is True
 
 
 def test_del_try_removes_entry_and_is_safe_on_missing():

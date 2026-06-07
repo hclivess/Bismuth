@@ -34,6 +34,15 @@ class PeersPoolMixin:
         if host in self.banlist:
             return False
 
+        # A node must never dial ITSELF. The default config ships 127.0.0.1 in peers.txt AND whitelists
+        # it, so without this guard a node connects to its own listening socket, "syncs" from itself,
+        # and records its own height as a consensus vote — inflating consensus to 100% off a single
+        # self-opinion when it has no real peers, which looks like "fully synced" while stuck. Skip our
+        # own listening address (public node_ip or loopback, on our own port); other local services on a
+        # different port are still allowed.
+        if str(port) == str(self.config.port) and host in ("127.0.0.1", "localhost", self.config.node_ip):
+            return False
+
         host_port = f"{host}:{port}"
 
         # Optimization: Use set for O(1) lookup
