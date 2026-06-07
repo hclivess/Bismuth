@@ -1,3 +1,66 @@
+# --- Automatic (signal-activated) hard-fork scheduling (doc/17) ------------------------------------
+# A version-bits / miner-activated scheme. Upgraded miners stamp FORK2_SIGNAL into their coinbase
+# openfield; every node counts it from the SAME chain, so the activation height is computed identically
+# network-wide (deterministic — NOT an off-chain peer survey, which would let nodes disagree and split).
+# When the trailing window of blocks is all-signalled the fork LOCKS IN, and activates at the next round
+# boundary, with a burial margin so a near-tip reorg can't move it. This is INERT: it only READS the
+# chain and schedules; no consensus rule changes here. The rule switch (block_height >= fork_height) is
+# added later, one optimization at a time, replay-validated.
+
+FORK2_SIGNAL = "hf2"      # marker upgraded miners place in their coinbase openfield
+FORK2_WINDOW = 1000       # consecutive all-signalled blocks required to lock in
+FORK2_BOUNDARY = 1000     # activate on the next multiple of this (the "next round-1000 block")
+FORK2_BURY = 30           # >= rollback_depth: blocks between lock-in and activation (reorg safety)
+
+
+def has_fork_signal(openfield):
+    """Does a coinbase openfield carry the fork-readiness marker?"""
+    return bool(openfield) and FORK2_SIGNAL in str(openfield)
+
+
+def next_fork_boundary(height, boundary=FORK2_BOUNDARY):
+    """The next multiple of ``boundary`` STRICTLY above ``height``."""
+    return ((int(height) // boundary) + 1) * boundary
+
+
+def dynamic_fork_height(read_signal, tip,
+                        window=FORK2_WINDOW, boundary=FORK2_BOUNDARY, bury=FORK2_BURY):
+    """Deterministically derive the activation height from the on-chain signal, or None if not locked.
+
+    ``read_signal(height) -> bool``  : did the coinbase at ``height`` carry the marker?
+    Lock-in is the earliest height H that closes a run of ``window`` consecutive signalled blocks; the
+    fork activates at the next ``boundary`` multiple strictly above ``H + bury``. Because the run start
+    is a fixed point in chain history, the result is stable as the chain grows and identical on every
+    node. Cheap until signalling begins (the tip not signalling returns None after one read), and the
+    caller caches the locked-in height so the back-scan runs only until lock-in.
+    """
+    if tip is None or tip < window:
+        return None
+    if not read_signal(tip):                       # not signalling at the tip -> not locked (O(1))
+        return None
+    run_start = tip                                 # walk back over the current consecutive-signal run
+    h = tip - 1
+    while h >= 1 and read_signal(h):
+        run_start = h
+        h -= 1
+    if (tip - run_start + 1) < window:              # no full window yet
+        return None
+    lock_in = run_start + window - 1                # earliest window completion in this run (stable)
+    return next_fork_boundary(lock_in + bury, boundary)
+
+
+def db_fork_signal_reader(db_handler):
+    """A read_signal(height) backed by the ledger: the coinbase (the reward!=0 row) openfield."""
+    def read(height):
+        db_handler.execute_param(
+            db_handler.c,
+            "SELECT openfield FROM transactions WHERE block_height = ? AND reward != 0 LIMIT 1",
+            (height,))
+        row = db_handler.c.fetchone()
+        return has_fork_signal(row[0]) if row else False
+    return read
+
+
 class Fork():
     def __init__(self):
         self.POW_FORK = 1450000
