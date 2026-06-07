@@ -42,6 +42,18 @@
     zero hard native deps); `?compress=none|gzip|br` override for explicit plaintext/codec.
   - **Version bump** `mainnet0023` as the modern-capabilities signal (not a consensus change —
     nothing in `digest`/`bismuth_serialize` gates on the version string).
+- **Bootstrap resilience (operational hardening).** `chain_ops.bootstrap` no longer depends on a single
+  hardcoded download host (which can and did vanish). It prefers a locally-provided ledger archive
+  (`bootstrap_file` config, or an archive dropped at `<ledger_path>.tar.gz`), downloads from a
+  configurable `bootstrap_url` only as a fallback, extracts into the ledger's own directory, and
+  surfaces failures loudly instead of swallowing them in a bare `except`. Covered by
+  `tests/test_bootstrap_local.py` (no network, no node subprocess).
+- **Legacy wire-compatibility verified live.** `legacy_sync_probe.py` (read-only) confirms this codebase
+  still speaks the legacy socket protocol to the current mainnet: version handshake → `ok`, compatible
+  peer versions (`mainnet0021/0022`), peer-list exchange (≈500 peers) and block-height negotiation all
+  succeed against live peers (tip **4,845,284**). Note: legacy peers reject ancient checkpoints
+  (`blocknf`/rollback), so a from-genesis forward sync is not served — a bootstrap snapshot is required,
+  which is exactly what the resilience work above makes dependable.
 
 ## ◑ In progress / next
 

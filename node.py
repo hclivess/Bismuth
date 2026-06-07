@@ -1279,6 +1279,8 @@ if __name__ == "__main__":
     node.rollback_consensus_min_peers = config.rollback_consensus_min_peers
     node.ledger_integer_amounts = config.ledger_integer_amounts   # doc/16 phase 2 cutover (default off)
     amounts.LEDGER_INTEGER = node.ledger_integer_amounts          # module flag read by every ledger amount site
+    node.bootstrap_url = config.bootstrap_url     # configurable bootstrap source (the old fixed host can vanish)
+    node.bootstrap_file = config.bootstrap_file   # local bootstrap archive; if set/present, used instead of downloading
 
     node.logger.app_log = log.log("node.log", node.debug_level, node.terminal_output)
     node.logger.app_log.warning("Configuration settings loaded")

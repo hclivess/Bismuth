@@ -51,6 +51,8 @@ class Get:
         "rollback_consensus_threshold": ["int"],
         "rollback_consensus_min_peers": ["int"],
         "ledger_integer_amounts": ["bool"],
+        "bootstrap_url": ["str"],
+        "bootstrap_file": ["str"],
     }
 
     # Optional default values so we don't bug if they are not in the config.
@@ -71,6 +73,10 @@ class Get:
         "rollback_consensus_threshold": 75,  # % peer agreement required to allow a deep rollback
         "rollback_consensus_min_peers": 3,   # min peers in consensus to allow a deep rollback
         "ledger_integer_amounts": False,     # store amount/fee/reward as integer atomic units (doc/16); off by default
+        # Bootstrap source. The historical hardcoded host can disappear (it did), so the URL is
+        # configurable and a locally-provided archive takes precedence (see chain_ops.bootstrap).
+        "bootstrap_url": "https://bismuth.cz/ledger.tar.gz",
+        "bootstrap_file": "",                # path to a local bootstrap archive; if set/present, used instead of downloading
         "mandatory_message": {
             "Address": "Comment - Dict for addresses that require a message. tx to these addresses withjout a message will not be accepted by mempool.",
             "f6c0363ca1c5aa28cc584252e65a63998493ff0a5ec1bb16beda9bac": "qTrade Exchange needs a message to route the deposit to your account",

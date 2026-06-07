@@ -278,42 +278,51 @@ def blocknf(node, block_hash_delete, peer_ip, db_handler, hyperblocks=False):
 def bootstrap(node):
     # TODO: Candidate for single user mode
     try:
-        types = ['static/*.db-wal', 'static/*.db-shm']
-        for t in types:
-            for f in glob.glob(t):
+        # Extract into the ledger's own directory (the default mainnet ledger lives in static/).
+        dest_dir = os.path.dirname(node.ledger_path) or "."
+        for pattern in ('*.db-wal', '*.db-shm'):
+            for f in glob.glob(os.path.join(dest_dir, pattern)):
                 os.remove(f)
                 print(f, "deleted")
 
         archive_path = node.ledger_path + ".tar.gz"
-        download_file("https://bismuth.cz/ledger.tar.gz", archive_path)
+
+        # Source resolution, local first: an operator can drop the ledger archive in place (handy when
+        # the download host is unreachable, as the historical fixed host became). Only download when no
+        # local archive is available, and from a CONFIGURABLE url rather than a single hardcoded host.
+        local_archive = getattr(node, "bootstrap_file", "") or ""
+        if local_archive and os.path.exists(local_archive):
+            node.logger.app_log.warning(f"Status: Bootstrapping from local archive {local_archive}")
+            archive_path = local_archive
+        elif os.path.exists(archive_path):
+            node.logger.app_log.warning(f"Status: Bootstrapping from existing archive {archive_path}")
+        else:
+            url = getattr(node, "bootstrap_url", "") or "https://bismuth.cz/ledger.tar.gz"
+            node.logger.app_log.warning(f"Status: No local bootstrap archive; downloading ledger from {url}")
+            download_file(url, archive_path)
 
         with tarfile.open(archive_path) as tar:
-            
-            import os
-            
+
             def is_within_directory(directory, target):
-                
                 abs_directory = os.path.abspath(directory)
                 abs_target = os.path.abspath(target)
-            
                 prefix = os.path.commonprefix([abs_directory, abs_target])
-                
                 return prefix == abs_directory
-            
+
             def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
-            
                 for member in tar.getmembers():
                     member_path = os.path.join(path, member.name)
                     if not is_within_directory(path, member_path):
                         raise Exception("Attempted Path Traversal in Tar File")
-            
-                tar.extractall(path, members, numeric_owner=numeric_owner) 
-                
-            
-            safe_extract(tar, "static/")
+                tar.extractall(path, members, numeric_owner=numeric_owner)
 
-    except:
-        node.logger.app_log.warning("Something went wrong during bootstrapping, aborted")
+            safe_extract(tar, dest_dir)
+        node.logger.app_log.warning(f"Status: Bootstrap ledger extracted into {dest_dir}/")
+
+    except Exception as e:
+        node.logger.app_log.warning(
+            f"Status: Bootstrapping failed ({e}). Provide a local archive via the 'bootstrap_file' "
+            f"config option (or drop it at {node.ledger_path}.tar.gz), or set a reachable 'bootstrap_url'.")
         raise
 
 

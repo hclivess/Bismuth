@@ -70,6 +70,7 @@ imported library; *script* = run directly.
 | `block_format.py` | module | pure block→JSON formatters (`blockstojson` / `blocktojsondiffs`), extracted from `apihandler` |
 | `commands.py` | script | CLI wrapper over node socket commands |
 | `check_tx.py` | script | report a txid's status (reads the DBs directly) |
+| `legacy_sync_probe.py` | script | read-only diagnostic: verifies live wire/protocol compatibility with legacy mainnet peers (handshake / version / peer-list / block-height negotiation) |
 | `attic/demo_getstatus.py`, `attic/demo_getaddresssince.py` | scripts | single-command examples (retired to `attic/`; use the REST API) |
 | `cmd_addpeers.py`, `cmd_hn_reg_round.py`, `cmd_hn_last_block_ts.py` | scripts | peer add / hypernode-plugin queries |
 | `process_search.py` | module | check whether a process is running |
