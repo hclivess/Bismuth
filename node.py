@@ -1290,6 +1290,8 @@ if __name__ == "__main__":
     node.fork_height = None                          # cached hf2 activation height (None until locked in)
     node.rpc_bitcoin = config.rpc_bitcoin            # opt-in bitcoind-compatible JSON-RPC (doc/17)
     node.rpc_bitcoin_port = config.rpc_bitcoin_port
+    node.rpc_ethereum = config.rpc_ethereum          # opt-in eth_* compatibility shim (doc/17)
+    node.rpc_ethereum_port = config.rpc_ethereum_port
 
     node.logger.app_log = log.log("node.log", node.debug_level, node.terminal_output)
     node.logger.app_log.warning("Configuration settings loaded")
@@ -1413,6 +1415,15 @@ if __name__ == "__main__":
                     node.rpc_bitcoin_server.start()
                 except Exception as e:
                     node.logger.app_log.warning("Status: Bitcoin RPC could not start: {}".format(e))
+
+            # optional eth_* compatibility shim (doc/17). Off unless rpc_ethereum=True.
+            if getattr(node, "rpc_ethereum", False):
+                try:
+                    import rpc_ethereum
+                    node.rpc_ethereum_server = rpc_ethereum.EthereumRPCServer(node, port=node.rpc_ethereum_port)
+                    node.rpc_ethereum_server.start()
+                except Exception as e:
+                    node.logger.app_log.warning("Status: Ethereum RPC could not start: {}".format(e))
 
             # optional LMDB block-body store mirror (doc/17 phase 7). Off unless block_store=True.
             # Additive shadow: the digester writes blocks here AFTER the normal commit; reads/consensus

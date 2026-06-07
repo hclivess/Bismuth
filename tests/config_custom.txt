@@ -21,3 +21,5 @@ fork_boundary=10
 fork_bury=2
 rpc_bitcoin=True
 rpc_bitcoin_port=8331
+rpc_ethereum=True
+rpc_ethereum_port=8546
