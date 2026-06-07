@@ -67,6 +67,8 @@ imported library; *script* = run directly.
 | `rest_api.py` | module | read-only modern REST/JSON API server (status/blocks/balance/tx/peers); `/headers/range` (headers-first) + `/blocks/range?format=sync` (consensus-faithful digester tuples) |
 | `rest_client.py` | module | stdlib REST client: capability discovery + parallel block fetch (`parallel_fetch`/`parallel_fetch_sync`) + `fetch_headers` for headers-first quick sync |
 | `api_sync.py` | module | capability-gated, fail-soft headers-first chain-segment fetch (`sync_segment`) — the seam between `rest_client` (transport) and the digester (consensus) |
+| `rpc_bitcoin.py` | module | bitcoind-compatible JSON-RPC adapter (flag `rpc_bitcoin`, off): getblockcount/getblock/getbalance/getrawtransaction/… for exchange/explorer tooling |
+| `rpc_ethereum.py` | module | `eth_*` compatibility shim (flag `rpc_ethereum`, off): hex-encoded chain/balance reads for web3 tooling — a bounded shim, **not** an EVM |
 | `transport.py` | module | HTTP transport codecs (gzip/br) negotiated via `Accept-Encoding`; zero hard native deps |
 
 ## API / CLI

@@ -24,13 +24,17 @@ inert, and what's planned. Detailed companions: file index [`13`](13-file-refere
 | LMDB block store + pubkey dedup | `block_store.py` — lossless, content-addressed, 1.73 GB for 1M blocks (~2× under SQLite) | **integrated as shadow** behind `block_store` flag; SQLite still primary |
 | Balance index (O(1) balances) | `balance_index.py` — bit-matches `ledger_balance3` | **built + validated**, not wired |
 | Reward sidechain | `reward_chain.py` — retires negative-height mirror rows, balance-preserving | **built + validated**, not wired |
-| Auto hard-fork scheduler | `fork.dynamic_fork_height` — deterministic, signal-activated | **built + unit-tested, INERT** (no signal writer / gate yet) |
-| LWMA difficulty | `difficulty_lwma.py` — symmetric, delicate, calculable | **built + unit-tested, INERT** (fork-gated) |
+| Auto hard-fork scheduler | `fork.dynamic_fork_height` + coinbase signal writer + `/api/fork` | **WIRED** — signal→detect→schedule works end-to-end on regnet (`test_fork_wiring`); inert on mainnet until miners signal |
+| LWMA difficulty | `difficulty_lwma.py`, gated in `difficulty()` | **GATED behind `fork_height`** (LWMA past activation, legacy before); inert until a fork activates |
 | GPU miner | `gpuminer/` — CUDA (kbkminer) + OpenCL, today's Heavy3 | **vendored**, GPU-untested here |
-| REST API | `rest_api.py` — status/blocks/balance/tx/headers/peers | **active** on the live node (:5659) |
-| Block explorer | `explorer.bismuth.cz` (SPA over the REST API) | **live** |
+| REST API | `rest_api.py` — status/blocks/balance/tx/headers/peers/`fork` | **active** on the live node (:5659) |
+| Address-history query | composite indexes (migration v2) + UNION rewrite | **done + LIVE** — 2.5 s → 0.06 s |
+| Bitcoin JSON-RPC | `rpc_bitcoin.py` — getblockcount/getblock/getbalance/getrawtransaction/… | **implemented**, flag `rpc_bitcoin` (off); regnet-tested |
+| Ethereum/ERC shim | `rpc_ethereum.py` — `eth_*` subset (bounded; not an EVM) | **implemented**, flag `rpc_ethereum` (off); regnet-tested |
+| Block explorer | `explorer.bismuth.cz` (SPA over the REST API) | **live** (block paging, fast address pages) |
 | Bootstrap hosting | `https://bismuth.cz/ledger.tar.gz` (at-tip snapshot) | **live** |
 | Connectivity/sync fixes | self-dial false-consensus, back-off, headers-first, ed25519 dep | **active** |
+| Balance index / reward sidechain | `balance_index.py` / `reward_chain.py` | **built + validated, NOT wired** (next: maintained shadow) |
 
 "Shadow" = written/maintained alongside the authoritative store but not yet read from. "Inert" =
 present and tested but never called by the running node.
