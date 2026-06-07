@@ -102,8 +102,17 @@
 - **Incremental balance index (phase 4 deep).** A maintained O(1) credit/debit index, updated on
   apply/rollback, that bit-matches the authoritative computation. Depends on integer storage.
 - **Explicit reward & pruning model (phase 5).** Replace negative-height "mirror" reward rows and
-  synthetic `address='Hyperblock'` rows with real columns/tables; convert `recompress_ledger` and the
-  hypernode/`ledger_queries` paths to integer units (currently left legacy, tagged `# HARDFORK`).
+  synthetic `address='Hyperblock'` rows with real, queryable structures; convert `recompress_ledger`
+  and the hypernode/`ledger_queries` paths to integer units (currently left legacy, tagged `# HARDFORK`).
+  - ✅ **Reward sidechain foundation** (`reward_chain.py`): the dev-fund + hypernode-payout rewards are
+    minted LOCALLY at commit (`dbhandler_write.dev_reward`/`hn_reward`) as negative-height rows in the
+    main ledger — they are **not synced**. `RewardChain` lifts them into a separate store keyed by the
+    POSITIVE block height, preserving each row's exact balance effect (minting source debited, recipient
+    credited). `tests/test_reward_chain.py` proves `(main positive ledger) + (reward sidechain)` equals
+    today's full-ledger balances for **every** address, on synthetic and real regnet data — so the move
+    is **balance-preserving and replay-identical** (synced bodies/hashes unchanged → no consensus
+    change). ◻ Remaining: wire the digester to write rewards here instead of negative rows, and the
+    balance path (incl. the balance index) to read them, behind a config flag, replay-validated.
 
 ## 🗺️ Planned
 
@@ -112,7 +121,15 @@
   site is tagged `# HARDFORK (doc/16)` — `grep -rn "HARDFORK (doc/16)"`). Adopt a bounded,
   content-derived **txid** (nado-style: `blake2b(tx_content)`, the signature signs the txid) to replace
   the ad-hoc `signature[:56]` slice. After the fork, storage/boundary/APIs are integer end-to-end.
-- **Difficulty-retarget rework.** The current retarget (`difficulty.py:difficulty()`) needs replacing:
+  - **Signature & public-key storage optimization (a stated goal for the fork).** The 1068-byte base64
+    RSA public key is carried and stored on **every** transaction, as is the 684-byte base64 signature —
+    together the dominant part of a block body. The fork should: (a) carry the public key by
+    **reference** — a sender's address is the hash of its key, so after an address's first appearance the
+    full key need never be repeated (a per-address key table); (b) store keys/signatures as **raw bytes**
+    rather than base64 (~25 % smaller for RSA, and far smaller for the 32–33-byte ECDSA/ED25519 keys and
+    64-byte sigs); (c) keep only the content-hash txid + signature on-chain. The same dedup can be done
+    **pre-fork, locally** in the LMDB block store (transparent, lossless — the measured 4.3 GB→ below
+    SQLite); the fork makes it canonical and network-wide. The current retarget (`difficulty.py:difficulty()`) needs replacing:
   the **per-block jumps are too steep** and the **approach is convoluted**. Concretely — the steep
   jumps: a single block can move difficulty by up to `MAX_DIFF_ADJUST = 1.0` in the log2-style
   difficulty domain, i.e. a **full doubling of work in one block**; the upward step is capped but the
