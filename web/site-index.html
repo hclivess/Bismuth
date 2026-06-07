@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bismuth Ledger Bootstrap</title>
+  <link href="/assets/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background:#0d1117; }
+    .hero { background:linear-gradient(180deg,#16263a 0%, transparent 100%); }
+    pre { background:#010409; border:1px solid #21262d; border-radius:.5rem; padding:1rem; color:#c9d1d9; }
+    code.tok { color:#7ee787; }
+  </style>
+</head>
+<body>
+  <nav class="navbar border-bottom border-secondary-subtle">
+    <div class="container">
+      <span class="navbar-brand fw-semibold">⛏️ Bismuth</span>
+      <div>
+        <a class="navbar-text text-decoration-none me-3" href="https://explorer.bismuth.cz/">Explorer</a>
+        <a class="navbar-text text-decoration-none" href="https://github.com/hclivess/Bismuth">GitHub</a>
+      </div>
+    </div>
+  </nav>
+
+  <header class="hero py-5">
+    <div class="container py-4 text-center">
+      <h1 class="display-5 fw-bold">Bismuth Ledger Bootstrap</h1>
+      <p class="lead text-secondary col-lg-8 mx-auto">
+        A recent snapshot of the Bismuth mainnet ledger so a new node can start near the chain tip
+        instead of syncing from genesis.
+      </p>
+      <a href="/ledger.tar.gz" class="btn btn-primary btn-lg mt-2">⬇&nbsp; Download ledger.tar.gz</a>
+      <a href="https://explorer.bismuth.cz/" class="btn btn-outline-light btn-lg mt-2 ms-2">🔍&nbsp; Block Explorer</a>
+      <p class="text-secondary small mt-3 mb-0" id="meta">
+        Contains <code class="tok">ledger.db</code> + <code class="tok">hyper.db</code> + <code class="tok">index.db</code>.
+      </p>
+    </div>
+  </header>
+
+  <main class="container pb-5">
+    <div class="row g-4 justify-content-center">
+      <div class="col-lg-8">
+        <div class="card bg-body-tertiary border-secondary-subtle">
+          <div class="card-body">
+            <h2 class="h5 card-title">⌨️ Use it</h2>
+            <p class="text-secondary small mb-2">A fresh node auto-bootstraps from this URL on first start. To apply it manually:</p>
+<pre class="mb-0"><code>cd Bismuth
+curl -L -o static/ledger.db.tar.gz https://bismuth.cz/ledger.tar.gz
+tar xzf static/ledger.db.tar.gz -C static/
+python3 node.py</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-8">
+        <div class="card bg-body-tertiary border-warning-subtle">
+          <div class="card-body">
+            <h2 class="h5 card-title text-warning-emphasis">⚠️ A full node needs the non-RSA signer libs</h2>
+            <p class="text-secondary small mb-2">mainnet carries ed25519 / ecdsa transactions; without these the node rejects those blocks and cannot sync:</p>
+<pre class="mb-0"><code>pip install coincurve ed25519</code></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="container text-center text-secondary small py-4 border-top border-secondary-subtle">
+    Served from bismuth.cz · <a class="link-secondary" href="https://github.com/hclivess/Bismuth">github.com/hclivess/Bismuth</a>
+  </footer>
+</body>
+</html>

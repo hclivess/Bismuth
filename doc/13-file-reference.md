@@ -25,8 +25,11 @@ imported library; *script* = run directly.
 |---|---|---|
 | `mining_heavy3.py` | module | Heavy3 PoW + `check_block`; manages `heavy3a.bin` |
 | `mining.py` | module | legacy PoW (unused; kept for reference) |
-| `difficulty.py` | module | difficulty retarget |
+| `difficulty.py` | module | difficulty retarget (legacy PID controller) |
+| `difficulty_lwma.py` | module | proposed hf2 LWMA retarget — symmetric/delicate/calculable; pure + fork-gated, inert (doc/18) |
+| `fork.py` | module | hardfork heights + post-fork reward validation; **+ the deterministic signal-activated `dynamic_fork_height` scheduler** (doc/18), inert |
 | `hmac_drbg.py` | module | HMAC-DRBG (SHA512) that seeds `heavy3a.bin` |
+| `gpuminer/` | dir | vendored Heavy3 GPU miners — CUDA (kbkminer) + OpenCL (`opencl_alt/`); coupled to the PoW (`gpuminer/README.md`) |
 
 ## Storage
 

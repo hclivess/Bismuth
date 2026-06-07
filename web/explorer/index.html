@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bismuth Explorer</title>
+<link rel="stylesheet" href="/assets/bootstrap.min.css">
+<style>
+  body{background:#0e1217;color:#e4ebf3}
+  .navbar,.card{background:#161b22;border:1px solid #2a323d}
+  a{color:#6cb4ff;text-decoration:none} a:hover{text-decoration:underline}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.86rem;word-break:break-all}
+  .stat .v{font-size:1.35rem;font-weight:600;color:#fff}
+  .l{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:#a7b4c2}
+  .table{color:#e4ebf3} .table>:not(caption)>*>*{background:transparent;border-color:#2a323d;color:#e4ebf3}
+  .table thead th{color:#a7b4c2}
+  .badge-coinbase{background:#1f7a49;color:#fff} .hash{color:#bcccdc}
+  .spinner{color:#a7b4c2} .form-control{background:#0d1117;border-color:#2a323d;color:#e4ebf3}
+  .form-control::placeholder{color:#7e8b99} .subtle{color:#9aa7b5}
+</style>
+</head>
+<body>
+<nav class="navbar navbar-dark">
+  <div class="container py-2">
+    <a class="navbar-brand fw-bold" href="#/">⬡ Bismuth Explorer</a>
+    <form class="d-flex flex-grow-1 ms-3" onsubmit="return doSearch(event)">
+      <input id="q" class="form-control me-2" placeholder="block height · block hash · tx signature · address" autocomplete="off">
+      <button class="btn btn-primary" type="submit">Search</button>
+    </form>
+  </div>
+</nav>
+
+<div class="container py-3">
+  <div id="status" class="row g-2 mb-3"></div>
+  <div id="main"></div>
+  <p class="text-center mt-4 subtle">Live data from the Bismuth node REST API · <a href="https://bismuth.cz">bismuth.cz</a></p>
+</div>
+
+<script>
+const API='/api';
+const el=(h)=>{const t=document.createElement('template');t.innerHTML=h.trim();return t.content.firstChild};
+async function api(p){const r=await fetch(API+p);if(!r.ok)throw new Error(r.status+' '+p);return r.json();}
+const esc=(s)=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const short=(h,n=16)=>{h=String(h||'');return h.length>n?h.slice(0,n)+'…':h;};
+const tm=(ts)=>{const d=new Date(parseFloat(ts)*1000);return isNaN(d)?'-':d.toLocaleString();};
+const ago=(ts)=>{let s=Math.max(0,Date.now()/1000-parseFloat(ts));if(s<60)return Math.floor(s)+'s ago';if(s<3600)return Math.floor(s/60)+'m ago';return Math.floor(s/3600)+'h ago';};
+function fmtAmt(a){let n=parseFloat(a);if(!isFinite(n))return esc(a);let s=n.toFixed(8).replace(/\.?0+$/,'');return s===''?'0':s;}
+function setMain(h){const m=document.getElementById('main');m.innerHTML='';m.append(typeof h==='string'?el(h):h);}
+function loading(){setMain('<div class="text-center py-5 spinner">Loading…</div>');}
+function errBox(e){setMain(`<div class="alert alert-danger">Not found / error: ${esc(e.message||e)}</div>`);}
+
+let TIP=0;
+async function refreshStatus(){
+  try{const s=await api('/status');TIP=s.blocks;
+    const cards=[['Height',s.blocks],['Difficulty',Number(s.difficulty).toFixed(2)],
+      ['Peers',s.connections],['Consensus',s.consensus===s.blocks?'100%':s.consensus],
+      ['Protocol',s.protocol],['Node',s.node_version]];
+    document.getElementById('status').innerHTML=cards.map(([l,v])=>
+      `<div class="col"><div class="card stat p-2"><div class="l">${l}</div><div class="v">${esc(v)}</div></div></div>`).join('');
+  }catch(e){document.getElementById('status').innerHTML='<div class="col"><div class="alert alert-warning mb-0">node API unreachable</div></div>';}
+}
+
+const PAGE=20;
+async function blocksList(end){
+  loading();
+  try{
+    if(!end){const s=await api('/status');end=s.blocks;}
+    end=Math.max(1,parseInt(end));
+    const start=Math.max(1,end-PAGE+1);
+    const h=await api(`/headers/range/${start}/${end}`);
+    const rows=(h.headers||[]).slice().reverse().map(b=>`<tr>
+      <td><a href="#/block/${b.block_height}">${b.block_height}</a></td>
+      <td class="mono hash"><a href="#/block/${esc(b.block_hash)}">${short(b.block_hash,24)}</a></td>
+      <td>${b.txs}</td><td title="${tm(b.timestamp)}">${ago(b.timestamp)}</td></tr>`).join('');
+    const newer=end<TIP?`<a class="btn btn-sm btn-outline-info" href="#/blocks/${Math.min(TIP,end+PAGE)}">‹ Newer</a>`:'<span></span>';
+    const older=start>1?`<a class="btn btn-sm btn-outline-info" href="#/blocks/${start-1}">Older ›</a>`:'<span></span>';
+    setMain(`<div class="card p-3"><div class="d-flex justify-content-between align-items-center mb-2">
+        <h5 class="mb-0">Blocks ${start}–${end}</h5><a class="btn btn-sm btn-outline-secondary" href="#/blocks/">⟳ Latest</a></div>
+      <table class="table table-sm align-middle"><thead><tr><th>Height</th><th>Hash</th><th>Txs</th><th>Age</th></tr></thead>
+      <tbody>${rows}</tbody></table>
+      <div class="d-flex justify-content-between">${newer}${older}</div></div>`);
+  }catch(e){errBox(e);}
+}
+
+function txTable(txs){
+  return `<table class="table table-sm align-middle"><thead><tr><th>From</th><th>To</th><th>Amount</th><th>Op</th><th>Signature (txid)</th></tr></thead><tbody>${
+    txs.map(t=>{const cb=(t.address===t.recipient&&parseFloat(t.reward||0)>0);
+      return `<tr>
+        <td class="mono"><a href="#/address/${esc(t.address)}">${short(t.address,16)}</a></td>
+        <td class="mono"><a href="#/address/${esc(t.recipient)}">${short(t.recipient,16)}</a> ${cb?'<span class="badge badge-coinbase">coinbase</span>':''}</td>
+        <td>${fmtAmt(t.amount)}${parseFloat(t.reward||0)>0?` <span class="hash">+${fmtAmt(t.reward)}</span>`:''}</td>
+        <td>${esc(t.operation||'')}</td>
+        <td class="mono hash"><a href="#/tx/${encodeURIComponent(String(t.signature||'').slice(0,56))}">${short(t.signature,20)}</a></td></tr>`;}).join('')
+  }</tbody></table>`;
+}
+
+async function showBlock(id){
+  loading();
+  try{
+    const isH=/^\d+$/.test(id);
+    const b=await api(isH?`/block/height/${id}`:`/block/hash/${id}`);
+    const txs=b.transactions||[];const hh=txs[0]||{};
+    setMain(`<div class="card p-3">
+      <h5>Block ${esc(b.block_height)}</h5>
+      <div class="row mono mb-2"><div class="col-md-8"><span class="l">hash</span><br>${esc(hh.block_hash||'')}</div>
+      <div class="col-md-4"><span class="l">time</span><br>${tm(hh.timestamp)}</div></div>
+      <div class="mb-3">
+        <a class="btn btn-sm btn-outline-secondary" href="#/block/${(+b.block_height)-1}">‹ prev</a>
+        <a class="btn btn-sm btn-outline-secondary" href="#/block/${(+b.block_height)+1}">next ›</a>
+        <a class="btn btn-sm btn-outline-secondary" href="#/blocks/${b.block_height}">in list</a>
+        <span class="ms-2 subtle">${txs.length} transaction(s)</span></div>
+      ${txTable(txs)}</div>`);
+  }catch(e){errBox(e);}
+}
+
+async function showTx(txid){
+  loading();
+  try{const t=await api(`/transaction/${encodeURIComponent(txid)}`);
+    const f=(l,v,m)=>`<div class="mb-2"><div class="l">${l}</div><div class="${m?'mono':''}">${v}</div></div>`;
+    setMain(`<div class="card p-3"><h5>Transaction</h5>
+      ${f('signature (txid)',esc(t.signature||txid),1)}
+      ${f('block',`<a href="#/block/${esc(t.block_height)}">${esc(t.block_height)}</a>`)}
+      ${f('time',tm(t.timestamp))}
+      ${f('from',`<a href="#/address/${esc(t.address)}">${esc(t.address)}</a>`,1)}
+      ${f('to',`<a href="#/address/${esc(t.recipient)}">${esc(t.recipient)}</a>`,1)}
+      ${f('amount',fmtAmt(t.amount)+' BIS')}${f('fee',fmtAmt(t.fee)+' BIS')}
+      ${t.openfield?f('openfield',esc(t.openfield),1):''}</div>`);
+  }catch(e){errBox(e);}
+}
+
+async function showAddress(addr,limit){
+  loading();limit=limit||25;
+  try{
+    const bal=await api(`/balance/${encodeURIComponent(addr)}`);
+    let txs=[];try{const r=await api(`/address/${encodeURIComponent(addr)}/transactions?limit=${limit}`);txs=r.transactions||r||[];}catch(_){}
+    const more=(txs.length===limit&&limit<500)?`<div class="text-center"><a class="btn btn-sm btn-outline-info" href="#/address/${esc(addr)}/${Math.min(500,limit+25)}">Load more ↓</a></div>`:'';
+    setMain(`<div class="card p-3"><h5>Address</h5>
+      <div class="mono mb-1">${esc(addr)}</div>
+      <div class="subtle small mb-3">A Bismuth address — the SHA‑224 hash of the owner's public key (56 hex chars). Not a transaction; it identifies a wallet.</div>
+      <div class="stat mb-3"><span class="l">balance</span><div class="v">${fmtAmt(bal.balance)} BIS</div></div>
+      ${txs.length?`<h6>Transactions (newest ${txs.length}${txs.length>=500?', capped at 500':''})</h6>${txTable(txs)}${more}`:'<p class="subtle">No transactions for this address.</p>'}</div>`);
+  }catch(e){errBox(e);}
+}
+
+function doSearch(ev){ev.preventDefault();const q=document.getElementById('q').value.trim();if(!q)return false;
+  if(/^\d+$/.test(q))location.hash=`#/block/${q}`;
+  else if(/^[0-9a-fA-F]{56}$/.test(q))location.hash=`#/hashlookup/${q}`;
+  else location.hash=`#/tx/${encodeURIComponent(q)}`;
+  return false;}
+async function hashLookup(x){loading();try{await api(`/block/hash/${x}`);location.hash=`#/block/${x}`;}catch(_){location.hash=`#/address/${x}`;}}
+
+function router(){
+  const p=(location.hash||'#/').slice(1).split('/').filter(Boolean);
+  if(p[0]==='block')return showBlock(decodeURIComponent(p[1]));
+  if(p[0]==='blocks')return blocksList(p[1]);
+  if(p[0]==='tx')return showTx(decodeURIComponent(p.slice(1).join('/')));
+  if(p[0]==='address')return showAddress(decodeURIComponent(p[1]),p[2]?parseInt(p[2]):0);
+  if(p[0]==='hashlookup')return hashLookup(p[1]);
+  return blocksList();
+}
+window.addEventListener('hashchange',router);
+refreshStatus();router();
+setInterval(refreshStatus,15000);
+</script>
+</body>
+</html>

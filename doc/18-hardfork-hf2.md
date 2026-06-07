@@ -75,6 +75,30 @@ Heavy3 (`sha224` → 1 GB memory-hard anneal → substring-prefix difficulty) is
 - **This is the single most security-sensitive change.** Any PoW change has a transition window where
   hashrate is in flux; on ~15 nodes that window is dangerous.
 
+## Continuity — what happens to the existing chain
+
+The chain is **one continuous chain**; the fork is a boundary, not a restart. Nodes do **not**
+reconstruct history.
+
+- **Blocks below `fork_height` stay byte-for-byte, with their original hashes.** They were signed and
+  hashed under the old rules, and each block commits to the previous block's hash — re-encoding even one
+  would change every subsequent hash and snap the chain. History is immutable by construction.
+- **At `fork_height` the new rules apply going forward only.** The first new-format block still
+  references the last old-format block's hash, so the two halves join seamlessly. No new genesis, no
+  re-sync, no balance reset — state carries straight across.
+- **Validation is height-gated:** a node runs the old codec/rules for `height < fork_height` and the new
+  ones at/above. Both rulesets live in every upgraded node. `replay_verify` re-hashes the whole chain
+  exactly this way (old below, new above), which is how we prove no history is corrupted.
+- **Storage is orthogonal to consensus.** A node *may* re-store the old blocks locally in the new
+  scalable format (LMDB, pubkey-dedup, integer units) — that changes **no** block hash (it's behind the
+  frozen boundary), so the storage wins apply to history too without touching the chain's identity. The
+  consensus *serialization* of old blocks is never rewritten; only their local *representation* is.
+- **Identifiers** follow the same rule: pre-fork txs keep their `signature[:56]` txids and base64
+  sig/pubkey; post-fork txs use the content-hash txid and canonical encoding. Tools resolve both,
+  height-gated.
+
+So: nodes simply **continue with new-format data from the fork height**, on top of an unchanged past.
+
 ## Honest risk assessment & recommended sequencing
 
 Bundling A+B+C+D into one fork is a lot of consensus surface for a ~15-node chain. Suggested order,
