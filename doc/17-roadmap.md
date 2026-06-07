@@ -62,6 +62,20 @@
   `requirements*.txt` now mark these **required** (were wrongly "optional"), with the Python-3.12
   `ed25519` build caveat documented (its bundled versioneer uses configparser APIs removed in 3.12).
   With the dependency present the node syncs the legacy socket path at **~16 blocks/s**.
+- **Connectivity reliability fixes (operational, unit-tested).** Live bring-up surfaced and fixed:
+  a node **dialling itself** (`127.0.0.1` ships in default `peers.txt` *and* is whitelisted) and then
+  reporting a false "100 % consensus" off its own height — `can_connect_to` now refuses our own
+  listening address; an over-aggressive connection **back-off** (5–30 min cooldowns that `reset_tried`
+  kept instead of clearing) that stalled catch-up — now gentle/capped (30 s/1 m/2 m/5 m) with a 60 s
+  starved-reset; and the **bare-`print` digest error handler** (`<class 'ValueError'> digest.py 327`)
+  now logs the real failure site + cause (this is what exposed the ed25519 sync-blocker). With these +
+  the dependency fix, **a fresh node bootstraps and syncs to the mainnet tip end-to-end** (verified live:
+  4.72M snapshot → **4,845,489 tip**, clean, no rejections).
+- **Bootstrap is hosted again.** `https://bismuth.cz/ledger.tar.gz` — the node's historical default
+  `bootstrap_url`, on a rebuilt host (nginx + Let's Encrypt) — now serves a fresh **at-tip** snapshot
+  (ledger + hyper + index, ~5.9 GB, resumable byte-range), produced from the live node with zero downtime
+  via SQLite online backup (`_mkbootstrap.sh`). So the dead-host failure is resolved in practice, not
+  only in code.
 
 ## ◑ In progress / next
 
@@ -148,9 +162,30 @@
   3. If economic + rate limits prove insufficient, a structural fix (small **PoW-per-tx**, or a real
      fee market) is a hard-fork consideration. Consensus tx-validity stays unchanged; only *local
      admission* tightens.
-- **Storage-engine evaluation (phase 7).** Modernize SQLite usage (WAL, integer keys, covering
-  indexes), benchmark, then consider a KV store (LMDB/RocksDB) for block bodies while keeping SQLite
-  for queryable indexes. Decide on data, not taste.
+- **Scalable storage architecture (phase 7) — the path to a *fully scalable* DB.** Benchmarked on the
+  live mainnet ledger (**22 GB, block 4.85M, 7.13M txs**): indexed point lookups (block by height / by
+  hash) are sub-second, but a **per-address balance aggregate is a full-table scan that did not finish
+  within 200 s** — that is the scalability wall, and `ledger.db` also grows without bound. The target,
+  built **behind the frozen serialization boundary so block hashes stay byte-identical — replay-validated,
+  no hard fork**:
+  1. **Immutable block bodies → an append-only KV store (LMDB).** Signatures, public keys and openfields
+     are write-once and fetched by height/hash, so they belong in an embedded, memory-mapped,
+     compaction-free KV store keyed by height (plus a `hash → height` map), not an ever-growing SQL
+     table. **LMDB over RocksDB:** a single mmap'd file, no background compaction, copy-on-write MVCC
+     reads alongside a single writer — a near-perfect fit for an append-heavy, read-heavy, immutable
+     workload, and a trivial embedded dependency (`pip install lmdb`). Decide on data — the phase-7
+     benchmark — not taste.
+  2. **Maintained incremental indexes for queryable state** — balances, `txid → location`, address
+     history — updated on apply/rollback and bit-matching the authoritative computation, turning that
+     >200 s full-scan balance into an O(1)/O(log n) lookup. This is the phase-4 incremental balance
+     index generalised; it depends on integer storage to bit-match exactly.
+  3. **Integer atomic-unit amounts (phase 2) enabled** — compact exact integers instead of the current
+     `REAL` floats / `'%.8f'` strings. Already replay-proven; currently default-off.
+  4. **Bounded node footprint via a formalised pruning model (phase 5)** so a node need not retain the
+     entire body history.
+  Staged, config-flagged, default-off, each step independently replay-validated. SQLite stays for the
+  queryable indexes; LMDB takes the heavy immutable bodies — **fully scalable without touching
+  consensus.**
 - **Repository reorganization & modularization.** Retire dead files (✅ done — moved to `attic/` by
   import-graph analysis) and break up the over-long modules behind **behavior-preserving, test-green**
   extractions. `node.py` (~2.2k lines, with a ~1080-line socket-command `handle()`) is the prime
