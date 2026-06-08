@@ -60,6 +60,10 @@ def test_vm_deploy_and_call_post_fork(client):
     slot0 = {s["key"]: s["value"] for s in detail["storage"]}.get("0")
     assert slot0 == "2", "counter should be 2 after two calls, got %s" % detail["storage"]
 
+    # the VM state root is committed and reflects the contract state (doc/19)
+    root = _get("/api/vm/contracts").get("state_root")
+    assert root and len(root) == 64, "expected a 32-byte state root, got %r" % root
+
 
 def test_unknown_contract_404(client):
     try:

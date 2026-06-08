@@ -73,6 +73,7 @@ def rollback(node, db_handler, block_height):
         try:
             import vm_engine
             vm_engine.rebuild(node.vm_state, db_handler.h, node.fork_height, block_height - 1)
+            node.vm_state_root = node.vm_state.state_root()
         except Exception as e:
             node.logger.app_log.warning(f"vm state rollback rebuild failed: {e}")
 

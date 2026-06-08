@@ -480,6 +480,11 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
             try:
                 import vm_engine
                 vm_engine.apply_block_rows(_vms, processor.block_transactions)
+                # consensus-committable STATE ROOT (doc/19): a deterministic hash of all contract state
+                # after this block. Two honest nodes produce the same root; a divergence is a mismatch.
+                # (Computed + committed here; cross-node block-REJECTION on mismatch needs the miner to
+                # embed it in-block — a coinbase-format change, the remaining hf2 step.)
+                node.vm_state_root = _vms.state_root()
             except Exception as e:
                 node.logger.app_log.warning(
                     f"vm execution failed at {block_instance.block_height_new}: {e}")

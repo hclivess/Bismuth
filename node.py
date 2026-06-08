@@ -1297,6 +1297,7 @@ if __name__ == "__main__":
     node.balance_index = None                          # the index object, built at startup if enabled
     node.vm_enabled = config.vm                         # opt-in decentralized-apps VM (doc/17); POST-FORK only
     node.vm_state = None                               # the contract state store, built at startup if enabled
+    node.vm_state_root = None                          # committed VM state root (doc/19), maintained post-fork
 
     node.logger.app_log = log.log("node.log", node.debug_level, node.terminal_output)
     node.logger.app_log.warning("Configuration settings loaded")
@@ -1461,6 +1462,7 @@ if __name__ == "__main__":
                     import vm_state as _vm_state_mod
                     vm_path = _os.path.join(_os.path.dirname(node.ledger_path) or ".", "vmstate")
                     node.vm_state = _vm_state_mod.VMState(vm_path)
+                    node.vm_state_root = node.vm_state.state_root()
                     node.logger.app_log.warning("Status: VM enabled (executes vm: txs post-fork)")
                 except Exception as e:
                     node.logger.app_log.warning("Status: VM could not start: {}".format(e))

@@ -67,6 +67,26 @@ class VMState:
         """(key, value) pairs of a contract's storage, for display."""
         return sorted(self.load_storage(addr).items())
 
+    def state_root(self):
+        """Deterministic 32-byte root (hex) over the ENTIRE contract state — every contract's code and
+        every storage slot, in LMDB's sorted key order. Two nodes with identical state produce identical
+        roots; any divergence (a non-determinism bug) is a mismatch the digester can REJECT. Empty state
+        has a fixed root. (Not yet a Merkle trie — no inclusion proofs / incremental update; that's the
+        optimisation. This is the consensus COMMITMENT.)"""
+        import hashlib
+        h = hashlib.blake2b(digest_size=32)
+        with self.env.begin() as txn:
+            for addr, code in txn.cursor(db=self.code_db):
+                h.update(b"C")
+                h.update(addr)
+                h.update(len(code).to_bytes(4, "big"))
+                h.update(code)
+            for k, v in txn.cursor(db=self.stor_db):
+                h.update(b"S")
+                h.update(k)
+                h.update(v)
+        return h.hexdigest()
+
     # --- maintenance ------------------------------------------------------
     def clear(self):
         with self.env.begin(write=True) as txn:

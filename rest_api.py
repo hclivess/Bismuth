@@ -292,6 +292,7 @@ def _make_handler(node):
                 return {"enabled": False, "fork_height": getattr(node, "fork_height", None), "contracts": []}
             addrs = vms.list_contracts()
             return {"enabled": True, "fork_height": getattr(node, "fork_height", None),
+                    "state_root": getattr(node, "vm_state_root", None),
                     "count": len(addrs), "contracts": addrs}
 
         def _vm_contract(self, addr):
