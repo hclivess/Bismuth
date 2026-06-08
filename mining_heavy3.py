@@ -10,7 +10,7 @@ import mmap
 import os
 import struct
 import sys
-from hashlib import sha224
+from hashlib import sha224, blake2b
 from hmac_drbg import DRBG
 from quantizer import quantize_two, quantize_eight, quantize_ten
 from decimal import Decimal
@@ -75,12 +75,16 @@ def bin_convert(string):
     return ''.join(format(ord(x), '8b').replace(' ', '0') for x in string)
 
 
-def diffme_heavy3(pool_address, nonce, db_block_hash):
+def diffme_heavy3(pool_address, nonce, db_block_hash, new_pow=False):
     # minimum possible diff
     diff = 1
     diff_result = 0
-    hash224 = sha224((pool_address + nonce + db_block_hash).encode("utf-8")).digest()
-    hash224 = int.from_bytes(hash224, 'big')
+    _data = (pool_address + nonce + db_block_hash).encode("utf-8")
+    # Dual PoW (doc/18-D): post the PoW fork the inner hash modernises sha224 -> blake2b (28-byte digest,
+    # same 224-bit width). The 1 GB memory-hard anneal and the substring-prefix difficulty are UNCHANGED,
+    # so a node/miner switches algos purely on `new_pow` (= block_height >= the signalled pow_fork_height).
+    raw = blake2b(_data, digest_size=28).digest() if new_pow else sha224(_data).digest()
+    hash224 = int.from_bytes(raw, 'big')
     if heavy or (not is_regnet):
         annealed_sha = anneal3(MMAP, hash224)
     else:
@@ -94,7 +98,7 @@ def diffme_heavy3(pool_address, nonce, db_block_hash):
 
 
 def check_block(block_height_new, miner_address, nonce, db_block_hash, diff0, received_timestamp, q_received_timestamp,
-                q_db_timestamp_last, peer_ip='N/A', app_log=None):
+                q_db_timestamp_last, peer_ip='N/A', app_log=None, new_pow=False):
     """
     Checks that the given block matches the mining algo.
 
@@ -114,7 +118,7 @@ def check_block(block_height_new, miner_address, nonce, db_block_hash, diff0, re
         if is_regnet:
             diff0 = regnet.REGNET_DIFF - 8
 
-        real_diff = diffme_heavy3(miner_address, nonce, db_block_hash)
+        real_diff = diffme_heavy3(miner_address, nonce, db_block_hash, new_pow=new_pow)
         diff_drop_time = Decimal(180)
         mining_condition = bin_convert(db_block_hash)[0:int(diff0)]
         # simplified comparison, no backwards mining

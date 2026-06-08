@@ -59,6 +59,8 @@ class Get:
         "fork_window": ["int"],
         "fork_boundary": ["int"],
         "fork_bury": ["int"],
+        "mine": ["bool"],
+        "pow_fork_signal": ["bool"],
         "rpc_bitcoin": ["bool"],
         "rpc_bitcoin_port": ["int"],
         "rpc_ethereum": ["bool"],
@@ -95,6 +97,8 @@ class Get:
         "fork_window": 1000,                 # consecutive all-signalled blocks to lock in (regnet overrides small)
         "fork_boundary": 1000,               # activate on the next multiple of this
         "fork_bury": 30,                     # blocks between lock-in and activation (reorg safety)
+        "mine": False,                       # opt-in built-in solo miner (miner.py); off by default
+        "pow_fork_signal": False,            # signal readiness for the modernised blake2b Heavy3 (doc/18-D)
         "rpc_bitcoin": False,                # opt-in bitcoind-compatible JSON-RPC adapter (doc/17); off by default
         "rpc_bitcoin_port": 8332,
         "rpc_ethereum": False,               # opt-in eth_* compatibility shim (doc/17); off by default

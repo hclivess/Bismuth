@@ -188,6 +188,24 @@ def command(sdef, data, blockhash, node, db_handler):
             for i in range(how_many):
                 blockhash = generate_one_block(blockhash, mempool_txs, node, db_handler)
             connections.send(sdef, 'OK')
+        elif data == 'regtest_mine':
+            # drive the REAL solo miner (miner.py): it builds a block with the pending mempool txs + the
+            # hf2/pow2 coinbase (+ the VM state root post-fork) and mines the dual-algo Heavy3 — the exact
+            # code path used on mainnet. This is how we regnet-test the actual miner, not the regnet-only
+            # generator above.
+            how_many = int(connections.receive(sdef))
+            import miner
+            for _ in range(how_many):
+                miner.generate_block(node, db_handler)
+            connections.send(sdef, 'OK')
+        elif data == 'regtest_powcheck':
+            # verify the DUAL-algo PoW runs both ways inside the node (which has the Heavy3 mmap): the same
+            # input under sha224 vs blake2b yields different difficulties across a few samples.
+            old_vals, new_vals = [], []
+            for n in ("a1", "b2", "c3", "d4"):
+                old_vals.append(mining.diffme_heavy3(node.keys.address, n, blockhash, new_pow=False))
+                new_vals.append(mining.diffme_heavy3(node.keys.address, n, blockhash, new_pow=True))
+            connections.send(sdef, "{}|{}".format(",".join(map(str, old_vals)), ",".join(map(str, new_vals))))
         elif data == 'regtest_rollback':
             # REGNET-ONLY test helper: drive the REAL chain rollback so the reorg path (ledger + all
             # auxiliary stores) is exercised end-to-end. Destructive — hence this dispatcher is regnet-

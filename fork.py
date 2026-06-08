@@ -18,6 +18,20 @@ def has_fork_signal(openfield):
     return bool(openfield) and FORK2_SIGNAL in str(openfield)
 
 
+# --- Second fork: the Heavy3 PoW modernisation (doc/18-D). It gets its OWN signalled activation so the
+# single most security-sensitive change (a PoW transition) is isolated from hf2. Same machinery as hf2
+# (dynamic_fork_height is signal-agnostic); only the coinbase marker differs.
+FORK_POW_SIGNAL = "pow2"     # miners stamp this once they can mine the modernised (blake2b) Heavy3
+FORK_POW_WINDOW = 1000
+FORK_POW_BOUNDARY = 1000
+FORK_POW_BURY = 30
+
+
+def has_pow_signal(openfield):
+    """Does a coinbase openfield signal readiness for the modernised PoW (doc/18-D)?"""
+    return bool(openfield) and FORK_POW_SIGNAL in str(openfield)
+
+
 def next_fork_boundary(height, boundary=FORK2_BOUNDARY):
     """The next multiple of ``boundary`` STRICTLY above ``height``."""
     return ((int(height) // boundary) + 1) * boundary
@@ -60,6 +74,18 @@ def db_fork_signal_reader(db_handler):
             (height,))
         row = db_handler.c.fetchone()
         return has_fork_signal(row[0]) if row else False
+    return read
+
+
+def db_pow_signal_reader(db_handler):
+    """A read_signal(height) for the PoW fork (doc/18-D), backed by the coinbase openfield marker."""
+    def read(height):
+        db_handler.execute_param(
+            db_handler.c,
+            "SELECT openfield FROM transactions WHERE block_height = ? ORDER BY rowid DESC LIMIT 1",
+            (height,))
+        row = db_handler.c.fetchone()
+        return has_pow_signal(row[0]) if row else False
     return read
 
 

@@ -48,6 +48,16 @@ class LiteClient:
             time.sleep(0.05)
         return result
 
+    def mine_real(self, count=1):
+        """REGNET: drive the ACTUAL solo miner (miner.py via regtest_mine) — the mainnet code path —
+        rather than the regnet-only generator. Real Heavy3, so allow more time."""
+        before = self.block_height()
+        result = self.command("regtest_mine", [count])
+        deadline = time.time() + 60
+        while self.block_height() < before + count and time.time() < deadline:
+            time.sleep(0.1)
+        return result
+
     def rollback(self, below_height):
         """REGNET test helper: roll the chain back below `below_height` (drives chain_ops.rollback —
         the ledger AND every integrated auxiliary store, in sync). Returns the new tip."""

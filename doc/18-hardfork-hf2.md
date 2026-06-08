@@ -93,6 +93,15 @@ Heavy3 (`sha224` → 1 GB memory-hard anneal → substring-prefix difficulty) is
 - **This is the single most security-sensitive change.** Any PoW change has a transition window where
   hashrate is in flux; on ~15 nodes that window is dangerous.
 
+✅ **The dual-algo MECHANISM is built** (`mining_heavy3.diffme_heavy3(new_pow=…)`, `miner.py`,
+`mining_heavy3.check_block`, the `pow2` signal in `fork.py`, the `node.pow_fork_height` cache in
+`digest.py`): the inner hash modernises `sha224 → blake2b` (28-byte, same width); the 1 GB anneal and the
+difficulty metric are unchanged. The miner and validator switch on `block_height >= node.pow_fork_height`,
+activated by its **own** `pow2` signalled fork (same machinery as hf2). Tested on regnet
+(`test_miner.py::test_dual_algo_pow_switches`). What stays a deliberate human decision is *whether and
+when to signal it* — the GPU kernels (`bis.cu` / `bismuth.cl`) must swap the hash in lockstep at that
+height. Full mining map: **doc/21**. (We kept the substring metric; only the hash moved.)
+
 ## Continuity — what happens to the existing chain
 
 The chain is **one continuous chain**; the fork is a boundary, not a restart. Nodes do **not**

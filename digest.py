@@ -259,6 +259,8 @@ class BlockProcessor:
     def verify_proof_of_work(self, block_instance: Block, miner_tx: MinerTransaction,
                              tx: Transaction, diff: tuple) -> Any:
         """Verify the proof of work for the block."""
+        _pfh = getattr(self.node, "pow_fork_height", None)
+        new_pow = _pfh is not None and block_instance.block_height_new >= _pfh   # blake2b Heavy3 post-D
         if self.node.is_mainnet or self.node.is_testnet:
             return mining_heavy3.check_block(
                 block_instance.block_height_new,
@@ -270,7 +272,8 @@ class BlockProcessor:
                 tx.q_received_timestamp,
                 self.node.last_block_timestamp,
                 peer_ip=self.peer_ip,
-                app_log=self.node.logger.app_log
+                app_log=self.node.logger.app_log,
+                new_pow=new_pow
             )
         else:
             # Regnet
@@ -285,7 +288,8 @@ class BlockProcessor:
                 tx.q_received_timestamp,
                 self.node.last_block_timestamp,
                 peer_ip=self.peer_ip,
-                app_log=self.node.logger.app_log
+                app_log=self.node.logger.app_log,
+                new_pow=new_pow
             )
 
 
@@ -499,6 +503,22 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
                 # rare (a real bug, not the no-signal case which returns None) — but a SILENT failure here
                 # means the fork never activates and the VM/LWMA gates stay inert with no explanation.
                 node.logger.app_log.warning(f"hf2 fork-height detection failed: {type(e).__name__}: {e}")
+
+        # PoW-fork (doc/18-D) activation height: same signalled scheme, separate marker (pow2). Once locked
+        # in, block_height >= node.pow_fork_height selects the modernised blake2b Heavy3 in check_block.
+        if getattr(node, "pow_fork_height", None) is None:
+            try:
+                import fork as _fork
+                _pfh = _fork.dynamic_fork_height(
+                    _fork.db_pow_signal_reader(db_handler), block_instance.block_height_new,
+                    getattr(node, "pow_fork_window", _fork.FORK_POW_WINDOW),
+                    getattr(node, "pow_fork_boundary", _fork.FORK_POW_BOUNDARY),
+                    getattr(node, "pow_fork_bury", _fork.FORK_POW_BURY))
+                if _pfh is not None:
+                    node.pow_fork_height = _pfh
+                    node.logger.app_log.warning(f"Status: PoW-fork (blake2b Heavy3) activation locked at {_pfh}")
+            except Exception as e:
+                node.logger.app_log.warning(f"pow-fork detection failed: {type(e).__name__}: {e}")
 
         # Decentralized-apps VM (doc/17): execute this block's vm: transactions, POST-FORK ONLY, behind the
         # vm flag. Inert until the fork activates — it adds NO behaviour to the current chain. Failures are

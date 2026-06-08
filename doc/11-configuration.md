@@ -64,6 +64,8 @@ consensus-affecting, are **inert until the hf2 fork activates**.
 | `vm` | bool | enable the decentralized-apps RISC-V VM (doc/19); inert until hf2 |
 | `fork_signal` | bool | emit the `hf2` coinbase signal when generating blocks (upgraded miners) |
 | `fork_window` / `fork_boundary` / `fork_bury` | int | hf2 activation parameters (signal window, round boundary, burial margin) — `/api/fork` reports status |
+| `mine` | bool | run the built-in solo miner (`miner.py`): real Heavy3, embeds mempool txs, writes the hf2 coinbase (doc/21) |
+| `pow_fork_signal` | bool | emit the `pow2` signal to activate the modernised blake2b Heavy3 (doc/18-D) |
 | `bootstrap_url` / `bootstrap_file` | str | ledger-snapshot source for fast bootstrap (`chain_ops.bootstrap`) |
 | `rest_api` / `rest_api_port` | bool/int | enable the read-only REST API (doc/15) and its port |
 | `rpc_bitcoin` / `rpc_bitcoin_port`, `rpc_ethereum` / `rpc_ethereum_port` | bool/int | external RPC-bridge config keys (atomic-swap tooling) |
