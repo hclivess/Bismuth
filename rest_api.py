@@ -27,8 +27,10 @@ Endpoints:
     GET /api/peers                            - known peers
 """
 import json
+import os
 import threading
 import time
+from decimal import Decimal
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
@@ -51,6 +53,105 @@ class _NotFound(Exception):
 
 class _BadRequest(Exception):
     pass
+
+
+# --- circulating-supply cache persistence -------------------------------------------------------
+# The cold full-ledger SUM(reward)-SUM(fee) scan is multi-minute on a multi-GB mainnet ledger. The
+# computed value is memoized on node._supply_cache and topped up incrementally as the tip advances,
+# but an in-memory-only cache is wiped on every restart -> the next /api/supply would trigger another
+# full scan (the explorer shows "computing" for minutes). We therefore mirror the cache to a small
+# JSON file next to the ledger so a restart reloads it and only the cheap incremental top-up runs.
+
+def supply_cache_path(node):
+    """Path of the on-disk supply cache, alongside the ledger (e.g. static/supply_cache.json)."""
+    ledger_path = getattr(node, "ledger_path", None)
+    if not ledger_path:
+        return None
+    return os.path.join(os.path.dirname(ledger_path) or ".", "supply_cache.json")
+
+
+def load_supply_cache(node, intmode):
+    """Load the persisted supply cache into node._supply_cache when present, well-formed, and matching
+    the node's current storage mode. Returns the loaded dict (also set on the node) or None. Any
+    missing/corrupt/empty/mismatched file is ignored so the caller falls back to a fresh compute."""
+    path = supply_cache_path(node)
+    if not path or not os.path.exists(path):
+        return None
+    try:
+        with open(path, "r") as f:
+            raw = json.load(f)
+        if bool(raw.get("intmode")) != bool(intmode):
+            return None  # storage-mode cutover: the persisted figure is in the other unit basis
+        cache = {"height": int(raw["height"]),
+                 "circ": Decimal(str(raw["circ"])),  # string -> Decimal, no float drift
+                 "intmode": bool(raw["intmode"])}
+    except Exception as e:
+        try:
+            node.logger.app_log.warning("supply cache load failed ({}): {}".format(path, e))
+        except Exception:
+            pass
+        return None
+    node._supply_cache = cache
+    return cache
+
+
+def save_supply_cache(node, cache):
+    """Persist the supply cache to disk (circ as a decimal string). Best-effort; failures are logged
+    but never raised, so reporting never disturbs node operation. Written atomically via a temp file."""
+    path = supply_cache_path(node)
+    if not path:
+        return
+    try:
+        tmp = path + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump({"height": int(cache["height"]),
+                       "circ": str(cache["circ"]),
+                       "intmode": bool(cache["intmode"])}, f)
+        os.replace(tmp, path)
+    except Exception as e:
+        try:
+            node.logger.app_log.warning("supply cache save failed ({}): {}".format(path, e))
+        except Exception:
+            pass
+
+
+def start_supply_compute(node, height=None, intmode=None):
+    """Run the cold full-ledger supply scan in a daemon thread (so it never blocks a request / 504s),
+    store the result on node._supply_cache, and persist it to disk so future restarts skip the scan.
+    Idempotent: a no-op while a compute is already in flight. Called on demand by /api/supply and once
+    proactively at REST-server start so the first-ever compute (no cache file yet) runs ahead of demand."""
+    if getattr(node, "_supply_computing", False):
+        return
+    if height is None:
+        height = int(getattr(node, "hdd_block", 0) or 0)
+    if intmode is None:
+        intmode = bool(getattr(node, "ledger_integer_amounts", False))
+    node._supply_computing = True
+
+    def work():
+        try:
+            d = dbhandler.DbHandler(node.index_db, node.ledger_path, node.hyper_path, node.ram,
+                                    node.ledger_ram_file, node.logger,
+                                    trace_db_calls=node.trace_db_calls)
+            try:
+                base = d.fetchall(d.h, "SELECT COALESCE(SUM(reward),0)-COALESCE(SUM(fee),0) "
+                                       "FROM transactions WHERE block_height >= 0")[0][0]
+                mirror = d.fetchall(d.h, "SELECT COALESCE(SUM(amount),0) FROM transactions "
+                                         "WHERE block_height < 0")[0][0]
+                if intmode:
+                    circ = amounts.to_decimal(int(base or 0)) + amounts.to_decimal(int(mirror or 0))
+                else:
+                    circ = quantize_eight(base or 0) + quantize_eight(mirror or 0)
+                node._supply_cache = {"height": height, "circ": circ, "intmode": intmode}
+                save_supply_cache(node, node._supply_cache)  # persist so a restart skips the scan
+            finally:
+                d.close()
+        except Exception as e:
+            node.logger.app_log.warning("supply compute failed: {}".format(e))
+        finally:
+            node._supply_computing = False
+
+    threading.Thread(target=work, daemon=True).start()
 
 
 def _make_handler(node):
@@ -332,6 +433,8 @@ def _make_handler(node):
             height = int(getattr(node, "hdd_block", 0) or 0)
             intmode = bool(getattr(node, "ledger_integer_amounts", False))
             cache = getattr(node, "_supply_cache", None)
+            if cache is None:  # cold start (e.g. just restarted): try the on-disk cache before scanning
+                cache = load_supply_cache(node, intmode)
             if cache is not None and cache.get("intmode") == intmode:
                 if height <= cache["height"]:
                     return {"height": cache["height"], "status": "ok",
@@ -342,41 +445,13 @@ def _make_handler(node):
                                     (cache["height"], height))[0][0]
                     add = amounts.to_decimal(int(r or 0)) if intmode else quantize_eight(r or 0)
                     node._supply_cache = {"height": height, "circ": cache["circ"] + add, "intmode": intmode}
+                    save_supply_cache(node, node._supply_cache)  # keep the on-disk cache at the new tip
                     return {"height": height, "status": "ok",
                             "circulating": str(quantize_eight(node._supply_cache["circ"]))}
                 except Exception:
                     pass
-            self._start_supply_compute(height, intmode)
+            start_supply_compute(node, height, intmode)
             return {"height": height, "circulating": None, "status": "computing"}
-
-        def _start_supply_compute(self, height, intmode):
-            if getattr(node, "_supply_computing", False):
-                return
-            node._supply_computing = True
-
-            def work():
-                try:
-                    d = dbhandler.DbHandler(node.index_db, node.ledger_path, node.hyper_path, node.ram,
-                                            node.ledger_ram_file, node.logger,
-                                            trace_db_calls=node.trace_db_calls)
-                    try:
-                        base = d.fetchall(d.h, "SELECT COALESCE(SUM(reward),0)-COALESCE(SUM(fee),0) "
-                                               "FROM transactions WHERE block_height >= 0")[0][0]
-                        mirror = d.fetchall(d.h, "SELECT COALESCE(SUM(amount),0) FROM transactions "
-                                                 "WHERE block_height < 0")[0][0]
-                        if intmode:
-                            circ = amounts.to_decimal(int(base or 0)) + amounts.to_decimal(int(mirror or 0))
-                        else:
-                            circ = quantize_eight(base or 0) + quantize_eight(mirror or 0)
-                        node._supply_cache = {"height": height, "circ": circ, "intmode": intmode}
-                    finally:
-                        d.close()
-                except Exception as e:
-                    node.logger.app_log.warning("supply compute failed: {}".format(e))
-                finally:
-                    node._supply_computing = False
-
-            threading.Thread(target=work, daemon=True).start()
 
         def _tokens(self, db):
             """All tokens seen on chain, ranked by transfer volume."""
@@ -571,9 +646,25 @@ class BismuthRESTServer(threading.Thread):
             self.httpd = ThreadingHTTPServer((self.host, self.port), _make_handler(self.node))
             self.httpd.daemon_threads = True
             self.node.logger.app_log.warning(f"REST API listening on {self.host}:{self.port}")
+            self._warm_supply_cache()
             self.httpd.serve_forever()
         except Exception as e:
             self.node.logger.app_log.warning(f"REST API failed to start: {e}")
+
+    def _warm_supply_cache(self):
+        """Preload the persisted circulating-supply cache so the first /api/supply after a restart is
+        instant (only the cheap incremental top-up runs). If there's no cache file yet (first-ever run),
+        proactively kick the background full scan so it completes ahead of demand instead of on the
+        first request. Best-effort: never blocks startup or raises."""
+        try:
+            intmode = bool(getattr(self.node, "ledger_integer_amounts", False))
+            if load_supply_cache(self.node, intmode) is None:
+                start_supply_compute(self.node)
+        except Exception as e:
+            try:
+                self.node.logger.app_log.warning("supply cache warm-up skipped: {}".format(e))
+            except Exception:
+                pass
 
     def stop(self):
         if self.httpd:
