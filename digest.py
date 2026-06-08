@@ -468,8 +468,10 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
                 if _fh is not None:
                     node.fork_height = _fh
                     node.logger.app_log.warning(f"Status: hf2 activation height locked at {_fh}")
-            except Exception:
-                pass
+            except Exception as e:
+                # rare (a real bug, not the no-signal case which returns None) — but a SILENT failure here
+                # means the fork never activates and the VM/LWMA gates stay inert with no explanation.
+                node.logger.app_log.warning(f"hf2 fork-height detection failed: {type(e).__name__}: {e}")
 
         # Decentralized-apps VM (doc/17): execute this block's vm: transactions, POST-FORK ONLY, behind the
         # vm flag. Inert until the fork activates — it adds NO behaviour to the current chain. Failures are
