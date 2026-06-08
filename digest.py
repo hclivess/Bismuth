@@ -334,10 +334,18 @@ def digest_block(node, data, sdef, peer_ip, db_handler):
             return last_block_hash
 
         except Exception as e:
-            # the peer's block FAILED validation (bad PoW / double-spend / overspend / bad signature) —
-            # its claimed height wasn't real, so penalize (bounded, whitelist-immune). Skip the node's
-            # own fork-rollback, which isn't the peer's fault.
-            if "Rolling back" not in str(e):
+            # Penalize a peer for a bad block ONLY when WE are synced. While CATCHING UP, digest failures
+            # (a peer sends a block we already have, or out-of-order delivery) are normal SYNC NOISE, not
+            # misbehaviour — penalizing them bans every peer and isolates a freshly-restarted node (it did
+            # exactly that). Also skip our own fork-rollback and benign "already in ledger" duplicates.
+            msg = str(e)
+            benign = ("Rolling back" in msg) or ("already in" in msg)
+            try:
+                consensus = getattr(node.peers, "consensus", None)
+                synced = consensus is not None and int(node.hdd_block) >= int(consensus) - 5
+            except Exception:
+                synced = False
+            if synced and not benign:
                 import peers_reputation
                 node.peers.penalize(peer_ip, peers_reputation.PENALTY_INVALID_BLOCK, "invalid block")
             handle_processing_error(node, db_handler, sdef, peer_ip, e)
