@@ -76,3 +76,10 @@ class PeersReputationMixin:
     def consensus_reputation_weighted(self):
         """The agreed tip weighted by reputation — resists a flood of low-rep peers lying about it."""
         return weighted_tip(self.peer_opinion_dict, self.reputation_weight)
+
+    @property
+    def reputable_count(self):
+        """How many peers have a PROVEN (positive) reputation — peers that have actually delivered
+        valid PoW blocks. Gates deep auto-recovery rollbacks: a fresh sybil flood (no proven blocks)
+        cannot reach the bar, so it cannot force a deep reorg."""
+        return sum(1 for s in self._reputation.values() if s > 0)

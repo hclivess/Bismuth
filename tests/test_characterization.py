@@ -133,9 +133,10 @@ def test_rollback_allowed_policy():
     from essentials import rollback_allowed
 
     class _Peers:
-        def __init__(self, size, pct):
+        def __init__(self, size, pct, reputable=2):
             self._size = size
             self.consensus_percentage = pct
+            self.reputable_count = reputable    # proven (positive-reputation) peers
 
         @property
         def consensus_size(self):
@@ -146,15 +147,16 @@ def test_rollback_allowed_policy():
         rollback_consensus = False
         rollback_consensus_min_peers = 3
         rollback_consensus_threshold = 75
+        rollback_consensus_min_reputable = 1
         peers = None
 
     n = _N()
     # shallow rollbacks (at/above the checkpoint) are always allowed
     assert rollback_allowed(n, 1000) is True
     assert rollback_allowed(n, 1500) is True
-    # deep rollback, consensus-aware policy disabled -> refused (historical behavior preserved)
+    # deep rollback, auto-recovery explicitly disabled -> refused
     assert rollback_allowed(n, 900) is False
-    # deep rollback, policy enabled but consensus insufficient -> refused
+    # deep rollback, auto-recovery enabled but consensus insufficient -> refused
     n.rollback_consensus = True
     n.peers = _Peers(size=2, pct=90)    # too few peers
     assert rollback_allowed(n, 900) is False
@@ -162,8 +164,11 @@ def test_rollback_allowed_policy():
     assert rollback_allowed(n, 900) is False
     n.peers = _Peers(size=1, pct=100)   # a single (possibly malicious) peer cannot force a deep reorg
     assert rollback_allowed(n, 900) is False
-    # deep rollback with a strong supermajority over enough peers -> allowed (honest self-resolution)
-    n.peers = _Peers(size=5, pct=80)
+    # anti-sybil gate: enough peers + strong majority BUT no proven peers (fresh sybil flood) -> refused
+    n.peers = _Peers(size=5, pct=80, reputable=0)
+    assert rollback_allowed(n, 900) is False
+    # deep rollback with a strong supermajority over enough peers INCLUDING proven ones -> AUTO-RECOVER
+    n.peers = _Peers(size=5, pct=80, reputable=2)
     assert rollback_allowed(n, 900) is True
 
 

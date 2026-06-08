@@ -1274,9 +1274,10 @@ if __name__ == "__main__":
     node.rollback_depth = config.rollback_depth  # max blocks the node will roll back to rejoin a longer chain
     node.rest_api = config.rest_api              # opt-in modern parallel REST API (see doc/15)
     node.rest_api_port = config.rest_api_port
-    node.rollback_consensus = config.rollback_consensus                      # opt-in consensus-aware deep rollback (doc/14)
+    node.rollback_consensus = config.rollback_consensus                      # AUTO-RECOVERY: reputation-gated deep rollback, ON by default (doc/14)
     node.rollback_consensus_threshold = config.rollback_consensus_threshold
     node.rollback_consensus_min_peers = config.rollback_consensus_min_peers
+    node.rollback_consensus_min_reputable = config.rollback_consensus_min_reputable  # anti-sybil gate for deep rollback
     node.ledger_integer_amounts = config.ledger_integer_amounts   # doc/16 phase 2 cutover (default off)
     amounts.LEDGER_INTEGER = node.ledger_integer_amounts          # module flag read by every ledger amount site
     node.bootstrap_url = config.bootstrap_url     # configurable bootstrap source (the old fixed host can vanish)

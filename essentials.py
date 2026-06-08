@@ -181,22 +181,25 @@ def rollback_allowed(node, target_height) -> bool:
 
     - Shallow rollbacks (target at or above node.checkpoint) are always allowed: the normal small
       reorgs, bounded by the usual ~rollback_depth window.
-    - Deeper rollbacks (below the checkpoint) are refused by default (the historical
-      anti-deep-reorg behavior). When the consensus-aware policy is enabled
-      (config rollback_consensus=True), a deep rollback is allowed ONLY when a supermajority of a
-      sufficient number of peers agree on a chain. That lets an honestly-forked node resolve a deep
-      fork on its own, while a malicious minority of peers cannot force a deep reorg. See doc/14.
+    - Deeper rollbacks (below the checkpoint) AUTO-RECOVER (default on): instead of the old rigid refusal
+      that stranded an honestly-forked node and needed a manual re-bootstrap, the node rolls back as deep
+      as needed to rejoin the chain that PROVEN peers agree on. Safe because it requires a supermajority
+      of enough peers INCLUDING reputable ones (positive reputation = have delivered valid PoW blocks), so
+      a fresh sybil flood can't force a deep reorg — and the deep chain's blocks are PoW-validated on
+      ingest regardless, so an attacker still needs real 51% work. See doc/14.
     """
     if target_height >= node.checkpoint:
         return True
-    if not getattr(node, "rollback_consensus", False):
+    if not getattr(node, "rollback_consensus", True):   # auto-recovery ON by default
         return False
     peers = getattr(node, "peers", None)
     if peers is None:
         return False
     enough_peers = peers.consensus_size >= getattr(node, "rollback_consensus_min_peers", 3)
     strong_majority = (peers.consensus_percentage or 0) >= getattr(node, "rollback_consensus_threshold", 75)
-    return enough_peers and strong_majority
+    # require PROVEN peers too, so a fresh sybil flood (no valid blocks delivered) can't force a deep reorg
+    enough_reputable = getattr(peers, "reputable_count", 0) >= getattr(node, "rollback_consensus_min_reputable", 1)
+    return enough_peers and strong_majority and enough_reputable
 
 
 def ledger_balance3(address, cache, db_handler):

@@ -50,6 +50,7 @@ class Get:
         "rollback_consensus": ["bool"],
         "rollback_consensus_threshold": ["int"],
         "rollback_consensus_min_peers": ["int"],
+        "rollback_consensus_min_reputable": ["int"],
         "ledger_integer_amounts": ["bool"],
         "bootstrap_url": ["str"],
         "bootstrap_file": ["str"],
@@ -79,9 +80,10 @@ class Get:
         "rollback_depth": 30,  # max blocks the node will roll back to rejoin a longer chain (see doc/14)
         "rest_api": False,     # opt-in modern parallel REST API (see doc/15); off by default
         "rest_api_port": 5659,
-        "rollback_consensus": False,         # opt-in consensus-aware deep rollback (see doc/14); off by default
+        "rollback_consensus": True,          # AUTO-RECOVERY: reputation-gated deep rollback so a forked node rejoins on its own (doc/14); ON by default (replaces the rigid rollback_depth stranding)
         "rollback_consensus_threshold": 75,  # % peer agreement required to allow a deep rollback
         "rollback_consensus_min_peers": 3,   # min peers in consensus to allow a deep rollback
+        "rollback_consensus_min_reputable": 1,  # min PROVEN (positive-reputation) peers required for a deep auto-recovery rollback (anti-sybil)
         "ledger_integer_amounts": False,     # store amount/fee/reward as integer atomic units (doc/16); off by default
         # Bootstrap source. The historical hardcoded host can disappear (it did), so the URL is
         # configurable and a locally-provided archive takes precedence (see chain_ops.bootstrap).
