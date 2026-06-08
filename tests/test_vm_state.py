@@ -42,3 +42,13 @@ def test_state_root_is_deterministic_and_order_independent(tmp_path):
     finally:
         a.close()
         b.close()
+
+
+def test_coinbase_root_embed_extract():
+    import vm_engine
+    root = "a" * 64
+    of = vm_engine.embed_state_root(root, "deadbeef")
+    assert vm_engine.extract_state_root(of) == root            # round-trips through the coinbase openfield
+    assert vm_engine.extract_state_root("hf2deadbeef") is None  # the hf2 signal is not a root
+    assert vm_engine.extract_state_root("") is None
+    assert vm_engine.extract_state_root("vmsr" + "b" * 60) is None  # too short to hold a 32-byte root

@@ -101,7 +101,16 @@ def generate_one_block(blockhash, mempool_txs, node, db_handler):
                 i += 1
                 # hf2: a signalling node mines a coinbase nonce that carries the readiness marker
                 # (fork.FORK2_SIGNAL). It rides in the PoW nonce itself, so PoW still validates.
-                seed = ("hf2" if getattr(node, "fork_signal", False) else '') + ('%0x' % getrandbits(128 - 32))
+                # POST-FORK: instead, commit the VM pre-state root in the coinbase (doc/19) so peers can
+                # reject a divergent block. Either way it's part of the PoW-hashed seed.
+                _signal = "hf2" if getattr(node, "fork_signal", False) else ''   # keep signalling so syncing nodes still detect the fork
+                _sr_fh = getattr(node, "fork_height", None)
+                _sr = getattr(node, "vm_state_root", None)
+                if _sr_fh is not None and getattr(node, "hdd_block", 0) + 1 >= _sr_fh and _sr:
+                    import vm_engine
+                    seed = _signal + vm_engine.embed_state_root(_sr, '%0x' % getrandbits(48))
+                else:
+                    seed = _signal + ('%0x' % getrandbits(128 - 32))
                 prefix = ADDRESS + seed
                 # print("node heavy", node.heavy)
                 if node.heavy:

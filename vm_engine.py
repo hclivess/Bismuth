@@ -83,6 +83,31 @@ def apply_block_rows(state, rows):
             process(state, op, r[_OF] or "", r[_SIG], r[_ADDR], r[_AMOUNT], int(r[_BH] or 0))
 
 
+# --- state-root enforcement in the coinbase (doc/19) -----------------------------------------------
+# Post-fork, the miner COMMITS the pre-state VM root in the coinbase openfield, ahead of the PoW nonce,
+# so a peer can RE-COMPUTE its own root and REJECT the block on a mismatch — turning a silent state
+# divergence into a caught block-rejection. The marker keeps it distinguishable from the hf2 signal.
+COINBASE_ROOT_MARKER = "vmsr"
+_ROOT_HEX = 64   # blake2b(digest_size=32) -> 64 hex chars
+
+
+def embed_state_root(root, rand_hex=""):
+    """Coinbase-openfield seed committing `root` (the pre-state VM root), then PoW-nonce entropy."""
+    return COINBASE_ROOT_MARKER + str(root) + str(rand_hex)
+
+
+def extract_state_root(openfield):
+    """The committed VM state root from a coinbase openfield, or None if absent/malformed. The marker is
+    located by search, so the root can ride AFTER the hf2 signal in the same openfield."""
+    of = openfield or ""
+    i = of.find(COINBASE_ROOT_MARKER)
+    if i >= 0:
+        start = i + len(COINBASE_ROOT_MARKER)
+        if len(of) >= start + _ROOT_HEX:
+            return of[start:start + _ROOT_HEX]
+    return None
+
+
 def rebuild(state, cursor, fork_height, max_height):
     """Rebuild the whole contract state by re-executing every vm: tx from fork activation up to
     `max_height`, in chain order (startup + after a reorg). Deterministic by construction."""

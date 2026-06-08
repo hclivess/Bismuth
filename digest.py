@@ -418,6 +418,26 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
         # Execute plugin hooks
         execute_block_hooks(node, block_instance, miner_tx, diff_save, peer_ip, processor.block_transactions)
 
+        # state-root ENFORCEMENT (doc/19): post-fork the coinbase COMMITS the pre-state VM root; if it
+        # disagrees with ours, a VM has diverged -> REJECT the block BEFORE committing it (caught, not
+        # silent). node.vm_state_root is still the pre-state here (this block's vm: txs run after to_db).
+        _ev = getattr(node, "vm_state", None)
+        _efh = getattr(node, "fork_height", None)
+        if _ev is not None and _efh is not None and block_instance.block_height_new >= _efh:
+            import vm_engine
+            _claimed = None
+            for _t in processor.block_transactions:
+                try:
+                    if _t[9] and float(_t[9]) != 0:                  # coinbase = the reward tx
+                        _claimed = vm_engine.extract_state_root(_t[11])
+                        break
+                except (ValueError, TypeError):
+                    continue
+            if _claimed is not None and _claimed != getattr(node, "vm_state_root", None):
+                raise ValueError(
+                    f"VM state-root mismatch at {block_instance.block_height_new}: coinbase "
+                    f"{_claimed[:16]} != local {str(getattr(node, 'vm_state_root', None))[:16]}")
+
         # Save to database
         db_handler.to_db(block_instance, diff_save, processor.block_transactions)
 
