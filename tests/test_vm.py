@@ -96,3 +96,23 @@ def test_htlc_preimage_claim():
     assert ok.success and int.from_bytes(ok.output, "big") == 1
     bad = execute(code, calldata=(secret + 1).to_bytes(32, "big"), storage={0: H})  # wrong preimage
     assert bad.success and int.from_bytes(bad.output, "big") == 0
+
+
+def test_htlc_claim_with_timelock():
+    # The FULL HTLC claim guard: accept iff (correct preimage) AND (still within the timeout window).
+    # preimage_ok = sha256(calldata) == H[slot0]; within = NOT(height > timeout[slot1]); return AND.
+    secret = 0xABCDEF
+    H = int.from_bytes(hashlib.sha256(secret.to_bytes(32, "big")).digest(), "big")
+    timeout = 1000
+    code = (push(0) + bytes([vm.CALLDATALOAD, vm.SHA256]) + push(0) + bytes([vm.SLOAD, vm.EQ]) +
+            push(1) + bytes([vm.SLOAD, vm.NUMBER, vm.GT, vm.ISZERO, vm.AND, vm.RETURN]))
+    storage = {0: H, 1: timeout}
+    good = secret.to_bytes(32, "big")
+
+    # correct preimage, BEFORE timeout -> claim valid
+    assert int.from_bytes(execute(code, calldata=good, storage=storage, block_height=900).output, "big") == 1
+    # correct preimage, AFTER timeout -> refused: the TIMELOCK fired (this is the refund window now)
+    assert int.from_bytes(execute(code, calldata=good, storage=storage, block_height=1100).output, "big") == 0
+    # wrong preimage, before timeout -> refused
+    bad = (secret + 1).to_bytes(32, "big")
+    assert int.from_bytes(execute(code, calldata=bad, storage=storage, block_height=900).output, "big") == 0
