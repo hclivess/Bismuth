@@ -17,6 +17,7 @@ class SignerType(Enum):
     RSA = 1
     ECDSA = 2
     ED25519 = 3
+    MLDSA = 4   # ML-DSA-65 (FIPS 204 / Dilithium3) post-quantum signer (doc/20)
     BTC = 1000  # Tests
     CRW = 1001  # Tests
 

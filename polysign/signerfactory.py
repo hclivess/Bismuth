@@ -11,6 +11,7 @@ from polysign.signer_rsa import SignerRSA  # RSA = Bismuth mainnet scheme; depen
 _OPTIONAL_SIGNERS = {
     "SignerECDSA": ("polysign.signer_ecdsa", "SignerECDSA"),
     "SignerED25519": ("polysign.signer_ed25519", "SignerED25519"),
+    "SignerMLDSA": ("polysign.signer_mldsa", "SignerMLDSA"),   # ML-DSA-65 post-quantum (doc/20)
     "SignerBTC": ("polysign.signer_btc", "SignerBTC"),
     "SignerCRW": ("polysign.signer_crw", "SignerCRW"),
 }

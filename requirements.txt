@@ -18,3 +18,6 @@ coincurve
 # / readfp, both removed in 3.12). On 3.12 install from source with setup.py's versioneer.get_version()
 # /get_cmdclass() calls replaced by a literal (e.g. "1.5"); older Pythons pip-install it directly.
 ed25519
+# OPTIONAL (post-quantum, doc/20): pure-Python ML-DSA-65 for polysign/signer_mldsa.py. Lazy-imported by
+# the SignerFactory, so a node without it is unaffected until a `pq` fork activates the PQ signature type.
+dilithium-py

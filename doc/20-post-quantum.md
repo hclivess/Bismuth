@@ -177,12 +177,16 @@ See §6 for the primary sources.
 When the timeline tightens, the change is small and rides entirely on machinery Bismuth **already has**.
 Four pieces:
 
-1. **A new `polysign` signer — `signer_mldsa.py` (DESIGN).** A new `Signer` subclass implementing the
-   existing abstract interface (`from_seed`, `sign_buffer_for_bis`, `verify_bis_signature[_raw]`,
-   `public_key_to_address`) over an ML-DSA library, registered in `signerfactory.py` as a new
-   `SignerType.MLDSA` and wired into the lazy `_OPTIONAL_SIGNERS` table (so RSA-only nodes still pull no
-   PQ dependency until it is used). **This is the only genuinely new cryptographic code.** Everything it
-   plugs into already exists.
+1. **A new `polysign` signer — `signer_mldsa.py` (✅ BUILT + TESTED).** A `Signer` subclass implementing
+   the existing abstract interface (`from_seed`/`from_private_key`, `sign_buffer_raw`/`_for_bis`,
+   `verify_signature`/`verify_bis_signature[_raw]`, `public_key_to_address`) over `dilithium-py`'s
+   ML-DSA-65, registered in `signerfactory.py` as `SignerType.MLDSA = 4` in the lazy `_OPTIONAL_SIGNERS`
+   table (RSA-only nodes pull no PQ dependency until used). The wallet key is a **32-byte seed** (FIPS 204
+   deterministic KeyGen); the **address is a hash of the pubkey** (the 1952-byte pubkey is too large to
+   embed). It round-trips for real — `tests/test_pq_signer.py` (6 tests): sign/verify, deterministic keys,
+   hash-addresses, tamper + wrong-address rejection, the Bismuth b64 network format. This is the only
+   genuinely new cryptographic code, and it is **real and tested**; everything it plugs into already
+   exists. What stays gated is consensus ACCEPTANCE (below), not the signer.
 
 2. **A new signature-type tag in the tx / serialization.** The verifier is currently selected from the
    **address shape** (`address_to_signer`); a PQ family needs its own recognizable form — its own
@@ -278,8 +282,10 @@ payoff is the ability to move fast precisely when there is no time to spare.
 
 ---
 
-> **Status: design / option-in-reserve.** This document *is* the deliverable for now. The codebase
-> assets it relies on — `polysign`'s `SignerFactory` (§2a), addresses-as-hashes (§2b), and the `hf2`
-> signalled-fork machinery (§4.4) — **exist and are in production.** The post-quantum signer
-> (`signer_mldsa.py`) and its serialization tag are **DESIGN, not code**, and stay that way until §5
-> step 1 is deliberately triggered.
+> **Status: signer BUILT + tested; consensus acceptance gated.** The codebase assets it relies on —
+> `polysign`'s `SignerFactory` (§2a), addresses-as-hashes (§2b), and the `hf2` signalled-fork machinery
+> (§4.4) — **exist and are in production.** The post-quantum signer **`signer_mldsa.py` is real, working,
+> tested code** (`SignerType.MLDSA`, registered in the factory, `tests/test_pq_signer.py` 6/6 green) — it
+> signs and verifies real ML-DSA-65. What remains **gated/not-active** is consensus ACCEPTANCE: no mainnet
+> path mints or validates ML-DSA txs until a `pq` signalled fork (§4.4 / §5 step 1) is deliberately
+> triggered — exactly how the VM and the dual-algo PoW are real-but-inert until their forks.
