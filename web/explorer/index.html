@@ -53,9 +53,11 @@ function connectNode(host){host=String(host||'').replace(/\/+$/,'');API=host?hos
   if(host)localStorage.setItem('bisnode',API);else localStorage.removeItem('bisnode');
   location.hash='#/';refreshStatus();router();}
 function resetNode(){connectNode('');}
+function mixedContent(){return location.protocol==='https:'&&/^http:\/\//i.test(API);}
 function nodeBanner(){const b=document.getElementById('nodebar');if(!b)return;
   if(API==='/api'){b.innerHTML='';return;}
-  b.innerHTML=`<div class="alert alert-info py-1 mb-2 small">Browsing node <span class="mono">${esc(API)}</span> · <a href="javascript:resetNode()">back to this explorer's node</a></div>`;}
+  const warn=mixedContent()?' <span class="badge bg-warning text-dark">HTTPS→HTTP is blocked by your browser — open this explorer over http:// (e.g. your local node) to browse http nodes</span>':'';
+  b.innerHTML=`<div class="alert alert-info py-1 mb-2 small">Browsing node <span class="mono">${esc(API)}</span> · <a href="javascript:resetNode()">back to this explorer's node</a>${warn}</div>`;}
 const esc=(s)=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const short=(h,n=16)=>{h=String(h||'');return h.length>n?h.slice(0,n)+'…':h;};
 const tm=(ts)=>{const d=new Date(parseFloat(ts)*1000);return isNaN(d)?'-':d.toLocaleString();};
@@ -63,7 +65,9 @@ const ago=(ts)=>{let s=Math.max(0,Date.now()/1000-parseFloat(ts));if(s<60)return
 function fmtAmt(a){let n=parseFloat(a);if(!isFinite(n))return esc(a);let s=n.toFixed(8).replace(/\.?0+$/,'');return s===''?'0':s;}
 function setMain(h){const m=document.getElementById('main');m.innerHTML='';m.append(typeof h==='string'?el(h):h);}
 function loading(){setMain('<div class="text-center py-5 spinner">Loading…</div>');}
-function errBox(e){setMain(`<div class="alert alert-danger">Not found / error: ${esc(e.message||e)}</div>`);}
+function errBox(e){let extra='';
+  if(API!=='/api'){extra=`<hr class="my-2"><div class="small">Could not reach <span class="mono">${esc(API)}</span>${mixedContent()?' — your browser blocks an HTTPS page from loading an HTTP node (mixed content). Open this explorer over <b>http://</b> to browse HTTP nodes, or point at an HTTPS node.':' — it may be offline or not expose its REST API.'} <a href="javascript:resetNode()">back to this explorer\'s node</a></div>`;}
+  setMain(`<div class="alert alert-danger">Not found / error: ${esc(e.message||e)}${extra}</div>`);}
 
 let TIP=0;
 async function refreshStatus(){
@@ -73,7 +77,8 @@ async function refreshStatus(){
       ['Protocol',s.protocol],['Node',s.node_version]];
     document.getElementById('status').innerHTML=cards.map(([l,v])=>
       `<div class="col"><div class="card stat p-2"><div class="l">${l}</div><div class="v">${esc(v)}</div></div></div>`).join('');
-  }catch(e){document.getElementById('status').innerHTML='<div class="col"><div class="alert alert-warning mb-0">node API unreachable</div></div>';}
+  }catch(e){const r=(API!=='/api')?` · <a href="javascript:resetNode()">back to this explorer's node</a>`:'';
+    document.getElementById('status').innerHTML=`<div class="col"><div class="alert alert-warning mb-0">node API unreachable${r}</div></div>`;}
 }
 
 const PAGE=20;
