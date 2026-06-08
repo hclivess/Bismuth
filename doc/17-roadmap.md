@@ -185,6 +185,22 @@
     chain — any **non-determinism** (floats, time, map ordering, uninitialised memory) that makes two
     honest nodes disagree and forks the network. Also state-bloat / unbounded growth. This is its own
     multi-stage effort and its own hard fork, well beyond the storage/serialization work.
+
+  **Status (built so far):** the deterministic engine (`bismuth_vm.py`), a contract-state store
+  (`vm_state.py`), `vm:deploy`/`vm:call` parsing + execution (`vm_engine.py`) GATED behind hf2 in the
+  digest, and `/api/vm/*` for the explorer — all behind the `vm` flag, inert until the fork. Execution
+  is main-layer (every node runs it) but the state is currently an **uncommitted derived view**.
+  - **State root (next, being wired):** commit a deterministic hash of the contract state per post-fork
+    block, validated by re-execution, so a non-determinism bug is a *caught* block-rejection instead of a
+    silent state divergence — main-layer execution + the hash-anchored integrity an L2 hash-commit gives,
+    without a separate layer. (doc/19)
+  - **HTLC / atomic swaps — the flagship app.** Bitcoin-style hash-time-locked contracts (BIP-199):
+    `SHA256` preimage claim path + block-height `NUMBER` timelock refund path — both already expressible
+    in VM bytecode (tested). The remaining piece is **value custody** (a contract holding/releasing BIS),
+    enabling trustless BIS↔BTC/LTC/DOGE swaps with no bridge or sequencer.
+  - **Engine choice:** today a compact EVM-style bytecode; a **RISC-V** interpreter (Vitalik's direction,
+    real toolchains) is a viable drop-in for the execution engine — the state/gate/rollback/root framework
+    here is engine-agnostic.
 - **Supersede the legacy socket / peer / block-processing stack with the API system.** This is the
   project's worst code — blocking, no asyncio, stall-prone — and the long-term plan moves its capability
   onto the HTTP/REST API (parallel, compressed, non-stalling). That replacement is the *destination*, but
