@@ -29,6 +29,29 @@ python3 node.py
 python3 node_stop.py
 ```
 
+### Run as a service (systemd) — recommended
+
+Don't babysit a `screen`/`nohup`. Install the node as a systemd service — it survives reboots, restarts
+on failure, and stops **gracefully** (systemd sends `SIGTERM`, the node finishes its in-flight block and
+drains `db_lock`, so `ledger.db`/`hyper.db` stay consistent):
+
+```bash
+sudo bash scripts/install-node-service.sh
+```
+
+The installer auto-detects the repo dir, `python3`, and user; gracefully stops any node already running
+on `:5658`; writes `/etc/systemd/system/bismuth-node.service`; and enables + starts it. After that:
+
+```bash
+systemctl status  bismuth-node     # up / synced?
+systemctl stop    bismuth-node     # graceful stop
+systemctl restart bismuth-node     # graceful restart
+journalctl -u bismuth-node -f      # follow the logs
+```
+
+The service sets `BISMUTH_IGNORE_CONFIG_CUSTOM=1` so it always boots **mainnet** even if a leftover
+regnet `config_custom.txt` is present.
+
 ### Local dev chain (regnet) + tests
 
 `regnet` is a private, instantly-mineable chain for development — no peers, no real PoW. The test

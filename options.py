@@ -1,4 +1,5 @@
 import json
+import os
 import os.path as path
 from sys import exit
 
@@ -164,8 +165,10 @@ class Get:
     def read(self):
         # first of all, load from default config so we have all needed params
         self.load_file("config.txt")
-        # then override with optional custom config
-        if path.exists("config_custom.txt"):
+        # then override with optional custom config (the regnet test harness drops in config_custom.txt).
+        # BISMUTH_IGNORE_CONFIG_CUSTOM=1 lets the systemd mainnet service ignore a leftover test override
+        # so it always boots mainnet regardless of a stray config_custom.txt (see scripts/install-node-service.sh).
+        if path.exists("config_custom.txt") and not os.environ.get("BISMUTH_IGNORE_CONFIG_CUSTOM"):
             self.load_file("config_custom.txt")
         file_name = "./mandatory_message.json"
         if path.isfile(file_name):
