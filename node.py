@@ -15,6 +15,7 @@ VERSION = "4.5.0.1"
 
 import platform
 import shutil
+import signal
 import socketserver
 import threading
 from sys import version_info
@@ -1230,6 +1231,15 @@ if __name__ == "__main__":
     node = node.Node()
     node.logger = logger.Logger()
     node.keys = keys.Keys()
+
+    # Graceful shutdown on SIGTERM/SIGINT: just raise the flag the main loop already honours — it waits for
+    # db_lock (so an in-flight block finishes writing to BOTH ledger.db and hyper.db), closes Heavy3 and
+    # exits. This stops `kill`/Ctrl-C from terminating mid-write and leaving the ledger/hyper heights split
+    # (which is what tripped the cross-integrity rollback on the last restart).
+    def _graceful_stop(signum, _frame):
+        node.IS_STOPPING = True
+    signal.signal(signal.SIGTERM, _graceful_stop)
+    signal.signal(signal.SIGINT, _graceful_stop)
 
     node.is_testnet = False
     # regnet takes over testnet

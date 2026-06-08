@@ -193,9 +193,12 @@ def ledger_check_heights(node, db_handler):
             highest_block = max(hdd_block_max, hdd2_block_last, hdd_block_max_diff, hdd2_block_last_misc)
 
             node.logger.app_log.warning(
-                f"Status: Cross-integrity check failed, {highest_block} will be rolled back below {lowest_block}")
+                f"Status: Cross-integrity check failed (db heights span {lowest_block}..{highest_block}); "
+                f"trimming the excess above the common height {lowest_block} (kept) and resyncing from there")
 
-            rollback(node, db_handler, lowest_block)  # rollback to the lowest value
+            # rollback drops heights >= its arg, so pass lowest_block+1 to KEEP lowest_block (the height all
+            # DBs share) and discard only the excess above it — minimal, instead of nuking a valid block.
+            rollback(node, db_handler, lowest_block + 1)
             node.recompress = False
 
     else:
