@@ -18,15 +18,25 @@
   .badge-coinbase{background:#1f7a49;color:#fff} .hash{color:#bcccdc}
   .spinner{color:#a7b4c2} .form-control{background:#0d1117;border-color:#2a323d;color:#e4ebf3}
   .form-control::placeholder{color:#9aa7b5} .subtle{color:#c2cedb}
+  .table-responsive{border-color:#2a323d}
+  .trunc{display:inline-block;max-width:48ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}
+  @media (max-width:576px){
+    .navbar .container{flex-wrap:wrap;row-gap:.5rem}
+    .navbar-brand{font-size:1.05rem}
+    form.d-flex{margin-left:0!important}
+    .stat .v{font-size:1.1rem}
+    .table-sm{font-size:.82rem}
+    .trunc{max-width:14ch}
+  }
 </style>
 </head>
 <body>
 <nav class="navbar navbar-dark">
   <div class="container py-2">
     <a class="navbar-brand fw-bold" href="#/">⬡ Bismuth Explorer</a>
-    <form class="d-flex flex-grow-1 ms-3" onsubmit="return doSearch(event)">
-      <input id="q" class="form-control me-2" placeholder="block height · block hash · tx signature · address" autocomplete="off">
-      <button class="btn btn-primary" type="submit">Search</button>
+    <form class="d-flex flex-grow-1 ms-sm-3" onsubmit="return doSearch(event)">
+      <input id="q" class="form-control me-2 flex-grow-1" placeholder="block height · block hash · tx signature · address" autocomplete="off">
+      <button class="btn btn-primary flex-shrink-0" type="submit">Search</button>
     </form>
   </div>
 </nav>
@@ -91,28 +101,28 @@ async function blocksList(end){
     const h=await api(`/headers/range/${start}/${end}`);
     const rows=(h.headers||[]).slice().reverse().map(b=>`<tr>
       <td><a href="#/block/${b.block_height}">${b.block_height}</a></td>
-      <td class="mono hash"><a href="#/block/${esc(b.block_hash)}">${short(b.block_hash,24)}</a></td>
+      <td class="mono hash"><a class="trunc" title="${esc(b.block_hash)}" href="#/block/${esc(b.block_hash)}">${short(b.block_hash,24)}</a></td>
       <td>${b.txs}</td><td title="${tm(b.timestamp)}">${ago(b.timestamp)}</td></tr>`).join('');
     const newer=end<TIP?`<a class="btn btn-sm btn-outline-info" href="#/blocks/${Math.min(TIP,end+PAGE)}">‹ Newer</a>`:'<span></span>';
     const older=start>1?`<a class="btn btn-sm btn-outline-info" href="#/blocks/${start-1}">Older ›</a>`:'<span></span>';
     setMain(`<div class="card p-3"><div class="d-flex justify-content-between align-items-center mb-2">
         <h5 class="mb-0">Blocks ${start}–${end}</h5><a class="btn btn-sm btn-outline-secondary" href="#/blocks/">⟳ Latest</a></div>
-      <table class="table table-sm align-middle"><thead><tr><th>Height</th><th>Hash</th><th>Txs</th><th>Age</th></tr></thead>
-      <tbody>${rows}</tbody></table>
+      <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Height</th><th>Hash</th><th>Txs</th><th>Age</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
       <div class="d-flex justify-content-between">${newer}${older}</div></div>`);
   }catch(e){errBox(e);}
 }
 
 function txTable(txs){
-  return `<table class="table table-sm align-middle"><thead><tr><th>From</th><th>To</th><th>Amount</th><th>Op</th><th>Signature (txid)</th></tr></thead><tbody>${
+  return `<div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>From</th><th>To</th><th>Amount</th><th>Op</th><th>Signature (txid)</th></tr></thead><tbody>${
     txs.map(t=>{const cb=(t.address===t.recipient&&parseFloat(t.reward||0)>0);
       return `<tr>
-        <td class="mono"><a href="#/address/${esc(t.address)}">${short(t.address,16)}</a></td>
-        <td class="mono"><a href="#/address/${esc(t.recipient)}">${short(t.recipient,16)}</a> ${cb?'<span class="badge badge-coinbase">coinbase</span>':''}</td>
+        <td class="mono"><a class="trunc" title="${esc(t.address)}" href="#/address/${esc(t.address)}">${short(t.address,16)}</a></td>
+        <td class="mono"><a class="trunc" title="${esc(t.recipient)}" href="#/address/${esc(t.recipient)}">${short(t.recipient,16)}</a> ${cb?'<span class="badge badge-coinbase">coinbase</span>':''}</td>
         <td>${fmtAmt(t.amount)}${parseFloat(t.reward||0)>0?` <span class="hash">+${fmtAmt(t.reward)}</span>`:''}</td>
         <td>${esc(t.operation||'')}</td>
-        <td class="mono hash"><a href="#/tx/${encodeURIComponent(String(t.signature||'').slice(0,56))}">${short(t.signature,20)}</a></td></tr>`;}).join('')
-  }</tbody></table>`;
+        <td class="mono hash"><a class="trunc" title="${esc(t.signature||'')}" href="#/tx/${encodeURIComponent(String(t.signature||'').slice(0,56))}">${short(t.signature,20)}</a></td></tr>`;}).join('')
+  }</tbody></table></div>`;
 }
 
 async function showBlock(id){
@@ -170,7 +180,7 @@ async function tokensList(){
       <td><a href="#/token/${encodeURIComponent(t.token)}">${esc(t.token)}</a></td>
       <td>${t.transfers}</td></tr>`).join('');
     setMain(`<div class="card p-3"><h5>Tokens <span class="subtle small">(${d.count})</span></h5>
-      ${d.count?`<table class="table table-sm align-middle"><thead><tr><th>Token</th><th>Transfers</th></tr></thead><tbody>${rows}</tbody></table>`
+      ${d.count?`<div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Token</th><th>Transfers</th></tr></thead><tbody>${rows}</tbody></table></div>`
         :'<p class="subtle">No tokens issued on this chain yet.</p>'}</div>`);
   }catch(e){errBox(e);}
 }
@@ -178,7 +188,7 @@ async function showToken(name){
   loading();
   try{const d=await api(`/token/${encodeURIComponent(name)}`);
     const rows=(d.holders||[]).map(h=>`<tr>
-      <td class="mono"><a href="#/address/${esc(h.address)}">${short(h.address,28)}</a></td>
+      <td class="mono"><a class="trunc" title="${esc(h.address)}" href="#/address/${esc(h.address)}">${short(h.address,28)}</a></td>
       <td>${Number(h.balance).toLocaleString()}</td></tr>`).join('');
     setMain(`<div class="card p-3"><h5>Token <span class="mono">${esc(d.token)}</span></h5>
       <div class="row g-2 mb-3">
@@ -186,7 +196,7 @@ async function showToken(name){
         <div class="col"><div class="card stat p-2"><div class="l">holders</div><div class="v">${d.holder_count}</div></div></div>
         <div class="col"><div class="card stat p-2"><div class="l">transfers</div><div class="v">${d.transfers}</div></div></div></div>
       <h6>Holders</h6>
-      <table class="table table-sm align-middle"><thead><tr><th>Address</th><th>Balance</th></tr></thead><tbody>${rows}</tbody></table></div>`);
+      <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Address</th><th>Balance</th></tr></thead><tbody>${rows}</tbody></table></div></div>`);
   }catch(e){errBox(e);}
 }
 async function nodesList(){
@@ -200,7 +210,7 @@ async function nodesList(){
       <td>${n.behind==null?'-':(n.behind===0?'tip':('−'+n.behind))}</td>
       <td>${esc(n.version||'-')}</td><td>${n.reputation}</td><td>${badge(n)}</td></tr>`).join('');
     setMain(`<div class="card p-3"><h5>Network <span class="subtle small">(${d.count} nodes · consensus ${esc(d.consensus==null?'-':d.consensus)})</span></h5>
-      ${d.count?`<table class="table table-sm align-middle"><thead><tr><th>Node</th><th>Height</th><th>Δ</th><th>Version</th><th>Reputation</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>`
+      ${d.count?`<div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Node</th><th>Height</th><th>Δ</th><th>Version</th><th>Reputation</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>`
         :'<p class="subtle">No peers visible right now.</p>'}
       <p class="subtle small mt-2">Reputation rewards peers whose blocks validate and penalizes height-lies / invalid blocks; the agreed tip and deep-rollback recovery weight by it.</p></div>`);
   }catch(e){errBox(e);}
@@ -224,9 +234,9 @@ async function vmList(){
   loading();
   try{const d=await api('/vm/contracts');
     if(!d.enabled){setMain(`<div class="card p-3"><h5>Contracts</h5><p class="subtle py-3">The decentralized-apps VM is not enabled on this node${d.fork_height?'':' (or hf2 has not activated yet)'} — contracts execute post-fork.</p></div>`);return;}
-    const rows=(d.contracts||[]).map(a=>`<tr><td class="mono"><a href="#/vm/${esc(a)}">${short(a,40)}</a></td></tr>`).join('');
+    const rows=(d.contracts||[]).map(a=>`<tr><td class="mono"><a class="trunc" title="${esc(a)}" href="#/vm/${esc(a)}">${short(a,40)}</a></td></tr>`).join('');
     setMain(`<div class="card p-3"><h5>Contracts <span class="subtle small">(${d.count||0}${d.fork_height?' · hf2 @ '+d.fork_height:''})</span></h5>
-      ${d.count?`<table class="table table-sm align-middle"><thead><tr><th>Contract address</th></tr></thead><tbody>${rows}</tbody></table>`
+      ${d.count?`<div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Contract address</th></tr></thead><tbody>${rows}</tbody></table></div>`
         :'<p class="subtle">No contracts deployed yet.</p>'}
       <p class="subtle small mt-2">Deterministic VM: deploy with a <span class="mono">vm:deploy</span> tx (bytecode), call with <span class="mono">vm:call</span>. Supports Bitcoin-style HTLC primitives (SHA256 + block-height timelock) for trustless atomic swaps.</p></div>`);
   }catch(e){setMain('<div class="card p-3"><h5>Contracts</h5><p class="subtle py-3">This node does not expose the VM API (it predates the contract layer).</p></div>');}
@@ -239,7 +249,7 @@ async function vmContract(addr){
       <div class="row g-2 mb-3">
         <div class="col"><div class="card stat p-2"><div class="l">code size</div><div class="v">${d.code_size} B</div></div></div>
         <div class="col"><div class="card stat p-2"><div class="l">storage slots</div><div class="v">${d.slots}</div></div></div></div>
-      <h6>Storage</h6>${d.slots?`<table class="table table-sm align-middle"><thead><tr><th>Key</th><th>Value</th></tr></thead><tbody>${rows}</tbody></table>`:'<p class="subtle">No storage set.</p>'}
+      <h6>Storage</h6>${d.slots?`<div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Key</th><th>Value</th></tr></thead><tbody>${rows}</tbody></table></div>`:'<p class="subtle">No storage set.</p>'}
       <h6 class="mt-3">Bytecode</h6><div class="mono hash" style="word-break:break-all">${esc(d.code)}</div></div>`);
   }catch(e){errBox(e);}
 }
