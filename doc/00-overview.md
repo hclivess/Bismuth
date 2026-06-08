@@ -31,10 +31,15 @@ inert, and what's planned. Detailed companions: file index [`13`](13-file-refere
 | Address-history query | composite indexes (migration v2) + UNION rewrite | **done + LIVE** — 2.5 s → 0.06 s |
 | Bitcoin JSON-RPC | `rpc_bitcoin.py` — getblockcount/getblock/getbalance/getrawtransaction/… | **implemented**, flag `rpc_bitcoin` (off); regnet-tested |
 | Ethereum/ERC shim | `rpc_ethereum.py` — `eth_*` subset (bounded; not an EVM) | **implemented**, flag `rpc_ethereum` (off); regnet-tested |
-| Block explorer | `explorer.bismuth.cz` (SPA over the REST API) | **live** (block paging, fast address pages) |
-| Bootstrap hosting | `https://bismuth.cz/ledger.tar.gz` (at-tip snapshot) | **live** |
+| Block explorer | `explorer.bismuth.cz` (SPA over the REST API) | **live** — blocks/tx/address + **Tokens / Nodes / Supply / Contracts** views, SVG favicon, node-switcher |
+| Explorer/RPC endpoints | `/api/supply`, `/api/tokens`, `/api/token/{n}`, `/api/nodes`, `/api/vm/*` + token-index | **live/done** (supply background-computed; token-first indexes) |
+| Bootstrap hosting + snapshot | `https://bismuth.cz/ledger.tar.gz` + `scripts/snapshot.py` | **live** — live-safe (SQLite online-backup + LMDB `env.copy`), integrity-checked |
+| Balance index | `balance_index.py` — O(1) display balance | **WIRED** (flag `balance_index`): maintained on commit, reorg-rebuilt, read by `/api/balance`; consensus stays on `ledger_balance3` |
+| Peer reputation + penalization | `peers_reputation.py` | **WIRED** — validate-height-is-real reward/penalize (synced-only), reputation-weighted tip |
+| Auto-recovery rollback | `essentials.rollback_allowed` | **default ON** (`rollback_consensus`) — reputation-gated deep rollback replaces the rigid `rollback_depth` strand |
+| Unified rollback + reorg test | `chain_ops._rollback_aux_stores` | **done** — ledger + all stores roll back in sync (`test_rollback_reorg`) |
+| **Decentralized-apps VM** | `bismuth_vm.py` (bytecode) + `bismuth_riscv.py` (RV32I) + `vm_state`/`vm_engine` | **built + regnet-tested, POST-FORK + flag** — deploy/call, pluggable engines, state root, HTLC primitives. **See [doc/19](19-vm.md)** for the full status + gaps |
 | Connectivity/sync fixes | self-dial false-consensus, back-off, headers-first, ed25519 dep | **active** |
-| Balance index / reward sidechain | `balance_index.py` / `reward_chain.py` | **built + validated, NOT wired** (next: maintained shadow) |
 
 "Shadow" = written/maintained alongside the authoritative store but not yet read from. "Inert" =
 present and tested but never called by the running node.
