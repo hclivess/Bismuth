@@ -131,6 +131,8 @@ def _make_handler(node):
                     return self._write(200, self._vm_contracts())
                 if route[:2] == ["vm", "contract"] and len(route) == 3:
                     return self._write(200, self._vm_contract(route[2]))
+                if route == ["fee"]:
+                    return self._write(200, self._fee())
                 if route == ["capabilities"]:
                     return self._write(200, self._capabilities())
 
@@ -284,6 +286,17 @@ def _make_handler(node):
                     "consensus": getattr(p, "consensus", None),
                     "consensus_percentage": getattr(p, "consensus_percentage", None),
                     "nodes": out}
+
+        def _fee(self):
+            """Current fee parameters. Post-fork the base fee is demand-responsive (fee_dynamics);
+            wallets should read base_fee here. vm: txs additionally pay vm_surcharge."""
+            import fee_dynamics
+            bf = getattr(node, "base_fee", None)
+            return {"base_fee": str(bf) if bf is not None else str(essentials.BASE_FEE),
+                    "static_base_fee": str(essentials.BASE_FEE),
+                    "post_fork": bool(getattr(node, "fee_post_fork", False)),
+                    "vm_surcharge": str(fee_dynamics.VM_SURCHARGE),
+                    "target_txs": fee_dynamics.TARGET_TXS, "window": fee_dynamics.WINDOW}
 
         def _vm_contracts(self):
             """Deployed decentralized-apps VM contracts. Empty unless vm=True and the fork has activated."""

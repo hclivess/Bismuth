@@ -254,20 +254,36 @@ def ledger_balance3_original(address, cache, db_handler):
 
 
 
-def fee_calculate(openfield: str, operation: str = '', block: int = 0) -> Decimal:
-    # block var will be removed after HF
-    # Optimized: use pre-defined constants and check operation first
-    fee = BASE_FEE + (Decimal(len(openfield)) / DECIMAL_HUNDRED_THOUSAND)
+def fee_calculate(openfield: str, operation: str = '', block: int = 0,
+                  base_fee=None, vm_surcharge: bool = False) -> Decimal:
+    # base_fee: the post-fork DYNAMIC base fee (fee_dynamics); None -> the static BASE_FEE (pre-fork, and
+    # any caller that doesn't supply it). vm_surcharge: post-fork, charge vm: txs for execution (gas).
+    base = BASE_FEE if base_fee is None else Decimal(base_fee)
+    fee = base + (Decimal(len(openfield)) / DECIMAL_HUNDRED_THOUSAND)
 
     # Check operation first (faster than string.startswith)
     if operation == "token:issue":
         fee += DECIMAL_TEN
     elif openfield.startswith("alias="):  # Only check if needed
         fee += DECIMAL_ONE
-    # if operation == "alias:register": #add in the future, careful about forking
-    #    fee = Decimal(fee) + Decimal("1")
+    if vm_surcharge and operation.startswith("vm:"):
+        import fee_dynamics
+        fee += fee_dynamics.VM_SURCHARGE
 
     return quantize_eight(fee)
+
+
+def recent_tx_counts(db_handler, block_height, window):
+    """Per-block tx counts for the last `window` positive-height blocks up to `block_height` — the demand
+    signal the post-fork dynamic base fee averages (the fee analogue of difficulty's solvetime window)."""
+    try:
+        db_handler.execute_param(
+            db_handler.c,
+            "SELECT block_height, COUNT(*) FROM transactions WHERE block_height > ? AND block_height <= ? "
+            "GROUP BY block_height", (block_height - window, block_height))
+        return [r[1] for r in db_handler.c.fetchall()]
+    except Exception:
+        return []
 
 
 def execute_param_c(cursor, query, param, app_log):

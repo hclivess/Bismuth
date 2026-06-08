@@ -175,7 +175,9 @@ class BlockProcessor:
             else:
                 # Regular transaction
                 reward = 0
-                fee = essentials.fee_calculate(db_openfield, db_operation, self.node.last_block)
+                fee = essentials.fee_calculate(db_openfield, db_operation, self.node.last_block,
+                                               base_fee=getattr(self.node, "base_fee", None),
+                                               vm_surcharge=getattr(self.node, "fee_post_fork", False))
                 fees_block.append(quantize_eight(fee))
 
                 # Validate balance
@@ -214,7 +216,9 @@ class BlockProcessor:
 
                 # Exclude mining tx from fees
                 if x != block[-1]:
-                    fee = essentials.fee_calculate(x[7], x[6], self.node.last_block)
+                    fee = essentials.fee_calculate(x[7], x[6], self.node.last_block,
+                                                   base_fee=getattr(self.node, "base_fee", None),
+                                                   vm_surcharge=getattr(self.node, "fee_post_fork", False))
                     block_fees_address = quantize_eight(block_fees_address + Decimal(fee))
 
         return block_debit_address, block_fees_address
@@ -374,6 +378,19 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
 
         # Check fork reward
         processor.check_fork_reward(block_instance)
+
+        # post-fork DYNAMIC base fee (fee_dynamics, doc/17): computed ONCE per block from recent demand;
+        # the per-tx fee checks in sort_and_validate read node.base_fee. Pre-fork it's the static BASE_FEE,
+        # so historical fees are unchanged. Deterministic (a pure function of the recent chain).
+        _bff = getattr(node, "fork_height", None)
+        node.fee_post_fork = _bff is not None and (node.last_block + 1) >= _bff
+        if node.fee_post_fork:
+            import fee_dynamics
+            node.base_fee = fee_dynamics.base_fee(
+                essentials.BASE_FEE,
+                essentials.recent_tx_counts(db_handler, node.last_block, fee_dynamics.WINDOW))
+        else:
+            node.base_fee = essentials.BASE_FEE
 
         # Sort and validate transactions
         miner_tx = processor.sort_and_validate_transactions(block, block_instance)

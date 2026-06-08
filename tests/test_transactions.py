@@ -37,13 +37,18 @@ def test_operation_and_openfield(client):
 
 
 def test_fee(client):
+    import json
+    import urllib.request
     data = "1234567890" * 5  # 50 chars
     client.mine(1)
     client.send(client.address, 0.0, data=data)
     client.mine(1)
     sleep(0.5)
     tx = client.latest_transactions(num=1)
-    assert abs(float(tx[0]["fee"]) - (0.01 + 1e-5 * len(data))) < 1e-9
+    # post-fork the base fee is demand-responsive (fee_dynamics) — read it rather than assume the constant
+    with urllib.request.urlopen("http://127.0.0.1:3031/api/fee", timeout=8) as r:
+        base = float(json.load(r)["base_fee"])
+    assert abs(float(tx[0]["fee"]) - (base + 1e-5 * len(data))) < 1e-9
 
 
 def test_operation_length_truncated_to_30(client):

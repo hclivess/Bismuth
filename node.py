@@ -1289,6 +1289,8 @@ if __name__ == "__main__":
     node.fork_boundary = config.fork_boundary
     node.fork_bury = config.fork_bury
     node.fork_height = None                          # cached hf2 activation height (None until locked in)
+    node.base_fee = None                             # post-fork dynamic base fee (fee_dynamics), set per block
+    node.fee_post_fork = False
     node.rpc_bitcoin = config.rpc_bitcoin            # opt-in bitcoind-compatible JSON-RPC (doc/17)
     node.rpc_bitcoin_port = config.rpc_bitcoin_port
     node.rpc_ethereum = config.rpc_ethereum          # opt-in eth_* compatibility shim (doc/17)
