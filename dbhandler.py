@@ -112,6 +112,10 @@ class DbHandler(DbQueriesMixin, DbWriteMixin):
             self.index_cursor.execute("CREATE INDEX IF NOT EXISTS idx_aliases_alias ON aliases(alias)")
             self.index_cursor.execute("CREATE INDEX IF NOT EXISTS idx_tokens_address ON tokens(address)")
             self.index_cursor.execute("CREATE INDEX IF NOT EXISTS idx_tokens_recipient ON tokens(recipient)")
+            # token-first composite indexes: the balance/holders queries filter by token THEN address/
+            # recipient (tokensv2 + /api/token), so a (token, …) index avoids scanning every token's rows
+            self.index_cursor.execute("CREATE INDEX IF NOT EXISTS idx_tokens_token_recipient ON tokens(token, recipient)")
+            self.index_cursor.execute("CREATE INDEX IF NOT EXISTS idx_tokens_token_address ON tokens(token, address)")
         except:
             pass
 

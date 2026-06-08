@@ -125,6 +125,8 @@ def _make_handler(node):
                     return self._write(200, self._difficulty())
                 if route == ["peers"]:
                     return self._write(200, self._peers())
+                if route == ["nodes"]:
+                    return self._write(200, self._nodes())
                 if route == ["capabilities"]:
                     return self._write(200, self._capabilities())
 
@@ -150,6 +152,12 @@ def _make_handler(node):
                     return self._write(200, self._address_txs(db, route[1], query))
                 if route == ["fork"]:
                     return self._write(200, self._fork(db))
+                if route == ["supply"]:
+                    return self._write(200, self._supply(db))
+                if route == ["tokens"]:
+                    return self._write(200, self._tokens(db))
+                if route[:1] == ["token"] and len(route) == 2:
+                    return self._write(200, self._token(db, route[1]))
                 raise _NotFound("unknown endpoint")
             except _NotFound as e:
                 self._write(404, {"error": "not_found", "detail": str(e)})
@@ -193,6 +201,11 @@ def _make_handler(node):
                         "/api/address/{address}/transactions": "recent txs for an address (?limit=N, max 500)",
                         "/api/mempool": "pending (unconfirmed) transactions",
                         "/api/peers": "known peers",
+                        "/api/nodes": "browse the peer network: per-node height, version, reputation, "
+                                      "connected/banned/whitelisted status",
+                        "/api/supply": "circulating supply + chain height",
+                        "/api/tokens": "all tokens on chain, ranked by transfer volume",
+                        "/api/token/{name}": "a token's supply, holder count, and per-address balances",
                         "/api/fork": "hf2 auto-fork readiness: signalling run, lock-in, activation height",
                     }}
 
@@ -237,6 +250,88 @@ def _make_handler(node):
         def _peers(self):
             peers = node.peers.peer_dict if node.peers else {}
             return {"count": len(peers), "peers": peers}
+
+        def _nodes(self):
+            """Browse the peer network the node sees: each peer's reported height, version, reputation
+            (peers_reputation), and connected / banned / whitelisted status — an at-a-glance, well-behaved
+            -peers-first network view."""
+            p = node.peers
+            if not p:
+                return {"count": 0, "tip": 0, "consensus": None, "nodes": []}
+            opinions = dict(getattr(p, "peer_opinion_dict", {}) or {})
+            versions = dict(getattr(p, "ip_to_mainnet", {}) or {})
+            connected = set(getattr(p, "_connection_pool_set", set()) or [])
+            tip = int(getattr(node, "hdd_block", 0) or 0)
+            out = []
+            for ip in (set(opinions) | set(versions) | connected):
+                h = opinions.get(ip)
+                out.append({
+                    "ip": ip,
+                    "height": h,
+                    "behind": (tip - h) if isinstance(h, int) else None,
+                    "version": versions.get(ip),
+                    "reputation": p.reputation(ip) if hasattr(p, "reputation") else 0,
+                    "connected": ip in connected,
+                    "banned": p.is_banned(ip) if hasattr(p, "is_banned") else False,
+                    "whitelisted": p.is_whitelisted(ip) if hasattr(p, "is_whitelisted") else False,
+                })
+            out.sort(key=lambda n: (n["connected"], n["reputation"], n["height"] or 0), reverse=True)
+            return {"count": len(out), "tip": tip,
+                    "consensus": getattr(p, "consensus", None),
+                    "consensus_percentage": getattr(p, "consensus_percentage", None),
+                    "nodes": out}
+
+        def _supply(self, db):
+            """Circulating supply, computed from the ledger and cached on the node, updated INCREMENTALLY
+            as the tip advances (no full rescan per call). circulating = mining emission (sum(reward) -
+            sum(fee) over positive heights) + the concluded dev/HN reward mirrors (negative heights)."""
+            height = int(getattr(node, "hdd_block", 0) or 0)
+            intmode = bool(getattr(node, "ledger_integer_amounts", False))
+
+            def _val(raw):
+                return amounts.to_decimal(int(raw or 0)) if intmode else quantize_eight(raw or 0)
+
+            def _emit(where, params=()):
+                r = db.fetchall(db.h, "SELECT COALESCE(SUM(reward),0)-COALESCE(SUM(fee),0) "
+                                      "FROM transactions WHERE " + where, params)[0][0]
+                return _val(r)
+
+            cache = getattr(node, "_supply_cache", None)
+            if cache is None or cache.get("intmode") != intmode or height < cache["height"]:
+                mirror = db.fetchall(db.h, "SELECT COALESCE(SUM(amount),0) FROM transactions "
+                                           "WHERE block_height < 0")[0][0]
+                circ = _emit("block_height >= 0") + _val(mirror)
+                cache = {"height": height, "circ": circ, "intmode": intmode}
+            elif height > cache["height"]:
+                circ = cache["circ"] + _emit("block_height > ? AND block_height <= ?",
+                                             (cache["height"], height))
+                cache = {"height": height, "circ": circ, "intmode": intmode}
+            node._supply_cache = cache
+            return {"height": height, "circulating": str(quantize_eight(cache["circ"]))}
+
+        def _tokens(self, db):
+            """All tokens seen on chain, ranked by transfer volume."""
+            rows = db.fetchall(db.index_cursor, "SELECT token, COUNT(*) FROM tokens "
+                                                "GROUP BY token ORDER BY COUNT(*) DESC LIMIT 500")
+            return {"count": len(rows), "tokens": [{"token": r[0], "transfers": r[1]} for r in rows]}
+
+        def _token(self, db, name):
+            """A token's holders, per-address balances, and supply (credits - debits, token index)."""
+            credits = {r[0]: int(r[1] or 0) for r in db.fetchall(db.index_cursor,
+                       "SELECT recipient, SUM(amount) FROM tokens WHERE token = ? GROUP BY recipient", (name,))}
+            debits = {r[0]: int(r[1] or 0) for r in db.fetchall(db.index_cursor,
+                      "SELECT address, SUM(amount) FROM tokens WHERE token = ? GROUP BY address", (name,))}
+            holders = []
+            for addr in (set(credits) | set(debits)):
+                bal = credits.get(addr, 0) - debits.get(addr, 0)
+                if bal > 0:
+                    holders.append({"address": addr, "balance": bal})
+            holders.sort(key=lambda h: -h["balance"])
+            transfers = db.fetchall(db.index_cursor, "SELECT COUNT(*) FROM tokens WHERE token = ?", (name,))[0][0]
+            if not holders and not transfers:
+                raise _NotFound("unknown token")
+            return {"token": name, "supply": sum(h["balance"] for h in holders),
+                    "holder_count": len(holders), "transfers": transfers, "holders": holders[:200]}
 
         def _block_rows_to_json(self, rows):
             return [essentials.format_raw_tx(row) for row in rows]
