@@ -65,24 +65,6 @@ def test_reset_tried_frees_long_backoffs_keeps_imminent():
     assert "fifteen:5658" not in p.tried
 
 
-def test_reset_tried_aggressive_clears_every_backoff():
-    # Fast recovery from isolation: when outbound connections have collapsed to ~0, we must re-attempt
-    # *every* known peer immediately, so the aggressive reset drops ALL back-off timers, even ones that
-    # are only seconds out (which the gentle reset would have kept). This is what lets a restarted node
-    # reconnect in seconds instead of waiting out the escalating 30s/1m/2m/5m back-off.
-    p = _PeersStub()
-    now = time()
-    p.tried = {
-        "soon:5658": (1, now + 5),        # gentle reset keeps this; aggressive must NOT
-        "onemin:5658": (2, now + 60),
-        "fivemin:5658": (3, now + 300),
-    }
-    p.reset_tried(aggressive=True)
-    assert p.tried == {}, "aggressive reset must clear the entire back-off dict"
-    # and after clearing, a peer that was cooling down is immediately dial-eligible again
-    assert p.can_connect_to("1.2.3.4", 5658) is True
-
-
 def test_can_connect_to_respects_active_cooldown_then_clears():
     p = _PeersStub()
     host, port = "9.9.9.9", 5658

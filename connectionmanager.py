@@ -1,13 +1,6 @@
 import threading
 import time
 from worker import worker
-from peershandler import OUTBOUND_RECOVERY_FLOOR
-
-# While the node is isolated (outbound connections at/below the recovery floor) we re-run the dial pass
-# every few seconds instead of every 30s, so a restarted/cut-off node reconnects in seconds rather than
-# waiting out minutes of escalating per-peer back-off. Restored to the full interval once reconnected.
-NORMAL_LOOP_SECONDS = 30
-RECOVERY_LOOP_SECONDS = 5
 
 
 class ConnectionManager (threading.Thread):
@@ -72,15 +65,8 @@ class ConnectionManager (threading.Thread):
                 # end status hook
 
                 # logger.app_log.info(threading.enumerate() all threads)
-                # Sleep before the next maintenance pass. Normally 30s, but when this node dials out
-                # (not regnet) and is isolated/critically low on outbound connections, shorten it so the
-                # next client_loop re-dials within seconds. Regnet never dials, so it always uses the
-                # full interval and never busy-spins. The 1s granularity keeps shutdown responsive.
-                loop_seconds = NORMAL_LOOP_SECONDS
-                if not self.node.is_regnet and \
-                        len(self.node.peers.connection_pool) <= OUTBOUND_RECOVERY_FLOOR:
-                    loop_seconds = RECOVERY_LOOP_SECONDS
-                for i in range(loop_seconds):
+                # time.sleep(30)
+                for i in range(30):
                     # faster stop
                     if not self.node.IS_STOPPING:
                         time.sleep(1)
