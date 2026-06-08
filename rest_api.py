@@ -282,32 +282,59 @@ def _make_handler(node):
                     "nodes": out}
 
         def _supply(self, db):
-            """Circulating supply, computed from the ledger and cached on the node, updated INCREMENTALLY
-            as the tip advances (no full rescan per call). circulating = mining emission (sum(reward) -
-            sum(fee) over positive heights) + the concluded dev/HN reward mirrors (negative heights)."""
+            """Circulating supply = mining emission (sum(reward)-sum(fee) over positive heights) + the
+            concluded dev/HN reward mirrors (negative heights), from the full ledger (db.h = hdd). Cached
+            on the node and kept up to date INCREMENTALLY as the tip advances. The cold full-ledger scan
+            (potentially many GB) runs in a BACKGROUND thread so it never blocks the request / 504s; the
+            first call returns status "computing", later calls return the value."""
             height = int(getattr(node, "hdd_block", 0) or 0)
             intmode = bool(getattr(node, "ledger_integer_amounts", False))
-
-            def _val(raw):
-                return amounts.to_decimal(int(raw or 0)) if intmode else quantize_eight(raw or 0)
-
-            def _emit(where, params=()):
-                r = db.fetchall(db.h, "SELECT COALESCE(SUM(reward),0)-COALESCE(SUM(fee),0) "
-                                      "FROM transactions WHERE " + where, params)[0][0]
-                return _val(r)
-
             cache = getattr(node, "_supply_cache", None)
-            if cache is None or cache.get("intmode") != intmode or height < cache["height"]:
-                mirror = db.fetchall(db.h, "SELECT COALESCE(SUM(amount),0) FROM transactions "
-                                           "WHERE block_height < 0")[0][0]
-                circ = _emit("block_height >= 0") + _val(mirror)
-                cache = {"height": height, "circ": circ, "intmode": intmode}
-            elif height > cache["height"]:
-                circ = cache["circ"] + _emit("block_height > ? AND block_height <= ?",
-                                             (cache["height"], height))
-                cache = {"height": height, "circ": circ, "intmode": intmode}
-            node._supply_cache = cache
-            return {"height": height, "circulating": str(quantize_eight(cache["circ"]))}
+            if cache is not None and cache.get("intmode") == intmode:
+                if height <= cache["height"]:
+                    return {"height": cache["height"], "status": "ok",
+                            "circulating": str(quantize_eight(cache["circ"]))}
+                try:  # tip advanced -> cheap incremental top-up over just the new blocks
+                    r = db.fetchall(db.h, "SELECT COALESCE(SUM(reward),0)-COALESCE(SUM(fee),0) FROM "
+                                          "transactions WHERE block_height > ? AND block_height <= ?",
+                                    (cache["height"], height))[0][0]
+                    add = amounts.to_decimal(int(r or 0)) if intmode else quantize_eight(r or 0)
+                    node._supply_cache = {"height": height, "circ": cache["circ"] + add, "intmode": intmode}
+                    return {"height": height, "status": "ok",
+                            "circulating": str(quantize_eight(node._supply_cache["circ"]))}
+                except Exception:
+                    pass
+            self._start_supply_compute(height, intmode)
+            return {"height": height, "circulating": None, "status": "computing"}
+
+        def _start_supply_compute(self, height, intmode):
+            if getattr(node, "_supply_computing", False):
+                return
+            node._supply_computing = True
+
+            def work():
+                try:
+                    d = dbhandler.DbHandler(node.index_db, node.ledger_path, node.hyper_path, node.ram,
+                                            node.ledger_ram_file, node.logger,
+                                            trace_db_calls=node.trace_db_calls)
+                    try:
+                        base = d.fetchall(d.h, "SELECT COALESCE(SUM(reward),0)-COALESCE(SUM(fee),0) "
+                                               "FROM transactions WHERE block_height >= 0")[0][0]
+                        mirror = d.fetchall(d.h, "SELECT COALESCE(SUM(amount),0) FROM transactions "
+                                                 "WHERE block_height < 0")[0][0]
+                        if intmode:
+                            circ = amounts.to_decimal(int(base or 0)) + amounts.to_decimal(int(mirror or 0))
+                        else:
+                            circ = quantize_eight(base or 0) + quantize_eight(mirror or 0)
+                        node._supply_cache = {"height": height, "circ": circ, "intmode": intmode}
+                    finally:
+                        d.close()
+                except Exception as e:
+                    node.logger.app_log.warning("supply compute failed: {}".format(e))
+                finally:
+                    node._supply_computing = False
+
+            threading.Thread(target=work, daemon=True).start()
 
         def _tokens(self, db):
             """All tokens seen on chain, ranked by transfer volume."""

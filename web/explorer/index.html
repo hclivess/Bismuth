@@ -193,6 +193,11 @@ async function nodesList(){
 async function supplyView(){
   loading();
   try{const d=await api('/supply');
+    if(d.circulating==null){
+      setMain('<div class="card p-3"><h5>Supply</h5><p class="subtle py-3">Computing circulating supply from the ledger… (first load only).</p></div>');
+      if((location.hash||'').indexOf('supply')>=0)setTimeout(supplyView,3000);
+      return;
+    }
     setMain(`<div class="card p-3"><h5>Supply</h5>
       <div class="row g-2">
         <div class="col-md-6"><div class="card stat p-3"><div class="l">circulating supply</div><div class="v">${Number(d.circulating).toLocaleString(undefined,{maximumFractionDigits:2})} BIS</div></div></div>

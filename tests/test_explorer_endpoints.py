@@ -4,6 +4,7 @@ Explorer REST endpoints on a live regnet node: /api/supply, /api/tokens, /api/to
 Run with: python3 -m pytest tests/test_explorer_endpoints.py -v
 """
 import json
+import time
 import urllib.error
 import urllib.request
 from time import sleep
@@ -19,7 +20,12 @@ def _get(path):
 def test_supply(client):
     client.mine(3)
     sleep(0.3)
+    # the first cold call computes the supply in a background thread -> poll until it's ready
+    deadline = time.time() + 10
     d = _get("/api/supply")
+    while d.get("circulating") is None and time.time() < deadline:
+        sleep(0.3)
+        d = _get("/api/supply")
     assert d["height"] >= 1
     assert float(d["circulating"]) > 0          # coins exist and are summed
 
