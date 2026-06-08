@@ -2,9 +2,13 @@
 
 > Companion to [`09-crypto-wallets-keys.md`](09-crypto-wallets-keys.md) (the live crypto/`polysign`
 > map) and [`18-hardfork-hf2.md`](18-hardfork-hf2.md) (the signalled auto-activation fork machinery
-> this would ride on). This is a **design** doc, not a work item. Nothing here is active code. The
-> deliverable for *now* is the architecture analysis below and keeping `polysign` clean — so that the
-> day a quantum timeline becomes credible, the pivot is "register a new signer," not a rearchitecture.
+> this would ride on). The PQ **signers are real, tested code** — `polysign/signer_mldsa.py` (the
+> ML-DSA family, FIPS 204) and `signer_secp256r1.py` are registered in the `SignerFactory` and
+> round-trip in the suite (`tests/test_pq_signer.py`, `tests/test_signature_types.py`). What is **held
+> in reserve** is the *consensus pivot*: no mainnet path mints or validates these signatures until a
+> signalled fork deliberately turns it on. So the day a quantum timeline becomes credible, the move is
+> "flip the fork," not "rearchitect the protocol" — **and not "write the crypto."** The analysis below
+> is why that pivot stays cheap, and the honest costs of taking it.
 
 ## 1. The threat
 
@@ -13,8 +17,10 @@ Every signature scheme Bismuth uses today is broken by a sufficiently large quan
 - **RSA** (the mainnet default — `signer_rsa.py`, RSA-4096) and **ECDSA** (`signer_ecdsa.py`,
   secp256k1) both rest on problems — integer factorization and the elliptic-curve discrete log — that
   **Shor's algorithm** solves in polynomial time. **Ed25519** (`signer_ed25519.py`) is a discrete-log
-  scheme on a different curve; same fate, same algorithm. So **all three** of Bismuth's signers fall
-  to the *same* attack. There is no "safe one" in the current `SignerFactory`.
+  scheme on a different curve; same fate, same algorithm — as is the newer **secp256r1/P-256** option.
+  So **every classical** signer in the factory falls to the *same* attack; the only quantum-resistant
+  choice is the **ML-DSA family** (§3) — which is exactly why it was added (built and tested today, see
+  below), even though turning it on in consensus is held for later.
 
   (To be precise about what breaks: Shor recovers a **private key from a published public key**. Hash
   functions are not affected this way — Grover's algorithm only halves their effective security, which
@@ -49,15 +55,21 @@ properties matter:
 `polysign` is a real abstraction, not a wrapper around one library. `signer.py` defines an abstract
 `Signer` (with `from_seed` / `sign_buffer_for_bis` / `verify_bis_signature` / `public_key_to_address`)
 and a `SignerType` enum; `signerfactory.py` dispatches to a concrete signer **by type and by address
-shape**, and already ships **four** distinct algorithm families behind that one interface:
+shape**, and ships **several** distinct algorithm families behind that one interface — including, now,
+the full post-quantum ML-DSA family (all three NIST levels) and a P-256 signer, all already round-tripping
+in the suite:
 
 ```python
 # polysign/signer.py
 class SignerType(Enum):
     NONE = 0
-    RSA = 1          # signer_rsa.py     — mainnet default, pycryptodomex
-    ECDSA = 2        # signer_ecdsa.py   — secp256k1, coincurve
-    ED25519 = 3      # signer_ed25519.py — pynacl/ed25519
+    RSA = 1          # signer_rsa.py       — mainnet default, pycryptodomex
+    ECDSA = 2        # signer_ecdsa.py     — secp256k1, coincurve
+    ED25519 = 3      # signer_ed25519.py   — pynacl/ed25519
+    MLDSA = 4        # signer_mldsa.py     — ML-DSA-65, FIPS 204 (== MLDSA65); post-quantum, Cat 3
+    MLDSA44 = 5      # signer_mldsa.py     — ML-DSA-44 (Cat 2)
+    MLDSA87 = 6      # signer_mldsa.py     — ML-DSA-87 (Cat 5)
+    SECP256R1 = 7    # signer_secp256r1.py — P-256 / passkeys+HSMs, `cryptography`
     BTC = 1000       # test schemes
     CRW = 1001
 ```
@@ -242,10 +254,12 @@ have somewhere safe to move to while their old keys are still safe to move *with
 ## 5. Staging — what to build, and when
 
 The discipline is the same as the rest of the modernization: **incremental, reversible, opt-in,
-nothing live until it must be** ([`17-roadmap.md`](17-roadmap.md) principles). Explicitly, this is an
-**option held in reserve** — architecturally ready, **not active code.**
+nothing live until it must be** ([`17-roadmap.md`](17-roadmap.md) principles). Explicitly: the
+**signers are built and tested** (step 1 below — done); what is **held in reserve** is everything that
+would put them on the wire — the serialization tag and consensus acceptance, gated behind a signalled
+fork.
 
-**Now (this doc — no code, zero consensus surface):**
+**Now (keep the option real — zero consensus surface):**
 - Keep `polysign` clean and genuinely pluggable. Treat "could a new `Signer` be added without touching
   `digest`/`mempool`/ledger?" as an **invariant to protect** when refactoring (see [14](14-known-issues-and-improvements.md)).
   Today the answer is yes; keep it yes.
@@ -254,10 +268,12 @@ nothing live until it must be** ([`17-roadmap.md`](17-roadmap.md) principles). E
 - Track the upstream work (§6): ML-DSA/SLH-DSA library maturity, and the Ethereum AA / aggregation
   research that would cut the size/verification cost.
 
-**When the timeline tightens (a credible quantum estimate, or upstream chains begin moving):**
-1. **Implement `signer_mldsa.py` behind a flag.** New file, new `SignerType`, lazy-loaded; standalone
-   unit tests (keygen / sign / verify / address round-trip) mirroring the existing per-signer tests.
-   Inert: nothing in consensus references it yet.
+**When the timeline tightens** (a credible quantum estimate, or upstream chains begin moving) — step 1
+is already done, so the remaining work is consensus-side:
+1. ✅ **DONE — the signers exist.** `signer_mldsa.py` (the ML-DSA family, 44/65/87) + `signer_secp256r1.py`:
+   new `SignerType`s, lazy-loaded, registered in the `SignerFactory`, with round-trip / deterministic /
+   tamper unit tests (`tests/test_pq_signer.py`, `tests/test_signature_types.py`). Inert: nothing in
+   consensus references them yet.
 2. **Add the serialization tag / address prefix**, slotted into the post-`hf2` canonical encoding (§4.2).
 3. **Regnet-test end-to-end.** Generate PQ wallets, send PQ-signed txs on regnet, mine and **replay** —
    confirm PQ blocks round-trip and re-verify, and that the size/bandwidth impact (§3) matches the
@@ -267,9 +283,10 @@ nothing live until it must be** ([`17-roadmap.md`](17-roadmap.md) principles). E
    confidence gate, the chain's signal count as the actual decision ([18](18-hardfork-hf2.md)). Decide
    *at that point* whether PQ is "accepted" or eventually "required."
 
-Until step 1 is deliberately triggered, **none of this is in the codebase** beyond this document. That
-is the intended state: the cost of readiness is one design doc and one architectural invariant, and the
-payoff is the ability to move fast precisely when there is no time to spare.
+The signers are already in the codebase and tested; what is **not** there is any consensus path that
+mints or accepts a PQ tx — that waits for steps 2–4 and a deliberately-scheduled fork. That is the
+intended state: the cost of readiness is the (cheap, inert) signer code plus one architectural invariant,
+and the payoff is the ability to move fast precisely when there is no time to spare.
 
 ## 6. References
 
