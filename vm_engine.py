@@ -35,7 +35,7 @@ def _caller_int(address):
         return int.from_bytes(hashlib.blake2b(str(address).encode(), digest_size=32).digest(), "big")
 
 
-def process(state, operation, openfield, signature, sender, amount_units):
+def process(state, operation, openfield, signature, sender, amount_units, block_height=0):
     """Process one vm: transaction against `state`. Returns (kind, addr, success). Never raises on bad
     user input — a malformed contract/call is a failed no-op, like any reverting tx."""
     try:
@@ -52,7 +52,8 @@ def process(state, operation, openfield, signature, sender, amount_units):
                 return ("call", addr, False)
             storage = state.load_storage(addr)
             result = vm.execute(code, calldata=calldata, caller=_caller_int(sender),
-                                callvalue=int(amount_units or 0), storage=storage, gas_limit=GAS_LIMIT)
+                                callvalue=int(amount_units or 0), storage=storage, gas_limit=GAS_LIMIT,
+                                block_height=int(block_height or 0))
             if result.success:
                 state.commit_storage(addr, result.storage)
             return ("call", addr, result.success)
@@ -66,7 +67,7 @@ def apply_block_rows(state, rows):
     for r in rows:
         op = r[_OP] or ""
         if op.startswith("vm:"):
-            process(state, op, r[_OF] or "", r[_SIG], r[_ADDR], r[_AMOUNT])
+            process(state, op, r[_OF] or "", r[_SIG], r[_ADDR], r[_AMOUNT], int(r[_BH] or 0))
 
 
 def rebuild(state, cursor, fork_height, max_height):

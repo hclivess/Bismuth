@@ -38,7 +38,9 @@ EQ = 0x14
 ISZERO = 0x15
 AND = 0x16
 OR = 0x17
+SHA256 = 0x20       # pop a word, push sha256(word as 32 bytes) -- Bitcoin-compatible HTLC preimage check
 CALLER = 0x33       # push the caller identity (an int)
+NUMBER = 0x43       # push the current block height (deterministic) -- HTLC timeout path
 CALLVALUE = 0x34    # push the value sent with the call
 CALLDATALOAD = 0x35 # pop offset, push the 32-byte word of calldata at that offset (zero-padded)
 POP = 0x50
@@ -56,8 +58,8 @@ REVERT = 0xfd       # halt, success=False (caller must discard storage changes)
 
 _GAS = {
     STOP: 0, ADD: 3, MUL: 5, SUB: 3, DIV: 5, MOD: 5, LT: 3, GT: 3, EQ: 3, ISZERO: 3, AND: 3, OR: 3,
-    CALLER: 2, CALLVALUE: 2, CALLDATALOAD: 3, POP: 2, SLOAD: 100, SSTORE: 200, JUMP: 8, JUMPI: 10,
-    PC: 2, JUMPDEST: 1, PUSH: 3, DUP: 3, SWAP: 3, RETURN: 0, REVERT: 0,
+    SHA256: 60, CALLER: 2, CALLVALUE: 2, NUMBER: 2, CALLDATALOAD: 3, POP: 2, SLOAD: 100, SSTORE: 200,
+    JUMP: 8, JUMPI: 10, PC: 2, JUMPDEST: 1, PUSH: 3, DUP: 3, SWAP: 3, RETURN: 0, REVERT: 0,
 }
 
 
@@ -95,7 +97,7 @@ def _jumpdests(code):
     return dests
 
 
-def execute(code, calldata=b"", caller=0, callvalue=0, storage=None, gas_limit=1_000_000):
+def execute(code, calldata=b"", caller=0, callvalue=0, storage=None, gas_limit=1_000_000, block_height=0):
     """Run `code` deterministically and return a VMResult.
 
     `storage` is an optional {int: int} mapping; a COPY is mutated and returned, and the caller commits it
@@ -162,10 +164,15 @@ def execute(code, calldata=b"", caller=0, callvalue=0, storage=None, gas_limit=1
                 push(pop() & pop())
             elif op == OR:
                 push(pop() | pop())
+            elif op == SHA256:
+                import hashlib
+                push(int.from_bytes(hashlib.sha256(pop().to_bytes(32, "big")).digest(), "big"))
             elif op == CALLER:
                 push(caller)
             elif op == CALLVALUE:
                 push(callvalue)
+            elif op == NUMBER:
+                push(block_height)
             elif op == CALLDATALOAD:
                 off = pop()
                 word = calldata[off:off + 32] if off < len(calldata) else b""

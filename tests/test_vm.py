@@ -7,6 +7,8 @@ validated jumps, revert-on-fault).
 
 Run with: python3 -m pytest tests/test_vm.py -v
 """
+import hashlib
+
 import bismuth_vm as vm
 from bismuth_vm import execute, push
 
@@ -67,3 +69,30 @@ def test_conditional_branch_taken():
     code = head + push(dest, 2) + bytes([vm.JUMPI]) + fall + bytes([vm.JUMPDEST]) + push(111) + bytes([vm.RETURN])
     r = execute(code)
     assert r.success and int.from_bytes(r.output, "big") == 111
+
+
+def test_sha256_matches_hashlib():
+    secret = 0xC0FFEE
+    code = push(secret, 32) + bytes([vm.SHA256, vm.RETURN])
+    r = execute(code)
+    expected = int.from_bytes(hashlib.sha256(secret.to_bytes(32, "big")).digest(), "big")
+    assert r.success and int.from_bytes(r.output, "big") == expected
+
+
+def test_number_is_block_height():
+    r = execute(bytes([vm.NUMBER, vm.RETURN]), block_height=4846123)
+    assert r.success and int.from_bytes(r.output, "big") == 4846123
+
+
+def test_htlc_preimage_claim():
+    # The HTLC claim path as VM bytecode: reveal secret S in calldata; the contract accepts iff
+    # sha256(S) == the committed hash H (storage slot 0). This is exactly BIP-199's hash-preimage path.
+    # CALLDATALOAD 0 -> S ; SHA256 ; SLOAD 0 -> H ; EQ ; RETURN
+    secret = 0xDEADBEEF
+    H = int.from_bytes(hashlib.sha256(secret.to_bytes(32, "big")).digest(), "big")
+    code = push(0) + bytes([vm.CALLDATALOAD, vm.SHA256]) + push(0) + bytes([vm.SLOAD, vm.EQ, vm.RETURN])
+
+    ok = execute(code, calldata=secret.to_bytes(32, "big"), storage={0: H})       # correct preimage
+    assert ok.success and int.from_bytes(ok.output, "big") == 1
+    bad = execute(code, calldata=(secret + 1).to_bytes(32, "big"), storage={0: H})  # wrong preimage
+    assert bad.success and int.from_bytes(bad.output, "big") == 0
