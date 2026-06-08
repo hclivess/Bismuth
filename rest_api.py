@@ -303,8 +303,11 @@ def _make_handler(node):
             code = vms.get_code(addr)
             if code is None:
                 raise _NotFound("unknown contract")
+            import vm_engine
+            engine = vm_engine.ENGINE_NAME.get(code[0], "bytecode") if code else "bytecode"
+            body = code[1:] if code else b""    # strip the 1-byte engine tag
             storage = [{"key": str(k), "value": str(v)} for k, v in vms.storage_items(addr)]
-            return {"address": addr, "code": code.hex(), "code_size": len(code),
+            return {"address": addr, "engine": engine, "code": body.hex(), "code_size": len(body),
                     "slots": len(storage), "storage": storage}
 
         def _supply(self, db):

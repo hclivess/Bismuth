@@ -15,8 +15,16 @@ node derives identical state. Gated post-fork by the caller (digest).
 import hashlib
 
 import bismuth_vm as vm
+import bismuth_riscv as rv
 
 GAS_LIMIT = 1_000_000          # fixed per-call gas budget (gas economics are a later refinement)
+
+# Pluggable execution engines (the framework is engine-agnostic). A contract is deployed with one engine
+# and always runs under it. A 1-byte tag is stored ahead of the code; the openfield "riscv:<hex>" selects
+# RISC-V, otherwise the compact bytecode VM. Both satisfy the same execute()/Result contract.
+ENGINE_BYTECODE, ENGINE_RISCV = 0, 1
+_ENGINES = {ENGINE_BYTECODE: vm, ENGINE_RISCV: rv}
+ENGINE_NAME = {ENGINE_BYTECODE: "bytecode", ENGINE_RISCV: "riscv"}
 
 # transactions table column indices (consensus row layout)
 _BH, _TS, _ADDR, _RECIP, _AMOUNT, _SIG, _PUB, _HASH, _FEE, _REWARD, _OP, _OF = range(12)
@@ -40,20 +48,25 @@ def process(state, operation, openfield, signature, sender, amount_units, block_
     user input — a malformed contract/call is a failed no-op, like any reverting tx."""
     try:
         if operation == "vm:deploy":
+            of = (openfield or "").strip()
+            engine = ENGINE_BYTECODE
+            if of.startswith("riscv:"):
+                engine, of = ENGINE_RISCV, of[6:].strip()
             addr = contract_address(signature)
-            state.deploy(addr, bytes.fromhex((openfield or "").strip()))
+            state.deploy(addr, bytes([engine]) + bytes.fromhex(of))   # 1-byte engine tag + code
             return ("deploy", addr, True)
         if operation == "vm:call":
             parts = (openfield or "").split(":", 1)
             addr = parts[0].strip()
             calldata = bytes.fromhex(parts[1].strip()) if len(parts) > 1 and parts[1].strip() else b""
-            code = state.get_code(addr)
-            if not code:
+            stored = state.get_code(addr)
+            if not stored:
                 return ("call", addr, False)
+            engine = _ENGINES.get(stored[0], vm)                       # dispatch on the stored engine tag
             storage = state.load_storage(addr)
-            result = vm.execute(code, calldata=calldata, caller=_caller_int(sender),
-                                callvalue=int(amount_units or 0), storage=storage, gas_limit=GAS_LIMIT,
-                                block_height=int(block_height or 0))
+            result = engine.execute(stored[1:], calldata=calldata, caller=_caller_int(sender),
+                                    callvalue=int(amount_units or 0), storage=storage, gas_limit=GAS_LIMIT,
+                                    block_height=int(block_height or 0))
             if result.success:
                 state.commit_storage(addr, result.storage)
             return ("call", addr, result.success)
