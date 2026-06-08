@@ -327,10 +327,19 @@ def digest_block(node, data, sdef, peer_ip, db_handler):
             processor = BlockProcessor(node, db_handler, peer_ip)
             last_block_hash = process_block_data(node, data, processor, db_handler, peer_ip)
 
+            # "validate the height is real" (Bitcoin-style): the peer backed its claim with PoW-valid
+            # block(s) — reward its reputation.
+            node.peers.reward(peer_ip)
             checkpoint_set(node)
             return last_block_hash
 
         except Exception as e:
+            # the peer's block FAILED validation (bad PoW / double-spend / overspend / bad signature) —
+            # its claimed height wasn't real, so penalize (bounded, whitelist-immune). Skip the node's
+            # own fork-rollback, which isn't the peer's fault.
+            if "Rolling back" not in str(e):
+                import peers_reputation
+                node.peers.penalize(peer_ip, peers_reputation.PENALTY_INVALID_BLOCK, "invalid block")
             handle_processing_error(node, db_handler, sdef, peer_ip, e)
 
         finally:

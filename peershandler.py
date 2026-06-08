@@ -18,18 +18,20 @@ from peers_storage import PeersStorageMixin
 from peers_pool import PeersPoolMixin
 from peers_consensus import PeersConsensusMixin
 from peers_access import PeersAccessMixin
+from peers_reputation import PeersReputationMixin
 
 __version__ = "0.0.19"
 
 
-class Peers(PeersStorageMixin, PeersPoolMixin, PeersConsensusMixin, PeersAccessMixin):
+class Peers(PeersStorageMixin, PeersPoolMixin, PeersConsensusMixin, PeersAccessMixin, PeersReputationMixin):
     """The peers manager. A thread safe peers manager"""
 
     __slots__ = ('app_log','config','logstats','node','peersync_lock','startup_time','reset_time','warning_list','stats',
                  'connection_pool','peer_opinion_dict','consensus_percentage','consensus',
                  'tried','peer_dict','peerfile','suggested_peerfile','banlist','whitelist','ban_threshold',
                  'ip_to_mainnet', 'peers', 'accept_peers', 'peerlist_updated', '_warning_counts',
-                 '_connection_pool_set', '_c_class_cache', '_peer_dict_cache', '_cache_timestamp')
+                 '_connection_pool_set', '_c_class_cache', '_peer_dict_cache', '_cache_timestamp',
+                 '_reputation')
 
     def __init__(self, app_log, config=None, logstats=True, node=None):
         self.app_log = app_log
@@ -57,6 +59,7 @@ class Peers(PeersStorageMixin, PeersPoolMixin, PeersConsensusMixin, PeersAccessM
         # Optimization: Cache for peer_dict operations
         self._peer_dict_cache = None
         self._cache_timestamp = 0
+        self._reputation = {}            # peer_ip -> reputation score (peers_reputation)
 
         # We store them apart from the initial config, could diverge somehow later on.
         self.banlist = config.banlist

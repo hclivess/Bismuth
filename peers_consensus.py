@@ -1,5 +1,6 @@
 """Consensus-height tracking across peers (mixin)."""
 from essentials import most_common_dict, percentage_in
+from peers_reputation import PENALTY_HEIGHT_LIE
 
 
 class PeersConsensusMixin:
@@ -44,6 +45,9 @@ class PeersConsensusMixin:
             if (int(consensus_blockheight) > int(self.consensus) + 30 and
                 self.consensus_percentage > 50 and
                 len(self.peer_opinion_dict) > 10):
+                # penalize the reputation for claiming a tip far above consensus it can't back, then the
+                # legacy warning/ban (whitelist-immune + bounded, so this can't isolate the node).
+                self.penalize(peer_ip, PENALTY_HEIGHT_LIE, "height lie")
                 if self.warning(sdef, peer_ip, f"Consensus deviation too high, {peer_ip} banned", 10):
                     return
 
