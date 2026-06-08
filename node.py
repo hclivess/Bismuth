@@ -1292,6 +1292,8 @@ if __name__ == "__main__":
     node.rpc_bitcoin_port = config.rpc_bitcoin_port
     node.rpc_ethereum = config.rpc_ethereum          # opt-in eth_* compatibility shim (doc/17)
     node.rpc_ethereum_port = config.rpc_ethereum_port
+    node.balance_index_enabled = config.balance_index  # opt-in O(1) display-balance index (doc/17)
+    node.balance_index = None                          # the index object, built at startup if enabled
 
     node.logger.app_log = log.log("node.log", node.debug_level, node.terminal_output)
     node.logger.app_log.warning("Configuration settings loaded")
@@ -1424,6 +1426,28 @@ if __name__ == "__main__":
                     node.rpc_ethereum_server.start()
                 except Exception as e:
                     node.logger.app_log.warning("Status: Ethereum RPC could not start: {}".format(e))
+
+            # optional maintained O(1) balance index (doc/17). Off unless balance_index=True. Rebuilt
+            # from the ledger at startup, maintained on commit, rolled back via chain_ops. DISPLAY path
+            # ONLY — the consensus overspend check stays on ledger_balance3, so a stale/wrong index can
+            # never enable spending (attack-vector safety).
+            if getattr(node, "balance_index_enabled", False):
+                try:
+                    import os as _os
+                    import balance_index as _bi_mod
+                    bi_path = _os.path.join(_os.path.dirname(node.ledger_path) or ".", "balanceindex")
+                    node.balance_index = _bi_mod.BalanceIndex(bi_path)
+                    _bidb = dbhandler.DbHandler(node.index_db, node.ledger_path, node.hyper_path, node.ram,
+                                                node.ledger_ram_file, node.logger,
+                                                trace_db_calls=node.trace_db_calls)
+                    try:
+                        n = node.balance_index.rebuild_from_cursor(_bidb.c)
+                        node.logger.app_log.warning("Status: balance index enabled, rebuilt {} addresses".format(n))
+                    finally:
+                        _bidb.close()
+                except Exception as e:
+                    node.logger.app_log.warning("Status: balance index could not start: {}".format(e))
+                    node.balance_index = None
 
             # optional LMDB block-body store mirror (doc/17 phase 7). Off unless block_store=True.
             # Additive shadow: the digester writes blocks here AFTER the normal commit; reads/consensus

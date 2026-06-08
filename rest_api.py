@@ -342,7 +342,14 @@ def _make_handler(node):
         def _balance(self, db, address):
             if not essentials.address_validate(address):
                 raise _BadRequest("invalid address")
-            balance = db.balance_get(address)  # authoritative, memoized per chain height
+            # O(1) read from the maintained balance index when enabled; else the authoritative memoized
+            # scan. The index is DISPLAY-only (consensus uses ledger_balance3), so a stale/wrong index
+            # can never enable spending.
+            bi = getattr(node, "balance_index", None)
+            if bi is not None:
+                balance = bi.get_balance(address)
+            else:
+                balance = db.balance_get(address)  # authoritative, memoized per chain height
             return {"address": address, "balance": str(quantize_eight(balance))}
 
         def _transaction(self, db, txid):

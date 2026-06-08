@@ -58,6 +58,15 @@ def rollback(node, db_handler, block_height):
     # rollback_under(block_height) drops heights >= block_height, so the stores keep <= block_height-1.
     _rollback_aux_stores(node, block_height - 1)
 
+    # the balance index is a full-ledger projection (rewards baked into balances), so after the ledger
+    # rollback we rebuild it from the node's own cursor — cheap on regnet, and on mainnet it is off and
+    # reorgs are rare.
+    if getattr(node, "balance_index", None) is not None:
+        try:
+            node.balance_index.rebuild_from_cursor(db_handler.c)
+        except Exception as e:
+            node.logger.app_log.warning(f"balance index rollback rebuild failed: {e}")
+
     node.logger.app_log.warning(f"Status: Chain rolled back below {block_height} and will be resynchronized")
 
 

@@ -421,6 +421,23 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
         # Apply rewards
         processor.apply_rewards(block_instance, miner_tx)
 
+        # Optional maintained balance index (doc/17): apply this block's net effect — the positive txs
+        # plus any just-minted reward "mirror" rows — so the index stays bit-identical to ledger_balance3
+        # (the concluded rewards stay baked into balances). DISPLAY path only: the overspend check above
+        # uses ledger_balance3, so a wrong/stale index can never enable spending (attack-vector safety).
+        if getattr(node, "balance_index", None) is not None:
+            try:
+                node.balance_index.apply_rows(processor.block_transactions)
+                h = block_instance.block_height_new
+                db_handler.execute_param(db_handler.c,
+                                         "SELECT * FROM transactions WHERE block_height = ?", (-h,))
+                mirrors = db_handler.c.fetchall()
+                if mirrors:
+                    node.balance_index.apply_rows(mirrors)
+            except Exception as e:
+                node.logger.app_log.warning(
+                    f"balance index maintain failed at {block_instance.block_height_new}: {e}")
+
         # Log success
         node.logger.app_log.warning(
             f"Valid block: {block_instance.block_height_new}: {block_instance.block_hash[:10]} "

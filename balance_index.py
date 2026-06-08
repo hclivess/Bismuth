@@ -68,8 +68,10 @@ def _accumulate(rows, acc):
 
 class BalanceIndex:
     def __init__(self, path, map_size=4 * _GIB, readonly=False, sync=True):
+        # lock=True even when readonly so a separate process (a test, or a tool) can read the index
+        # consistently while the node maintains it.
         self.env = lmdb.open(path, subdir=True, max_dbs=1, map_size=map_size,
-                             readonly=readonly, lock=not readonly, sync=sync, metasync=sync)
+                             readonly=readonly, lock=True, sync=sync, metasync=sync)
         self.db = self.env.open_db(b"bal")
 
     def _get(self, txn, addr):
@@ -105,11 +107,19 @@ class BalanceIndex:
         conn = sqlite3.connect("file:%s?mode=ro" % ledger_path, uri=True, timeout=120)
         conn.text_factory = str
         try:
-            acc = {}
-            for r in conn.execute("SELECT * FROM transactions"):
-                _accumulate([r], acc)
+            return self.rebuild_from_cursor(conn.cursor())
         finally:
             conn.close()
+
+    def rebuild_from_cursor(self, cursor):
+        """(Re)build from an already-open DB cursor — the live maintenance / post-rollback path, where
+        the node's own connection IS the ledger (so we needn't know regnet-vs-mainnet file paths). Scans
+        the ENTIRE transactions table (positive txs + the negative-height reward mirrors) so the index
+        bit-matches ledger_balance3 — i.e. the concluded dev/HN rewards are already baked into balances,
+        exactly what the hard-fork snapshot will persist when the mirror blocks are dropped."""
+        acc = {}
+        for r in cursor.execute("SELECT * FROM transactions"):
+            _accumulate([r], acc)
         with self.env.begin(write=True) as txn:
             txn.drop(self.db, delete=False)            # fresh rebuild
             for addr, (c, d) in acc.items():
