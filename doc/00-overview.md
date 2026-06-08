@@ -2,7 +2,9 @@
 
 The single map of the Bismuth node modernization: what exists, what's active, what's deliberately
 inert, and what's planned. Detailed companions: file index [`13`](13-file-reference.md), DB deep-dive
-[`16`](16-database-rework-plan.md), roadmap [`17`](17-roadmap.md), the hard fork [`18`](18-hardfork-hf2.md).
+[`16`](16-database-rework-plan.md), roadmap [`17`](17-roadmap.md), the hard fork [`18`](18-hardfork-hf2.md),
+the VM [`19`](19-vm.md), post-quantum signatures [`20`](20-post-quantum.md), the solo miner / PoW
+[`21`](21-mining.md).
 
 ## Principles (non-negotiable)
 
@@ -65,8 +67,14 @@ content-hash txid + canonical sig/pubkey encoding; the reward-sidechain cutover;
 difficulty** (symmetric, delicate, deterministically calculable — the fix for the brutal up-only
 ratchet). A Heavy3/PoW change is optional and isolated to its own later fork (it carries the real 51 %
 transition risk on a small chain). **Continuity:** old blocks keep their bytes and hashes; new rules
-apply forward only; validation is height-gated; no re-sync. None of this is wired yet — the scheduler,
-LWMA and sidechain are inert modules awaiting the gate scaffold.
+apply forward only; validation is height-gated; no re-sync. The gate scaffold now exists: the
+**scheduler is wired** (`fork.dynamic_fork_height`, cached on `node.fork_height`/`node.pow_fork_height`
+in `digest.py`) and **LWMA is gated** in `difficulty.py` (active past activation, legacy before); only
+the **reward sidechain** remains an inert module. The **dual-algo PoW** (today's sha224-inner Heavy3
+vs. the modernised blake2b-inner Heavy3, same anneal + substring difficulty, selected by the
+separately-signalled `pow2` fork) is also **built** (`mining_heavy3.py` `new_pow` switch + `fork.py`
+`pow2` signal + the `pow_fork_height` gate in `digest.py`) and inert until miners signal — see
+[21](21-mining.md).
 
 **Mining.** Today's PoW is Heavy3 (`mining_heavy3.py`: sha224 → 1 GB memory-hard anneal → substring
 difficulty). `gpuminer/` mines it on GPU. The miner is coupled to the PoW: any Heavy3 change must update
@@ -95,10 +103,12 @@ the suite green *with the shadow store active* is itself the proof it's mining-i
 
 ## What's left (in rough order)
 
-1. **Wire the auto-fork switch:** coinbase signal writer + `dynamic_fork_height` called/cached +
-   `/api/fork` readiness view + the `block_height >= fork_height` gate scaffold in `digest`.
-2. **Gate the consensus upgrades** behind it: LWMA difficulty, reward-sidechain cutover, then the
-   serialization/txid/sig-pubkey changes — each replay-validated.
+1. ~~**Wire the auto-fork switch:** coinbase signal writer + `dynamic_fork_height` called/cached +
+   `/api/fork` readiness view + the `block_height >= fork_height` gate scaffold in `digest`.~~ **DONE** —
+   signal writer in `miner.py`, `dynamic_fork_height` cached on `node.fork_height` in `digest.py`,
+   `/api/fork`, and the height gate in the digester are all in place.
+2. **Gate the remaining consensus upgrades** behind it: the reward-sidechain cutover, then the
+   serialization/txid/sig-pubkey changes — each replay-validated. (LWMA difficulty is already gated.)
 3. **Storage read-path cutover** (LMDB primary), then mainnet integer-amount cutover.
 4. **Edge adapters:** Bitcoin JSON-RPC, ETH/ERC shim.
 5. **Agreement hardening** (optional): enable/harden `rollback_consensus`, checkpoints.

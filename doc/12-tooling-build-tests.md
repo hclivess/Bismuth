@@ -26,8 +26,15 @@ Layout:
 | `tests/test_mempool.py` | pending→confirmed lifecycle, mpget/mpgetjson parity, duplicate rejection, bad-signature rejection |
 | `tests/test_node.py` | port, difficulty parity, keygen parity, `api_getconfig`, `api_getaddresssince`, `api_getblocksince`, address validation, pubkey→address |
 | `tests/test_api.py` | `api_ping`, `api_getbalance`, `api_getaddressinfo`, `api_gettransaction`, `api_getblockfromheight`, tokens/alias no-crash |
+| `tests/test_miner.py` | the built-in solo miner (`miner.py`) over regnet via `regtest_mine`/`regtest_powcheck`: embeds mempool txs, stamps the hf2/pow2 coinbase signal, mines real Heavy3, exercises the **dual-algo PoW** (sha224 vs blake2b anneal) ([21](21-mining.md)) |
+| `tests/test_pq_signer.py` | the **post-quantum** signer `polysign/signer_mldsa` (ML-DSA-65 / CRYSTALS-Dilithium3): sign/verify round-trips, deterministic-from-seed keys, hash-of-pubkey addresses ([20](20-post-quantum.md)) |
 | `tests/regnet_smoke.py` | a standalone (non-pytest) gate — see below |
 | `tests/config_custom.txt` | regnet test config (`regnet=True`, `heavy=False`, `port=3030`) |
+
+Beyond the above, the suite carries a broader consensus / VM / fork / storage set — e.g. `test_riscv`,
+`test_vm_state` / `test_vm_value` / `test_vm_post_fork` (the RISC-V VM, [19](19-vm.md)), `test_fee_dynamics`,
+`test_difficulty_lwma`, `test_fork_wiring`, `test_consensus_invariants`, `test_replay`,
+`test_characterization`, `test_integer_storage`, and `test_rollback_reorg` / `test_rollback_autorecover`.
 
 `tests/regnet_smoke.py` is a fast, standalone check (no pytest): start `python3 node.py regnet2`, then
 `python3 tests/regnet_smoke.py`. It exercises chain advance, rewards, the `tokensget` fix, an RSA

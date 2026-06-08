@@ -21,7 +21,7 @@ supporting tooling. It is written for developers who want to understand, operate
 | **Networking** | Custom protocol: 10‑byte zero‑padded length header + JSON payload over raw TCP |
 | **Networks / ports** | mainnet `5658`, testnet `2829`, regnet `3030` |
 | **Genesis address** | `4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed` |
-| **Reported version** | app `4.5.0.1`; protocol `mainnet0022` (allow `mainnet0021..0023`) |
+| **Reported version** | app `4.5.0.1`; protocol `mainnet0023` (allow `mainnet0021..0023`) |
 
 ## How to read these docs
 
@@ -49,3 +49,8 @@ difficulty)** — treat those as authoritative for validation rules.
 | [14-known-issues-and-improvements.md](14-known-issues-and-improvements.md) | Verified bugs, fragile wiring, and the refactor/upgrade roadmap |
 | [15-rest-api.md](15-rest-api.md) | The modern, parallel, opt-in REST/JSON API |
 | [16-database-rework-plan.md](16-database-rework-plan.md) | Design/roadmap for a complete storage-layer modernization |
+| [17-roadmap.md](17-roadmap.md) | Modernization roadmap: phases, what's shipped, refactor history |
+| [18-hardfork-hf2.md](18-hardfork-hf2.md) | The bundled `hf2` hard fork: signal-activated scheduler, serialization/difficulty/PoW changes |
+| [19-vm.md](19-vm.md) | The decentralized-apps VM: RISC-V (RV32I) engine, state root, value custody, HTLC |
+| [20-post-quantum.md](20-post-quantum.md) | Post-quantum signatures: ML-DSA-65 signer, the `pq` fork path |
+| [21-mining.md](21-mining.md) | The built-in solo miner (`miner.py`) and dual-algo PoW signalling |

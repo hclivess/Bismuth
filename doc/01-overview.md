@@ -18,9 +18,10 @@ Distinguishing design choices:
   quantized to 8 places (see [05](05-database-and-ledger.md)).
 - **Memory-hard PoW ("Heavy3")** over a deterministic 1 GiB lookup file, with a PID-style difficulty
   controller targeting a 60-second block time (see [04](04-pow-and-difficulty.md)).
-- **RSA-4096 signatures** by default, abstracted through `polysign` (which also supports
-  ECDSA/ED25519). As of this revival, polysign is **vendored in-tree** (see
-  [09](09-crypto-wallets-keys.md) and [14](14-known-issues-and-improvements.md)).
+- **RSA-4096 signatures** by default, abstracted through `polysign` (which also offers a menu of
+  schemes: ECDSA secp256k1/secp256r1, ED25519, and the post-quantum ML-DSA family — 44/65/87). As of
+  this revival, polysign is **vendored in-tree** (see [09](09-crypto-wallets-keys.md) and
+  [14](14-known-issues-and-improvements.md)).
 - **A bespoke wire protocol**: a 10-byte zero-padded length header followed by a JSON payload, over
   a raw TCP socket (see [06](06-networking-protocol.md)).
 
@@ -28,7 +29,7 @@ Distinguishing design choices:
 
 | Network | Purpose | Port | Ledger file | Notes |
 |---|---|---|---|---|
-| **mainnet** | production | 5658 | `static/ledger.db` | protocol `mainnet0022` |
+| **mainnet** | production | 5658 | `static/ledger.db` | protocol `mainnet0023` |
 | **testnet** | public test chain | 2829 | `static/ledger_test.db` | |
 | **regnet** | local regression testing | 3030 | `static/regmode.db` | fixed difficulty, blocks minted on demand via `regtest_generate` |
 

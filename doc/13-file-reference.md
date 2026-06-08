@@ -23,7 +23,8 @@ imported library; *script* = run directly.
 
 | File | Kind | Description |
 |---|---|---|
-| `mining_heavy3.py` | module | Heavy3 PoW + `check_block`; manages `heavy3a.bin` |
+| `mining_heavy3.py` | module | Heavy3 PoW + `check_block`; manages `heavy3a.bin`; **dual-algo** (`new_pow`: sha224→blake2b) for the signalled PoW fork |
+| `miner.py` | module | built-in solo miner — builds + mines (Heavy3) + digests on the tip; stamps hf2/`pow2` coinbase signals; opt-in `mine=True` (doc/21) |
 | `mining.py` | module | legacy PoW (unused; kept for reference) |
 | `difficulty.py` | module | difficulty retarget (legacy PID controller) |
 | `difficulty_lwma.py` | module | proposed hf2 LWMA retarget — symmetric/delicate/calculable; pure + fork-gated, inert (doc/18) |
@@ -50,6 +51,16 @@ imported library; *script* = run directly.
 | `mempool_queries.py` | module | `MempoolQueriesMixin` — mempool read/reporting & maintenance (`mp_get`, `status`, `tx_to_send`, `sig_check`, `purge`/`clear`…) |
 | `mempool_sql.py` | module | mempool SQL statements + tuning constants (re-exported by `mempool` via `import *`) |
 
+## Modernization / VM
+
+| File | Kind | Description |
+|---|---|---|
+| `bismuth_riscv.py` | module | the RV32I RISC-V interpreter — the single deterministic contract execution engine (doc/19) |
+| `vm_engine.py` | module | contract deploy/call orchestration over `bismuth_riscv` — gas/value custody, HTLC, host calls (doc/19) |
+| `vm_state.py` | module | contract state store + the ENFORCED state root committed into the coinbase (doc/19) |
+| `fee_dynamics.py` | module | dynamic/EIP-1559-style fee schedule (post-fork, gated) — see doc/18 |
+| `difficulty_lwma.py` | module | fork-gated LWMA retarget (also listed under Consensus/PoW) — pure + inert until a fork activates (doc/18) |
+
 ## Networking
 
 | File | Kind | Description |
@@ -61,6 +72,7 @@ imported library; *script* = run directly.
 | `peers_pool.py` | module | `PeersPoolMixin` — outbound connection-pool membership + retry/back-off (`can_connect_to`, `add_try`/`del_try`/`reset_tried`) |
 | `peers_consensus.py` | module | `PeersConsensusMixin` — consensus-height tracking (`consensus_add`/`consensus_remove` + the `consensus_*` vote properties) |
 | `peers_access.py` | module | `PeersAccessMixin` — bans, weighted `warning`s, whitelist checks, mainnet-version gating |
+| `peers_reputation.py` | module | per-peer reputation (proven valid-PoW deliveries) — drives reward/penalize, reputation-weighted tip, and the rollback-consensus gate |
 | `worker.py` | module | outbound per-peer sync thread |
 | `rpcconnections.py` | module | client-side `Connection` class (for wallets/scripts) |
 | `hyperlane.py` | module | placeholder hyperlane manager (stub); `attic/hyperlane_asyncio.py` is the retired asyncio variant |
@@ -93,7 +105,7 @@ imported library; *script* = run directly.
 |---|---|---|
 | `essentials.py` | module | helper functions (fees, balances, checkpoints, consensus tallies, tx formatting); the wallet/key cluster now lives in `wallet_helpers` and is re-bound here for back-compat |
 | `wallet_helpers.py` | module | wallet & key management lifted from `essentials`: `sign_rsa` + `keys_check`/`keys_save`/`keys_load`/`keys_unlock`/`keys_load_new` |
-| `polysign/` | package | **vendored** signatures library (RSA + lazy ECDSA/ED25519/BTC/CRW) |
+| `polysign/` | package | **vendored** signatures library (RSA + lazy ECDSA/ED25519/BTC/CRW) + ML-DSA-65 post-quantum signer `polysign/signer_mldsa.py` (doc/20) |
 | `simplecrypt.py` | module | AES-256-CTR wallet encryption (vendored `simple-crypt`) |
 | `wallet_keys.py` | module | minimal `wallet.der` reader / keypair generator |
 

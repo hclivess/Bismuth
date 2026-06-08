@@ -31,7 +31,8 @@ identical under the available test coverage).
 
 ### Consensus: fork-stall mitigation (the 59-block checkpoint)
 `blocknf()` rolls back one block at a time and refuses once the tip drops below `node.checkpoint`
-(`node.py`), where `checkpoint = round_down(last_block, 30) - 30` (≈30–59 blocks below the tip). The
+(`chain_ops.py` ~209; `checkpoint_set`/`round_down` live in `essentials.py`), where
+`checkpoint = round_down(last_block, 30) - 30` (≈30–59 blocks below the tip). The
 checkpoint is **not** recomputed mid-rollback, so the maximum rollback is ~59 blocks. A node that
 diverges onto a minority/alternate fork by more than ~59 blocks — e.g. after a network partition of
 ~1 h at 60 s/block — can therefore never roll back far enough to rejoin the longest chain and
@@ -67,8 +68,8 @@ gate really is, and should be hardened (e.g. weight by distinct peers / known go
 
 ## Known, not yet fixed
 
-- **`received_block_height` possibly-undefined** in the `blockheight` sync handler (`node.py:764`,
-  `:783`). `pyflakes` flags it; it appears to be assigned on the live path before use, but the control
+- **`received_block_height` possibly-undefined** in the `blockheight` sync handler (`node.py`).
+  `pyflakes` flags it; it appears to be assigned on the live path before use, but the control
   flow should be made explicit.
 - **No payload size cap on the Linux `receive()` path** (`connections.py`). The non-Linux path caps at
   100 MB; the Linux `poll` path does not, so a malicious peer could request a huge allocation. A
@@ -114,7 +115,7 @@ touched function first.
 ## How changes are verified
 
 - `tests/regnet_smoke.py` — chain advance, rewards, signatures, fee formula (no pytest needed).
-- `python3 -m pytest -v` — the full suite (42 tests) against a managed regnet node.
+- `python3 -m pytest -v` — the full suite against a managed regnet node.
 - `python3 -m pyflakes node.py` — undefined-name guard after import changes.
 - The AST arity check used during the revival confirmed every cross-module call site matches its
   definition (no signature drift).

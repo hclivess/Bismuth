@@ -17,9 +17,15 @@ class SignerType(Enum):
     RSA = 1
     ECDSA = 2
     ED25519 = 3
-    MLDSA = 4   # ML-DSA-65 (FIPS 204 / Dilithium3) post-quantum signer (doc/20)
+    MLDSA = 4   # ML-DSA-65 (FIPS 204 / Dilithium3, NIST Cat 3) post-quantum signer (doc/20); == MLDSA65
+    MLDSA44 = 5   # ML-DSA-44 (FIPS 204 / Dilithium2, NIST Cat 2) post-quantum signer (doc/20)
+    MLDSA87 = 6   # ML-DSA-87 (FIPS 204 / Dilithium5, NIST Cat 5) post-quantum signer (doc/20)
+    SECP256R1 = 7   # P-256 / secp256r1 (NIST prime256v1) ECDSA — passkeys / hardware secure-elements
     BTC = 1000  # Tests
     CRW = 1001  # Tests
+
+    # ML-DSA-65 keeps the original `MLDSA = 4` value for back-compat; MLDSA65 is the explicit alias.
+    MLDSA65 = 4
 
 
 class SignerSubType(Enum):

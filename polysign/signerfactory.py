@@ -11,7 +11,11 @@ from polysign.signer_rsa import SignerRSA  # RSA = Bismuth mainnet scheme; depen
 _OPTIONAL_SIGNERS = {
     "SignerECDSA": ("polysign.signer_ecdsa", "SignerECDSA"),
     "SignerED25519": ("polysign.signer_ed25519", "SignerED25519"),
-    "SignerMLDSA": ("polysign.signer_mldsa", "SignerMLDSA"),   # ML-DSA-65 post-quantum (doc/20)
+    "SignerMLDSA": ("polysign.signer_mldsa", "SignerMLDSA"),       # ML-DSA-65 post-quantum (doc/20), back-compat name
+    "SignerMLDSA44": ("polysign.signer_mldsa", "SignerMLDSA44"),   # ML-DSA-44 / NIST Cat 2 (doc/20)
+    "SignerMLDSA65": ("polysign.signer_mldsa", "SignerMLDSA65"),   # ML-DSA-65 / NIST Cat 3 (doc/20)
+    "SignerMLDSA87": ("polysign.signer_mldsa", "SignerMLDSA87"),   # ML-DSA-87 / NIST Cat 5 (doc/20)
+    "SignerSECP256R1": ("polysign.signer_secp256r1", "SignerSECP256R1"),   # P-256 / secp256r1 ECDSA
     "SignerBTC": ("polysign.signer_btc", "SignerBTC"),
     "SignerCRW": ("polysign.signer_crw", "SignerCRW"),
 }
@@ -37,6 +41,10 @@ def signer_for_type(signer_type: SignerType) -> Union[Type[Signer], None]:
     if signer_type == SignerType.RSA:
         return SignerRSA
     optional = {SignerType.ED25519: "SignerED25519", SignerType.ECDSA: "SignerECDSA",
+                SignerType.MLDSA: "SignerMLDSA",   # ML-DSA-65 post-quantum (doc/20); == SignerType.MLDSA65
+                SignerType.MLDSA44: "SignerMLDSA44",   # ML-DSA-44 / NIST Cat 2 (doc/20)
+                SignerType.MLDSA87: "SignerMLDSA87",   # ML-DSA-87 / NIST Cat 5 (doc/20)
+                SignerType.SECP256R1: "SignerSECP256R1",   # P-256 / secp256r1 ECDSA
                 SignerType.BTC: "SignerBTC", SignerType.CRW: "SignerCRW"}
     name = optional.get(signer_type)
     return _load_optional_signer(name) if name else None

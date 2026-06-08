@@ -7,10 +7,29 @@ hex** string. The default scheme is **RSA-4096**; public-key PEMs are 271 chars 
 799 chars (4096-bit) and that length is validated on load.
 
 All signing, verification and address validation go through **`polysign`** (`SignerFactory`), which
-also supports ECDSA / ED25519 / BTC / CRW addresses. As of the revival, **polysign is vendored
-in-tree** under `polysign/` and its non-RSA signers are lazy-loaded, so an RSA-only mainnet node
-depends only on `pycryptodomex` (see [14](14-known-issues-and-improvements.md)). `SignerFactory`
-selects the signer by address shape: 56-hex → RSA; `Bis1…` → ECDSA/ED25519.
+offers a **menu of signature schemes**. As of the revival, **polysign is vendored in-tree** under
+`polysign/` and its non-RSA signers are lazy-loaded, so an RSA-only mainnet node depends only on
+`pycryptodomex` (see [14](14-known-issues-and-improvements.md)). `SignerFactory` selects the signer by
+address shape: 56-hex → RSA; `Bis1…` → ECDSA/ED25519.
+
+The available signers (`SignerType` → class, with the mainnet base58 address-version prefix where the
+family is self-identifying):
+
+| Signer | `SignerType` | Module | Mainnet address version | Notes |
+|--------|--------------|--------|-------------------------|-------|
+| RSA-4096       | `RSA = 1`        | `signer_rsa.py`       | `00` (56-hex)   | default mainnet scheme; only hard dep is `pycryptodomex` |
+| ECDSA secp256k1| `ECDSA = 2`      | `signer_ecdsa.py`     | `4f545b` (`Bis1…`) | Bitcoin-style curve; pubkey embedded |
+| ED25519        | `ED25519 = 3`    | `signer_ed25519.py`   | `03b86cf3` (`Bis1…`) | Edwards curve; pubkey embedded |
+| ML-DSA-65      | `MLDSA = 4` (`MLDSA65`) | `signer_mldsa.py` | `064d4453` | post-quantum, NIST Cat 3 (FIPS 204 / Dilithium3); hash-of-pubkey address |
+| ML-DSA-44      | `MLDSA44 = 5`    | `signer_mldsa.py`     | `064d4432` | post-quantum, NIST Cat 2 (Dilithium2); hash-of-pubkey address |
+| ML-DSA-87      | `MLDSA87 = 6`    | `signer_mldsa.py`     | `064d4438` | post-quantum, NIST Cat 5 (Dilithium5); hash-of-pubkey address |
+| secp256r1 (P-256) | `SECP256R1 = 7` | `signer_secp256r1.py` | `06523100` | classical NIST curve; passkeys / hardware secure-elements; hash-of-pubkey address |
+
+The ML-DSA family and secp256r1 keep their wallet key as a **32-byte seed** (deterministic KeyGen /
+key-derivation) and use a **hash-of-pubkey address** (`base58(version + sha256(pubkey) + checksum)`),
+exactly like RSA — the full pubkey rides in the tx's `public_key` field. Their crypto deps
+(`dilithium_py`, `cryptography`) are lazy-imported, so RSA-only nodes are unaffected. The post-quantum
+ML-DSA signers are **inert on consensus** until a signalled `pq` fork (see [20](20-post-quantum.md)).
 
 ## `wallet.der`
 

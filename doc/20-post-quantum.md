@@ -131,6 +131,12 @@ honest consequences:
 These costs are **why the pivot is held in reserve and not done now** (§1). They are acceptable as
 insurance against a broken chain; they are not worth paying years early.
 
+> **Note — the full ML-DSA family is wired up, not just 65.** `polysign` now ships all three NIST
+> levels as distinct, self-identifying signers — **ML-DSA-44** (Cat 2), **ML-DSA-65** (Cat 3) and
+> **ML-DSA-87** (Cat 5) — each with its own `SignerType` and address-version prefix, sharing one base
+> class in `signer_mldsa.py` (`SignerMLDSA` stays an alias of the Cat-3 `SignerMLDSA65`). All three
+> sign/verify and round-trip in tests; they remain inert on consensus until the `pq` fork (below).
+
 ### Conservative alternative: hash-based signatures (SLH-DSA / SPHINCS+, FIPS 205)
 
 If, when the time comes, lattice assumptions look shakier than hoped, the conservative fallback is a

@@ -127,7 +127,7 @@
    every normal tx. The optional full-chain `node.verify` was also fixed to rebuild the signing buffer
    via `from_units` in integer mode (it reads the *stored* column, so a raw integer `250000000` would
    have produced `'250000000.00000000'` and failed every signature). With `ledger_integer_amounts=True`
-   in `tests/config_custom.txt`, the regnet node and the **whole suite (82 passed)** run on integer
+   in `tests/config_custom.txt`, the regnet node and the **whole suite** run on integer
    storage; `tests/test_replay.py` proves block hashes stay byte-identical, while
    `tests/test_integer_storage.py` (live on-disk `INTEGER` columns) and
    `test_api_getblockrange_classifies_normal_tx` (the `blocktojsondiffs` split) lock the cutover.
