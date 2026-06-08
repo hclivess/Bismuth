@@ -33,14 +33,30 @@ variants return named dicts; the others return raw tuples.
 | `pubkeyget`, `addvalidate`, `keygen(json)` | pubkey / address validation / new keypair |
 | `annget`, `annverget`, `peersget`, `addpeers` | announcements / peers |
 | `block` | submit a mined block |
-| `stop` | shut the node down (localhost / whitelisted) |
-| `regtest_*` | regnet-only (e.g. `regtest_generate <n>` mints blocks) |
+| `stop` | raise `IS_STOPPING` for a graceful shutdown (localhost / whitelisted); same flag the `SIGTERM`/`SIGINT` handler sets — see [06](06-networking-protocol.md) |
+| `regtest_*` | regnet-only — dispatched to `regnet.command()` (see below) |
 | `txsend` | **deprecated / unsafe** — builds & signs a tx server-side from a raw private key |
 
 > `addlistlimmirjson` previously sent its response twice; the duplicate `send()` was removed during
 > the revival (see [14](14-known-issues-and-improvements.md)).
 
+### `regtest_*` commands (regnet only, `regnet.command()`)
+
+Any command starting with `regtest_` is rejected unless `node.is_regnet`, then routed to
+`regnet.command(...)`. Each is destructive/test-only and re-checks `is_regnet` defensively:
+
+| Command | Effect |
+|---|---|
+| `regtest_generate <n>` | mint `n` blocks with the regnet-only trivial-nonce generator (`generate_one_block`, up to `TX_PER_BLOCK=2` mempool txs each) |
+| `regtest_mine <n>` | drive the **real** solo miner (`miner.generate_block`) for `n` blocks — the actual mainnet code path (mempool txs + hf2/pow2 coinbase + dual-algo Heavy3) |
+| `regtest_powcheck` | run the dual-algo PoW both ways inside the node and return sha224-vs-blake2b difficulty samples |
+| `regtest_rollback <below>` | drive a real chain rollback to height `below-1` (`chain_ops.rollback`) and fix up the tip pointers — exercises the reorg path end-to-end |
+
 ## `ApiHandler` (`apihandler.py`) — `api_*` reference
+
+`ApiHandler` is now composed from mixins — `ApiHandler(BlockApiMixin, AddressApiMixin, TxApiMixin)` —
+so the `api_*` methods live across `apihandler_blocks.py` / `apihandler_address.py` / `apihandler_tx.py`
+(plus a few in `apihandler.py`); `dispatch` still reaches them all via `getattr(self, method)`.
 
 | Command | Returns |
 |---|---|

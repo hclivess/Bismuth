@@ -56,10 +56,12 @@ trace_db_calls=False)`. It applies PRAGMAs to all connections (`synchronous=NORM
 | rollback | `backup_higher`, `rollback_under`, `rollback_to` (deprecated → `rollback_under`), `tokens_rollback`, `aliases_rollback` |
 | low-level | `commit`, `execute`, `execute_param`, `fetchall`, `fetchone`, `ensure_indexes`, `clear_caches`, `close` |
 
-Retry semantics differ by helper: `execute`/`execute_param` retry on generic errors but **break** on
-`InterfaceError`/`IntegrityError`; `commit` retries forever. (These near-duplicate retry loops, also
-present in `mempool`, `essentials.execute_param_c`, `ledger_queries` and `staking`, are a documented
-consolidation target — see [14](14-known-issues-and-improvements.md).)
+Retry semantics differ by helper: `execute`/`execute_param` retry on generic errors but **abort** on
+`InterfaceError`/`IntegrityError` (`_ABORT_ON`); `commit` retries forever. The previously near-duplicate
+retry loops have been consolidated into a single `db_helpers.retry_db(operation, *, abort_on, delay,
+max_tries, ...)` helper, which `DbHandler`, `mempool`, `essentials.execute_param_c`, `ledger_queries`
+and `staking` now all call (each passing its own `abort_on`/`max_tries`) — see
+[14](14-known-issues-and-improvements.md).
 
 ## Modes
 
@@ -70,13 +72,14 @@ consolidation target — see [14](14-known-issues-and-improvements.md).)
 - **trace_db_calls**: logs every SQL statement via a per-connection trace callback (tagged
   INDEX/HDD/HDD2/CONN).
 
-## Hyperblock pruning (`recompress_ledger`)
+## Hyperblock pruning (`recompress_ledger`, in `chain_ops.py`)
 
 Blocks older than `depth` (default 15,000 from the tip) are replaced by one synthetic
 `address='Hyperblock'` row per address that carries the address's end balance, then the original
-rows and their `misc` entries are deleted and the DB is VACUUMed. `ledger_check_heights()` decides at
-startup whether to recompress (when `hyper_recompress=True` and heights agree) or to roll all DBs
-back to the minimum consistent height.
+rows and their `misc` entries are deleted and the DB is VACUUMed. `ledger_check_heights()` (also in
+`chain_ops.py`) decides at startup whether to recompress (when `hyper_recompress=True` and the
+ledger/hyper/misc/diff heights all agree — a cross-integrity check) or to roll all DBs back to the
+minimum consistent height.
 
 ## `quantizer.py`
 
@@ -87,7 +90,7 @@ text rather than floats.
 
 ## Other storage files
 
-- `db_hashes.py` — a static dict of 69 known-good `"<height>-<timestamp>" → sha1` pairs from early
+- `db_hashes.py` — a static dict of 67 known-good `"<height>-<timestamp>" → sha1` pairs from early
   mainnet (blocks 27,258–109,035), a corruption/fork reference. Not a hash function.
 - `ledger_queries.py` (`LedgerQueries`) — classmethod query helpers (balances, block-by-timestamp,
   hypernode register scans) used by plugins/hypernodes; takes a raw connection, not a `DbHandler`.

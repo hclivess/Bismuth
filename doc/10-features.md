@@ -3,6 +3,15 @@
 These are built on the generic `operation`/`openfield` transaction fields and the `index.db` indexes;
 none change base consensus.
 
+> This page covers the **optional, consensus-neutral** feature layers. The newer features that *do*
+> touch consensus (all signal-activated at the `hf2` fork) are documented separately: the
+> [`hf2` hard fork](18-hardfork-hf2.md), the [decentralized-apps VM / value-custody smart contracts](19-vm.md)
+> (driven by `vm:` operations, with a committed VM state root in the coinbase), the
+> [post-quantum signers](20-post-quantum.md) — `polysign/` now ships ML-DSA and secp256r1 alongside the
+> legacy RSA/ECDSA/ed25519/BTC/CRW signers, all behind `SignerFactory` — and
+> [mining](21-mining.md): the Heavy3 PoW, the built-in solo miner (`miner.py`, `mine=True`), and the
+> dual-algo (sha224 → blake2b) PoW fork.
+
 ## Tokens (`tokensv2.py`)
 
 Custom tokens are issued and transferred via ordinary transactions:
@@ -36,8 +45,10 @@ via `importlib`. Plugins implement hooks by defining module-level functions:
 - `filter_<hook>(params: dict) -> dict` — pipeline; must return `params` with all original keys
   intact.
 
-Known hooks fired by the core: `init` (`{manager}`), `token_issue`, `token_transfer`, `status`,
-`block`, `fullblock`, `diff`, `digestblock`, and the `extra_commands_prefixes` filter (which lets a
+Action hooks fired by the core: `init` (`{manager}`), `token_issue`, `token_transfer`, `status`,
+`block`, `fullblock`, `diff`, `digestblock`, `mined` (per accepted mined block), `sync`
+(`syncing_from`), and `rollback` (during a reorg, from `chain_ops.py`). Filter hooks: `peer_ip` (lets a
+plugin rewrite/ban an IP before connecting), `filter_rollback_ip`, and `extra_commands_prefixes` (lets a
 plugin register new socket command prefixes — this is how the hypernode companion exposes `HN_*`).
 See the BismuthPlugins repository for examples.
 
@@ -51,6 +62,10 @@ An isolated, deterministic local network for tests:
 - blocks are minted **on demand**: a client sends `regtest_generate <n>`, and `generate_one_block()`
   finds a trivial nonce, pops up to `TX_PER_BLOCK = 2` mempool txs, signs the coinbase with the
   node's key, and calls `DIGEST_BLOCK` (a function pointer the node injects at startup).
+- additional regnet-only socket commands (all in `regnet.command()`): `regtest_mine <n>` drives the
+  **real** solo miner (`miner.py`) so the production mining path is exercised; `regtest_powcheck`
+  returns dual-algo PoW samples; `regtest_rollback <below>` drives a real chain rollback. See
+  [08](08-api-and-commands.md) for the full list.
 
 The pytest suite and `tests/regnet_smoke.py` both drive a regnet node this way. The regnet test
 config is `tests/config_custom.txt` (`regnet=True`, `heavy=False`, `port=3030`, `version=regnet`).
