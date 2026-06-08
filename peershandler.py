@@ -22,6 +22,14 @@ from peers_reputation import PeersReputationMixin
 
 __version__ = "0.0.19"
 
+# Fast recovery from isolation: when the number of OUTBOUND connections is at or below this floor, the
+# node is effectively isolated (0-1 peers) or critically low and is at risk of falling behind consensus.
+# In that state client_loop bypasses the per-peer retry back-off and re-attempts every known peer at
+# once (see reset_tried(aggressive=True)), so recovery takes seconds instead of the minutes/hours the
+# escalating back-off would otherwise impose. Above this floor the gentle steady-state back-off is kept,
+# so a well-connected node never hammers its peers.
+OUTBOUND_RECOVERY_FLOOR = 4
+
 
 class Peers(PeersStorageMixin, PeersPoolMixin, PeersConsensusMixin, PeersAccessMixin, PeersReputationMixin):
     """The peers manager. A thread safe peers manager"""
@@ -104,6 +112,18 @@ class Peers(PeersStorageMixin, PeersPoolMixin, PeersConsensusMixin, PeersAccessM
         random.shuffle(l)
         return dict(l)
 
+    def _order_by_recency(self, peers):
+        """Order ``peers`` ({ip: port}) so recently-responsive peers come first, used only on the
+        isolation-recovery path. A peer we have completed a version handshake with is in
+        ``ip_to_mainnet`` (set by store_mainnet on a successful outbound/inbound connect); those are the
+        peers most likely to still be up, so we dial them before the rest. Membership-only, no scoring
+        and no I/O; consensus-neutral. Ties (and all unknown peers) keep their already-shuffled order, so
+        we still spread load and never deterministically hammer one peer."""
+        proven = {ip: port for ip, port in peers.items() if ip in self.ip_to_mainnet}
+        rest = {ip: port for ip, port in peers.items() if ip not in self.ip_to_mainnet}
+        proven.update(rest)
+        return proven
+
     def status_dict(self):
         """Returns a status as a dict"""
         status = {"version": self.config.VERSION, "stats": self.stats}
@@ -112,8 +132,26 @@ class Peers(PeersStorageMixin, PeersPoolMixin, PeersConsensusMixin, PeersAccessM
     def client_loop(self, node, this_target):
         """Manager loop called every 30 sec. Handles maintenance"""
         try:
+            # FAST RECOVERY FROM ISOLATION.
+            # If outbound connections have collapsed to ~0 (just restarted, or lost all peers), the
+            # per-peer back-off would otherwise keep us isolated for minutes/hours. So BEFORE we pick
+            # peers to dial, wipe every back-off timer and re-attempt all known peers in this very pass,
+            # in parallel up to the thread cap below. We do this here (not only after the dial loop, as
+            # the gentle reset_tried() did) so the clear takes effect for THIS iteration's dials.
+            outbound_count = len(self._connection_pool_set)
+            isolated = outbound_count <= OUTBOUND_RECOVERY_FLOOR
+            if isolated and self.peer_dict:
+                self.app_log.warning(
+                    f"Only {outbound_count} outbound connection(s) (<= {OUTBOUND_RECOVERY_FLOOR}); "
+                    f"isolation recovery: clearing retry back-off and re-dialing all known peers now")
+                self.reset_tried(aggressive=True)
+
             # Optimization: Cache peer_dict for iteration
             current_peers = dict(self.dict_shuffle(self.peer_dict))
+            # When isolated, dial recently-responsive peers first so we reconnect to a live one ASAP
+            # instead of burning the (capped) parallel dial slots on peers that may be down.
+            if isolated:
+                current_peers = self._order_by_recency(current_peers)
 
             for host, value in current_peers.items():
                 port = int(value)
