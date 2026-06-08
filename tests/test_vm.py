@@ -98,6 +98,17 @@ def test_htlc_preimage_claim():
     assert bad.success and int.from_bytes(bad.output, "big") == 0
 
 
+def test_transfer_is_balance_checked():
+    # value custody (VM level): a contract may queue a BIS transfer only up to its balance.
+    # TRANSFER pops amount then to, so the stack is [to, amount].
+    ok = execute(push(0xABC) + push(30) + bytes([vm.TRANSFER, vm.RETURN]), self_balance=100)
+    assert ok.success and int.from_bytes(ok.output, "big") == 1     # affordable -> queued
+    assert ok.transfers == [(0xABC, 30)]
+    short = execute(push(0xABC) + push(200) + bytes([vm.TRANSFER, vm.RETURN]), self_balance=100)
+    assert short.success and int.from_bytes(short.output, "big") == 0   # too much -> refused
+    assert short.transfers == []                                    # nothing queued, no overspend
+
+
 def test_htlc_claim_with_timelock():
     # The FULL HTLC claim guard: accept iff (correct preimage) AND (still within the timeout window).
     # preimage_ok = sha256(calldata) == H[slot0]; within = NOT(height > timeout[slot1]); return AND.

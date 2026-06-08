@@ -20,7 +20,8 @@ ECALL ABI (syscall number in a7/x17, args in a0.., return in a0):
 import hashlib
 
 WMASK = 0xFFFFFFFF
-SYS_HALT, SYS_RETURN, SYS_SSTORE, SYS_SLOAD, SYS_CALLER, SYS_CALLVALUE, SYS_NUMBER, SYS_SHA256 = range(8)
+(SYS_HALT, SYS_RETURN, SYS_SSTORE, SYS_SLOAD, SYS_CALLER, SYS_CALLVALUE, SYS_NUMBER, SYS_SHA256,
+ SYS_TRANSFER) = range(9)   # 8 TRANSFER(a0=to, a1=amount) -> a0 = 1 if affordable else 0
 
 
 class RiscVError(Exception):
@@ -34,21 +35,24 @@ def _sext(value, bits):
 
 
 class Result:
-    __slots__ = ("success", "output", "gas_used", "storage")
+    __slots__ = ("success", "output", "gas_used", "storage", "transfers")
 
-    def __init__(self, success, output, gas_used, storage):
+    def __init__(self, success, output, gas_used, storage, transfers=None):
         self.success = success
         self.output = output
         self.gas_used = gas_used
         self.storage = storage
+        self.transfers = transfers if transfers is not None else []  # [(to_int, amount)]; apply iff success
 
 
 def execute(code, calldata=b"", caller=0, callvalue=0, storage=None, gas_limit=1_000_000,
-            block_height=0, mem_size=1 << 16):
+            block_height=0, mem_size=1 << 16, self_balance=0):
     """Run RV32I `code` deterministically. Code is loaded at address 0; calldata right after, with
     a0 = calldata pointer and a1 = calldata length (a tiny ABI). Returns a Result (commit storage only
     if success). Any fault is a deterministic revert, never a leaked Python exception."""
     storage = dict(storage or {})
+    transfers = []                        # [(to_int, amount)] queued by SYS_TRANSFER, applied iff success
+    balance_remaining = int(self_balance)
     reg = [0] * 32
     mem = bytearray(mem_size)
     if len(code) > mem_size:
@@ -159,9 +163,9 @@ def execute(code, calldata=b"", caller=0, callvalue=0, storage=None, gas_limit=1
                 if (inst >> 20) == 0:                                # ECALL
                     s = reg[17]                                      # a7
                     if s == SYS_HALT:
-                        return Result(True, b"", gas_limit - gas, storage)
+                        return Result(True, b"", gas_limit - gas, storage, transfers)
                     elif s == SYS_RETURN:
-                        return Result(True, (reg[10] & WMASK).to_bytes(4, "big"), gas_limit - gas, storage)
+                        return Result(True, (reg[10] & WMASK).to_bytes(4, "big"), gas_limit - gas, storage, transfers)
                     elif s == SYS_SSTORE:
                         storage[reg[10] & WMASK] = reg[11] & WMASK
                     elif s == SYS_SLOAD:
@@ -178,6 +182,15 @@ def execute(code, calldata=b"", caller=0, callvalue=0, storage=None, gas_limit=1
                             return Result(False, b"", gas_limit - gas, storage)
                         gas -= 60
                         mem[out:out + 32] = hashlib.sha256(bytes(mem[ptr:ptr + ln])).digest()
+                    elif s == SYS_TRANSFER:
+                        to = reg[10] & WMASK
+                        amount = reg[11] & WMASK
+                        if 0 < amount <= balance_remaining:        # can't transfer more than held
+                            balance_remaining -= amount
+                            transfers.append((to, amount))
+                            reg[10] = 1
+                        else:
+                            reg[10] = 0
                     else:
                         return Result(False, b"", gas_limit - gas, storage)  # unknown syscall
                 else:                                               # EBREAK -> halt

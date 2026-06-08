@@ -55,11 +55,13 @@ DUP = 0x80          # duplicate the top stack item
 SWAP = 0x90         # swap the top two stack items
 RETURN = 0xf3       # pop value, return it as 32-byte output, success
 REVERT = 0xfd       # halt, success=False (caller must discard storage changes)
+TRANSFER = 0xf1     # pop amount, pop to; if affordable, queue a BIS transfer to `to`, push 1, else push 0
 
 _GAS = {
     STOP: 0, ADD: 3, MUL: 5, SUB: 3, DIV: 5, MOD: 5, LT: 3, GT: 3, EQ: 3, ISZERO: 3, AND: 3, OR: 3,
     SHA256: 60, CALLER: 2, CALLVALUE: 2, NUMBER: 2, CALLDATALOAD: 3, POP: 2, SLOAD: 100, SSTORE: 200,
     JUMP: 8, JUMPI: 10, PC: 2, JUMPDEST: 1, PUSH: 3, DUP: 3, SWAP: 3, RETURN: 0, REVERT: 0,
+    TRANSFER: 100,
 }
 
 
@@ -72,13 +74,14 @@ class OutOfGas(VMError):
 
 
 class VMResult:
-    __slots__ = ("success", "output", "gas_used", "storage")
+    __slots__ = ("success", "output", "gas_used", "storage", "transfers")
 
-    def __init__(self, success, output, gas_used, storage):
-        self.success = success    # False on REVERT / fault -> the caller must NOT commit `storage`
+    def __init__(self, success, output, gas_used, storage, transfers=None):
+        self.success = success    # False on REVERT / fault -> the caller must NOT commit storage/transfers
         self.output = output      # bytes returned by RETURN (b"" otherwise)
         self.gas_used = gas_used
         self.storage = storage    # the mutated storage dict; commit ONLY if success
+        self.transfers = transfers if transfers is not None else []  # [(to_int, amount_units)]; apply iff success
 
 
 def _jumpdests(code):
@@ -97,7 +100,8 @@ def _jumpdests(code):
     return dests
 
 
-def execute(code, calldata=b"", caller=0, callvalue=0, storage=None, gas_limit=1_000_000, block_height=0):
+def execute(code, calldata=b"", caller=0, callvalue=0, storage=None, gas_limit=1_000_000, block_height=0,
+            self_balance=0):
     """Run `code` deterministically and return a VMResult.
 
     `storage` is an optional {int: int} mapping; a COPY is mutated and returned, and the caller commits it
@@ -105,6 +109,8 @@ def execute(code, calldata=b"", caller=0, callvalue=0, storage=None, gas_limit=1
     exception leaking platform behaviour.
     """
     storage = dict(storage or {})
+    transfers = []                       # [(to_int, amount_units)] queued by TRANSFER, applied iff success
+    balance_remaining = int(self_balance)  # the contract's spendable BIS this call (units)
     stack = []
     pc = 0
     gas = int(gas_limit)
@@ -133,7 +139,7 @@ def execute(code, calldata=b"", caller=0, callvalue=0, storage=None, gas_limit=1
             pc += 1
 
             if op == STOP:
-                return VMResult(True, b"", gas_limit - gas, storage)
+                return VMResult(True, b"", gas_limit - gas, storage, transfers)
             elif op == PUSH:
                 size = code[pc] if pc < n else 0
                 if size > 32 or pc + 1 + size > n:
@@ -205,9 +211,18 @@ def execute(code, calldata=b"", caller=0, callvalue=0, storage=None, gas_limit=1
                     raise VMError("stack underflow")
                 stack[-1], stack[-2] = stack[-2], stack[-1]
             elif op == RETURN:
-                return VMResult(True, (pop()).to_bytes(32, "big"), gas_limit - gas, storage)
+                return VMResult(True, (pop()).to_bytes(32, "big"), gas_limit - gas, storage, transfers)
             elif op == REVERT:
-                return VMResult(False, b"", gas_limit - gas, storage)
+                return VMResult(False, b"", gas_limit - gas, storage, transfers)
+            elif op == TRANSFER:
+                amount = pop()
+                to = pop()
+                if 0 < amount <= balance_remaining:        # can't transfer more than the contract holds
+                    balance_remaining -= amount
+                    transfers.append((to, amount))
+                    push(1)
+                else:
+                    push(0)
             else:
                 raise VMError("unhandled opcode 0x%02x" % op)
         # ran off the end == STOP
