@@ -43,44 +43,68 @@ def _caller_int(address):
         return int.from_bytes(hashlib.blake2b(str(address).encode(), digest_size=32).digest(), "big")
 
 
-def process(state, operation, openfield, signature, sender, amount_units, block_height=0):
-    """Process one vm: transaction against `state`. Returns (kind, addr, success). Never raises on bad
-    user input — a malformed contract/call is a failed no-op, like any reverting tx."""
+# The ledger pseudo-address that holds all VM custody. A vm:call SENT to it deposits its BIS into the
+# called contract's balance; payouts are settled FROM it. Its ledger balance mirrors the sum of all
+# contract balances (double-entry), so the BIS supply stays exact and rolls back with the ledger.
+VM_SINK = hashlib.sha224(b"bismuth-vm-custody").hexdigest()   # 56-hex sink address; no private key -> unspendable
+
+
+def _deploy(state, openfield, signature):
     try:
-        if operation == "vm:deploy":
-            of = (openfield or "").strip()
-            engine = ENGINE_BYTECODE
-            if of.startswith("riscv:"):
-                engine, of = ENGINE_RISCV, of[6:].strip()
-            addr = contract_address(signature)
-            state.deploy(addr, bytes([engine]) + bytes.fromhex(of))   # 1-byte engine tag + code
-            return ("deploy", addr, True)
-        if operation == "vm:call":
-            parts = (openfield or "").split(":", 1)
-            addr = parts[0].strip()
-            calldata = bytes.fromhex(parts[1].strip()) if len(parts) > 1 and parts[1].strip() else b""
-            stored = state.get_code(addr)
-            if not stored:
-                return ("call", addr, False)
-            engine = _ENGINES.get(stored[0], vm)                       # dispatch on the stored engine tag
-            storage = state.load_storage(addr)
-            result = engine.execute(stored[1:], calldata=calldata, caller=_caller_int(sender),
-                                    callvalue=int(amount_units or 0), storage=storage, gas_limit=GAS_LIMIT,
-                                    block_height=int(block_height or 0))
-            if result.success:
-                state.commit_storage(addr, result.storage)
-            return ("call", addr, result.success)
+        of = (openfield or "").strip()
+        engine = ENGINE_BYTECODE
+        if of.startswith("riscv:"):
+            engine, of = ENGINE_RISCV, of[6:].strip()
+        state.deploy(contract_address(signature), bytes([engine]) + bytes.fromhex(of))
     except Exception:
-        return (None, None, False)
-    return (None, None, False)
+        pass
+
+
+def _call(state, openfield, signature, sender, recipient, amount_units, block_height):
+    """Execute one vm:call. Returns the payouts [(to_addr, amount_units)] it queued."""
+    try:
+        parts = (openfield or "").split(":", 1)
+        addr = parts[0].strip()
+        calldata = bytes.fromhex(parts[1].strip()) if len(parts) > 1 and parts[1].strip() else b""
+        stored = state.get_code(addr)
+        if not stored:
+            return []
+        # DEPOSIT: value carried to the custody sink funds this contract (the ledger already moved it).
+        deposit = int(amount_units or 0) if recipient == VM_SINK else 0
+        if deposit:
+            state.add_balance(addr, deposit)
+        engine = _ENGINES.get(stored[0], vm)                            # dispatch on the stored engine tag
+        result = engine.execute(stored[1:], calldata=calldata, caller=_caller_int(sender),
+                                callvalue=deposit, storage=state.load_storage(addr), gas_limit=GAS_LIMIT,
+                                block_height=int(block_height or 0), self_balance=state.get_balance(addr))
+        if not result.success:
+            return []                              # revert: storage untouched; the deposit stays in custody
+        state.commit_storage(addr, result.storage)
+        payouts = []
+        for to_int, amount in result.transfers:
+            to_addr = "%056x" % (to_int & ((1 << 224) - 1))             # 56-hex address from the VM word
+            state.add_balance(addr, -int(amount))                       # debit custody (VM already checked)
+            payouts.append((to_addr, int(amount)))
+        return payouts
+    except Exception:
+        return []
 
 
 def apply_block_rows(state, rows):
-    """Execute every vm: tx in a block's rows, in order. `rows` are full 12-col transaction tuples."""
+    """Execute the block's vm: txs in order against `state`, with value custody. A vm:call to VM_SINK
+    deposits its amount into the called contract; a TRANSFER debits that custody and queues a payout.
+    Returns the payouts [(to_addr, amount_units)] for the digester to settle FROM the sink. Custody lives
+    in vm_state (committed to the state root), so re-executing these txs replays the same balances — the
+    rollback rebuild is deterministic."""
+    payouts = []
     for r in rows:
         op = r[_OP] or ""
-        if op.startswith("vm:"):
-            process(state, op, r[_OF] or "", r[_SIG], r[_ADDR], r[_AMOUNT], int(r[_BH] or 0))
+        if op == "vm:deploy":
+            _deploy(state, r[_OF] or "", r[_SIG])
+        elif op == "vm:call":
+            payouts.extend(_call(state, r[_OF] or "", r[_SIG], r[_ADDR], r[_RECIP],
+                                 r[_AMOUNT], int(r[_BH] or 0)))
+    return payouts
 
 
 # --- state-root enforcement in the coinbase (doc/19) -----------------------------------------------

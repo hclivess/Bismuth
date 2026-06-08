@@ -20,10 +20,11 @@ _KEY = 32  # storage keys/values are 256-bit words, big-endian
 class VMState:
     def __init__(self, path, map_size=4 * _GIB, readonly=False):
         # lock=True even when readonly so a reader (a test / the explorer) is consistent while the node writes
-        self.env = lmdb.open(path, subdir=True, max_dbs=2, map_size=map_size,
+        self.env = lmdb.open(path, subdir=True, max_dbs=3, map_size=map_size,
                              readonly=readonly, lock=True)
         self.code_db = self.env.open_db(b"code")
         self.stor_db = self.env.open_db(b"storage")
+        self.bal_db = self.env.open_db(b"balances")   # per-contract BIS custody (units), in the state root
 
     # --- code -------------------------------------------------------------
     def deploy(self, addr, code):
@@ -67,6 +68,24 @@ class VMState:
         """(key, value) pairs of a contract's storage, for display."""
         return sorted(self.load_storage(addr).items())
 
+    # --- custody balance (BIS units the contract holds; the ledger 'vm_custody' sink mirrors the total) ---
+    def get_balance(self, addr):
+        with self.env.begin() as txn:
+            v = txn.get(addr.encode(), db=self.bal_db)
+        return int.from_bytes(v, "big") if v else 0
+
+    def add_balance(self, addr, delta):
+        """Adjust a contract's custody balance by `delta` (units); never below 0. Returns the new balance."""
+        bal = self.get_balance(addr) + int(delta)
+        if bal < 0:
+            bal = 0
+        with self.env.begin(write=True) as txn:
+            if bal:
+                txn.put(addr.encode(), bal.to_bytes(32, "big"), db=self.bal_db)
+            else:
+                txn.delete(addr.encode(), db=self.bal_db)
+        return bal
+
     def state_root(self):
         """Deterministic 32-byte root (hex) over the ENTIRE contract state — every contract's code and
         every storage slot, in LMDB's sorted key order. Two nodes with identical state produce identical
@@ -85,6 +104,10 @@ class VMState:
                 h.update(b"S")
                 h.update(k)
                 h.update(v)
+            for addr, bal in txn.cursor(db=self.bal_db):
+                h.update(b"B")
+                h.update(addr)
+                h.update(bal)
         return h.hexdigest()
 
     # --- maintenance ------------------------------------------------------
@@ -92,6 +115,7 @@ class VMState:
         with self.env.begin(write=True) as txn:
             txn.drop(self.code_db, delete=False)
             txn.drop(self.stor_db, delete=False)
+            txn.drop(self.bal_db, delete=False)
 
     def close(self):
         try:

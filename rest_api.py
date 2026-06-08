@@ -321,6 +321,7 @@ def _make_handler(node):
             body = code[1:] if code else b""    # strip the 1-byte engine tag
             storage = [{"key": str(k), "value": str(v)} for k, v in vms.storage_items(addr)]
             return {"address": addr, "engine": engine, "code": body.hex(), "code_size": len(body),
+                    "balance": str(vms.get_balance(addr)),   # BIS custody held by the contract (units)
                     "slots": len(storage), "storage": storage}
 
         def _supply(self, db):

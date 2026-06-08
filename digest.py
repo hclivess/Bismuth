@@ -475,23 +475,6 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
         # Apply rewards
         processor.apply_rewards(block_instance, miner_tx)
 
-        # Optional maintained balance index (doc/17): apply this block's net effect — the positive txs
-        # plus any just-minted reward "mirror" rows — so the index stays bit-identical to ledger_balance3
-        # (the concluded rewards stay baked into balances). DISPLAY path only: the overspend check above
-        # uses ledger_balance3, so a wrong/stale index can never enable spending (attack-vector safety).
-        if getattr(node, "balance_index", None) is not None:
-            try:
-                node.balance_index.apply_rows(processor.block_transactions)
-                h = block_instance.block_height_new
-                db_handler.execute_param(db_handler.c,
-                                         "SELECT * FROM transactions WHERE block_height = ?", (-h,))
-                mirrors = db_handler.c.fetchall()
-                if mirrors:
-                    node.balance_index.apply_rows(mirrors)
-            except Exception as e:
-                node.logger.app_log.warning(
-                    f"balance index maintain failed at {block_instance.block_height_new}: {e}")
-
         # hf2 activation height: cache it once determinable (gates the LWMA difficulty AND the VM). Cheap
         # while unsignalled (just reads the latest coinbase); only recomputed each block until it is set.
         if getattr(node, "fork_height", None) is None:
@@ -518,15 +501,36 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
         if _vms is not None and _vfh is not None and block_instance.block_height_new >= _vfh:
             try:
                 import vm_engine
-                vm_engine.apply_block_rows(_vms, processor.block_transactions)
-                # consensus-committable STATE ROOT (doc/19): a deterministic hash of all contract state
-                # after this block. Two honest nodes produce the same root; a divergence is a mismatch.
-                # (Computed + committed here; cross-node block-REJECTION on mismatch needs the miner to
-                # embed it in-block — a coinbase-format change, the remaining hf2 step.)
+                # value custody (doc/19): execute the block's vm: txs; each TRANSFER queues a payout that
+                # we settle as a consensus-generated ledger row FROM the vm_custody sink to the recipient
+                # (the sink's balance mirrors the contracts' custody, kept in vm_state -> rolls back + is
+                # rebuilt deterministically).
+                payouts = vm_engine.apply_block_rows(_vms, processor.block_transactions)
+                for _to, _amt in payouts:
+                    db_handler.vm_payout(block_instance.block_height_new, miner_tx.q_block_timestamp,
+                                         block_instance.mirror_hash, _to, _amt)
+                # consensus-committable STATE ROOT (now covers contract custody balances too).
                 node.vm_state_root = _vms.state_root()
             except Exception as e:
                 node.logger.app_log.warning(
                     f"vm execution failed at {block_instance.block_height_new}: {e}")
+
+        # Optional maintained balance index (doc/17): apply this block's net effect — the positive txs plus
+        # any negative-height "mirror" rows (concluded dev/HN rewards AND VM custody payouts, both written
+        # above) — so the index stays bit-identical to ledger_balance3. DISPLAY path only: the overspend
+        # check uses ledger_balance3, so a wrong/stale index can never enable spending.
+        if getattr(node, "balance_index", None) is not None:
+            try:
+                node.balance_index.apply_rows(processor.block_transactions)
+                h = block_instance.block_height_new
+                db_handler.execute_param(db_handler.c,
+                                         "SELECT * FROM transactions WHERE block_height = ?", (-h,))
+                mirrors = db_handler.c.fetchall()
+                if mirrors:
+                    node.balance_index.apply_rows(mirrors)
+            except Exception as e:
+                node.logger.app_log.warning(
+                    f"balance index maintain failed at {block_instance.block_height_new}: {e}")
 
         # Log success
         node.logger.app_log.warning(
