@@ -13,7 +13,7 @@ Values are typed per the loader (`int`, `bool` — false for `false/0/""/no` —
 | `verify` | bool | full signature re-verification of the ledger at startup |
 | `testnet` / `regnet` | bool | network selection |
 | `heavy` | bool | require the Heavy3 `heavy3a.bin` file (false on regnet) |
-| `version` | str | protocol version (forced to `mainnet0022` on mainnet) |
+| `version` | str | protocol version (forced to `mainnet0023` on mainnet at startup, regardless of `config.txt`) |
 | `version_allow` | list | accepted peer protocol versions |
 | `thread_limit` | int | thread budget (inbound throttled at ~2/3; workers below 3×) |
 | `rebuild_db` | bool | **no-op** (the code path is commented out) |
@@ -45,6 +45,32 @@ Values are typed per the loader (`int`, `bool` — false for `false/0/""/no` —
 | `gui_scaling` | str | wallet-GUI hint (unused by the node) |
 
 After load, `genesis` is hardcoded to `4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed`.
+
+## Modernization keys (storage / consensus / VM — doc/16–19)
+
+Declared in `options.py`, assigned onto `node.*` at startup. All default to a safe value and, where
+consensus-affecting, are **inert until the hf2 fork activates**.
+
+| Key | Type | Meaning |
+|---|---|---|
+| `rollback_consensus` | bool | auto-recovery rollback (default **ON**) — replaces the rigid `rollback_depth`; a stuck tip is recovered by a reputation-gated deep rollback (`essentials.rollback_allowed`) |
+| `rollback_consensus_threshold` | int | how far below consensus the local tip must lag before auto-recovery triggers |
+| `rollback_consensus_min_peers` | int | minimum peers in consensus before an auto-recovery rollback is allowed |
+| `rollback_consensus_min_reputable` | int | minimum **proven-reputation** peers required — anti-sybil gate so a fresh flood can't force a deep reorg |
+| `rollback_depth` | int | legacy fixed rollback anchor (superseded by `rollback_consensus`) |
+| `block_store` | bool | maintain the LMDB block-store shadow (doc/17 phase 7; write path live, reads still SQLite) |
+| `balance_index` | bool | maintain the O(1) balance index — DISPLAY read path (`/api/balance`); consensus still uses `ledger_balance3` |
+| `ledger_integer_amounts` | bool | store amounts as integer atomic units (doc/16); **not yet hyperblock-rollup safe — keep off on mainnet** |
+| `vm` | bool | enable the decentralized-apps RISC-V VM (doc/19); inert until hf2 |
+| `fork_signal` | bool | emit the `hf2` coinbase signal when generating blocks (upgraded miners) |
+| `fork_window` / `fork_boundary` / `fork_bury` | int | hf2 activation parameters (signal window, round boundary, burial margin) — `/api/fork` reports status |
+| `bootstrap_url` / `bootstrap_file` | str | ledger-snapshot source for fast bootstrap (`chain_ops.bootstrap`) |
+| `rest_api` / `rest_api_port` | bool/int | enable the read-only REST API (doc/15) and its port |
+| `rpc_bitcoin` / `rpc_bitcoin_port`, `rpc_ethereum` / `rpc_ethereum_port` | bool/int | external RPC-bridge config keys (atomic-swap tooling) |
+
+Two modernized subsystems have **no config knob by design**: the **dynamic base fee** (`fee_dynamics.py`)
+is computed algorithmically from recent block fullness post-fork, and the **peer-reputation** system
+(penalize/reward + the reputation-weighted sync tip) is always-on, tuned in `peers_reputation.py`.
 
 ## `mandatory_message.json`
 

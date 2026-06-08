@@ -28,9 +28,11 @@ Two kinds of modernization, and they must not be confused:
 4. Your off-chain survey (the ~15-node network is small enough to eyeball) is the *confidence gate*;
    the actual decision is the chain's.
 
-Remaining framework: the coinbase-signal **writer** (upgraded miners set it), a `/api/fork` readiness
-view, and the `block_height >= fork_height` **gate scaffold** in `digest` — each optimization below
-slots behind that one gate, one at a time, replay-validated against pre-fork blocks (unchanged).
+Framework — **built**: the coinbase-signal **writer** (`regnet.py`; upgraded miners set `hf2`), the
+`/api/fork` readiness view (`rest_api.py` → `fork.fork_status`), and the live `block_height >= fork_height`
+**gate** in `digest` — which already keys the VM, value custody, state-root enforcement, dynamic fees,
+and the LWMA retarget. Each change below slots behind that one gate, replay-validated against pre-fork
+blocks (unchanged).
 
 ## What `hf2` bundles
 
@@ -64,6 +66,22 @@ small PoW chains:
   time under a feedback simulation — all unit-proven. Fork-gated, inert until activation.
 *Risk: moderate* — consensus-critical but well-understood and widely battle-tested; deterministic and
 unit-testable against recorded solvetime series before activation.
+
+### E. Decentralized-apps VM — ✅ **implemented, fork-gated, tested**
+A post-fork smart-contract layer: a SINGLE deterministic **RISC-V (RV32I)** engine (`bismuth_riscv.py`),
+a contract-state store (`vm_state.py`: code + storage + custody balances), `vm:deploy`/`vm:call`
+execution (`vm_engine.py`), a consensus-committed **state root** the miner embeds in the coinbase and the
+digester REJECTS on mismatch, and **value custody** so contracts hold and release real BIS
+rollback-deterministically — the BIP-199 HTLC flagship, end-to-end. *Risk: moderate* — main-layer
+execution, but inert pre-fork and the enforced root turns any non-determinism into a caught
+block-rejection rather than a silent divergence. Full map: **doc/19**. (`tests/test_riscv.py`,
+`test_vm_state.py`, `test_vm_post_fork.py`, `test_vm_value.py`.)
+
+### F. Dynamic fees → demand-responsive base fee — ✅ **implemented, fork-gated, tested**
+A smooth, clamped, *deterministic* base fee that tracks recent block fullness over a window
+(`fee_dynamics.py`, the fee analogue of the LWMA), plus a `vm:` execution surcharge; exposed at
+`/api/fee` for wallets. *Risk: low* — gated; pre-fork the static `BASE_FEE` is unchanged.
+(`tests/test_fee_dynamics.py`, `test_transactions.py`.)
 
 ### D. Heavy3 improvement — **optional, highest-risk; recommend caution**
 Heavy3 (`sha224` → 1 GB memory-hard anneal → substring-prefix difficulty) is already GPU-mineable

@@ -173,9 +173,10 @@
   machine** executes it on every node, and the resulting **state + output are written back to the chain
   and agreed by consensus** — the Ethereum model. A major, consensus-level addition layered on the hf2
   binary tx encoding. Building blocks:
-  - a **sandboxed deterministic VM** — a WASM engine (modern, widely-vetted, multi-language) is the
-    sensible base over a bespoke bytecode; *every node must execute byte-identically*, so determinism is
-    the whole game (no floats, no wall-clock, fixed iteration order, fixed memory model);
+  - a **sandboxed deterministic VM** — SHIPPED as a single **RISC-V (RV32I)** interpreter
+    (`bismuth_riscv.py`; Vitalik's "RISC-V over the EVM" direction, a frozen ISA with real C/Rust
+    toolchains) rather than a bespoke bytecode or WASM; *every node must execute byte-identically*, so
+    determinism is the whole game (integer-only, no wall-clock, fixed iteration order, bounded memory);
   - **gas / metering** to bound execution and halt runaway or adversarial programs;
   - a **contract state trie committed into the block hash**, so state is verifiable and replay-checkable
     like everything else behind the frozen boundary;

@@ -233,9 +233,10 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         node.last_block_timestamp = db_handler_instance.last_block_timestamp()
 
                         if node.last_block_timestamp < time.time() - 600:
-                            # block_req = most_common(consensus_blockheight_list)
-                            block_req = node.peers.consensus_most_common
-                            node.logger.app_log.warning("Most common block rule triggered")
+                            # reputation-weighted agreed tip (reduces to the plurality when peer
+                            # reputations are uniform); validation still backstops whatever we sync to
+                            block_req = node.peers.consensus_reputation_weighted
+                            node.logger.app_log.warning("Reputation-weighted consensus block rule triggered")
 
                         else:
                             # block_req = max(consensus_blockheight_list)

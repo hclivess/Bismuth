@@ -5,8 +5,10 @@ The legacy consensus is a flat 1-peer-1-vote `most_common` height with ad-hoc wa
 reputation score per peer:
   * a peer that **lies about its height** or **feeds an invalid block** LOSES reputation (→ ban);
   * a peer that **delivers a valid block** GAINS it;
-  * the agreed tip can be a reputation-**WEIGHTED** vote, so a flaky or adversarial peer counts for less
-    than a proven one.
+  * the agreed sync tip IS a reputation-**WEIGHTED** vote (wired into the "most common block" rule in
+    node.py / worker.py via `consensus_reputation_weighted`), so a flaky or adversarial peer counts for
+    less than a proven one. It reduces to the flat plurality when reputations are uniform, and validation
+    still backstops whatever the node syncs to.
 
 ATTACK-VECTOR SAFETY (standing rule):
   * scores are the node's OWN observations — a peer cannot inflate its own;

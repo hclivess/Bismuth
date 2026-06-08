@@ -38,11 +38,21 @@ consensus. Transaction submission is intentionally deferred to a later, authenti
 | `GET /api/block/hash/{hash}` | `{block_hash, block_height, transactions[]}` |
 | `GET /api/blocks/since/{h}?limit=N` | positive-height blocks after `h` (`limit` ≤ 1000) — for parallel sync |
 | `GET /api/blocks/range/{start}/{end}` | blocks in `[start, end]` (span capped at 1000) — for parallel sync |
-| `GET /api/balance/{address}` | `{address, balance}` (validated address; uses `ledger_balance3`) |
+| `GET /api/balance/{address}` | `{address, balance}` (the O(1) balance index when enabled, else `ledger_balance3`) |
 | `GET /api/transaction/{txid}` | a transaction (matched by signature prefix) |
 | `GET /api/address/{address}/transactions?limit=N` | recent txs for an address (newest first; `limit` ≤ 500) |
 | `GET /api/mempool` | `{count, transactions[]}` of pending txs |
 | `GET /api/peers` | `{count, peers}` of known peers |
+| `GET /api/headers/range/{start}/{end}` | block headers in `[start, end]` (lightweight headers-first sync) |
+| `GET /api/nodes` | known nodes with reachable-API status + reputation (explorer node browser) |
+| `GET /api/capabilities` | which optional subsystems this node exposes (`vm`, `balance_index`, `block_store`, …) |
+| `GET /api/fork` | hf2 readiness: signalling %, lock-in state, activation height |
+| `GET /api/fee` | current fee params: `base_fee` (demand-responsive post-fork), `vm_surcharge`, target/window |
+| `GET /api/supply` | circulating BIS supply (background-computed; returns `"computing"` until the first scan finishes) |
+| `GET /api/tokens` | issued tokens (from the token index) |
+| `GET /api/token/{name}` | a token's supply + holders |
+| `GET /api/vm/contracts` | deployed contracts + the current VM `state_root`, `fork_height`, `enabled` |
+| `GET /api/vm/contract/{addr}` | a contract: `engine` (`riscv`), code, custody `balance`, storage slots |
 
 Responses are JSON with appropriate status codes (`200`, `400` bad request, `404` not found, `500`
 server error) and `Access-Control-Allow-Origin: *`. Transactions are formatted with
@@ -59,8 +69,10 @@ curl http://127.0.0.1:5659/api/balance/4edadac9093d9326ee4b17f869b14f1a2534f96f9
 
 ## Tested
 
-`tests/test_rest_api.py` runs against a regnet node started with `rest_api=True` on port 3031 and
-exercises every endpoint plus 404 handling.
+`tests/test_rest_api.py` runs against a regnet node (`rest_api=True`, port 3031) and exercises the core
+read endpoints + 404 handling. The newer endpoints are covered by their feature tests:
+`/api/fee` by `test_fee_dynamics`/`test_transactions`; `/api/vm/*` by `test_vm_post_fork` + `test_vm_value`;
+`/api/supply`, `/api/tokens`, `/api/nodes` by `test_explorer_endpoints`.
 
 ## Roadmap
 

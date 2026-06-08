@@ -257,8 +257,8 @@ def worker(host, port, node):
 
                 else:
                     if int(node.last_block_timestamp) < (time.time() - 600):
-                        block_req = node.peers.consensus_most_common
-                        node.logger.app_log.warning("Most common block rule triggered")
+                        block_req = node.peers.consensus_reputation_weighted   # reputation-weighted tip
+                        node.logger.app_log.warning("Reputation-weighted consensus block rule triggered")
 
                     else:
                         block_req = node.peers.consensus_max

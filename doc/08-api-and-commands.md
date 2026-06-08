@@ -1,5 +1,10 @@
 # 08 — API surface & CLI
 
+> This page covers the legacy **socket** protocol (the `*` and `api_*` commands). The modern **HTTP/REST**
+> read API (`/api/...`, JSON, CORS, the explorer/wallet surface) is documented separately in
+> [15-rest-api.md](15-rest-api.md) — that's where `/api/status`, `/api/vm/*`, `/api/fee`, `/api/supply`,
+> `/api/nodes`, `/api/fork`, etc. live.
+
 The node accepts two kinds of socket commands on its TCP port:
 
 - **Core protocol commands** — dispatched directly inside `node.py`'s handler (the big if/elif).

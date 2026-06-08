@@ -450,10 +450,17 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
                         break
                 except (ValueError, TypeError):
                     continue
-            if _claimed is not None and _claimed != getattr(node, "vm_state_root", None):
+            _local = getattr(node, "vm_state_root", None)
+            if _claimed is None:
+                # MANDATORY post-fork: a coinbase with no committed root would otherwise bypass the check,
+                # letting a miner hide a divergent VM. Reject it (upgraded miners always embed the root).
+                raise ValueError(
+                    f"post-fork coinbase at {block_instance.block_height_new} commits no VM state root "
+                    f"(required since hf2 activation at {_efh})")
+            if _claimed != _local:
                 raise ValueError(
                     f"VM state-root mismatch at {block_instance.block_height_new}: coinbase "
-                    f"{_claimed[:16]} != local {str(getattr(node, 'vm_state_root', None))[:16]}")
+                    f"{_claimed[:16]} != local {str(_local)[:16]}")
 
         # Save to database
         db_handler.to_db(block_instance, diff_save, processor.block_transactions)
