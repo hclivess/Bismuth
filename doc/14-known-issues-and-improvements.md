@@ -43,14 +43,18 @@ The checkpoint is a deliberate anti-deep-reorg guard, so it must not simply be r
 - **Configurable depth** — `rollback_depth` (`config.txt`, default **30** = unchanged) sets the
   post-fork checkpoint distance. Gated by
   `tests/test_characterization.py::test_checkpoint_set_depth_default_and_configurable`.
-- **Consensus-aware deep rollback (opt-in)** — `essentials.rollback_allowed(node, target_height)` now
-  governs the `blocknf()` guard. Shallow rollbacks (≥ checkpoint) are always allowed; a rollback
-  *below* the checkpoint is refused by default (historical behavior) unless `rollback_consensus=True`,
-  in which case it is allowed only when a supermajority (`rollback_consensus_threshold`, default 75%)
-  of enough peers (`rollback_consensus_min_peers`, default 3) agree. So an honestly-forked node can
-  resolve a deep fork on its own, while a malicious minority — or a single peer — cannot force a deep
-  reorg. Default-off preserves current mainnet behavior. Gated by
-  `tests/test_characterization.py::test_rollback_allowed_policy`.
+- **Reputation-gated AUTO-RECOVERY deep rollback (default ON)** — `essentials.rollback_allowed(node,
+  target_height)` governs the `blocknf()` guard. Shallow rollbacks (≥ checkpoint) are always allowed.
+  A rollback *below* the checkpoint no longer strands the node needing a manual re-bootstrap: with
+  `rollback_consensus=True` (**now the default**) the node rolls back as deep as needed to rejoin the
+  chain proven peers agree on, allowed only when a supermajority (`rollback_consensus_threshold`, 75%)
+  of enough peers (`rollback_consensus_min_peers`, 3) agree **AND** the agreeing set includes
+  `rollback_consensus_min_reputable` (default 1) **proven** peers — positive reputation in
+  `peers_reputation` = have delivered valid PoW blocks. So a fresh sybil flood cannot force a deep reorg
+  (it has no proven blocks), a single/minority peer cannot either, and the deep chain's blocks are
+  PoW-validated on ingest regardless — an attacker still needs real 51% work. This replaces the rigid
+  `rollback_depth` stranding (the operational pain) with self-healing. Gated by
+  `tests/test_rollback_autorecover.py` + `tests/test_characterization.py::test_rollback_allowed_policy`.
 
 Remaining root-cause work (not done here): investigate *why* >59-block divergences form in the first
 place — partition handling and the `consensus_most_common` vs `consensus_max` selection in
