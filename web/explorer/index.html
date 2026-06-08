@@ -30,6 +30,12 @@
   </div>
 </nav>
 
+<div class="container pt-2">
+  <div class="subtle small">
+    <a href="#/blocks/">Blocks</a> &middot; <a href="#/tokens">Tokens</a> &middot;
+    <a href="#/nodes">Nodes</a> &middot; <a href="#/supply">Supply</a>
+  </div>
+</div>
 <div class="container py-3">
   <div id="status" class="row g-2 mb-3"></div>
   <div id="main"></div>
@@ -142,6 +148,58 @@ async function showAddress(addr,limit){
   }catch(e){errBox(e);}
 }
 
+async function tokensList(){
+  loading();
+  try{const d=await api('/tokens');
+    const rows=(d.tokens||[]).map(t=>`<tr>
+      <td><a href="#/token/${encodeURIComponent(t.token)}">${esc(t.token)}</a></td>
+      <td>${t.transfers}</td></tr>`).join('');
+    setMain(`<div class="card p-3"><h5>Tokens <span class="subtle small">(${d.count})</span></h5>
+      ${d.count?`<table class="table table-sm align-middle"><thead><tr><th>Token</th><th>Transfers</th></tr></thead><tbody>${rows}</tbody></table>`
+        :'<p class="subtle">No tokens issued on this chain yet.</p>'}</div>`);
+  }catch(e){errBox(e);}
+}
+async function showToken(name){
+  loading();
+  try{const d=await api(`/token/${encodeURIComponent(name)}`);
+    const rows=(d.holders||[]).map(h=>`<tr>
+      <td class="mono"><a href="#/address/${esc(h.address)}">${short(h.address,28)}</a></td>
+      <td>${Number(h.balance).toLocaleString()}</td></tr>`).join('');
+    setMain(`<div class="card p-3"><h5>Token <span class="mono">${esc(d.token)}</span></h5>
+      <div class="row g-2 mb-3">
+        <div class="col"><div class="card stat p-2"><div class="l">supply</div><div class="v">${Number(d.supply).toLocaleString()}</div></div></div>
+        <div class="col"><div class="card stat p-2"><div class="l">holders</div><div class="v">${d.holder_count}</div></div></div>
+        <div class="col"><div class="card stat p-2"><div class="l">transfers</div><div class="v">${d.transfers}</div></div></div></div>
+      <h6>Holders</h6>
+      <table class="table table-sm align-middle"><thead><tr><th>Address</th><th>Balance</th></tr></thead><tbody>${rows}</tbody></table></div>`);
+  }catch(e){errBox(e);}
+}
+async function nodesList(){
+  loading();
+  try{const d=await api('/nodes');
+    const badge=(n)=>n.banned?'<span class="badge bg-danger">banned</span>'
+      :n.connected?'<span class="badge badge-coinbase">connected</span>':'<span class="badge bg-secondary">known</span>';
+    const rows=(d.nodes||[]).map(n=>`<tr>
+      <td class="mono">${esc(n.ip)}${n.whitelisted?' <span class="badge bg-info">wl</span>':''}</td>
+      <td>${n.height==null?'-':n.height}</td>
+      <td>${n.behind==null?'-':(n.behind===0?'tip':('−'+n.behind))}</td>
+      <td>${esc(n.version||'-')}</td><td>${n.reputation}</td><td>${badge(n)}</td></tr>`).join('');
+    setMain(`<div class="card p-3"><h5>Network <span class="subtle small">(${d.count} nodes · consensus ${esc(d.consensus==null?'-':d.consensus)})</span></h5>
+      ${d.count?`<table class="table table-sm align-middle"><thead><tr><th>Node</th><th>Height</th><th>Δ</th><th>Version</th><th>Reputation</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>`
+        :'<p class="subtle">No peers visible right now.</p>'}
+      <p class="subtle small mt-2">Reputation rewards peers whose blocks validate and penalizes height-lies / invalid blocks; the agreed tip and deep-rollback recovery weight by it.</p></div>`);
+  }catch(e){errBox(e);}
+}
+async function supplyView(){
+  loading();
+  try{const d=await api('/supply');
+    setMain(`<div class="card p-3"><h5>Supply</h5>
+      <div class="row g-2">
+        <div class="col-md-6"><div class="card stat p-3"><div class="l">circulating supply</div><div class="v">${Number(d.circulating).toLocaleString(undefined,{maximumFractionDigits:2})} BIS</div></div></div>
+        <div class="col-md-6"><div class="card stat p-3"><div class="l">chain height</div><div class="v">${Number(d.height).toLocaleString()}</div></div></div></div>
+      <p class="subtle small mt-3">Circulating supply = total mining emission (rewards minus fees) plus the concluded dev / Hypernode rewards, summed from the ledger.</p></div>`);
+  }catch(e){errBox(e);}
+}
 function doSearch(ev){ev.preventDefault();const q=document.getElementById('q').value.trim();if(!q)return false;
   if(/^\d+$/.test(q))location.hash=`#/block/${q}`;
   else if(/^[0-9a-fA-F]{56}$/.test(q))location.hash=`#/hashlookup/${q}`;
@@ -155,6 +213,10 @@ function router(){
   if(p[0]==='blocks')return blocksList(p[1]);
   if(p[0]==='tx')return showTx(decodeURIComponent(p.slice(1).join('/')));
   if(p[0]==='address')return showAddress(decodeURIComponent(p[1]),p[2]?parseInt(p[2]):0);
+  if(p[0]==='tokens')return tokensList();
+  if(p[0]==='token')return showToken(decodeURIComponent(p[1]));
+  if(p[0]==='nodes')return nodesList();
+  if(p[0]==='supply')return supplyView();
   if(p[0]==='hashlookup')return hashLookup(p[1]);
   return blocksList();
 }

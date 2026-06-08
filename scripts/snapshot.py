@@ -1,0 +1,131 @@
+#!/usr/bin/env python3
+"""
+Create a CONSISTENT ledger snapshot WHILE the node is running — and verify it before trusting it.
+
+Why this exists: a plain ``cp ledger.db`` (or tar) of a live, WAL-mode SQLite database is the classic
+way to capture a CORRUPT or half-written snapshot — the file is mid-transaction and the -wal hasn't been
+folded in. That is the "snapshots have always had issues" bug.
+
+This uses SQLite's ONLINE BACKUP API (``sqlite3.Connection.backup``), which copies a transactionally
+CONSISTENT image even while the node keeps writing (it re-copies any pages that change mid-backup), then
+runs ``PRAGMA integrity_check`` on each snapshot, and only then packages the bootstrap tarball. The node
+never has to stop.
+
+Usage:
+    python3 scripts/snapshot.py                      # snapshot ./static -> /tmp/ledger.tar.gz
+    python3 scripts/snapshot.py --static static --tarball /var/www/bismuth.cz/ledger.tar.gz
+    python3 scripts/snapshot.py --dbs ledger.db,hyper.db,index.db --keep   # keep the loose .db files
+"""
+import argparse
+import os
+import sqlite3
+import tarfile
+import time
+
+
+def snapshot_db(src, dst):
+    """Online-backup ``src`` (a live DB) to ``dst``, then integrity-check ``dst``. Raises on a bad copy."""
+    # The live DB is opened normally; WAL mode allows our reader alongside the node's writer. The backup
+    # API folds the WAL and re-copies pages the node mutates during the copy, so the result is consistent.
+    src_conn = sqlite3.connect(src, timeout=120)
+    dst_conn = sqlite3.connect(dst)
+    try:
+        src_conn.backup(dst_conn)
+    finally:
+        dst_conn.close()
+        src_conn.close()
+    # Trust nothing: verify the snapshot is a structurally valid, self-consistent database.
+    check = sqlite3.connect(dst)
+    try:
+        result = check.execute("PRAGMA integrity_check").fetchone()[0]
+    finally:
+        check.close()
+    if result != "ok":
+        raise RuntimeError("snapshot integrity_check FAILED for %s: %s" % (dst, result))
+
+
+def snapshot_lmdb(src_dir, dst_dir):
+    """Online, consistent copy of a LMDB store — the POST-HARDFORK stores (the LMDB block store, the
+    balance index). LMDB's ``env.copy`` takes an MVCC snapshot, so it is consistent even while the node
+    writes; a raw cp would capture a mid-write mmap. ``compact=True`` drops free pages so the bootstrap
+    is small. Returns the path that should go into the tarball."""
+    import lmdb
+    if os.path.exists(dst_dir):
+        import shutil
+        shutil.rmtree(dst_dir)
+    os.makedirs(dst_dir)
+    # readonly + lock=False: a second reader alongside the node's writer; max_dbs high enough for the
+    # store's named sub-DBs (block store uses blocks+pubkeys, balance index uses one).
+    env = lmdb.open(src_dir, readonly=True, lock=False, subdir=True, max_dbs=16)
+    try:
+        env.copy(dst_dir, compact=True)
+    finally:
+        env.close()
+
+
+def main():
+    ap = argparse.ArgumentParser(description="Consistent, verified ledger snapshot of a running node.")
+    ap.add_argument("--static", default="static", help="node static dir holding the DBs (default: static)")
+    ap.add_argument("--out", default="/tmp/bismuth-snapshot", help="scratch dir for the loose snapshots")
+    ap.add_argument("--tarball", default="/tmp/ledger.tar.gz", help="output bootstrap tarball")
+    ap.add_argument("--dbs", default="ledger.db,hyper.db,index.db",
+                    help="comma-separated SQLite DB filenames to include (skips any that are absent)")
+    ap.add_argument("--stores", default="blockstore,balanceindex",
+                    help="comma-separated LMDB store dirs — the POST-HARDFORK stores (block store, "
+                         "balance index); skips any that are absent")
+    ap.add_argument("--keep", action="store_true", help="keep the loose snapshots (default: remove)")
+    a = ap.parse_args()
+
+    os.makedirs(a.out, exist_ok=True)
+    made = []  # (path_on_disk, arcname_in_tarball) so a bootstrapping node extracts to the right place
+
+    # SQLite ledger (covers all blocks up to the tip, pre- AND post-hardfork)
+    for db in [d.strip() for d in a.dbs.split(",") if d.strip()]:
+        src = os.path.join(a.static, db)
+        if not os.path.exists(src):
+            print("skip %s (not present)" % db, flush=True)
+            continue
+        dst = os.path.join(a.out, db)
+        t0 = time.time()
+        print("snapshotting %s (online backup, node may keep running)…" % db, flush=True)
+        snapshot_db(src, dst)
+        print("  ok  %s  %.1f MB  %.1fs  integrity:ok" % (db, os.path.getsize(dst) / 1e6, time.time() - t0),
+              flush=True)
+        made.append((dst, db))
+
+    # POST-HARDFORK LMDB stores (block store, balance index) — included when the node has them enabled
+    for store in [s.strip() for s in a.stores.split(",") if s.strip()]:
+        src = os.path.join(a.static, store)
+        if not os.path.isdir(src) or not os.path.exists(os.path.join(src, "data.mdb")):
+            print("skip %s (post-hardfork store not present)" % store, flush=True)
+            continue
+        dst = os.path.join(a.out, store)
+        t0 = time.time()
+        print("snapshotting %s (LMDB online copy, post-hardfork store)…" % store, flush=True)
+        snapshot_lmdb(src, dst)
+        size = os.path.getsize(os.path.join(dst, "data.mdb")) / 1e6
+        print("  ok  %s  %.1f MB  %.1fs" % (store, size, time.time() - t0), flush=True)
+        made.append((dst, store))
+
+    if not made:
+        raise SystemExit("no DBs or stores found under %s" % a.static)
+
+    print("packaging %s…" % a.tarball, flush=True)
+    tmp_tar = a.tarball + ".part"
+    with tarfile.open(tmp_tar, "w:gz") as tar:
+        for path, arc in made:
+            tar.add(path, arcname=arc)
+    os.replace(tmp_tar, a.tarball)   # atomic publish: readers never see a half-written tarball
+    print("snapshot ready: %s  (%.1f MB)" % (a.tarball, os.path.getsize(a.tarball) / 1e6))
+
+    if not a.keep:
+        import shutil
+        for path, _ in made:
+            try:
+                shutil.rmtree(path) if os.path.isdir(path) else os.remove(path)
+            except OSError:
+                pass
+
+
+if __name__ == "__main__":
+    main()
