@@ -1,9 +1,10 @@
 """
 VM value custody — the BIS actually MOVES (the HTLC piece).
 
-Funds a contract through the vm_custody sink, then the contract releases that balance to a fresh address;
-asserts the fresh address received the coins and the contract is drained. This is the consensus value-flow
-(contract balance in vm_state, settled via sink ledger rows) end-to-end on regnet.
+Funds a RISC-V contract through the vm_custody sink, then the contract releases that balance to a fresh
+address; asserts the fresh address received the coins and the contract is drained. This is the consensus
+value-flow (contract balance in vm_state, settled via sink ledger rows) end-to-end on regnet, plus the
+reorg-determinism property.
 
 Run with: python3 -m pytest tests/test_vm_value.py -v
 """
@@ -11,15 +12,21 @@ import json
 import urllib.request
 from time import sleep
 
-import bismuth_vm as vm
+import bismuth_riscv as rv
 import vm_engine
-from bismuth_vm import push
+from bismuth_riscv import addi, asm, ecall
 
 API = "http://127.0.0.1:3031"
 SINK = vm_engine.VM_SINK
 
-# transfers calldata[0:32] (amount) to calldata[32:64] (recipient): push to, push amount, TRANSFER
-PAYER = push(32) + bytes([vm.CALLDATALOAD]) + push(0) + bytes([vm.CALLDATALOAD, vm.TRANSFER, vm.STOP])
+# PAYER: TRANSFER(calldata[0:28] = recipient, calldata[28:36] = amount). a0 already points at the calldata
+# (the recipient), so set a1 = a0+28 (the amount) and ecall SYS_TRANSFER, then HALT.
+PAYER = asm(addi(11, 10, 28), addi(17, 0, rv.SYS_TRANSFER), ecall(),
+            addi(17, 0, rv.SYS_HALT), ecall())
+
+
+def _withdraw_calldata(addr_hex, amount_units):
+    return addr_hex + "%016x" % amount_units            # 28-byte recipient + 8-byte amount
 
 
 def _get(path):
@@ -36,24 +43,27 @@ def _fork_active(client):
     raise AssertionError("hf2 fork not active")
 
 
-def test_value_moves_through_custody(client):
-    _fork_active(client)
+def _deploy_payer(client):
     before = set(_get("/api/vm/contracts")["contracts"])
     client.send(client.address, 1, "vm:deploy", PAYER.hex())
     client.mine(2)
     sleep(0.4)
-    addr = (set(_get("/api/vm/contracts")["contracts"]) - before).pop()
+    return (set(_get("/api/vm/contracts")["contracts"]) - before).pop()
+
+
+def test_value_moves_through_custody(client):
+    _fork_active(client)
+    addr = _deploy_payer(client)
 
     # FUND: 5 BIS sent to the custody sink funds the contract (calldata amount 0 -> no transfer)
-    client.send(SINK, 5.0, "vm:call", addr + ":" + "0" * 128)
+    client.send(SINK, 5.0, "vm:call", addr + ":" + "0" * 72)
     client.mine(2)
     sleep(0.4)
     assert int(_get("/api/vm/contract/" + addr)["balance"]) == 500000000, "deposit not custodied"
 
     # WITHDRAW: the contract releases its 5 BIS to a fresh address
     fresh = "ab" * 28
-    calldata = "%064x" % 500000000 + "%064x" % int(fresh, 16)
-    client.send(client.address, 0, "vm:call", addr + ":" + calldata)
+    client.send(client.address, 0, "vm:call", addr + ":" + _withdraw_calldata(fresh, 500000000))
     client.mine(2)
     sleep(0.4)
 
@@ -66,13 +76,9 @@ def test_custody_is_rebuilt_deterministically_after_reorg(client):
     # historical balance must be reproducible. Holding it in vm_state makes it so. Fund, withdraw, then roll
     # the withdraw off and assert the custody balance AND the state root return to the pre-withdraw values.
     _fork_active(client)
-    before = set(_get("/api/vm/contracts")["contracts"])
-    client.send(client.address, 1, "vm:deploy", PAYER.hex())
-    client.mine(2)
-    sleep(0.4)
-    addr = (set(_get("/api/vm/contracts")["contracts"]) - before).pop()
+    addr = _deploy_payer(client)
 
-    client.send(SINK, 5.0, "vm:call", addr + ":" + "0" * 128)          # fund 5 BIS
+    client.send(SINK, 5.0, "vm:call", addr + ":" + "0" * 72)          # fund 5 BIS
     client.mine(2)
     sleep(0.4)
     t_fund = client.block_height()
@@ -80,8 +86,7 @@ def test_custody_is_rebuilt_deterministically_after_reorg(client):
     root_fund = _get("/api/vm/contracts")["state_root"]                 # the committed root WITH 5 BIS held
 
     fresh = "cd" * 28
-    calldata = "%064x" % 200000000 + "%064x" % int(fresh, 16)          # withdraw 2 BIS
-    client.send(client.address, 0, "vm:call", addr + ":" + calldata)
+    client.send(client.address, 0, "vm:call", addr + ":" + _withdraw_calldata(fresh, 200000000))
     client.mine(2)
     sleep(0.4)
     assert int(_get("/api/vm/contract/" + addr)["balance"]) == 300000000

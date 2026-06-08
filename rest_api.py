@@ -317,10 +317,9 @@ def _make_handler(node):
             if code is None:
                 raise _NotFound("unknown contract")
             import vm_engine
-            engine = vm_engine.ENGINE_NAME.get(code[0], "bytecode") if code else "bytecode"
-            body = code[1:] if code else b""    # strip the 1-byte engine tag
+            body = code or b""                  # raw RV32I code (the single engine; no tag)
             storage = [{"key": str(k), "value": str(v)} for k, v in vms.storage_items(addr)]
-            return {"address": addr, "engine": engine, "code": body.hex(), "code_size": len(body),
+            return {"address": addr, "engine": vm_engine.ENGINE_NAME, "code": body.hex(), "code_size": len(body),
                     "balance": str(vms.get_balance(addr)),   # BIS custody held by the contract (units)
                     "slots": len(storage), "storage": storage}
 

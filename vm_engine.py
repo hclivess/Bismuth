@@ -1,9 +1,9 @@
 """
-vm_engine.py — wire the deterministic VM (bismuth_vm) to the chain: parse ``vm:`` transactions, execute
-contracts against the contract state store (vm_state), and (re)build that store from the ledger.
+vm_engine.py — wire the deterministic RISC-V VM (bismuth_riscv) to the chain: parse ``vm:`` transactions,
+execute contracts against the contract state store (vm_state), and (re)build that store from the ledger.
 
 Transaction format (openfield, like the token layer):
-  * deploy:  operation = "vm:deploy",  openfield = <bytecode hex>
+  * deploy:  operation = "vm:deploy",  openfield = <RV32I code hex>
              -> the contract address is deterministically derived from the deploy tx signature.
   * call:    operation = "vm:call",    openfield = "<contract addr>:<calldata hex>"
              -> execute with caller = sender, callvalue = tx amount, the given calldata; storage changes
@@ -14,17 +14,10 @@ node derives identical state. Gated post-fork by the caller (digest).
 """
 import hashlib
 
-import bismuth_vm as vm
 import bismuth_riscv as rv
 
 GAS_LIMIT = 1_000_000          # fixed per-call gas budget (gas economics are a later refinement)
-
-# Pluggable execution engines (the framework is engine-agnostic). A contract is deployed with one engine
-# and always runs under it. A 1-byte tag is stored ahead of the code; the openfield "riscv:<hex>" selects
-# RISC-V, otherwise the compact bytecode VM. Both satisfy the same execute()/Result contract.
-ENGINE_BYTECODE, ENGINE_RISCV = 0, 1
-_ENGINES = {ENGINE_BYTECODE: vm, ENGINE_RISCV: rv}
-ENGINE_NAME = {ENGINE_BYTECODE: "bytecode", ENGINE_RISCV: "riscv"}
+ENGINE_NAME = "riscv"          # the single execution engine: deterministic RV32I (see bismuth_riscv)
 
 # transactions table column indices (consensus row layout)
 _BH, _TS, _ADDR, _RECIP, _AMOUNT, _SIG, _PUB, _HASH, _FEE, _REWARD, _OP, _OF = range(12)
@@ -36,9 +29,9 @@ def contract_address(signature):
 
 
 def _caller_int(address):
-    """Fold a Bismuth address (56 hex chars) to a 256-bit int deterministically."""
+    """Fold a Bismuth address to an int for the VM's CALLER (RV32I truncates it to 32 bits)."""
     try:
-        return int(str(address), 16) & vm.MASK
+        return int(str(address), 16)
     except Exception:
         return int.from_bytes(hashlib.blake2b(str(address).encode(), digest_size=32).digest(), "big")
 
@@ -52,10 +45,9 @@ VM_SINK = hashlib.sha224(b"bismuth-vm-custody").hexdigest()   # 56-hex sink addr
 def _deploy(state, openfield, signature):
     try:
         of = (openfield or "").strip()
-        engine = ENGINE_BYTECODE
-        if of.startswith("riscv:"):
-            engine, of = ENGINE_RISCV, of[6:].strip()
-        state.deploy(contract_address(signature), bytes([engine]) + bytes.fromhex(of))
+        if of.startswith("riscv:"):                  # tolerate an explicit prefix; RV32I is the only engine
+            of = of[6:].strip()
+        state.deploy(contract_address(signature), bytes.fromhex(of))
     except Exception:
         pass
 
@@ -73,10 +65,9 @@ def _call(state, openfield, signature, sender, recipient, amount_units, block_he
         deposit = int(amount_units or 0) if recipient == VM_SINK else 0
         if deposit:
             state.add_balance(addr, deposit)
-        engine = _ENGINES.get(stored[0], vm)                            # dispatch on the stored engine tag
-        result = engine.execute(stored[1:], calldata=calldata, caller=_caller_int(sender),
-                                callvalue=deposit, storage=state.load_storage(addr), gas_limit=GAS_LIMIT,
-                                block_height=int(block_height or 0), self_balance=state.get_balance(addr))
+        result = rv.execute(stored, calldata=calldata, caller=_caller_int(sender),
+                            callvalue=deposit, storage=state.load_storage(addr), gas_limit=GAS_LIMIT,
+                            block_height=int(block_height or 0), self_balance=state.get_balance(addr))
         if not result.success:
             return []                              # revert: storage untouched; the deposit stays in custody
         state.commit_storage(addr, result.storage)

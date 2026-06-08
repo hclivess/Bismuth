@@ -1,27 +1,28 @@
 """
-bismuth_riscv.py — a deterministic RV32I (base integer) RISC-V interpreter: an ALTERNATIVE execution
-engine for the decentralized-apps VM (doc/19), the direction Ethereum is also taking (Vitalik's
-"RISC-V over the EVM"). RISC-V is a real, frozen, widely-implemented ISA with mature toolchains —
-you compile C/Rust/etc. straight to it — and its base integer set is inherently deterministic.
+bismuth_riscv.py — a deterministic RV32I (base integer) RISC-V interpreter: THE execution engine for the
+decentralized-apps VM (doc/19), the direction Ethereum is also taking (Vitalik's "RISC-V over the EVM").
+RISC-V is a real, frozen, widely-implemented ISA with mature toolchains — you compile C/Rust/etc. straight
+to it — and its base integer set is inherently deterministic.
 
-Same consensus guarantees as the bytecode engine (bismuth_vm):
+Consensus guarantees:
   * integer-only 32-bit two's-complement (no floats);
   * a pure function of (code, calldata, context, storage) — no clock / randomness / host state;
   * GAS metering per instruction (runaway programs halt, never hang — and gas bounds the step count);
   * bounded memory; the guest stays sandboxed, interacting with the chain ONLY through ECALL.
 
-This is the ENGINE only. The vm_state store, digest fork-gate, rollback rebuild and state root are all
-engine-agnostic, so they would drive this identically to the bytecode VM.
+This is the ENGINE only. The vm_state store, digest fork-gate, rollback rebuild and state root drive it
+through a single execute()/Result contract.
 
 ECALL ABI (syscall number in a7/x17, args in a0.., return in a0):
   0 HALT · 1 RETURN(a0) · 2 SSTORE(a0=key,a1=val) · 3 SLOAD(a0=key)->a0 ·
-  4 CALLER->a0 · 5 CALLVALUE->a0 · 6 NUMBER(block height)->a0 · 7 SHA256(a0=ptr,a1=len,a2=out_ptr)
+  4 CALLER->a0 · 5 CALLVALUE->a0 · 6 NUMBER(block height)->a0 · 7 SHA256(a0=ptr,a1=len,a2=out_ptr) ·
+  8 TRANSFER(a0=ptr to 28-byte recipient, a1=ptr to 8-byte amount)->a0=1 if affordable else 0
 """
 import hashlib
 
 WMASK = 0xFFFFFFFF
 (SYS_HALT, SYS_RETURN, SYS_SSTORE, SYS_SLOAD, SYS_CALLER, SYS_CALLVALUE, SYS_NUMBER, SYS_SHA256,
- SYS_TRANSFER) = range(9)   # 8 TRANSFER(a0=to, a1=amount) -> a0 = 1 if affordable else 0
+ SYS_TRANSFER) = range(9)   # 8 TRANSFER(a0=ptr 28-byte addr, a1=ptr 8-byte amount) -> a0 = 1/0
 
 
 class RiscVError(Exception):
@@ -183,9 +184,12 @@ def execute(code, calldata=b"", caller=0, callvalue=0, storage=None, gas_limit=1
                         gas -= 60
                         mem[out:out + 32] = hashlib.sha256(bytes(mem[ptr:ptr + ln])).digest()
                     elif s == SYS_TRANSFER:
-                        to = reg[10] & WMASK
-                        amount = reg[11] & WMASK
-                        if 0 < amount <= balance_remaining:        # can't transfer more than held
+                        aptr, vptr = reg[10] & WMASK, reg[11] & WMASK   # a0=ptr 28-byte addr, a1=ptr 8-byte amount
+                        if aptr + 28 > mem_size or vptr + 8 > mem_size:
+                            return Result(False, b"", gas_limit - gas, storage)
+                        to = int.from_bytes(mem[aptr:aptr + 28], "big")    # full 224-bit recipient
+                        amount = int.from_bytes(mem[vptr:vptr + 8], "big")  # 64-bit units (regs are 32-bit)
+                        if 0 < amount <= balance_remaining:            # can't transfer more than held
                             balance_remaining -= amount
                             transfers.append((to, amount))
                             reg[10] = 1
@@ -210,6 +214,8 @@ def add(rd, rs1, rs2):   return ((rs2 << 20) | (rs1 << 15) | (rd << 7) | 0x33)
 def sub(rd, rs1, rs2):   return ((0x20 << 25) | (rs2 << 20) | (rs1 << 15) | (rd << 7) | 0x33)
 def beq(rs1, rs2, imm):  return _b_type(rs1, rs2, imm, 0)
 def bne(rs1, rs2, imm):  return _b_type(rs1, rs2, imm, 1)
+def lw(rd, rs1, imm):    return (((imm & 0xFFF) << 20) | (rs1 << 15) | (0x2 << 12) | (rd << 7) | 0x03)
+def lui(rd, imm20):      return (((imm20 & 0xFFFFF) << 12) | (rd << 7) | 0x37)
 def ecall():             return 0x00000073
 
 

@@ -38,7 +38,7 @@ inert, and what's planned. Detailed companions: file index [`13`](13-file-refere
 | Peer reputation + penalization | `peers_reputation.py` | **WIRED** — validate-height-is-real reward/penalize (synced-only), reputation-weighted tip |
 | Auto-recovery rollback | `essentials.rollback_allowed` | **default ON** (`rollback_consensus`) — reputation-gated deep rollback replaces the rigid `rollback_depth` strand |
 | Unified rollback + reorg test | `chain_ops._rollback_aux_stores` | **done** — ledger + all stores roll back in sync (`test_rollback_reorg`) |
-| **Decentralized-apps VM** | `bismuth_vm.py` (bytecode) + `bismuth_riscv.py` (RV32I) + `vm_state`/`vm_engine` | **built + regnet-tested, POST-FORK + flag** — deploy/call, pluggable engines, state root, HTLC primitives. **See [doc/19](19-vm.md)** for the full status + gaps |
+| **Decentralized-apps VM** | `bismuth_riscv.py` (RV32I) + `vm_state`/`vm_engine` | **built + regnet-tested, POST-FORK + flag** — deploy/call, a single RISC-V engine, ENFORCED state root, value custody (contracts move real BIS), HTLC. **See [doc/19](19-vm.md)** for the full status |
 | Connectivity/sync fixes | self-dial false-consensus, back-off, headers-first, ed25519 dep | **active** |
 
 "Shadow" = written/maintained alongside the authoritative store but not yet read from. "Inert" =
