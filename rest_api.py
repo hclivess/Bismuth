@@ -127,6 +127,10 @@ def _make_handler(node):
                     return self._write(200, self._peers())
                 if route == ["nodes"]:
                     return self._write(200, self._nodes())
+                if route == ["vm", "contracts"]:
+                    return self._write(200, self._vm_contracts())
+                if route[:2] == ["vm", "contract"] and len(route) == 3:
+                    return self._write(200, self._vm_contract(route[2]))
                 if route == ["capabilities"]:
                     return self._write(200, self._capabilities())
 
@@ -280,6 +284,27 @@ def _make_handler(node):
                     "consensus": getattr(p, "consensus", None),
                     "consensus_percentage": getattr(p, "consensus_percentage", None),
                     "nodes": out}
+
+        def _vm_contracts(self):
+            """Deployed decentralized-apps VM contracts. Empty unless vm=True and the fork has activated."""
+            vms = getattr(node, "vm_state", None)
+            if vms is None:
+                return {"enabled": False, "fork_height": getattr(node, "fork_height", None), "contracts": []}
+            addrs = vms.list_contracts()
+            return {"enabled": True, "fork_height": getattr(node, "fork_height", None),
+                    "count": len(addrs), "contracts": addrs}
+
+        def _vm_contract(self, addr):
+            """A contract's bytecode + storage (decentralized-apps v2)."""
+            vms = getattr(node, "vm_state", None)
+            if vms is None:
+                raise _NotFound("vm not enabled")
+            code = vms.get_code(addr)
+            if code is None:
+                raise _NotFound("unknown contract")
+            storage = [{"key": str(k), "value": str(v)} for k, v in vms.storage_items(addr)]
+            return {"address": addr, "code": code.hex(), "code_size": len(code),
+                    "slots": len(storage), "storage": storage}
 
         def _supply(self, db):
             """Circulating supply = mining emission (sum(reward)-sum(fee) over positive heights) + the

@@ -1295,6 +1295,8 @@ if __name__ == "__main__":
     node.rpc_ethereum_port = config.rpc_ethereum_port
     node.balance_index_enabled = config.balance_index  # opt-in O(1) display-balance index (doc/17)
     node.balance_index = None                          # the index object, built at startup if enabled
+    node.vm_enabled = config.vm                         # opt-in decentralized-apps VM (doc/17); POST-FORK only
+    node.vm_state = None                               # the contract state store, built at startup if enabled
 
     node.logger.app_log = log.log("node.log", node.debug_level, node.terminal_output)
     node.logger.app_log.warning("Configuration settings loaded")
@@ -1449,6 +1451,20 @@ if __name__ == "__main__":
                 except Exception as e:
                     node.logger.app_log.warning("Status: balance index could not start: {}".format(e))
                     node.balance_index = None
+
+            # optional decentralized-apps VM contract-state store (doc/17). Off unless vm=True. The store
+            # persists on disk and the digester maintains it as it processes blocks (POST-FORK only) and
+            # rebuilds it on a reorg, so no startup rescan is needed — just open it.
+            if getattr(node, "vm_enabled", False):
+                try:
+                    import os as _os
+                    import vm_state as _vm_state_mod
+                    vm_path = _os.path.join(_os.path.dirname(node.ledger_path) or ".", "vmstate")
+                    node.vm_state = _vm_state_mod.VMState(vm_path)
+                    node.logger.app_log.warning("Status: VM enabled (executes vm: txs post-fork)")
+                except Exception as e:
+                    node.logger.app_log.warning("Status: VM could not start: {}".format(e))
+                    node.vm_state = None
 
             # optional LMDB block-body store mirror (doc/17 phase 7). Off unless block_store=True.
             # Additive shadow: the digester writes blocks here AFTER the normal commit; reads/consensus

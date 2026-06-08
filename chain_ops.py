@@ -67,6 +67,15 @@ def rollback(node, db_handler, block_height):
         except Exception as e:
             node.logger.app_log.warning(f"balance index rollback rebuild failed: {e}")
 
+    # the VM contract state is a re-executable projection of the chain's vm: txs, so after the ledger
+    # rollback we rebuild it from the rolled-back ledger — deterministic and reorg-safe (post-fork only).
+    if getattr(node, "vm_state", None) is not None and getattr(node, "fork_height", None) is not None:
+        try:
+            import vm_engine
+            vm_engine.rebuild(node.vm_state, db_handler.h, node.fork_height, block_height - 1)
+        except Exception as e:
+            node.logger.app_log.warning(f"vm state rollback rebuild failed: {e}")
+
     node.logger.app_log.warning(f"Status: Chain rolled back below {block_height} and will be resynchronized")
 
 

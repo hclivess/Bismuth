@@ -43,6 +43,7 @@ def node_proc():
             pass
     shutil.rmtree(os.path.join(ROOT, "static/blockstore"), ignore_errors=True)  # fresh LMDB block store
     shutil.rmtree(os.path.join(ROOT, "static/balanceindex"), ignore_errors=True)  # fresh balance index
+    shutil.rmtree(os.path.join(ROOT, "static/vmstate"), ignore_errors=True)  # fresh VM contract state
     shutil.copy(os.path.join(ROOT, "tests/config_custom.txt"),
                 os.path.join(ROOT, "config_custom.txt"))
 

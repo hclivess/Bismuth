@@ -24,3 +24,4 @@ rpc_bitcoin_port=8331
 rpc_ethereum=True
 rpc_ethereum_port=8546
 balance_index=True
+vm=True

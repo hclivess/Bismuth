@@ -455,6 +455,35 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
                 node.logger.app_log.warning(
                     f"balance index maintain failed at {block_instance.block_height_new}: {e}")
 
+        # hf2 activation height: cache it once determinable (gates the LWMA difficulty AND the VM). Cheap
+        # while unsignalled (just reads the latest coinbase); only recomputed each block until it is set.
+        if getattr(node, "fork_height", None) is None:
+            try:
+                import fork as _fork
+                _fh = _fork.dynamic_fork_height(
+                    _fork.db_fork_signal_reader(db_handler), block_instance.block_height_new,
+                    getattr(node, "fork_window", _fork.FORK2_WINDOW),
+                    getattr(node, "fork_boundary", _fork.FORK2_BOUNDARY),
+                    getattr(node, "fork_bury", _fork.FORK2_BURY))
+                if _fh is not None:
+                    node.fork_height = _fh
+                    node.logger.app_log.warning(f"Status: hf2 activation height locked at {_fh}")
+            except Exception:
+                pass
+
+        # Decentralized-apps VM (doc/17): execute this block's vm: transactions, POST-FORK ONLY, behind the
+        # vm flag. Inert until the fork activates — it adds NO behaviour to the current chain. Failures are
+        # isolated (a bad contract is a no-op), never breaking block digestion.
+        _vms = getattr(node, "vm_state", None)
+        _vfh = getattr(node, "fork_height", None)
+        if _vms is not None and _vfh is not None and block_instance.block_height_new >= _vfh:
+            try:
+                import vm_engine
+                vm_engine.apply_block_rows(_vms, processor.block_transactions)
+            except Exception as e:
+                node.logger.app_log.warning(
+                    f"vm execution failed at {block_instance.block_height_new}: {e}")
+
         # Log success
         node.logger.app_log.warning(
             f"Valid block: {block_instance.block_height_new}: {block_instance.block_hash[:10]} "
