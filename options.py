@@ -37,6 +37,7 @@ class Get:
         "nodes_ban_reset": ["int"],
         "mempool_allowed": ["list"],
         "terminal_output": ["bool"],
+        "log_color": ["bool"],
         "gui_scaling": ["str"],
         "mempool_ram": ["bool"],
         "egress": ["bool"],
@@ -78,6 +79,7 @@ class Get:
         "heavy": True,
         "trace_db_calls": False,
         "mempool_ram": True,
+        "log_color": True,  # ANSI color on the stdout/journald log by level (see log.ColoredFormatter); honors NO_COLOR env. File logs stay plain.
         "heavy3_path": "./heavy3a.bin",
         "mempool_path": "./mempool.db",
         "old_sqlite": False,

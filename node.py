@@ -1274,6 +1274,7 @@ if __name__ == "__main__":
     node.version_allow = config.version_allow
     node.reveal_address = config.reveal_address
     node.terminal_output = config.terminal_output
+    node.log_color = config.log_color
     node.egress = config.egress
     node.genesis = config.genesis
     node.accept_peers = config.accept_peers
@@ -1315,7 +1316,7 @@ if __name__ == "__main__":
     node.vm_state = None                               # the contract state store, built at startup if enabled
     node.vm_state_root = None                          # committed VM state root (doc/19), maintained post-fork
 
-    node.logger.app_log = log.log("node.log", node.debug_level, node.terminal_output)
+    node.logger.app_log = log.log("node.log", node.debug_level, node.terminal_output, node.log_color)
     node.logger.app_log.warning("Configuration settings loaded")
     node.logger.app_log.warning(f"Python version: {node.py_version}")
 

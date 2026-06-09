@@ -55,6 +55,7 @@ class Node:
         self.version_allow = None
         self.reveal_address = None
         self.terminal_output = None
+        self.log_color = None
         self.egress = None
         self.genesis = None
 
