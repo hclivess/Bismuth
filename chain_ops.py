@@ -450,6 +450,7 @@ def sequencing_check(node, db_handler):
                     # rollback indices
 
                     node.logger.app_log.warning(f"Status: Due to a sequencing issue at block {y}, {chain} has been rolled back and will be resynchronized")
+                    conn2.close()  # don't leak this connection (the misc-error branch below already closes its conn2)
                 break
 
             y = y + 1
