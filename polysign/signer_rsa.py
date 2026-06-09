@@ -1,3 +1,12 @@
+"""RSA signer for Bismuth — the legacy mainnet signature scheme.
+
+Implements the :class:`~polysign.signer.Signer` interface for RSA keys (PEM
+format), the original and still-dominant Bismuth address scheme: addresses are
+the 56-char hex SHA-224 of the PEM public key. Signing uses SHA / PKCS#1 v1.5;
+in the Bismuth network format both the signature and the public key are base64
+encoded. Depends only on ``pycryptodomex``, so the factory imports this eagerly
+(an RSA-only node has no optional native-crypto dependencies).
+"""
 
 import json
 import re
@@ -67,6 +76,7 @@ class SignerRSA(Signer):
 
     def from_private_key(self, private_key: Union[bytes, str],
                          subtype: SignerSubType=SignerSubType.MAINNET_REGULAR) -> None:
+        """Load an RSA key from its PEM private key, deriving the public key and address."""
         if type(private_key) is not str:
             raise RuntimeError('RSA private key have to be strings')
         if subtype != SignerSubType.MAINNET_REGULAR:
@@ -94,6 +104,7 @@ class SignerRSA(Signer):
 
     def from_full_info(self, private_key: Union[bytes, str], public_key: Union[bytes, str]=b'', address: str='',
                        subtype: SignerSubType = SignerSubType.MAINNET_REGULAR, verify: bool=True):
+        """Not implemented for this signer (raises ``ValueError``)."""
         raise ValueError("SignerRsa.from_full_info not impl.")
 
     @classmethod

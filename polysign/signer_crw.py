@@ -1,5 +1,10 @@
-"""
+"""Crown (CRW) secp256k1 signer (test / interoperability helper).
 
+A :class:`~polysign.signer.Signer` implementation that derives Crown-format
+Base58Check addresses (version prefix ``0x017507``) from uncompressed secp256k1
+public keys. Used mainly for tests and address-scheme interoperability;
+key setup and signing are only partially implemented (several methods are
+TODO placeholders).
 """
 
 import base58
@@ -24,13 +29,16 @@ class SignerCRW(Signer):
         self._type = SignerType.ECDSA
 
     def from_private_key(self, private_key: Union[bytes, str], subtype: SignerSubType=SignerSubType.MAINNET_REGULAR):
+        """Not implemented for this signer (placeholder; prints a TODO)."""
         print('TODO')
 
     def from_full_info(self, private_key: Union[bytes, str], public_key: Union[bytes, str]=b'', address: str='',
                        subtype: SignerSubType = SignerSubType.MAINNET_REGULAR, verify: bool=True):
+        """Not implemented for this signer (placeholder; prints a TODO)."""
         print('TODO')
 
     def from_seed(self, seed: str='', subtype: SignerSubType = SignerSubType.MAINNET_REGULAR):
+        """Create the key from a hex seed and derive the Crown-format address."""
         print('crw from seed {}'.format(seed))
         if subtype != SignerSubType.MAINNET_REGULAR:
             self._subtype = subtype
@@ -52,6 +60,7 @@ class SignerCRW(Signer):
         return hashlib.new('ripemd160', sha256(bytes.fromhex(self._public_key)).digest()).digest()
 
     def address(self):
+        """Return the Base58Check Crown-format address derived from the pubkey."""
         # 1PrWZ4CXSXWbg87XS9ShhwMV6TiSXtycT7
         vh160 = self.address_version_for_subtype(self._subtype) + self.identifier()  # raw content
         chk = sha256(sha256(vh160).digest()).digest()[:4]

@@ -1,5 +1,9 @@
-"""
+"""secp256k1 ECDSA signer for Bismuth (coincurve-backed).
 
+Implements the :class:`~polysign.signer.Signer` interface for secp256k1 ECDSA
+keys, producing Base58Check ``Bis1...`` addresses. Signatures and public keys
+travel base64-encoded in the Bismuth network format. Backed by the optional
+``coincurve`` native library, so this module is imported lazily by the factory.
 """
 
 import hashlib
@@ -39,6 +43,7 @@ class SignerECDSA(Signer):
 
     def from_full_info(self, private_key: Union[bytes, str], public_key: Union[bytes, str]=b'', address: str='',
                        subtype: SignerSubType = SignerSubType.MAINNET_REGULAR, verify: bool=True):
+        """Not implemented for this signer (raises ``ValueError``)."""
         raise ValueError("SignerRsa.from_full_info not impl.")
 
     def from_seed(self, seed: str='', subtype: SignerSubType=SignerSubType.MAINNET_REGULAR):

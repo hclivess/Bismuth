@@ -1,5 +1,10 @@
-"""
+"""Bitcoin-style secp256k1 signer (test / interoperability helper).
 
+A :class:`~polysign.signer.Signer` implementation that derives classic
+Bitcoin-format Base58Check addresses (version byte ``0x00`` mainnet / ``0x6f``
+testnet) from secp256k1 keys. Used mainly for tests and address-scheme
+interoperability; signature verification is only partially implemented (it
+checks the recovered address but the cryptographic ``verify`` step is a TODO).
 """
 
 import base58
@@ -33,6 +38,7 @@ class SignerBTC(Signer):
 
     def from_full_info(self, private_key: Union[bytes, str], public_key: Union[bytes, str]=b'', address: str='',
                        subtype: SignerSubType = SignerSubType.MAINNET_REGULAR, verify: bool=True):
+        """Not implemented for this signer (placeholder; prints a TODO)."""
         print('TODO - SignerBTC.from_full_info')
 
     def from_seed(self, seed: str='', subtype: SignerSubType=SignerSubType.MAINNET_REGULAR):

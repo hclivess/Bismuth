@@ -1,3 +1,16 @@
+"""Factory and dispatch helpers for Bismuth's pluggable signature schemes.
+
+Maps signer *types* (:class:`~polysign.signer.SignerType`) and on-the-wire
+*addresses* to the concrete :class:`~polysign.signer.Signer` subclass that
+handles them, and exposes convenience constructors (from a private key, a seed,
+or full info) plus address validation / signature verification entry points
+used across the node.
+
+Only the RSA signer (Bismuth mainnet) is imported eagerly; every other scheme
+is loaded lazily via :func:`_load_optional_signer` so an RSA-only deployment
+carries no hard dependency on the optional native-crypto packages.
+"""
+
 import re
 from os import urandom
 from typing import Type, Union
@@ -51,7 +64,7 @@ def signer_for_type(signer_type: SignerType) -> Union[Type[Signer], None]:
 
 
 class SignerFactory:
-    """"""
+    """Create signers and dispatch verification by signer type or address."""
 
     @classmethod
     def from_private_key(cls, private_key: Union[bytes, str], signer_type: SignerType=SignerType.RSA,
@@ -69,10 +82,12 @@ class SignerFactory:
     def from_full_info(cls, private_key: Union[bytes, str], public_key: Union[bytes, str]=b'', address: str='',
                        signer_type: SignerType=SignerType.RSA, subtype: SignerSubType=SignerSubType.MAINNET_REGULAR,
                        verify: bool=True) -> Signer:
+        """Build a signer from full key info (not implemented; placeholder)."""
         pass
 
     @classmethod
     def address_to_signer(cls, address: str) -> Type[Signer]:
+        """Return the signer class matching an address (by its textual format)."""
         if RE_RSA_ADDRESS.match(address):
             return SignerRSA
         elif RE_ECDSA_ADDRESS.match(address):
@@ -85,6 +100,7 @@ class SignerFactory:
 
     @classmethod
     def address_is_valid(cls, address: str) -> bool:
+        """Return whether the address matches any supported (RSA / ECDSA / ED25519) format."""
         if RE_RSA_ADDRESS.match(address):
             # RSA, 56 hex
             return True
@@ -105,6 +121,7 @@ class SignerFactory:
     @classmethod
     def from_seed(cls, seed: str='', signer_type: SignerType=SignerType.RSA,
                   subtype: SignerSubType=SignerSubType.MAINNET_REGULAR) -> Signer:
+        """Create a signer of the given type from a seed (random if ``seed`` is empty)."""
         if seed == '':
             seed = urandom(32).hex()
         signer_class = signer_for_type(signer_type)

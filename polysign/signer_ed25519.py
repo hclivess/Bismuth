@@ -1,5 +1,10 @@
-"""
+"""Ed25519 signer for Bismuth.
 
+Implements the :class:`~polysign.signer.Signer` interface for Ed25519 keys,
+producing Base58Check ``Bis1...`` addresses (single SHA-256 checksum, no double
+hashing). Signatures and public keys travel base64-encoded in the Bismuth
+network format. Backed by the optional ``ed25519`` library, so this module is
+imported lazily by the factory.
 """
 
 import random
@@ -38,6 +43,7 @@ class SignerED25519(Signer):
 
     def from_full_info(self, private_key: Union[bytes, str], public_key: Union[bytes, str]=b'', address: str='',
                        subtype: SignerSubType = SignerSubType.MAINNET_REGULAR, verify: bool=True):
+        """Not implemented for this signer (raises ``ValueError``)."""
         raise ValueError("SignerED25519.from_full_info not impl.")
 
     def from_seed(self, seed: str='', subtype: SignerSubType=SignerSubType.MAINNET_REGULAR):
