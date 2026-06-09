@@ -1,3 +1,13 @@
+"""Outbound-connection manager: keeps the node connected to enough peers.
+
+Runs as a background thread that maintains the node's set of outbound peer
+connections. It periodically consults the peer list, and for each peer that
+should be connected but isn't, spawns a ``worker`` thread (respecting the
+configured connection/thread limit) to sync with that peer. By topping the
+connection pool back up as workers exit, it keeps the node participating in the
+network. It contains no consensus logic -- it only manages connectivity.
+"""
+
 import threading
 import time
 from worker import worker

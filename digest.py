@@ -1,3 +1,17 @@
+"""Block ingestion and validation -- the consensus core of the node.
+
+``digest_block`` is the single entry point through which every candidate block
+(whether mined locally or received from a peer) is admitted to the ledger. The
+``BlockProcessor`` class enforces the consensus rules: it checks signatures and
+rejects duplicates, validates the proof of work against the required
+difficulty, sorts and validates the block's transactions, computes balances and
+fees, applies the mining reward, writes the block atomically to the ledger and
+hyperblock databases, removes spent transactions from the mempool and runs the
+post-block hooks (e.g. alias/token/staking indexers). Errors trigger rollback
+and cleanup. This module decides what is and isn't a valid block, so any change
+here is consensus-affecting.
+"""
+
 import hashlib
 import os
 import sys

@@ -1,3 +1,13 @@
+"""Logger setup: rotating file handler plus optional ANSI-coloured console output.
+
+Builds and configures the ``app_log`` used across the node. It attaches a
+``RotatingFileHandler`` (so the log file is size-capped and rolls over) and a
+console handler whose formatter can colour the level name (and the message for
+warnings/errors) with ANSI escapes when colour output is enabled and the
+stream is a TTY. Purely a logging-infrastructure helper; it makes no consensus
+decisions.
+"""
+
 import logging, os, sys
 from logging.handlers import RotatingFileHandler
 

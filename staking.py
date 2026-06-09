@@ -5,6 +5,17 @@
 #operation: staking:register
 #last working integrated implementation: https://github.com/bismuthfoundation/Bismuth/commit/69fd3aafd31cce6def1b09ffc64c95d457243c8a
 
+"""Proof-of-stake registration and payout side-index (experimental).
+
+Maintains the staking auxiliary database derived from the ledger: it scans
+``staking:register`` operations to build the set of registered delegates,
+computes stake-weighted balances at a given block, mirror-hashes the staking
+state so it can be verified across nodes, and produces periodic staking
+payouts. ``staking_revalidate`` supports rollbacks by replaying the staking
+state. This is an add-on indexer layered on top of the proof-of-work ledger,
+not a replacement consensus engine.
+"""
+
 import sqlite3
 import log
 from quantizer import quantize_two, quantize_eight, quantize_ten

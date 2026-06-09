@@ -1,3 +1,16 @@
+"""Per-peer outbound sync worker thread.
+
+``worker`` is the body of each client thread spawned by ``connectionmanager``
+to talk to one remote peer. It opens the (optionally Tor-routed) socket
+connection, performs the version/peer handshake, then drives the
+synchronisation loop: comparing chain heights, requesting and feeding new
+blocks into ``digest_block``, handling block-not-found / fork situations via
+``blocknf`` and rollbacks, gossiping mempool transactions and exchanging peer
+lists. It applies the ban/penalty rules on misbehaving peers. The actual block
+validation is delegated to ``digest``; this module is the networking/sync
+driver around it.
+"""
+
 from node import blocknf, digest_block
 import sys
 import threading

@@ -1,5 +1,15 @@
 #!/usr/bin/env python3
 
+"""Command-line client for querying/controlling a running node over the socket API.
+
+A thin CLI wrapper around the legacy P2P/socket protocol: it connects to a
+local node (honouring the Tor/socks setting from ``options``) and dispatches a
+single command given as ``argv`` -- e.g. ``balanceget``, ``statusget``,
+``diffget``, ``mpget``, ``blocklast``, ``aliasget``, ``tokensget`` and their
+JSON variants -- printing the node's reply. Intended for scripting and manual
+inspection; it issues requests only and contains no consensus logic.
+"""
+
 import socks, connections, time, sys, json
 import options
 config = options.Get()

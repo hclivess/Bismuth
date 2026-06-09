@@ -1,5 +1,15 @@
 #locally stored to prevent an even of abandoned repository removal
 
+"""Vendored simple-crypt: password-based authenticated encryption.
+
+A local copy of the ``simple-crypt`` library (kept in-tree to survive removal
+of the upstream repository). Provides ``encrypt``/``decrypt`` helpers that
+derive an AES key from a password with PBKDF2, encrypt with AES-CTR, and
+authenticate with an HMAC-SHA256, using a versioned ``sc`` header so older
+ciphertexts stay readable. Used by the wallet/key tooling to protect stored
+private keys at rest; it implements no consensus logic.
+"""
+
 from Cryptodome.Cipher import AES
 from Cryptodome.Hash import SHA256, HMAC
 from Cryptodome.Protocol.KDF import PBKDF2

@@ -1,3 +1,14 @@
+"""Node configuration loader.
+
+Defines ``Get``, the object that reads the node's configuration from
+``config.txt`` (with ``config_custom.txt`` overrides) and exposes each setting
+as a typed attribute -- ports, ledger/hyperblock paths, RAM/full-ledger mode,
+debug level, peer ban thresholds, Tor toggle, mempool options, the opt-in REST
+API switch, and so on. A typed schema maps each option name to its expected
+type so values are coerced consistently. Nearly every other module obtains its
+runtime settings through this loader.
+"""
+
 import json
 import os
 import os.path as path

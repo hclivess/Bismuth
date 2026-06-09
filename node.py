@@ -11,6 +11,23 @@
 # issues with db? perhaps you missed a commit() or two
 
 
+"""Bismuth full-node entry point and legacy P2P server.
+
+This is the executable launched to run a node. It wires together the whole
+process: it reads configuration (``options``), opens the ledger/hyperblock
+databases, starts the mempool, the mining/consensus worker threads
+(``connectionmanager`` -> ``worker``), the threaded legacy TCP P2P server
+(``ThreadedTCPServer`` / ``ThreadedTCPRequestHandler``, which speaks the
+socket protocol and serves/ingests blocks, balances, mempool and peer data
+via ``apihandler``), and -- when ``rest_api`` is enabled -- the optional
+read-only REST API. It also installs graceful-shutdown handling so the node
+finishes any in-flight block write before exiting, keeping the ledger and
+hyperblock heights consistent. Block ingestion itself is delegated to
+``digest.digest_block``; this module is the orchestration and networking shell
+around consensus.
+"""
+
+
 VERSION = "4.5.0.1"
 
 import platform

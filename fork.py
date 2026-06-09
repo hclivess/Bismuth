@@ -7,6 +7,19 @@
 # chain and schedules; no consensus rule changes here. The rule switch (block_height >= fork_height) is
 # added later, one optimization at a time, replay-validated.
 
+"""Hard-fork scheduling and activation-height bookkeeping.
+
+Holds the signal-activated (version-bits / miner-activated) hard-fork logic
+plus the ``Fork`` object that tracks the known fork heights for the active
+network (mainnet/testnet/regnet). It is deliberately inert with respect to
+consensus: the helpers here only READ the chain to count fork signals in
+coinbase openfields and to compute -- deterministically and identically on
+every node -- when a fork locks in and activates. The actual rule changes are
+gated elsewhere by ``block_height >= fork_height`` comparisons that consult
+these heights. ``difficulty`` and other modules import this to know which rule
+era a given block falls under.
+"""
+
 FORK2_SIGNAL = "hf2"      # marker upgraded miners place in their coinbase openfield
 FORK2_WINDOW = 1000       # consecutive all-signalled blocks required to lock in
 FORK2_BOUNDARY = 1000     # activate on the next multiple of this (the "next round-1000 block")

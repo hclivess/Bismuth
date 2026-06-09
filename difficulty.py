@@ -1,3 +1,14 @@
+"""Proof-of-work difficulty retargeting.
+
+Computes the network difficulty the next block must satisfy, from the recent
+history of block solve times in the ledger. The retarget steers the average
+block interval toward the target by raising difficulty when blocks arrive too
+fast and lowering it when they arrive too slowly, with the exact formula
+selected per fork era (via ``fork``) and special-cased for regnet. Because the
+returned value is the threshold ``digest`` checks the proof of work against,
+this calculation is consensus-critical and must be deterministic across nodes.
+"""
+
 from decimal import Decimal
 import regnet
 import math
