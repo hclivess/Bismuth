@@ -1,8 +1,21 @@
-import base64, sqlite3, hashlib, time, socks, keys, sys, connections, ast, re, options
+"""Solo/pool GPU mining driver for Bismuth using the alternative OpenCL backend.
+
+The runnable miner for the ``opencl_alt`` backend. It loads the miner config and
+wallet keys, sets up the OpenCL devices (via ``clminer``), then loops: it asks
+the local node for the latest block hash and difficulty, programs the GPU
+kernels with the search key, collects candidate nonces from the result queue,
+verifies each against the difficulty condition on the CPU, and on a hit builds
+and RSA-signs the reward transaction plus current mempool and submits the block
+-- to every peer node when solo mining, or to the pool (with an extra
+full-difficulty broadcast) when pool mining. Standalone tool, separate from the
+node and not covered by the test suite.
+"""
+
+import base64, sqlite3, hashlib, time, socks, keys, sys, connections, re, options
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
 from Crypto import Random
-from multiprocessing import Process, freeze_support
+from multiprocessing import freeze_support
 
 # OpenCL miner specific
 import clminer
@@ -53,9 +66,11 @@ opencl_full_check = config.opencl_full_check_conf
 
 # load config
 def percentage(percent, whole):
+    """Integer ``percent`` of ``whole`` (used to derive the pool share difficulty)."""
     return int((percent * whole) / 100)
 
 def nodes_block_submit(block_send):
+    """Broadcast a solved block to every node in the peer list, one thread per peer."""
 
     # connect to all nodes
     global peer_dict
@@ -100,6 +115,7 @@ def nodes_block_submit(block_send):
             threading.Thread( target=send_thread, args=(k, v, ) ).start()
 
 def check_uptodate(interval):
+    """Block until the local ledger's newest block is within ``interval`` seconds of now."""
     # check if blocks are up to date
     while sync_conf == 1:
         conn = sqlite3.connect(ledger_path_conf)  # open to select the last tx to create a new hash from
@@ -121,10 +137,12 @@ def check_uptodate(interval):
 
 
 def bin_convert(string):
+    """Convert a hex string to its binary-digit string representation."""
     return ''.join(format(ord(x), '8b').replace(' ', '0') for x in string)
 
 
 def execute(cursor, what):
+    """Run a SQL statement, retrying until it succeeds (tolerant of busy/slow DBs)."""
     # secure execute for slow nodes
     passed = 0
     while passed == 0:
@@ -143,6 +161,7 @@ def execute(cursor, what):
 
 
 def execute_param(cursor, what, param):
+    """Run a parameterised SQL statement, retrying until it succeeds."""
     # secure execute for slow nodes
     passed = 0
     while passed == 0:
@@ -160,6 +179,7 @@ def execute_param(cursor, what, param):
 
 
 def miner(privatekey_readable, public_key_hashed, address, miners, resultQueue):
+    """Main mining loop: drive the GPUs, verify candidate nonces, sign and submit solved blocks."""
     from Crypto.PublicKey import RSA
     Random.atfork()
     key = RSA.importKey(privatekey_readable)

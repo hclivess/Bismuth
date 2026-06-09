@@ -1,3 +1,15 @@
+"""OpenCL device backend for the alternative GPU miner.
+
+The low-level half of the ``opencl_alt`` miner, used by ``miner.py``. It
+discovers OpenCL GPUs, compiles the Bismuth hashing kernel (a low- and a
+high-difficulty variant), and runs each device in its own thread with a
+double-buffered pipeline so the GPU keeps hashing while the CPU drains results.
+Candidate nonces are pushed onto a thread-safe queue for the miner to verify.
+Defines ``oclResultQueue`` (the candidate queue), ``oclDevice`` (one managed
+GPU) and ``ocl`` (device discovery / miner factory). Pure compute plumbing --
+no node or network logic.
+"""
+
 import options, time
 import pyopencl as cl
 import numpy as np
@@ -15,10 +27,12 @@ opencl_full_check = config.opencl_full_check_conf
 
 # OpenCL classes
 class oclResultQueue:
+    """Thread-safe queue of candidate nonces produced by the GPU device threads."""
     def __init__(self):
         self.resultQueue_ = queue.Queue()
 
     def getNextCandidate(self, timeout):
+        """Pop the next candidate (with remaining queue size), or (None, 0) on timeout."""
         if timeout is not None and timeout <= 0:
             return None, 0
         try:
@@ -29,9 +43,11 @@ class oclResultQueue:
             return None, 0
 
     def pushCandidate(self, candidate):
+        """Enqueue a candidate nonce found by a device thread."""
         self.resultQueue_.put( candidate )
 
 class oclDevice:
+    """One managed OpenCL GPU: kernel setup plus the double-buffered mining loop."""
     def __init__(self, threadId, platId, devId, resultQueue):
         self.devId_ = devId
         self.platId_ = platId
@@ -47,6 +63,7 @@ class oclDevice:
         return self.threadCount_
 
     def setupCL( self, hash_count ):
+        """Create the OpenCL context/buffers and compile the low- and high-difficulty kernels."""
         try:
             self.platform_ = cl.get_platforms()[ self.platId_ ]
             self.device_ = self.platform_.get_devices( device_type=cl.device_type.GPU )[ self.devId_ ]
@@ -129,6 +146,7 @@ class oclDevice:
             raise
 
     def setKernelParams( self, key ):
+        """Bind kernel arguments and pick the low- or high-difficulty kernel for this search key."""
         self.key_ = key
 
         self.kernelHigh_[0].set_args( self.header_, self.tail_,
@@ -196,6 +214,7 @@ class oclDevice:
 
     #@profile
     def processLoop(self):
+        """The device thread body: double-buffered kernel runs, pushing found nonces and logging hashrate."""
         loop = 0
         looptime = 0
         runev0 = self.runFirst( 0 )
@@ -248,20 +267,24 @@ class oclDevice:
                 looptime = 0
 
     def startMining(self):
+        """Start this device's mining thread (no-op if already running)."""
         if self.thread_ is None:
             self.running_ = True
             self.thread_ = threading.Thread( target=self.processLoop )
             self.thread_.start()
 
     def stopMining(self):
+        """Signal the mining thread to stop and wait for it to finish."""
         self.running_ = False
         self.thread_.join()
 
 class ocl:
+    """Discovers the available OpenCL GPUs and builds ready-to-run ``oclDevice`` miners."""
     def __init__(self):
         self.devices_ = []
 
     def setupCL(self, resultQueue):
+        """Enumerate every OpenCL GPU across all platforms into managed devices."""
         platId = 0
         i = 0
         print( "Searching for OpenCL devices..." )
@@ -283,9 +306,11 @@ class ocl:
         print( "{} OpenCL devices found".format( len(self.devices_) ) )
 
     def getDevices(self):
+        """Return the indices of usable devices (those not in the config disable list)."""
         return [dev for dev in range(len(self.devices_)) if dev not in opencl_disable_device]
 
     def getMiners(self):
+        """Set up and return an ``oclDevice`` miner for each enabled GPU."""
         instances = self.getDevices()
         miners = []
         for q in instances:

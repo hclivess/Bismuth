@@ -1,3 +1,11 @@
+"""One-off sanity check for the 'Development Reward' rows (attic).
+
+A retired read-only audit script: it walks the ``Development Reward``
+transactions in ``static/ledger.db`` in block order and prints any place where
+the openfield (block-interval) counter does not advance by exactly 10, i.e. a
+gap left by ``rewards_reindex.py``. Run manually; not part of the node or tests.
+"""
+
 import sqlite3
 
 conn = sqlite3.connect('static/ledger.db')

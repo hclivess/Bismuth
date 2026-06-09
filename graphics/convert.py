@@ -1,3 +1,12 @@
+"""Demo: encode the logo image and display it in a tiny Tkinter window (graphics helper).
+
+A standalone scratch/demo script showing two ways to serialise ``logo.gif`` --
+base64 and a JSON list of bytes -- printing the encoded sizes, then opening a
+small Tkinter window that renders the logo from the decoded data. Requires a
+display and the ``logo.gif`` asset; purely illustrative and not used by the
+node or the test suite.
+"""
+
 import base64, json
 
 with open("logo.gif", "rb") as imageFile:

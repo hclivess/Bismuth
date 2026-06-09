@@ -1,12 +1,20 @@
 #this file is marginally dynamic, make sure you know what you run it against
+"""Verify the testnet ledger, then pack a testnet snapshot tarball (snapshot utility).
+
+The testnet counterpart of ``tar.py``. It opens ``ledger_test.db`` and
+``hyper_test.db`` and runs the same integrity checks (cross-database balance
+agreement, valid recipients, no duplicate signatures or transaction/misc
+rows). On success it vacuums both databases and -- provided no ``node.py`` is
+running -- compresses the testnet ledger/hyper/index files into
+``test.tar.gz``. Run manually; not part of the node or the test suite.
+"""
 import sys
 sys.path.append("../")
 
 import tarfile
-import sys
 import sqlite3
 from decimal import Decimal
-from quantizer import quantize_two, quantize_eight, quantize_ten
+from quantizer import quantize_eight
 import process_search
 from essentials import address_validate
 
@@ -30,11 +38,13 @@ tar_obj = Tar()
 
 
 def vacuum(cursor, name):
+    """Run SQLite VACUUM on the given database cursor."""
     print(f"Vacuuming {name}")
     cursor.execute("VACUUM")
 
 
 def dupes_check_sigs(cursor, name):
+    """Flag transactions sharing a signature (outside the known allow-list)."""
     print (f"Testing {name} for sig duplicates")
 
     cursor.execute("SELECT * FROM transactions WHERE signature IN (SELECT signature FROM transactions WHERE signature != '0' GROUP BY signature HAVING COUNT(*) >1)")
@@ -49,6 +59,7 @@ def dupes_check_sigs(cursor, name):
 
 
 def dupes_check_rows_transactions(cursor, name):
+    """Flag fully identical duplicate rows in the transactions table."""
     print (f"Testing {name} for transaction row duplicates")
 
     cursor.execute("SELECT block_height, timestamp, address, recipient, amount, signature, public_key, block_hash, fee, reward, operation, openfield, COUNT(*) FROM transactions GROUP BY block_height, timestamp, address, recipient, amount, signature, public_key, block_hash, fee, reward, operation, openfield HAVING COUNT(*) > 1")
@@ -59,6 +70,7 @@ def dupes_check_rows_transactions(cursor, name):
 
 
 def dupes_check_rows_misc(cursor, name):
+    """Flag fully identical duplicate rows in the misc (difficulty) table."""
     print (f"Testing {name} for misc row duplicates")
 
     cursor.execute("SELECT block_height, difficulty, COUNT(*) FROM misc GROUP BY block_height, difficulty HAVING COUNT(*) > 1")
@@ -69,6 +81,7 @@ def dupes_check_rows_misc(cursor, name):
 
 
 def balance_from_cursor(cursor, address):
+    """Return an address's balance (credits minus debits) from one database."""
     credit = Decimal("0")
     debit = Decimal("0")
     for entry in cursor.execute("SELECT amount,reward FROM transactions WHERE recipient = ? ",(address, )):
@@ -95,7 +108,7 @@ def balance_from_cursor(cursor, address):
 
 
 def balance_differences():
-
+    """Compare every address's balance between ledger_test.db and hyper_test.db, reporting mismatches."""
     print ("Selecting all addresses from full ledger for errors")
     tar_obj.h.execute ("SELECT distinct(recipient) FROM transactions group by recipient;")
     addresses = tar_obj.h.fetchall ()

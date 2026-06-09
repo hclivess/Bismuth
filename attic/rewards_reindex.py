@@ -1,3 +1,12 @@
+"""One-off ledger maintenance script: rebuild the 'Development Reward' rows (attic).
+
+A retired migration helper that deletes every existing ``Development Reward``
+transaction from ``static/ledger.db`` and re-inserts one per 10-block interval
+with a slowly decaying reward amount. Destructive and run manually against a
+ledger copy; not part of the node or the test suite. Kept under attic/ for
+historical reference.
+"""
+
 import sqlite3,time
 
 reward_10 = 14.99999

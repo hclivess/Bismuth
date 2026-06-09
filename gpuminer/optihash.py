@@ -4,8 +4,19 @@
 # kbk and geho2, 2021
 # .
 
-import time, socks, connections, sys, os, math
-from multiprocessing import Process, freeze_support, Queue
+"""CUDA pool miner for Bismuth (Optipoolware-style pools).
+
+A standalone GPU miner that offloads Heavy3 nonce search to a CUDA extension
+(``bis``). It reads ``miner.txt`` for pool/connection settings, repeatedly
+fetches work from the pool over the socket protocol, hands the current block
+hash and difficulty condition to the GPU, collects candidate nonces, verifies
+each against the required difficulty on the CPU and submits winning solutions
+back to the pool. Pool-mining only; lives outside the node and is not exercised
+by the test suite.
+"""
+
+import time, socks, connections, math
+from multiprocessing import freeze_support, Queue
 from random import getrandbits
 from hashlib import sha224
 
@@ -16,6 +27,7 @@ import bis # CUDA code
 from datetime import datetime
 
 def cuda_to_nonce_arr(string):
+        """Split the CUDA extension's text output into a list of candidate nonces."""
         elements = string.splitlines()
         newEl = []
         for el in elements:
@@ -52,14 +64,17 @@ bin_format_dict = dict((x, format(ord(x), '8b').replace(' ', '0')) for x in '012
 
 
 def bin_convert(string):
+    """Convert a hex string to its binary-digit string (via a lookup table)."""
     return ''.join(bin_format_dict[x] for x in string)
 
 
 def bin_convert_orig(string):
+    """Reference (table-free) version of ``bin_convert``."""
     return ''.join(format(ord(x), '8b').replace(' ', '0') for x in string)
 
 
 def diffme(pool_address, nonce, db_block_hash):
+    """Score a nonce's difficulty (longest matching leading-bit run; 0 if below 60)."""
     # minimum possible diff
     diff = 60
     # will return 0 for diff < 60
@@ -73,6 +88,7 @@ def diffme(pool_address, nonce, db_block_hash):
 
 
 def miner(q, pool_address, db_block_hash, diff, mining_condition, netdiff, hq, thr, dh, bisCuda): # Added by kbk
+    """Drain GPU candidate nonces for one work round and submit any valid solution to the pool."""
     process_mmap = False
     if not mining.RND_LEN:
         mining.mining_open()
@@ -137,6 +153,7 @@ def miner(q, pool_address, db_block_hash, diff, mining_condition, netdiff, hq, t
 
 
 def runit():
+    """Main loop: fetch work from the pool, drive the GPU, report hashrate, repeat."""
     connected = 0
     dh = 0
     hq = Queue()

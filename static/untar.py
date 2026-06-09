@@ -1,3 +1,11 @@
+"""Restore the ledger from a gzip tarball (snapshot utility).
+
+A standalone restore script: it first removes stray SQLite WAL/SHM sidecar
+files, then safely extracts ``ledger.tar.gz`` into the current directory,
+guarding against path-traversal entries in the archive. The counterpart to the
+``tar.py`` packing scripts. Not invoked by the node or the test suite.
+"""
+
 import tarfile
 import glob
 import os
@@ -10,7 +18,7 @@ for t in types:
 
 with tarfile.open("ledger.tar.gz") as tar:
     def is_within_directory(directory, target):
-        
+        """True if ``target`` resolves to a path inside ``directory``."""
         abs_directory = os.path.abspath(directory)
         abs_target = os.path.abspath(target)
     
@@ -19,7 +27,7 @@ with tarfile.open("ledger.tar.gz") as tar:
         return prefix == abs_directory
     
     def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
-    
+        """Extract ``tar`` but refuse any member that would escape ``path``."""
         for member in tar.getmembers():
             member_path = os.path.join(path, member.name)
             if not is_within_directory(path, member_path):

@@ -1,7 +1,18 @@
+"""Configuration loader for the alternative OpenCL GPU miner.
+
+Defines ``Get``, a standalone config reader for the ``opencl_alt`` miner. It
+parses ``config.txt`` (or ``config_custom.txt`` when present) line by line and
+exposes each ``key=value`` setting as an attribute -- node/pool connection
+details, mining-thread and pool-payout options, and the OpenCL tuning knobs
+(hash count, timeout, thread multiplier, per-device disable list, etc.). A
+miner-local copy independent of the node's own ``options`` module.
+"""
+
 import os.path as path
 
 class Get:
     def read(self):
+        """Parse the miner config file and set one attribute per recognised key."""
         if not path.exists("config_custom.txt"):
             lines = [line.rstrip('\n') for line in open('config.txt')]
         else:

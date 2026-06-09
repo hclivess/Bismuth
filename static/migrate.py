@@ -1,3 +1,12 @@
+"""One-off ledger schema migration: rebuild the transactions table (snapshot utility).
+
+A standalone migration script that rewrites ``ledger.db`` in place: it copies
+every row into a freshly created ``transactions`` table (to normalise the
+column definitions), drops the old table, recreates all the indexes and
+vacuums. Destructive -- run against a backup copy. Not part of the node or the
+test suite.
+"""
+
 import sqlite3
 
 migrate = sqlite3.connect('ledger.db', timeout=1)
