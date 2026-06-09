@@ -91,12 +91,18 @@ def dynamic_fork_height(read_signal, tip,
 import json as _json
 import os as _os
 
-LOCKIN_FILENAME = "fork_lockin.json"   # {"hf2": <height>, "pow2": <height>}; absent keys = not yet locked
-
-
 def lockin_path(ledger_path):
-    """The sidecar path: alongside the ledger DB (mirrors balanceindex/vmstate/blockstore placement)."""
-    return _os.path.join(_os.path.dirname(ledger_path) or ".", LOCKIN_FILENAME)
+    """The sidecar path: alongside the ledger DB and NAMESPACED BY LEDGER FILENAME
+    (``fork_lockin-<ledger file>.json``), holding {"hf2": <height>, "pow2": <height>};
+    absent keys = not yet locked.
+
+    The namespacing is load-bearing: mainnet (ledger.db) and regnet (regmode.db) share one
+    static/ directory, and the earlier shared ``fork_lockin.json`` let a regnet test run hand a
+    restarting MAINNET node its regnet lock-in ({"hf2": 10}) — silently activating LWMA difficulty
+    and dynamic fees against the live chain (2026-06-09 incident). The legacy shared file is now
+    ignored entirely."""
+    base = _os.path.basename(ledger_path) or "ledger.db"
+    return _os.path.join(_os.path.dirname(ledger_path) or ".", "fork_lockin-%s.json" % base)
 
 
 def load_locked_height(ledger_path, key):

@@ -63,11 +63,16 @@ class _BadRequest(Exception):
 # JSON file next to the ledger so a restart reloads it and only the cheap incremental top-up runs.
 
 def supply_cache_path(node):
-    """Path of the on-disk supply cache, alongside the ledger (e.g. static/supply_cache.json)."""
+    """Path of the on-disk supply cache, alongside the ledger and NAMESPACED BY LEDGER FILENAME
+    (e.g. static/supply_cache-ledger.db.json). Mainnet and regnet share one static/ directory, so a
+    shared filename let regnet test runs overwrite the mainnet cache (the intmode check happened to
+    reject the cross-load, but only because regnet runs integer amounts — the namespacing makes the
+    isolation structural, like fork.lockin_path). The legacy shared supply_cache.json is ignored."""
     ledger_path = getattr(node, "ledger_path", None)
     if not ledger_path:
         return None
-    return os.path.join(os.path.dirname(ledger_path) or ".", "supply_cache.json")
+    base = os.path.basename(ledger_path) or "ledger.db"
+    return os.path.join(os.path.dirname(ledger_path) or ".", "supply_cache-%s.json" % base)
 
 
 def load_supply_cache(node, intmode):

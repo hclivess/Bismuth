@@ -52,8 +52,10 @@ def _fake_node(tmp_path, intmode=True):
 
 
 def test_supply_cache_path_is_next_to_ledger(tmp_path):
+    # Namespaced per ledger file so regnet (regmode.db) and mainnet (ledger.db) sharing one
+    # static/ dir can never read each other's cache.
     node = _fake_node(tmp_path)
-    assert rest_api.supply_cache_path(node) == os.path.join(str(tmp_path), "supply_cache.json")
+    assert rest_api.supply_cache_path(node) == os.path.join(str(tmp_path), "supply_cache-ledger.db.json")
 
 
 def test_save_then_load_roundtrips_as_decimal(tmp_path):
