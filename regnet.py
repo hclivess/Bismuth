@@ -12,7 +12,7 @@ import functools
 from Cryptodome.PublicKey import RSA
 from Cryptodome.Hash import SHA
 from Cryptodome.Signature import PKCS1_v1_5
-from hashlib import sha224
+from hashlib import sha224, blake2b
 from random import getrandbits
 
 import amounts
@@ -104,6 +104,17 @@ def generate_one_block(blockhash, mempool_txs, node, db_handler):
                 # POST-FORK: instead, commit the VM pre-state root in the coinbase (doc/19) so peers can
                 # reject a divergent block. Either way it's part of the PoW-hashed seed.
                 _signal = "hf2" if getattr(node, "fork_signal", False) else ''   # keep signalling so syncing nodes still detect the fork
+                # Dual PoW (doc/18-D): post the PoW fork the inner hash modernises sha224 -> blake2b, exactly
+                # like miner.py and the verifier (mining_heavy3.diffme_heavy3). The generator MUST mirror it
+                # or the block it mines fails its own PoW check. Switch on new_pow = next height >= pow fork.
+                _pfh = getattr(node, "pow_fork_height", None)
+                new_pow = _pfh is not None and (getattr(node, "hdd_block", 0) + 1) >= _pfh
+
+                def _inner(s):     # the 224-bit inner digest fed to the Heavy3 anneal (blake2b post-fork)
+                    b = s.encode("utf-8")
+                    return int.from_bytes(blake2b(b, digest_size=28).digest() if new_pow
+                                          else sha224(b).digest(), 'big')
+
                 _sr_fh = getattr(node, "fork_height", None)
                 _sr = getattr(node, "vm_state_root", None)
                 if _sr_fh is not None and getattr(node, "hdd_block", 0) + 1 >= _sr_fh and _sr:
@@ -116,17 +127,11 @@ def generate_one_block(blockhash, mempool_txs, node, db_handler):
                 if node.heavy:
                     possibles = [nonce for nonce in try_arr if
                                  mining_condition in (
-                                     mining.anneal3(mining.MMAP,
-                                                    int.from_bytes(
-                                                        sha224((prefix + nonce + blockhash)
-                                                               .encode("utf-8")).digest(), 'big')))]
+                                     mining.anneal3(mining.MMAP, _inner(prefix + nonce + blockhash)))]
                 else:
                     possibles = [nonce for nonce in try_arr if
                                  mining_condition in (
-                                     mining.anneal3_regnet(mining.MMAP,
-                                                    int.from_bytes(
-                                                        sha224((prefix + nonce + blockhash)
-                                                               .encode("utf-8")).digest(), 'big')))]
+                                     mining.anneal3_regnet(mining.MMAP, _inner(prefix + nonce + blockhash)))]
                 if possibles:
                     nonce = seed + possibles[0]
                     node.logger.app_log.warning("Generate got a block in {} tries len {}".format(i, len(possibles)))
