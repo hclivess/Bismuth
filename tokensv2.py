@@ -1,10 +1,22 @@
-# operation: token:issue
-# openfield: token_name:total_number
+"""Token (v2) index builder for the Bismuth ledger.
 
-# operation: token:transfer
-# openfield: token_name:amount
+Scans the ``transactions`` table for ``token:issue`` and ``token:transfer``
+operations (encoded in a transaction's ``operation``/``openfield`` columns)
+and maintains a derived ``tokens`` table in the index database. Token
+issuances register a new token name with its total supply; transfers debit
+the sender and credit the recipient, with on-the-fly balance checks so that
+overspends are recorded as no-ops (preventing re-processing) rather than
+applied.
 
-import sqlite3
+This is a derived index only: it never touches the canonical ledger and has
+no effect on consensus. It is rebuilt incrementally from the last anchored
+``block_height`` on every call.
+
+Operation / openfield encoding:
+    token:issue     -> openfield = ``token_name:total_number``
+    token:transfer  -> openfield = ``token_name:amount``
+"""
+
 import log
 from hashlib import blake2b
 

@@ -1,3 +1,15 @@
+"""Legacy alias index builder (``alias=`` openfield convention).
+
+Scans the ledger for transactions whose ``openfield`` starts with ``alias=``
+and records each first-seen ``alias -> address`` mapping in the ``aliases``
+index table. Registrations are processed in block/timestamp order and the
+first claimant of a given alias wins (later duplicates are ignored).
+
+This builds a derived index only and does not affect consensus. It handles the
+older ``alias=<name>`` openfield format; see :mod:`aliasesv2` for the newer
+``alias:register`` operation-based format.
+"""
+
 import log
 
 from essentials import replace_regex  # shared, lru-cached implementation (was duplicated here)

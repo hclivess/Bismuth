@@ -1,3 +1,16 @@
+"""One-shot genesis-block bootstrap script (legacy / historical).
+
+Run as a standalone program, this script creates the very first ("genesis")
+state for a fresh Bismuth chain: it generates an RSA key pair and derived
+address if none exists, signs the genesis transaction, and writes a brand-new
+``static/ledger.db`` plus an empty ``mempool.db`` containing that single
+genesis row. It refuses to do anything if a ledger already exists.
+
+WARNING: this file uses the old wallet structure and is kept for historical /
+reference purposes; there is no need to update it at the moment. It is not
+imported by the running node.
+"""
+
 #WARNING: this file uses the old wallet structure, there is no need to update it at the moment
 
 import hashlib

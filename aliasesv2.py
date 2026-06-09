@@ -1,9 +1,19 @@
-import sqlite3
-import re
-import log
-import functools
+"""Alias index builder (``alias:register`` operation convention).
 
-def aliases_update(node, db_handler_instance): 
+Scans the ledger for transactions whose ``operation`` is ``alias:register``
+and records each first-seen ``alias -> address`` mapping in the ``aliases``
+index table. Registrations are processed in block/timestamp order and the
+first claimant of a given alias wins (later duplicates are ignored).
+
+This builds a derived index only and does not affect consensus. It handles the
+newer operation-based format; see :mod:`aliases` for the older ``alias=<name>``
+openfield-based format.
+"""
+
+import log
+
+
+def aliases_update(node, db_handler_instance):
             
     db_handler_instance.index_cursor.execute("SELECT block_height FROM aliases ORDER BY block_height DESC LIMIT 1;")
     try:
