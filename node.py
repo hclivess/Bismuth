@@ -1319,8 +1319,16 @@ if __name__ == "__main__":
     node.fork_window = config.fork_window          # hf2 signal window / boundary / burial
     node.fork_boundary = config.fork_boundary
     node.fork_bury = config.fork_bury
-    node.fork_height = None                          # cached hf2 activation height (None until locked in)
-    node.pow_fork_height = None                      # cached PoW-fork (blake2b Heavy3) activation (doc/18-D)
+    # hf2 / PoW-fork activation heights: once locked in they are persisted (fork_lockin.json beside the
+    # ledger) so a restart/resync REPLAYS the same height rather than re-deriving one a later signalling
+    # gap could shift. Load any persisted value here; stays None until the chain first locks it in.
+    try:
+        import fork as _fork_persist
+        node.fork_height = _fork_persist.load_locked_height(node.ledger_path, "hf2")
+        node.pow_fork_height = _fork_persist.load_locked_height(node.ledger_path, "pow2")
+    except Exception:
+        node.fork_height = None
+        node.pow_fork_height = None
     node.base_fee = None                             # post-fork dynamic base fee (fee_dynamics), set per block
     node.fee_post_fork = False
     node.rpc_bitcoin = config.rpc_bitcoin            # opt-in bitcoind-compatible JSON-RPC (doc/17)

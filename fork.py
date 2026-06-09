@@ -51,29 +51,106 @@ def next_fork_boundary(height, boundary=FORK2_BOUNDARY):
 
 
 def dynamic_fork_height(read_signal, tip,
-                        window=FORK2_WINDOW, boundary=FORK2_BOUNDARY, bury=FORK2_BURY):
+                        window=FORK2_WINDOW, boundary=FORK2_BOUNDARY, bury=FORK2_BURY,
+                        floor=1):
     """Deterministically derive the activation height from the on-chain signal, or None if not locked.
 
     ``read_signal(height) -> bool``  : did the coinbase at ``height`` carry the marker?
-    Lock-in is the earliest height H that closes a run of ``window`` consecutive signalled blocks; the
-    fork activates at the next ``boundary`` multiple strictly above ``H + bury``. Because the run start
-    is a fixed point in chain history, the result is stable as the chain grows and identical on every
-    node. Cheap until signalling begins (the tip not signalling returns None after one read), and the
-    caller caches the locked-in height so the back-scan runs only until lock-in.
+    Lock-in is the EARLIEST height ``H`` in confirmed history that closes a run of ``window`` consecutive
+    signalled blocks (scanning FORWARD from ``floor``); the fork then activates at the next ``boundary``
+    multiple strictly above ``H + bury``.
+
+    Scanning forward — rather than back-walking the run that happens to touch the tip — makes the result a
+    pure function of confirmed history that is INDEPENDENT of the current tip: a signalling gap that
+    appears AFTER the first completed window cannot move the lock-in, so a node evaluating at tip ``H``
+    and another (or a resync) at tip ``H+500`` compute the IDENTICAL activation height. (The old
+    back-scan keyed off the tip's run start, so a post-activation gap shifted the answer and split the
+    chain.) The caller caches+persists the locked height, so this only runs until lock-in.
     """
     if tip is None or tip < window:
         return None
-    if not read_signal(tip):                       # not signalling at the tip -> not locked (O(1))
+    run = 0
+    start = max(1, int(floor))
+    for h in range(start, int(tip) + 1):            # forward scan: first window completion is the lock-in
+        if read_signal(h):
+            run += 1
+            if run >= window:
+                lock_in = h                         # earliest height closing a full window (tip-independent)
+                return next_fork_boundary(lock_in + bury, boundary)
+        else:
+            run = 0                                 # a gap resets the consecutive count
+    return None
+
+
+# --- Persisted lock-in (consensus determinism) -----------------------------------------------------
+# Once locked in, the activation height is a FACT about confirmed history, not a per-run recomputation.
+# We write it to a tiny sidecar (next to the ledger) the moment it's first determined so a restart or a
+# resync REPLAYS the same height instead of re-deriving one that a later signalling gap could perturb.
+# The reader is forward-scanning (tip-independent) so the persisted value should always agree, but the
+# sidecar makes it authoritative and removes any dependence on which heights are still on disk.
+import json as _json
+import os as _os
+
+LOCKIN_FILENAME = "fork_lockin.json"   # {"hf2": <height>, "pow2": <height>}; absent keys = not yet locked
+
+
+def lockin_path(ledger_path):
+    """The sidecar path: alongside the ledger DB (mirrors balanceindex/vmstate/blockstore placement)."""
+    return _os.path.join(_os.path.dirname(ledger_path) or ".", LOCKIN_FILENAME)
+
+
+def load_locked_height(ledger_path, key):
+    """Return the persisted activation height for ``key`` ('hf2'/'pow2'), or None if never locked.
+    Tolerant: a missing/corrupt sidecar simply means "not locked yet" (the chain re-derives it)."""
+    try:
+        with open(lockin_path(ledger_path), "r") as fh:
+            v = _json.load(fh).get(key)
+        return int(v) if v is not None else None
+    except Exception:
         return None
-    run_start = tip                                 # walk back over the current consecutive-signal run
-    h = tip - 1
-    while h >= 1 and read_signal(h):
-        run_start = h
-        h -= 1
-    if (tip - run_start + 1) < window:              # no full window yet
+
+
+def save_locked_height(ledger_path, key, height):
+    """Persist ``height`` for ``key`` ONCE (first writer wins): never overwrite an already-stored value,
+    so the locked height can't drift across restarts. Best-effort + atomic (temp file + replace)."""
+    if height is None:
+        return
+    path = lockin_path(ledger_path)
+    try:
+        data = {}
+        try:
+            with open(path, "r") as fh:
+                data = _json.load(fh) or {}
+        except Exception:
+            data = {}
+        if data.get(key) is not None:               # already locked -> immutable, leave it
+            return
+        data[key] = int(height)
+        tmp = path + ".tmp"
+        with open(tmp, "w") as fh:
+            _json.dump(data, fh)
+            fh.flush()
+            _os.fsync(fh.fileno())
+        _os.replace(tmp, path)                       # atomic swap so a crash can't leave a half-written file
+    except Exception:
+        pass                                         # persistence is best-effort; the chain still re-derives
+
+
+def lockin_at_tip(read_signal, tip, window=FORK2_WINDOW, boundary=FORK2_BOUNDARY, bury=FORK2_BURY):
+    """O(window) hot-path check: does a full window CLOSE exactly at ``tip``? Returns the activation
+    height if the trailing ``window`` blocks [tip-window+1 .. tip] are ALL signalled, else None.
+
+    For a chain digested block-by-block this fires at the FIRST tip whose trailing window is full, which
+    is exactly the first window completion in history — so it agrees with ``dynamic_fork_height`` but
+    costs a constant ``window`` reads instead of rescanning the whole chain every block. (A node that
+    resyncs PAST a completion relies on the persisted sidecar / a one-time full ``dynamic_fork_height``
+    catch-up, not this.)"""
+    if tip is None or tip < window:
         return None
-    lock_in = run_start + window - 1                # earliest window completion in this run (stable)
-    return next_fork_boundary(lock_in + bury, boundary)
+    for h in range(int(tip) - int(window) + 1, int(tip) + 1):
+        if not read_signal(h):
+            return None
+    return next_fork_boundary(int(tip) + bury, boundary)     # lock_in == tip (window closes here)
 
 
 def db_fork_signal_reader(db_handler):
