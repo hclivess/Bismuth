@@ -13,7 +13,7 @@ config.read()
 node_ip = config.node_ip
 port = config.port
 
-key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_b64encoded, address = essentials.keys_load("privkey.der", "pubkey.der")
+key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_b64encoded, address, keyfile = essentials.keys_load("privkey.der", "pubkey.der")
 
 s = socks.socksocket()
 s.settimeout(10)
