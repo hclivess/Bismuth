@@ -101,7 +101,7 @@ class Mempool(MempoolQueriesMixin):
                                           check_same_thread=False)
                 if self.trace_db_calls:
                     self.db.set_trace_callback(functools.partial(sql_trace_callback,self.app_log,"MEMPOOL-RAM"))
-                self.db.execute('PRAGMA journal_mode = WAL;')
+                self._set_crash_safe_pragmas("MEMPOOL-RAM")
                 self.db.execute("PRAGMA page_size = 4096;")
                 self.db.text_factory = str
                 self.cursor = self.db.cursor()
@@ -113,6 +113,11 @@ class Mempool(MempoolQueriesMixin):
                                           check_same_thread=False)
                 if self.trace_db_calls:
                     self.db.set_trace_callback(functools.partial(sql_trace_callback,self.app_log,"MEMPOOL"))
+                # On-disk mempool: WAL + synchronous=NORMAL so a kill mid-write rolls back to the last
+                # committed txn instead of corrupting mempool.db (a corrupt mempool used to force the
+                # recreate-from-scratch path below on the next boot). The mempool is non-consensus, so
+                # NORMAL is enough; losing un-checkpointed mempool rows on a crash is harmless.
+                self._set_crash_safe_pragmas("MEMPOOL")
                 self.db.text_factory = str
                 self.cursor = self.db.cursor()
 
@@ -127,11 +132,27 @@ class Mempool(MempoolQueriesMixin):
                                               check_same_thread=False)
                     if self.trace_db_calls:
                         self.db.set_trace_callback(functools.partial(sql_trace_callback,self.app_log,"MEMPOOL"))
+                    self._set_crash_safe_pragmas("MEMPOOL")
                     self.db.text_factory = str
                     self.cursor = self.db.cursor()
                     self.execute(SQL_CREATE)
                     self.commit()
                     self.app_log.warning("Status: Recreated mempool file")
+
+    def _set_crash_safe_pragmas(self, name):
+        """WAL + synchronous=NORMAL on the current self.db, with a read-back so we log loudly if WAL
+        did not stick. Durability only — never changes what is stored. (In-memory dbs report 'memory'
+        for journal_mode and that is fine; the WAL request is harmless there and keeps one code path.)"""
+        try:
+            row = self.db.execute("PRAGMA journal_mode = WAL;").fetchone()
+            mode = (row[0] if row else "").lower()
+            if mode not in ("wal", "memory"):
+                self.app_log.warning(
+                    f"DB durability: {name} did NOT enter WAL mode (got '{mode}'); a kill mid-write "
+                    f"may corrupt the mempool and force a recreate on next boot.")
+            self.db.execute("PRAGMA synchronous = NORMAL;")
+        except Exception as e:
+            self.app_log.warning(f"Could not set crash-safe pragmas on {name}: {e}")
 
     def execute(self, sql, param=None, cursor=None):
         """

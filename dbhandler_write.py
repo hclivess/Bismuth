@@ -2,7 +2,36 @@
 Ledger write & rollback operations for ``DbHandler`` (block commit, hyperblock drive flush, dev/hn
 rewards, index rollbacks), split out as a mixin and recombined via
 ``class DbHandler(DbQueriesMixin, DbWriteMixin)``. Amount columns go through ``amounts`` at the
-integer-units storage boundary. Methods are byte-identical to the originals.
+integer-units storage boundary. Method *behaviour* (the bytes written, the SQL, the commit count) is
+unchanged from the originals; the only additions here are the durability/recovery DOCUMENTATION below.
+
+CRASH-RECOVERY CONTRACT — ledger.db is the single source of truth for the on-disk tip
+-------------------------------------------------------------------------------------
+The node keeps the block data in up to three SQLite files with NO atomic cross-DB transaction, so the
+ORDER in which they commit defines what a crash (OOM/SIGKILL/power loss) can leave behind. The order is:
+
+  1. working store  (``self.conn`` / cursor ``self.c``) — hyper.db when ``ram=False`` (live default),
+     or the in-RAM ledger when ``ram=True``. The full block (``to_db`` + the reward/vm mirror rows) is
+     staged and COMMITTED here FIRST, per block, inside the digest.
+  2. ledger.db      (``self.hdd`` / cursor ``self.h``) — the AUTHORITATIVE full on-disk ledger. The
+     staged rows are flushed here in ``db_to_drive`` and COMMITTED LAST (synchronous=FULL).
+        - ram=False: hyper.db already holds the block from step 1, so ``db_to_drive`` writes only
+          ledger.db. Net per-block order: hyper.db first, ledger.db last.
+        - ram=True:  ``db_to_drive`` writes ledger.db (hdd) THEN re-mirrors to hyper.db (hdd2).
+  3. index.db       (``self.index``) — aliases/tokens projection, committed separately.
+
+Because ledger.db commits LAST in the live (ram=False) path, it is the TRAILING store: if a block made
+it into ledger.db, it is guaranteed to already be in hyper.db too. The runtime relies on exactly this —
+``node.hdd_block`` is derived from ledger.db (``block_height_max`` -> ``self.h``), making ledger.db the
+authority for "how far the chain is committed". A crash between commit #1 and commit #2 therefore leaves
+ledger.db AT or BELOW the other stores, never above.
+
+The recovery rule that follows from this ordering: on restart the rollup/index always reconcile DOWN to
+ledger.db's committed tip (the startup reconcile in chain_ops.reconcile_ledger_hyper trims every store
+to the common ``min`` tip, which in the live path is ledger.db). The trimmed-off blocks are simply
+re-downloaded from peers. This module must preserve the "ledger.db commits LAST / is the floor"
+ordering; reordering it (committing ledger.db before the working store) would let ledger.db run AHEAD on
+a crash and break the single-source-of-truth contract above.
 """
 import amounts
 from fork import Fork
@@ -147,11 +176,19 @@ class DbWriteMixin:
         if prepared_transactions:
             self.c.executemany(self.SQL_TO_TRANSACTIONS, prepared_transactions)
 
-        # Single commit for all operations
+        # Commit #1 of the per-block order (see the CRASH-RECOVERY CONTRACT in this module's docstring):
+        # the working store (hyper.db when ram=False, else the RAM ledger) is committed FIRST, BEFORE
+        # db_to_drive flushes to the authoritative ledger.db. ledger.db must stay the trailing/floor tip.
         self.commit(self.conn)
 
     def db_to_drive(self, node):
-        """Optimized version using batch operations"""
+        """Optimized version using batch operations.
+
+        Commit #2 of the per-block order: flush the staged block from the working store to ledger.db
+        (``self.hdd``), the AUTHORITATIVE on-disk tip, and commit it LAST. See this module's docstring
+        for the full crash-recovery contract — on a crash between to_db's commit and this one, ledger.db
+        ends up at-or-below the working/hyper tip, and the startup reconcile trims everything DOWN to it.
+        """
         try:
             if node.is_regnet:
                 node.hdd_block = node.last_block
@@ -175,7 +212,11 @@ class DbWriteMixin:
                               (node.hdd_block, ))
             result2 = self.c.fetchall()
 
-            # Batch insert transactions
+            # Batch insert transactions. ledger.db (self.hdd) is committed here; in ram=False (the live
+            # default) hyper.db already has this block from to_db, so only ledger.db is written and it
+            # is the LAST commit for the block (the floor tip). In ram=True the working store is the RAM
+            # ledger, so hyper.db (self.hdd2) is re-mirrored from ledger.db right after — keep ledger.db
+            # FIRST here so it is never behind hyper.db on disk.
             if result1:
                 self.h.executemany(self.SQL_TO_TRANSACTIONS, result1)
                 self.commit(self.hdd)

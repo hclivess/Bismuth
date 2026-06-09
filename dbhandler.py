@@ -66,7 +66,6 @@ class DbHandler(DbQueriesMixin, DbWriteMixin):
 
         if self.trace_db_calls:
             self.conn.set_trace_callback(functools.partial(sql_trace_callback,self.logger.app_log,"CONN"))
-        self.conn.execute('PRAGMA journal_mode = WAL;')
         self.conn.execute('PRAGMA case_sensitive_like = 1;')
         self.conn.text_factory = str
         self.c = self.conn.cursor()
@@ -74,14 +73,64 @@ class DbHandler(DbQueriesMixin, DbWriteMixin):
         self.SQL_TO_TRANSACTIONS = "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"
         self.SQL_TO_MISC = "INSERT INTO misc VALUES (?,?)"
 
-        # Apply performance optimizations to all connections
+        # Apply crash-safety + performance pragmas to every connection (WAL, synchronous, …). This is
+        # the SINGLE place journal_mode/synchronous are set, so no store the node opens can be left
+        # without them (the per-connection WAL on self.conn above used to be the only one).
         self._optimize_connections()
 
+    def _set_crash_safe_pragmas(self, conn, name, synchronous):
+        """Make one SQLite connection crash-safe.
+
+        WAL + a non-OFF `synchronous` is what gives us "a SIGKILL/OOM mid-write rolls back cleanly to
+        the last COMMITTED transaction instead of leaving a torn/half-written page". WAL also lets a
+        reader (the API, the startup reconcile) see the last committed state while a writer is mid txn.
+
+        `synchronous`:
+          * FULL   for the authoritative ledger (ledger.db / self.hdd) — fsync the WAL on every commit
+                   so an acknowledged block survives a power cut, not just a process kill.
+          * NORMAL elsewhere (index / hyper / working) — fsync only at checkpoint; a crash can still
+                   only lose whole un-checkpointed transactions, never tear one, and these stores are
+                   re-derivable / reconciled DOWN to ledger.db on restart anyway.
+
+        We read journal_mode BACK and log loudly if it did not stick (e.g. an OS that refuses WAL on a
+        network filesystem silently falls back to the old rollback journal), because the whole
+        durability contract depends on it actually being WAL. (An in-memory store — the ram=True working
+        ledger — legitimately reports 'memory' and cannot use WAL; that is expected, not a failure.)
+
+        This changes ONLY durability/journaling — never which bytes get written.
+        """
+        try:
+            row = conn.execute("PRAGMA journal_mode = WAL;").fetchone()
+            mode = (row[0] if row else "").lower()
+            if mode not in ("wal", "memory"):
+                self.logger.app_log.warning(
+                    f"DB durability: {name} did NOT enter WAL mode (got '{mode}'); crash-safety is "
+                    f"degraded — an unclean kill may leave this store torn.")
+            conn.execute(f"PRAGMA synchronous = {synchronous};")
+        except Exception as e:
+            self.logger.app_log.warning(f"Could not set crash-safe pragmas on {name}: {e}")
+
     def _optimize_connections(self):
-        """Apply SQLite performance optimizations to all connections"""
+        """Apply crash-safety (WAL + synchronous) and performance pragmas to all connections.
+
+        Crash-safety is applied to EVERY store the node opens (index, ledger, hyper, working) so an
+        OOM/SIGKILL mid-write rolls the killed transaction back rather than corrupting the file. The
+        ledger (self.hdd / ledger.db) is the authoritative tip, so it gets synchronous=FULL; the others
+        get NORMAL (still tear-proof under WAL, just weaker against a power cut, and they reconcile DOWN
+        to the ledger on restart).
+        """
+        # (connection, log-name, synchronous level). self.conn aliases hyper.db (ram=False) or the RAM
+        # ledger (ram=True), so it shares the working/hyper durability level.
+        for conn, name, synchronous in (
+            (self.index, "index.db", "NORMAL"),
+            (self.hdd, "ledger.db", "FULL"),
+            (self.hdd2, "hyper.db", "NORMAL"),
+            (self.conn, "working", "NORMAL"),
+        ):
+            self._set_crash_safe_pragmas(conn, name, synchronous)
+
         for conn in [self.index, self.hdd, self.hdd2, self.conn]:
             try:
-                conn.execute("PRAGMA synchronous = NORMAL")  # Faster than FULL
                 conn.execute("PRAGMA cache_size = -64000")  # 64MB cache
                 conn.execute("PRAGMA temp_store = MEMORY")
                 conn.execute("PRAGMA mmap_size = 536870912")  # 512MB memory-mapped I/O
