@@ -176,6 +176,14 @@ class Get:
         # print(self.__dict__)
 
     def read(self):
+        # config.txt is gitignored (it holds the node's live/local settings, incl. rest_api). If it has
+        # gone missing -- e.g. a git checkout / worktree switch removed it -- auto-restore it from the
+        # tracked config.txt.example template, so a missing config can't crash-loop the node at startup
+        # (the FileNotFoundError edge exposed during the v4.5.0.x DB-resilience work).
+        if not path.exists("config.txt") and path.exists("config.txt.example"):
+            import shutil
+            shutil.copyfile("config.txt.example", "config.txt")
+            print("config.txt was missing -- restored it from config.txt.example")
         # first of all, load from default config so we have all needed params
         self.load_file("config.txt")
         # then override with optional custom config (the regnet test harness drops in config_custom.txt).
