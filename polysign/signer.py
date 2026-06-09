@@ -92,6 +92,26 @@ class Signer(ABC):
         return cls._address_versions.get(subtype, cls._address_versions.get(subtype.MAINNET_REGULAR, b'\x00'))
 
     @classmethod
+    def subtype_for_address(cls, address: str,
+                            default: SignerSubType = SignerSubType.MAINNET_REGULAR) -> SignerSubType:
+        """Reverse of ``address_version_for_subtype``: recover the subtype (mainnet/testnet/…) from an
+        address by matching its leading version bytes against this signer's ``_address_versions``. Used
+        when rebuilding an address from a pubkey to VERIFY it — the rebuild must use the SAME network
+        subtype the address was minted with, or a testnet address would never match a mainnet rebuild.
+        Falls back to ``default`` for an unknown/undecodable prefix (preserving the old mainnet default)."""
+        try:
+            import base58
+            decoded = base58.b58decode(address)
+        except Exception:
+            return default
+        # longest version prefix first, so a more specific match wins over any prefix overlap
+        for subtype, version in sorted(cls._address_versions.items(),
+                                       key=lambda kv: len(kv[1]), reverse=True):
+            if version and decoded[:len(version)] == version:
+                return subtype
+        return default
+
+    @classmethod
     @abstractmethod
     def verify_signature(cls, signature: Union[bytes, str], public_key: Union[bytes, str], buffer: bytes,
                          address: str=''):

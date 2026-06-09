@@ -113,7 +113,9 @@ class SignerSECP256R1(Signer):
             pub.verify(signature, buffer, ec.ECDSA(hashes.SHA256()))
         except (InvalidSignature, ValueError) as e:
             raise ValueError(f"Invalid secp256r1 signature from {address}: {e}")
-        rebuilt = cls.public_key_to_address(public_key)
+        # rebuild with the SAME network subtype the address carries (its version bytes), so a testnet
+        # address verifies against a testnet rebuild instead of always failing a hard-coded mainnet one.
+        rebuilt = cls.public_key_to_address(public_key, cls.subtype_for_address(address))
         if address and address != rebuilt:
             raise ValueError(f"Attempt to spend from a wrong address {address} instead of {rebuilt}")
 

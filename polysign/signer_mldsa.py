@@ -105,7 +105,9 @@ class _SignerMLDSABase(Signer):
             public_key = bytes.fromhex(public_key)
         if not cls._ml_dsa.verify(public_key, buffer, signature):
             raise ValueError(f"Invalid {cls._level_name} signature from {address}")
-        rebuilt = cls.public_key_to_address(public_key)
+        # rebuild with the SAME network subtype the address carries (its version bytes), so a testnet
+        # address verifies against a testnet rebuild instead of always failing a hard-coded mainnet one.
+        rebuilt = cls.public_key_to_address(public_key, cls.subtype_for_address(address))
         if address and address != rebuilt:
             raise ValueError(f"Attempt to spend from a wrong address {address} instead of {rebuilt}")
 

@@ -185,3 +185,54 @@ def test_new_address_version_prefixes_are_distinct():
     assert len(versions) == len(types)               # all four prefixes are distinct
     for v in versions:
         assert len(v) == 4
+
+
+# --------------------------------------------------------------------------- M4: testnet-subtype verify
+
+# every family that defines a TESTNET address version (a self-identifying testnet prefix)
+_TESTNET_TYPES = [SignerType.MLDSA44, SignerType.MLDSA65, SignerType.MLDSA87, SignerType.SECP256R1]
+
+
+@pytest.mark.parametrize("signer_type", _TESTNET_TYPES)
+def test_testnet_subtype_address_verifies(signer_type):
+    """M4 regression: verify_signature rebuilds the address from the pubkey to check it. It must use the
+    subtype the address was MINTED with (read from its version bytes), not a hard-coded MAINNET subtype —
+    otherwise a TESTNET address never matches the rebuild and verification always fails."""
+    pytest.importorskip("dilithium_py")
+    pytest.importorskip("cryptography")
+    from polysign.signer import SignerSubType
+    cls = signer_for_type(signer_type)
+    s = cls()
+    s.from_seed("bismuth-testnet-seed", subtype=SignerSubType.TESTNET_REGULAR)
+    addr = s.address()
+    # the address really is a testnet one (its prefix maps back to TESTNET_REGULAR)
+    assert cls.subtype_for_address(addr) == SignerSubType.TESTNET_REGULAR
+    assert addr != cls.public_key_to_address(_pubkey_bytes(s))   # differs from the mainnet rebuild (the bug)
+    msg = b"testnet spend"
+    sig = s.sign_buffer_raw(msg)
+    cls.verify_signature(sig, _pubkey_bytes(s), msg, address=addr)   # must NOT raise (was always failing)
+
+
+@pytest.mark.parametrize("signer_type", _TESTNET_TYPES)
+def test_wrong_testnet_address_still_rejected(signer_type):
+    """The subtype-aware rebuild must not weaken the check: a valid sig claimed against a DIFFERENT
+    testnet address (same network) is still rejected."""
+    pytest.importorskip("dilithium_py")
+    pytest.importorskip("cryptography")
+    from polysign.signer import SignerSubType
+    cls = signer_for_type(signer_type)
+    s = cls(); s.from_seed("seed-a", subtype=SignerSubType.TESTNET_REGULAR)
+    other = cls(); other.from_seed("seed-b", subtype=SignerSubType.TESTNET_REGULAR)
+    msg = b"x"
+    sig = s.sign_buffer_raw(msg)
+    with pytest.raises(ValueError):
+        cls.verify_signature(sig, _pubkey_bytes(s), msg, address=other.address())
+
+
+def test_subtype_for_address_unknown_prefix_defaults_mainnet():
+    """An undecodable/unknown address falls back to the historical MAINNET default (no crash)."""
+    pytest.importorskip("dilithium_py")
+    from polysign.signer import SignerSubType
+    cls = signer_for_type(SignerType.MLDSA65)
+    assert cls.subtype_for_address("not-a-valid-base58-0OIl") == SignerSubType.MAINNET_REGULAR
+    assert cls.subtype_for_address("") == SignerSubType.MAINNET_REGULAR
