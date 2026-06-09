@@ -1,3 +1,29 @@
+"""Central mutable state object for the Bismuth node.
+
+A single :class:`Node` instance is created at process start (``node.py``:
+``node = node.Node()``) and threaded through essentially every subsystem -
+connection handlers, the digest/validation path, mempool, miner, peers,
+the REST/RPC servers and the various DB handlers. Rather than passing dozens of
+parameters around, those modules read and mutate fields on this shared object
+(e.g. ``node.last_block``, ``node.peers``, ``node.db_lock``, ``node.IS_STOPPING``).
+
+The attributes are deliberately initialised to ``None``/placeholder values here
+and filled in later:
+
+    * configuration fields (``port``, ``ledger_path``, ``ram`` ...) are copied
+      from the parsed ``options.Get()`` config in ``node.py`` after construction;
+    * runtime fields (``last_block``, ``difficulty``, ``last_block_timestamp`` ...)
+      are updated as the chain advances;
+    * the holder objects ``logger``, ``keys`` and ``peers`` are assigned their
+      ``libs.logger.Logger`` / ``libs.keys.Keys`` / peers-handler instances at
+      startup.
+
+IMPORTANT: many further attributes are attached to the instance dynamically by
+other modules (``node.log_color``, ``node.fork_height``, ``node.block_store``,
+``node.vm_state`` ...). For that reason this class must stay open - do NOT add
+``__slots__`` or otherwise restrict attribute assignment.
+"""
+
 import threading
 import queue
 import sys
@@ -5,11 +31,57 @@ import platform
 
 
 class Node:
-    def platform(self):
+    """Shared, mutable node state. See module docstring for the overall role.
+
+    The attribute groups (in ``__init__`` order) are:
+
+    Core services / handles:
+        logger: ``libs.logger.Logger`` holder (its ``app_log`` is the logger).
+        db_lock (threading.Lock): serialises writes across ledger.db/hyper.db.
+        plugin_manager: the loaded plugin manager, if any.
+        peers: the peers handler (peer list, consensus, reputation).
+        apihandler: the legacy API handler instance.
+        keys: ``libs.keys.Keys`` holder for the wallet key material.
+        q (queue.Queue): generic inter-thread work queue.
+
+    Versioning / lifecycle:
+        app_version, version, version_allow: node + protocol version strings.
+        startup_time: process start timestamp.
+        IS_STOPPING (bool): set True to request a graceful shutdown.
+        syncing (list): tracks in-progress sync peers.
+        checkpoint (int): last checkpoint height.
+
+    Network mode (exactly one is True at runtime):
+        is_testnet, is_regnet, is_mainnet (bool).
+
+    Chain head (HDD vs RAM differ in ram mode):
+        hdd_block, hdd_hash: head as persisted on disk.
+        last_block, last_block_hash: head as known in memory.
+        last_block_timestamp, last_block_ago: timing of the head block.
+        difficulty: current difficulty tuple/value.
+
+    Filesystem / DB paths:
+        hyper_path, ledger_path, ledger_ram_file, index_db,
+        peerfile, peerfile_suggested, ledger_temp, hyper_temp.
+        hyper_recompress, recompress: hyperblock recompression flags.
+
+    Config-derived runtime options (copied from ``options.Get()``):
+        debug_level, port, verify, thread_limit, rebuild_db, debug, pause,
+        tor, ram, reveal_address, terminal_output, log_color, egress, genesis,
+        accept_peers.
+
+    Environment:
+        py_version (int): packed major/minor/micro of the running interpreter.
+        linux (bool | None): True on Linux (see :meth:`platform`), else None.
+    """
+
+    def platform(self) -> bool:
+        # Returns True on Linux; otherwise falls off the end and returns None
+        # (the implicit return is intentional and relied upon by ``self.linux``).
         if "Linux" in platform.system():
             return True
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.logger = None
         self.db_lock = threading.Lock()
         self.app_version = None
