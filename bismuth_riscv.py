@@ -209,20 +209,92 @@ def execute(code, calldata=b"", caller=0, callvalue=0, storage=None, gas_limit=1
 
 
 # --- tiny assembler (tests / tooling, NOT consensus) -----------------------------------------------
-def addi(rd, rs1, imm):  return (((imm & 0xFFF) << 20) | (rs1 << 15) | (rd << 7) | 0x13)
-def add(rd, rs1, rs2):   return ((rs2 << 20) | (rs1 << 15) | (rd << 7) | 0x33)
-def sub(rd, rs1, rs2):   return ((0x20 << 25) | (rs2 << 20) | (rs1 << 15) | (rd << 7) | 0x33)
+# Pure instruction-WORD encoders: they only build bytecode that the consensus execute() above decodes;
+# they never touch consensus state. The contracts in contracts/ (and asmtools' label layer) author RV32I
+# through these. Every encoder here corresponds to a path execute() already implements (verified 1:1).
+
+# I-type ALU (op 0x13): rd = rs1 OP imm
+def addi(rd, rs1, imm):  return (((imm & 0xFFF) << 20) | (rs1 << 15) | (0x0 << 12) | (rd << 7) | 0x13)
+def slti(rd, rs1, imm):  return (((imm & 0xFFF) << 20) | (rs1 << 15) | (0x2 << 12) | (rd << 7) | 0x13)
+def sltiu(rd, rs1, imm): return (((imm & 0xFFF) << 20) | (rs1 << 15) | (0x3 << 12) | (rd << 7) | 0x13)
+def xori(rd, rs1, imm):  return (((imm & 0xFFF) << 20) | (rs1 << 15) | (0x4 << 12) | (rd << 7) | 0x13)
+def ori(rd, rs1, imm):   return (((imm & 0xFFF) << 20) | (rs1 << 15) | (0x6 << 12) | (rd << 7) | 0x13)
+def andi(rd, rs1, imm):  return (((imm & 0xFFF) << 20) | (rs1 << 15) | (0x7 << 12) | (rd << 7) | 0x13)
+def slli(rd, rs1, sh):   return (((sh & 0x1F) << 20) | (rs1 << 15) | (0x1 << 12) | (rd << 7) | 0x13)
+def srli(rd, rs1, sh):   return (((sh & 0x1F) << 20) | (rs1 << 15) | (0x5 << 12) | (rd << 7) | 0x13)
+def srai(rd, rs1, sh):   return ((0x20 << 25) | ((sh & 0x1F) << 20) | (rs1 << 15) | (0x5 << 12) | (rd << 7) | 0x13)
+
+# R-type (op 0x33): rd = rs1 OP rs2
+def add(rd, rs1, rs2):   return ((rs2 << 20) | (rs1 << 15) | (0x0 << 12) | (rd << 7) | 0x33)
+def sub(rd, rs1, rs2):   return ((0x20 << 25) | (rs2 << 20) | (rs1 << 15) | (0x0 << 12) | (rd << 7) | 0x33)
+def sll(rd, rs1, rs2):   return ((rs2 << 20) | (rs1 << 15) | (0x1 << 12) | (rd << 7) | 0x33)
+def slt(rd, rs1, rs2):   return ((rs2 << 20) | (rs1 << 15) | (0x2 << 12) | (rd << 7) | 0x33)
+def sltu(rd, rs1, rs2):  return ((rs2 << 20) | (rs1 << 15) | (0x3 << 12) | (rd << 7) | 0x33)
+def xor_(rd, rs1, rs2):  return ((rs2 << 20) | (rs1 << 15) | (0x4 << 12) | (rd << 7) | 0x33)
+def srl(rd, rs1, rs2):   return ((rs2 << 20) | (rs1 << 15) | (0x5 << 12) | (rd << 7) | 0x33)
+def sra(rd, rs1, rs2):   return ((0x20 << 25) | (rs2 << 20) | (rs1 << 15) | (0x5 << 12) | (rd << 7) | 0x33)
+def or_(rd, rs1, rs2):   return ((rs2 << 20) | (rs1 << 15) | (0x6 << 12) | (rd << 7) | 0x33)
+def and_(rd, rs1, rs2):  return ((rs2 << 20) | (rs1 << 15) | (0x7 << 12) | (rd << 7) | 0x33)
+
+# loads (op 0x03): rd = mem[rs1+imm]
+def lb(rd, rs1, imm):    return (((imm & 0xFFF) << 20) | (rs1 << 15) | (0x0 << 12) | (rd << 7) | 0x03)
+def lh(rd, rs1, imm):    return (((imm & 0xFFF) << 20) | (rs1 << 15) | (0x1 << 12) | (rd << 7) | 0x03)
+def lw(rd, rs1, imm):    return (((imm & 0xFFF) << 20) | (rs1 << 15) | (0x2 << 12) | (rd << 7) | 0x03)
+def lbu(rd, rs1, imm):   return (((imm & 0xFFF) << 20) | (rs1 << 15) | (0x4 << 12) | (rd << 7) | 0x03)
+def lhu(rd, rs1, imm):   return (((imm & 0xFFF) << 20) | (rs1 << 15) | (0x5 << 12) | (rd << 7) | 0x03)
+
+# stores (op 0x23, S-type imm): mem[rs1+imm] = rs2
+def sb(rs2, rs1, imm):   return _s_type(rs1, rs2, imm, 0x0)
+def sh(rs2, rs1, imm):   return _s_type(rs1, rs2, imm, 0x1)
+def sw(rs2, rs1, imm):   return _s_type(rs1, rs2, imm, 0x2)
+
+# branches (op 0x63, B-type imm): if (rs1 OP rs2) pc += imm
 def beq(rs1, rs2, imm):  return _b_type(rs1, rs2, imm, 0)
 def bne(rs1, rs2, imm):  return _b_type(rs1, rs2, imm, 1)
-def lw(rd, rs1, imm):    return (((imm & 0xFFF) << 20) | (rs1 << 15) | (0x2 << 12) | (rd << 7) | 0x03)
+def blt(rs1, rs2, imm):  return _b_type(rs1, rs2, imm, 4)
+def bge(rs1, rs2, imm):  return _b_type(rs1, rs2, imm, 5)
+def bltu(rs1, rs2, imm): return _b_type(rs1, rs2, imm, 6)
+def bgeu(rs1, rs2, imm): return _b_type(rs1, rs2, imm, 7)
+
+# upper-immediate / jumps
 def lui(rd, imm20):      return (((imm20 & 0xFFFFF) << 12) | (rd << 7) | 0x37)
+def auipc(rd, imm20):    return (((imm20 & 0xFFFFF) << 12) | (rd << 7) | 0x17)
+def jal(rd, imm):        return _j_type(rd, imm)
+def jalr(rd, rs1, imm):  return (((imm & 0xFFF) << 20) | (rs1 << 15) | (0x0 << 12) | (rd << 7) | 0x67)
 def ecall():             return 0x00000073
+
+
+def li(rd, imm):
+    """Pseudo-op: load a full 32-bit `imm` into rd as (lui, addi), accounting for addi's sign-extension
+    of the low 12 bits (carry into the upper 20). Returns 1 or 2 instruction words."""
+    imm &= WMASK
+    lo = imm & 0xFFF
+    hi = (imm >> 12) & 0xFFFFF
+    if lo >= 0x800:                       # addi sign-extends bit 11 -> bump the upper part to compensate
+        hi = (hi + 1) & 0xFFFFF
+        lo -= 0x1000                      # negative low (two's-complement 12-bit)
+    if hi == 0:                           # fits in a single addi from x0
+        return [addi(rd, 0, lo)]
+    if lo == 0:
+        return [lui(rd, hi)]
+    return [lui(rd, hi), addi(rd, rd, lo)]
+
+
+def _s_type(rs1, rs2, imm, f3):
+    i = imm & 0xFFF
+    return (((i >> 5) << 25) | (rs2 << 20) | (rs1 << 15) | (f3 << 12) | ((i & 0x1F) << 7) | 0x23)
 
 
 def _b_type(rs1, rs2, imm, f3):
     i = imm & 0x1FFF
     return ((((i >> 12) & 1) << 31) | (((i >> 5) & 0x3F) << 25) | (rs2 << 20) | (rs1 << 15) |
             (f3 << 12) | (((i >> 1) & 0xF) << 8) | (((i >> 11) & 1) << 7) | 0x63)
+
+
+def _j_type(rd, imm):
+    i = imm & 0x1FFFFF
+    return ((((i >> 20) & 1) << 31) | (((i >> 1) & 0x3FF) << 21) | (((i >> 11) & 1) << 20) |
+            (((i >> 12) & 0xFF) << 12) | (rd << 7) | 0x6F)
 
 
 def asm(*insts):

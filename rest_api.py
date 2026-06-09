@@ -232,6 +232,8 @@ def _make_handler(node):
                     return self._write(200, self._vm_contracts())
                 if route[:2] == ["vm", "contract"] and len(route) == 3:
                     return self._write(200, self._vm_contract(route[2]))
+                if route[:2] == ["vm", "market"] and len(route) == 3:
+                    return self._write(200, self._vm_market(route[2]))
                 if route == ["fee"]:
                     return self._write(200, self._fee())
                 if route == ["capabilities"]:
@@ -423,6 +425,36 @@ def _make_handler(node):
             return {"address": addr, "engine": vm_engine.ENGINE_NAME, "code": body.hex(), "code_size": len(body),
                     "balance": str(vms.get_balance(addr)),   # BIS custody held by the contract (units)
                     "slots": len(storage), "storage": storage}
+
+        def _vm_market(self, addr):
+            """Read-only DECODER for the binary prediction-market contract (contracts/prediction_market.py)
+            so a UI doesn't need to know the slot layout. Consensus-neutral: it only re-reads the same
+            committed VM state /api/vm/contract exposes, mapping the fixed slots to named fields:
+              slot 1 = resolved (0/1), 2 = outcome (1=YES,2=NO), 3 = yes_pot units, 4 = no_pot units.
+            'pot' is the contract's live custody balance. Implied odds are pool-share percentages. Returns
+            404 only if the VM is off or the contract is unknown; any contract is decodable (the caller is
+            responsible for pointing at an actual market — fields are simply 0 for a non-market contract)."""
+            vms = getattr(node, "vm_state", None)
+            if vms is None:
+                raise _NotFound("vm not enabled")
+            if vms.get_code(addr) is None:
+                raise _NotFound("unknown contract")
+            slots = dict(vms.load_storage(addr))          # {int_key: int_val}
+            S_RESOLVED, S_OUTCOME, S_YESPOT, S_NOPOT = 1, 2, 3, 4
+            yes_pot = int(slots.get(S_YESPOT, 0))
+            no_pot = int(slots.get(S_NOPOT, 0))
+            resolved = int(slots.get(S_RESOLVED, 0))
+            outcome = int(slots.get(S_OUTCOME, 0))
+            total = yes_pot + no_pot
+            yes_odds = round(100.0 * yes_pot / total, 2) if total else 0.0
+            no_odds = round(100.0 * no_pot / total, 2) if total else 0.0
+            return {"address": addr,
+                    "yes_pot": str(yes_pot), "no_pot": str(no_pot),
+                    "pot": str(vms.get_balance(addr)),         # live custody (units) = claimable pool
+                    "resolved": bool(resolved),
+                    "outcome": outcome,                        # 0 unresolved, 1 YES, 2 NO
+                    "outcome_label": {1: "YES", 2: "NO"}.get(outcome, ""),
+                    "yes_odds": yes_odds, "no_odds": no_odds}  # implied probability, % of the pool
 
         def _supply(self, db):
             """Circulating supply = mining emission (sum(reward)-sum(fee) over positive heights) + the
