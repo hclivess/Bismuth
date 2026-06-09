@@ -39,3 +39,4 @@ ledger_queries.py
 # operational scratch from mainnet bring-up / sync diagnostics (not part of the node)
 _start_mainnet.sh
 _restart.pid
+config.txt

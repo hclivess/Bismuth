@@ -30,3 +30,7 @@ mempool_ram=True
 egress=True
 trace_db_calls=False
 heavy3_path=./heavy3a.bin
+
+# Modern parallel REST API (doc/15) — enable for the explorer / JSON API
+rest_api=True
+rest_api_port=5659
