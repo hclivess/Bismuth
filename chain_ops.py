@@ -419,91 +419,95 @@ def sequencing_check(node, db_handler):
             conn.set_trace_callback(functools.partial(sql_trace_callback,node.logger.app_log,"SEQUENCE-CHECK-CHAIN"))
         c = conn.cursor()
 
-        # perform test on transaction table
-        y = None
-        # Egg: not sure block_height != (0 OR 1)  gives the proper result, 0 or 1  = 1. not in (0, 1) could be better.
-        for row in c.execute(
-                "SELECT block_height FROM transactions WHERE reward != 0 AND block_height > 1 AND block_height >= ? ORDER BY block_height ASC",
-                (sequencing_last,)):
-            y_init = row[0]
+        # try/finally so a SQL error or a failing index rollback in the loop below can't leak this
+        # per-chain connection (a leaked handle keeps the ledger file locked, notably on Windows).
+        try:
+            # perform test on transaction table
+            y = None
+            # Egg: not sure block_height != (0 OR 1)  gives the proper result, 0 or 1  = 1. not in (0, 1) could be better.
+            for row in c.execute(
+                    "SELECT block_height FROM transactions WHERE reward != 0 AND block_height > 1 AND block_height >= ? ORDER BY block_height ASC",
+                    (sequencing_last,)):
+                y_init = row[0]
 
-            if y is None:
-                y = y_init
+                if y is None:
+                    y = y_init
 
-            if row[0] != y:
+                if row[0] != y:
 
-                for chain2 in chains_to_check:
-                    conn2 = sqlite3.connect(chain2)
-                    if node.trace_db_calls:
-                        conn2.set_trace_callback(functools.partial(sql_trace_callback,node.logger.app_log,"SEQUENCE-CHECK-CHAIN2"))
-                    c2 = conn2.cursor()
-                    node.logger.app_log.warning(f"Status: Chain {chain} transaction sequencing error at: {row[0]}. {row[0]} instead of {y}")
-                    c2.execute("DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?", (row[0], -row[0],))
-                    conn2.commit()
-                    c2.execute("DELETE FROM misc WHERE block_height >= ?", (row[0],))
-                    conn2.commit()
+                    for chain2 in chains_to_check:
+                        conn2 = sqlite3.connect(chain2)
+                        if node.trace_db_calls:
+                            conn2.set_trace_callback(functools.partial(sql_trace_callback,node.logger.app_log,"SEQUENCE-CHECK-CHAIN2"))
+                        c2 = conn2.cursor()
+                        node.logger.app_log.warning(f"Status: Chain {chain} transaction sequencing error at: {row[0]}. {row[0]} instead of {y}")
+                        c2.execute("DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?", (row[0], -row[0],))
+                        conn2.commit()
+                        c2.execute("DELETE FROM misc WHERE block_height >= ?", (row[0],))
+                        conn2.commit()
 
-                    # rollback indices
-                    db_handler.tokens_rollback(node, y)
-                    db_handler.aliases_rollback(node, y)
+                        # rollback indices
+                        db_handler.tokens_rollback(node, y)
+                        db_handler.aliases_rollback(node, y)
 
-                    # rollback indices
+                        # rollback indices
 
-                    node.logger.app_log.warning(f"Status: Due to a sequencing issue at block {y}, {chain} has been rolled back and will be resynchronized")
-                    conn2.close()  # don't leak this connection (the misc-error branch below already closes its conn2)
-                break
+                        node.logger.app_log.warning(f"Status: Due to a sequencing issue at block {y}, {chain} has been rolled back and will be resynchronized")
+                        conn2.close()  # don't leak this connection (the misc-error branch below already closes its conn2)
+                    break
 
-            y = y + 1
+                y = y + 1
 
-        # perform test on misc table
-        y = None
+            # perform test on misc table
+            y = None
 
-        for row in c.execute("SELECT block_height FROM misc WHERE block_height > ? ORDER BY block_height ASC",
-                             (300000,)):
-            y_init = row[0]
+            for row in c.execute("SELECT block_height FROM misc WHERE block_height > ? ORDER BY block_height ASC",
+                                 (300000,)):
+                y_init = row[0]
 
-            if y is None:
-                y = y_init
-                # print("assigned")
-                # print(row[0], y)
+                if y is None:
+                    y = y_init
+                    # print("assigned")
+                    # print(row[0], y)
 
-            if row[0] != y:
-                # print(row[0], y)
-                for chain2 in chains_to_check:
-                    conn2 = sqlite3.connect(chain2)
-                    if node.trace_db_calls:
-                        conn2.set_trace_callback(functools.partial(sql_trace_callback,node.logger.app_log,"SEQUENCE-CHECK-CHAIN2B"))
-                    c2 = conn2.cursor()
-                    node.logger.app_log.warning(
-                        f"Status: Chain {chain} difficulty sequencing error at: {row[0]}. {row[0]} instead of {y}")
-                    c2.execute("DELETE FROM transactions WHERE block_height >= ?", (row[0],))
-                    conn2.commit()
-                    c2.execute("DELETE FROM misc WHERE block_height >= ?", (row[0],))
-                    conn2.commit()
+                if row[0] != y:
+                    # print(row[0], y)
+                    for chain2 in chains_to_check:
+                        conn2 = sqlite3.connect(chain2)
+                        if node.trace_db_calls:
+                            conn2.set_trace_callback(functools.partial(sql_trace_callback,node.logger.app_log,"SEQUENCE-CHECK-CHAIN2B"))
+                        c2 = conn2.cursor()
+                        node.logger.app_log.warning(
+                            f"Status: Chain {chain} difficulty sequencing error at: {row[0]}. {row[0]} instead of {y}")
+                        c2.execute("DELETE FROM transactions WHERE block_height >= ?", (row[0],))
+                        conn2.commit()
+                        c2.execute("DELETE FROM misc WHERE block_height >= ?", (row[0],))
+                        conn2.commit()
 
-                    db_handler.execute_param(conn2, (
-                        'DELETE FROM transactions WHERE address = "Development Reward" AND block_height <= ?'),
-                                             (-row[0],))
-                    conn2.commit()
+                        db_handler.execute_param(conn2, (
+                            'DELETE FROM transactions WHERE address = "Development Reward" AND block_height <= ?'),
+                                                 (-row[0],))
+                        conn2.commit()
 
-                    db_handler.execute_param(conn2, (
-                        'DELETE FROM transactions WHERE address = "Hypernode Payouts" AND block_height <= ?'),
-                                             (-row[0],))
-                    conn2.commit()
-                    conn2.close()
+                        db_handler.execute_param(conn2, (
+                            'DELETE FROM transactions WHERE address = "Hypernode Payouts" AND block_height <= ?'),
+                                                 (-row[0],))
+                        conn2.commit()
+                        conn2.close()
 
-                    # rollback indices
-                    db_handler.tokens_rollback(node, y)
-                    db_handler.aliases_rollback(node, y)
-                    # rollback indices
+                        # rollback indices
+                        db_handler.tokens_rollback(node, y)
+                        db_handler.aliases_rollback(node, y)
+                        # rollback indices
 
-                    node.logger.app_log.warning(f"Status: Due to a sequencing issue at block {y}, {chain} has been rolled back and will be resynchronized")
-                break
+                        node.logger.app_log.warning(f"Status: Due to a sequencing issue at block {y}, {chain} has been rolled back and will be resynchronized")
+                    break
 
-            y = y + 1
+                y = y + 1
 
-        node.logger.app_log.warning(f"Status: Chain sequencing test complete for {chain}")
-        conn.close()
+            node.logger.app_log.warning(f"Status: Chain sequencing test complete for {chain}")
+        finally:
+            conn.close()
 
         if y:
             with open("sequencing_last", 'w') as filename:
