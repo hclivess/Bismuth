@@ -54,14 +54,20 @@ def _deploy(state, openfield, signature):
 
 def _call(state, openfield, signature, sender, recipient, amount_units, block_height):
     """Execute one vm:call. Returns the payouts [(to_addr, amount_units)] it queued."""
+    deposit = 0
+    addr = None
     try:
         parts = (openfield or "").split(":", 1)
         addr = parts[0].strip()
         calldata = bytes.fromhex(parts[1].strip()) if len(parts) > 1 and parts[1].strip() else b""
         stored = state.get_code(addr)
         if not stored:
-            return []
-        # DEPOSIT: value carried to the custody sink funds this contract (the ledger already moved it).
+            # No such contract -> nothing executes. A value-bearing call must NOT keep the BIS the ledger
+            # already moved to the sink (it would be unowned), so refund the sender.
+            dep = int(amount_units or 0) if recipient == VM_SINK else 0
+            return [(str(sender), dep)] if dep else []
+        # DEPOSIT: value carried to the custody sink funds this contract (the ledger already moved it). Credit
+        # custody BEFORE execution so the contract sees it in callvalue AND self_balance (EVM-style).
         deposit = int(amount_units or 0) if recipient == VM_SINK else 0
         if deposit:
             state.add_balance(addr, deposit)
@@ -69,7 +75,13 @@ def _call(state, openfield, signature, sender, recipient, amount_units, block_he
                             callvalue=deposit, storage=state.load_storage(addr), gas_limit=GAS_LIMIT,
                             block_height=int(block_height or 0), self_balance=state.get_balance(addr))
         if not result.success:
-            return []                              # revert: storage untouched; the deposit stays in custody
+            # REVERT: storage is untouched, so the contract has NO record of the deposit — leaving it in
+            # custody would strand it (no slot owns it). Undo the custody credit and refund the sender, so
+            # the BIS supply stays exact and the sink's balance still mirrors the sum of contract balances.
+            if deposit:
+                state.add_balance(addr, -deposit)
+                return [(str(sender), deposit)]
+            return []
         state.commit_storage(addr, result.storage)
         payouts = []
         for to_int, amount in result.transfers:
@@ -78,6 +90,14 @@ def _call(state, openfield, signature, sender, recipient, amount_units, block_he
             payouts.append((to_addr, int(amount)))
         return payouts
     except Exception:
+        # Any failure after the deposit was credited is an implicit revert: undo the credit and refund, so
+        # a malformed call can't strand attached value either.
+        if deposit and addr is not None:
+            try:
+                state.add_balance(addr, -deposit)
+            except Exception:
+                pass
+            return [(str(sender), deposit)]
         return []
 
 
