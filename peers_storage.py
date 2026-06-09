@@ -135,11 +135,18 @@ class PeersStorageMixin:
                     self.app_log.info(f"Outbound: {ip}:{port} is a new peer, saving if connectible")
                     try:
                         s_purge = socks.socksocket()
-                        s_purge.settimeout(5)
-                        if self.config.tor:
-                            s_purge.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                        s_purge.connect((ip, int(port)))
-                        s_purge.close()
+                        try:
+                            s_purge.settimeout(5)
+                            if self.config.tor:
+                                s_purge.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+                            s_purge.connect((ip, int(port)))
+                        finally:
+                            # Probe socket must be closed even when connect() raises (the common
+                            # unreachable-peer case), or we leak a file descriptor every peersync.
+                            try:
+                                s_purge.close()
+                            except Exception:
+                                pass
 
                         if ip not in self.peer_dict:
                             total_added += 1
