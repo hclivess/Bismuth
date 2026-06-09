@@ -102,16 +102,37 @@ class PeersPoolMixin:
         host_port = f"{host}:{port}" if port else host
         self.tried.pop(host_port, None)  # pop-with-default never raises
 
-    def reset_tried(self):
+    def reset_tried(self, aggressive=False):
         """
-        Drop back-off timers that are more than a short retry window out.
+        Drop per-peer retry back-off timers so known peers become dial-eligible again.
 
-        This is called when we are connection-starved (few outbound peers), exactly when we most need
-        to re-attempt known peers. The old window was 12 minutes, which *kept* the multi-minute
-        back-offs that cause catch-up stalls; a 60s window means a starved node re-attempts essentially
-        every peer within a minute instead of waiting out a long back-off, while peers cooling down for
-        only a few more seconds are left undisturbed.
+        Two modes, selected by the SAME isolation predicate the rest of the recovery path uses
+        (``Peers.is_isolated`` / ``len(connection_pool) <= OUTBOUND_RECOVERY_FLOOR``):
+
+        * steady-low (``aggressive=False``, the default): drop only timers that are more than a short
+          retry window out. This is called when we are connection-starved (few outbound peers), exactly
+          when we most need to re-attempt known peers. The old window was 12 minutes, which *kept* the
+          multi-minute back-offs that cause catch-up stalls; a 60s window means a starved node
+          re-attempts essentially every peer within a minute instead of waiting out a long back-off,
+          while peers cooling down for only a few more seconds are left undisturbed.
+
+        * isolation recovery (``aggressive=True``): drop EVERY timer. This is the fast-recovery path for
+          when outbound connections have collapsed to ~0 (e.g. just after a restart, or after losing all
+          peers): we must not wait out *any* back-off, so we clear the whole tried dict and let the dial
+          loop re-attempt all known peers immediately, in parallel up to the existing thread cap. A
+          single restart therefore can't strand the whole live-peer set behind escalating cooldowns.
+
+        CRITICAL (this is the bug the reverted attempt hit): the aggressive reset and the faster
+        ConnectionManager cadence MUST be driven by the one identical condition. The reverted code keyed
+        the aggressive reset off ``_connection_pool_set`` but the cadence off ``connection_pool``; those
+        two diverge under churn (a duplicate append inflates the list while the set dedupes; a removal
+        shrinks the set only once), so on the live node the cadence sped up while the aggressive reset
+        never fired -- faster dialing with no redial-all benefit, which only hammered the few reachable
+        peers. Both now go through ``Peers.is_isolated`` (the list count) so they cannot disagree.
         """
+        if aggressive:
+            self.tried = {}
+            return
         soon = time() + 60
         self.tried = {client: data for client, data in self.tried.items()
                       if data[1] <= soon}

@@ -11,6 +11,11 @@ network. It contains no consensus logic -- it only manages connectivity.
 import threading
 import time
 from worker import worker
+# The isolation floor and both loop cadences live in peershandler so the dial-decision (client_loop)
+# and the loop-timing (here) share ONE source of truth. Importing them -- rather than re-deriving the
+# threshold from a second counter -- is what keeps the faster cadence coupled to the redial-all bypass;
+# decoupling them on two different counters is precisely what regressed the reverted attempt.
+from peershandler import NORMAL_LOOP_SECONDS, RECOVERY_LOOP_SECONDS
 
 
 class ConnectionManager (threading.Thread):
@@ -22,6 +27,19 @@ class ConnectionManager (threading.Thread):
     def run(self):
 
         self.connection_manager()
+
+    def _loop_seconds(self):
+        """Seconds to sleep before the next maintenance/dial pass.
+
+        Normally NORMAL_LOOP_SECONDS; while this node dials out (not regnet) AND is isolated it shortens
+        to RECOVERY_LOOP_SECONDS so the redial-all pass repeats within seconds. The isolation test is the
+        SAME peers.is_isolated() predicate (over the SAME len(connection_pool) counter) that client_loop
+        uses to wipe back-off and re-dial every peer -- so the faster cadence and the redial-all bypass
+        are coupled on one condition and can never get out of sync (the reverted attempt's regression).
+        Regnet never dials, so it always gets the full interval and never busy-spins."""
+        if not self.node.is_regnet and self.node.peers.is_isolated():
+            return RECOVERY_LOOP_SECONDS
+        return NORMAL_LOOP_SECONDS
 
     def connection_manager(self):
         self.node.logger.app_log.warning("Status: Starting connection manager")
@@ -75,8 +93,11 @@ class ConnectionManager (threading.Thread):
                 # end status hook
 
                 # logger.app_log.info(threading.enumerate() all threads)
-                # time.sleep(30)
-                for i in range(30):
+                # Sleep before the next maintenance/dial pass. _loop_seconds() returns the cadence: the
+                # normal 30s, or the 5s recovery cadence while isolated -- coupled to the client_loop
+                # redial-all bypass via the one shared is_isolated() predicate (see _loop_seconds). The
+                # 1s granularity keeps shutdown responsive.
+                for i in range(self._loop_seconds()):
                     # faster stop
                     if not self.node.IS_STOPPING:
                         time.sleep(1)
