@@ -65,7 +65,7 @@ import mempool as mp
 import mining_heavy3
 import regnet
 from digest import digest_block
-from chain_ops import recompress_ledger, ledger_check_heights, blocknf, check_integrity, sequencing_check
+from chain_ops import recompress_ledger, ledger_check_heights, blocknf, check_integrity, sequencing_check, reconcile_ledger_hyper
 from balances import balanceget
 from node_init import setup_net_type, node_block_init, ram_init, initial_db_check, load_keys, add_indices
 from quantizer import quantize_eight, quantize_two
@@ -1393,6 +1393,11 @@ if __name__ == "__main__":
 
             # db_manager = db_looper.DbManager(node.logger.app_log)
             # db_manager.start()
+
+            # Heal any ledger.db-vs-hyper.db tip split left by an unclean exit (OOM/power loss) BEFORE
+            # anything reads heights or recompresses. Done with private connections (no DbHandler cache),
+            # so it sees ground truth; if it trims, it does so while no other connection holds the files.
+            reconcile_ledger_hyper(node)
 
             db_handler_initial = dbhandler.DbHandler(node.index_db, node.ledger_path, node.hyper_path, node.ram, node.ledger_ram_file, node.logger, trace_db_calls=node.trace_db_calls)
 
