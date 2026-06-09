@@ -1,3 +1,4 @@
+"""Transport-codec unit tests: codec round-trips and codec negotiation (no node)."""
 # Transport-codec unit tests (no node). Run with: python3 -m pytest -v
 # Proves every available compression codec round-trips bytes exactly and that negotiation picks a
 # mutually-supported codec, falling back to 'none'. See transport.py / doc/06.

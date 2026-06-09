@@ -1,3 +1,4 @@
+"""Proves the live regnet node stores amounts as integer atomic units when ledger_integer_amounts is on."""
 # Proves the LIVE node (not just the offline migration tool) stores amounts as integer atomic units
 # when ledger_integer_amounts is enabled (it is, in tests/config_custom.txt). Reads the running
 # regnet ledger file directly. See doc/16 phase 2 cutover. Run with: python3 -m pytest -v

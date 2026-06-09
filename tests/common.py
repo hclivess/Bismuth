@@ -1,3 +1,4 @@
+"""Shared, dependency-light helpers for the test suite (no bismuthclient)."""
 # Common test helpers (dependency-light; no bismuthclient).
 
 def normalize_key(a: str) -> str:

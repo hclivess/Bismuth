@@ -1,3 +1,4 @@
+"""Mempool command tests against a regnet node."""
 # Mempool tests on regnet.
 # Run with: python3 -m pytest -v
 

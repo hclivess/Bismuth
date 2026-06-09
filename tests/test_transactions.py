@@ -1,3 +1,4 @@
+"""Transaction behaviour tests against a regnet node."""
 # Transaction behavior on regnet. The regnet node + client come from conftest.py fixtures.
 # Run with: python3 -m pytest -v
 

@@ -1,3 +1,4 @@
+"""Ledger / block tests on regnet: raw-vs-JSON command parity and block hashing."""
 # Ledger / block tests on regnet. Confirms the raw vs JSON command parity and block hashing.
 # Run with: python3 -m pytest -v
 

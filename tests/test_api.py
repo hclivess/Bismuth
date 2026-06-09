@@ -1,3 +1,4 @@
+"""ApiHandler (api_*) command tests against a regnet node."""
 # ApiHandler (api_*) tests on regnet.
 # Run with: python3 -m pytest -v
 

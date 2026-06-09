@@ -1,3 +1,4 @@
+"""REST API tests against the regnet node's HTTP API (rest_api=True, port 3031)."""
 # REST API tests on regnet. The regnet node (started by conftest) has rest_api=True on port 3031.
 # Run with: python3 -m pytest -v
 

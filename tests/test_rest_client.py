@@ -1,3 +1,4 @@
+"""REST client tests on regnet: capability discovery and parallel block fetching via the node's REST API."""
 # REST client tests on regnet: capability discovery + parallel block fetching against the running
 # node's own REST API (127.0.0.1:3031). Proves the modern, parallel alternative to socket sync.
 # Run with: python3 -m pytest -v

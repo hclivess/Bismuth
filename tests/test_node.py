@@ -1,3 +1,4 @@
+"""Node command tests against a regnet node."""
 # Node command tests on regnet.
 # Run with: python3 -m pytest -v
 

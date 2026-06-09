@@ -1,3 +1,4 @@
+"""Offline integer-amount column migration: hash-preservation, integer storage, and balance correctness."""
 # Offline integer-amount column migration: proves the migration preserves every block hash, actually
 # stores integer atomic units with explicit types, and that integer-summed balances are correct.
 # Self-contained (no node). See doc/16 phase 2. Run with: python3 -m pytest -v

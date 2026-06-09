@@ -1,3 +1,4 @@
+"""Replay verification on regnet: stored block hashes reproduce, including under integer-amount round-trips."""
 # Replay verification on regnet: every block hash must reproduce from stored rows through the frozen
 # consensus boundary, both as-stored and with amounts round-tripped through integer atomic units
 # (proving the planned integer-amount storage migration is hash-safe). See doc/16 phase 2.

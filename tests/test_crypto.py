@@ -1,3 +1,4 @@
+"""Crypto / signature / fee / quantizer tests (pure; no running node needed)."""
 # Crypto / signature / fee / quantizer tests. Pure (no running node needed).
 # Run with: python3 -m pytest -v
 

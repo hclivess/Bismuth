@@ -1,3 +1,4 @@
+"""Unit tests for the shared DB retry helper (pure; no node needed)."""
 # Unit tests for the shared DB retry helper (pure; no node needed).
 # Run with: python3 -m pytest -v
 

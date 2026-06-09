@@ -1,3 +1,4 @@
+"""Unit tests for the integer-atomic-unit amount converter (pure; no node needed)."""
 # Unit tests for the integer-atomic-unit amount converter (pure; no node needed).
 # Run with: python3 -m pytest -v
 
