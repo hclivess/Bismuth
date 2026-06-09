@@ -206,6 +206,116 @@ def ledger_check_heights(node, db_handler):
         node.recompress = True
 
 
+def _tips_of(path):
+    """Return (max transactions height, max misc height) for a ledger/hyper SQLite file, or (None, None)
+    if the file or tables don't exist yet. Uses a private short-lived connection — NEVER the cached
+    DbHandler reads (block_height_max has a 1s cache) — so reconciliation always sees ground truth."""
+    if not os.path.exists(path):
+        return (None, None)
+    conn = sqlite3.connect(path, timeout=5)
+    try:
+        c = conn.cursor()
+        try:
+            c.execute("SELECT max(block_height) FROM transactions")
+            tx = c.fetchone()[0]
+            c.execute("SELECT max(block_height) FROM misc")
+            misc = c.fetchone()[0]
+            return (tx, misc)
+        except sqlite3.OperationalError:
+            # tables not created yet (fresh/empty db)
+            return (None, None)
+    finally:
+        conn.close()
+
+
+def _trim_store_to(path, keep_height, label, app_log, trace_db_calls=False):
+    """Delete every height ABOVE keep_height from one store's transactions+misc, so its tip becomes
+    exactly keep_height. Mirrors rollback_under's delete shape (the negative-height mirror rows for a
+    height live at -height, so `> keep_height` already keeps them). Returns rows removed from
+    transactions."""
+    conn = sqlite3.connect(path, timeout=5)
+    if trace_db_calls:
+        conn.set_trace_callback(functools.partial(sql_trace_callback, app_log, "RECONCILE"))
+    conn.text_factory = str
+    try:
+        c = conn.cursor()
+        c.execute("SELECT count(*) FROM transactions WHERE block_height > ?", (keep_height,))
+        removed = c.fetchone()[0]
+        c.execute("DELETE FROM transactions WHERE block_height > ?", (keep_height,))
+        c.execute("DELETE FROM misc WHERE block_height > ?", (keep_height,))
+        conn.commit()
+        app_log.warning(
+            f"Status: Reconcile trimmed {label} ({path}) down to height {keep_height} "
+            f"({removed} transaction-rows removed)")
+        return removed
+    finally:
+        conn.close()
+
+
+def reconcile_ledger_hyper(node):
+    """Deterministic startup reconciliation of the full ledger vs the hyperblock rollup.
+
+    Bismuth keeps two on-disk chains that are written by SEPARATE code paths / connections at
+    different moments per block (digest.to_db -> hyper.db via `conn`; db_to_drive -> ledger.db via
+    `hdd`), with NO atomic cross-DB transaction. An unclean exit (OOM SIGKILL, power loss) can commit
+    one file a few blocks ahead of the other. The runtime then derives node.hdd_block from ledger.db
+    (block_height_max -> self.h) but reads its working tip/last hash from hyper.db (block_max_ram /
+    last_block_hash -> self.c); when the two disagree, the FIRST digest after restart rejects the next
+    block ("... already in ledger"), handle_processing_error snaps node.hdd_block down to the shorter
+    store, and the node wedges re-fetching a height it already half-has.
+
+    This heals that split BEFORE syncing (and before ledger_check_heights / recompress, which assume
+    the two are already coherent): roll whichever store is ahead back to the common consistent height
+    (the min of all four tips), so both files end at one identical, contiguous tip. The trimmed blocks
+    are re-downloadable from peers. This is recovery, not validation — it never runs in the digest path
+    and only removes the divergent excess above the shared height, never the agreed bulk.
+
+    In hyperblock mode (full_ledger=False) ledger_path and hyper_path are the same file (the ledger is
+    a clone of the hyperblocks), so there is nothing to reconcile and we return early.
+    """
+    app_log = node.logger.app_log
+
+    # full_ledger=False clones hyper->ledger (same path); nothing to cross-check.
+    if getattr(node, "ledger_path", None) == getattr(node, "hyper_path", None):
+        return
+
+    if not (os.path.exists(node.ledger_path) and os.path.exists(node.hyper_path)):
+        # one side absent (fresh node / hyperblock builder will create it) -> nothing to reconcile.
+        return
+
+    ledger_tx, ledger_misc = _tips_of(node.ledger_path)
+    hyper_tx, hyper_misc = _tips_of(node.hyper_path)
+
+    tips = [t for t in (ledger_tx, ledger_misc, hyper_tx, hyper_misc) if t is not None]
+    if not tips:
+        return  # both empty
+
+    if ledger_tx == ledger_misc == hyper_tx == hyper_misc:
+        return  # already coherent — common, fast path; stay silent to avoid log noise.
+
+    common = min(tips)
+    app_log.warning(
+        f"Status: Ledger/hyper tip mismatch detected "
+        f"(ledger tx={ledger_tx} misc={ledger_misc}; hyper tx={hyper_tx} misc={hyper_misc}). "
+        f"Reconciling both stores down to the common consistent height {common} before sync.")
+
+    # Trim only the file(s) that are actually above the common height. A store exactly at `common`
+    # (or absent) is skipped, so we never rewrite a file needlessly.
+    if (ledger_tx is not None and ledger_tx > common) or (ledger_misc is not None and ledger_misc > common):
+        _trim_store_to(node.ledger_path, common, "ledger", app_log, node.trace_db_calls)
+    if (hyper_tx is not None and hyper_tx > common) or (hyper_misc is not None and hyper_misc > common):
+        _trim_store_to(node.hyper_path, common, "hyper", app_log, node.trace_db_calls)
+
+    # Verify both stores now agree on a single tip; if not, fail loud rather than boot wedged.
+    l2_tx, l2_misc = _tips_of(node.ledger_path)
+    h2_tx, h2_misc = _tips_of(node.hyper_path)
+    if not (l2_tx == l2_misc == h2_tx == h2_misc == common):
+        raise ValueError(
+            f"Ledger/hyper reconciliation failed to converge: after trimming to {common} the tips are "
+            f"ledger tx={l2_tx} misc={l2_misc}; hyper tx={h2_tx} misc={h2_misc}")
+    app_log.warning(f"Status: Ledger/hyper reconciled to a single consistent tip {common}")
+
+
 def blocknf(node, block_hash_delete, peer_ip, db_handler, hyperblocks=False):
     """
     Rolls back a single block, updates node object variables.
