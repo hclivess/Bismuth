@@ -111,6 +111,7 @@ def filter_status(record):
 
 
 def log(logFile, level_input="WARNING", terminal_output=False, log_color=True):
+    level = logging.WARNING  # default for an unrecognised level_input -> avoids NameError at setLevel(level)
     if level_input == "NOTSET":
         level = logging.NOTSET
     if level_input == "DEBUG":

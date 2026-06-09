@@ -175,7 +175,7 @@ def generate_one_block(blockhash, mempool_txs, node, db_handler):
         node.logger.app_log.warning(e)
         exc_type, exc_obj, exc_tb = sys.exc_info()
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-        node.logger.app_log.warning(exc_type, fname, exc_tb.tb_lineno)
+        node.logger.app_log.warning("{} {} {}".format(exc_type, fname, exc_tb.tb_lineno))
 
 
 def command(sdef, data, blockhash, node, db_handler):
@@ -231,7 +231,7 @@ def command(sdef, data, blockhash, node, db_handler):
         node.logger.app_log.warning(e)
         exc_type, exc_obj, exc_tb = sys.exc_info()
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-        node.logger.app_log.warning(exc_type, fname, exc_tb.tb_lineno)
+        node.logger.app_log.warning("{} {} {}".format(exc_type, fname, exc_tb.tb_lineno))
 
 
 def init(app_log, trace_db_calls=False):
