@@ -1,3 +1,11 @@
+"""Headless wallet balance query (no GUI).
+
+Standalone CLI helper: loads the local wallet keys, opens a socket to the
+running node, issues a ``balanceget`` request for the wallet address and prints
+the returned balance / credit / debit / fees / rewards figures (including the
+mempool-free balance). Requires a node listening on the configured host/port.
+"""
+
 import essentials, options, connections, socks
 
 config = options.Get()

@@ -1,3 +1,14 @@
+"""Minimal standalone web-based ledger/transaction explorer.
+
+A small Tornado app that renders the most recent blocks from the (hyper) ledger
+as an HTML page: a Chart.js line chart of per-block timestamp/spend/fee/reward
+/size series, a few aggregate statistics over the last 500 blocks, and a table
+of recent transactions. Run directly, it serves on port 5492.
+
+This is a read-only diagnostic/explorer tool and is independent of the node's
+own REST API.
+"""
+
 import sqlite3, time, options, random, sys
 
 import tornado.ioloop
@@ -25,6 +36,8 @@ def execute(cursor, query):
     return cursor
 
 class MainHandler(tornado.web.RequestHandler):
+    """Render the explorer page (chart + stats + recent-transactions table)."""
+
     def get(self):
         # redraw chart
 
@@ -260,7 +273,7 @@ class MainHandler(tornado.web.RequestHandler):
         #self.render("ex.html", data=data)
 
 def make_app():
-
+    """Build the Tornado application: the explorer page plus a static-file route."""
     return tornado.web.Application([
         (r"/", MainHandler),
         (r"/static/(.*)", tornado.web.StaticFileHandler, {"path": "static"}),

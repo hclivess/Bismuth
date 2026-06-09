@@ -1,3 +1,12 @@
+"""Batch reward payout sender driven by a CSV file.
+
+Reads ``rewards.csv`` (one ``address,amount,extra`` payout per line) and, for
+each row, shells out to :mod:`send_nogui_noconf` to broadcast the payment via a
+running node. Without ``--yes`` it only prints the commands it would run (dry
+run); with ``--yes`` it actually sends. See the usage notes below for the exact
+CSV format and the (intentional lack of) safety guarantees.
+"""
+
 import time
 import sys
 

@@ -1,3 +1,10 @@
+"""Send a ``stop`` command to the locally running node.
+
+Standalone CLI helper: connects to the node on localhost (picking the port from
+the configured network mode -- mainnet 5658, testnet 2829, regnet 3030),
+delivers a ``stop`` command, and retries until the connection succeeds.
+"""
+
 import socks, connections, time, sys, json
 import options
 config = options.Get()
