@@ -11,7 +11,7 @@ full-difficulty broadcast) when pool mining. Standalone tool, separate from the
 node and not covered by the test suite.
 """
 
-import base64, sqlite3, hashlib, time, socks, keys, sys, connections, re, options
+import base64, sqlite3, hashlib, time, socks, keys, sys, connections, re, options, traceback
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA
 from Crypto import Random
