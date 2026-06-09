@@ -1,3 +1,23 @@
+"""Length-prefixed JSON framing over a socket — the legacy Bismuth wire protocol.
+
+Every legacy peer-to-peer message is a JSON value preceded by a fixed-width,
+zero-padded ASCII length header (``SLEN`` = 10 bytes). :func:`send` serialises a
+Python object to JSON, prepends the header, and writes both in one ``sendall``.
+:func:`receive` reads the header, then the exact number of payload bytes, and
+returns the parsed object — or the sentinel string ``"*"`` on a *logical*
+timeout (no data arrived within ``timeout`` seconds, which is normal idle, not an
+error).
+
+Two implementations of :func:`receive` are defined depending on the platform:
+
+  * On Linux, ``select.poll`` is used (the pre-computed ``*_FLAGS`` masks classify
+    readiness vs. hangup/error).
+  * Elsewhere, ``select.select`` is used.
+
+Both block (``setblocking(1)``) and raise on EOF / socket error. This module is
+imported very widely (the foundation of the legacy networking stack), so the
+framing and error behaviour here are kept byte-for-byte stable.
+"""
 import select
 import json
 import platform
@@ -8,7 +28,7 @@ LTIMEOUT = 45
 SLEN = 10
 
 
-def send(sdef, data, slen=SLEN):
+def send(sdef, data, slen: int = SLEN) -> None:
     """Send JSON data with fixed-length header."""
     sdef.setblocking(1)
     # Serialize data once and encode
@@ -26,7 +46,7 @@ if "Linux" in platform.system():
     READ_FLAGS = select.POLLIN | select.POLLPRI
 
 
-    def receive(sdef, slen=SLEN, timeout=LTIMEOUT):
+    def receive(sdef, slen: int = SLEN, timeout: int = LTIMEOUT):
         """Receive JSON data with fixed-length header using poll (Linux)."""
         poller = select.poll()
         poller.register(sdef, READ_OR_ERROR)
@@ -94,7 +114,7 @@ if "Linux" in platform.system():
                 pass
 
 else:
-    def receive(sdef, slen=SLEN, timeout=LTIMEOUT):
+    def receive(sdef, slen: int = SLEN, timeout: int = LTIMEOUT):
         """Receive JSON data with fixed-length header using select (non-Linux)."""
         try:
             sdef.setblocking(1)

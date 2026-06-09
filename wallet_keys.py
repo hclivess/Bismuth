@@ -1,8 +1,23 @@
+"""Minimal RSA wallet key generation / loading for Bismuth.
+
+A Bismuth wallet is a 4096-bit RSA key pair; the *address* is the SHA-224 hex
+digest of the PEM-exported public key. :func:`generate` creates a fresh pair,
+:func:`read` loads one from the JSON ``wallet.der`` file in the working
+directory. These derivations are consensus-relevant (the address must match what
+signatures are checked against), so the byte forms here are kept exactly as-is.
+"""
 import base64, hashlib, json
 from Cryptodome.PublicKey import RSA
 
 
-def generate():
+def generate() -> tuple:
+    """Generate a fresh 4096-bit RSA wallet.
+
+    Returns:
+        tuple: ``(private_key_readable, public_key_readable, address)`` where the
+        readable keys are PEM strings and ``address`` is the SHA-224 hex digest
+        of the public key.
+    """
     # generate key pair and an address
     key = RSA.generate(4096)
 
@@ -12,7 +27,17 @@ def generate():
     return private_key_readable, public_key_readable, address
 
 
-def read():
+def read() -> tuple:
+    """Load the wallet from ``wallet.der`` in the current directory.
+
+    Validates the public-key length (271 or 799 chars) and re-derives the
+    base64-encoded public key and the SHA-224 address.
+
+    Returns:
+        tuple: ``(key, private_key_readable, public_key_readable,
+        public_key_b64encoded, address)``. ``key`` is the raw private-key PEM
+        string (kept for backward-compatible call sites).
+    """
     # import keys
     with open ("wallet.der", 'r') as wallet_file:
             wallet_dict = json.load (wallet_file)

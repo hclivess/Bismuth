@@ -1,3 +1,10 @@
+"""Hard-coded legacy block-hash checkpoints (early-chain integrity reference).
+
+``db_hashes`` maps ``"<block_height>-<timestamp>"`` keys to the expected SHA-1
+hex digest for a set of early blocks. It is a frozen historical reference used
+when checking/repairing the ledger against known-good values; the data must not
+be edited.
+"""
 db_hashes = {
     '27258-1493755375.23': 'acd6044591c5baf121e581225724fc13400941c7',
     '27298-1493755830.58': '481ec856b50a5ae4f5b96de60a8eda75eccd2163',
