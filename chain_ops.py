@@ -228,6 +228,48 @@ def _tips_of(path):
         conn.close()
 
 
+def _marker_of(path):
+    """Return the lockstep ``commit_marker.committed_height`` for a store, or None when the file/table
+    is absent (legacy DB never written by the lockstep code) or the marker was never set.
+
+    db_to_drive advances ledger.db's and hyper.db's markers TOGETHER in one transaction, so the marker
+    is "the height at which both files agreed at the last flush". When BOTH markers are present, the
+    common consistent height is exactly min(markers) — an UNAMBIGUOUS, monotonic recovery floor that
+    does not depend on inferring direction from the four tips. None ⇒ fall back to tip inference."""
+    if not os.path.exists(path):
+        return None
+    conn = sqlite3.connect(path, timeout=5)
+    try:
+        try:
+            row = conn.execute("SELECT committed_height FROM commit_marker WHERE id = 0").fetchone()
+            return row[0] if row else None
+        except sqlite3.OperationalError:
+            return None
+    finally:
+        conn.close()
+
+
+def _set_marker(path, height):
+    """Best-effort: set a store's commit_marker to `height` (used after a reconcile-trim so the marker
+    matches the new tip). Creates the table+row if missing so post-reconcile stores carry the marker
+    going forward. Never raises — recovery already converged on the rows; the marker is the signal."""
+    if not os.path.exists(path):
+        return
+    conn = sqlite3.connect(path, timeout=5)
+    try:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS commit_marker "
+            "(id INTEGER PRIMARY KEY CHECK(id = 0), committed_height INTEGER)")
+        conn.execute(
+            "INSERT INTO commit_marker (id, committed_height) VALUES (0, ?) "
+            "ON CONFLICT(id) DO UPDATE SET committed_height = excluded.committed_height", (height,))
+        conn.commit()
+    except Exception:
+        pass
+    finally:
+        conn.close()
+
+
 def _trim_store_to(path, keep_height, label, app_log, trace_db_calls=False):
     """Delete every height ABOVE keep_height from one store's transactions+misc, so its tip becomes
     exactly keep_height. Mirrors rollback_under's delete shape (the negative-height mirror rows for a
@@ -290,14 +332,34 @@ def reconcile_ledger_hyper(node):
     if not tips:
         return  # both empty
 
-    if ledger_tx == ledger_misc == hyper_tx == hyper_misc:
+    # Lockstep markers (db_to_drive stamps both files together): "the height at which both files agreed
+    # at the last flush". When BOTH are present they give an UNAMBIGUOUS recovery floor = min(markers),
+    # independent of inferring direction from the four tips. Absent/NULL ⇒ legacy DB ⇒ tip inference.
+    ledger_marker = _marker_of(node.ledger_path)
+    hyper_marker = _marker_of(node.hyper_path)
+    markers_usable = ledger_marker is not None and hyper_marker is not None
+
+    if ledger_tx == ledger_misc == hyper_tx == hyper_misc and (
+            not markers_usable or ledger_marker == hyper_marker == ledger_tx):
         return  # already coherent — common, fast path; stay silent to avoid log noise.
 
-    common = min(tips)
+    tip_common = min(tips)
+    if markers_usable:
+        # Marker floor is authoritative for DIRECTION, but clamp by the real tips so a marker can never
+        # ask us to "keep" a height whose rows aren't actually present (defence in depth — the marker is
+        # written in-txn with the rows, so this clamp is belt-and-suspenders).
+        common = min(ledger_marker, hyper_marker, tip_common)
+        basis = (f"lockstep markers (ledger={ledger_marker}, hyper={hyper_marker}; tips floor "
+                 f"{tip_common})")
+    else:
+        common = tip_common
+        basis = "tip inference (no lockstep markers present)"
+
     app_log.warning(
-        f"Status: Ledger/hyper tip mismatch detected "
-        f"(ledger tx={ledger_tx} misc={ledger_misc}; hyper tx={hyper_tx} misc={hyper_misc}). "
-        f"Reconciling both stores down to the common consistent height {common} before sync.")
+        f"Status: Ledger/hyper mismatch detected "
+        f"(ledger tx={ledger_tx} misc={ledger_misc} marker={ledger_marker}; "
+        f"hyper tx={hyper_tx} misc={hyper_misc} marker={hyper_marker}). "
+        f"Reconciling both stores down to the common consistent height {common} via {basis} before sync.")
 
     # Trim only the file(s) that are actually above the common height. A store exactly at `common`
     # (or absent) is skipped, so we never rewrite a file needlessly.
@@ -305,6 +367,12 @@ def reconcile_ledger_hyper(node):
         _trim_store_to(node.ledger_path, common, "ledger", app_log, node.trace_db_calls)
     if (hyper_tx is not None and hyper_tx > common) or (hyper_misc is not None and hyper_misc > common):
         _trim_store_to(node.hyper_path, common, "hyper", app_log, node.trace_db_calls)
+
+    # Re-stamp both markers to the reconciled height so the files agree on the marker too (otherwise a
+    # store we trimmed would still carry its old higher marker). Best-effort: a legacy file without the
+    # table simply keeps None and the next clean db_to_drive sets it.
+    _set_marker(node.ledger_path, common)
+    _set_marker(node.hyper_path, common)
 
     # Verify both stores now agree on a single tip; if not, fail loud rather than boot wedged.
     l2_tx, l2_misc = _tips_of(node.ledger_path)

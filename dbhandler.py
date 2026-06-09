@@ -78,6 +78,83 @@ class DbHandler(DbQueriesMixin, DbWriteMixin):
         # without them (the per-connection WAL on self.conn above used to be the only one).
         self._optimize_connections()
 
+        # ---- Lockstep commit machinery (see dbhandler_write's CRASH-RECOVERY CONTRACT) -------------
+        # ledger.db and hyper.db are written by separate connections/transactions, so historically a
+        # crash between to_db (hyper.db) and db_to_drive (ledger.db) split them by up to a whole sync
+        # batch. We bound that to a single in-flight block by stamping a `commit_marker` row — "the
+        # height at which BOTH files agree" — into each file, advanced TOGETHER in ONE transaction at
+        # db_to_drive via a dedicated commit connection that ATTACHes hyper.db onto ledger.db.
+        #
+        # WAL's documented limit (sqlite.org/wal.html): a txn over multiple ATTACHed DBs is atomic per
+        # file but "not atomic across all databases as a set" — so a crash can still leave the two
+        # markers one block apart. That is fine: recovery is whichever marker is LOWER (the floor), and
+        # because they only ever advance together the gap is provably <= 1 block, so the startup
+        # reconcile always heals to a single, well-defined height. We KEEP WAL (the per-file backstop);
+        # the markers just make the recovery DIRECTION unambiguous instead of inferring it from tips.
+        #
+        # When ledger_path == hyper_path (regnet, and hyperblock mode where the ledger is a clone of the
+        # hyperblocks) there is only ONE file, so there is nothing to keep in step and no ATTACH (a DB
+        # cannot ATTACH itself): _separate_ledger_hyper is False and the dual-marker path is skipped.
+        self._separate_ledger_hyper = (
+            not self.ram and self.ledger_path != self.hyper_path)
+        self.commit_conn = None
+        self._ensure_commit_marker_tables()
+        if self._separate_ledger_hyper:
+            self._open_commit_conn()
+
+    # The single-row marker table. id is pinned to 0 so there is exactly one row to UPDATE; storing
+    # NULL/absent simply means "legacy DB, fall back to tip inference" — never an error.
+    _CREATE_COMMIT_MARKER = (
+        "CREATE TABLE IF NOT EXISTS commit_marker "
+        "(id INTEGER PRIMARY KEY CHECK(id = 0), committed_height INTEGER)")
+
+    def _ensure_commit_marker_tables(self):
+        """Idempotently create the commit_marker table (and seed its single row) on ledger.db and
+        hyper.db. Safe on a fresh DB, a legacy DB that has never seen this code, and a re-open. This
+        adds a tiny side table; it NEVER touches transactions/misc, the block bytes, or any hash."""
+        targets = [(self.hdd, "ledger.db")]
+        if self._separate_ledger_hyper or self.ram:
+            # _separate_ledger_hyper: distinct on-disk hyper.db kept in lockstep via the ATTACH commit.
+            # ram=True: hdd2 is still the real on-disk hyper.db (db_to_drive mirrors to it), so it gets
+            # a marker too even though the cross-file ATTACH commit is not used in that path.
+            targets.append((self.hdd2, "hyper.db"))
+        for conn, name in targets:
+            try:
+                conn.execute(self._CREATE_COMMIT_MARKER)
+                conn.execute(
+                    "INSERT OR IGNORE INTO commit_marker (id, committed_height) VALUES (0, NULL)")
+                conn.commit()
+            except Exception as e:
+                self.logger.app_log.warning(
+                    f"commit_marker setup on {name} failed (recovery falls back to tip inference): {e}")
+
+    def _open_commit_conn(self):
+        """Open the dedicated commit connection: ledger.db as main, hyper.db ATTACHed as `hyperdb`.
+
+        This connection exists ONLY to perform the per-flush atomic commit in db_to_drive (ledger rows +
+        both markers in one BEGIN IMMEDIATE … COMMIT). It is separate from self.hdd / self.hdd2 so the
+        many concurrent readers that use those cursors are never disturbed, and so the ATTACH lives on
+        a connection we fully control. Both files are already WAL from _optimize_connections; we set WAL
+        here too (harmless, explicit) so the attached file is unambiguously WAL on this handle."""
+        try:
+            conn = sqlite3.connect(self.ledger_path, timeout=1)
+            if self.trace_db_calls:
+                conn.set_trace_callback(
+                    functools.partial(sql_trace_callback, self.logger.app_log, "COMMIT"))
+            conn.text_factory = str
+            conn.execute("PRAGMA journal_mode = WAL;")
+            conn.execute("PRAGMA synchronous = FULL;")  # match ledger.db's durability
+            conn.execute("ATTACH DATABASE ? AS hyperdb", (self.hyper_path,))
+            conn.execute("PRAGMA hyperdb.synchronous = NORMAL;")
+            self.commit_conn = conn
+        except Exception as e:
+            # Non-fatal: without the commit connection db_to_drive falls back to the legacy per-file
+            # commit, and the startup reconcile remains the backstop. Log loudly — lockstep is degraded.
+            self.commit_conn = None
+            self.logger.app_log.warning(
+                f"Lockstep commit connection unavailable (falling back to legacy per-file commit + "
+                f"reconcile backstop): {e}")
+
     def _set_crash_safe_pragmas(self, conn, name, synchronous):
         """Make one SQLite connection crash-safe.
 
@@ -214,8 +291,23 @@ class DbHandler(DbQueriesMixin, DbWriteMixin):
             return res[0]
         return None
 
+    def read_committed_height(self, conn):
+        """Return the lockstep `committed_height` marker for one already-open connection, or None when
+        the table/row is absent (legacy DB) or the marker was never set. None is a valid "fall back to
+        tip inference" signal for the reconcile — never an error."""
+        try:
+            row = conn.execute("SELECT committed_height FROM commit_marker WHERE id = 0").fetchone()
+            return row[0] if row else None
+        except Exception:
+            return None
+
     def close(self):
         self.index.close()
         self.hdd.close()
         self.hdd2.close()
         self.conn.close()
+        if self.commit_conn is not None:
+            try:
+                self.commit_conn.close()
+            except Exception:
+                pass

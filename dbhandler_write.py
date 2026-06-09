@@ -34,6 +34,7 @@ ordering; reordering it (committing ledger.db before the working store) would le
 a crash and break the single-source-of-truth contract above.
 """
 import amounts
+import db_helpers
 from fork import Fork
 
 
@@ -66,6 +67,13 @@ class DbWriteMixin:
 
         self.h2.execute("DELETE FROM misc WHERE block_height >= ?", (block_height,))
         self.commit(self.hdd2)
+
+        # Keep the lockstep markers honest: this rollback drops everything from `block_height` up, so
+        # the new committed tip is block_height-1. Without this the markers would read STALE-HIGH until
+        # the next db_to_drive; the reconcile clamps by the real tips so it would still recover safely,
+        # but maintaining "marker == committed tip" here keeps the invariant true everywhere.
+        self._stamp_marker_best_effort(self.hdd, block_height - 1)
+        self._stamp_marker_best_effort(self.hdd2, block_height - 1)
 
         # Clear caches after rollback
         self.clear_caches()
@@ -184,10 +192,20 @@ class DbWriteMixin:
     def db_to_drive(self, node):
         """Optimized version using batch operations.
 
-        Commit #2 of the per-block order: flush the staged block from the working store to ledger.db
+        Commit #2 of the per-block order: flush the staged block(s) from the working store to ledger.db
         (``self.hdd``), the AUTHORITATIVE on-disk tip, and commit it LAST. See this module's docstring
         for the full crash-recovery contract — on a crash between to_db's commit and this one, ledger.db
         ends up at-or-below the working/hyper tip, and the startup reconcile trims everything DOWN to it.
+
+        LOCKSTEP (added): when ledger.db and hyper.db are distinct files (the live full-ledger path) we
+        do this flush through the dedicated ATTACH commit connection so the ledger rows AND a
+        ``commit_marker`` of ``node.last_block`` in BOTH files are written in ONE transaction. hyper.db
+        already holds these block ROWS (to_db committed them per-block); here we only advance hyper.db's
+        MARKER, so the marker means "the height at which both files agree" and it advances in step with
+        ledger.db. A crash can leave the two markers at most ONE in-flight block apart (WAL is not
+        cross-file atomic), and the startup reconcile heals down to the lower marker — provably bounded,
+        never a persistent multi-block split. If the commit connection is unavailable we fall back to
+        the exact legacy per-file commit (with the reconcile as the backstop, as before).
         """
         try:
             if node.is_regnet:
@@ -212,27 +230,12 @@ class DbWriteMixin:
                               (node.hdd_block, ))
             result2 = self.c.fetchall()
 
-            # Batch insert transactions. ledger.db (self.hdd) is committed here; in ram=False (the live
-            # default) hyper.db already has this block from to_db, so only ledger.db is written and it
-            # is the LAST commit for the block (the floor tip). In ram=True the working store is the RAM
-            # ledger, so hyper.db (self.hdd2) is re-mirrored from ledger.db right after — keep ledger.db
-            # FIRST here so it is never behind hyper.db on disk.
-            if result1:
-                self.h.executemany(self.SQL_TO_TRANSACTIONS, result1)
-                self.commit(self.hdd)
-
-                if node.ram:
-                    self.h2.executemany(self.SQL_TO_TRANSACTIONS, result1)
-                    self.commit(self.hdd2)
-
-            # Batch insert misc
-            if result2:
-                self.h.executemany(self.SQL_TO_MISC, result2)
-                self.commit(self.hdd)
-
-                if node.ram:
-                    self.h2.executemany(self.SQL_TO_MISC, result2)
-                    self.commit(self.hdd2)
+            # Same rows, same bytes as before — only HOW they commit changes (atomic dual-marker when
+            # the lockstep connection is live, else the original per-file commit).
+            if self._separate_ledger_hyper and self.commit_conn is not None:
+                self._db_to_drive_lockstep(node, result1, result2)
+            else:
+                self._db_to_drive_legacy(node, result1, result2)
 
             node.hdd_block = node.last_block
             node.hdd_hash = node.last_block_hash
@@ -240,3 +243,89 @@ class DbWriteMixin:
             node.logger.app_log.warning(f"Chain: {len(result1)} txs moved to HDD")
         except Exception as e:
             node.logger.app_log.warning(f"Chain: Exception Moving new data to HDD: {e}")
+
+    def _db_to_drive_lockstep(self, node, result1, result2):
+        """Atomic dual-marker flush for the live full-ledger path (ledger.db + ATTACHed hyper.db).
+
+        ONE transaction on self.commit_conn writes the ledger.db block rows AND stamps
+        ``committed_height = node.last_block`` into BOTH files' commit_marker. hyper.db's block rows are
+        NOT rewritten here (to_db already committed them); only its marker advances, so the two markers
+        move together and a crash bounds their divergence to a single in-flight block. ledger.db's own
+        transactions/misc + marker are a single-file atomic unit either way, so ledger.db can never be
+        seen with rows but a stale marker (or vice-versa)."""
+        cc = self.commit_conn
+
+        def _do():
+            cc.execute("BEGIN IMMEDIATE")
+            try:
+                if result1:
+                    cc.executemany(self.SQL_TO_TRANSACTIONS, result1)
+                if result2:
+                    cc.executemany(self.SQL_TO_MISC, result2)
+                # Advance both markers to the height now durably on disk. `main` is ledger.db, `hyperdb`
+                # is the ATTACHed hyper.db. Both UPDATEs ride inside this one BEGIN/COMMIT.
+                cc.execute("UPDATE main.commit_marker SET committed_height = ? WHERE id = 0",
+                           (node.last_block,))
+                cc.execute("UPDATE hyperdb.commit_marker SET committed_height = ? WHERE id = 0",
+                           (node.last_block,))
+                cc.commit()
+            except Exception:
+                cc.rollback()
+                raise
+
+        # Same retry/durability discipline as self.commit (slow-node tolerant). An aborted attempt has
+        # already rolled back inside _do, so a retry re-runs the whole atomic unit cleanly.
+        db_helpers.retry_db(_do, delay=1, log=self.logger.app_log, describe="lockstep db_to_drive")
+
+        # Keep self.hdd / self.hdd2 (the readers' connections) seeing the just-committed state. Under WAL
+        # a fresh statement on those connections already reads the latest commit, but ending any stale
+        # implicit read txn is cheap insurance so a long-lived reader doesn't pin an old snapshot. We do
+        # NOT clear_caches here — the original db_to_drive didn't, and node.hdd_block is set from
+        # node.last_block directly (not via the 1s height cache), so the floor is unaffected.
+        try:
+            self.hdd.rollback()
+            self.hdd2.rollback()
+        except Exception:
+            pass
+
+    def _db_to_drive_legacy(self, node, result1, result2):
+        """The original (pre-lockstep) per-file commit, kept verbatim as the fallback for: the
+        ram=True path, the single-file (regnet/hyperblock) path, and any startup where the ATTACH
+        commit connection could not be opened. The startup reconcile remains the backstop here.
+
+        ram=True additionally re-mirrors to hyper.db (self.hdd2); we also stamp the markers per-file so
+        recovery still has the unambiguous signal (best-effort — never blocks the flush)."""
+        # Batch insert transactions. ledger.db (self.hdd) is committed here; in ram=False hyper.db
+        # already has this block from to_db, so only ledger.db is written and it is the LAST commit for
+        # the block. In ram=True the working store is the RAM ledger, so hyper.db (self.hdd2) is
+        # re-mirrored from ledger.db right after — keep ledger.db FIRST so it is never behind hyper.db.
+        if result1:
+            self.h.executemany(self.SQL_TO_TRANSACTIONS, result1)
+            self.commit(self.hdd)
+
+            if node.ram:
+                self.h2.executemany(self.SQL_TO_TRANSACTIONS, result1)
+                self.commit(self.hdd2)
+
+        # Batch insert misc
+        if result2:
+            self.h.executemany(self.SQL_TO_MISC, result2)
+            self.commit(self.hdd)
+
+            if node.ram:
+                self.h2.executemany(self.SQL_TO_MISC, result2)
+                self.commit(self.hdd2)
+
+        # Best-effort marker stamping so reconcile still gets the explicit floor in these paths too.
+        self._stamp_marker_best_effort(self.hdd, node.last_block)
+        if node.ram:
+            self._stamp_marker_best_effort(self.hdd2, node.last_block)
+
+    def _stamp_marker_best_effort(self, conn, height):
+        """Set commit_marker.committed_height on an already-open connection, swallowing any error (the
+        table may not exist on a legacy DB). Never raises into the commit path."""
+        try:
+            conn.execute("UPDATE commit_marker SET committed_height = ? WHERE id = 0", (height,))
+            conn.commit()
+        except Exception:
+            pass
