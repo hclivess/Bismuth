@@ -202,6 +202,23 @@
   - **Engine:** a SINGLE deterministic **RISC-V** (RV32I) interpreter — Vitalik's direction, real C/Rust
     toolchains, a frozen ISA. The state/gate/rollback/root framework is engine-agnostic, but there is one
     engine now, no dispatch.
+- **Rust client (second, independent implementation).** A Bismuth node/client in Rust, built to the
+  same frozen consensus boundary (`bismuth_serialize.py`'s signing/block-hash byte forms) and
+  **replay-validated to produce byte-identical block hashes** against the Python node — a second
+  implementation is the strongest test that the consensus rules are actually *specified*, not merely
+  "whatever the Python does." Motivations: throughput (the blocking, no-asyncio socket/digest stack is
+  the measured bottleneck), memory safety, and a real toolchain for the RV32I contract VM (this doc's
+  "real C/Rust toolchains" direction — the same RISC-V ISA the demo contracts target). Staged so it
+  never forks the network:
+  1. **Read / validating client** — sync (REST first, socket fallback), verify PoW + the Heavy3 hash +
+     signatures (RSA/ECDSA/ED25519, polysign-equivalent) + the difficulty retarget, and re-hash every
+     block through the frozen serialization, asserting parity with the Python node on the live chain.
+  2. **Wallet + tx submission** — key load/sign for all signer types, mempool submit over REST.
+  3. **Full validating node** — mempool, digest, peer serving; able to mine and be mined against,
+     cross-validated node-to-node with the Python node before it carries any real peering.
+  Consensus-critical paths (Heavy3 PoW, LWMA/legacy retarget, serialization, signature schemes, and —
+  post-fork — the RV32I VM and shielded ring-sig verification) are **ported with parity tests, never
+  reinterpreted**. Default-off and non-authoritative until it matches Python block-for-block.
 - **Supersede the legacy socket / peer / block-processing stack with the API system.** This is the
   project's worst code — blocking, no asyncio, stall-prone — and the long-term plan moves its capability
   onto the HTTP/REST API (parallel, compressed, non-stalling). That replacement is the *destination*, but
