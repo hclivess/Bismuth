@@ -142,6 +142,18 @@ class DbWriteMixin:
                             amt, "0", "0", str(mirror_hash), "0", "0", "vm:payout", "0"))
         self.commit(self.conn)
 
+    def shield_payout(self, block_height, timestamp, mirror_hash, recipient, amount_units):
+        """Settle a shield:redeem payout (doc/22): a consensus-generated negative-height ledger row
+        crediting `recipient` from the SHIELD_SINK pool (so the sink's ledger balance tracks the value of
+        the unspent shielded notes). Deterministic from the on-chain redeem op, and rolled back with the
+        ledger on a reorg, exactly like the reward / vm_payout mirrors."""
+        import shieldedv1
+        amt = str(int(amount_units) if amounts.LEDGER_INTEGER else amounts.to_decimal(amount_units))
+        self.execute_param(self.c, self.SQL_TO_TRANSACTIONS,
+                           (-int(block_height), str(timestamp), shieldedv1.SHIELD_SINK, str(recipient),
+                            amt, "0", "0", str(mirror_hash), "0", "0", "shield:payout", "0"))
+        self.commit(self.conn)
+
     def hn_reward(self,node,block_array,miner_tx,mirror_hash):
         fork = Fork()
 

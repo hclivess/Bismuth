@@ -480,6 +480,18 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
                     f"VM state-root mismatch at {block_instance.block_height_new}: coinbase "
                     f"{_claimed[:16]} != local {str(_local)[:16]}")
 
+        # shielded value (doc/22): consensus-validate this block's shield: txs BEFORE committing — a block
+        # that double-spends a nullifier, spends an unknown/already-spent note, fails an ownership proof,
+        # or breaks value conservation RAISES here and is rejected (never written). POST-FORK only; inert
+        # pre-fork exactly like vm:. The parsed ops are stashed to apply after to_db succeeds.
+        _shield_parsed = []
+        _sst = getattr(node, "shielded_state", None)
+        _sfh = getattr(node, "fork_height", None)
+        if _sst is not None and _sfh is not None and block_instance.block_height_new >= _sfh:
+            import shieldedv1
+            _shield_parsed = shieldedv1.validate_block(
+                _sst, processor.block_transactions, block_instance.block_height_new)
+
         # Save to database
         db_handler.to_db(block_instance, diff_save, processor.block_transactions)
 
@@ -564,6 +576,20 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
             except Exception as e:
                 node.logger.app_log.warning(
                     f"vm execution failed at {block_instance.block_height_new}: {e}")
+
+        # shielded value (doc/22): commit this block's validated shield: ops to the sidecar AFTER to_db, and
+        # settle each redeem as a consensus payout row SHIELD_SINK -> recipient (a negative-height mirror,
+        # like vm payouts / dev rewards — picked up by the balance index below and rolled back with the
+        # ledger). Placed BEFORE the balance-index maintenance so the payout mirror rows are indexed.
+        if _shield_parsed:
+            try:
+                import shieldedv1
+                for _to, _units in shieldedv1.apply_block(node.shielded_state, _shield_parsed):
+                    db_handler.shield_payout(block_instance.block_height_new, miner_tx.q_block_timestamp,
+                                             block_instance.mirror_hash, _to, _units)
+            except Exception as e:
+                node.logger.app_log.warning(
+                    f"shielded apply failed at {block_instance.block_height_new}: {e}")
 
         # Optional maintained balance index (doc/17): apply this block's net effect — the positive txs plus
         # any negative-height "mirror" rows (concluded dev/HN rewards AND VM custody payouts, both written

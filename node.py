@@ -1341,6 +1341,8 @@ if __name__ == "__main__":
     node.vm_enabled = config.vm                         # opt-in decentralized-apps VM (doc/17); POST-FORK only
     node.vm_state = None                               # the contract state store, built at startup if enabled
     node.vm_state_root = None                          # committed VM state root (doc/19), maintained post-fork
+    node.shield_enabled = config.shield                # opt-in shielded value (doc/22); POST-FORK only
+    node.shielded_state = None                         # the note/nullifier sidecar, built at startup if enabled
 
     node.logger.app_log = log.log("node.log", node.debug_level, node.terminal_output, node.log_color)
     node.logger.app_log.warning("Configuration settings loaded")
@@ -1515,6 +1517,20 @@ if __name__ == "__main__":
                 except Exception as e:
                     node.logger.app_log.warning("Status: VM could not start: {}".format(e))
                     node.vm_state = None
+
+            # optional shielded-value sidecar (doc/22). Off unless shield=True. A note/nullifier projection
+            # of the chain's shield: txs, maintained by the digester POST-FORK and rolled back on a reorg,
+            # namespaced per ledger (no regnet->mainnet bleed). Just open it; no startup rescan needed.
+            if getattr(node, "shield_enabled", False):
+                try:
+                    import shieldedv1 as _shield_mod
+                    node.shielded_state = _shield_mod.open_state_for(node.ledger_path)
+                    node.logger.app_log.warning(
+                        "Status: shielded value enabled (validates shield: txs post-fork): {}".format(
+                            node.shielded_state.stats()))
+                except Exception as e:
+                    node.logger.app_log.warning("Status: shielded value could not start: {}".format(e))
+                    node.shielded_state = None
 
             # optional LMDB block-body store mirror (doc/17 phase 7). Off unless block_store=True.
             # Additive shadow: the digester writes blocks here AFTER the normal commit; reads/consensus

@@ -239,6 +239,10 @@ def _make_handler(node):
                     return self._write(200, self._vm_contract(route[2]))
                 if route[:2] == ["vm", "market"] and len(route) == 3:
                     return self._write(200, self._vm_market(route[2]))
+                if route == ["shield", "stats"]:
+                    return self._write(200, self._shield_stats())
+                if route[:2] == ["shield", "note"] and len(route) == 3:
+                    return self._write(200, self._shield_note(route[2]))
                 if route == ["fee"]:
                     return self._write(200, self._fee())
                 if route == ["capabilities"]:
@@ -321,6 +325,8 @@ def _make_handler(node):
                         "/api/tokens": "all tokens on chain, ranked by transfer volume",
                         "/api/token/{name}": "a token's supply, holder count, and per-address balances",
                         "/api/fork": "hf2 auto-fork readiness: signalling run, lock-in, activation height",
+                        "/api/shield/stats": "shielded pool (doc/22): note/nullifier counts, pool value, sink",
+                        "/api/shield/note/{note_id}": "public fields of a shielded note (nothing decryptable)",
                     }}
 
         def _fork(self, db):
@@ -331,6 +337,31 @@ def _make_handler(node):
                                     getattr(node, "fork_window", fork.FORK2_WINDOW),
                                     getattr(node, "fork_boundary", fork.FORK2_BOUNDARY),
                                     getattr(node, "fork_bury", fork.FORK2_BURY))
+
+        def _shield_stats(self):
+            # shielded pool health (doc/22). pool_units MUST equal the SHIELD_SINK ledger balance — that
+            # invariant (publicly checkable, since amounts are transparent) is the supply-safety guarantee.
+            st = getattr(node, "shielded_state", None)
+            base = {"enabled": st is not None, "fork_height": getattr(node, "fork_height", None)}
+            if st is None:
+                return base
+            import shieldedv1
+            base["sink"] = shieldedv1.SHIELD_SINK
+            base.update(st.stats())
+            return base
+
+        def _shield_note(self, note_id):
+            st = getattr(node, "shielded_state", None)
+            if st is None:
+                raise _NotFound("shielded value not enabled")
+            n = st.note(note_id)
+            if n is None:
+                raise _NotFound("unknown note")
+            # public fields only — nothing returned is decryptable without the recipient's view key. With
+            # ring spends, whether a note is spent is UNKNOWABLE on-chain (the anonymity); wallets track
+            # their own spends via key images. The note serves as a ring decoy + scanning target.
+            return {"note_id": n["note_id"], "create_height": n["create_height"], "token": n["token"],
+                    "amount": n["amount"], "R": n["r_pub"], "P": n["p_pub"], "commitment": n["commitment"]}
 
         def _status(self):
             diff = node.difficulty[0] if getattr(node, "difficulty", None) else None

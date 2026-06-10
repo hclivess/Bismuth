@@ -42,7 +42,9 @@ def _port_open():
 def node_proc():
     # Start each session from a clean regnet chain.
     for name in ("static/regmode.db", "static/index_reg.db",
-                 "static/regmode.db-shm", "static/regmode.db-wal", "node.log"):
+                 "static/regmode.db-shm", "static/regmode.db-wal", "node.log",
+                 "static/shielded-regmode.db", "static/shielded-regmode.db-shm",
+                 "static/shielded-regmode.db-wal"):
         try:
             os.remove(os.path.join(ROOT, name))
         except OSError:

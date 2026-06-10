@@ -269,6 +269,10 @@ def fee_calculate(openfield: str, operation: str = '', block: int = 0,
     if vm_surcharge and operation.startswith("vm:"):
         import fee_dynamics
         fee += fee_dynamics.VM_SURCHARGE
+    # shielded txs (doc/22) are larger and costlier to validate (EC ops); a flat post-fork surcharge
+    # discourages spamming the pool. Same gate as the vm surcharge (post-fork only).
+    if vm_surcharge and operation.startswith("shield:"):
+        fee += DECIMAL_ONE
 
     return quantize_eight(fee)
 

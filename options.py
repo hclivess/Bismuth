@@ -80,6 +80,7 @@ class Get:
         "rpc_ethereum_port": ["int"],
         "balance_index": ["bool"],
         "vm": ["bool"],
+        "shield": ["bool"],
     }
 
     # Optional default values so we don't bug if they are not in the config.
@@ -119,6 +120,7 @@ class Get:
         "rpc_ethereum_port": 8545,
         "balance_index": False,              # opt-in maintained O(1) balance index for the DISPLAY read path (doc/17); off by default. Consensus stays on ledger_balance3.
         "vm": False,                         # opt-in decentralized-apps VM (doc/17); executes vm: txs POST-FORK only. Off by default; inert until hf2 activates.
+        "shield": False,                     # opt-in shielded value (doc/22); validates shield: txs POST-FORK only. Off by default; inert until hf2 activates.
         "mandatory_message": {
             "Address": "Comment - Dict for addresses that require a message. tx to these addresses withjout a message will not be accepted by mempool.",
             "f6c0363ca1c5aa28cc584252e65a63998493ff0a5ec1bb16beda9bac": "qTrade Exchange needs a message to route the deposit to your account",
