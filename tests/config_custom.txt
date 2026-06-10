@@ -13,6 +13,7 @@ version_allow=regnet
 old_sqlite=True
 rest_api=True
 rest_api_port=3031
+rest_api_write=True
 ledger_integer_amounts=True
 block_store=True
 fork_signal=True

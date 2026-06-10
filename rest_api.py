@@ -1,30 +1,38 @@
 """
-Modern, parallel REST/JSON API for Bismuth nodes (read-only, v1).
+Modern, parallel REST/JSON API for Bismuth nodes.
 
-This runs in its own ``ThreadingHTTPServer`` thread *alongside* — not replacing — the legacy
-length-prefixed-JSON socket protocol, so existing peers and wallets keep working unchanged. Unlike
-that protocol's serial request/response pipeline over a single socket, every HTTP request here is
-served concurrently in its own thread, each with its own short-lived DB handler.
+This runs in its own ``ThreadingHTTPServer`` thread *alongside* — and is intended to eventually replace —
+the legacy length-prefixed-JSON socket protocol, so existing peers and wallets keep working unchanged
+during the transition. Unlike that protocol's serial request/response pipeline over a single socket,
+every HTTP request here is served concurrently in its own thread, each with its own short-lived DB handler.
 
 Enable it in config.txt:
 
     rest_api=True
     rest_api_port=5659      # optional; defaults to 5659 (regnet/testnet pick their own in node.py)
+    rest_api_write=True     # optional; enables POST /api/transaction (tx submission over REST)
 
-It is disabled by default. v1 is strictly read-only (GET), so it cannot affect consensus; writes
-(transaction submission) are intentionally left to a later, authenticated version.
+READS (GET) are always available when ``rest_api`` is on and never affect consensus. WRITES — transaction
+submission — are the post-hardfork transport that moves submission OFF the socket protocol onto the API,
+so a wallet needs only HTTP. A submitted tx goes through the SAME ``mempool.merge`` validation the socket
+``mpinsert`` uses (signature, balance, dup, format) — the REST endpoint is a new transport, NOT a new rule
+or a consensus bypass. It is gated by ``rest_api_write`` (off by default) so a read-only node stays
+read-only until an operator opts in.
 
 Endpoints:
-    GET /api                                  - this index
-    GET /api/status                           - node status
-    GET /api/difficulty                       - current difficulty
-    GET /api/block/height/{n}                 - block at a height
-    GET /api/block/hash/{hash}                - block by hash
-    GET /api/balance/{address}                - address balance
-    GET /api/transaction/{txid}               - transaction by id (signature prefix)
-    GET /api/address/{address}/transactions   - recent txs for an address (?limit=N, max 500)
-    GET /api/mempool                          - pending transactions
-    GET /api/peers                            - known peers
+    GET  /api                                  - this index
+    GET  /api/status                           - node status
+    GET  /api/difficulty                       - current difficulty
+    GET  /api/block/height/{n}                 - block at a height
+    GET  /api/block/hash/{hash}                - block by hash
+    GET  /api/balance/{address}                - address balance
+    GET  /api/transaction/{txid}               - transaction by id (signature prefix)
+    GET  /api/address/{address}/transactions   - recent txs for an address (?limit=N, max 500)
+    GET  /api/mempool                          - pending transactions
+    GET  /api/peers                            - known peers
+    POST /api/transaction                      - submit a signed tx (needs rest_api_write); body:
+                                                 {"transaction": [ts, address, recipient, amount,
+                                                  signature, public_key, operation, openfield]}
 """
 import json
 import os
@@ -52,6 +60,10 @@ class _NotFound(Exception):
 
 
 class _BadRequest(Exception):
+    pass
+
+
+class _Forbidden(Exception):
     pass
 
 
@@ -290,6 +302,76 @@ def _make_handler(node):
                     except Exception:
                         pass
 
+        def do_POST(self):
+            """WRITE path. Post-hardfork, transaction submission moves OFF the legacy socket protocol onto
+            the REST API; this is that endpoint. Disabled unless ``rest_api_write`` is set (the GET API
+            stays consensus-neutral by default). A submitted tx goes through the SAME mempool.merge
+            validation the socket ``mpinsert`` uses — the API is just the new transport, no new rules."""
+            parsed = urlparse(self.path)
+            parts = [p for p in parsed.path.split("/") if p]
+            self._compress_override = (parse_qs(parsed.query).get("compress") or [None])[0]
+            db = None
+            try:
+                if parts[:1] != ["api"]:
+                    raise _NotFound("use /api")
+                route = parts[1:]
+                if route in (["transaction"], ["sendtx"], ["mempool"]):
+                    if not getattr(node, "rest_api_write", False):
+                        raise _Forbidden("transaction submission is disabled; start the node with rest_api_write=True")
+                    payload = self._read_body_json()
+                    db = self._db()
+                    return self._write(200, self._submit_transaction(db, payload))
+                raise _NotFound("unknown endpoint")
+            except _NotFound as e:
+                self._write(404, {"error": "not_found", "detail": str(e)})
+            except _Forbidden as e:
+                self._write(403, {"error": "forbidden", "detail": str(e)})
+            except _BadRequest as e:
+                self._write(400, {"error": "bad_request", "detail": str(e)})
+            except Exception as e:
+                self._write(500, {"error": "server_error", "detail": str(e)})
+            finally:
+                if db is not None:
+                    try:
+                        db.close()
+                    except Exception:
+                        pass
+
+        def _read_body_json(self):
+            try:
+                n = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                raise _BadRequest("bad Content-Length")
+            if n <= 0 or n > 2_000_000:               # generous (a RingCT spend openfield is ~95 KB)
+                raise _BadRequest("missing or oversized request body")
+            try:
+                return json.loads(self.rfile.read(n) or b"{}")
+            except Exception as e:
+                raise _BadRequest("bad json: %s" % e)
+
+        def _submit_transaction(self, db, payload):
+            """Insert a signed transaction (or several) into the mempool, like the socket ``mpinsert``.
+            Accepts an 8-field array, ``{"transaction": [...]}``, or an array of 8-field arrays — exactly
+            the wire-form tuple a wallet builds and signs. Validation (signature, balance, dup, format) is
+            mempool.merge's job, identical to the socket path; this never bypasses any check."""
+            if isinstance(payload, dict):
+                payload = payload.get("transaction", payload.get("transactions"))
+            if payload is None:
+                raise _BadRequest("provide a 'transaction' (8-field array) or an array of them")
+            txs = payload if (isinstance(payload, list) and payload and isinstance(payload[0], list)) else [payload]
+            for tx in txs:
+                if not (isinstance(tx, list) and len(tx) == 8):
+                    raise _BadRequest("each transaction must be an 8-field array %s" % (MEMPOOL_FIELDS,))
+                if not all(isinstance(f, (str, int, float)) for f in tx):
+                    raise _BadRequest("transaction fields must be scalar (wire form)")
+            if mp.MEMPOOL is None:
+                raise Exception("mempool not ready")
+            peer_ip = self.client_address[0] if self.client_address else "127.0.0.1"
+            # stringify to the canonical wire form merge expects, then merge (size_bypass + wait, like mpinsert)
+            txs = [[str(f) for f in tx] for tx in txs]
+            result = mp.MEMPOOL.merge(txs, peer_ip, db.c, True, True)
+            return {"submitted": len(txs), "txids": [tx[4][:56] for tx in txs], "result": result}
+
         # --- helpers -------------------------------------------------------
         def _db(self):
             return dbhandler.DbHandler(node.index_db, node.ledger_path, node.hyper_path, node.ram,
@@ -327,6 +409,10 @@ def _make_handler(node):
                         "/api/fork": "hf2 auto-fork readiness: signalling run, lock-in, activation height",
                         "/api/shield/stats": "shielded pool (doc/22): note/nullifier counts, pool value, sink",
                         "/api/shield/note/{note_id}": "public fields of a shielded note (nothing decryptable)",
+                        "POST /api/transaction": "submit a signed tx (needs rest_api_write=True); body "
+                                                 "{\"transaction\": [ts, address, recipient, amount, "
+                                                 "signature, public_key, operation, openfield]} — the "
+                                                 "post-hardfork submission path, no socket needed",
                     }}
 
         def _fork(self, db):
@@ -382,6 +468,9 @@ def _make_handler(node):
                     "rest_api": True, "rest_port": node.rest_api_port,
                     "compress": transport.available_codecs(),
                     "blocks": node.hdd_block,
+                    # post-hardfork transaction submission over REST (POST /api/transaction); when this is
+                    # True a client never needs the legacy socket protocol to send a tx.
+                    "rest_api_write": bool(getattr(node, "rest_api_write", False)),
                     "testnet": node.is_testnet, "regnet": node.is_regnet}
 
         def _difficulty(self):

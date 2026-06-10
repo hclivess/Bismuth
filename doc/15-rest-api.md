@@ -23,9 +23,12 @@ rest_api_port=5659      # optional; default 5659
 ```
 
 It is **disabled by default** — a node with no REST config behaves exactly as before, so old
-deployments and old clients are unaffected. v1 is **read-only** (GET only): it cannot affect
-consensus. Transaction submission is intentionally deferred to a later, authenticated version (see
-[14](14-known-issues-and-improvements.md)).
+deployments and old clients are unaffected. **Reads** (GET) never affect consensus. **Transaction
+submission** (`POST /api/transaction`) is now implemented as the post-hardfork transport that moves
+submission off the socket protocol onto the API — it is gated by a separate `rest_api_write=True`
+flag (off by default) so a read-only node stays read-only until an operator opts in. A submitted tx
+goes through the **same `mempool.merge` validation** the socket `mpinsert` uses (signature, balance,
+duplicate, format), so the endpoint is a new transport, not a new consensus rule or a bypass.
 
 ## Endpoints (v1)
 
@@ -74,9 +77,16 @@ read endpoints + 404 handling. The newer endpoints are covered by their feature 
 `/api/fee` by `test_fee_dynamics`/`test_transactions`; `/api/vm/*` by `test_vm_post_fork` + `test_vm_value`;
 `/api/supply`, `/api/tokens`, `/api/nodes` by `test_explorer_endpoints`.
 
+`POST /api/transaction` (the write path) is covered by `test_rest_api_write` — a signed tx submitted
+over HTTP alone (no socket) moves funds; a malformed body is 400; an unsigned/garbage tx is accepted by
+the endpoint but refused by mempool validation (never reaches a block).
+
 ## Roadmap
 
-- **Writes** — authenticated `POST /api/transaction` (submit a signed tx), mapping to the mempool.
+- **Writes** — ✅ `POST /api/transaction` (submit a signed tx) implemented, gated by `rest_api_write`,
+  going through `mempool.merge`. Still to do: optional auth/rate-limit for public exposure, and migrating
+  the demo relays + tooling off the socket `mpinsert` onto this endpoint (then the raw socket submit path
+  can be retired).
 - **Sync over REST** — ✅ read side added: `GET /api/blocks/since/{h}` and
   `GET /api/blocks/range/{start}/{end}` return positive-height blocks for **parallel** HTTP fetching
   (the serial socket sync stays for old peers). Still to do: a client-side parallel-fetch syncer and
