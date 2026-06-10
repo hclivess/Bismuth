@@ -128,11 +128,28 @@ class HDWallet:
 
     @classmethod
     def from_passphrase(cls, passphrase: str, salt: str = "bismuth", iterations: int = 2048, **kw) -> "HDWallet":
-        """Stretch a human passphrase into a 64-byte seed (PBKDF2-HMAC-SHA512, BIP39's seed step without
-        the wordlist). The SAME passphrase always yields the SAME wallet."""
+        """Stretch a raw human passphrase into a 64-byte seed (a brain-wallet; PBKDF2-HMAC-SHA512). This is
+        NOT BIP39 — for the standard 12/24-word mnemonic backup use ``from_mnemonic``/``new_mnemonic``."""
         seed = hashlib.pbkdf2_hmac("sha512", passphrase.encode("utf-8"),
                                    ("bismuth-hd:" + salt).encode("utf-8"), iterations, dklen=64)
         return cls(seed, **kw)
+
+    @classmethod
+    def from_mnemonic(cls, mnemonic: str, passphrase: str = "", **kw) -> "HDWallet":
+        """Restore a wallet from a BIP39 mnemonic (the portable 12/24-word backup). Rejects a phrase whose
+        checksum fails (a typo) before seeding. The optional ``passphrase`` is BIP39's 25th-word."""
+        import bip39
+        if not bip39.check(mnemonic):
+            raise ValueError("invalid BIP39 mnemonic (unknown word or bad checksum)")
+        return cls(bip39.to_seed(mnemonic, passphrase), **kw)
+
+    @classmethod
+    def new_mnemonic(cls, strength: int = 128, passphrase: str = "", **kw):
+        """Create a brand-new wallet and return ``(mnemonic, wallet)``. Write the mnemonic down — it is the
+        ONLY backup; ``strength`` 128 -> 12 words, 256 -> 24 words."""
+        import bip39
+        mnemonic = bip39.generate(strength)
+        return mnemonic, cls.from_mnemonic(mnemonic, passphrase, **kw)
 
     def account_node(self, account: int = 0) -> HDNode:
         """The BIP44 account node m/44'/coin'/account'."""
@@ -158,6 +175,39 @@ class HDWallet:
             except InvalidKeyError:
                 pass            # per BIP32, skip and continue
             i += 1
+
+    def scan(self, is_used, gap_limit: int = 20, account: int = 0, change: int = 0, start: int = 0,
+             max_index: int = HARDENED) -> list:
+        """Discover the USED addresses on one chain via the BIP44 gap-limit rule: walk indices from
+        ``start`` and stop after ``gap_limit`` (default 20) CONSECUTIVE unused addresses. ``is_used(addr)``
+        is a caller-supplied oracle — e.g. "does this address have any on-chain history / balance" — so
+        this stays node-agnostic (wire it to the REST API / a balance call). Returns ``[(index, address)]``
+        of the used addresses found, in order. A reset of the gap counter on each hit means a wallet with
+        gaps smaller than ``gap_limit`` is fully recovered."""
+        found, gap, i = [], 0, start
+        while gap < gap_limit and i < max_index:
+            try:
+                addr = self.node_at(i, account, change).address(self.subtype)
+            except InvalidKeyError:
+                i += 1
+                continue        # invalid index can't have been used; it doesn't count toward the gap
+            if is_used(addr):
+                found.append((i, addr))
+                gap = 0
+            else:
+                gap += 1
+            i += 1
+        return found
+
+    def scan_used_addresses(self, is_used, gap_limit: int = 20, account: int = 0,
+                            include_change: bool = True) -> dict:
+        """Convenience: scan BOTH the external (receive, change=0) and internal (change=1) chains, returning
+        ``{"receive": [(i, addr)…], "change": [(i, addr)…]}`` — the full recovered address set for an
+        account (the typical 'restore wallet from seed' sweep)."""
+        out = {"receive": self.scan(is_used, gap_limit, account, change=0)}
+        if include_change:
+            out["change"] = self.scan(is_used, gap_limit, account, change=1)
+        return out
 
 
 # --- transaction signing for any raw-bytes-pubkey signer (ECDSA / ED25519) -------------------------

@@ -123,10 +123,48 @@ def test_invalid_node_rejected():
         HDNode((hd_wallet._N).to_bytes(32, "big"), b"\x11" * 32)   # >= n
 
 
+# ----------------------------------------------------------------------------- gap-limit scanning
+def test_gap_limit_recovers_sparse_wallet():
+    w = HDWallet(SEED)
+    used_idx = {0, 1, 4, 7, 19}                        # gaps between hits all < 20
+    used = {w.receive_address(i) for i in used_idx}
+    found = w.scan(lambda a: a in used, gap_limit=20)
+    assert [i for i, _ in found] == sorted(used_idx), "gap-limit scan must recover all sparse hits"
+
+
+def test_gap_limit_stops_past_the_gap():
+    w = HDWallet(SEED)
+    used = {w.receive_address(0), w.receive_address(25)}   # 25 is beyond a 20-gap from index 0
+    assert [i for i, _ in w.scan(lambda a: a in used, gap_limit=20)] == [0]   # 25 not discovered (correct)
+    assert [i for i, _ in w.scan(lambda a: a in used, gap_limit=30)] == [0, 25]   # wider limit finds it
+
+
+def test_scan_empty_and_both_chains():
+    w = HDWallet(SEED)
+    assert w.scan(lambda a: False, gap_limit=5) == []
+    used = {w.node_at(2, change=0).address(), w.node_at(3, change=1).address()}
+    res = w.scan_used_addresses(lambda a: a in used, gap_limit=20)
+    assert [i for i, _ in res["receive"]] == [2] and [i for i, _ in res["change"]] == [3]
+
+
+def test_hd_gap_limit_scan_live(client):
+    w = HDWallet(b"\x5c" * 32)
+    # fund receive indices 0 and 2 (leave 1 unused) from the RSA wallet
+    a0, a2 = w.receive_address(0), w.receive_address(2)
+    client.send(a0, 2, "", "")
+    client.send(a2, 2, "", "")
+    _mine_until(client, lambda: client.balance(a0) >= 2 and client.balance(a2) >= 2)
+    # restoring from the seed, a gap-limit sweep rediscovers exactly the funded addresses
+    found = dict(w.scan(lambda a: client.balance(a) > 0, gap_limit=20))
+    assert 0 in found and 2 in found and 1 not in found, found
+
+
 # ----------------------------------------------------------------------------- live regnet
-def _mine_until(client, predicate, rounds=10):
+def _mine_until(client, predicate, rounds=24):
     """Mine in small bursts until `predicate()` holds — robust to mempool contention in the shared
-    session (a fixed mine(N) can miss inclusion when other tests' txs compete for the 2-tx/block slots)."""
+    session (a fixed mine(N) can miss inclusion when other tests' txs compete for the 2-tx/block slots).
+    Patience is generous (rounds*2 blocks) because the FULL suite now runs many heavy live tests
+    (RingCT/Bulletproof spends) against the one session node, so a given tx can lose the slot race a while."""
     for _ in range(rounds):
         if predicate():
             return
