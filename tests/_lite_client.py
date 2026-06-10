@@ -6,8 +6,10 @@ the in-tree ``connections`` module and signs transactions with the in-tree ``pol
 ``essentials.sign_rsa``). No bismuthclient / bismuthcore / tornado / ed25519 required, so the suite
 runs on any modern Python where the node itself runs.
 """
+import json
 import socket
 import time
+import urllib.request
 
 import connections
 import essentials
@@ -25,17 +27,27 @@ class LiteClient:
         self.address = loaded[6]
 
     # --- raw protocol -----------------------------------------------------
-    def command(self, command, options=None):
-        s = socket.socket()
-        s.settimeout(self.timeout)
-        s.connect((self.ip, self.port))
-        try:
-            connections.send(s, command)
-            for opt in (options or []):
-                connections.send(s, opt)
-            return connections.receive(s)
-        finally:
-            s.close()
+    def command(self, command, options=None, _tries=3):
+        """Send a node command, retrying transient connection drops. A busy node (e.g. mid-digest of a heavy
+        block such as a RingCT spend) can close a fresh socket -> 'Socket EOF'; that is infrastructure
+        flakiness, not a command failure, so retry with backoff. A genuinely failing command fails all
+        tries and re-raises."""
+        last = None
+        for attempt in range(_tries):
+            s = socket.socket()
+            s.settimeout(self.timeout)
+            try:
+                s.connect((self.ip, self.port))
+                connections.send(s, command)
+                for opt in (options or []):
+                    connections.send(s, opt)
+                return connections.receive(s)
+            except (RuntimeError, OSError) as e:
+                last = e
+                time.sleep(0.5 * (attempt + 1))
+            finally:
+                s.close()
+        raise last
 
     # --- convenience ------------------------------------------------------
     def mine(self, count=1):
@@ -99,6 +111,33 @@ class LiteClient:
                                         amount, operation, data)
         self.command("mpinsert", [list(tx)])
         return tx[4][:56]
+
+    def send_raw_tx(self, tx):
+        """Submit a fully pre-built + signed 8-field tx tuple (e.g. a native multisig spend assembled by
+        multisig_wallet.MultisigAccount). Returns the txid (sig[:56])."""
+        self.command("mpinsert", [list(tx)])
+        return tx[4][:56]
+
+    # --- API submission (the post-hardfork write path; no socket) ----------
+    def api_submit(self, tx, api_port=3031):
+        """Submit a signed 8-field tx over the REST API (POST /api/transaction) — the post-hardfork
+        transport that replaces the socket mpinsert. Returns the parsed JSON response."""
+        url = "http://%s:%d/api/transaction" % (self.ip, int(api_port))
+        body = json.dumps({"transaction": list(tx)}).encode("utf-8")
+        req = urllib.request.Request(url, data=body, method="POST",
+                                     headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=self.timeout) as r:
+            return json.load(r)
+
+    def send_via_api(self, recipient, amount, operation="", data="", api_port=3031):
+        """Sign a tx with the RSA wallet and submit it over the REST API (not the socket). Returns txid."""
+        timestamp = "%.2f" % time.time()
+        signed = essentials.sign_rsa(timestamp, self.address, recipient, amount, operation, data,
+                                     self.key, self.public_key_b64encoded)
+        if not signed:
+            raise RuntimeError("local signing failed")
+        self.api_submit(list(signed), api_port=api_port)
+        return signed[4][:56]
 
     def clear_cache(self):
         # No client-side caching here; kept for parity with the old BismuthClient API.
