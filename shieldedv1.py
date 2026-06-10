@@ -477,6 +477,8 @@ def validate_block(state: ShieldedState, block_transactions: list, height: int) 
                 raise ShieldError(f"duplicate shielded note {nid[:16]} at {height}")
             if str(tx[3]) != SHIELD_SINK:
                 raise ShieldError(f"shield:mint must pay the pool sink, not {str(tx[3])[:16]} at {height}")
+            if int(data["amt"]) <= 0:
+                raise ShieldError(f"shield:mint non-positive amount {data['amt']} at {height}")
             if _amount_units(tx[4]) != int(data["amt"]):
                 raise ShieldError(f"shield:mint deposit {tx[4]} != note amount {data['amt']} at {height}")
             if data.get("c") != commitment(P, int(data["amt"]), str(data.get("tok", "bis"))):
@@ -494,6 +496,12 @@ def validate_block(state: ShieldedState, block_transactions: list, height: int) 
             total = 0
             for o in outs:
                 oP = _require_point(o.get("P"), "spend out P")
+                # CRITICAL: outputs must be strictly positive. Without this, [{amt:A+k},{amt:-k}] conserves
+                # the total (==A) yet mints an over-valued note that redeems for more than was deposited —
+                # an inflation/theft of the SHIELD_SINK pool. Positive-only outputs + conservation keep
+                # every note's value positive and the pool exactly backed.
+                if int(o["amt"]) <= 0:
+                    raise ShieldError(f"shield:spend non-positive output amount {o.get('amt')} at {height}")
                 if o.get("c") != commitment(oP, int(o["amt"]), str(o.get("tok", "bis"))):
                     raise ShieldError(f"shield:spend output commitment mismatch at {height}")
                 if str(o.get("tok", "bis")) != token:
@@ -511,6 +519,8 @@ def validate_block(state: ShieldedState, block_transactions: list, height: int) 
             image = _verify_ring(notes, data, payload, height)
             if image in seen_images or state.has_key_image(image):
                 raise ShieldError(f"double-spend: key image {image[:16]} already used at {height}")
+            if int(data["amt"]) <= 0:
+                raise ShieldError(f"shield:redeem non-positive amount {data.get('amt')} at {height}")
             if int(data["amt"]) != int(amount):
                 raise ShieldError(f"shield:redeem amount {data['amt']} != ring amount {amount} at {height}")
             seen_images.add(image)
