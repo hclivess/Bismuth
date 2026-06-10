@@ -480,6 +480,20 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
                     f"VM state-root mismatch at {block_instance.block_height_new}: coinbase "
                     f"{_claimed[:16]} != local {str(_local)[:16]}")
 
+        # native multisig (doc/23 §2): a multisig SENDER is a post-fork-only base-layer address type. The
+        # M-of-N threshold itself is verified per-tx in Transaction.validate (SignerMultisig factory route);
+        # here we add the hf2 TIMING gate — before activation an upgraded node MUST NOT accept a multisig
+        # spend that a pre-fork node rejects (chain-split safety), so reject any block carrying a multisig
+        # SENDER at/below the fork height. Receiving INTO a multisig address is always fine (just an address).
+        _mfh = getattr(node, "fork_height", None)
+        if _mfh is None or block_instance.block_height_new <= _mfh:
+            from polysign.signerfactory import SignerFactory as _SF
+            for _t in processor.block_transactions:
+                if _SF.address_is_multisig(str(_t[2])):
+                    raise ValueError(
+                        f"multisig sender {str(_t[2])[:12]} at block {block_instance.block_height_new} "
+                        f"requires hf2 activation (fork_height {_mfh})")
+
         # shielded value (doc/22): consensus-validate this block's shield: txs BEFORE committing — a block
         # that double-spends a nullifier, spends an unknown/already-spent note, fails an ownership proof,
         # or breaks value conservation RAISES here and is rejected (never written). POST-FORK only; inert

@@ -31,6 +31,7 @@ _OPTIONAL_SIGNERS = {
     "SignerSECP256R1": ("polysign.signer_secp256r1", "SignerSECP256R1"),   # P-256 / secp256r1 ECDSA
     "SignerBTC": ("polysign.signer_btc", "SignerBTC"),
     "SignerCRW": ("polysign.signer_crw", "SignerCRW"),
+    "SignerMultisig": ("polysign.signer_multisig", "SignerMultisig"),      # native M-of-N (doc/23 §2, hf2)
 }
 _optional_signer_cache = {}
 
@@ -47,6 +48,9 @@ def _load_optional_signer(name):
 RE_RSA_ADDRESS = re.compile(r"^[abcdef0123456789]{56}$")
 # Improve ECDSA/ED25519 by Bizzzy
 RE_ECDSA_ADDRESS = re.compile(r"^Bis1[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]{28,52}$")
+# Native M-of-N multisig (doc/23 §2): the MULTISIG address versions base58-encode to a fixed prefix —
+# mainnet 'Bism', testnet 'mBis' — distinct from regular ECDSA 'Bis1', so routing never collides.
+RE_MULTISIG_ADDRESS = re.compile(r"^(Bism|mBis)[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]{28,56}$")
 
 
 def signer_for_type(signer_type: SignerType) -> Union[Type[Signer], None]:
@@ -90,6 +94,8 @@ class SignerFactory:
         """Return the signer class matching an address (by its textual format)."""
         if RE_RSA_ADDRESS.match(address):
             return SignerRSA
+        elif RE_MULTISIG_ADDRESS.match(address):
+            return _load_optional_signer("SignerMultisig")
         elif RE_ECDSA_ADDRESS.match(address):
             if len(address) > 50:
                 return _load_optional_signer("SignerED25519")
@@ -99,10 +105,20 @@ class SignerFactory:
         raise ValueError("Unsupported Address type")
 
     @classmethod
+    def address_is_multisig(cls, address: str) -> bool:
+        """True iff ``address`` is a native M-of-N multisig address (doc/23 §2). Used by the digester to
+        fork-gate multisig SENDERS to post-hf2 (an upgraded node must not accept what a pre-fork node
+        would reject). Cheap textual check — the verifier re-derives the address from the redeem anyway."""
+        return RE_MULTISIG_ADDRESS.match(address) is not None
+
+    @classmethod
     def address_is_valid(cls, address: str) -> bool:
         """Return whether the address matches any supported (RSA / ECDSA / ED25519) format."""
         if RE_RSA_ADDRESS.match(address):
             # RSA, 56 hex
+            return True
+        elif RE_MULTISIG_ADDRESS.match(address):
+            # native M-of-N multisig (doc/23 §2), ~37 chars — a valid sender (post-fork) and recipient
             return True
         elif RE_ECDSA_ADDRESS.match(address):
             if 50 < len(address) < 60:
