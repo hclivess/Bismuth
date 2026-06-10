@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bismuth Raffle</title>
+<style>
+  body { font: 15px/1.5 system-ui, sans-serif; max-width: 720px; margin: 24px auto; padding: 0 16px; color: #1b1b1b; }
+  h1 { font-size: 22px; } h2 { font-size: 16px; margin-top: 24px; }
+  fieldset { border: 1px solid #ddd; border-radius: 8px; margin: 12px 0; padding: 12px 14px; }
+  legend { font-weight: 600; padding: 0 6px; color: #555; }
+  label { display: inline-block; min-width: 92px; color: #555; }
+  input { padding: 5px 7px; border: 1px solid #ccc; border-radius: 5px; font: inherit; }
+  input.wide { width: 100%; box-sizing: border-box; }
+  button { padding: 7px 13px; border: 0; border-radius: 6px; background: #2b6cb0; color: #fff;
+           font: inherit; cursor: pointer; margin: 3px 4px 3px 0; }
+  button.alt { background: #555; } button:disabled { background: #bbb; cursor: not-allowed; }
+  .row { margin: 7px 0; }
+  .stat { display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding: 4px 0; }
+  .stat b { font-variant-numeric: tabular-nums; }
+  #log { font: 12px/1.4 ui-monospace, monospace; background: #f6f6f6; border-radius: 6px; padding: 8px;
+         white-space: pre-wrap; max-height: 200px; overflow: auto; }
+  .pill { padding: 1px 8px; border-radius: 10px; font-size: 12px; }
+  .open { background: #e6f4ea; color: #137333; } .closed { background: #fce8e6; color: #c5221f; }
+  .warn { color: #b06000; font-size: 13px; }
+</style>
+</head>
+<body>
+<h1>🎟️ Bismuth Raffle <span id="state" class="pill"></span></h1>
+<p class="warn">Demo. Commit-reveal draw: the admin commits SHA256(seed) at deploy and reveals the seed to
+  draw. The winning <em>index</em> is fixed by the committed hash, so this is demo-grade fairness — a
+  production raffle needs post-entry entropy (a future block hash / VRF). See contracts/raffle.py.</p>
+
+<fieldset>
+  <legend>Connection</legend>
+  <div class="row"><label>Node API</label><input id="api" class="wide" value="http://127.0.0.1:3031"></div>
+  <div class="row"><label>Relay</label><input id="relay" class="wide" value="http://127.0.0.1:8098"></div>
+  <div class="row"><label>Contract</label><input id="addr" class="wide" placeholder="56-hex contract address (or Deploy a new one)"></div>
+  <div class="row"><button onclick="loadInfo()">Connect</button>
+    <button class="alt" onclick="mine()">Mine 2 (regnet)</button>
+    <span id="who"></span></div>
+</fieldset>
+
+<fieldset>
+  <legend>Admin</legend>
+  <div class="row"><button onclick="deploy()">Deploy new raffle</button></div>
+  <div class="row"><label>Seed</label><input id="seed" class="wide" placeholder="revealed seed (auto-filled on deploy)"></div>
+  <div class="row"><button onclick="draw()">Draw (reveal seed)</button>
+    <span class="warn">save the seed shown after deploy — you need it to draw</span></div>
+</fieldset>
+
+<fieldset>
+  <legend>Play</legend>
+  <div class="row"><label>Enter (BIS)</label><input id="bis" value="1" size="6">
+    <button onclick="enter()">Buy a ticket</button></div>
+  <div class="row"><label>Claim to</label><input id="rcpt" class="wide" placeholder="winner's 56-hex address"></div>
+  <div class="row"><button onclick="claim()">Claim pot</button></div>
+</fieldset>
+
+<h2>State</h2>
+<div id="stats"></div>
+
+<h2>Log</h2>
+<div id="log"></div>
+
+<script>
+const S = { DRAWN:1, NUM:2, POT:3, WINNER:4, CLAIMED:5 };   // mirrors contracts/raffle.py
+const UNIT = 100000000;
+const $ = id => document.getElementById(id);
+const api   = () => $('api').value.replace(/\/$/,'');
+const relay = () => $('relay').value.replace(/\/$/,'');
+const addr  = () => $('addr').value.trim();
+function log(m){ const l=$('log'); l.textContent = '['+new Date().toLocaleTimeString()+'] '+m+'\n'+l.textContent; }
+
+async function getJSON(base, path){ const r = await fetch(base+path); if(!r.ok) throw new Error(path+' -> '+r.status); return r.json(); }
+async function postJSON(base, path, body){
+  const r = await fetch(base+path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body||{})});
+  const j = await r.json(); if(!r.ok || j.error) throw new Error(j.error||('HTTP '+r.status)); return j;
+}
+
+async function loadInfo(){
+  try { const i = await getJSON(relay(), '/relay/info'); $('who').textContent = 'wallet '+i.address.slice(0,12)+'… admin_id '+i.admin_id;
+        if(!$('rcpt').value) $('rcpt').value = i.address; log('connected: '+i.address); render(); }
+  catch(e){ log('relay info failed: '+e.message); }
+}
+async function deploy(){
+  try { const r = await postJSON(relay(), '/relay/deploy', {}); $('seed').value = r.seed;
+        log('deploy tx '+r.txid+' — SEED='+r.seed+' (saved in box; keep it secret until draw)');
+        log('mine, then paste the new contract address (see /api/vm/contracts) into Contract.'); await mine(); refreshContracts(); }
+  catch(e){ log('deploy failed: '+e.message); }
+}
+async function enter(){
+  try { const r = await postJSON(relay(), '/relay/enter', {address:addr(), bis:parseFloat($('bis').value)});
+        log('enter '+r.bis+' BIS tx '+r.txid); await mine(); }
+  catch(e){ log('enter failed: '+e.message); }
+}
+async function draw(){
+  try { const r = await postJSON(relay(), '/relay/draw', {address:addr(), seed:$('seed').value.trim()||undefined});
+        log('draw tx '+r.txid); await mine(); }
+  catch(e){ log('draw failed: '+e.message); }
+}
+async function claim(){
+  try { const r = await postJSON(relay(), '/relay/claim', {address:addr(), recipient:$('rcpt').value.trim()});
+        log('claim tx '+r.txid); await mine(); }
+  catch(e){ log('claim failed: '+e.message); }
+}
+async function mine(){
+  try { const r = await postJSON(relay(), '/relay/mine', {count:2}); log('mined to height '+r.height); setTimeout(render, 250); }
+  catch(e){ /* mainnet: no regtest mining */ }
+}
+async function refreshContracts(){
+  try { const c = await getJSON(api(), '/vm/contracts?compress=none'); if(c.contracts && c.contracts.length && !addr()) $('addr').value = c.contracts[c.contracts.length-1]; }
+  catch(e){}
+}
+function slotMap(d){ const m={}; (d.storage||[]).forEach(s=>m[parseInt(s.key)]=parseInt(s.value)); return m; }
+async function render(){
+  if(!addr()){ $('stats').innerHTML=''; $('state').textContent=''; return; }
+  try {
+    const d = await getJSON(api(), '/vm/contract/'+encodeURIComponent(addr())+'?compress=none');
+    const m = slotMap(d), drawn = m[S.DRAWN]===1, claimed = m[S.CLAIMED]===1;
+    $('state').className = 'pill '+(drawn?'closed':'open'); $('state').textContent = drawn?(claimed?'claimed':'drawn'):'open';
+    const rows = [
+      ['Tickets', m[S.NUM]||0],
+      ['Pot (BIS)', ((m[S.POT]||0)/UNIT).toFixed(8)],
+      ['Custody (BIS)', (parseInt(d.balance||0)/UNIT).toFixed(8)],
+      ['Drawn', drawn?'yes':'no'],
+      ['Winner fold', drawn? '0x'+((m[S.WINNER]||0)>>>0).toString(16).padStart(8,'0') : '—'],
+      ['Claimed', claimed?'yes':'no'],
+    ];
+    $('stats').innerHTML = rows.map(r=>`<div class="stat"><span>${r[0]}</span><b>${r[1]}</b></div>`).join('');
+  } catch(e){ $('stats').innerHTML = '<span class="warn">'+e.message+'</span>'; }
+}
+setInterval(render, 5000);
+window.addEventListener('load', loadInfo);
+</script>
+</body>
+</html>
