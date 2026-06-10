@@ -71,14 +71,23 @@ def _ensure_balance(client, need_bis):
     raise AssertionError("could not fund wallet to %s BIS (have %s)" % (need_bis, client.balance()))
 
 
+def _mine_until(client, predicate, rounds=12):
+    """Mine in small bursts until `predicate()` holds — robust to mempool contention in the shared session
+    (a fixed mine(N) can miss inclusion when other tests' txs compete for the 2-tx/block slots)."""
+    for _ in range(rounds):
+        if predicate():
+            return
+        client.mine(2)
+        sleep(0.2)
+    assert predicate(), "condition not reached after mining"
+
+
 def _mint(client, address, amount):
     """Mint one note of `amount` BIS to `address`; wait until the sidecar indexes it; return the note."""
     note = sh.make_output(address, str(amount))
     pool0, sink0 = _pool(client), _sink(client)
     client.send(sh.SHIELD_SINK, amount, sh.OP_MINT, json.dumps(note))
-    client.mine(2)
-    sleep(0.3)
-    assert _note(note["note_id"]) is not None, "mint not indexed by the shielded sidecar"
+    _mine_until(client, lambda: _note(note["note_id"]) is not None)
     # supply safety (delta form): a mint moves pool and sink by the SAME amount
     assert _pool(client) - pool0 == note["amt"], "pool not credited by mint"
     assert _sink(client) - sink0 == note["amt"], "sink not credited by mint (pool/sink desync)"
@@ -149,16 +158,20 @@ def test_shield_double_spend_rejected_and_reorg(client):
     out = sh.make_output(sh.new_keypair()["address"], "7")
     spend = sh.make_spend(ring, real_index=0, p_hex=keys[0], outputs=[out])
 
+    ki_before = _key_images()
     h_before_spend = client.block_height()
     client.send(client.address, 0, sh.OP_SPEND, json.dumps(spend))
-    client.mine(2)
-    sleep(0.3)
+    _mine_until(client, lambda: _key_images() > ki_before)      # the legit spend is on chain
     ki_after = _key_images()
 
     # --- DOUBLE SPEND: re-spend notes[0] via a DIFFERENT ring/outputs -> SAME key image -> rejected ---
     out2 = sh.make_output(sh.new_keypair()["address"], "7")
     spend_again = sh.make_spend(ring, real_index=0, p_hex=keys[0], outputs=[out2])  # same spent note
     assert spend_again["I"] == spend["I"], "key image should be identical for the same spent note"
+    # clear the mempool FIRST so the next generated block contains ONLY the poison — otherwise, in the
+    # shared session, an unrelated pending tx could fill the block (valid) and the height would advance.
+    client.command("mpclear")
+    sleep(0.2)
     height_before = client.block_height()
     client.send(client.address, 0, sh.OP_SPEND, json.dumps(spend_again))
     client.command("regtest_generate", [1])           # one attempt; the block must be rejected
@@ -176,6 +189,4 @@ def test_shield_double_spend_rejected_and_reorg(client):
     out3 = sh.make_output(sh.new_keypair()["address"], "7")
     respend = sh.make_spend(ring, real_index=0, p_hex=keys[0], outputs=[out3])
     client.send(client.address, 0, sh.OP_SPEND, json.dumps(respend))
-    client.mine(2)
-    sleep(0.3)
-    assert _key_images() == ki_after, "re-spend after reorg was not accepted"
+    _mine_until(client, lambda: _key_images() == ki_after)      # re-spend accepted on the new branch

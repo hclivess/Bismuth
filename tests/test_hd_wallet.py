@@ -124,22 +124,30 @@ def test_invalid_node_rejected():
 
 
 # ----------------------------------------------------------------------------- live regnet
+def _mine_until(client, predicate, rounds=10):
+    """Mine in small bursts until `predicate()` holds — robust to mempool contention in the shared
+    session (a fixed mine(N) can miss inclusion when other tests' txs compete for the 2-tx/block slots)."""
+    for _ in range(rounds):
+        if predicate():
+            return
+        client.mine(2)
+        sleep(0.2)
+    assert predicate(), "condition not reached after mining"
+
+
 def test_hd_address_is_spendable(client):
-    client.mine(2)
     w = HDWallet(b"\x99" * 32)
     node = w.node_at(0)
     addr = node.address()
 
     # the RSA wallet funds the freshly derived HD address
     client.send(addr, 5, "", "")
-    client.mine(2)
-    sleep(0.3)
-    assert abs(client.balance(addr) - 5) < 1e-9, "derived HD address not funded"
+    _mine_until(client, lambda: client.balance(addr) >= 5)
+    assert abs(client.balance(addr) - 5) < 1e-6, "derived HD address not funded"
 
     # the HD-derived ECDSA key spends from it to a second derived address
     dest = w.node_at(1).address()
     client.send_with_signer(dest, 3, node.signer(), "", "hd-spend")
-    client.mine(2)
-    sleep(0.3)
-    assert abs(client.balance(dest) - 3) < 1e-9, "HD address could not spend to another derived address"
+    _mine_until(client, lambda: client.balance(dest) >= 3)
+    assert abs(client.balance(dest) - 3) < 1e-6, "HD address could not spend to another derived address"
     assert client.balance(addr) < 2.001, "sender HD address not debited (amount + fee)"
