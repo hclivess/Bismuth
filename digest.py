@@ -404,9 +404,15 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
         node.fee_post_fork = _bff is not None and (node.last_block + 1) >= _bff
         if node.fee_post_fork:
             import fee_dynamics
-            node.base_fee = fee_dynamics.base_fee(
-                essentials.BASE_FEE,
-                essentials.recent_tx_counts(db_handler, node.last_block, fee_dynamics.WINDOW))
+            # congestion = block WEIGHT (tx count + openfield bytes // W_UNIT), so large RingCT/VM txs price
+            # in their real footprint, not just count. Read from the post-fork BLOCK STORE (LMDB) — NO
+            # SQLite post-fork. Deterministic, storage-mode-independent, and the store is rolled back with
+            # the chain so the window is always canonical. No store -> empty window -> static base fee.
+            _bs = getattr(node, "block_store", None)
+            _weights = (_bs.recent_block_weights(node.last_block, fee_dynamics.WINDOW, fee_dynamics.W_UNIT)
+                        if _bs is not None else [])
+            node.base_fee = fee_dynamics.base_fee(essentials.BASE_FEE, _weights,
+                                                  target=fee_dynamics.TARGET_WEIGHT)
         else:
             node.base_fee = essentials.BASE_FEE
 
@@ -486,7 +492,9 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
         # spend that a pre-fork node rejects (chain-split safety), so reject any block carrying a multisig
         # SENDER at/below the fork height. Receiving INTO a multisig address is always fine (just an address).
         _mfh = getattr(node, "fork_height", None)
-        if _mfh is None or block_instance.block_height_new <= _mfh:
+        # active at height >= fork_height, identical to the shield/VM gates above (which use >= _fh). Using
+        # '<' (not '<=') so multisig activates at the SAME block as shield/VM, not one block later.
+        if _mfh is None or block_instance.block_height_new < _mfh:
             from polysign.signerfactory import SignerFactory as _SF
             for _t in processor.block_transactions:
                 if _SF.address_is_multisig(str(_t[2])):

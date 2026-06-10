@@ -145,6 +145,24 @@ class BlockStore:
                 return None
             return self._expand(txn, height, _unpack(v))
 
+    def recent_block_weights(self, tip_height, window, w_unit=1000):
+        """Per-block WEIGHT (tx count + openfield bytes // w_unit) for the last ``window`` blocks up to
+        ``tip_height`` — the post-fork dynamic-fee congestion signal, read from THIS store (LMDB), NEVER
+        SQLite. Deterministic: a pure function of the stored canonical blocks. openfield is the last stored
+        field (block_height is dropped as the key, so no pubkey re-expansion is needed for the length)."""
+        weights = []
+        lo = max(1, int(tip_height) - int(window) + 1)
+        unit = max(1, int(w_unit))
+        with self.env.begin() as txn:
+            for h in range(lo, int(tip_height) + 1):
+                v = txn.get(_hk(h), db=self.blocks)
+                if v is None:
+                    continue
+                rows = _unpack(v)["t"]
+                ofbytes = sum(len(str(r[-1])) for r in rows)
+                weights.append(len(rows) + ofbytes // unit)
+        return weights
+
     def block_hash(self, height):
         with self.env.begin() as txn:
             v = txn.get(_hk(height), db=self.blocks)

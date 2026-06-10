@@ -277,17 +277,9 @@ def fee_calculate(openfield: str, operation: str = '', block: int = 0,
     return quantize_eight(fee)
 
 
-def recent_tx_counts(db_handler, block_height, window):
-    """Per-block tx counts for the last `window` positive-height blocks up to `block_height` — the demand
-    signal the post-fork dynamic base fee averages (the fee analogue of difficulty's solvetime window)."""
-    try:
-        db_handler.execute_param(
-            db_handler.c,
-            "SELECT block_height, COUNT(*) FROM transactions WHERE block_height > ? AND block_height <= ? "
-            "GROUP BY block_height", (block_height - window, block_height))
-        return [r[1] for r in db_handler.c.fetchall()]
-    except Exception:
-        return []
+# The post-fork dynamic-fee congestion signal (per-block WEIGHT) is read from the BLOCK STORE
+# (block_store.BlockStore.recent_block_weights), NOT SQLite — there is no SQLite on any post-fork path.
+# The earlier SQLite recent_tx_counts / recent_block_weights helpers were removed for that reason.
 
 
 def execute_param_c(cursor, query, param, app_log):

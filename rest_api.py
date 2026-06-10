@@ -516,15 +516,20 @@ def _make_handler(node):
                     "nodes": out}
 
         def _fee(self):
-            """Current fee parameters. Post-fork the base fee is demand-responsive (fee_dynamics);
-            wallets should read base_fee here. vm: txs additionally pay vm_surcharge."""
+            """Current fee parameters. Post-fork the base fee is CONGESTION-responsive (fee_dynamics):
+            it scales with recent block WEIGHT (tx count + openfield bytes // w_unit) over a window,
+            clamped — wallets should read `base_fee` here for the live minimum. vm: txs additionally pay
+            vm_surcharge; +len(openfield)/100000 per tx; shield: txs +0.01."""
             import fee_dynamics
             bf = getattr(node, "base_fee", None)
             return {"base_fee": str(bf) if bf is not None else str(essentials.BASE_FEE),
                     "static_base_fee": str(essentials.BASE_FEE),
                     "post_fork": bool(getattr(node, "fee_post_fork", False)),
                     "vm_surcharge": str(fee_dynamics.VM_SURCHARGE),
-                    "target_txs": fee_dynamics.TARGET_TXS, "window": fee_dynamics.WINDOW}
+                    "congestion": "weight", "target_weight": fee_dynamics.TARGET_WEIGHT,
+                    "weight_unit_bytes": fee_dynamics.W_UNIT, "window": fee_dynamics.WINDOW,
+                    "min_mult": str(fee_dynamics.MIN_MULT), "max_mult": str(fee_dynamics.MAX_MULT),
+                    "target_txs": fee_dynamics.TARGET_TXS}
 
         def _vm_contracts(self):
             """Deployed decentralized-apps VM contracts. Empty unless vm=True and the fork has activated."""

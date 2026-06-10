@@ -77,11 +77,22 @@ execution, but inert pre-fork and the enforced root turns any non-determinism in
 block-rejection rather than a silent divergence. Full map: **doc/19**. (`tests/test_riscv.py`,
 `test_vm_state.py`, `test_vm_post_fork.py`, `test_vm_value.py`.)
 
-### F. Dynamic fees → demand-responsive base fee — ✅ **implemented, fork-gated, tested**
-A smooth, clamped, *deterministic* base fee that tracks recent block fullness over a window
+### F. Dynamic fees → congestion-responsive base fee — ✅ **implemented, fork-gated, tested**
+A smooth, clamped, *deterministic* base fee that tracks recent network **congestion** over a window
 (`fee_dynamics.py`, the fee analogue of the LWMA), plus a `vm:` execution surcharge; exposed at
 `/api/fee` for wallets. *Risk: low* — gated; pre-fork the static `BASE_FEE` is unchanged.
-(`tests/test_fee_dynamics.py`, `test_transactions.py`.)
+
+Congestion is measured by **block WEIGHT**, not just tx count: `weight = tx count + openfield bytes //
+W_UNIT` (`essentials.recent_block_weights`), a gas/vbyte-style measure — so a block of large RingCT/VM txs
+prices in its real footprint, not merely how many txs it holds (the baseline is unchanged for all-tiny
+blocks, since each tiny tx is ~1 weight). `base_fee = static × clamp(avg(recent_weights)/TARGET_WEIGHT,
+0.5×, 10×)` over `WINDOW=20` blocks. Read from the **canonical SQLite ledger** via `db_handler` (the same
+source as the LWMA difficulty and the fork signal — *not* the additive LMDB shadow), so it is consensus-
+deterministic and storage-mode-independent (integer storage, doc/16, never touches `openfield`).
+Manipulation-resistant: window-averaged (one block barely moves it), clamped (no runaway spike), and a
+miner who stuffs blocks to inflate the fee pays the very fees they raise — the same bounded shape as
+EIP-1559, but non-recursive so it needs no saved fee state across restarts. (`tests/test_fee_dynamics.py`,
+`test_transactions.py`.)
 
 ### D. Heavy3 improvement — **optional, highest-risk; recommend caution**
 Heavy3 (`sha224` → 1 GB memory-hard anneal → substring-prefix difficulty) is already GPU-mineable
