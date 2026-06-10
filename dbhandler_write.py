@@ -150,7 +150,7 @@ class DbWriteMixin:
         import shieldedv1
         amt = str(int(amount_units) if amounts.LEDGER_INTEGER else amounts.to_decimal(amount_units))
         self.execute_param(self.c, self.SQL_TO_TRANSACTIONS,
-                           (-int(block_height), str(timestamp), shieldedv1.SHIELD_SINK, str(recipient),
+                           (-int(block_height), str(timestamp), shieldedv1.SHIELD_SINK, str(recipient)[:56],
                             amt, "0", "0", str(mirror_hash), "0", "0", "shield:payout", "0"))
         self.commit(self.conn)
 

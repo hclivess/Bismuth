@@ -436,14 +436,43 @@ def _resolve_ring(state, data, height):
     return notes
 
 
+def _require_note_fields(d, what: str, height) -> bytes:
+    """Validate a note/output dict has EVERY field apply_block will read, correctly typed — so a
+    validate-pass can never apply-fail (which would desync the sidecar from the committed ledger). Also
+    the single home of the amount rules: a strictly-positive INTEGER amount (rejects float/str coercion
+    and the negative-output inflation trick) bound to a matching commitment. Returns the P point bytes."""
+    if not isinstance(d, dict):
+        raise ShieldError(f"{what} is not an object at {height}")
+    for k in ("R", "P", "amt", "tok", "c"):
+        if k not in d:
+            raise ShieldError(f"{what} missing field '{k}' at {height}")
+    P = _require_point(d.get("P"), f"{what} P")
+    _require_point(d.get("R"), f"{what} R")                 # ephemeral pubkey must be a real curve point
+    if not isinstance(d["amt"], int) or isinstance(d["amt"], bool):
+        raise ShieldError(f"{what} amount must be an integer at {height}")
+    if d["amt"] <= 0:
+        raise ShieldError(f"{what} non-positive amount {d['amt']} at {height}")
+    if not isinstance(d["tok"], str) or not (0 < len(d["tok"]) <= 64):
+        raise ShieldError(f"{what} bad token at {height}")
+    if not isinstance(d.get("memo", ""), str) or len(d.get("memo", "")) > 4096:
+        raise ShieldError(f"{what} bad memo at {height}")
+    if d["c"] != commitment(P, int(d["amt"]), d["tok"]):
+        raise ShieldError(f"{what} commitment mismatch at {height}")
+    return P
+
+
 def _verify_ring(notes, data, payload, height):
-    image_hex = data.get("I", "")
-    _require_point(image_hex, "key image")
+    raw = data.get("I", "")
+    _require_point(raw, "key image")
+    # CANONICALIZE the key image to compressed form before it is used anywhere. The spent-set keys on
+    # this string, so without canonicalization the SAME image point submitted uncompressed (65B) vs
+    # compressed (33B) is two different strings -> slips past has_key_image -> the note double-spends.
+    image_hex = cc.PublicKey(bytes.fromhex(raw)).format().hex()
     ring_pubs = [cc.PublicKey(bytes.fromhex(nt["p_pub"])) for nt in notes]
     try:
         c = [int(x, 16) for x in data.get("c", [])]
         r = [int(x, 16) for x in data.get("r", [])]
-    except Exception:
+    except (TypeError, ValueError):
         raise ShieldError(f"malformed ring signature scalars at {height}")
     msg = _ring_message([nt["note_id"] for nt in notes], image_hex, payload)
     if not ring_verify(msg, ring_pubs, cc.PublicKey(bytes.fromhex(image_hex)), c, r):
@@ -471,18 +500,14 @@ def validate_block(state: ShieldedState, block_transactions: list, height: int) 
             raise ShieldError(f"shield: tx with unparseable openfield at {height}")
 
         if operation == OP_MINT:
-            P = _require_point(data.get("P"), "mint P")
+            P = _require_note_fields(data, "shield:mint", height)   # fields + positivity + commitment
             nid = note_id(P)
             if nid in seen_notes or state.has_note(nid):
                 raise ShieldError(f"duplicate shielded note {nid[:16]} at {height}")
             if str(tx[3]) != SHIELD_SINK:
                 raise ShieldError(f"shield:mint must pay the pool sink, not {str(tx[3])[:16]} at {height}")
-            if int(data["amt"]) <= 0:
-                raise ShieldError(f"shield:mint non-positive amount {data['amt']} at {height}")
             if _amount_units(tx[4]) != int(data["amt"]):
                 raise ShieldError(f"shield:mint deposit {tx[4]} != note amount {data['amt']} at {height}")
-            if data.get("c") != commitment(P, int(data["amt"]), str(data.get("tok", "bis"))):
-                raise ShieldError(f"shield:mint commitment mismatch at {height}")
             seen_notes.add(nid)
             parsed.append(("mint", {**data, "height": height}))
 
@@ -490,39 +515,44 @@ def validate_block(state: ShieldedState, block_transactions: list, height: int) 
             notes = _resolve_ring(state, data, height)
             amount, token = notes[0]["amount"], notes[0]["token"]
             outs = data.get("out") or []
-            image = _verify_ring(notes, data, _spend_payload(outs), height)
-            if image in seen_images or state.has_key_image(image):
-                raise ShieldError(f"double-spend: key image {image[:16]} already used at {height}")
+            # Validate every output FULLY before the ring check (so the signed payload can't KeyError and
+            # so apply can't fail). Outputs must be fresh notes — a colliding note_id would be silently
+            # dropped by INSERT OR IGNORE, losing value and leaving the pool over-backed.
             total = 0
             for o in outs:
-                oP = _require_point(o.get("P"), "spend out P")
-                # CRITICAL: outputs must be strictly positive. Without this, [{amt:A+k},{amt:-k}] conserves
-                # the total (==A) yet mints an over-valued note that redeems for more than was deposited —
-                # an inflation/theft of the SHIELD_SINK pool. Positive-only outputs + conservation keep
-                # every note's value positive and the pool exactly backed.
-                if int(o["amt"]) <= 0:
-                    raise ShieldError(f"shield:spend non-positive output amount {o.get('amt')} at {height}")
-                if o.get("c") != commitment(oP, int(o["amt"]), str(o.get("tok", "bis"))):
-                    raise ShieldError(f"shield:spend output commitment mismatch at {height}")
-                if str(o.get("tok", "bis")) != token:
+                oP = _require_note_fields(o, "shield:spend output", height)
+                if o["tok"] != token:
                     raise ShieldError(f"shield:spend cannot change token at {height}")
+                oid = note_id(oP)
+                if oid in seen_notes or state.has_note(oid):
+                    raise ShieldError(f"shield:spend output note {oid[:16]} already exists at {height}")
+                seen_notes.add(oid)
                 total += int(o["amt"])
             if total != int(amount):
                 raise ShieldError(f"shield:spend value not conserved ({total}/{amount}) at {height}")
+            image = _verify_ring(notes, data, _spend_payload(outs), height)
+            if image in seen_images or state.has_key_image(image):
+                raise ShieldError(f"double-spend: key image {image[:16]} already used at {height}")
             seen_images.add(image)
             parsed.append(("spend", {"image": image, "out": outs, "height": height}))
 
         else:  # OP_REDEEM
             notes = _resolve_ring(state, data, height)
             amount = notes[0]["amount"]
-            payload = {"to": data.get("to"), "amt": int(data.get("amt", -1))}
-            image = _verify_ring(notes, data, payload, height)
-            if image in seen_images or state.has_key_image(image):
-                raise ShieldError(f"double-spend: key image {image[:16]} already used at {height}")
+            to = data.get("to")
+            if not isinstance(to, str) or not (0 < len(to) <= 56):
+                raise ShieldError(f"shield:redeem bad payout address at {height}")
+            if to == SHIELD_SINK:
+                raise ShieldError(f"shield:redeem to the pool sink is not allowed at {height}")
+            if not isinstance(data.get("amt"), int) or isinstance(data.get("amt"), bool):
+                raise ShieldError(f"shield:redeem amount must be an integer at {height}")
             if int(data["amt"]) <= 0:
                 raise ShieldError(f"shield:redeem non-positive amount {data.get('amt')} at {height}")
             if int(data["amt"]) != int(amount):
                 raise ShieldError(f"shield:redeem amount {data['amt']} != ring amount {amount} at {height}")
+            image = _verify_ring(notes, data, {"to": to, "amt": int(data["amt"])}, height)
+            if image in seen_images or state.has_key_image(image):
+                raise ShieldError(f"double-spend: key image {image[:16]} already used at {height}")
             seen_images.add(image)
             parsed.append(("redeem", {"image": image, "to": data["to"],
                                       "amt": int(data["amt"]), "height": height}))
