@@ -22,6 +22,7 @@ This module is two things:
 """
 import json
 import os
+import struct
 from base64 import b64decode, b64encode
 from hashlib import sha224, sha256
 
@@ -312,96 +313,191 @@ def make_redeem(ring_notes: list, real_index: int, p_hex: str, to_address: str, 
 
 
 # --- the per-ledger sidecar -----------------------------------------------------------------------
+def _hbe(height) -> bytes:
+    return struct.pack(">Q", int(height))      # ordered height key: lexicographic == numeric
+
+
 class ShieldedState:
-    """Decoy/scan note set + key-image spent-set + pool flow ledger for one ledger. A deterministic
-    projection of the chain's shield: txs; reorg-safe because every row is height-stamped, so rollback is
-    a pure delete. Note: with ring spends, "which note is spent" is UNKNOWABLE on-chain (that is the
-    anonymity); the pool's value is tracked via flows (mint +A / redeem -A), which equals balance(SINK)."""
+    """Decoy/scan note set + key-image spent-set + pool flow ledger for one ledger — an **LMDB** store (NO
+    SQLite, the post-fork storage architecture, doc/26). A deterministic projection of the chain's shield:
+    txs; reorg-safe because every record carries a height-ordered secondary key, so rollback is a range
+    delete. With ring spends, "which note is spent" is UNKNOWABLE on-chain (the anonymity); the pool's value
+    is tracked via flows (mint +A / redeem -A), which equals balance(SINK).
 
-    def __init__(self, path: str):
+    Sub-DBs: notes (note_id->json), notes_h (height||note_id), kimg (image->height), kimg_h
+    (height||image), flows (height||seq->delta), meta (pool / counts / flow seq). Writes are buffered per
+    block and flushed ATOMICALLY in one txn at commit() (so a block's shield ops are all-or-nothing); begin()
+    drops any partial buffer from a failed prior apply."""
+
+    _GIB = 1024 ** 3
+
+    def __init__(self, path: str, map_size: int = 4 * 1024 ** 3, readonly: bool = False):
+        import lmdb
         self.path = path
-        import sqlite3
-        self.conn = sqlite3.connect(path, check_same_thread=False)
-        self.conn.text_factory = str
-        self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS notes (note_id TEXT PRIMARY KEY, create_height INTEGER, "
-            "token TEXT, amount INTEGER, r_pub TEXT, p_pub TEXT, memo TEXT, commitment TEXT)")
-        self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS keyimages (image TEXT PRIMARY KEY, spend_height INTEGER)")
-        self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS flows (id INTEGER PRIMARY KEY AUTOINCREMENT, "
-            "height INTEGER, delta INTEGER)")
-        self.conn.execute("CREATE INDEX IF NOT EXISTS ki_height ON keyimages (spend_height)")
-        self.conn.execute("CREATE INDEX IF NOT EXISTS note_height ON notes (create_height)")
-        self.conn.execute("CREATE INDEX IF NOT EXISTS flow_height ON flows (height)")
-        self.conn.commit()
+        self.env = lmdb.open(path, subdir=True, max_dbs=6, map_size=map_size, readonly=readonly, lock=True)
+        self.notes_db = self.env.open_db(b"notes")
+        self.notes_h = self.env.open_db(b"notes_h")
+        self.kimg_db = self.env.open_db(b"kimg")
+        self.kimg_h = self.env.open_db(b"kimg_h")
+        self.flows_db = self.env.open_db(b"flows")
+        self.meta_db = self.env.open_db(b"meta")
+        self._pending = []
 
-    # reads
+    # --- meta (pool total + counts + flow sequence) -----------------------
+    def _meta(self, txn, key, default=0):
+        v = txn.get(key, db=self.meta_db)
+        return int(v) if v is not None else default
+
+    # --- reads (committed state; used by validate_block BEFORE apply) -----
     def note(self, note_id_hex: str):
-        r = self.conn.execute(
-            "SELECT note_id, create_height, token, amount, r_pub, p_pub, memo, commitment "
-            "FROM notes WHERE note_id = ?", (note_id_hex,)).fetchone()
-        if not r:
+        with self.env.begin() as txn:
+            v = txn.get(note_id_hex.encode(), db=self.notes_db)
+        if v is None:
             return None
-        return {"note_id": r[0], "create_height": r[1], "token": r[2], "amount": r[3],
-                "r_pub": r[4], "p_pub": r[5], "memo": r[6], "commitment": r[7]}
+        d = json.loads(v)
+        return {"note_id": note_id_hex, "create_height": d["h"], "token": d["tok"], "amount": d["amt"],
+                "r_pub": d["R"], "p_pub": d["P"], "memo": d.get("memo", ""), "commitment": d["C"]}
 
     def has_note(self, note_id_hex: str) -> bool:
-        return self.conn.execute("SELECT 1 FROM notes WHERE note_id = ?", (note_id_hex,)).fetchone() is not None
+        with self.env.begin() as txn:
+            return txn.get(note_id_hex.encode(), db=self.notes_db) is not None
 
     def has_key_image(self, image_hex: str) -> bool:
-        return self.conn.execute("SELECT 1 FROM keyimages WHERE image = ?", (image_hex,)).fetchone() is not None
+        with self.env.begin() as txn:
+            return txn.get(image_hex.encode(), db=self.kimg_db) is not None
 
     def pool_units(self) -> int:
-        row = self.conn.execute("SELECT COALESCE(SUM(delta),0) FROM flows").fetchone()
-        return int(row[0] or 0)
+        with self.env.begin() as txn:
+            return self._meta(txn, b"pool", 0)
 
     def stats(self) -> dict:
-        n = self.conn.execute("SELECT COUNT(*) FROM notes").fetchone()[0]
-        k = self.conn.execute("SELECT COUNT(*) FROM keyimages").fetchone()[0]
-        return {"notes": int(n), "key_images": int(k), "pool_units": self.pool_units()}
+        with self.env.begin() as txn:
+            return {"notes": self._meta(txn, b"nnotes", 0), "key_images": self._meta(txn, b"nki", 0),
+                    "pool_units": self._meta(txn, b"pool", 0)}
 
-    # writes (called from the digester AFTER to_db; each op already validated)
+    # --- writes (buffered; flushed atomically at commit) ------------------
+    def begin(self):
+        """Start a fresh write batch (drop any partial buffer left by a prior apply that did not commit)."""
+        self._pending = []
+
     def add_note(self, height: int, note: dict):
-        self.conn.execute(
-            "INSERT OR IGNORE INTO notes VALUES (?,?,?,?,?,?,?,?)",
-            (note_id(bytes.fromhex(note["P"])), int(height), note["tok"], int(note["amt"]),
-             note["R"], note["P"], note.get("memo", ""), note["c"]))
+        nid = note_id(bytes.fromhex(note["P"]))
+        self._pending.append(("note", nid, int(height),
+                              {"h": int(height), "tok": note["tok"], "amt": int(note["amt"]),
+                               "R": note["R"], "P": note["P"], "memo": note.get("memo", ""), "C": note["c"]}))
 
     def add_confidential_note(self, height: int, note: dict):
-        """Stage-3 (RingCT) note: the commitment column holds the Pedersen commitment ``C`` and the amount
-        is HIDDEN (stored 0 for spend outputs; a public deposit amount only for a mint). Same table/rollback
-        as transparent notes, so reorg handling is unchanged."""
-        self.conn.execute(
-            "INSERT OR IGNORE INTO notes VALUES (?,?,?,?,?,?,?,?)",
-            (note_id(bytes.fromhex(note["P"])), int(height), note.get("tok", "bis"),
-             int(note.get("amt", 0)), note["R"], note["P"], note.get("memo", ""), note["C"]))
+        """Stage-3 (RingCT) note: the commitment field holds the Pedersen commitment ``C`` and the amount is
+        HIDDEN (0 for spend outputs; a public deposit amount only for a mint). Same store/rollback as
+        transparent notes, so reorg handling is unchanged."""
+        nid = note_id(bytes.fromhex(note["P"]))
+        self._pending.append(("note", nid, int(height),
+                              {"h": int(height), "tok": note.get("tok", "bis"), "amt": int(note.get("amt", 0)),
+                               "R": note["R"], "P": note["P"], "memo": note.get("memo", ""), "C": note["C"]}))
 
     def add_key_image(self, height: int, image_hex: str):
-        self.conn.execute("INSERT OR IGNORE INTO keyimages VALUES (?,?)", (image_hex, int(height)))
+        self._pending.append(("kimg", image_hex, int(height), None))
 
     def add_flow(self, height: int, delta: int):
-        self.conn.execute("INSERT INTO flows (height, delta) VALUES (?,?)", (int(height), int(delta)))
+        self._pending.append(("flow", None, int(height), int(delta)))
 
     def commit(self):
-        self.conn.commit()
+        """Flush the buffered block ops in ONE write transaction (atomic), with INSERT-OR-IGNORE semantics
+        (a note_id / key image already present is a no-op — read-your-writes within the txn)."""
+        if not self._pending:
+            return
+        with self.env.begin(write=True) as txn:
+            pool = self._meta(txn, b"pool", 0)
+            nnotes = self._meta(txn, b"nnotes", 0)
+            nki = self._meta(txn, b"nki", 0)
+            seq = self._meta(txn, b"flowseq", 0)
+            for kind, key, height, payload in self._pending:
+                if kind == "note":
+                    kb = key.encode()
+                    if txn.get(kb, db=self.notes_db) is None:
+                        txn.put(kb, json.dumps(payload).encode(), db=self.notes_db)
+                        txn.put(_hbe(height) + kb, b"", db=self.notes_h)
+                        nnotes += 1
+                elif kind == "kimg":
+                    kb = key.encode()
+                    if txn.get(kb, db=self.kimg_db) is None:
+                        txn.put(kb, _hbe(height), db=self.kimg_db)
+                        txn.put(_hbe(height) + kb, b"", db=self.kimg_h)
+                        nki += 1
+                else:  # flow
+                    seq += 1
+                    txn.put(_hbe(height) + _hbe(seq), str(int(payload)).encode(), db=self.flows_db)
+                    pool += int(payload)
+            txn.put(b"pool", str(pool).encode(), db=self.meta_db)
+            txn.put(b"nnotes", str(nnotes).encode(), db=self.meta_db)
+            txn.put(b"nki", str(nki).encode(), db=self.meta_db)
+            txn.put(b"flowseq", str(seq).encode(), db=self.meta_db)
+        self._pending = []
 
     def rollback_under(self, height: int):
-        """Drop everything recorded at height >= ``height`` (mirrors tokens_rollback). Removing the key
-        images of undone spends makes those notes spendable again on the new branch — correct reorg
-        semantics — and removing the flow rows restores the pool value."""
-        h = int(height)
-        self.conn.execute("DELETE FROM keyimages WHERE spend_height >= ?", (h,))
-        self.conn.execute("DELETE FROM notes WHERE create_height >= ?", (h,))
-        self.conn.execute("DELETE FROM flows WHERE height >= ?", (h,))
-        self.conn.commit()
+        """Drop everything recorded at height >= ``height`` (a reorg). Removing the key images of undone
+        spends makes those notes spendable again on the new branch; removing the flow rows restores the pool
+        value. Range-scans the height-ordered secondary keys, so it is O(rolled-back rows), not a full scan."""
+        self._pending = []                          # discard any unflushed batch first
+        floor = _hbe(int(height))
+        with self.env.begin(write=True) as txn:
+            pool = self._meta(txn, b"pool", 0)
+            nnotes = self._meta(txn, b"nnotes", 0)
+            nki = self._meta(txn, b"nki", 0)
+            # notes: height||note_id >= floor
+            cur = txn.cursor(db=self.notes_h)
+            removed = []
+            if cur.set_range(floor):
+                for k, _ in cur:
+                    removed.append(bytes(k))
+            for k in removed:
+                txn.delete(k, db=self.notes_h)
+                if txn.delete(k[8:], db=self.notes_db):
+                    nnotes -= 1
+            # key images: height||image >= floor
+            cur = txn.cursor(db=self.kimg_h)
+            removed = []
+            if cur.set_range(floor):
+                for k, _ in cur:
+                    removed.append(bytes(k))
+            for k in removed:
+                txn.delete(k, db=self.kimg_h)
+                if txn.delete(k[8:], db=self.kimg_db):
+                    nki -= 1
+            # flows: height||seq >= floor  (subtract their deltas from the pool total)
+            cur = txn.cursor(db=self.flows_db)
+            fdel = []
+            if cur.set_range(floor):
+                for k, v in cur:
+                    fdel.append((bytes(k), int(v)))
+            for k, delta in fdel:
+                pool -= delta
+                txn.delete(k, db=self.flows_db)
+            txn.put(b"pool", str(pool).encode(), db=self.meta_db)
+            txn.put(b"nnotes", str(max(0, nnotes)).encode(), db=self.meta_db)
+            txn.put(b"nki", str(max(0, nki)).encode(), db=self.meta_db)
+
+    def close(self):
+        try:
+            self.env.close()
+        except Exception:
+            pass
 
 
 def open_state_for(ledger_path: str) -> ShieldedState:
-    """Open the sidecar NAMESPACED BY LEDGER FILENAME — shielded-<ledger> — so a regnet run can never
-    hand its note/key-image set to a mainnet node (the doc/18 pollution class)."""
+    """Open the LMDB sidecar NAMESPACED BY LEDGER FILENAME — shielded-<ledger> — so a regnet run can never
+    hand its note/key-image set to a mainnet node (the doc/18 pollution class). The store is now an LMDB
+    directory (doc/26, no SQLite). If a stale pre-LMDB SQLite FILE sits at the path (from before the storage
+    rework), remove it first: the shielded sidecar is a post-fork-only, rebuildable projection, so a
+    pre-activation file holds nothing canonical — and lmdb.open needs the path to be a directory."""
     base = os.path.basename(ledger_path) or "ledger.db"
     path = os.path.join(os.path.dirname(ledger_path) or ".", "shielded-%s" % base)
+    if os.path.exists(path) and not os.path.isdir(path):
+        for p in (path, path + "-shm", path + "-wal"):       # the old sqlite file + its WAL sidecars
+            try:
+                os.remove(p)
+            except OSError:
+                pass
     return ShieldedState(path)
 
 
@@ -481,6 +577,13 @@ def _require_confidential_note(o, what, height):
         raise ShieldError(f"{what} bad token at {height}")
     if not isinstance(o.get("memo", ""), str) or len(o.get("memo", "")) > 65536:
         raise ShieldError(f"{what} bad memo at {height}")
+    # apply_block stores int(o.get("amt", 0)); a confidential output normally has NO amt (it is hidden in
+    # C), but an attacker can attach a junk amt ("x", 1.5, {}, …) that PASSES validation here yet THROWS in
+    # int() during apply — and apply runs AFTER to_db under a swallowed except, so the block commits while
+    # the sidecar desyncs (key image burned, outputs dropped). Reject any non-(non-negative-int) amt now so
+    # validate-pass can never apply-fail. (Adversarial-pass / consensus-audit find.)
+    if "amt" in o and (not isinstance(o["amt"], int) or isinstance(o["amt"], bool) or o["amt"] < 0):
+        raise ShieldError(f"{what} amount must be a non-negative integer at {height}")
     nid = note_id(P)
     if "note_id" in o and o["note_id"] != nid:
         raise ShieldError(f"{what} note_id does not match P at {height}")
@@ -696,7 +799,9 @@ def validate_block(state: ShieldedState, block_transactions: list, height: int) 
 
 def apply_block(state: ShieldedState, parsed: list) -> list:
     """Apply validated ops to the sidecar (AFTER to_db). Returns redeem payouts [(to, amount_units)] for
-    the digester to settle as consensus ledger rows (SINK -> recipient), exactly like vm payouts."""
+    the digester to settle as consensus ledger rows (SINK -> recipient), exactly like vm payouts. The ops
+    are buffered and flushed atomically at commit() (all-or-nothing per block)."""
+    state.begin()                                   # fresh batch (drop any partial buffer from a prior apply)
     payouts = []
     for kind, op in parsed:
         height = op["height"]

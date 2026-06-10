@@ -126,6 +126,26 @@ def test_v3_rollback_restores_spendability_and_pool():
     assert not st.has_key_image(spend["I"]), "rollback clears the key image (note spendable again)"
 
 
+def test_v3_spend_output_junk_amt_rejected_at_validate():
+    """Consensus-audit find: a confidential spend output normally has NO amt (it is hidden in C). An
+    attacker could attach a junk amt that PASSES validation but throws int(amt) in apply_block — and apply
+    runs AFTER to_db under a swallowed except, so the block commits while the sidecar silently desyncs (key
+    image burned, outputs dropped). validate_block must reject any non-(non-negative-int) amt up front."""
+    st = _state()
+    w = sh.new_keypair()
+    notes = [_mint3(st, w, v, 1 + i) for i, v in enumerate((20, 5))]
+    p_hex, amt, blind, _ = rct.scan_output(notes[0], w["a"], w["b"])
+    for bad in ("x", 1.5, -3, "0x10", [1], True):
+        spend = rct.make_spend(notes, 0, p_hex, amt, blind, [rct.output_for_spend(w["address"], "20")])
+        spend["out"][0]["amt"] = bad
+        with pytest.raises(sh.ShieldError, match="amount"):
+            sh.validate_block(st, [_tx(sh.OP_SPEND, json.dumps(spend))], 10)
+    # a legit spend (no amt on outputs) still validates + applies cleanly
+    spend = rct.make_spend(notes, 0, p_hex, amt, blind, [rct.output_for_spend(w["address"], "20")])
+    assert all("amt" not in o for o in spend["out"])
+    sh.apply_block(st, sh.validate_block(st, [_tx(sh.OP_SPEND, json.dumps(spend))], 11))
+
+
 def test_v2_and_v3_coexist():
     """A transparent (v2) note and a confidential (v3) note live in the same sidecar without interfering."""
     st = _state()

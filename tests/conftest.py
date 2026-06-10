@@ -42,9 +42,7 @@ def _port_open():
 def node_proc():
     # Start each session from a clean regnet chain.
     for name in ("static/regmode.db", "static/index_reg.db",
-                 "static/regmode.db-shm", "static/regmode.db-wal", "node.log",
-                 "static/shielded-regmode.db", "static/shielded-regmode.db-shm",
-                 "static/shielded-regmode.db-wal"):
+                 "static/regmode.db-shm", "static/regmode.db-wal", "node.log"):
         try:
             os.remove(os.path.join(ROOT, name))
         except OSError:
@@ -52,6 +50,7 @@ def node_proc():
     shutil.rmtree(os.path.join(ROOT, "static/blockstore"), ignore_errors=True)  # fresh LMDB block store
     shutil.rmtree(os.path.join(ROOT, "static/balanceindex"), ignore_errors=True)  # fresh balance index
     shutil.rmtree(os.path.join(ROOT, "static/vmstate"), ignore_errors=True)  # fresh VM contract state
+    shutil.rmtree(os.path.join(ROOT, "static/shielded-regmode.db"), ignore_errors=True)  # fresh LMDB shielded store
     shutil.copy(os.path.join(ROOT, "tests/config_custom.txt"),
                 os.path.join(ROOT, "config_custom.txt"))
 
