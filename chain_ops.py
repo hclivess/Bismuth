@@ -44,6 +44,34 @@ def _rollback_aux_stores(node, keep_height):
             node.logger.app_log.warning(f"{label} rollback failed: {e}")
 
 
+def _rebuild_derived_state(node, db_handler, keep_height):
+    """Rebuild every DERIVED consensus projection from the just-rolled-back ledger so a reorg can never
+    leave a store AHEAD of the ledger. ``keep_height`` is the new tip (highest block KEPT). This MUST run
+    on EVERY rollback path (rollback / blocknf / sequencing_check). Skipping the VM rebuild is a real
+    rollback-attack vector: a stale ``node.vm_state_root`` makes the mandatory state-root check (digest.py)
+    REJECT the canonical branch — a consensus wedge — AND leaves contract custody balances ahead of their
+    VM_SINK ledger backing, i.e. inflation / double-spend of VM custody across the reorg. The height-keyed
+    DELETE stores (ledger / tokens / aliases / shielded) are rolled back at each call site with the site's
+    own boundary; this rebuilds the RE-EXECUTABLE projections. All guarded + logged; disabled stores skip."""
+    # auxiliary block stores (block-store / reward sidechain) keep <= keep_height
+    _rollback_aux_stores(node, keep_height)
+    # the balance index is a full-ledger projection (rewards baked into balances) — rebuild from the cursor
+    if getattr(node, "balance_index", None) is not None:
+        try:
+            node.balance_index.rebuild_from_cursor(db_handler.c)
+        except Exception as e:
+            node.logger.app_log.warning(f"balance index rollback rebuild failed: {e}")
+    # the VM contract state is a re-executable projection of the chain's vm: txs — rebuild it from the
+    # rolled-back ledger and recompute the committed state root (deterministic, post-fork only).
+    if getattr(node, "vm_state", None) is not None and getattr(node, "fork_height", None) is not None:
+        try:
+            import vm_engine
+            vm_engine.rebuild(node.vm_state, db_handler.h, node.fork_height, keep_height)
+            node.vm_state_root = node.vm_state.state_root()
+        except Exception as e:
+            node.logger.app_log.warning(f"vm state rollback rebuild failed: {e}")
+
+
 def rollback(node, db_handler, block_height):
     node.logger.app_log.warning(f"Status: Rolling back below: {block_height}")
 
@@ -56,28 +84,8 @@ def rollback(node, db_handler, block_height):
         node.shielded_state.rollback_under(block_height)
     # rollback indices
 
-    # one unified place to keep every auxiliary store in sync with the rolled-back ledger.
-    # rollback_under(block_height) drops heights >= block_height, so the stores keep <= block_height-1.
-    _rollback_aux_stores(node, block_height - 1)
-
-    # the balance index is a full-ledger projection (rewards baked into balances), so after the ledger
-    # rollback we rebuild it from the node's own cursor — cheap on regnet, and on mainnet it is off and
-    # reorgs are rare.
-    if getattr(node, "balance_index", None) is not None:
-        try:
-            node.balance_index.rebuild_from_cursor(db_handler.c)
-        except Exception as e:
-            node.logger.app_log.warning(f"balance index rollback rebuild failed: {e}")
-
-    # the VM contract state is a re-executable projection of the chain's vm: txs, so after the ledger
-    # rollback we rebuild it from the rolled-back ledger — deterministic and reorg-safe (post-fork only).
-    if getattr(node, "vm_state", None) is not None and getattr(node, "fork_height", None) is not None:
-        try:
-            import vm_engine
-            vm_engine.rebuild(node.vm_state, db_handler.h, node.fork_height, block_height - 1)
-            node.vm_state_root = node.vm_state.state_root()
-        except Exception as e:
-            node.logger.app_log.warning(f"vm state rollback rebuild failed: {e}")
+    # rollback_under(block_height) drops heights >= block_height, so the derived stores keep <= height-1
+    _rebuild_derived_state(node, db_handler, block_height - 1)
 
     node.logger.app_log.warning(f"Status: Chain rolled back below {block_height} and will be resynchronized")
 
@@ -447,6 +455,10 @@ def blocknf(node, block_hash_delete, peer_ip, db_handler, hyperblocks=False):
                 db_handler.aliases_rollback(node, db_block_height)
                 if getattr(node, "shielded_state", None) is not None:   # shielded set (doc/22)
                     node.shielded_state.rollback_under(db_block_height)
+                # rebuild the re-executable projections (VM state + root, balance index, aux stores) — this
+                # is the LIVE reorg path; without the VM rebuild a stale vm_state_root wedges consensus and
+                # custody balances outrun their ledger backing (inflation across the reorg).
+                _rebuild_derived_state(node, db_handler, db_block_height - 1)
                 # /rollback indices
 
                 node.last_block_timestamp = db_handler.last_block_timestamp()
@@ -633,7 +645,10 @@ def sequencing_check(node, db_handler):
                         db_handler.aliases_rollback(node, y)
                         if getattr(node, "shielded_state", None) is not None:   # shielded set (doc/22)
                             node.shielded_state.rollback_under(y)
-
+                        # the ledger DELETE above cuts at row[0]; rebuild the VM state + root to the SAME
+                        # boundary (it re-executes from the ledger), else the startup vm_state OPEN reads a
+                        # stale root and the state-root check wedges the resync.
+                        _rebuild_derived_state(node, db_handler, row[0] - 1)
                         # rollback indices
 
                         node.logger.app_log.warning(f"Status: Due to a sequencing issue at block {y}, {chain} has been rolled back and will be resynchronized")
@@ -684,6 +699,7 @@ def sequencing_check(node, db_handler):
                         db_handler.aliases_rollback(node, y)
                         if getattr(node, "shielded_state", None) is not None:   # shielded set (doc/22)
                             node.shielded_state.rollback_under(y)
+                        _rebuild_derived_state(node, db_handler, row[0] - 1)   # VM/root to the ledger cut
                         # rollback indices
 
                         node.logger.app_log.warning(f"Status: Due to a sequencing issue at block {y}, {chain} has been rolled back and will be resynchronized")

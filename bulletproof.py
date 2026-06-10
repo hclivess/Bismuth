@@ -251,7 +251,15 @@ def _verify_prep(V_list, proof):
     g_coeff, extra_terms) where gen_* are length-nm coefficient lists on the SHARED G_vec/H_vec (so a batch
     can accumulate them into one multi-exp), and extra_terms are this proof's own (scalar, point) pairs."""
     n = int(proof["n"])
+    # CRITICAL: pin the bit-width. The range proof only proves v ∈ [0, 2^n); if the verifier trusted an
+    # attacker-chosen n, a "negative" amount v = N−k ≈ 2^256 would fall inside [0, 2^256) for n=256 and
+    # pass — and with the RingCT balance check (which holds mod N) that mints money from nothing. All
+    # Bismuth confidential amounts are RANGE_BITS-wide, so anything else is forged. (Adversarial-pass find.)
+    if n != RANGE_BITS:
+        raise ValueError("range bit-width must be %d, got %r" % (RANGE_BITS, proof.get("n")))
     m_real = int(proof["m"])
+    if not (1 <= m_real <= MAX_AGG):
+        raise ValueError("aggregate count out of range")
     pad = [_ppt(h) for h in proof["pad"]]
     Vs = list(V_list) + pad
     m = _next_pow2(m_real)

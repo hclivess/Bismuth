@@ -25,6 +25,7 @@ from polysign.signer_multisig import SignerMultisig as MS
 from polysign.signerfactory import SignerFactory
 
 API = "http://127.0.0.1:3031"
+cc_N = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141   # secp256k1 group order
 
 
 def _owners(n):
@@ -190,6 +191,37 @@ def test_sig_blob_serialize_roundtrip_and_corruption():
         MS.parse_sigs(blob + b"\x00")                       # trailing bytes
     with pytest.raises(ValueError):
         MS.parse_sigs(blob[:-3])                            # truncated body
+
+
+def test_signature_malleability_low_s_rejected():
+    """ECDSA signatures are malleable (s and N−s both satisfy the equation) — the classic txid-malleability
+    class. libsecp256k1 enforces low-s on VERIFY (BIP146), so a high-s malleated component signature must be
+    rejected, keeping a multisig spend non-malleable at the signature level."""
+    os_ = _owners(3)
+    acct = MultisigAccount.from_owners(os_, 2)
+    ts, buf = _buf(acct.address)
+    tx = acct.sign_transaction(os_[:2], ts, "Bis1recipientxxxxxxxxxxxxxxxxx", 1.25)
+    bufv = bismuth_serialize.signature_buffer(tx[0], tx[1], tx[2], tx[3], tx[6], tx[7])
+    SignerFactory.verify_bis_signature(tx[4], tx[5], bufv, tx[1])     # baseline verifies
+    entries = MS.parse_sigs(b64decode(tx[4]))
+
+    def flip_s(der):                                  # DER: 30 L 02 rl r 02 sl s  ->  s := N−s
+        assert der[0] == 0x30 and der[2] == 0x02
+        rl = der[3]
+        r = der[4:4 + rl]
+        j = 4 + rl
+        assert der[j] == 0x02
+        sl = der[j + 1]
+        s = int.from_bytes(der[j + 2:j + 2 + sl], "big")
+        nb = (cc_N - s).to_bytes(32, "big").lstrip(b"\x00")
+        if nb[0] & 0x80:
+            nb = b"\x00" + nb
+        body = b"\x02" + bytes([len(r)]) + r + b"\x02" + bytes([len(nb)]) + nb
+        return b"\x30" + bytes([len(body)]) + body
+
+    mal = b64encode(MS.serialize_sigs([(idx, flip_s(sig)) for idx, sig in entries])).decode()
+    with pytest.raises(ValueError):
+        MS.verify_bis_signature(mal, tx[5], bufv, tx[1])
 
 
 def test_hd_owners_compose_with_multisig():

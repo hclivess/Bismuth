@@ -109,6 +109,31 @@ def test_every_field_tamper_rejected():
     assert not verify(Vs, t), "tampered L must reject"
 
 
+def test_bit_width_is_pinned_no_wraparound_bypass():
+    """CRITICAL (adversarial-pass find): a verifier that trusted the proof's `n` would accept a 'negative'
+    amount v = N−k ≈ 2²⁵⁶ proven with n=256 — bypassing the range proof and, with the RingCT balance check
+    (which holds mod N), minting supply from nothing. The verifier MUST pin n to RANGE_BITS."""
+    g = _rnd()
+    for nbad in (32, 63, 65, 128, 256):
+        assert not verify([_V(100, g)], prove([100], [g], n=nbad)), "n=%d must be rejected" % nbad
+    neg = (_N - 7) % _N                                # the actual wraparound value, in [0, 2²⁵⁶) for n=256
+    assert not verify([_V(neg, g)], prove([neg], [g], n=256)), "wraparound at n=256 must be rejected"
+    # the same attack must not slip through a batch either
+    good = _mk([42])
+    bad = ([_V(neg, g)], prove([neg], [g], n=256))
+    assert not batch_verify([good, bad])
+
+
+def test_tampered_pad_commitment_rejected():
+    # the pad commitments ride in the proof and are absorbed into the transcript; tampering one changes the
+    # challenges and must invalidate the proof (they cannot be swapped post-hoc)
+    Vs, pf = _mk([3, 4, 5])                            # m=3 -> one pad commitment
+    assert verify(Vs, pf) and len(pf["pad"]) == 1
+    t = copy.deepcopy(pf)
+    t["pad"][0] = bp._phex(bp._mul(bp._ppt(t["pad"][0]), 2))
+    assert not verify(Vs, t)
+
+
 def test_malformed_proof_fails_closed():
     Vs, pf = _mk([42])
     for mut in ({}, {"n": 64, "m": 1}, dict(pf, L=pf["L"][:-1]), dict(pf, a="zz"),
@@ -124,6 +149,33 @@ def test_padding_slots_cannot_hide_value():
     # presenting fewer/more commitments than the proof's m -> reject
     assert not verify(Vs[:2], pf)
     assert not verify(Vs + [_V(1, _rnd())], pf)
+
+
+def test_generators_are_independent():
+    """Pedersen BINDING requires no known discrete-log relation between H (value), G (blind) and the vector
+    generators / Q — they are NUMS hash-to-point outputs with distinct domains, hence all distinct points.
+    A relation would let a prover open a commitment to two different values (counterfeiting)."""
+    pts = {bp._G.format(), bp.H.format(), bp._QBASE.format()}
+    for i in range(0, bp._MAXNM, 37):
+        pts.add(bp._GV[i].format())
+        pts.add(bp._HV[i].format())
+    n = 3 + len(range(0, bp._MAXNM, 37)) * 2
+    assert len(pts) == n, "generators must all be distinct NUMS points"
+    # H is shared with ringct so a Bulletproof V equals a RingCT output commitment
+    import ringct
+    assert bp.H.format() == ringct.H.format()
+
+
+def test_frozen_heart_value_commitment_is_bound():
+    """Fiat-Shamir completeness (the 2022 'Frozen Heart' class): the value commitments V MUST be absorbed
+    into the transcript BEFORE the challenges, or a prover could choose V after seeing them and forge. A
+    proof made for one V must not verify for any other V."""
+    g = _rnd()
+    pf = prove([5000], [g])
+    assert verify([_V(5000, g)], pf)
+    for delta in (1, 7, -3, 1 << 40):
+        assert not verify([_V(5000 + delta, g)], pf), "V is not bound — Frozen-Heart-vulnerable"
+    assert not verify([_V(5000, _rnd())], pf)        # also bound to the blinding
 
 
 # ----------------------------------------------------------------------------- batch verification
