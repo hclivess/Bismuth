@@ -90,6 +90,16 @@ class LiteClient:
         self.command("mpinsert", [tx])
         return signed[4][:56]
 
+    def send_with_signer(self, recipient, amount, signer, operation="", data=""):
+        """Build, sign with an arbitrary polysign ECDSA/ED25519 signer (e.g. an HD-derived key), and
+        submit. The sender address is the signer's own address. Returns the txid."""
+        import hd_wallet
+        timestamp = "%.2f" % time.time()
+        tx = hd_wallet.sign_transaction(signer, timestamp, signer.address(), recipient,
+                                        amount, operation, data)
+        self.command("mpinsert", [list(tx)])
+        return tx[4][:56]
+
     def clear_cache(self):
         # No client-side caching here; kept for parity with the old BismuthClient API.
         pass
