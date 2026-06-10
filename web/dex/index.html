@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Bismuth DEX (demo)</title>
+<style>
+  body{font:14px/1.5 system-ui,sans-serif;max-width:860px;margin:24px auto;padding:0 14px;color:#162}
+  h1{font-size:20px} h2{font-size:15px;margin:18px 0 6px;border-bottom:1px solid #cdd}
+  input{font:13px monospace;padding:4px 6px;border:1px solid #bcc;border-radius:5px}
+  button{font:13px system-ui;padding:5px 10px;margin:2px;border:0;border-radius:6px;background:#2a7;color:#fff;cursor:pointer}
+  button.alt{background:#46a} button.warn{background:#c64} button:disabled{background:#bbb}
+  .row{margin:6px 0} .muted{color:#789} code{background:#eef3f2;padding:1px 4px;border-radius:4px}
+  table{border-collapse:collapse;width:100%;margin-top:6px} td,th{border:1px solid #dde;padding:4px 6px;text-align:left;font-size:13px}
+  #log{white-space:pre-wrap;background:#0b1f1a;color:#7fd;padding:8px;border-radius:6px;height:120px;overflow:auto;font:12px monospace}
+  .pill{display:inline-block;background:#eef3f2;border-radius:10px;padding:1px 8px;margin-left:6px}
+</style>
+</head>
+<body>
+<h1>Bismuth DEX <span class="muted">— BIS ⇄ token limit order book (VM demo)</span></h1>
+<p class="muted">A trustless on-chain exchange: the contract escrows both legs and settles atomically — no operator, no custodian.
+Token amounts are integer units; prices are in BIS. This is a demo (fixed-amount whole-order fills, 32-bit caps).</p>
+
+<h2>Connection</h2>
+<div class="row">Relay <input id="relay" size="28" value="http://127.0.0.1:8099"/>
+  API <input id="api" size="28" value="http://127.0.0.1:3031"/>
+  <button onclick="loadInfo()">connect</button></div>
+<div class="row">Contract <input id="addr" size="58" placeholder="0x… (auto-filled after deploy+mine, or paste)"/>
+  <button class="alt" onclick="refresh()">refresh</button>
+  <button class="alt" onclick="mine()">mine 1</button></div>
+<div class="row muted">wallet: <span id="me">—</span> <span class="pill">fold <span id="fold">—</span></span></div>
+
+<h2>Admin</h2>
+<div class="row">supply <input id="supply" size="10" value="1000000"/>
+  <button onclick="post('deploy',{supply:+v('supply')})">deploy</button>
+  <button onclick="act('init',{})">genesis mint</button></div>
+<div class="row">transfer token to <input id="to" size="58" placeholder="56-hex recipient"/>
+  amt <input id="tamt" size="8" value="1000"/>
+  <button onclick="act('transfer',{to:v('to'),amt:+v('tamt')})">send token</button></div>
+
+<h2>Trade</h2>
+<div class="row">token <input id="otoken" size="8" value="100"/> @ price (BIS) <input id="oprice" size="8" value="1.5"/>
+  <button onclick="act('sell',{token:+v('otoken'),price:+v('oprice')})">post SELL</button>
+  <button class="alt" onclick="act('buy',{token:+v('otoken'),price:+v('oprice')})">post BUY</button></div>
+
+<h2>Order book <span class="muted" id="bookmeta"></span></h2>
+<table id="book"><thead><tr><th>id</th><th>side</th><th>token</th><th>price (BIS)</th><th>status</th><th></th></tr></thead><tbody></tbody></table>
+
+<h2>Your token balance: <span id="bal">—</span></h2>
+
+<h2>Log</h2>
+<div id="log"></div>
+
+<script>
+const $=id=>document.getElementById(id), v=id=>$(id).value.trim();
+let INFO=null, UNIT=1e8;
+function log(m){const l=$('log');l.textContent+=m+"\n";l.scrollTop=l.scrollHeight;}
+function relay(){return v('relay').replace(/\/$/,'');}
+function api(){return v('api').replace(/\/$/,'');}
+
+async function loadInfo(){
+  try{const r=await fetch(relay()+'/relay/info');INFO=await r.json();UNIT=INFO.unit||1e8;
+    $('me').textContent=INFO.address;$('fold').textContent=INFO.admin_id;
+    log('connected; wallet '+INFO.address.slice(0,12)+'…  fold '+INFO.admin_id);refresh();
+  }catch(e){log('connect failed: '+e);}
+}
+async function post(path,body){
+  body=body||{}; if(path!=='deploy'&&path!=='mine')body.address=v('addr');
+  try{const r=await fetch(relay()+'/relay/'+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const j=await r.json(); if(j.error){log('✗ '+path+': '+j.error);return null;}
+    log('✓ '+path+' tx '+(j.txid||'')+(j.supply?(' supply '+j.supply):''));return j;
+  }catch(e){log('✗ '+path+': '+e);return null;}
+}
+async function act(path,body){const j=await post(path,body); if(j){await mine();}}
+async function mine(){await post('mine',{count:1}); setTimeout(refresh,300);}
+
+async function refresh(){
+  const addr=v('addr'); if(!addr){return;}
+  try{
+    const r=await fetch(api()+'/api/vm/contract/'+addr); const d=await r.json();
+    const st={}; (d.storage||[]).forEach(s=>st[parseInt(s.key)]=parseInt(s.value));
+    // group order records by oid
+    const orders={};
+    for(const k in st){const key=+k;
+      if((key & 0xF0000000)===0x20000000){const oid=(key & 0x0FFFFFFF)>>4, f=key & 0xF;
+        (orders[oid]=orders[oid]||{})[f]=st[key];}
+    }
+    const tb=$('book').querySelector('tbody'); tb.innerHTML='';
+    Object.keys(orders).sort((a,b)=>a-b).forEach(oid=>{
+      const o=orders[oid], status=o[0]||0, side=o[1], token=o[2]||0, price=(o[3]||0)/UNIT;
+      const sName=side===1?'SELL':(side===2?'BUY':'?'), stName=({1:'open',2:'filled',3:'cancelled'})[status]||'—';
+      const tr=document.createElement('tr');
+      let actions='';
+      if(status===1){ // open -> fillable / cancellable
+        actions=`<button onclick="fillOrder(${oid},${side},${price})">fill</button>`+
+                `<button class="warn" onclick="act('cancel',{oid:${oid}})">cancel</button>`;
+      }
+      tr.innerHTML=`<td>${oid}</td><td>${sName}</td><td>${token}</td><td>${price}</td><td>${stName}</td><td>${actions}</td>`;
+      tb.appendChild(tr);
+    });
+    $('bookmeta').textContent='(minted '+(st[1]?'yes':'no')+', next id '+(st[2]||0)+')';
+    // your token balance
+    if(INFO){const bkey=0x10000000 | (INFO.admin_id & 0x0FFFFFFF); $('bal').textContent=(st[bkey]||0)+' units';}
+  }catch(e){log('refresh failed: '+e);}
+}
+function fillOrder(oid,side,price){act('fill',{oid:oid,side:side,price:price});}
+
+// auto-fill the contract address from the latest deploy once mined
+async function autoAddr(){
+  if(v('addr'))return;
+  try{const r=await fetch(api()+'/api/vm/contracts');const d=await r.json();
+    const cs=d.contracts||[]; if(cs.length){$('addr').value=cs[cs.length-1];log('contract = '+cs[cs.length-1]);refresh();}
+  }catch(e){}
+}
+$('relay').value=$('relay').value; loadInfo();
+setInterval(()=>{ if(!v('addr'))autoAddr(); },2500);
+</script>
+</body>
+</html>
