@@ -1,6 +1,7 @@
 # doc/22 — Shielded value (core, post-fork)
 
-Status: **stage 1 + stage 2 implemented** (this branch). Stage 3 (RingCT) deferred — see §9.
+Status: **stages 1, 2, and 3 implemented** (this branch). Stage 3 = RingCT confidential amounts with
+aggregated Bulletproof range proofs — see §13.
 Gated on: **hf2** (`node.fork_height`) — the same activation as the VM (doc/19). Inert until then.
 
 > **Stage 2 (ring signatures) is live.** Spends/redeems now hide *which* output is consumed behind a
@@ -241,11 +242,14 @@ post-fork `shield:` txs (used on first sync; the same idea as VM-state rebuild).
 
 ## 9. Deliberately deferred / out of scope (and why)
 
-- **Confidential amounts (RingCT / stage 3): deferred, possibly permanently.** Hidden amounts mean a
-  bug in the range proofs is *silent supply inflation* — both Monero (2017) and Zcash (2018) shipped
-  counterfeiting-class bugs here. On a small chain with a small team, transparent + auditable supply is
-  the safer money. Stage 1's `pool_value == balance(SINK)` invariant is the concrete benefit we keep by
-  not hiding amounts.
+- **Confidential amounts (RingCT / stage 3): IMPLEMENTED — see §13.** Hidden amounts mean a bug in the
+  range proofs is *silent supply inflation* — both Monero (2017) and Zcash (2018) shipped counterfeiting-
+  class bugs here — so the crypto (Pedersen commitments, MLSAG, and **Bulletproof** range proofs) was each
+  validated adversarially in isolation BEFORE any consensus wiring, with explicit tests for the out-of-range
+  AND field-wraparound ("negative" amount) inflation vectors. The transparent supply invariant is preserved
+  at the BOUNDARY: mint/redeem are transparent (pool_value still moves with `balance(SINK)`); only spends
+  WITHIN the pool hide amounts, balance-proven so no value is created. Stage 3 is opt-in and additive
+  (transparent v1/v2 notes still work).
 - **Ring signatures (stage 2): IMPLEMENTED — see §12.** secp256k1 hash-to-point is done by
   try-and-increment, which is variable-time but only over PUBLIC ring keys, so it leaks nothing secret
   (the "constant-time" worry in earlier drafts was misplaced for this use). secp256k1's cofactor-1 makes
@@ -344,3 +348,60 @@ via `PublicKey.multiply`. `ring_sign`/`ring_verify` are the CryptoNote sum-of-ch
 `L_i=r_iG+c_iP_i`, `R_i=r_iHp(P_i)+c_iI`, accept iff `Σc_i == H_s(m, L_0,R_0,…)`. All point ops are
 libsecp256k1 (`from_valid_secret`, `multiply`, `combine_keys`); negligible-probability identity results
 fail safe (verify returns false). Verified adversarially before integration (see `test_ring_signature.py`).
+
+---
+
+## 13. Stage 3 — RingCT: confidential amounts (`ringct.py`, `bulletproof.py`)
+
+Stage 1 hid the recipient, stage 2 hid the sender; stage 3 hides the **amount**. A note carries a Pedersen
+commitment `C = a·H + b·G` (value `a`, blind `b`, `H` a NUMS point with unknown dlog wrt `G`) instead of a
+cleartext amount, and a spend proves — without revealing `a` — that every output is in range, that inputs
+and outputs balance, and that the spender owns one ring member, all while hiding WHICH one. Because amounts
+are hidden, the stage-2 same-amount **denomination rule disappears**: a ring may now mix any amounts.
+
+Every primitive was validated adversarially in isolation before any consensus wiring (an amount-privacy
+bug is silent inflation — the discipline of §9). secp256k1 has no point at infinity and rejects the scalar
+0, so the zero coefficient is special-cased, all randomness is forced nonzero, and every verifier fails
+CLOSED on any exception.
+
+### Pieces
+- **Pedersen commitment** (`ringct.commit`) — homomorphic; `H = hash_to_point(G)`.
+- **Bulletproof range proof** (`bulletproof.py`) — proves `a ∈ [0, 2^64)`. **Aggregated** (all of a spend's
+  outputs in ONE proof), **logarithmic** (~⌈log₂(64·m)⌉ rounds), with an **optimized single
+  multi-exponentiation** verifier and **batch verification** (`batch_verify` checks many proofs in one
+  combined multi-exp — the path a validator uses for a block full of confidential outputs). The output
+  count is padded to a power of two (the inner-product argument halves each round); the pad commitments (to
+  0) ride in the proof. This replaced an O(n) bit-decomposition proof: a 2-output spend's openfield dropped
+  from ~46 KB to **~3.8 KB**, a 4-output one stays well under the 100 000-char cap.
+- **Commitment balance** — the spender publishes a **pseudo-output** `C'` to the spent amount with blinding
+  = Σ output blinds, so `C' == Σ C_out` is a plain point equality (= value conserved).
+- **2-column MLSAG** (`ringct.mlsag_*`) — generalises the stage-2 LSAG: column 0 is the one-time key `P`
+  (+ key image for double-spend), column 1 is the offset `C_real − C'` which, IFF the real input and the
+  pseudo commit to the SAME amount, is `z·G` (a commitment to zero) whose dlog the spender knows. Signing
+  both columns at the hidden real index proves ownership AND amount-match together — the amount-mismatch
+  (inflation) attack leaves an `H`-term in the offset, so no `z` closes column 1, and it is rejected.
+
+### Soundness tests (`tests/test_bulletproof.py`, `tests/test_ringct.py`)
+Bulletproofs: correctness across aggregate sizes 1..8 (with power-of-two padding), boundary values
+(0, 2⁶⁴−1), logarithmic size; and rejection of **out-of-range**, **field-wraparound (negative)**, wrong
+commitment, one-bad-member-in-an-aggregate, every-field tamper, and malformed proofs — individually and
+inside a batch. RingCT: mint→scan, mixed-amount-ring confidential spend, redeem, inflation (unbalanced),
+output tamper, double-spend key-image link, ring-reorder, outsider forgery, tampered/empty range proof.
+
+### Consensus (`shieldedv1.py`, v3 path beside v1/v2)
+A `"v":3` op is dispatched alongside the transparent v1/v2 path:
+- **mint(v3)** — the amount equals the transparent BIS deposit (public at the shielding boundary, like
+  Zcash t→z): consensus checks `commit(amt, blind) == C` and `amt == deposit`; pool flows `+amt`. No range
+  proof needed (a public amount can't be negative/overflow). The note is then spendable confidentially.
+- **spend(v3)** — `ringct.verify_spend`: the aggregated Bulletproof over all outputs + balance
+  `C' == Σ C_out` + MLSAG (ownership & amount-match, hidden index) + key-image freshness. Value-neutral.
+- **redeem(v3)** — confidential → transparent: the revealed `(amount, blind)` must open `C'` and the MLSAG
+  ties it to the hidden real input, so the payout provably equals the spent note's amount; pool flows `−amt`.
+The sidecar stores commitments for v3 notes (amounts hidden, 0 for spend outputs); rollback is unchanged
+(height-stamped rows). Live end-to-end on regnet: `test_shielded.py::test_ringct_confidential_lifecycle`.
+
+### Honest scope
+Range is 64-bit (`RANGE_BITS`), aggregation up to `MAX_AGG=8`, ring up to `MAX_RING`, outputs up to
+`MAX_OUTPUTS`. Single-input spends (one note per ring, matching stage 2) — multi-input RingCT (several
+pseudo-outputs, MLSAG per input) is the next generalisation. Mint/redeem remain the transparent boundary,
+which keeps supply auditable at the pool edge while spends inside stay confidential.

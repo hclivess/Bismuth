@@ -19,6 +19,7 @@ import urllib.request
 from time import sleep
 
 import amounts
+import ringct as rct
 import shieldedv1 as sh
 
 API = "http://127.0.0.1:3031"
@@ -143,6 +144,52 @@ def test_shield_ring_spend_lifecycle(client):
 
     assert _pool(client) - pool0 == -notes[1]["amt"], "pool not reduced by redeem"
     assert _sink(client) - sink0 == -notes[1]["amt"], "sink not debited by redeem (pool/sink desync)"
+
+
+def _mint_v3(client, address, amount):
+    """Mint one CONFIDENTIAL (RingCT) note of `amount` BIS; wait until indexed; return the note."""
+    note = rct.make_output(address, str(amount))
+    pool0, sink0 = _pool(client), _sink(client)
+    client.send(sh.SHIELD_SINK, amount, sh.OP_MINT, json.dumps(note))
+    _mine_until(client, lambda: _note(note["note_id"]) is not None)
+    assert _pool(client) - pool0 == note["amt"], "pool not credited by v3 mint"
+    assert _sink(client) - sink0 == note["amt"], "sink not credited by v3 mint"
+    return note
+
+
+def test_ringct_confidential_lifecycle(client):
+    """Stage 3 end-to-end on the node: mint MIXED-amount confidential notes, spend one hidden in the mixed
+    ring (amounts hidden, value conserved), then redeem another back to a transparent address."""
+    _wait_fork_active(client)
+    _ensure_balance(client, 90)
+
+    wallet = sh.new_keypair()
+    notes = [_mint_v3(client, wallet["address"], v) for v in (20, 13, 5)]   # MIXED amounts in one ring
+    keys = [rct.scan_output(n, wallet["a"], wallet["b"]) for n in notes]
+    assert all(keys), "recipient must detect its confidential notes"
+
+    # --- CONFIDENTIAL SPEND: spend notes[0] (20) hidden in the mixed ring, split 20 -> 12 + 8 ---------
+    r2, r3 = sh.new_keypair(), sh.new_keypair()
+    outs = [rct.output_for_spend(r2["address"], "12"), rct.output_for_spend(r3["address"], "8")]
+    p_hex, amt, blind, _ = keys[0]
+    spend = rct.make_spend(notes, 0, p_hex, amt, blind, outs)
+    assert spend["v"] == 3 and len(spend["ring"]) == 3
+    ki0, pool0, sink0 = _key_images(), _pool(client), _sink(client)
+    client.send(client.address, 0, sh.OP_SPEND, json.dumps(spend))
+    _mine_until(client, lambda: _key_images() > ki0)
+
+    assert _pool(client) == pool0, "confidential spend changed the pool (must conserve)"
+    assert _sink(client) == sink0, "confidential spend touched the sink (must not)"
+    assert _note(spend["out"][0]["note_id"]) is not None, "spend output note not created"
+    assert rct.scan_output(spend["out"][0], r2["a"], r2["b"])[1] == amounts.to_units("12")
+
+    # --- CONFIDENTIAL REDEEM: notes[1] (13) back to a transparent address -----------------------------
+    pr, ar, brn, _ = keys[1]
+    redeem = rct.make_redeem(notes, 1, pr, ar, brn, client.address)
+    pool1, sink1 = _pool(client), _sink(client)
+    client.send(client.address, 0, sh.OP_REDEEM, json.dumps(redeem))
+    _mine_until(client, lambda: _pool(client) == pool1 - ar)
+    assert _sink(client) - sink1 == -ar, "sink not debited by v3 redeem (pool/sink desync)"
 
 
 def test_shield_double_spend_rejected_and_reorg(client):

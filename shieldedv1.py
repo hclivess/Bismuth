@@ -368,6 +368,15 @@ class ShieldedState:
             (note_id(bytes.fromhex(note["P"])), int(height), note["tok"], int(note["amt"]),
              note["R"], note["P"], note.get("memo", ""), note["c"]))
 
+    def add_confidential_note(self, height: int, note: dict):
+        """Stage-3 (RingCT) note: the commitment column holds the Pedersen commitment ``C`` and the amount
+        is HIDDEN (stored 0 for spend outputs; a public deposit amount only for a mint). Same table/rollback
+        as transparent notes, so reorg handling is unchanged."""
+        self.conn.execute(
+            "INSERT OR IGNORE INTO notes VALUES (?,?,?,?,?,?,?,?)",
+            (note_id(bytes.fromhex(note["P"])), int(height), note.get("tok", "bis"),
+             int(note.get("amt", 0)), note["R"], note["P"], note.get("memo", ""), note["C"]))
+
     def add_key_image(self, height: int, image_hex: str):
         self.conn.execute("INSERT OR IGNORE INTO keyimages VALUES (?,?)", (image_hex, int(height)))
 
@@ -436,6 +445,48 @@ def _resolve_ring(state, data, height):
     return notes
 
 
+def _resolve_ring_v3(state, ring_ids, height):
+    """Resolve a v3 (RingCT) ring -> sidecar note rows. Unlike v2, there is NO same-amount rule (RingCT
+    hides amounts, so a ring may mix any amounts); we only require members exist, are distinct, and the
+    ring size is in [1, MAX_RING]. The rows carry p_pub + commitment, which ringct.verify_* consumes."""
+    n = len(ring_ids)
+    if n < 1 or n > MAX_RING:
+        raise ShieldError(f"v3 ring size {n} out of [1,{MAX_RING}] at {height}")
+    if len(set(ring_ids)) != n:
+        raise ShieldError(f"v3 ring has duplicate members at {height}")
+    notes = []
+    for rid in ring_ids:
+        note = state.note(rid)
+        if note is None:
+            raise ShieldError(f"v3 ring references unknown note {str(rid)[:16]} at {height}")
+        if not note.get("commitment"):
+            raise ShieldError(f"v3 ring member {str(rid)[:16]} has no commitment at {height}")
+        notes.append(note)
+    return notes
+
+
+def _require_confidential_note(o, what, height):
+    """Validate a v3 output/mint note has the fields apply will read, with real curve points, and a
+    note_id matching P. Returns the canonical note_id. (Amount validity for OUTPUTS is enforced by the
+    range proof inside ringct.verify_spend, not here.)"""
+    if not isinstance(o, dict):
+        raise ShieldError(f"{what} is not an object at {height}")
+    for k in ("R", "P", "C"):
+        if k not in o:
+            raise ShieldError(f"{what} missing field '{k}' at {height}")
+    P = _require_point(o.get("P"), f"{what} P")
+    _require_point(o.get("R"), f"{what} R")
+    _require_point(o.get("C"), f"{what} C")
+    if not isinstance(o.get("tok", "bis"), str) or not (0 < len(o.get("tok", "bis")) <= 64):
+        raise ShieldError(f"{what} bad token at {height}")
+    if not isinstance(o.get("memo", ""), str) or len(o.get("memo", "")) > 65536:
+        raise ShieldError(f"{what} bad memo at {height}")
+    nid = note_id(P)
+    if "note_id" in o and o["note_id"] != nid:
+        raise ShieldError(f"{what} note_id does not match P at {height}")
+    return nid
+
+
 def _require_note_fields(d, what: str, height) -> bytes:
     """Validate a note/output dict has EVERY field apply_block will read, correctly typed — so a
     validate-pass can never apply-fail (which would desync the sidecar from the committed ledger). Also
@@ -480,6 +531,73 @@ def _verify_ring(notes, data, payload, height):
     return image_hex
 
 
+def _mint3_validate(data, tx, height, seen_notes, state):
+    """RingCT mint: a confidential note whose amount EQUALS the transparent deposit (the shielding
+    boundary, public). The published (amt, blind) must open the commitment C; consensus does not need to
+    keep them secret. Returns the fresh note_id."""
+    import ringct
+    for k in ("R", "P", "C", "amt", "blind"):
+        if k not in data:
+            raise ShieldError(f"shield:mint(v3) missing field '{k}' at {height}")
+    nid = _require_confidential_note(data, "shield:mint(v3)", height)
+    if not isinstance(data["amt"], int) or isinstance(data["amt"], bool) or data["amt"] <= 0:
+        raise ShieldError(f"shield:mint(v3) amount must be a positive integer at {height}")
+    try:
+        opened = ringct.commit(int(data["amt"]), int(data["blind"], 16)).format().hex()
+    except Exception:
+        raise ShieldError(f"shield:mint(v3) malformed commitment opening at {height}")
+    if opened != data["C"]:
+        raise ShieldError(f"shield:mint(v3) commitment does not open to the amount at {height}")
+    if nid in seen_notes or state.has_note(nid):
+        raise ShieldError(f"duplicate shielded note {nid[:16]} at {height}")
+    if str(tx[3]) != SHIELD_SINK:
+        raise ShieldError(f"shield:mint(v3) must pay the pool sink at {height}")
+    if _amount_units(tx[4]) != int(data["amt"]):
+        raise ShieldError(f"shield:mint(v3) deposit {tx[4]} != note amount {data['amt']} at {height}")
+    return nid
+
+
+def _spend3_validate(data, height, seen_notes, seen_images, state):
+    """RingCT spend: confidential outputs (each range-proven), value conserved (balance), input owned and
+    its hidden amount tied to the balance — all verified by ringct.verify_spend. Returns (image, outputs)."""
+    import ringct
+    notes = _resolve_ring_v3(state, data.get("ring") or [], height)
+    outs = data.get("out") or []
+    if not (1 <= len(outs) <= ringct.MAX_OUTPUTS):
+        raise ShieldError(f"shield:spend(v3) bad output count at {height}")
+    for o in outs:                                          # outputs must be fresh, well-formed v3 notes
+        oid = _require_confidential_note(o, "shield:spend(v3) output", height)
+        if oid in seen_notes or state.has_note(oid):
+            raise ShieldError(f"shield:spend(v3) output note {oid[:16]} already exists at {height}")
+        seen_notes.add(oid)
+    try:
+        image = ringct.verify_spend(notes, data)            # MLSAG + range proofs + balance
+    except ValueError as e:
+        raise ShieldError(f"shield:spend(v3) invalid: {e} at {height}")
+    if image in seen_images or state.has_key_image(image):
+        raise ShieldError(f"double-spend: key image {image[:16]} already used at {height}")
+    return image, outs
+
+
+def _redeem3_validate(data, height, seen_images, state):
+    """RingCT redeem: a confidential note -> transparent payout. The revealed (amount, blind) open the
+    pseudo-commitment and the MLSAG ties it to the hidden real input, so the payout provably equals the
+    spent note's amount. Returns (image, amount_units, to_address)."""
+    import ringct
+    notes = _resolve_ring_v3(state, data.get("ring") or [], height)
+    try:
+        image, amt, to = ringct.verify_redeem(notes, data)
+    except ValueError as e:
+        raise ShieldError(f"shield:redeem(v3) invalid: {e} at {height}")
+    if not isinstance(to, str) or not (0 < len(to) <= 56):
+        raise ShieldError(f"shield:redeem(v3) bad payout address at {height}")
+    if to == SHIELD_SINK:
+        raise ShieldError(f"shield:redeem(v3) to the pool sink is not allowed at {height}")
+    if image in seen_images or state.has_key_image(image):
+        raise ShieldError(f"double-spend: key image {image[:16]} already used at {height}")
+    return image, int(amt), to
+
+
 def validate_block(state: ShieldedState, block_transactions: list, height: int) -> list:
     """Validate every shield: tx in a block against ``state`` (reflecting heights < ``height``).
 
@@ -499,7 +617,14 @@ def validate_block(state: ShieldedState, block_transactions: list, height: int) 
         except Exception:
             raise ShieldError(f"shield: tx with unparseable openfield at {height}")
 
+        ver = data.get("v")
+
         if operation == OP_MINT:
+            if ver == 3:                                            # RingCT: confidential note, public deposit
+                nid = _mint3_validate(data, tx, height, seen_notes, state)
+                seen_notes.add(nid)
+                parsed.append(("mint3", {**data, "height": height}))
+                continue
             P = _require_note_fields(data, "shield:mint", height)   # fields + positivity + commitment
             nid = note_id(P)
             if nid in seen_notes or state.has_note(nid):
@@ -512,6 +637,11 @@ def validate_block(state: ShieldedState, block_transactions: list, height: int) 
             parsed.append(("mint", {**data, "height": height}))
 
         elif operation == OP_SPEND:
+            if ver == 3:                                            # RingCT confidential spend
+                image, outs = _spend3_validate(data, height, seen_notes, seen_images, state)
+                seen_images.add(image)
+                parsed.append(("spend3", {"image": image, "out": outs, "height": height}))
+                continue
             notes = _resolve_ring(state, data, height)
             amount, token = notes[0]["amount"], notes[0]["token"]
             outs = data.get("out") or []
@@ -537,6 +667,11 @@ def validate_block(state: ShieldedState, block_transactions: list, height: int) 
             parsed.append(("spend", {"image": image, "out": outs, "height": height}))
 
         else:  # OP_REDEEM
+            if ver == 3:                                            # RingCT confidential redeem -> transparent
+                image, amt, to = _redeem3_validate(data, height, seen_images, state)
+                seen_images.add(image)
+                parsed.append(("redeem3", {"image": image, "to": to, "amt": amt, "height": height}))
+                continue
             notes = _resolve_ring(state, data, height)
             amount = notes[0]["amount"]
             to = data.get("to")
@@ -575,6 +710,17 @@ def apply_block(state: ShieldedState, parsed: list) -> list:
         elif kind == "redeem":
             state.add_key_image(height, op["image"])
             state.add_flow(height, -int(op["amt"]))           # redeem debits the pool
+            payouts.append((op["to"], op["amt"]))
+        elif kind == "mint3":                                 # RingCT: confidential note, public deposit
+            state.add_confidential_note(height, op)
+            state.add_flow(height, int(op["amt"]))
+        elif kind == "spend3":                                # RingCT: value-neutral, hidden amounts
+            state.add_key_image(height, op["image"])
+            for o in op["out"]:
+                state.add_confidential_note(height, o)
+        elif kind == "redeem3":                               # RingCT: confidential -> transparent payout
+            state.add_key_image(height, op["image"])
+            state.add_flow(height, -int(op["amt"]))
             payouts.append((op["to"], op["amt"]))
     state.commit()
     return payouts
