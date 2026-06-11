@@ -239,6 +239,7 @@ class BlockProcessor:
 
     def _validate_balance(self, address: str, amount: str, debit: Decimal, fees: Decimal, balances: dict) -> None:
         """Validate that an address has sufficient balance."""
+        first_seen = address not in balances          # first appearance this block: comparable to balance_index
         balance_pre = ledger_balance3(address, balances, self.db_handler)
         balance = quantize_eight(balance_pre - debit)
 
@@ -247,6 +248,32 @@ class BlockProcessor:
 
         if quantize_eight(balance) - quantize_eight(fees) < 0:
             raise ValueError(f"{address} Cannot afford to pay fees (balance: {balance}, block fees: {fees})")
+
+        # Balance-read cross-check SHADOW (doc/26 stage 4). The overspend check above reads the authoritative
+        # ledger_balance3 (a ledger scan) — the LAST consensus read still on SQLite and the gate for retiring
+        # the SQLite write. Here we shadow the maintained LMDB balance_index against it to build the evidence
+        # that the index is byte-faithful before that read could ever be flipped (a wrong index = inflation,
+        # so this is the highest-risk migration). Compared only on an address's FIRST appearance in the block,
+        # where the two line up: ledger_balance3 has no intra-block delta cached yet and balance_index reflects
+        # the last committed block. LOG-ONLY — balance_index stays display-only and ledger_balance3 stays
+        # authoritative, so a mismatch can never affect validation; it just flags an index bug to fix.
+        if first_seen:
+            self._balance_index_crosscheck(address, balance_pre)
+
+    def _balance_index_crosscheck(self, address: str, authoritative: Decimal) -> None:
+        node = self.node
+        bi = getattr(node, "balance_index", None)
+        fork_height = getattr(node, "fork_height", None)
+        if bi is None or fork_height is None or (getattr(node, "last_block", 0) or 0) < fork_height:
+            return
+        try:
+            indexed = bi.get_balance(address)
+            if quantize_eight(indexed) != quantize_eight(authoritative):
+                node.logger.app_log.warning(
+                    f"balance seam: index {indexed} != ledger_balance3 {authoritative} for {address[:16]} "
+                    f"at height {node.last_block} — investigate before trusting the LMDB balance read")
+        except Exception as e:
+            node.logger.app_log.warning(f"balance seam cross-check failed for {address[:16]}: {e}")
 
     def _remove_from_mempool(self, signature: str) -> None:
         """Remove processed transaction from mempool."""

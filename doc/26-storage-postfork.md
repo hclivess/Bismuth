@@ -150,11 +150,20 @@ path: introduce the seam, move reads, move writes, then delete the SQLite trio. 
   tracks the consensus linkage block-for-block — the prerequisite for making `block_store.tip()`/`block_hash`
   the crash-recovery + last-block-linkage authority. (The last-block-linkage SQLite read is only a
   startup/post-rollback seed held in memory during digestion, so there is no per-block read to swap.)
+- 🚧 **Stage 3 (shadow): balance-read cross-check** (`digest.py` `_validate_balance` /
+  `_balance_index_crosscheck`). The overspend check reads the authoritative `ledger_balance3` (a ledger scan)
+  — the LAST consensus read still on SQLite and the real gate for retiring the SQLite write. Post-fork, on an
+  address's FIRST appearance in a block (the one point the two line up — `ledger_balance3` has no intra-block
+  delta cached yet and `balance_index` reflects the last committed block), the maintained LMDB `balance_index`
+  is compared against it, **log-only**. `ledger_balance3` stays authoritative and `balance_index` stays
+  display-only, so a mismatch can NEVER affect validation — it is pure evidence that the index is byte-faithful
+  before the read could ever be flipped (a wrong index = inflation, the highest-risk migration). Validated:
+  504/504 green, node ran to h340 post-fork with `balance_index` enabled, ZERO divergences.
 
 ### Next stages (in order)
-- **Stage 3 (cont.): the `ledger_balance3` overspend read onto `balance_index`** — the single highest-risk
-  change (a wrong balance index is inflation); needs a long `cross_check` shadow period before it is trusted
-  authoritative. This is the real gate for retiring the SQLite write.
+- **Stage 3 (cont.): FLIP the `ledger_balance3` overspend read onto `balance_index`** — only after a long
+  clean shadow period (above), ideally on mainnet once `balance_index` is enabled there. The single
+  highest-risk change (a wrong balance index is inflation). This is the real gate for retiring the SQLite write.
 - **Stage 4 (cont.): flip the canonical write to LMDB + retire the lockstep.** Once the reads are off SQLite
   and the LMDB write is continuously cross-checked/trusted: make `block_store.tip()` the crash-recovery
   anchor (atomic ⇒ an unambiguous floor), delete the `commit_marker`/`ATTACH` machinery, and reduce SQLite
