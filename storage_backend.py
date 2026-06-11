@@ -156,3 +156,54 @@ def select(node) -> StorageBackend:
     if post_fork and store is not None:
         return LmdbBackend(store)
     return SqliteBackend(node.ledger_path)
+
+
+# ===================================================================================================
+# Write seam (doc/26 stage 4). Today the canonical block WRITE is the legacy two-phase SQLite path
+# (`DbHandler.to_db` -> working store, then `db_to_drive` -> ledger.db) kept consistent across the two
+# files by the `commit_marker`/`ATTACH` lockstep — the machinery whose split caused the 19h outage. The
+# end state is ONE LMDB store written in ONE atomic txn (no second file, no lockstep). This interface makes
+# the block-body write a pluggable primitive; `LmdbWriteBackend` is that single-atomic-txn write.
+#
+# It does NOT yet REPLACE the SQLite write: the consensus READS still hit SQLite — above all the overspend
+# check (`ledger_balance3`), which is deliberately kept authoritative (a wrong balance index would be
+# inflation). So SQLite stays the source of truth until those reads migrate (the rest of stage 3) AND the
+# LMDB block write is continuously cross-checked (`cross_check`) long enough to be trusted as canonical.
+# This seam is the foundation for that flip; for now the digester drives it as the (reorg-safe) block-body
+# store, alongside the unchanged SQLite path.
+# ===================================================================================================
+
+
+class StorageWriteBackend:
+    """Write interface for canonical block bodies."""
+
+    def append_block(self, height, block_hash, rows):
+        """Persist a block's full 12-field rows at ``height`` (with ``block_hash``)."""
+        raise NotImplementedError
+
+    def rollback(self, to_height):
+        """Drop every block above ``to_height`` (a reorg). Returns the count removed."""
+        raise NotImplementedError
+
+    def committed_tip(self):
+        """The highest committed block height (int), or None — the post-fork recovery anchor candidate."""
+        raise NotImplementedError
+
+
+class LmdbWriteBackend(StorageWriteBackend):
+    """The post-fork canonical block-body write: ONE LMDB store, ONE atomic txn per block — no
+    `commit_marker`, no `ATTACH`, no two-file gap. Append and height-range rollback are exactly
+    `block_store`'s atomic ops (a crash leaves the store at a clean block boundary, so the tip is an
+    unambiguous recovery floor — the property that retires the SQLite lockstep once SQLite is gone)."""
+
+    def __init__(self, block_store):
+        self.store = block_store
+
+    def append_block(self, height, block_hash, rows):
+        self.store.put_block(height, block_hash, rows)
+
+    def rollback(self, to_height):
+        return self.store.rollback(to_height)
+
+    def committed_tip(self):
+        return self.store.tip()

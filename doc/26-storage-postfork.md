@@ -130,9 +130,23 @@ path: introduce the seam, move reads, move writes, then delete the SQLite trio. 
   indexes). Test: `tests/test_rest_api.py::test_rest_block_reads_post_fork_use_lmdb` mines past the fork and
   reads blocks via the LMDB-served path.
 
+- 🚧 **Stage 4 (foundation): the write seam** (`storage_backend.StorageWriteBackend` / `LmdbWriteBackend`).
+  The block-body write is now a pluggable primitive; `LmdbWriteBackend` is the **one-store-one-txn** atomic
+  append + height-range rollback over `block_store` (no `commit_marker`, no `ATTACH`). The digester writes
+  through `node.block_writer` (`digest.py`), reorg-safe (rolled back with the ledger in `chain_ops`). It is
+  still **additive**: it runs after the SQLite commit, which stays the source of truth — because the
+  consensus READS still hit SQLite, above all the `ledger_balance3` overspend check (kept authoritative: a
+  wrong balance index would be inflation). So this does not yet remove the SQLite write or the lockstep; it
+  is the trust-building foundation for that flip. Test: `tests/test_storage_backend.py::
+  test_write_backend_append_rollback_and_crosscheck`.
+
 ### Next stages (in order)
-- **Stage 3 (cont.): migrate the remaining reads** — socket-protocol block reads, then the balance-read
-  increment (`balance_index`), then the sync path. Run both backends side by side with `cross_check`.
-- **Stage 4: writes via the seam**; delete the `commit_marker`/`ATTACH` lockstep (one store, one txn).
+- **Stage 3 (cont.): migrate the remaining reads** — socket-protocol block reads + the last-block linkage
+  (lower risk), then the `ledger_balance3` overspend read onto `balance_index` (the single highest-risk
+  change — needs a long `cross_check` shadow period before it is trusted authoritative).
+- **Stage 4 (cont.): flip the canonical write to LMDB + retire the lockstep.** Once the reads are off SQLite
+  and the LMDB write is continuously cross-checked/trusted: make `block_store.tip()` the crash-recovery
+  anchor (atomic ⇒ an unambiguous floor), delete the `commit_marker`/`ATTACH` machinery, and reduce SQLite
+  to a derived mirror (or drop it). Needs a dedicated crash-recovery test (this is the 19h-outage code).
 - **Stage 5: sync without hyperblocks** (headers-first + parallel REST into LMDB; retire `hyper.db`), then
   remove the SQLite trio post-fork (`index.db` — tokens/aliases now on LMDB, plus the dead `staking` table — included).

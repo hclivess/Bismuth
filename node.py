@@ -1339,6 +1339,7 @@ if __name__ == "__main__":
     node.bootstrap_file = config.bootstrap_file   # local bootstrap archive; if set/present, used instead of downloading
     node.block_store_enabled = config.block_store # opt-in LMDB block-body mirror (doc/17 phase 7)
     node.block_store = None                        # the store object, created at startup if enabled
+    node.block_writer = None                       # the stage-4 write seam over block_store (doc/26); set with it
     node.fork_signal = config.fork_signal          # hf2: stamp the readiness signal when mining (doc/18)
     node.mine = config.mine                        # opt-in built-in solo miner (miner.py)
     node.pow_fork_signal = config.pow_fork_signal  # signal readiness for the modernised blake2b Heavy3 (doc/18-D)
@@ -1582,11 +1583,14 @@ if __name__ == "__main__":
                     import block_store
                     bs_path = _os.path.join(_os.path.dirname(node.ledger_path) or ".", "blockstore")
                     node.block_store = block_store.BlockStore(bs_path)
+                    import storage_backend as _sb
+                    node.block_writer = _sb.LmdbWriteBackend(node.block_store)   # stage-4 write seam (doc/26)
                     node.logger.app_log.warning(
                         f"Status: block store enabled at {bs_path} (tip {node.block_store.tip()})")
                 except Exception as e:
                     node.logger.app_log.warning(f"Status: block store could not start: {e}")
                     node.block_store = None
+                    node.block_writer = None
 
         except Exception as e:
             node.logger.app_log.info(e)

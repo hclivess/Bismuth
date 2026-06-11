@@ -90,3 +90,31 @@ def test_select_postfork_with_store_is_lmdb(tmp_path):
     assert isinstance(be, storage_backend.LmdbBackend)
     assert be.get_block(2)[0][7] == "hash2"
     store.close()
+
+
+def test_write_backend_append_rollback_and_crosscheck(tmp_path):
+    # The stage-4 write seam: append blocks atomically to the LMDB store, read them back, roll back a reorg,
+    # and prove the written rows match the SQLite reference (the trust check that gates the canonical flip).
+    ledger = str(tmp_path / "ledger.db")
+    _make_ledger(ledger)                                   # the SQLite reference (blocks 1, 2)
+
+    store = block_store.BlockStore(str(tmp_path / "bs"), map_size=64 * 1024 * 1024)
+    writer = storage_backend.LmdbWriteBackend(store)
+    # write the same blocks through the write seam (rows exactly as the SQLite ledger holds them)
+    ref = storage_backend.SqliteBackend(ledger)
+    for height, rows in ref.blocks_in_range(1, 2):
+        writer.append_block(height, rows[0][7], rows)
+    assert writer.committed_tip() == 2
+
+    # read back via the read seam + cross-check against SQLite — byte-identical
+    lm = storage_backend.LmdbBackend(store)
+    assert lm.get_block(1) == ref.get_block(1)
+    blocks, txs = storage_backend.cross_check(ref, lm, 1, 2)
+    assert (blocks, txs) == (2, 3)
+
+    # reorg: roll back above height 1 — atomic, single store, no lockstep
+    removed = writer.rollback(1)
+    assert removed == 1 and writer.committed_tip() == 1
+    assert lm.get_block(2) is None and lm.get_block(1) is not None
+
+    ref.close(); store.close()
