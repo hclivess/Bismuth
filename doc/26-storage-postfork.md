@@ -140,10 +140,21 @@ path: introduce the seam, move reads, move writes, then delete the SQLite trio. 
   is the trust-building foundation for that flip. Test: `tests/test_storage_backend.py::
   test_write_backend_append_rollback_and_crosscheck`.
 
+- 🚧 **Stage 3 (read migration #2): socket-protocol block reads** (`apihandler_blocks.py`). `api_getblockfromheight`
+  and `api_getblockfromhash` now read the LMDB block store post-fork (LMDB-first, SQLite fallback), the socket
+  analog of the REST migration. `ApiHandler` gained a `node` ref for the seam. (`api_getblockrange` /
+  `…hashextra` also read the `misc` difficulty table — not in the block store — and `…since`/`…whereoflike`
+  need tip/openfield queries; those stay on SQLite.)
+- 🚧 **Stage 4 (trust check): continuous LMDB linkage verification** (`digest.py`). Post-fork, every block
+  verifies `block_store.block_hash(h)` equals the committed block hash (log-only). This proves the LMDB store
+  tracks the consensus linkage block-for-block — the prerequisite for making `block_store.tip()`/`block_hash`
+  the crash-recovery + last-block-linkage authority. (The last-block-linkage SQLite read is only a
+  startup/post-rollback seed held in memory during digestion, so there is no per-block read to swap.)
+
 ### Next stages (in order)
-- **Stage 3 (cont.): migrate the remaining reads** — socket-protocol block reads + the last-block linkage
-  (lower risk), then the `ledger_balance3` overspend read onto `balance_index` (the single highest-risk
-  change — needs a long `cross_check` shadow period before it is trusted authoritative).
+- **Stage 3 (cont.): the `ledger_balance3` overspend read onto `balance_index`** — the single highest-risk
+  change (a wrong balance index is inflation); needs a long `cross_check` shadow period before it is trusted
+  authoritative. This is the real gate for retiring the SQLite write.
 - **Stage 4 (cont.): flip the canonical write to LMDB + retire the lockstep.** Once the reads are off SQLite
   and the LMDB write is continuously cross-checked/trusted: make `block_store.tip()` the crash-recovery
   anchor (atomic ⇒ an unambiguous floor), delete the `commit_marker`/`ATTACH` machinery, and reduce SQLite

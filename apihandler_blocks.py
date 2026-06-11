@@ -12,6 +12,21 @@ import block_format
 import connections
 
 
+def _seam_backend(node):
+    """Storage read seam (doc/26 stage 3): the LMDB block store post-fork when present, else None (the caller
+    falls back to the legacy SQLite ledger cursor — unchanged pre-fork). The socket analog of rest_api's
+    _store_backend; this is the legacy wire protocol, migrated for parity."""
+    if node is None:
+        return None
+    store = getattr(node, "block_store", None)
+    fork_height = getattr(node, "fork_height", None)
+    last_block = getattr(node, "last_block", 0) or 0
+    if store is not None and fork_height is not None and last_block >= fork_height:
+        import storage_backend
+        return storage_backend.LmdbBackend(store)
+    return None
+
+
 class BlockApiMixin:
     __slots__ = ()
 
@@ -31,12 +46,19 @@ class BlockApiMixin:
 
         block_hash = connections.receive(socket_handler)
 
-        db_handler.execute_param(db_handler.h,
-                                 "SELECT * FROM transactions "
-                                 "WHERE block_hash = ?",
-                                 (block_hash,))
-
-        result = db_handler.h.fetchall()
+        # seam (doc/26): LMDB block store post-fork, SQLite fallback — same rows, same blockstojson output
+        result = None
+        be = _seam_backend(getattr(self, "node", None))
+        if be is not None:
+            h = be.height_by_hash(block_hash)
+            if h is not None:
+                result = be.get_block(h)
+        if not result:
+            db_handler.execute_param(db_handler.h,
+                                     "SELECT * FROM transactions "
+                                     "WHERE block_hash = ?",
+                                     (block_hash,))
+            result = db_handler.h.fetchall()
         blocks = block_format.blockstojson(result)
         connections.send(socket_handler, blocks)
 
@@ -92,11 +114,19 @@ class BlockApiMixin:
 
         height = connections.receive(socket_handler)
 
-        db_handler.execute_param(db_handler.h, ("SELECT * FROM transactions "
-                                                "WHERE block_height = ? "),
-                                 (height,))
-
-        result = db_handler.h.fetchall()
+        # seam (doc/26): LMDB block store post-fork, SQLite fallback — same rows, same blockstojson output
+        result = None
+        be = _seam_backend(getattr(self, "node", None))
+        if be is not None:
+            try:
+                result = be.get_block(int(height))
+            except (ValueError, TypeError):
+                result = None
+        if not result:
+            db_handler.execute_param(db_handler.h, ("SELECT * FROM transactions "
+                                                    "WHERE block_height = ? "),
+                                     (height,))
+            result = db_handler.h.fetchall()
         blocks = block_format.blockstojson(result)
         connections.send(socket_handler, blocks)
 

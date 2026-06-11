@@ -25,11 +25,12 @@ class ApiHandler(BlockApiMixin, AddressApiMixin, TxApiMixin):
     It's called from client threads, so it has to be thread safe.
     """
 
-    __slots__ = ('app_log', 'config', 'callback_lock', 'callbacks')
+    __slots__ = ('app_log', 'config', 'node', 'callback_lock', 'callbacks')
 
-    def __init__(self, app_log, config=None):
+    def __init__(self, app_log, config=None, node=None):
         self.app_log = app_log
         self.config = config
+        self.node = node          # for the storage read seam (doc/26): LMDB block reads post-fork
         # Avoid mixing answers to commands with callbacks
         self.callback_lock = threading.Lock()
         # list of sockets that asked for a callback (new block notification)

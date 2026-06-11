@@ -1415,7 +1415,7 @@ if __name__ == "__main__":
             # print(peers.peer_list_old_format())
             # sys.exit()
 
-            node.apihandler = apihandler.ApiHandler(node.logger.app_log, config)
+            node.apihandler = apihandler.ApiHandler(node.logger.app_log, config, node=node)
             mp.MEMPOOL = mp.Mempool(node.logger.app_log, config, node.db_lock, node.is_testnet, trace_db_calls=node.trace_db_calls)
 
             check_integrity(node, node.hyper_path)

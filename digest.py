@@ -531,6 +531,26 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
                 node.logger.app_log.warning(
                     f"block store write (seam) failed at {block_instance.block_height_new}: {e}")
 
+            # Continuous trust check (doc/26 stage 4): post-fork, verify the LMDB store's block-linkage matches
+            # the hash consensus just committed. This is the prerequisite for ever making block_store.tip() /
+            # block_hash the crash-recovery + last-block-linkage authority (and retiring the SQLite lockstep):
+            # you prove the LMDB linkage tracks consensus every block before you trust it. LOG-ONLY — a
+            # derived-store divergence must never halt consensus; a mismatch flags an LMDB write bug to fix
+            # before the canonical flip. (The last-block-linkage SQLite read itself is only a startup/rollback
+            # seed kept in memory during digestion, so there is no per-block linkage read to swap here.)
+            _wfh = getattr(node, "fork_height", None)
+            if _wfh is not None and block_instance.block_height_new >= _wfh:
+                try:
+                    _lmdb_hash = node.block_store.block_hash(block_instance.block_height_new)
+                    if _lmdb_hash != block_instance.block_hash:
+                        node.logger.app_log.warning(
+                            f"storage seam: LMDB block hash {_lmdb_hash} != committed "
+                            f"{block_instance.block_hash} at {block_instance.block_height_new} — investigate "
+                            f"before trusting LMDB as canonical")
+                except Exception as e:
+                    node.logger.app_log.warning(
+                        f"storage seam linkage check failed at {block_instance.block_height_new}: {e}")
+
         # Calculate mirror hash
         block_instance.mirror_hash = calculate_mirror_hash(db_handler)
 
