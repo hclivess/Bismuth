@@ -821,7 +821,11 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         aliases.aliases_update(node, db_handler_instance)
 
                         alias_address = receive(self.request)
-                        result = db_handler_instance.aliasget(alias_address)
+                        # SEAM (doc/26 stage 2): read the LMDB side-index when enabled, else index.db.
+                        if node.token_index is not None:
+                            result = node.token_index.aliasget(alias_address)
+                        else:
+                            result = db_handler_instance.aliasget(alias_address)
 
                         send(self.request, result)
                     else:
@@ -831,7 +835,10 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if node.peers.is_allowed(peer_ip, data):
                         aliases.aliases_update(node, db_handler_instance)
                         aliases_request = receive(self.request)
-                        results = db_handler_instance.aliasesget(aliases_request)
+                        if node.token_index is not None:
+                            results = node.token_index.aliasesget(aliases_request)
+                        else:
+                            results = db_handler_instance.aliasesget(aliases_request)
                         send(self.request, results)
                     else:
                         node.logger.app_log.info(f"{peer_ip} not whitelisted for aliasesget command")
@@ -843,26 +850,32 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if node.peers.is_allowed(peer_ip, data):
 
                         tokens_address = receive(self.request)
-                        tokens_user = db_handler_instance.tokens_user(tokens_address)
+                        # SEAM (doc/26 stage 2): the LMDB side-index when enabled, else the index.db SQL.
+                        if node.token_index is not None:
+                            ti = node.token_index
+                            tokens_list = [(token, str(ti.token_balance(token, tokens_address)))
+                                           for (token,) in ti.tokens_user(tokens_address)]
+                        else:
+                            tokens_user = db_handler_instance.tokens_user(tokens_address)
 
-                        tokens_list = []
-                        for token in tokens_user:
-                            token = token[0]
-                            db_handler_instance.execute_param(db_handler_instance.index_cursor,
-                                                              "SELECT sum(amount) FROM tokens WHERE recipient = ? AND token = ?;",
-                                                              (tokens_address,) + (token,))
-                            credit = db_handler_instance.index_cursor.fetchone()[0]
-                            db_handler_instance.execute_param(db_handler_instance.index_cursor,
-                                                              "SELECT sum(amount) FROM tokens WHERE address = ? AND token = ?;",
-                                                              (tokens_address,) + (token,))
-                            debit = db_handler_instance.index_cursor.fetchone()[0]
+                            tokens_list = []
+                            for token in tokens_user:
+                                token = token[0]
+                                db_handler_instance.execute_param(db_handler_instance.index_cursor,
+                                                                  "SELECT sum(amount) FROM tokens WHERE recipient = ? AND token = ?;",
+                                                                  (tokens_address,) + (token,))
+                                credit = db_handler_instance.index_cursor.fetchone()[0]
+                                db_handler_instance.execute_param(db_handler_instance.index_cursor,
+                                                                  "SELECT sum(amount) FROM tokens WHERE address = ? AND token = ?;",
+                                                                  (tokens_address,) + (token,))
+                                debit = db_handler_instance.index_cursor.fetchone()[0]
 
-                            debit = 0 if debit is None else debit
-                            credit = 0 if credit is None else credit
+                                debit = 0 if debit is None else debit
+                                credit = 0 if credit is None else credit
 
-                            balance = str(Decimal(credit) - Decimal(debit))
+                                balance = str(Decimal(credit) - Decimal(debit))
 
-                            tokens_list.append((token, balance))
+                                tokens_list.append((token, balance))
 
                         send(self.request, tokens_list)
                     else:
@@ -874,7 +887,10 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         aliases.aliases_update(node, db_handler_instance)
 
                         alias_address = receive(self.request)
-                        address_fetch = db_handler_instance.addfromalias(alias_address)
+                        if node.token_index is not None:
+                            address_fetch = node.token_index.addfromalias(alias_address)
+                        else:
+                            address_fetch = db_handler_instance.addfromalias(alias_address)
                         node.logger.app_log.warning(f"Fetched the following alias address: {address_fetch}")
                         send(self.request, address_fetch)
 
@@ -1141,7 +1157,16 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if data == '*':
                         raise ValueError("Broken pipe")
 
-                    # This is the entry point for all extra commands from plugins
+                    # Modern plugins (doc/27): a class-based plugin may own this wire command (e.g. the
+                    # tokens_aliases plugin's tokensget/aliasget/aliasesget/addfromalias). Pre-fork the core
+                    # elif handlers above match first; post-fork, with those removed, this is where the
+                    # plugin serves them — no token/alias command code left in the core loop.
+                    plugin_cmd = node.plugin_manager.peer_command_handler(data)
+                    if plugin_cmd is not None:
+                        extra = True
+                        plugin_cmd(data, self.request)
+
+                    # This is the entry point for all extra commands from plugins (legacy filter hook)
                     for prefix, callback in extra_commands.items():
                         if data.startswith(prefix):
                             extra = True
@@ -1344,6 +1369,9 @@ if __name__ == "__main__":
     node.vm_state_root = None                          # committed VM state root (doc/19), maintained post-fork
     node.shield_enabled = config.shield                # opt-in shielded value (doc/22); POST-FORK only
     node.shielded_state = None                         # the note/nullifier sidecar, built at startup if enabled
+    node.token_index = None                            # the LMDB token/alias side-index store; set by the
+    #                                                    tokens_aliases plugin at startup (doc/27) when the
+    #                                                    token_index flag is on, else None (legacy index.db).
 
     node.logger.app_log = log.log("node.log", node.debug_level, node.terminal_output, node.log_color)
     node.logger.app_log.warning("Configuration settings loaded")
@@ -1363,7 +1391,7 @@ if __name__ == "__main__":
         shutil.copy(node.hyper_path, node.ledger_path)  # hacked to remove all the endless checks
     try:
         # create a plugin manager, load all plugin modules and init
-        node.plugin_manager = plugins.PluginManager(app_log=node.logger.app_log, config=config, init=True)
+        node.plugin_manager = plugins.PluginManager(app_log=node.logger.app_log, config=config, init=True, node=node)
         # get the potential extra command prefixes from plugin
         extra_commands = {}  # global var, used by the server part.
         extra_commands = node.plugin_manager.execute_filter_hook('extra_commands_prefixes', extra_commands)
@@ -1413,6 +1441,15 @@ if __name__ == "__main__":
                 db_handler_initial.close()
                 recompress_ledger(node)
                 db_handler_initial = dbhandler.DbHandler(node.index_db, node.ledger_path, node.hyper_path, node.ram, node.ledger_ram_file, node.logger, trace_db_calls=node.trace_db_calls)
+
+            # Modern plugins (doc/27): start the class-based plugins now that the net type + ledger path are
+            # finalized and the ledger is readable. The tokens_aliases plugin opens its isolated LMDB
+            # token/alias side-index and registers it as the `token_index` service; expose it as
+            # node.token_index so the read/rollback seams drive the plugin's store (and the core token/alias
+            # write paths defer to it). Done BEFORE node_block_init so the legacy alias indexing there sees
+            # node.token_index set and no-ops (no stray index.db writes when the plugin owns it).
+            node.plugin_manager.start(node)
+            node.token_index = node.plugin_manager.get_service("token_index")
 
             ram_init(node, db_handler_initial)
             node_block_init(node, db_handler_initial)
@@ -1532,6 +1569,9 @@ if __name__ == "__main__":
                 except Exception as e:
                     node.logger.app_log.warning("Status: shielded value could not start: {}".format(e))
                     node.shielded_state = None
+
+            # (The LMDB token/alias side-index is now owned by the tokens_aliases PLUGIN — opened in
+            # node.plugin_manager.start(node) above and exposed as node.token_index. doc/26 stage 2 + doc/27.)
 
             # optional LMDB block-body store mirror (doc/17 phase 7). Off unless block_store=True.
             # Additive shadow: the digester writes blocks here AFTER the normal commit; reads/consensus

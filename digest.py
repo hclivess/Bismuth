@@ -711,6 +711,11 @@ def execute_block_hooks(node, block_instance, miner_tx, diff_save, peer_ip, bloc
         'transactions': block_transactions
     })
 
+    # Modern class-based plugins (doc/27): drive their per-block derived-state maintenance. The
+    # tokens_aliases plugin projects token:/alias= ops into its own LMDB store here — so post-fork the
+    # node core itself carries no token/alias indexing logic.
+    node.plugin_manager.dispatch_block(block_instance.block_height_new, block_transactions)
+
 
 def handle_processing_error(node, db_handler, sdef, peer_ip, error):
     """Handle errors during block processing."""

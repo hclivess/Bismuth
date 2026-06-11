@@ -284,6 +284,14 @@ def _make_handler(node):
                     return self._write(200, self._fork(db))
                 if route == ["supply"]:
                     return self._write(200, self._supply(db))
+                # Modern plugins (doc/27) may own a route — the tokens_aliases plugin serves /api/tokens and
+                # /api/token/<name> from its own LMDB store, so post-fork no token/alias code is left in this
+                # router. When no plugin claims the route, fall through to the core (legacy index.db) handlers.
+                handled, result = node.plugin_manager.rest_handle("GET", route, query)
+                if handled:
+                    if result is None:
+                        raise _NotFound("unknown token")
+                    return self._write(200, result)
                 if route == ["tokens"]:
                     return self._write(200, self._tokens(db))
                 if route[:1] == ["token"] and len(route) == 2:
@@ -617,12 +625,21 @@ def _make_handler(node):
 
         def _tokens(self, db):
             """All tokens seen on chain, ranked by transfer volume."""
+            # SEAM (doc/26 stage 2): read the isolated LMDB side-index when enabled, else index.db SQL.
+            if node.token_index is not None:
+                rows = node.token_index.tokens_list(500)
+                return {"count": len(rows), "tokens": [{"token": t, "transfers": c} for t, c in rows]}
             rows = db.fetchall(db.index_cursor, "SELECT token, COUNT(*) FROM tokens "
                                                 "GROUP BY token ORDER BY COUNT(*) DESC LIMIT 500")
             return {"count": len(rows), "tokens": [{"token": r[0], "transfers": r[1]} for r in rows]}
 
         def _token(self, db, name):
             """A token's holders, per-address balances, and supply (credits - debits, token index)."""
+            if node.token_index is not None:
+                detail = node.token_index.token_detail(name)
+                if detail is None:
+                    raise _NotFound("unknown token")
+                return detail
             credits = {r[0]: int(r[1] or 0) for r in db.fetchall(db.index_cursor,
                        "SELECT recipient, SUM(amount) FROM tokens WHERE token = ? GROUP BY recipient", (name,))}
             debits = {r[0]: int(r[1] or 0) for r in db.fetchall(db.index_cursor,
@@ -642,17 +659,58 @@ def _make_handler(node):
         def _block_rows_to_json(self, rows):
             return [essentials.format_raw_tx(row) for row in rows]
 
+        # --- storage read seam (doc/26 stage 3) -----------------------------------------------------
+        # The block-BODY reads below go through the seam: post-fork, when the LMDB block store is present,
+        # they read from it (canonical post-fork store); otherwise the legacy ledger.db cursor (pre-fork =
+        # unchanged). Both return the same 12-field rows (proven by storage_backend.cross_check), so the JSON
+        # is identical. LMDB-first-with-SQLite-FALLBACK keeps it correct on a node whose store was enabled
+        # mid-chain (older blocks not yet in LMDB fall back to SQLite). Display-only; never consensus.
+        def _store_backend(self):
+            store = getattr(node, "block_store", None)
+            fork_height = getattr(node, "fork_height", None)
+            last_block = getattr(node, "last_block", 0) or 0
+            if store is not None and fork_height is not None and last_block >= fork_height:
+                import storage_backend
+                return storage_backend.LmdbBackend(store)
+            return None
+
+        def _block_rows(self, db, height):
+            be = self._store_backend()
+            if be is not None:
+                rows = be.get_block(height)
+                if rows:                                   # in LMDB; else fall back (pre-enable history)
+                    return rows
+            return db.fetchall(db.h, "SELECT * FROM transactions WHERE block_height = ?", (height,))
+
+        def _range_rows(self, db, start, end):
+            be = self._store_backend()
+            if be is not None:
+                tip = be.tip_height()
+                # the LMDB store is contiguous to its tip, so start present + tip>=end => whole range present
+                if tip is not None and tip >= end and be.get_block(start) is not None:
+                    return [r for _h, rows in be.blocks_in_range(start, end) for r in rows]
+            return db.fetchall(db.h, "SELECT * FROM transactions WHERE block_height >= ? AND block_height <= ? "
+                                     "ORDER BY block_height ASC", (start, end))
+
         def _block_by_height(self, db, raw_height):
             try:
                 height = int(raw_height)
             except ValueError:
                 raise _BadRequest("height must be an integer")
-            rows = db.fetchall(db.h, "SELECT * FROM transactions WHERE block_height = ?", (height,))
+            rows = self._block_rows(db, height)
             if not rows:
                 raise _NotFound("no block at height {}".format(height))
             return {"block_height": height, "transactions": self._block_rows_to_json(rows)}
 
         def _block_by_hash(self, db, block_hash):
+            be = self._store_backend()
+            if be is not None:
+                h = be.height_by_hash(block_hash)
+                if h is not None:
+                    rows = be.get_block(h)
+                    if rows:
+                        return {"block_hash": block_hash, "block_height": rows[0][0],
+                                "transactions": self._block_rows_to_json(rows)}
             rows = db.fetchall(db.h, "SELECT * FROM transactions WHERE block_hash = ?", (block_hash,))
             if not rows:
                 raise _NotFound("no block with hash {}".format(block_hash))
@@ -719,8 +777,8 @@ def _make_handler(node):
             except ValueError:
                 raise _BadRequest("limit must be an integer")
             limit = max(1, min(limit, 1000))
-            rows = db.fetchall(db.h, "SELECT * FROM transactions WHERE block_height > ? AND block_height <= ? "
-                                     "ORDER BY block_height ASC", (since, since + limit))
+            # seam: > since AND <= since+limit  ==  the inclusive range [since+1, since+limit]
+            rows = self._range_rows(db, since + 1, since + limit)
             return {"since": since, "limit": limit, "blocks": self._grouped_blocks(rows or [])}
 
         def _blocks_range(self, db, raw_start, raw_end, query=None):
@@ -731,8 +789,7 @@ def _make_handler(node):
             if end < start:
                 raise _BadRequest("end must be >= start")
             end = min(end, start + 1000)  # cap the span
-            rows = db.fetchall(db.h, "SELECT * FROM transactions WHERE block_height >= ? AND block_height <= ? "
-                                     "ORDER BY block_height ASC", (start, end))
+            rows = self._range_rows(db, start, end)
             fmt = (query or {}).get("format", ["json"])[0]
             if fmt == "sync":
                 # consensus-faithful tuples a syncing peer can feed straight to its digester

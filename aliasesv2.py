@@ -8,13 +8,28 @@ first claimant of a given alias wins (later duplicates are ignored).
 This builds a derived index only and does not affect consensus. It handles the
 newer operation-based format; see :mod:`aliases` for the older ``alias=<name>``
 openfield-based format.
+
+STORAGE SEAM (doc/26 stage 2): when ``node.token_index`` is set, registrations go into the isolated LMDB
+side-index (``token_index.TokenIndex``) instead of the SQLite ``index.db`` — NO SQLite. When it is
+``None`` the legacy ``index.db`` path runs unchanged. (This module is the dormant post-fork alias format,
+gated behind ``# POSTFORK_ALIASES`` in node.py; the seam keeps it from reintroducing SQLite when flipped.)
 """
 
 import log
 
 
 def aliases_update(node, db_handler_instance):
-            
+    """When the tokens_aliases plugin owns the index (``node.token_index`` set, doc/27) the core does nothing
+    (the plugin maintains the LMDB store). Else the legacy SQLite path. NOTE: this is the dormant
+    ``alias:register`` format; the plugin currently projects the live ``alias=`` openfield format — extend the
+    plugin's ``_alias`` to also read ``alias:register`` when this format is activated post-fork."""
+    if getattr(node, "token_index", None) is not None:
+        return
+    _aliases_update_sqlite(node, db_handler_instance)
+
+
+def _aliases_update_sqlite(node, db_handler_instance):
+
     db_handler_instance.index_cursor.execute("SELECT block_height FROM aliases ORDER BY block_height DESC LIMIT 1;")
     try:
         alias_last_block = int(db_handler_instance.index_cursor.fetchone()[0])

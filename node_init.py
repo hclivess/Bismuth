@@ -167,6 +167,9 @@ def node_block_init(node, database):
 
     node.logger.app_log.warning("Status: Indexing aliases")
 
+    # When the tokens_aliases plugin owns the index (node.token_index set, doc/27), this no-ops — the
+    # plugin already backfilled tokens AND aliases from the ledger in plugin_manager.start(). On the legacy
+    # path it indexes aliases into index.db as before.
     aliases.aliases_update(node, database)
 
 

@@ -51,6 +51,7 @@ def node_proc():
     shutil.rmtree(os.path.join(ROOT, "static/balanceindex"), ignore_errors=True)  # fresh balance index
     shutil.rmtree(os.path.join(ROOT, "static/vmstate"), ignore_errors=True)  # fresh VM contract state
     shutil.rmtree(os.path.join(ROOT, "static/shielded-regmode.db"), ignore_errors=True)  # fresh LMDB shielded store
+    shutil.rmtree(os.path.join(ROOT, "static/tokenindex-regmode.db"), ignore_errors=True)  # fresh LMDB token/alias side-index
     shutil.copy(os.path.join(ROOT, "tests/config_custom.txt"),
                 os.path.join(ROOT, "config_custom.txt"))
 

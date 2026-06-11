@@ -15,12 +15,16 @@ no effect on consensus. It is rebuilt incrementally from the last anchored
 Operation / openfield encoding:
     token:issue     -> openfield = ``token_name:total_number``
     token:transfer  -> openfield = ``token_name:amount``
+
+STORAGE SEAM (doc/26 stage 2): when ``node.token_index`` is set, the projection is built into the
+isolated LMDB side-index (``token_index.TokenIndex``) instead of the SQLite ``index.db`` — same scan,
+same overspend rule, NO SQLite. When it is ``None`` the legacy ``index.db`` path runs unchanged.
 """
 
 import log
 from hashlib import blake2b
 
-__version__ = '0.0.2'
+__version__ = '0.0.3'
 
 
 def blake2bhash_generate(data):
@@ -29,7 +33,18 @@ def blake2bhash_generate(data):
     return blake2bhash
     # new hash
 
+
 def tokens_update(node, db_handler_instance):
+    """Bring the token index up to date. When the **tokens_aliases plugin** owns the index (``node.token_index``
+    set, doc/27) the core does NOTHING here — the plugin maintains its isolated LMDB store per-block via
+    ``on_block`` (and backfilled history at startup). Otherwise the legacy SQLite ``index.db`` path runs,
+    byte-for-byte the original (pre-fork compatibility for old peers)."""
+    if getattr(node, "token_index", None) is not None:
+        return
+    return _tokens_update_sqlite(node, db_handler_instance)
+
+
+def _tokens_update_sqlite(node, db_handler_instance):
 
     db_handler_instance.index_cursor.execute("CREATE TABLE IF NOT EXISTS tokens (block_height INTEGER, timestamp, token, address, recipient, txid, amount INTEGER)")
     db_handler_instance.index.commit()

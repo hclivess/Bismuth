@@ -177,3 +177,40 @@ def test_rest_unknown_endpoint_404(client):
         assert False, "expected 404"
     except urllib.error.HTTPError as e:
         assert e.code == 404
+
+
+def test_rest_block_reads_post_fork_use_lmdb(client):
+    # doc/26 stage 3: post-fork the REST block-BODY reads come from the LMDB block_store (regnet has
+    # block_store=True), with a SQLite fallback. Mine until hf2 is active (so node.last_block >=
+    # node.fork_height -> the seam picks the LMDB backend), then read blocks every which way and assert
+    # they're correct. This deterministically pins the LMDB-served path; data parity with SQLite is proven
+    # separately by storage_backend.cross_check. (Kept LAST in this file: it advances the chain past the
+    # fork, and we don't want that burst of mining to race the timing-sensitive tx-inclusion test above.)
+    assert _wait_rest()
+    _, fk = _get("/fork")
+    deadline = time.time() + 40
+    while not fk.get("active") and time.time() < deadline:
+        client.mine(3)
+        _, fk = _get("/fork")
+    assert fk.get("active") is True, fk
+
+    tip = client.command("blocklastjson")["block_height"]
+
+    # by height (LMDB post-fork)
+    code, body = _get(f"/block/height/{tip}")
+    assert code == 200 and body["block_height"] == tip and body["transactions"]
+
+    # by hash: the hash comes from the (SQLite) header endpoint, the body is read by hash (LMDB) — and the
+    # two body reads must be byte-identical (same source, same format_raw_tx)
+    _, hdr = _get(f"/headers/range/{tip}/{tip}")
+    bhash = hdr["headers"][0]["block_hash"]
+    code, bh = _get(f"/block/hash/{bhash}")
+    assert code == 200 and bh["block_height"] == tip
+    assert bh["transactions"] == body["transactions"]
+
+    # range fully within the store
+    code, rng = _get(f"/blocks/range/{tip - 2}/{tip}")
+    assert code == 200
+    rheights = [b["block_height"] for b in rng["blocks"]]
+    assert rheights == sorted(rheights) and max(rheights) == tip
+    assert all(b["transactions"] for b in rng["blocks"])

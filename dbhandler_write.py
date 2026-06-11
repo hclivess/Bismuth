@@ -93,6 +93,15 @@ class DbWriteMixin:
 
         returns None
         """
+        # SEAM (doc/26 stage 2): when the LMDB side-index is enabled, roll it back instead of index.db.
+        ti = getattr(node, "token_index", None)
+        if ti is not None:
+            try:
+                ti.tokens_rollback(height)
+                node.logger.app_log.warning(f"Rolled back the LMDB token side-index below {(height)}")
+            except Exception as e:
+                node.logger.app_log.warning(f"Failed to roll back the LMDB token side-index below {(height)} due to {e}")
+            return
         try:
             self.execute_param(self.index_cursor, "DELETE FROM tokens WHERE block_height >= ?;", (height,))
             self.commit(self.index)
@@ -111,6 +120,17 @@ class DbWriteMixin:
 
         returns None
         """
+        # SEAM (doc/26 stage 2): when the LMDB side-index is enabled, roll it back instead of index.db.
+        ti = getattr(node, "token_index", None)
+        if ti is not None:
+            try:
+                ti.aliases_rollback(height)
+                self._alias_cache.clear()
+                self._address_cache.clear()
+                node.logger.app_log.warning(f"Rolled back the LMDB alias side-index below {(height)}")
+            except Exception as e:
+                node.logger.app_log.warning(f"Failed to roll back the LMDB alias side-index below {(height)} due to {e}")
+            return
         try:
             self.execute_param(self.index_cursor, "DELETE FROM aliases WHERE block_height >= ?;", (height,))
             self.commit(self.index)

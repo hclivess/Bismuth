@@ -8,6 +8,10 @@ first claimant of a given alias wins (later duplicates are ignored).
 This builds a derived index only and does not affect consensus. It handles the
 older ``alias=<name>`` openfield format; see :mod:`aliasesv2` for the newer
 ``alias:register`` operation-based format.
+
+STORAGE SEAM (doc/26 stage 2): when ``node.token_index`` is set, registrations go into the isolated
+LMDB side-index (``token_index.TokenIndex``) instead of the SQLite ``index.db`` — same scan, same
+first-claimant-wins rule, NO SQLite. When it is ``None`` the legacy ``index.db`` path runs unchanged.
 """
 
 import log
@@ -16,6 +20,16 @@ from essentials import replace_regex  # shared, lru-cached implementation (was d
 
 
 def aliases_update(node, db_handler_instance):
+    """Bring the alias index up to date. When the **tokens_aliases plugin** owns the index (``node.token_index``
+    set, doc/27) the core does NOTHING here — the plugin maintains its isolated LMDB store per-block via
+    ``on_block`` (and backfilled history at startup). Otherwise the legacy SQLite ``index.db`` path runs,
+    byte-for-byte the original (pre-fork compatibility for old peers)."""
+    if getattr(node, "token_index", None) is not None:
+        return
+    return _aliases_update_sqlite(node, db_handler_instance)
+
+
+def _aliases_update_sqlite(node, db_handler_instance):
     db_handler_instance.index_cursor.execute("SELECT block_height FROM aliases ORDER BY block_height DESC LIMIT 1;")
     try:
         alias_last_block = int(db_handler_instance.index_cursor.fetchone()[0])

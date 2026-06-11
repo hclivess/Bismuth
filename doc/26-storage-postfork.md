@@ -1,8 +1,9 @@
 # doc/26 — Post-fork storage rearchitecture (no SQLite)
 
-> Status: **design done; stage 1 (shielded store on LMDB) ✅ shipped.** The endgame of doc/16: retire the
-> 2014-era SQLite trio **post-fork** and make a single LMDB store canonical. Consensus serialization stays
-> frozen (same block hashes, same validation); legacy SQLite keeps working **pre-fork** for old peers.
+> Status: **design done; stages 1–2 ✅ shipped (shielded store + token/alias side-index on LMDB).** The
+> endgame of doc/16: retire the 2014-era SQLite trio **post-fork** and make a single LMDB store canonical.
+> Consensus serialization stays frozen (same block hashes, same validation); legacy SQLite keeps working
+> **pre-fork** for old peers.
 
 ## 1. What's there today — the "H1/H2/H3" architecture, and why it isn't ideal
 
@@ -95,10 +96,43 @@ path: introduce the seam, move reads, move writes, then delete the SQLite trio. 
   a range delete; ops are buffered per block and flushed atomically in one txn at `commit()`. `open_state_for`
   auto-removes a stale pre-LMDB SQLite file (the sidecar is post-fork-only + rebuildable, so nothing canonical
   is lost). 33 shielded/RingCT tests green (29 node-free + 4 live, incl. the confidential lifecycle).
+- ✅ **Stage 2: token + alias side-index on LMDB** (`token_index.TokenIndex`, `open_for`). The tokens/aliases
+  projection was always the most cleanly *separable* part of the trio — its own `index.db`, a derived
+  side-index of the ledger, never consensus — so it is the natural next target. Replaced with an isolated LMDB
+  env (sub-DBs: `tokreg`/`seen`/`cred`/`deb`/`addrtok`/`tokset`/`journal` for tokens, `alias_fwd`/`alias_rev`/
+  `ajournal` for aliases, `meta` for anchors). *Materialized* indexes stand in for the SQLite SUM/GROUP-BY:
+  `cred`/`deb` are height-ordered so the **exact** overspend rule survives (credit at `block_height < h`,
+  debit at `<= h` — no same-block re-spend); reorg rollback range-scans the height journals (same shape as
+  the shielded store). Wired behind a **storage seam** (§3): `node.token_index` set → LMDB, else the legacy
+  `index.db` path runs byte-for-byte (mainnet-safe pre-fork). All call sites route through it —
+  `tokensv2`/`aliases`/`aliasesv2` (writes), `dbhandler_write` (rollback), `node.py` peer commands
+  (`tokensget`/`aliasget`/`aliasesget`/`addfromalias`) and `rest_api` (`/api/tokens`, `/api/token`) (reads).
+  Config flag `token_index` (default off; on in the regnet test config). 8 node-free unit tests + the live
+  explorer/API regnet tests green. (`staking` shares `index.db` but was never live — it retires with the trio.)
+
+- 🚧 **Stage 3 (foundation): the storage read seam** (`storage_backend.py`). A thin block/tx read interface
+  with two backends that return BYTE-IDENTICAL rows: `SqliteBackend` (a read-only cursor over `ledger.db` —
+  today's behavior, the reference) and `LmdbBackend` (the `block_store`). `cross_check(reference, candidate,
+  start, end)` proves they agree (the gate for migrating a read); `select(node)` returns the LMDB backend
+  post-fork when a block store is present, else SQLite (pre-fork = unchanged). Additive + consensus-inert —
+  NOT yet wired into the hot path; reads migrate onto it one surface at a time (REST/display → sync →
+  consensus), each cross-checked first. Balance reads are a separate increment (they have `balance_index` +
+  the `ledger_balance3` consensus path). 3 node-free tests green (`tests/test_storage_backend.py`).
+
+- 🚧 **Stage 3 (read migration #1): REST block-body reads on the seam** (`rest_api.py`). The REST
+  `/api/block/height`, `/api/block/hash`, `/api/blocks/since`, `/api/blocks/range` reads now go through the
+  seam: post-fork (`last_block >= fork_height`) + a present `block_store` → read from LMDB, else the legacy
+  `ledger.db` cursor. **LMDB-first with SQLite fallback** (`_store_backend`/`_block_rows`/`_range_rows` on the
+  Handler), so a node whose store was enabled mid-chain still serves older blocks. Display-only; identical
+  JSON (shared `essentials.format_raw_tx` over byte-identical rows). Pre-fork is unchanged. `_headers_range`
+  (cheap SQL aggregate), `_transaction` (by signature), `_address_txs` (by address), and the legacy socket
+  block reads (`apihandler_blocks.py`) deliberately stay on SQLite — later increments (need secondary
+  indexes). Test: `tests/test_rest_api.py::test_rest_block_reads_post_fork_use_lmdb` mines past the fork and
+  reads blocks via the LMDB-served path.
 
 ### Next stages (in order)
-- **Stage 2: balance index + token/alias indexes → LMDB**, same pattern (height-keyed, rebuildable).
-- **Stage 3: reads via a storage seam**; post-fork routes block/tx/balance reads to LMDB.
+- **Stage 3 (cont.): migrate the remaining reads** — socket-protocol block reads, then the balance-read
+  increment (`balance_index`), then the sync path. Run both backends side by side with `cross_check`.
 - **Stage 4: writes via the seam**; delete the `commit_marker`/`ATTACH` lockstep (one store, one txn).
 - **Stage 5: sync without hyperblocks** (headers-first + parallel REST into LMDB; retire `hyper.db`), then
-  remove the SQLite trio post-fork.
+  remove the SQLite trio post-fork (`index.db` — tokens/aliases now on LMDB, plus the dead `staking` table — included).

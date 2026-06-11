@@ -27,3 +27,4 @@ rpc_ethereum_port=8546
 balance_index=True
 vm=True
 shield=True
+token_index=True
