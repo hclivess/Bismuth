@@ -1,5 +1,26 @@
 # 12 — Tooling, build & tests
 
+## Installation (node + systemd service)
+
+`install_node.sh` is the one-shot installer — system packages, Python deps, and the `bismuth-node`
+systemd service pointing at the checkout it lives in:
+
+```bash
+sudo ./install_node.sh                 # deps + service, starts it if not already running
+sudo ./install_node.sh --no-start      # deps + service, don't start
+sudo ./install_node.sh --restart       # also restart if already running
+sudo ./install_node.sh --deps-only     # just dependencies
+sudo ./install_node.sh --regnet        # service runs a regnet node for testing
+```
+
+It is **idempotent** (re-runnable; never bumps an already-working node's deps and won't restart a
+running node unless `--restart`), installs the LMDB stack (`lmdb`/`msgpack` — needed by block_store,
+vm_state, and the shielded store), and auto-applies the **ed25519 Python-3.12 source patch** (its
+bundled `versioneer` uses APIs removed in 3.12). The unit it writes matches the production service:
+graceful `SIGTERM` stop (`TimeoutStopSec=180`) so `ledger.db`/`hyper.db` stay consistent across reboots,
+and `Environment=BISMUTH_IGNORE_CONFIG_CUSTOM=1` so a stray regnet `config_custom.txt` can't hijack a
+mainnet boot.
+
 ## Test suite
 
 The suite under `tests/` was rebuilt to be **dependency-light**: it drives a regnet node over the

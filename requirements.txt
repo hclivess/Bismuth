@@ -14,10 +14,18 @@ base58
 # missing these rejects every such block ("ModuleNotFoundError" in polysign/signer_*) and silently
 # stalls -- it cannot sync past the first ed25519/ecdsa block.
 coincurve
+# REQUIRED for the secp256r1 / NIST P-256 signer (polysign/signer_secp256r1.py); a node missing it rejects
+# every secp256r1 transaction — the same silent-stall class as the ed25519/coincurve note above.
+cryptography
 # ed25519's sdist build is broken on Python 3.12 (bundled versioneer uses configparser.SafeConfigParser
 # / readfp, both removed in 3.12). On 3.12 install from source with setup.py's versioneer.get_version()
 # /get_cmdclass() calls replaced by a literal (e.g. "1.5"); older Pythons pip-install it directly.
+# install_node.sh handles this patch automatically.
 ed25519
+# REQUIRED for the LMDB stores — block_store, vm_state, and the shielded value store (doc/26 storage
+# rework). A node with block_store/vm/shield enabled cannot start without these.
+lmdb
+msgpack
 # OPTIONAL (post-quantum, doc/20): pure-Python ML-DSA-65 for polysign/signer_mldsa.py. Lazy-imported by
 # the SignerFactory, so a node without it is unaffected until a `pq` fork activates the PQ signature type.
 dilithium-py
