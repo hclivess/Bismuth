@@ -41,8 +41,14 @@ and the consensus-touching work waits behind the fork it was designed for.
   transactions + a signed coinbase carrying the fork-readiness signals — mines real Heavy3, and digests it.
   The in-tree block-builder the GPU nonce-finders (`gpuminer/`) feed into.
 - **Dual-algorithm Heavy3** 🕒. The inner hash can modernize `sha224 → blake2b` (same anneal, same
-  difficulty); miner and validator switch together at a **separately-signalled `pow2` fork**. Built and
-  regnet-tested; off until miners signal.
+  difficulty); miner and validator switch together at the **single signalled `hf2` fork** (the interim
+  separate `pow2` signal was folded into hf2 on 2026-06-12 — stamping `hf2` asserts blake2b readiness,
+  and GPU kernels must swap in lockstep at the activation height). Built and regnet-tested; off until
+  miners signal. Stale `pow2` keys in old regnet lock-in sidecars are ignored; wipe regnet datadirs
+  that carried split (hf2≠pow2) lockins before replaying them. The transition is gated by
+  `tests/fork_transition_smoke.py` (lock-in → mid-transition restart → boundary crossing → reorg
+  across the boundary → lost-sidecar self-healing), and fork-height detection now runs BEFORE each
+  block is judged, so a lost sidecar can never wedge a node on era-mismatched PoW.
 
 ## Smart contracts (decentralized apps) 🕒
 
@@ -91,6 +97,6 @@ and the consensus-touching work waits behind the fork it was designed for.
 - **Recommended:** `sudo bash scripts/install-node-service.sh` to move off `screen`/`nohup`.
 - **Required deps:** `ed25519` + `coincurve` (mainnet carries those tx types — a node without them silently
   rejects every such block). **Optional:** `dilithium-py` (ML-DSA) and `cryptography` (P-256), lazy-loaded.
-- **No flag day.** Nothing consensus-affecting turns on until the signalled `hf2` (and, separately, `pow2`)
-  fork. Running this release changes how you *operate* the node, not how it *validates* the chain — until
-  the network deliberately votes the fork in.
+- **No flag day.** Nothing consensus-affecting turns on until the signalled `hf2` fork — ONE fork that
+  bundles everything, including the blake2b PoW swap. Running this release changes how you *operate* the
+  node, not how it *validates* the chain — until the network deliberately votes the fork in.

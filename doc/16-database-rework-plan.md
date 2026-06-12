@@ -1,6 +1,9 @@
 # 16 — Database rework plan (design)
 
-> Status: **phases 1 & 3 done; phase 2 live on regnet (integer storage behind `ledger_integer_amounts`, default off); 4 & 6 partial (safe read-side slices); 5, 7 are design / roadmap.** This captures a complete rework of the storage
+> Status: **phases 1 & 3 done; phase 2 live on regnet (integer storage behind `ledger_integer_amounts`, default off); 4 & 6 partial (safe read-side slices); 5 is design / roadmap.
+> Phase 7 (engine evaluation) is SUPERSEDED: the decision is made — post-fork storage is a single
+> LMDB store, designed and landing in staged slices in [26-storage-postfork.md](26-storage-postfork.md),
+> which is the authoritative storage doc going forward.** This captures a complete rework of the storage
 > layer, which today is a 2014-era SQLite design that is sluggish and awkward. The guiding constraint
 > is that **consensus must not change**: the same blocks must produce the same hashes and validate
 > identically, and the legacy socket protocol ([06](06-networking-protocol.md)) must keep working for

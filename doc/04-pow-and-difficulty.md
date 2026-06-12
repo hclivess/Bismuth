@@ -38,16 +38,17 @@ the retarget algorithm isn't disturbed"). In regnet, `diff0` is forced to `REGNE
 `mining.py` is the pre-Heavy3 algorithm (single drop tier, no memory-hard step). It is **not imported
 anywhere** and is retained only for reference.
 
-### Dual-algo PoW (built, inert until signalled)
+### Dual-algo PoW (built, inert until signalled; bundled into hf2)
 
-`diffme_heavy3`/`check_block` take a `new_pow` flag. Post the (separately-signalled) PoW fork the
+`diffme_heavy3`/`check_block` take a `new_pow` flag. Post-fork the
 **inner hash modernises** from `sha224(...)` to `blake2b(..., digest_size=28)`; the 1 GiB anneal and
 the substring-difficulty measure are **unchanged**. The switch is purely `new_pow`, which the digester
-sets to `block_height_new >= node.pow_fork_height` — derived deterministically from the on-chain `"pow2"`
-fork signal (`fork.has_pow_signal` / `fork.dynamic_fork_height`). Miners advertise readiness by stamping
-`pow2` into their coinbase (`pow_fork_signal=True`); until that fork locks in, every node mines and
-validates today's sha224 Heavy3. See [21](21-mining.md) (solo miner / mining), [18](18-hardfork-hf2.md)
-(the fork bundle), [19](19-vm.md) (VM).
+sets to `block_height_new >= node.fork_height` — the SAME single hf2 activation height that gates the
+rest of the bundle (the PoW swap was folded into hf2 on 2026-06-12; the interim separate `pow2` signal
+is retired, and stale `pow2` sidecar keys are ignored). Miners advertise whole-bundle readiness —
+including blake2b mining — by stamping `hf2` into their coinbase (`fork_signal=True`); until hf2 locks
+in, every node mines and validates today's sha224 Heavy3. See [21](21-mining.md) (solo miner / mining),
+[18](18-hardfork-hf2.md) (the fork bundle), [19](19-vm.md) (VM).
 
 ## Difficulty retarget (`difficulty.py`)
 
@@ -66,7 +67,9 @@ Mechanism (target = **60 s/block**, window = **1440 blocks**):
 6. `difficulty = quantize_ten(prev_diff + diff_adjustment)`.
 7. Compute the broadcast `diff_dropped` (same 180/360 s drop tiers as `check_block`).
 8. Floor both `difficulty` and `diff_dropped` at **50**.
-9. At `height == POW_FORK - FORK_AHEAD`, call `fork.limit_version(node)`.
+9. Side effect, unrelated to the retarget math: at `height == POW_FORK - FORK_AHEAD`, call
+   `fork.limit_version(node)` — this is the *historical* 2018 fork (`POW_FORK` = 1,450,000 mainnet),
+   not hf2; it drops the oldest protocol version ahead of that legacy boundary.
 
 ## Key constants
 

@@ -17,7 +17,7 @@ supporting tooling. It is written for developers who want to understand, operate
 | **Consensus** | PoW "Heavy3" (memory‑hard, 1 GiB lookup file) + PID‑style difficulty retarget, 60 s target block time |
 | **Signatures** | RSA‑4096 (via the `polysign` abstraction; ECDSA/ed25519 supported by the lib) |
 | **Addresses** | `sha224(public_key_pem).hexdigest()` → 56‑char hex |
-| **Storage** | SQLite — `ledger.db` (full), `hyper.db` (pruned "hyperblocks"), `index.db` (aliases/tokens), `mempool.db` |
+| **Storage** | SQLite — `ledger.db` (full), `hyper.db` (pruned "hyperblocks"), `index.db` (aliases/tokens), `mempool.db`; post‑fork migrating to a single LMDB store (block store, shielded, token/alias index — [26](26-storage-postfork.md)) |
 | **Networking** | Custom protocol: 10‑byte zero‑padded length header + JSON payload over raw TCP |
 | **Networks / ports** | mainnet `5658`, testnet `2829`, regnet `3030` |
 | **Genesis address** | `4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed` |
@@ -25,14 +25,15 @@ supporting tooling. It is written for developers who want to understand, operate
 
 ## How to read these docs
 
-Start with **01 (overview)** and **02 (architecture & threads)** for the big picture, then dive into
-the subsystem you care about. Consensus‑critical material lives in **03 (digest)** and **04 (PoW &
+Start with **00 (modernization overview)** for where the project is today, then **01 (overview)** and
+**02 (architecture & threads)** for the big picture, then dive into the subsystem you care about. Consensus‑critical material lives in **03 (digest)** and **04 (PoW &
 difficulty)** — treat those as authoritative for validation rules.
 
 ## Index
 
 | Doc | Topic |
 |---|---|
+| [00-overview.md](00-overview.md) | **Modernization overview (start here)**: what exists, what's active, what's inert, what's planned |
 | [01-overview.md](01-overview.md) | What Bismuth is, networks, high‑level architecture, repo layout, entry points |
 | [02-architecture-and-threads.md](02-architecture-and-threads.md) | Node startup sequence, threading model, locks, shared state |
 | [03-consensus-blocks-digest.md](03-consensus-blocks-digest.md) | Block digestion pipeline, transaction validation, rewards/fees, hardforks, ledger schema |
@@ -54,3 +55,9 @@ difficulty)** — treat those as authoritative for validation rules.
 | [19-vm.md](19-vm.md) | The decentralized-apps VM: RISC-V (RV32I) engine, state root, value custody, HTLC |
 | [20-post-quantum.md](20-post-quantum.md) | Post-quantum signatures: ML-DSA-65 signer, the `pq` fork path |
 | [21-mining.md](21-mining.md) | The built-in solo miner (`miner.py`) and dual-algo PoW signalling |
+| [22-shielded.md](22-shielded.md) | Shielded value: stealth addresses, ring signatures, RingCT confidential amounts (`shieldedv1.py`, `ringct.py`, `bulletproof.py`) |
+| [23-hd-multisig.md](23-hd-multisig.md) | BIP32/BIP39 HD wallets and M‑of‑N multisig (native signer + VM vault) |
+| [24-defi-dex.md](24-defi-dex.md) | DeFi on the VM: the on-chain DEX contract; HTLC/atomic-swap plans |
+| [25-security-audit.md](25-security-audit.md) | Adversarial security audit: findings, fixes, regression tests |
+| [26-storage-postfork.md](26-storage-postfork.md) | Post-fork storage rearchitecture: retiring SQLite for one LMDB store, staged migration |
+| [27-plugins.md](27-plugins.md) | Modern plugin framework; the `tokens_aliases` plugin (tokens/aliases out of core) |

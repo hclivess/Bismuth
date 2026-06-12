@@ -30,8 +30,9 @@ characterization tests (see [14](14-known-issues-and-improvements.md)) passing i
    7. **Block hash** — `sha224(str(transaction_list_converted) + last_block_hash)`.
    8. **Duplicate-block check** — reject if `block_hash` already exists.
    9. **Proof-of-Work** — `mining_heavy3.check_block(height, miner_address, nonce, last_block_hash,
-      diff, …, new_pow=…)` where `new_pow` is true once `height >= node.pow_fork_height` (the
-      signalled PoW fork), selecting the modernised blake2b Heavy3 (see [04](04-pow-and-difficulty.md)).
+      diff, …, new_pow=…)` where `new_pow` is true once `height >= node.fork_height` (the single
+      hf2 fork — the PoW swap is bundled into it), selecting the modernised blake2b Heavy3
+      (see [04](04-pow-and-difficulty.md)).
    10. **Balances & fees** — for every non-coinbase tx: enforce the per-block tx-age window, sum the
        sender's debits+fees across the block, compute the fee, and require
        `balance >= amount` and `balance - block_debit - block_fees >= 0`

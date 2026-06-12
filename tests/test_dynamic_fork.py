@@ -110,6 +110,6 @@ def test_persist_lockin_is_immutable_and_replays(tmp_path):
     assert fork.load_locked_height(ledger, "hf2") == 5000     # replays after a restart
     fork.save_locked_height(ledger, "hf2", 6000)              # immutable: first writer wins
     assert fork.load_locked_height(ledger, "hf2") == 5000
-    fork.save_locked_height(ledger, "pow2", 7000)             # independent key
-    assert fork.load_locked_height(ledger, "pow2") == 7000
+    fork.save_locked_height(ledger, "hf3", 7000)              # independent key (any future fork)
+    assert fork.load_locked_height(ledger, "hf3") == 7000
     assert fork.load_locked_height(ledger, "hf2") == 5000

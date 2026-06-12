@@ -27,7 +27,8 @@
     `sequencing_check()` (detect block-height gaps), optional `verify()` (full signature re-check),
     `add_indices()`.
 11. Unless Tor: create a `ThreadedTCPServer` on `0.0.0.0:<port>` (`daemon_threads=True`,
-    `request_queue_size=100`, per-socket timeout 60 s) and run `serve_forever()` in a daemon thread.
+    `request_queue_size=100`, per-socket timeout 60 s; command processing has its own
+    `timeout_operation` = 120 s inside `handle()`) and run `serve_forever()` in a daemon thread.
 12. Start the `ConnectionManager` thread.
 13. If `mine=True`, launch the `solo-miner` daemon thread (`miner.mining_loop`, with its own DB handle).
 14. Enter the shutdown-watch loop: sleep 0.1 s; when `node.IS_STOPPING` is set and `db_lock` is free,

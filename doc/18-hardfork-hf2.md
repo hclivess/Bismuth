@@ -104,14 +104,17 @@ Heavy3 (`sha224` → 1 GB memory-hard anneal → substring-prefix difficulty) is
 - **This is the single most security-sensitive change.** Any PoW change has a transition window where
   hashrate is in flux; on ~15 nodes that window is dangerous.
 
-✅ **The dual-algo MECHANISM is built** (`mining_heavy3.diffme_heavy3(new_pow=…)`, `miner.py`,
-`mining_heavy3.check_block`, the `pow2` signal in `fork.py`, the `node.pow_fork_height` cache in
-`digest.py`): the inner hash modernises `sha224 → blake2b` (28-byte, same width); the 1 GB anneal and the
-difficulty metric are unchanged. The miner and validator switch on `block_height >= node.pow_fork_height`,
-activated by its **own** `pow2` signalled fork (same machinery as hf2). Tested on regnet
-(`test_miner.py::test_dual_algo_pow_switches`). What stays a deliberate human decision is *whether and
-when to signal it* — the GPU kernels (`bis.cu` / `bismuth.cl`) must swap the hash in lockstep at that
-height. Full mining map: **doc/21**. (We kept the substring metric; only the hash moved.)
+✅ **The dual-algo MECHANISM is built and BUNDLED INTO hf2** (`mining_heavy3.diffme_heavy3(new_pow=…)`,
+`miner.py`, `mining_heavy3.check_block`, gated in `digest.py`): the inner hash modernises
+`sha224 → blake2b` (28-byte, same width); the 1 GB anneal and the
+difficulty metric are unchanged. Miner and validator switch on `block_height >= node.fork_height` —
+the SAME single activation height as A+B+C (the interim separate `pow2` fork was folded into hf2 on
+2026-06-12). Tested on regnet (`test_miner.py::test_dual_algo_pow_switches`,
+`tests/test_single_fork_validation.py` — the whole bundle incl. blake2b flips at one height live).
+The consequence: stamping `hf2` asserts blake2b readiness too — the GPU kernels (`bis.cu` /
+`bismuth.cl`) must swap the hash in lockstep at the hf2 height, so do NOT signal hf2 from a GPU setup
+until its kernels are blake2b-ready. Full mining map: **doc/21**. (We kept the substring metric; only
+the hash moved.)
 
 ## Continuity — what happens to the existing chain
 
@@ -137,27 +140,42 @@ reconstruct history.
 
 So: nodes simply **continue with new-format data from the fork height**, on top of an unchanged past.
 
-## Honest risk assessment & recommended sequencing
+## Honest risk assessment & sequencing — DECIDED: one fork
 
-Bundling A+B+C+D into one fork is a lot of consensus surface for a ~15-node chain. Suggested order,
-lowest-risk first:
+**Decision (2026-06-12): A+B+C+D activate together at the single signalled `hf2` height.** The earlier
+plan staged D (the PoW swap) behind its own later `pow2` fork to isolate the hashrate-transition risk;
+that split was dropped in favour of one coordinated upgrade — one signal, one campaign, one boundary to
+reason about on a small chain. The machinery is identical either way (`fork.dynamic_fork_height` is
+signal-agnostic), so unifying cost nothing in code. What the decision trades:
 
-1. **Now, no fork:** finish the storage cutover (read path) and ship the **GPU miner for current
-   Heavy3** (`gpuminer/`). Immediate value, zero consensus risk, grows the miner base *before* any fork.
-2. **`hf2` fork #1 (A + B + C):** serialization/txid/sig-pubkey + reward cutover + **LWMA** difficulty.
-   All replay- or series-testable; no PoW-transition hashrate risk. This is the high-value, well-bounded
-   fork.
-3. **Later, separately (D):** a Heavy3 change, *only* if wanted, once the network/hashrate is healthier
-   — its own signalled fork, with the `gpuminer/` kernels updated in lockstep and the memory-hardness
-   kept.
+- **Gained:** a single signalling campaign and flag height; no months-long interim where the network
+  runs new rules on old PoW; the LWMA question of "which retarget absorbs the PoW transition" answers
+  itself (LWMA and blake2b arrive at the same block).
+- **Accepted:** the `hf2` signal now MEANS "ready for everything, including mining blake2b". Miners —
+  the CPU path and especially the `gpuminer/` kernels (`bis.cu` / `bismuth.cl`) — must be blake2b-ready
+  BEFORE stamping the signal, or their hashrate dies at the boundary. The window-of-flux risk that
+  motivated the split is now managed by *when the network chooses to signal*, not by a second fork.
 
-Doing **D in its own fork** keeps the riskiest change isolated and easy to reason about, and means the
-GPU miner you ship now keeps working right up to that point. The automatic-activation framework is the
-same vehicle for each fork, so nothing is wasted by splitting them.
+Still true: **now, with no fork**, finish the storage cutover (read path) and ship the GPU miner for
+current Heavy3 (`gpuminer/`) — immediate value, zero consensus risk, grows the miner base before the
+fork. The lock-in sidecar holds the single `hf2` key; stale `pow2` keys from older regnet runs are
+ignored (wipe old regnet datadirs that carried split lockins before replaying them).
+
+**Transition hardening (2026-06-12, proven by `tests/fork_transition_smoke.py`):**
+- The digester derives/locks the fork height at the **top** of each block's processing, from confirmed
+  history only — the rules a block is judged under derive from the chain *below* it. A node restarting
+  on a chain already past activation with a **lost sidecar** therefore re-derives the height *before*
+  judging (or mining against) anything, instead of wedging on era-mismatched PoW.
+- The sidecar is loaded at startup in `setup_net_type()` — only there is `node.ledger_path` final, so
+  a regnet/testnet node reads its **own** namespaced sidecar, not the mainnet-named one.
+- `regnet.init()` deletes the regnet lock-in sidecar together with the chain it wipes (a stale lock-in
+  against a fresh chain is the 2026-06-09 inconsistency class, intra-regnet); the test-only
+  `BISMUTH_REGNET_KEEP=1` env escape keeps both across a restart for transition testing.
 
 ## The GPU miner is coupled to the PoW
 
-`gpuminer/` implements *today's* Heavy3 exactly. If/when **D** lands, `bis.cu` / `bismuth.cl` must be
-updated to the new algorithm and re-validated on real hardware (this repo's CI has no GPU). The miner
+`gpuminer/` implements *today's* Heavy3 exactly. When hf2 activates (it bundles **D**), `bis.cu` /
+`bismuth.cl` must run the blake2b inner hash from that height — updated and re-validated on real
+hardware BEFORE the network signals (this repo's CI has no GPU). The miner
 and `mining_heavy3.py` must always compute the identical function — otherwise the miner emits invalid
 blocks. See [`../gpuminer/README.md`](../gpuminer/README.md).

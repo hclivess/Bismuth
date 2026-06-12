@@ -47,9 +47,10 @@ Layout:
 | `tests/test_mempool.py` | pending→confirmed lifecycle, mpget/mpgetjson parity, duplicate rejection, bad-signature rejection |
 | `tests/test_node.py` | port, difficulty parity, keygen parity, `api_getconfig`, `api_getaddresssince`, `api_getblocksince`, address validation, pubkey→address |
 | `tests/test_api.py` | `api_ping`, `api_getbalance`, `api_getaddressinfo`, `api_gettransaction`, `api_getblockfromheight`, tokens/alias no-crash |
-| `tests/test_miner.py` | the built-in solo miner (`miner.py`) over regnet via `regtest_mine`/`regtest_powcheck`: embeds mempool txs, stamps the hf2/pow2 coinbase signal, mines real Heavy3, exercises the **dual-algo PoW** (sha224 vs blake2b anneal) ([21](21-mining.md)) |
+| `tests/test_miner.py` | the built-in solo miner (`miner.py`) over regnet via `regtest_mine`/`regtest_powcheck`: embeds mempool txs, stamps the hf2 coinbase signal, mines real Heavy3, exercises the **dual-algo PoW** (sha224 vs blake2b anneal) ([21](21-mining.md)) |
 | `tests/test_pq_signer.py` | the **post-quantum** signer `polysign/signer_mldsa` (ML-DSA-65 / CRYSTALS-Dilithium3): sign/verify round-trips, deterministic-from-seed keys, hash-of-pubkey addresses ([20](20-post-quantum.md)) |
 | `tests/regnet_smoke.py` | a standalone (non-pytest) gate — see below |
+| `tests/fork_transition_smoke.py` | standalone (non-pytest) **hf2 transition gate**: lock-in → restart mid-transition (sidecar replay) → real-miner sha224→blake2b boundary crossing with a pre-fork tx confirming post-fork → reorg back across the boundary → sidecar-less restart (self-healing re-derivation). Uses the `BISMUTH_REGNET_KEEP=1` test-only env escape so a regnet chain survives a restart ([18](18-hardfork-hf2.md)) |
 | `tests/config_custom.txt` | regnet test config (`regnet=True`, `heavy=False`, `port=3030`) |
 
 Beyond the above, the suite carries a broader consensus / VM / fork / storage set — e.g. `test_riscv`,

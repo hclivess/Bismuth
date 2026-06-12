@@ -300,8 +300,8 @@ class BlockProcessor:
     def verify_proof_of_work(self, block_instance: Block, miner_tx: MinerTransaction,
                              tx: Transaction, diff: tuple) -> Any:
         """Verify the proof of work for the block."""
-        _pfh = getattr(self.node, "pow_fork_height", None)
-        new_pow = _pfh is not None and block_instance.block_height_new >= _pfh   # blake2b Heavy3 post-D
+        _ufh = getattr(self.node, "fork_height", None)
+        new_pow = _ufh is not None and block_instance.block_height_new >= _ufh   # blake2b Heavy3 from hf2 (doc/18-D, bundled)
         if self.node.is_mainnet or self.node.is_testnet:
             return mining_heavy3.check_block(
                 block_instance.block_height_new,
@@ -415,6 +415,40 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
         if node.IS_STOPPING:
             node.logger.app_log.warning("Process_blocks aborted, node is stopping")
             return node.last_block_hash
+
+        # hf2 activation height (ONE fork: serialization/rewards/LWMA/fees AND the blake2b PoW all gate
+        # on it): derive ONCE from the on-chain signal, then cache + persist so the gated switches flip
+        # deterministically network-wide. Runs BEFORE this block is validated, against CONFIRMED history
+        # only (node.last_block): the rules an incoming block is judged under must derive from the chain
+        # BELOW it. This ordering makes a lost sidecar self-healing — a node restarting on a chain
+        # already past activation re-derives the height here before judging (or mining against)
+        # anything, instead of wrongly validating the first post-restart block in the pre-fork era and
+        # only then noticing. The activation height itself is unchanged by the ordering: it is a pure
+        # function of which height closes the first all-signalled window in confirmed history. Hot-path
+        # cost: on the node's FIRST digest we run one full forward scan (catches a resync/restart that
+        # lands PAST a completed window); every block after that is the O(window) trailing check
+        # (fork.lockin_at_tip) — cheap when unsignalled. The persisted sidecar (loaded at startup)
+        # remains the authority across restarts when present.
+        try:
+            import fork as _fork
+            if getattr(node, "fork_height", None) is None:
+                _h = node.last_block
+                _first_scan = not getattr(node, "_fork_caught_up", False)
+                _rd = _fork.db_fork_signal_reader(db_handler)
+                _w = getattr(node, "fork_window", _fork.FORK2_WINDOW)
+                _b = getattr(node, "fork_boundary", _fork.FORK2_BOUNDARY)
+                _u = getattr(node, "fork_bury", _fork.FORK2_BURY)
+                _fh = (_fork.dynamic_fork_height(_rd, _h, _w, _b, _u) if _first_scan
+                       else _fork.lockin_at_tip(_rd, _h, _w, _b, _u))
+                if _fh is not None:
+                    node.fork_height = _fh
+                    _fork.save_locked_height(node.ledger_path, "hf2", _fh)
+                    node.logger.app_log.warning(f"Status: hf2 activation height locked at {_fh}")
+            node._fork_caught_up = True   # the one-time full forward scan is done; go incremental
+        except Exception as e:
+            # rare (a real bug, not the no-signal case which returns None) — but a SILENT failure here
+            # means the fork never activates and the VM/LWMA gates stay inert with no explanation.
+            node.logger.app_log.warning(f"fork-height detection failed: {type(e).__name__}: {e}")
 
         # Create block instance
         block_instance = Block(node)
@@ -584,48 +618,8 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
         # Apply rewards
         processor.apply_rewards(block_instance, miner_tx)
 
-        # hf2 / PoW-fork activation heights: derive ONCE from the on-chain signal, then cache + persist so
-        # the gated LWMA/VM/PoW switches flip deterministically network-wide. The lock height is a pure
-        # function of confirmed history (fork.dynamic_fork_height scans FORWARD, tip-independent), so it is
-        # identical on every node and stable as the chain grows. Hot-path cost: on the node's FIRST digest
-        # we run one full forward scan (catches a resync that lands PAST a completed window); every block
-        # after that is the O(window) trailing check (fork.lockin_at_tip) — cheap when unsignalled, instead
-        # of rescanning the whole chain each block. The persisted sidecar (loaded at startup) is the
-        # authority across restarts, so a recomputed value can never disagree.
-        try:
-            import fork as _fork
-            _h = block_instance.block_height_new
-            _first_scan = not getattr(node, "_fork_caught_up", False)
-
-            if getattr(node, "fork_height", None) is None:
-                _rd = _fork.db_fork_signal_reader(db_handler)
-                _w = getattr(node, "fork_window", _fork.FORK2_WINDOW)
-                _b = getattr(node, "fork_boundary", _fork.FORK2_BOUNDARY)
-                _u = getattr(node, "fork_bury", _fork.FORK2_BURY)
-                _fh = (_fork.dynamic_fork_height(_rd, _h, _w, _b, _u) if _first_scan
-                       else _fork.lockin_at_tip(_rd, _h, _w, _b, _u))
-                if _fh is not None:
-                    node.fork_height = _fh
-                    _fork.save_locked_height(node.ledger_path, "hf2", _fh)
-                    node.logger.app_log.warning(f"Status: hf2 activation height locked at {_fh}")
-
-            if getattr(node, "pow_fork_height", None) is None:
-                _prd = _fork.db_pow_signal_reader(db_handler)
-                _pw = getattr(node, "pow_fork_window", _fork.FORK_POW_WINDOW)
-                _pb = getattr(node, "pow_fork_boundary", _fork.FORK_POW_BOUNDARY)
-                _pu = getattr(node, "pow_fork_bury", _fork.FORK_POW_BURY)
-                _pfh = (_fork.dynamic_fork_height(_prd, _h, _pw, _pb, _pu) if _first_scan
-                        else _fork.lockin_at_tip(_prd, _h, _pw, _pb, _pu))
-                if _pfh is not None:
-                    node.pow_fork_height = _pfh
-                    _fork.save_locked_height(node.ledger_path, "pow2", _pfh)
-                    node.logger.app_log.warning(f"Status: PoW-fork (blake2b Heavy3) activation locked at {_pfh}")
-
-            node._fork_caught_up = True   # the one-time full forward scan is done; go incremental
-        except Exception as e:
-            # rare (a real bug, not the no-signal case which returns None) — but a SILENT failure here means
-            # the fork never activates and the VM/LWMA gates stay inert with no explanation.
-            node.logger.app_log.warning(f"fork-height detection failed: {type(e).__name__}: {e}")
+        # (hf2 fork-height detection runs at the TOP of this loop, BEFORE the block is validated —
+        # the rules a block is judged under must derive from the chain below it.)
 
         # Decentralized-apps VM (doc/17): execute this block's vm: transactions, POST-FORK ONLY, behind the
         # vm flag. Inert until the fork activates — it adds NO behaviour to the current chain. Failures are

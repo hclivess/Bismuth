@@ -34,17 +34,17 @@ sync via `db_lock`. Each block:
 4. `digest_block` — validate + commit (it manages `db_lock` release).
 
 The coinbase openfield prefix (`_coinbase_prefix`):
-- `hf2` — hard-fork readiness, if `fork_signal=True` (doc/18).
-- `pow2` — modernised-PoW readiness, if `pow_fork_signal=True` (this doc, below).
+- `hf2` — hard-fork readiness for the WHOLE bundle, incl. the modernised PoW, if `fork_signal=True` (doc/18).
 - `vmsr`+root — the committed VM state root, **mandatory** once hf2 is active (doc/19).
 
 The node detections **search** for these markers, so the concatenation order is not fragile, and they all
 ride inside the PoW-hashed nonce, so PoW still validates over the whole thing.
 
-## Dual-algo PoW — the modernisation fork (doc/18-D)
+## Dual-algo PoW — the modernisation (doc/18-D, bundled into hf2)
 
-The single most security-sensitive change is a PoW transition, so it gets its **own** signalled fork,
-separate from hf2. `diffme_heavy3(address, nonce, block_hash, new_pow=…)` selects the inner hash:
+The PoW transition rides the SAME single signalled fork as the rest of the bundle (it briefly had its
+own `pow2` signal; that was folded into hf2 on 2026-06-12). `diffme_heavy3(address, nonce, block_hash,
+new_pow=…)` selects the inner hash:
 
 - `new_pow=False` → **sha224** (today's Heavy3),
 - `new_pow=True` → **blake2b** (28-byte digest, same 224-bit width).
@@ -52,24 +52,25 @@ separate from hf2. `diffme_heavy3(address, nonce, block_hash, new_pow=…)` sele
 Everything else — the 1 GB memory-hard anneal and the substring-prefix difficulty — is **unchanged**, so
 a node/miner switches purely on `new_pow`.
 
-Activation is by on-chain signalling, **identical machinery to hf2** (`fork.dynamic_fork_height` is
-signal-agnostic), with a different marker:
-- miners stamp `pow2` (`fork.FORK_POW_SIGNAL`) into the coinbase once they can mine the modernised PoW;
+Activation is the hf2 signalling itself (`fork.dynamic_fork_height`):
+- miners stamp `hf2` (`fork.FORK2_SIGNAL`) into the coinbase once they are ready for the WHOLE bundle —
+  including mining the modernised PoW;
 - when the trailing window is all-signalled it locks in and activates at a buried boundary;
-- the digester caches `node.pow_fork_height`; `block_height >= node.pow_fork_height` ⇒ `new_pow=True`,
-  fed to `check_block` (validation) and used by `miner.py` (mining).
+- the digester caches `node.fork_height`; `block_height >= node.fork_height` ⇒ `new_pow=True`,
+  fed to `check_block` (validation) and used by `miner.py` (mining) — the same height that gates
+  LWMA, fees, the VM and the serialization era.
 
 So the miner runs old→new across the fork automatically: below the height it mines/validates sha224, at
 and above it mines/validates blake2b. The GPU kernels (`bis.cu` / `bismuth.cl`) must swap sha224→blake2b
-in lockstep at that height — they implement the same `diffme_heavy3`.
+in lockstep at that height — they implement the same `diffme_heavy3`. Do NOT signal hf2 from a GPU
+setup whose kernels aren't blake2b-ready: post-activation its blocks fail PoW.
 
 ## Configuration
 
 | Key | Default | Meaning |
 |---|---|---|
 | `mine` | `False` | run the built-in solo miner (`miner.py`) |
-| `fork_signal` | `False` | stamp the `hf2` signal into mined coinbases |
-| `pow_fork_signal` | `False` | stamp the `pow2` (modernised-PoW) signal into mined coinbases |
+| `fork_signal` | `False` | stamp the `hf2` signal into mined coinbases — asserts whole-bundle readiness, incl. the blake2b Heavy3 |
 | `heavy` / `heavy3_path` | — | require/locate the 1 GB `heavy3a.bin` (generated on first boot, ~5 min, then cached) |
 
 ## Tested (regnet)

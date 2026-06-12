@@ -48,7 +48,7 @@ duplicate, format), so the endpoint is a new transport, not a new consensus rule
 | `GET /api/peers` | `{count, peers}` of known peers |
 | `GET /api/headers/range/{start}/{end}` | block headers in `[start, end]` (lightweight headers-first sync) |
 | `GET /api/nodes` | known nodes with reachable-API status + reputation (explorer node browser) |
-| `GET /api/capabilities` | which optional subsystems this node exposes (`vm`, `balance_index`, `block_store`, …) |
+| `GET /api/capabilities` | peer-sync capability descriptor: `version`, `node_version`, `rest_api`/`rest_port`, `compress` (transport codecs), `blocks`, `rest_api_write`, `testnet`/`regnet` — reachability of this endpoint is itself the REST-capable test |
 | `GET /api/fork` | hf2 readiness: signalling %, lock-in state, activation height |
 | `GET /api/fee` | current fee params: `base_fee` (demand-responsive post-fork), `vm_surcharge`, target/window |
 | `GET /api/supply` | circulating BIS supply (background-computed; returns `"computing"` until the first scan finishes) |
@@ -56,6 +56,10 @@ duplicate, format), so the endpoint is a new transport, not a new consensus rule
 | `GET /api/token/{name}` | a token's supply + holders |
 | `GET /api/vm/contracts` | deployed contracts + the current VM `state_root`, `fork_height`, `enabled` |
 | `GET /api/vm/contract/{addr}` | a contract: `engine` (`riscv`), code, custody `balance`, storage slots |
+| `GET /api/vm/market/{addr}` | prediction-market contract state: pots, odds, resolution |
+| `GET /api/shield/stats` | shielded pool (doc/22): note/nullifier counts, pool value, sink |
+| `GET /api/shield/note/{note_id}` | public fields of a shielded note (nothing decryptable) |
+| `POST /api/transaction` | submit a signed tx (gated by `rest_api_write`; aliases: `POST /api/sendtx`, `POST /api/mempool`) |
 
 Responses are JSON with appropriate status codes (`200`, `400` bad request, `404` not found, `500`
 server error) and `Access-Control-Allow-Origin: *`. Transactions are formatted with

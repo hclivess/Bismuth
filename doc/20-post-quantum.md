@@ -221,10 +221,14 @@ Four pieces:
    algorithm its address commits to. There is **no flag day** for receiving — only the spender's own
    signer changes.
 
-4. **Activation via the *same* signalled, gated hard fork as `hf2`.** A PQ signature type is a
-   consensus rule change (a node that doesn't understand `SignerType.MLDSA` would reject a valid PQ tx),
-   so it must be a coordinated fork — and Bismuth already has the **exact** vehicle, built and tested
-   ([18 §"Activation"](18-hardfork-hf2.md)):
+4. **Activation via the *same* signalled, gated hard-fork mechanism as `hf2` (📋 DESIGN — none of
+   this is in code yet; only the signer of §1 exists).** A PQ signature type is a consensus rule change
+   (a node that doesn't understand `SignerType.MLDSA` would reject a valid PQ tx), so it must be a
+   coordinated fork — and Bismuth already has the **exact** vehicle, built and tested for hf2
+   ([18 §"Activation"](18-hardfork-hf2.md)). There is deliberately **one live fork at a time**: hf2
+   (which absorbed the interim `pow2` signal on 2026-06-12) is the current campaign; a `pq` fork would
+   be a *future, separate* campaign run on the same machinery only after hf2 has activated and settled.
+   How it would work:
    - Upgraded miners stamp a **`pq` signal** into their coinbase openfield (a new marker alongside
      `fork.FORK2_SIGNAL`'s `"hf2"`), the same free-form-data mechanism, **no rule change to start
      signalling**.
@@ -232,8 +236,9 @@ Four pieces:
      height is computed **identically on every node — deterministic, no off-chain survey, no split
      risk** — locking in once a full window signals and burying past the reorg margin
      (`FORK2_WINDOW` / `FORK2_BURY`).
-   - The live `block_height >= fork_height` gate in `digest.py` flips the rule: **below** the PQ height,
-     PQ txs are not accepted (unknown type); **at/above**, `SignerFactory` accepts the new type.
+   - A `block_height >= pq_fork_height` gate in `digest.py` (the same pattern as the live hf2 gate,
+     to be added with the PQ fork) flips the rule: **below** the PQ height, PQ txs are not accepted
+     (unknown type); **at/above**, `SignerFactory` accepts the new type.
    - `/api/fork` (`rest_api.py` → `fork.fork_status`) gives the same readiness view, so the network can
      watch PQ adoption climb before lock-in.
    Whether the fork makes PQ merely **accepted** (coexist with legacy indefinitely) or eventually

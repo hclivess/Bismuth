@@ -17,19 +17,21 @@ imported library; *script* = run directly.
 | `genesis.py` | script | one-shot chain bootstrap (creates `ledger.db`); legacy wallet format |
 | `options.py` | module | config loader (imported as `config` in the node) |
 | `application_directories.py` | module | tiny path helper (not used by the node) |
+| `log.py` | module | logger setup: rotating file handler + optional ANSI-coloured console output (`log_color`) |
 | `libs/node.py`, `libs/logger.py`, `libs/keys.py`, `libs/client.py` | modules | data-holder classes (`Node`, `Logger`, `Keys`, `Client`) |
 
 ## Consensus / PoW
 
 | File | Kind | Description |
 |---|---|---|
-| `mining_heavy3.py` | module | Heavy3 PoW + `check_block`; manages `heavy3a.bin`; **dual-algo** (`new_pow`: sha224→blake2b) for the signalled PoW fork |
-| `miner.py` | module | built-in solo miner — builds + mines (Heavy3) + digests on the tip; stamps hf2/`pow2` coinbase signals; opt-in `mine=True` (doc/21) |
+| `mining_heavy3.py` | module | Heavy3 PoW + `check_block`; manages `heavy3a.bin`; **dual-algo** (`new_pow`: sha224→blake2b) at the single hf2 fork height |
+| `miner.py` | module | built-in solo miner — builds + mines (Heavy3) + digests on the tip; stamps the `hf2` coinbase signal; opt-in `mine=True` (doc/21) |
 | `mining.py` | module | legacy PoW (unused; kept for reference) |
 | `difficulty.py` | module | difficulty retarget (legacy PID controller) |
 | `difficulty_lwma.py` | module | proposed hf2 LWMA retarget — symmetric/delicate/calculable; pure + fork-gated, inert (doc/18) |
 | `fork.py` | module | hardfork heights + post-fork reward validation; **+ the deterministic signal-activated `dynamic_fork_height` scheduler** (doc/18), inert |
 | `hmac_drbg.py` | module | HMAC-DRBG (SHA512) that seeds `heavy3a.bin` |
+| `bismuth_serialize.py` | module | the FROZEN consensus byte forms (signing buffer, block hash) centralised — the boundary storage/API rework must not move (doc/16) |
 | `gpuminer/` | dir | vendored Heavy3 GPU miners — CUDA (kbkminer) + OpenCL (`opencl_alt/`); coupled to the PoW (`gpuminer/README.md`) |
 
 ## Storage
@@ -40,7 +42,16 @@ imported library; *script* = run directly.
 | `dbhandler_queries.py` | module | `DbQueriesMixin` — read-only ledger/index queries (heights, hashes, aliases, balances) |
 | `dbhandler_write.py` | module | `DbWriteMixin` — ledger write & rollback ops (block commit, drive flush, dev/hn rewards, index rollbacks) |
 | `block_store.py` | module | LMDB append-only block-body store (`BlockStore`) — phase-7 scalable storage foundation; lossless mirror of the ledger (`build_from_sqlite`/`verify_against_sqlite`), height-keyed with a hash→height index and reorg `rollback` |
+| `storage_backend.py` | module | the storage READ/WRITE seam (doc/26 stages 3–4): one block/tx interface, `SqliteBackend` + `LmdbBackend` (+ `LmdbWriteBackend`) with `cross_check` — the strangler-fig route off SQLite |
+| `token_index.py` | module | token+alias derived index on **LMDB** (`TokenIndex`) — post-fork successor to the SQLite `index.db` projection (doc/26 stage 2); owned by the `tokens_aliases` plugin (doc/27), flag `token_index` |
 | `balance_index.py` | module | maintained O(1) per-address balance index (`BalanceIndex`) in integer units — bit-matches `ledger_balance3`; phase-7 replacement for the full-scan balance |
+| `balance_cache.py` | module | per-`(address, height)` memo over the authoritative balance — O(1) repeat reads between blocks, invalidated on a new block |
+| `amounts.py` | module | exact integer (atomic-unit) ↔ legacy-string amount conversion (doc/16 phase 2) — keeps consensus/legacy-API strings byte-identical |
+| `migrate_amounts.py` | script | one-off TEXT→INTEGER ledger amount migration + replay verification (doc/16 phase 2) |
+| `db_helpers.py` | module | `retry_db` — the shared retry-until-it-works DB loop (replaces the per-call-site copies) |
+| `db_migrations.py` | module | versioned, idempotent SQLite schema migrations (`user_version`-tracked steps) |
+| `replay_verify.py` | script | recompute every block hash at the consensus boundary (`bismuth_serialize.block_hash`) vs the stored chain — storage-rework safety net |
+| `_lmdb_demo.py` | script | real-scale proof: build the LMDB `BlockStore` from the live mainnet ledger, verify lossless + consensus-faithful, measure size |
 | `reward_chain.py` | module | reward sidechain (`RewardChain`) — lifts the locally-minted dev/hypernode reward 'mirror' rows out of the main ledger into a height-keyed store (phase-5; balance-preserving) |
 | `db_hashes.py` | module | static known-good early-block hash table |
 | `ledger_queries.py` | module | `LedgerQueries` classmethod helpers (plugins/hypernodes) |
@@ -60,6 +71,15 @@ imported library; *script* = run directly.
 | `vm_state.py` | module | contract state store + the ENFORCED state root committed into the coinbase (doc/19) |
 | `fee_dynamics.py` | module | dynamic/EIP-1559-style fee schedule (post-fork, gated) — see doc/18 |
 | `difficulty_lwma.py` | module | fork-gated LWMA retarget (also listed under Consensus/PoW) — pure + inert until a fork activates (doc/18) |
+| `contracts/` | dir | demo/reference VM contracts (`dex.py`, `multisig.py`, `escrow.py`, `vesting.py`, `prediction_market.py`, `raffle.py`, `token_contract.py`) + `asmtools.py` assembler helpers (doc/19, doc/24) |
+
+## Shielded value (doc/22)
+
+| File | Kind | Description |
+|---|---|---|
+| `shieldedv1.py` | module | stages 1+2: stealth addresses + linkable ring signatures (key images), `shield:mint/spend/redeem` consensus validation/apply + the LMDB `ShieldedState`; dispatches v1/v2/v3 |
+| `ringct.py` | module | stage 3: RingCT confidential amounts — Pedersen commitments + 2-column MLSAG; the v3 note/spend formats (doc/22 §13) |
+| `bulletproof.py` | module | aggregatable Bulletproof range proofs (batch-verifiable) backing RingCT outputs |
 
 ## Networking
 
@@ -108,6 +128,9 @@ imported library; *script* = run directly.
 | `polysign/` | package | **vendored** signatures library (RSA + lazy ECDSA/ED25519/BTC/CRW) + ML-DSA-65 post-quantum signer `polysign/signer_mldsa.py` (doc/20) |
 | `simplecrypt.py` | module | AES-256-CTR wallet encryption (vendored `simple-crypt`) |
 | `wallet_keys.py` | module | minimal `wallet.der` reader / keypair generator |
+| `hd_wallet.py` | module | BIP32-style HD wallet (secp256k1 ECDSA): derivation (`m/44'/…`), gap-limit recovery scan — wallet-side only, no consensus change (doc/23) |
+| `bip39.py` | module | BIP39 mnemonic codec (standard wordlist `bip39_english.txt`; phrases portable to/from any BIP39 tool) (doc/23) |
+| `multisig_wallet.py` | module | build + co-sign native M-of-N multisig spends (polysign `SignerMultisig`) into a complete tx tuple ready for `mpinsert` (doc/23) |
 
 ## Features
 
@@ -117,6 +140,8 @@ imported library; *script* = run directly.
 | `aliases.py` / `aliasesv2.py` | modules | alias indexing (v1 `alias=` / v2 `alias:register`) |
 | `staking.py` | module | offline-staking proof of concept (experimental) |
 | `plugins.py` | module | `PluginManager` (action/filter hooks) |
+| `plugin_base.py` | module | modern plugin framework (doc/27): typed `BismuthPlugin` base (`setup`/`backfill`/`on_block`/`on_rollback` + service/REST/peer-command surfaces) |
+| `plugins/tokens_aliases/` | package | the tokens+aliases MODERN plugin — owns the LMDB `TokenIndex`; core defers to it when `token_index` is on (doc/27) |
 | `regnet.py` | module | regression-test network |
 
 ## No-GUI / helper scripts
@@ -136,4 +161,6 @@ imported library; *script* = run directly.
 ## Tests, tooling, assets
 
 `tests/` (see [12](12-tooling-build-tests.md)), `static/` (snapshot/maintenance tooling + web assets),
+`install_node.sh` (full node installer: deps + systemd unit; `scripts/install-node-service.sh` +
+`scripts/snapshot.py` companions), `_mkbootstrap.sh` (ledger-snapshot/bootstrap builder),
 `graphics/`, `auto-install/`, `compile_nuitka.cmd`, `setup.iss`, `.travis.yml`, `pytest.ini`, `doc/`.

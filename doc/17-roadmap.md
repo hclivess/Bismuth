@@ -195,10 +195,12 @@
     balances) is committed per post-fork block; the miner embeds it in the coinbase and the digester
     REJECTS a block whose committed root disagrees — a non-determinism bug is a *caught* block-rejection,
     not a silent divergence. (doc/19)
-  - **HTLC / atomic swaps — the flagship app, now complete.** Bitcoin-style hash-time-locked contracts
-    (BIP-199): `SYS_SHA256` preimage claim + block-height `SYS_NUMBER` timelock refund, and **value custody
-    is DONE** — contracts hold and release real BIS rollback-deterministically (balance in `vm_state`,
-    settled via a custody sink) — so trustless BIS↔BTC/LTC/DOGE swaps need no bridge or sequencer.
+  - **HTLC / atomic swaps — the flagship app; building blocks complete, contract still to write.**
+    Bitcoin-style hash-time-locked contracts (BIP-199) are now *buildable*: `SYS_SHA256` preimage claim +
+    block-height `SYS_NUMBER` timelock refund, and **value custody is DONE** — contracts hold and release
+    real BIS rollback-deterministically (balance in `vm_state`, settled via a custody sink) — so trustless
+    BIS↔BTC/LTC/DOGE swaps need no bridge or sequencer. The standalone HTLC contract itself is not yet in
+    `contracts/` ([24](24-defi-dex.md) tracks it as planned).
   - **Engine:** a SINGLE deterministic **RISC-V** (RV32I) interpreter — Vitalik's direction, real C/Rust
     toolchains, a frozen ISA. The state/gate/rollback/root framework is engine-agnostic, but there is one
     engine now, no dispatch.

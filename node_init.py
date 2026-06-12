@@ -150,6 +150,20 @@ def setup_net_type(node):
         sys.exit()
         """
 
+    # hf2 activation height: load the persisted lock-in NOW — node.ledger_path is final for the chosen
+    # net only from this point (the testnet/regnet branches above override it), and the sidecar is
+    # namespaced BY LEDGER FILENAME (fork.lockin_path). Loading any earlier reads the mainnet-named
+    # sidecar on a regnet/testnet node (the same cross-net bleed class as the 2026-06-09 incident).
+    # Stays None until loaded here or until the digester locks it in from the chain.
+    try:
+        import fork as _fork_persist
+        node.fork_height = _fork_persist.load_locked_height(node.ledger_path, "hf2")
+        if node.fork_height is not None:
+            node.logger.app_log.warning(
+                f"Status: hf2 activation height {node.fork_height} replayed from the lock-in sidecar")
+    except Exception:
+        node.fork_height = None
+
 
 def node_block_init(node, database):
     # TODO: candidate for single user mode

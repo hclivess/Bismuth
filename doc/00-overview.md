@@ -65,15 +65,15 @@ into their coinbase, every node computes the activation height identically from 
 and the new rules switch on at the next round-1000 boundary. Bundle: integer/binary serialization +
 content-hash txid + canonical sig/pubkey encoding; the reward-sidechain cutover; and the **LWMA
 difficulty** (symmetric, delicate, deterministically calculable — the fix for the brutal up-only
-ratchet). A Heavy3/PoW change is optional and isolated to its own later fork (it carries the real 51 %
-transition risk on a small chain). **Continuity:** old blocks keep their bytes and hashes; new rules
-apply forward only; validation is height-gated; no re-sync. The gate scaffold now exists: the
-**scheduler is wired** (`fork.dynamic_fork_height`, cached on `node.fork_height`/`node.pow_fork_height`
+ratchet); and the **blake2b Heavy3 PoW swap** (bundled into the same single fork since 2026-06-12 —
+stamping `hf2` asserts blake2b mining readiness too). **Continuity:** old blocks keep their bytes and
+hashes; new rules apply forward only; validation is height-gated; no re-sync. The gate scaffold now
+exists: the **scheduler is wired** (`fork.dynamic_fork_height`, cached on the single `node.fork_height`
 in `digest.py`) and **LWMA is gated** in `difficulty.py` (active past activation, legacy before); only
 the **reward sidechain** remains an inert module. The **dual-algo PoW** (today's sha224-inner Heavy3
-vs. the modernised blake2b-inner Heavy3, same anneal + substring difficulty, selected by the
-separately-signalled `pow2` fork) is also **built** (`mining_heavy3.py` `new_pow` switch + `fork.py`
-`pow2` signal + the `pow_fork_height` gate in `digest.py`) and inert until miners signal — see
+vs. the modernised blake2b-inner Heavy3, same anneal + substring difficulty, selected by
+`height >= node.fork_height`) is also **built** (`mining_heavy3.py` `new_pow` switch, gated in
+`digest.py`/`miner.py`) and inert until miners signal hf2 — see
 [21](21-mining.md).
 
 **Mining.** Today's PoW is Heavy3 (`mining_heavy3.py`: sha224 → 1 GB memory-hard anneal → substring

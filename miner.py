@@ -2,14 +2,14 @@
 miner.py — a real solo miner for Bismuth (mainnet + regnet).
 
 It assembles a full block — the pending mempool transactions plus a signed coinbase whose openfield
-carries the fork-readiness signals (hf2, and pow2 for the PoW fork) and, post-fork, the committed VM
-state root — then mines the Heavy3 proof-of-work and digests it. The PoW is DUAL-ALGO: today's
-sha224-anneal, or the modernised blake2b-anneal once the PoW fork (doc/18-D) activates; the switch is by
-on-chain signalling, identical to hf2 (see fork.py / mining_heavy3.diffme_heavy3).
+carries the hf2 fork-readiness signal and, post-fork, the committed VM state root — then mines the
+Heavy3 proof-of-work and digests it. The PoW is DUAL-ALGO: today's sha224-anneal, or the modernised
+blake2b-anneal once hf2 activates (the PoW swap is BUNDLED into the single hf2 fork, doc/18-D); the
+switch is `block_height >= node.fork_height` (see fork.py / mining_heavy3.diffme_heavy3).
 
 The GPU nonce-finders in gpuminer/ (CUDA bis.cu, OpenCL bismuth.cl) solve the same PoW; this module is
 the block-builder / orchestrator they (or this CPU loop) feed into. Enable solo mining with `mine=True`
-and a funded wallet; opt into signalling with `fork_signal=True` / `pow_fork_signal=True`.
+and a funded wallet; opt into signalling with `fork_signal=True` (which asserts blake2b readiness too).
 """
 import base64
 import math
@@ -30,14 +30,12 @@ MAX_TX_PER_BLOCK = 1000  # cap on mempool txs embedded in one block
 
 
 def _coinbase_prefix(node):
-    """The FIXED part of the coinbase openfield: the readiness signals + (post-fork) the VM state root.
-    The mined nonce is appended to it. The node's detections SEARCH for their markers (hf2/pow2/vmsr), so
+    """The FIXED part of the coinbase openfield: the readiness signal + (post-fork) the VM state root.
+    The mined nonce is appended to it. The node's detections SEARCH for their markers (hf2/vmsr), so
     the concatenation order is not fragile."""
     sig = ""
     if getattr(node, "fork_signal", False):
-        sig += fork.FORK2_SIGNAL                      # "hf2": hard-fork readiness
-    if getattr(node, "pow_fork_signal", False):
-        sig += fork.FORK_POW_SIGNAL                   # "pow2": modernised-PoW readiness (doc/18-D)
+        sig += fork.FORK2_SIGNAL                      # "hf2": whole-bundle readiness (incl. blake2b PoW)
     fh = getattr(node, "fork_height", None)
     sr = getattr(node, "vm_state_root", None)
     if fh is not None and (node.last_block + 1) >= fh and sr:
@@ -47,9 +45,10 @@ def _coinbase_prefix(node):
 
 
 def _new_pow(node):
-    """Has the modernised (blake2b) Heavy3 activated for the block we're about to mine?"""
-    pfh = getattr(node, "pow_fork_height", None)
-    return pfh is not None and (node.last_block + 1) >= pfh
+    """Has the modernised (blake2b) Heavy3 activated for the block we're about to mine?
+    The PoW swap rides the single hf2 fork, so this gates on the same fork_height as everything else."""
+    fh = getattr(node, "fork_height", None)
+    return fh is not None and (node.last_block + 1) >= fh
 
 
 def _required_diff(node, db_handler):

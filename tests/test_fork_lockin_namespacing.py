@@ -46,7 +46,8 @@ def test_lockin_first_writer_wins_within_a_network(tmp_path):
     fork.save_locked_height(ledger, "hf2", 9999)   # must not overwrite
     assert fork.load_locked_height(ledger, "hf2") == 5000
 
-    # both keys live in the same per-ledger sidecar
-    fork.save_locked_height(ledger, "pow2", 6000)
+    # keys are independent within the same per-ledger sidecar ("hf3" = any future fork key; the
+    # one-time "pow2" key was retired when the PoW swap was folded into hf2)
+    fork.save_locked_height(ledger, "hf3", 6000)
     assert fork.load_locked_height(ledger, "hf2") == 5000
-    assert fork.load_locked_height(ledger, "pow2") == 6000
+    assert fork.load_locked_height(ledger, "hf3") == 6000

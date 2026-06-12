@@ -104,10 +104,11 @@ def generate_one_block(blockhash, mempool_txs, node, db_handler):
                 # POST-FORK: instead, commit the VM pre-state root in the coinbase (doc/19) so peers can
                 # reject a divergent block. Either way it's part of the PoW-hashed seed.
                 _signal = "hf2" if getattr(node, "fork_signal", False) else ''   # keep signalling so syncing nodes still detect the fork
-                # Dual PoW (doc/18-D): post the PoW fork the inner hash modernises sha224 -> blake2b, exactly
-                # like miner.py and the verifier (mining_heavy3.diffme_heavy3). The generator MUST mirror it
-                # or the block it mines fails its own PoW check. Switch on new_pow = next height >= pow fork.
-                _pfh = getattr(node, "pow_fork_height", None)
+                # Dual PoW (doc/18-D, bundled into hf2): post-fork the inner hash modernises sha224 ->
+                # blake2b, exactly like miner.py and the verifier (mining_heavy3.diffme_heavy3). The
+                # generator MUST mirror it or the block it mines fails its own PoW check. Switch on
+                # new_pow = next height >= the (single) hf2 fork_height.
+                _pfh = getattr(node, "fork_height", None)
                 new_pow = _pfh is not None and (getattr(node, "hdd_block", 0) + 1) >= _pfh
 
                 def _inner(s):     # the 224-bit inner digest fed to the Heavy3 anneal (blake2b post-fork)
@@ -195,7 +196,7 @@ def command(sdef, data, blockhash, node, db_handler):
             connections.send(sdef, 'OK')
         elif data == 'regtest_mine':
             # drive the REAL solo miner (miner.py): it builds a block with the pending mempool txs + the
-            # hf2/pow2 coinbase (+ the VM state root post-fork) and mines the dual-algo Heavy3 — the exact
+            # hf2 coinbase (+ the VM state root post-fork) and mines the dual-algo Heavy3 — the exact
             # code path used on mainnet. This is how we regnet-test the actual miner, not the regnet-only
             # generator above.
             how_many = int(connections.receive(sdef))
@@ -245,10 +246,28 @@ def init(app_log, trace_db_calls=False):
         f.write("{}")
     with open(REGNET_SUGGESTED_PEERS, 'w') as f:
         f.write("{}")
+    # Regnet starts a FRESH chain at every boot by design. BISMUTH_REGNET_KEEP=1 is a test-only
+    # escape (tests/fork_transition_smoke.py) that keeps an existing regnet chain across a restart,
+    # so live restart/replay continuity — e.g. the hf2 transition and its lock-in replay — can be
+    # exercised against a real node. Default behaviour (no env var / no existing DB) is unchanged.
+    if os.environ.get("BISMUTH_REGNET_KEEP") and os.path.exists(REGNET_DB):
+        app_log.warning("Regnet: BISMUTH_REGNET_KEEP set — keeping the existing regnet chain")
+        return
     # empty files
     for remove_me in FILES_TO_REMOVE:
         if os.path.exists(remove_me):
             os.remove(remove_me)
+    # the fork lock-in sidecar MUST die with the chain it was derived from: a stale lock-in against a
+    # freshly-wiped regnet chain is the same chain/lock-in inconsistency as the 2026-06-09 regnet->
+    # mainnet bleed, just intra-regnet (the node would boot a brand-new chain with hf2 already
+    # "active"). Namespacing keeps this strictly regnet-scoped (fork_lockin-regmode.db.json).
+    try:
+        import fork as _fork
+        _lock = _fork.lockin_path(REGNET_DB)
+        if os.path.exists(_lock):
+            os.remove(_lock)
+    except Exception:
+        pass
     # create empty index db
     with sqlite3.connect(REGNET_DB) as source_db:
         if trace_db_calls:

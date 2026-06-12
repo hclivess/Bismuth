@@ -1340,23 +1340,17 @@ if __name__ == "__main__":
     node.block_store_enabled = config.block_store # opt-in LMDB block-body mirror (doc/17 phase 7)
     node.block_store = None                        # the store object, created at startup if enabled
     node.block_writer = None                       # the stage-4 write seam over block_store (doc/26); set with it
-    node.fork_signal = config.fork_signal          # hf2: stamp the readiness signal when mining (doc/18)
+    node.fork_signal = config.fork_signal          # hf2: stamp the readiness signal when mining (doc/18).
+    # Signalling hf2 asserts readiness for the WHOLE bundle, including the blake2b Heavy3 (doc/18-D).
     node.mine = config.mine                        # opt-in built-in solo miner (miner.py)
-    node.pow_fork_signal = config.pow_fork_signal  # signal readiness for the modernised blake2b Heavy3 (doc/18-D)
     node.fork_window = config.fork_window          # hf2 signal window / boundary / burial
     node.fork_boundary = config.fork_boundary
     node.fork_bury = config.fork_bury
-    # hf2 / PoW-fork activation heights: once locked in they are persisted (fork_lockin-<ledger>.json
-    # beside the ledger, namespaced per network — see fork.lockin_path) so a restart/resync REPLAYS the
-    # same height rather than re-deriving one a later signalling gap could shift. Load any persisted
-    # value here; stays None until the chain first locks it in.
-    try:
-        import fork as _fork_persist
-        node.fork_height = _fork_persist.load_locked_height(node.ledger_path, "hf2")
-        node.pow_fork_height = _fork_persist.load_locked_height(node.ledger_path, "pow2")
-    except Exception:
-        node.fork_height = None
-        node.pow_fork_height = None
+    # hf2 activation height (the ONE fork: serialization/rewards/LWMA/fees + blake2b PoW): once locked in
+    # it is persisted (fork_lockin-<ledger>.json beside the ledger, namespaced per network — see
+    # fork.lockin_path) and REPLAYED at startup. The actual load happens in setup_net_type(): only
+    # there is node.ledger_path final (regnet/testnet override it after this point). None until then.
+    node.fork_height = None
     node.base_fee = None                             # post-fork dynamic base fee (fee_dynamics), set per block
     node.fee_post_fork = False
     node.rpc_bitcoin = config.rpc_bitcoin            # opt-in bitcoind-compatible JSON-RPC (doc/17)
@@ -1603,7 +1597,7 @@ if __name__ == "__main__":
     node.logger.app_log.warning("Status: Bismuth loop running.")
 
     # Built-in solo miner (miner.py): opt-in via mine=True. Runs in its own thread with its own DB handle
-    # (SQLite handles are per-thread); it mines real Heavy3 blocks with mempool txs + the hf2/pow2 coinbase
+    # (SQLite handles are per-thread); it mines real Heavy3 blocks with mempool txs + the hf2 coinbase
     # and digests them, serialised with sync via db_lock. Inert unless mine=True.
     if getattr(node, "mine", False):
         def _solo_mine():

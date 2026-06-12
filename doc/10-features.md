@@ -10,7 +10,7 @@ none change base consensus.
 > [post-quantum signers](20-post-quantum.md) — `polysign/` now ships ML-DSA and secp256r1 alongside the
 > legacy RSA/ECDSA/ed25519/BTC/CRW signers, all behind `SignerFactory` — and
 > [mining](21-mining.md): the Heavy3 PoW, the built-in solo miner (`miner.py`, `mine=True`), and the
-> dual-algo (sha224 → blake2b) PoW fork.
+> dual-algo (sha224 → blake2b) PoW swap, bundled into the single hf2 fork.
 
 ## Tokens (`tokensv2.py`)
 

@@ -48,7 +48,7 @@ Any command starting with `regtest_` is rejected unless `node.is_regnet`, then r
 | Command | Effect |
 |---|---|
 | `regtest_generate <n>` | mint `n` blocks with the regnet-only trivial-nonce generator (`generate_one_block`, up to `TX_PER_BLOCK=2` mempool txs each) |
-| `regtest_mine <n>` | drive the **real** solo miner (`miner.generate_block`) for `n` blocks — the actual mainnet code path (mempool txs + hf2/pow2 coinbase + dual-algo Heavy3) |
+| `regtest_mine <n>` | drive the **real** solo miner (`miner.generate_block`) for `n` blocks — the actual mainnet code path (mempool txs + hf2 coinbase + dual-algo Heavy3) |
 | `regtest_powcheck` | run the dual-algo PoW both ways inside the node and return sha224-vs-blake2b difficulty samples |
 | `regtest_rollback <below>` | drive a real chain rollback to height `below-1` (`chain_ops.rollback`) and fix up the tip pointers — exercises the reorg path end-to-end |
 

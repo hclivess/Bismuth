@@ -1,10 +1,11 @@
 """
 Regnet block generator must honour the dual-PoW switch (L5).
 
-The Heavy3 inner hash modernises sha224 -> blake2b(28) post the PoW fork (doc/18-D); the verifier
-(mining_heavy3.diffme_heavy3) and the solo miner (miner.py) both switch on `new_pow`. The regnet
-generator (regnet.generate_one_block) previously hashed with sha224 UNCONDITIONALLY, so once the PoW
-fork activated on a regnet it would mine blocks the node's own verifier rejects (wrong inner algo).
+The Heavy3 inner hash modernises sha224 -> blake2b(28) post-fork (doc/18-D, bundled into the single
+hf2 fork); the verifier (mining_heavy3.diffme_heavy3) and the solo miner (miner.py) both switch on
+`new_pow` (= height >= the hf2 fork_height). The regnet generator (regnet.generate_one_block)
+previously hashed with sha224 UNCONDITIONALLY, so once the fork activated on a regnet it would mine
+blocks the node's own verifier rejects (wrong inner algo).
 
 These are pure logic tests of the inner-digest SELECTION shared by generator and verifier — no mmap /
 no live node (the memory-hard anneal that follows is identical for both algos and unaffected).
@@ -44,10 +45,11 @@ def test_blake2b_and_sha224_differ_so_always_sha224_is_wrong_post_fork():
     assert _generator_inner(s, new_pow=False) == sha   # pre-fork the two agree (sha224)
 
 
-def test_new_pow_gate_is_height_vs_pow_fork_height():
-    # mirror the gate the generator computes: new_pow = pow_fork_height is not None and next_h >= it
-    def gate(pow_fork_height, next_h):
-        return pow_fork_height is not None and next_h >= pow_fork_height
+def test_new_pow_gate_is_height_vs_fork_height():
+    # mirror the gate generator/miner/verifier compute: new_pow = fork_height is not None and h >= it
+    # (the PoW swap rides the single hf2 fork, so this is the SAME height that gates LWMA/VM/fees)
+    def gate(fork_height, next_h):
+        return fork_height is not None and next_h >= fork_height
     assert gate(None, 10) is False                     # never, while unlocked
     assert gate(100, 99) is False                      # before activation -> sha224
     assert gate(100, 100) is True                      # at/after activation -> blake2b

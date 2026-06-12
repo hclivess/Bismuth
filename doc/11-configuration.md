@@ -38,6 +38,8 @@ Values are typed per the loader (`int`, `bool` — false for `false/0/""/no` —
 | `mempool_ram` | bool | mempool in RAM vs on disk (default true) |
 | `mempool_path` | str | on-disk mempool path |
 | `terminal_output` | bool | echo logs to stdout |
+| `log_color` | bool | ANSI-coloured console/journald log by level (`log.ColoredFormatter`; honors `NO_COLOR`); file logs stay plain |
+| `mandatory_message` | dict | exchange deposit address → required-memo note; built-in defaults, overridden by `mandatory_message.json` (see below) |
 | `egress` | bool | relay blocks to peers (false = receive-only) |
 | `trace_db_calls` | bool | log every SQL statement |
 | `heavy3_path` | str | path to `heavy3a.bin` |
@@ -62,12 +64,14 @@ consensus-affecting, are **inert until the hf2 fork activates**.
 | `balance_index` | bool | maintain the O(1) balance index — DISPLAY read path (`/api/balance`); consensus still uses `ledger_balance3` |
 | `ledger_integer_amounts` | bool | store amounts as integer atomic units (doc/16); **not yet hyperblock-rollup safe — keep off on mainnet** |
 | `vm` | bool | enable the decentralized-apps RISC-V VM (doc/19); inert until hf2 |
-| `fork_signal` | bool | emit the `hf2` coinbase signal when generating blocks (upgraded miners) |
+| `fork_signal` | bool | emit the `hf2` coinbase signal when generating blocks (upgraded miners) — asserts readiness for the WHOLE bundle, including the blake2b Heavy3 (doc/18-D) |
 | `fork_window` / `fork_boundary` / `fork_bury` | int | hf2 activation parameters (signal window, round boundary, burial margin) — `/api/fork` reports status |
 | `mine` | bool | run the built-in solo miner (`miner.py`): real Heavy3, embeds mempool txs, writes the hf2 coinbase (doc/21) |
-| `pow_fork_signal` | bool | emit the `pow2` signal to activate the modernised blake2b Heavy3 (doc/18-D) |
 | `bootstrap_url` / `bootstrap_file` | str | ledger-snapshot source for fast bootstrap (`chain_ops.bootstrap`) |
 | `rest_api` / `rest_api_port` | bool/int | enable the read-only REST API (doc/15) and its port |
+| `rest_api_write` | bool | enable `POST /api/transaction` (tx submission over REST — the post-fork transport, doc/15); off by default so a read-only node stays read-only |
+| `shield` | bool | opt-in shielded value (doc/22): validate/index `shield:` txs — inert until hf2 activates |
+| `token_index` | bool | opt-in LMDB token/alias side-index (doc/26 stage 2, served by the `tokens_aliases` plugin — doc/27), replacing the SQLite `index.db` projection post-fork |
 | `rpc_bitcoin` / `rpc_bitcoin_port`, `rpc_ethereum` / `rpc_ethereum_port` | bool/int | external RPC-bridge config keys (atomic-swap tooling) |
 
 Two modernized subsystems have **no config knob by design**: the **dynamic base fee** (`fee_dynamics.py`)

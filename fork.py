@@ -31,18 +31,10 @@ def has_fork_signal(openfield):
     return bool(openfield) and FORK2_SIGNAL in str(openfield)
 
 
-# --- Second fork: the Heavy3 PoW modernisation (doc/18-D). It gets its OWN signalled activation so the
-# single most security-sensitive change (a PoW transition) is isolated from hf2. Same machinery as hf2
-# (dynamic_fork_height is signal-agnostic); only the coinbase marker differs.
-FORK_POW_SIGNAL = "pow2"     # miners stamp this once they can mine the modernised (blake2b) Heavy3
-FORK_POW_WINDOW = 1000
-FORK_POW_BOUNDARY = 1000
-FORK_POW_BURY = 30
-
-
-def has_pow_signal(openfield):
-    """Does a coinbase openfield signal readiness for the modernised PoW (doc/18-D)?"""
-    return bool(openfield) and FORK_POW_SIGNAL in str(openfield)
+# NOTE: the Heavy3 PoW modernisation (sha224 -> blake2b, doc/18-D) is BUNDLED INTO hf2: one signal,
+# one activation height. Stamping "hf2" therefore asserts readiness for the WHOLE bundle, including
+# mining/validating the blake2b Heavy3 from the activation height. (It briefly had its own "pow2"
+# signal; that was folded into hf2 on 2026-06-12 — stale "pow2" sidecar keys are simply ignored.)
 
 
 def next_fork_boundary(height, boundary=FORK2_BOUNDARY):
@@ -93,8 +85,8 @@ import os as _os
 
 def lockin_path(ledger_path):
     """The sidecar path: alongside the ledger DB and NAMESPACED BY LEDGER FILENAME
-    (``fork_lockin-<ledger file>.json``), holding {"hf2": <height>, "pow2": <height>};
-    absent keys = not yet locked.
+    (``fork_lockin-<ledger file>.json``), holding {"hf2": <height>}; an absent key = not yet
+    locked. Unknown/legacy keys (e.g. the retired "pow2") are ignored by the reader.
 
     The namespacing is load-bearing: mainnet (ledger.db) and regnet (regmode.db) share one
     static/ directory, and the earlier shared ``fork_lockin.json`` let a regnet test run hand a
@@ -106,7 +98,7 @@ def lockin_path(ledger_path):
 
 
 def load_locked_height(ledger_path, key):
-    """Return the persisted activation height for ``key`` ('hf2'/'pow2'), or None if never locked.
+    """Return the persisted activation height for ``key`` ('hf2'), or None if never locked.
     Tolerant: a missing/corrupt sidecar simply means "not locked yet" (the chain re-derives it)."""
     try:
         with open(lockin_path(ledger_path), "r") as fh:
@@ -170,18 +162,6 @@ def db_fork_signal_reader(db_handler):
             (height,))
         row = db_handler.c.fetchone()
         return has_fork_signal(row[0]) if row else False
-    return read
-
-
-def db_pow_signal_reader(db_handler):
-    """A read_signal(height) for the PoW fork (doc/18-D), backed by the coinbase openfield marker."""
-    def read(height):
-        db_handler.execute_param(
-            db_handler.c,
-            "SELECT openfield FROM transactions WHERE block_height = ? ORDER BY rowid DESC LIMIT 1",
-            (height,))
-        row = db_handler.c.fetchone()
-        return has_pow_signal(row[0]) if row else False
     return read
 
 

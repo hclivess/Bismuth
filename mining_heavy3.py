@@ -80,9 +80,10 @@ def diffme_heavy3(pool_address, nonce, db_block_hash, new_pow=False):
     diff = 1
     diff_result = 0
     _data = (pool_address + nonce + db_block_hash).encode("utf-8")
-    # Dual PoW (doc/18-D): post the PoW fork the inner hash modernises sha224 -> blake2b (28-byte digest,
-    # same 224-bit width). The 1 GB memory-hard anneal and the substring-prefix difficulty are UNCHANGED,
-    # so a node/miner switches algos purely on `new_pow` (= block_height >= the signalled pow_fork_height).
+    # Dual PoW (doc/18-D, bundled into the single hf2 fork): post-fork the inner hash modernises
+    # sha224 -> blake2b (28-byte digest, same 224-bit width). The 1 GB memory-hard anneal and the
+    # substring-prefix difficulty are UNCHANGED, so a node/miner switches algos purely on `new_pow`
+    # (= block_height >= the signalled hf2 fork_height).
     raw = blake2b(_data, digest_size=28).digest() if new_pow else sha224(_data).digest()
     hash224 = int.from_bytes(raw, 'big')
     if heavy or (not is_regnet):

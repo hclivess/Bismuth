@@ -78,7 +78,7 @@ size is bounded — live in `merge()`; this routine only orders admission under 
 
 The **built-in solo miner** (`miner.py`, opt-in `mine=True`) is the other consumer: it pulls pending
 txs with `mp.MEMPOOL.fetchall(mp.SQL_SELECT_TX_TO_SEND)` (`SELECT * … ORDER BY amount DESC`, capped at
-`MAX_TX_PER_BLOCK`), appends its signed hf2/pow2 coinbase, and digests the assembled block — the same
+`MAX_TX_PER_BLOCK`), appends its signed hf2 coinbase, and digests the assembled block — the same
 mempool feed the regnet `regtest_mine` command and the regnet `generate_one_block` use. See
 [21](21-mining.md).
 
