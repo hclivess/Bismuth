@@ -195,7 +195,15 @@ class TokensAliasesPlugin(BismuthPlugin):
         return {"count": len(rows), "tokens": [{"token": t, "transfers": c} for t, c in rows]}
 
     def _rest_token(self, route, query):
-        detail = self.ti.token_detail(route[1])          # route == ["token", "<name>"]
+        # ?limit (default 200, token_detail clamps 1..1000) + ?offset page the holders array, which carries
+        # holder_count/holders_returned/truncated so a consumer can tell when it is partial (it used to be
+        # silently capped at the top 200 with no flag). Bad values fall back to defaults rather than 500.
+        def _q(name, default):
+            try:
+                return int((query.get(name) or [default])[0])
+            except (ValueError, TypeError):
+                return int(default)
+        detail = self.ti.token_detail(route[1], _q("limit", 200), _q("offset", 0))  # route == ["token","<name>"]
         return detail                                    # None -> 404 (the router maps it)
 
 

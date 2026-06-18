@@ -295,7 +295,7 @@ def _make_handler(node):
                 if route == ["tokens"]:
                     return self._write(200, self._tokens(db))
                 if route[:1] == ["token"] and len(route) == 2:
-                    return self._write(200, self._token(db, route[1]))
+                    return self._write(200, self._token(db, route[1], query))
                 raise _NotFound("unknown endpoint")
             except _NotFound as e:
                 self._write(404, {"error": "not_found", "detail": str(e)})
@@ -426,11 +426,22 @@ def _make_handler(node):
         def _fork(self, db):
             import fork
             tip = node.hdd_block
+            # fork_status scans the whole signalling window of the ledger (~15s on mainnet) and is a PURE
+            # function of (ledger up to `tip`, fixed config) — so cache it keyed by the tip height and only
+            # recompute when a new block arrives. Repeat calls at the same height then return instantly
+            # instead of re-scanning every request. The cache lives on the closure-captured `node`
+            # (process-lifetime); the GIL makes the read-modify idempotent enough (a rare concurrent
+            # recompute just stores the same value twice).
+            cached = getattr(node, "_rest_fork_cache", None)
+            if cached is not None and cached[0] == tip:
+                return cached[1]
             reader = fork.db_fork_signal_reader(db)
-            return fork.fork_status(reader, tip,
-                                    getattr(node, "fork_window", fork.FORK2_WINDOW),
-                                    getattr(node, "fork_boundary", fork.FORK2_BOUNDARY),
-                                    getattr(node, "fork_bury", fork.FORK2_BURY))
+            result = fork.fork_status(reader, tip,
+                                      getattr(node, "fork_window", fork.FORK2_WINDOW),
+                                      getattr(node, "fork_boundary", fork.FORK2_BOUNDARY),
+                                      getattr(node, "fork_bury", fork.FORK2_BURY))
+            node._rest_fork_cache = (tip, result)
+            return result
 
         def _shield_stats(self):
             # shielded pool health (doc/22). pool_units MUST equal the SHIELD_SINK ledger balance — that
@@ -633,10 +644,26 @@ def _make_handler(node):
                                                 "GROUP BY token ORDER BY COUNT(*) DESC LIMIT 500")
             return {"count": len(rows), "tokens": [{"token": r[0], "transfers": r[1]} for r in rows]}
 
-        def _token(self, db, name):
-            """A token's holders, per-address balances, and supply (credits - debits, token index)."""
+        def _token(self, db, name, query):
+            """A token's holders, per-address balances, and supply (credits - debits, token index).
+
+            The `holders` array is windowed by ?limit (default 200, max 1000) and ?offset (default 0), with
+            explicit `holder_count` (total), `holders_returned`, `offset`, `limit` and `truncated` fields so a
+            consumer can tell when the list is partial and page through the rest. (It used to silently cap
+            holders at the top 200 by balance with no flag, so a naive reader summing the array got a value
+            below the canonical `supply` and could not tell it was incomplete.) `supply`/`holder_count` are
+            always the full-set aggregates regardless of the window. NOTE: when the tokens_aliases plugin is
+            loaded it owns the /api/token route (see do_GET) and this handler is the legacy index.db fallback;
+            both paths share the same windowing semantics (the plugin's token_detail applies them internally)."""
+            try:
+                limit = int(query.get("limit", ["200"])[0])
+                offset = int(query.get("offset", ["0"])[0])
+            except ValueError:
+                raise _BadRequest("limit/offset must be integers")
+            limit = max(1, min(limit, 1000))
+            offset = max(0, offset)
             if node.token_index is not None:
-                detail = node.token_index.token_detail(name)
+                detail = node.token_index.token_detail(name, limit, offset)   # windows + flags internally
                 if detail is None:
                     raise _NotFound("unknown token")
                 return detail
@@ -653,8 +680,12 @@ def _make_handler(node):
             transfers = db.fetchall(db.index_cursor, "SELECT COUNT(*) FROM tokens WHERE token = ?", (name,))[0][0]
             if not holders and not transfers:
                 raise _NotFound("unknown token")
+            total = len(holders)
+            window = holders[offset:offset + limit]
             return {"token": name, "supply": sum(h["balance"] for h in holders),
-                    "holder_count": len(holders), "transfers": transfers, "holders": holders[:200]}
+                    "holder_count": total, "transfers": transfers, "holders": window,
+                    "holders_returned": len(window), "offset": offset, "limit": limit,
+                    "truncated": (offset + len(window)) < total}
 
         def _block_rows_to_json(self, rows):
             return [essentials.format_raw_tx(row) for row in rows]

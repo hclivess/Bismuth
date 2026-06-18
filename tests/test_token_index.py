@@ -47,6 +47,33 @@ def test_issue_detail_and_listing(ti):
     assert det["holders"][0] == {"address": "ADDR_A", "balance": 1000000}
     assert ti.tokens_list()[0] == ("tokx", 1)          # one row so far (the issuance)
     assert ti.token_detail("nope") is None             # unknown -> None (REST maps to 404)
+    # the default window covers a small token, so the holders array is complete + not flagged truncated
+    assert det["holders_returned"] == 1 and det["truncated"] is False and det["offset"] == 0
+
+
+def test_token_detail_holders_paging_and_truncated_flag(ti):
+    """holders is windowed by limit/offset with holder_count(total)/holders_returned/truncated, so a partial
+    page is never mistaken for the whole set (the array used to be silently capped at the top 200)."""
+    ti.register_issue(5, 1000, "tokx", "ADDR_A", "tx_issue", "1000000")
+    for h, (to, amt) in enumerate([("ADDR_B", 100000), ("ADDR_C", 50000),
+                                   ("ADDR_D", 25000), ("ADDR_E", 10000)], start=8):
+        assert ti.apply_transfer(h, 2000 + h, "tokx", "ADDR_A", to, "tx_%d" % h, amt) is True
+    # five holders (A keeps 815000); the default window holds them all -> not truncated, supply == full sum
+    full = ti.token_detail("tokx")
+    assert full["holder_count"] == 5 and full["holders_returned"] == 5 and full["truncated"] is False
+    assert full["supply"] == 1000000 == sum(h["balance"] for h in full["holders"])
+    assert full["holders"][0]["address"] == "ADDR_A"        # sorted by balance desc
+    # a middle page: partial -> truncated True, but supply/holder_count stay the FULL-set aggregates
+    page = ti.token_detail("tokx", limit=2, offset=1)
+    assert page["holder_count"] == 5 and page["supply"] == 1000000
+    assert page["holders_returned"] == 2 and page["offset"] == 1 and page["limit"] == 2
+    assert page["truncated"] is True
+    assert [h["address"] for h in page["holders"]] == [h["address"] for h in full["holders"][1:3]]
+    # the last page consumes the remainder -> not truncated
+    tail = ti.token_detail("tokx", limit=2, offset=4)
+    assert tail["holders_returned"] == 1 and tail["truncated"] is False
+    # limit is clamped to the 1000 hard cap (no crash / no unbounded response)
+    assert ti.token_detail("tokx", limit=10 ** 9)["limit"] == 1000
 
 
 # --- transfers + the overspend rule ---------------------------------------------------------------

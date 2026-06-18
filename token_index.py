@@ -265,8 +265,13 @@ class TokenIndex:
         rows.sort(key=lambda r: -r[1])
         return rows[:limit]
 
-    def token_detail(self, token: str):
-        """``/api/token`` holders/supply/transfers, or None if the token is unknown (no rows)."""
+    def token_detail(self, token: str, limit: int = 200, offset: int = 0):
+        """``/api/token`` holders/supply/transfers, or None if the token is unknown (no rows). The holders
+        array (sorted by balance desc) is windowed by ``limit`` (default 200, clamped 1..1000) and
+        ``offset``, and the result carries ``holder_count`` (the full total), ``holders_returned``,
+        ``offset``, ``limit`` and ``truncated`` so a caller can tell when the array is partial and page
+        through the rest. ``supply``/``holder_count`` are always the full-set aggregates regardless of the
+        window. (The holders array used to be silently capped at the top 200 with no flag.)"""
         credits = self._group_sums(self.cred, token)
         debits = self._group_sums(self.deb, token)
         holders = []
@@ -278,8 +283,14 @@ class TokenIndex:
         transfers = self.token_transfers(token)
         if not holders and not transfers:
             return None
+        limit = max(1, min(int(limit), 1000))
+        offset = max(0, int(offset))
+        total = len(holders)
+        window = holders[offset:offset + limit]
         return {"token": token, "supply": sum(h["balance"] for h in holders),
-                "holder_count": len(holders), "transfers": transfers, "holders": holders[:200]}
+                "holder_count": total, "transfers": transfers, "holders": window,
+                "holders_returned": len(window), "offset": offset, "limit": limit,
+                "truncated": (offset + len(window)) < total}
 
     # ---- token rollback (reorg: drop everything at height >= h) -----------
     def tokens_rollback(self, height):
