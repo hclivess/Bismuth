@@ -789,28 +789,16 @@ def handle_processing_error(node, db_handler, sdef, peer_ip, error):
         f"Chain: digestion from {peer_ip} failed at {where} - {type(error).__name__}: {error}")
 
     # Restore actual data from database (roll our view back to what is committed).
-    # SELF-HEAL a ledger.db/hyper.db split: a failed digest can leave one on-disk store a few blocks AHEAD
-    # of the other (they commit in separate, non-atomic transactions). Orphaned rows above the recovered
-    # tip poison the duplicate-signature guard on the NEXT block ("Transaction ... already in ledger"),
-    # wedging the node until a MANUAL restart runs chain_ops.reconcile_ledger_hyper. Snap BOTH stores down
-    # to the common (lower) tip here so the in-run fallback is self-healing — otherwise a transient digest
-    # failure mid-sync permanently stalls the node (and a fresh clone wedges the same way before it ever
-    # restarts). The trimmed blocks are re-downloadable from peers.
-    working_tip = db_handler.block_max_ram()['block_height']
-    try:
-        ledger_tip = db_handler.block_height_max()
-    except Exception:
-        ledger_tip = working_tip
-    node.last_block = min(working_tip, ledger_tip)
-    if ledger_tip != working_tip:
-        node.logger.app_log.warning(
-            f"Chain: ledger/hyper split on fallback (ledger={ledger_tip}, working={working_tip}); "
-            f"trimming both stores down to {node.last_block} so orphaned rows can't wedge sync")
-        try:
-            db_handler.rollback_under(node.last_block + 1)   # delete rows > common tip from BOTH stores
-        except Exception as _trim_err:
-            node.logger.app_log.warning(
-                f"Chain: fallback trim failed ({_trim_err}); startup reconcile will heal on next restart")
+    # NOTE: we deliberately do NOT trim the on-disk stores here. A ledger.db/hyper.db split (orphan rows
+    # above the committed tip) is now made HARMLESS by bounding the replay guard to the confirmed chain
+    # (check_duplicate_signatures), so it can no longer wedge sync, and the startup reconcile
+    # (chain_ops.reconcile_ledger_hyper) trims any leftover orphans on the next restart. An in-run trim here
+    # was tried and removed: in the normal multi-block batch the working store is legitimately AHEAD of
+    # ledger.db (db_to_drive only flushes at batch end), so trimming would discard just-validated blocks;
+    # and a bare rollback_under would leave the derived consensus stores (vm_state, shielded key-images,
+    # token/alias index, balance_index) above the trimmed tip — a post-fork inflation/wedge. Keep the
+    # fallback minimal and let the bounded guard + startup reconcile do the healing. (See doc/sync audit.)
+    node.last_block = db_handler.block_max_ram()['block_height']
     node.last_block_hash = db_handler.last_block_hash()
     node.logger.app_log.warning(
         f"Chain: fell back to block {node.last_block} after rejecting a block from {peer_ip}")
