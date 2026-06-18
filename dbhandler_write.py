@@ -50,6 +50,22 @@ class DbWriteMixin:
         self.execute_param(self.c, "DELETE FROM misc WHERE block_height >= ?;", (block_height,))
         self.commit(self.conn)
 
+        # SYMMETRY FIX — the source of the recurring ledger/hyper split: backup_higher is the ONLY primitive
+        # that lowers the working tip on a live reorg (its sole caller is chain_ops.blocknf), and it deleted
+        # ONLY from the working store (self.c = hyper.db when ram=False), leaving ledger.db (self.h) AHEAD.
+        # That orphaned ledger excess then poisons the unbounded "already have it" guards (block_already_exists
+        # / the replay check) and wedges sync at the same height across restarts (the ledger=N/marker=N-k,
+        # hyper=N-k fingerprint). ledger.db is NOT consensus — ledger_balance3 reads self.c (hyper) — so
+        # trimming ledger rows ABOVE the working tip can never change a balance/overspend decision; they are
+        # non-canonical orphans. Mirror rollback_under's ledger arm so the two stores can never diverge.
+        self.h.execute("DELETE FROM transactions WHERE block_height >= ? OR block_height <= ?",
+                       (block_height, -block_height))
+        self.commit(self.hdd)
+        self.h.execute("DELETE FROM misc WHERE block_height >= ?", (block_height,))
+        self.commit(self.hdd)
+        self._stamp_marker_best_effort(self.hdd, block_height - 1)
+        self._stamp_marker_best_effort(self.hdd2, block_height - 1)
+
         # Clear caches when data changes
         self.clear_caches()
 
