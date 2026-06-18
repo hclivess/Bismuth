@@ -426,18 +426,34 @@ def _make_handler(node):
         def _fork(self, db):
             import fork
             tip = node.hdd_block
-            # fork_status scans the whole signalling window of the ledger (~15s on mainnet) and is a PURE
-            # function of (ledger up to `tip`, fixed config) — so cache it keyed by the tip height and only
-            # recompute when a new block arrives. Repeat calls at the same height then return instantly
-            # instead of re-scanning every request. The cache lives on the closure-captured `node`
-            # (process-lifetime); the GIL makes the read-modify idempotent enough (a rare concurrent
-            # recompute just stores the same value twice).
+            # /api/fork was reliably tens of seconds because fork.db_fork_signal_reader runs ONE point query
+            # per block and fork_status scans the whole signalling window (FORK2_WINDOW=1000) — an N+1 pattern
+            # (~1000 queries). That compute also exceeds the ~60s mainnet block interval, so a tip-keyed cache
+            # alone never helped (the tip moved between calls). Root-cause fix: prefetch the coinbase openfield
+            # of EVERY block in the window in a SINGLE ranged query (the max-rowid row per height == the
+            # coinbase, exactly matching the reader's per-block `ORDER BY rowid DESC LIMIT 1`), then feed
+            # fork_status a dict-backed reader. fork_status's logic is UNCHANGED — only the data access is
+            # batched (~0.01s vs ~88s). The tip cache is kept as cheap burst insurance (now actually effective
+            # since the compute is sub-second). Cache lives on the closure-captured `node` (process-lifetime).
             cached = getattr(node, "_rest_fork_cache", None)
             if cached is not None and cached[0] == tip:
                 return cached[1]
-            reader = fork.db_fork_signal_reader(db)
-            result = fork.fork_status(reader, tip,
-                                      getattr(node, "fork_window", fork.FORK2_WINDOW),
+            window = int(getattr(node, "fork_window", fork.FORK2_WINDOW))
+            # fork_status -> dynamic_fork_height scans the coinbase signal of EVERY block from genesis to tip
+            # (the lock-in is the EARLIEST full window, deliberately tip-independent), so feeding it only the
+            # trailing window is wrong — it would never find / would chase the lock-in. Instead fetch the full
+            # SET of heights whose coinbase carried the signal in ONE query (the max-rowid row per height ==
+            # the coinbase, matching db_fork_signal_reader's `ORDER BY rowid DESC LIMIT 1`; LIKE '%hf2%' ==
+            # has_fork_signal's substring test). Then fork_status's scan is an in-memory set loop (~1s) with an
+            # IDENTICAL result, vs ~1000s of point queries (the old tens-of-seconds cost). 'hf2' contains a
+            # non-hex char so the nonce/state-root hex in the openfield can never false-match. Cached per tip.
+            db.execute_param(db.c,
+                "SELECT t.block_height FROM transactions t "
+                "JOIN (SELECT block_height, MAX(rowid) mr FROM transactions "
+                "      WHERE block_height >= 1 AND block_height <= ? GROUP BY block_height) m "
+                "ON t.rowid = m.mr WHERE t.openfield LIKE ?", (int(tip), "%" + fork.FORK2_SIGNAL + "%"))
+            sigset = set(int(r[0]) for r in db.c.fetchall())
+            result = fork.fork_status(lambda h: int(h) in sigset, tip, window,
                                       getattr(node, "fork_boundary", fork.FORK2_BOUNDARY),
                                       getattr(node, "fork_bury", fork.FORK2_BURY))
             node._rest_fork_cache = (tip, result)
