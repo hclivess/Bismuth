@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Bismuth Poker (heads-up Hold'em, demo)</title>
+<style>
+  body{font:14px/1.5 system-ui,sans-serif;max-width:900px;margin:24px auto;padding:0 14px;color:#162}
+  h1{font-size:20px} h2{font-size:15px;margin:16px 0 6px;border-bottom:1px solid #cdd}
+  input{font:13px monospace;padding:4px 6px;border:1px solid #bcc;border-radius:5px}
+  button{font:13px system-ui;padding:6px 12px;margin:2px;border:0;border-radius:6px;background:#2a7;color:#fff;cursor:pointer}
+  button.alt{background:#46a} button.warn{background:#c64} button:disabled{background:#bbb;cursor:default}
+  .muted{color:#789} code{background:#eef3f2;padding:1px 4px;border-radius:4px}
+  .card{display:inline-block;min-width:34px;text-align:center;border:1px solid #bbb;border-radius:6px;padding:6px 8px;margin:2px;font:16px monospace;background:#fff}
+  .red{color:#c33} .blk{color:#222}
+  .felt{background:#1a6b48;color:#fff;border-radius:10px;padding:12px;margin:8px 0}
+  .pill{display:inline-block;background:#eef3f2;border-radius:10px;padding:1px 8px;margin-left:6px}
+  #log{white-space:pre-wrap;background:#0b1f1a;color:#7fd;padding:8px;border-radius:6px;height:130px;overflow:auto;font:12px monospace}
+</style>
+</head>
+<body>
+<h1>Bismuth Poker <span class="muted">— heads-up Texas Hold'em (VM demo)</span></h1>
+<p class="muted">The chain is the trustless referee: it escrows the pot, anchors your hole-card commitments,
+and settles the showdown <b>on-chain</b> (verifying your cards and evaluating the best hand). Hole cards stay
+private via an off-chain <b>mental-poker</b> deal (a cooperative commutative-cipher shuffle between the two
+browsers — secret keys never leave your machine). This demo is heads-up <b>all-in</b> (stake, then play or
+fold); see doc/24 §4 for the honest limits.</p>
+
+<h2>Connection</h2>
+<div class="row">Relay <input id="relay" size="24" value="http://127.0.0.1:8096"/>
+  API <input id="api" size="24" value="http://127.0.0.1:3031"/>
+  <button onclick="loadInfo()">connect</button></div>
+<div class="row">Table <input id="addr" size="58" placeholder="contract address (paste to join, or create one)"/>
+  buy-in (BIS) <input id="buyin" size="6" value="1.0"/>
+  <button onclick="createTable()">create (you are P0)</button>
+  <button class="alt" onclick="joinTable()">join (you are P1)</button>
+  <button class="alt" onclick="refresh()">refresh</button>
+  <button class="alt" onclick="mine()">mine 1</button></div>
+<div class="row muted">you: <span id="me">—</span> <span class="pill">seat <b id="seat">—</b></span>
+  <span class="pill">phase <b id="phase">—</b></span> <span class="pill">pot <b id="pot">—</b></span></div>
+
+<div class="felt">
+  <div>Board: <span id="board">— — — — —</span></div>
+  <div style="margin-top:8px">Your hole: <span id="hole">(deal pending)</span></div>
+</div>
+
+<h2>Actions</h2>
+<div class="row">
+  <button id="b_deal" onclick="startDeal()" disabled>deal (mental poker)</button>
+  <button id="b_commit" onclick="commitHole()" disabled>commit hole cards</button>
+  <button id="b_play" onclick="act('play')" disabled>play</button>
+  <button id="b_fold" class="warn" onclick="act('fold')" disabled>fold</button>
+  <button id="b_board" onclick="postBoard()" disabled>reveal board</button>
+  <button id="b_reveal" onclick="revealAndShowdown()" disabled>reveal &amp; showdown</button>
+  <button id="b_timeout" class="alt" onclick="act('timeout')">claim timeout</button>
+</div>
+
+<h2>Log</h2>
+<div id="log"></div>
+
+<script>
+// ---------------- helpers ----------------
+const $=id=>document.getElementById(id), v=id=>$(id).value.trim();
+let INFO=null, ST={}, SEAT=-1, HOLE=null, BOARD=[], NONCE=null, BUS_AT=0;
+function log(m){const l=$('log');l.textContent+=m+"\n";l.scrollTop=l.scrollHeight;}
+function relay(){return v('relay').replace(/\/$/,'');}
+function api(){return v('api').replace(/\/$/,'');}
+const RANKS="23456789TJQKA", SUITS="cdhs";
+function cardStr(c){const r=c%13,s=(c/13)|0;return RANKS[r]+SUITS[s];}
+function cardHtml(c){if(c==null)return '<span class="card">?</span>';const s=(c/13)|0;
+  return '<span class="card '+(s==1||s==2?'red':'blk')+'">'+cardStr(c)+'</span>';}
+function rnd32(){const a=new Uint8Array(32);crypto.getRandomValues(a);return a;}
+function hex(bytes){return Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('');}
+async function sha256(bytes){const h=await crypto.subtle.digest('SHA-256',bytes);return new Uint8Array(h);}
+
+async function POST(path,body){
+  const r=await fetch(relay()+'/relay/'+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});
+  const j=await r.json(); if(j.error){log('✗ '+path+': '+j.error);throw new Error(j.error);}
+  return j;
+}
+async function GET(url){const r=await fetch(url);return r.json();}
+
+// ---------------- mental poker: 2-party SRA commutative cipher (BigInt) ----------------
+// Demo-grade: a fixed prime and a simple card->value map (real games use a large safe prime + QR encoding to
+// avoid Legendre-symbol leaks). Keys are generated locally per hand and never sent.
+const P = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2Fn; // secp256k1 field prime (well-known, prime)
+const PM1 = P - 1n;
+function modpow(b,e,m){b%=m;let r=1n;while(e>0n){if(e&1n)r=r*b%m;b=b*b%m;e>>=1n;}return r;}
+function egcd(a,b){if(b===0n)return [a,1n,0n];const [g,x,y]=egcd(b,a%b);return [g,y,x-(a/b)*y];}
+function modinv(a,m){let [g,x]=egcd((a%m+m)%m,m);if(g!==1n)throw new Error('no inverse');return (x%m+m)%m;}
+function randKey(){ // random k in [2,P-2] with gcd(k,P-1)==1
+  while(true){const a=new Uint8Array(32);crypto.getRandomValues(a);let k=0n;for(const b of a)k=(k<<8n)|BigInt(b);
+    k=k%(PM1-3n)+2n; if(egcd(k,PM1)[0]===1n) return k;}
+}
+const cardVal=c=>BigInt(c+2);                      // card 0..51 -> distinct value 2..53
+const valCard=x=>Number(x-2n);
+function shuffle(arr){for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}return arr;}
+
+let KEY=null, KEYINV=null;          // my SRA key for this hand
+function newKeys(){KEY=randKey();KEYINV=modinv(KEY,PM1);}
+const enc=v=>modpow(v,KEY,P), dec=v=>modpow(v,KEYINV,P);
+
+async function busSend(type,data){await POST('msg',{table:v('addr'),msg:{type,seat:SEAT,data}});}
+async function busPoll(){const j=await GET(relay()+'/relay/inbox?table='+encodeURIComponent(v('addr'))+'&since='+BUS_AT);
+  BUS_AT=j.next; return j.msgs;}
+
+// The deal: positions 0,1 = P0 hole ; 2,3 = P1 hole ; 4..8 = board.
+let DECK2=null;                      // doubly-encrypted deck (both seats hold the same array after step 2)
+async function startDeal(){
+  newKeys(); BUS_AT=0; HOLE=null; BOARD=[]; DECK2=null;
+  if(SEAT===0){
+    const deck=shuffle([...Array(52).keys()].map(cardVal)).map(enc);   // shuffle + encrypt with k0
+    await busSend('deck1',deck.map(String));
+    log('dealt deck1 (encrypted with your key); waiting for opponent…');
+  }else{
+    log('waiting for the dealer (P0) to start the shuffle…');
+  }
+  dealLoop();
+}
+async function dealLoop(){
+  const msgs=await busPoll();
+  for(const m of msgs){ await handleDeal(m); }
+  if(ST.phase!==undefined && ST.phase>=INFO.phases.ACT_P0){/* dealt */}
+  else setTimeout(dealLoop,1200);
+}
+async function handleDeal(m){
+  if(m.seat===SEAT) return;
+  if(m.type==='deck1' && SEAT===1){
+    const deck1=m.data.map(BigInt);
+    DECK2=shuffle(deck1.slice()).map(enc);          // shuffle + encrypt with k1 (double-encrypted)
+    await busSend('deck2',DECK2.map(String));
+    // give P0 their hole (positions 0,1): strip my k1 -> still k0-encrypted
+    await busSend('p0hole',[String(dec(DECK2[0])),String(dec(DECK2[1]))]);
+    log('shuffled + double-encrypted; sent P0 their (still-encrypted) hole');
+  }else if(m.type==='deck2' && SEAT===0){
+    DECK2=m.data.map(BigInt);
+    // give P1 their hole (positions 2,3): strip my k0 -> still k1-encrypted
+    await busSend('p1hole',[String(dec(DECK2[2])),String(dec(DECK2[3]))]);
+  }else if(m.type==='p0hole' && SEAT===0){
+    HOLE=m.data.map(x=>valCard(dec(BigInt(x))));     // strip my k0 -> plaintext cards
+    renderHole();
+  }else if(m.type==='p1hole' && SEAT===1){
+    HOLE=m.data.map(x=>valCard(dec(BigInt(x))));
+    renderHole();
+  }else if(m.type==='boardpart'){                    // opponent's partial board decryption
+    pendBoard[m.data.i]=BigInt(m.data.v);
+    tryFinishBoard();
+  }
+}
+function renderHole(){$('hole').innerHTML=HOLE.map(cardHtml).join(' ');log('your hole cards: '+HOLE.map(cardStr).join(' '));refresh();}
+
+// board: each position 4..8 needs BOTH seats to strip their key. We send our partial decryption; when we
+// have the opponent's partial, we strip ours to get the plaintext board card.
+let pendBoard={};
+async function postBoard(){
+  if(!DECK2){log('no deck yet');return;}
+  for(let i=4;i<9;i++){ await busSend('boardpart',{i, v:String(dec(DECK2[i]))}); }
+  log('sent your board decryptions; combining…');
+  dealLoop();
+}
+function tryFinishBoard(){
+  for(let i=4;i<9;i++){ if(pendBoard[i]!==undefined && BOARD[i-4]===undefined) BOARD[i-4]=valCard(dec(pendBoard[i])); }
+  if(BOARD.filter(x=>x!==undefined).length===5){
+    log('board: '+BOARD.map(cardStr).join(' '));
+    if(SEAT===0){ POST('board',{address:v('addr'),cards:BOARD}).then(()=>mine()); }  // P0 posts the board on-chain
+    refresh();
+  }
+}
+
+// ---------------- on-chain actions ----------------
+async function loadInfo(){
+  try{INFO=await GET(relay()+'/relay/info'); $('me').textContent=INFO.address; log('connected '+INFO.address.slice(0,12)+'…'); refresh();}
+  catch(e){log('connect failed: '+e);}
+}
+async function createTable(){
+  const j=await POST('deploy',{buyin:+v('buyin')}); log('deploy tx '+j.txid+' — mine, then the address auto-fills'); await mine();
+  setTimeout(autoAddr,500);
+}
+async function joinTable(){ SEAT=1; await POST('join',{address:v('addr'),buyin:+v('buyin')}); log('joined as P1, staked'); await mine(); }
+async function mine(){await POST('mine',{count:1}); setTimeout(refresh,300);}
+async function act(which){ try{await POST(which,{address:v('addr')}); log(which+' submitted'); await mine();}catch(e){} }
+
+async function commitHole(){
+  if(!HOLE){log('deal first');return;}
+  NONCE=rnd32();
+  const pre=new Uint8Array(34); pre[0]=HOLE[0]; pre[1]=HOLE[1]; pre.set(NONCE,2);
+  const commit=hex(await sha256(pre));
+  await POST('commit',{address:v('addr'),commit}); log('committed hole cards (hash on-chain)'); await mine();
+}
+
+// pick the best 5 of {hole0,hole1,board0..4} (indices 0..6) using a JS clone of the contract's ranker
+function bestFive(){
+  const seven=[HOLE[0],HOLE[1],...BOARD]; let best=-1,bestIdx=null;
+  const combs=[];
+  for(let a=0;a<7;a++)for(let b=a+1;b<7;b++)for(let c=b+1;c<7;c++)for(let d=c+1;d<7;d++)for(let e=d+1;e<7;e++)combs.push([a,b,c,d,e]);
+  for(const idx of combs){const r=rank5(idx.map(i=>seven[i])); if(r>best){best=r;bestIdx=idx;}}
+  return bestIdx;
+}
+function rank5(cards){ // mirror of contracts/poker.py _rank5 (category<<20 | tiebreak)
+  const cnt=Array(13).fill(0); const suits=new Set();
+  for(const c of cards){cnt[c%13]++; suits.add((c/13)|0);}
+  const flush=suits.size===1;
+  const n2=cnt.filter(x=>x===2).length,n3=cnt.filter(x=>x===3).length,n4=cnt.filter(x=>x===4).length;
+  let sh=-1; for(let i=0;i<9;i++){let all=true;for(let k=0;k<5;k++)if(cnt[i+k]!==1)all=false; if(all)sh=i+4;}
+  if(sh<0 && cnt[12]===1&&cnt[0]===1&&cnt[1]===1&&cnt[2]===1&&cnt[3]===1)sh=3;
+  let cat; if(sh>=0)cat=flush?8:4; else if(n4)cat=7; else if(n3&&n2)cat=6; else if(n3)cat=3; else if(flush)cat=5; else if(n2===2)cat=2; else if(n2===1)cat=1; else cat=0;
+  let tb; if(sh>=0)tb=sh; else {tb=0;for(const c of [4,3,2,1])for(let r=12;r>=0;r--)if(cnt[r]===c)tb=(tb<<4)|r;}
+  return (cat<<20)|tb;
+}
+async function revealAndShowdown(){
+  if(!HOLE||BOARD.length<5){log('need hole + board first');return;}
+  const idx=bestFive();
+  await POST('reveal',{address:v('addr'),hole:HOLE,nonce:hex(NONCE),idx});
+  log('revealed (best 5 = indices '+idx.join(',')+'); the contract settles when both reveal'); await mine();
+}
+
+async function refresh(){
+  if(!INFO||!v('addr'))return;
+  try{
+    const d=await GET(api()+'/api/vm/contract/'+v('addr')); ST={}; (d.storage||[]).forEach(s=>ST[parseInt(s.key)]=parseInt(s.value));
+    const ph=ST[INFO.slots.phase]||0; const names=Object.fromEntries(Object.entries(INFO.phases).map(([k,v])=>[v,k]));
+    $('phase').textContent=names[ph]||ph; $('pot').textContent=(Number(d.balance)/1e8)+' BIS';
+    // seat detection by stored P0 address low word
+    const me=INFO.party_id;
+    if(SEAT<0){ const p0=ST[(INFO.tags.p0addr|6)>>>0]; if(p0===me)SEAT=0; }
+    $('seat').textContent=SEAT<0?'spectator':('P'+SEAT);
+    // board on-chain
+    const bd=[]; for(let i=0;i<5;i++){const k=(INFO.tags.board|i)>>>0; if(ST[k]!==undefined)bd.push(ST[k]);}
+    if(bd.length===5 && BOARD.filter(x=>x!==undefined).length<5)BOARD=bd;
+    $('board').innerHTML = BOARD.filter(x=>x!==undefined).length? BOARD.map(cardHtml).join(' ') : '— — — — —';
+    if(HOLE)$('hole').innerHTML=HOLE.map(cardHtml).join(' ');
+    updateButtons(ph);
+  }catch(e){}
+}
+function updateButtons(ph){
+  const both = ST[(INFO.tags.commit0|0)>>>0] && ST[(INFO.tags.commit1|0)>>>0];
+  $('b_deal').disabled   = !(ph===INFO.phases.COMMIT && !HOLE);
+  $('b_commit').disabled = !(ph===INFO.phases.COMMIT && HOLE);
+  $('b_play').disabled   = !((ph===INFO.phases.ACT_P0&&SEAT===0)||(ph===INFO.phases.ACT_P1&&SEAT===1));
+  $('b_fold').disabled   = $('b_play').disabled;
+  $('b_board').disabled  = !(ph===INFO.phases.BOARD);
+  $('b_reveal').disabled = !(ph===INFO.phases.SHOWDOWN && HOLE && BOARD.length>=5);
+}
+async function autoAddr(){
+  try{const d=await GET(api()+'/api/vm/contracts'); const cs=d.contracts||[];
+    if(cs.length){$('addr').value=cs[cs.length-1]; SEAT=0; log('table = '+cs[cs.length-1]);
+      await POST('stake0',{address:v('addr'),buyin:+v('buyin')}); log('staked as P0'); await mine();}
+  }catch(e){}
+}
+loadInfo();
+setInterval(refresh,3000);
+</script>
+</body>
+</html>

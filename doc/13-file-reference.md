@@ -71,8 +71,8 @@ imported library; *script* = run directly.
 | `vm_state.py` | module | contract state store + the ENFORCED state root committed into the coinbase (doc/19) |
 | `fee_dynamics.py` | module | dynamic/EIP-1559-style fee schedule (post-fork, gated) — see doc/18 |
 | `difficulty_lwma.py` | module | fork-gated LWMA retarget (also listed under Consensus/PoW) — pure + inert until a fork activates (doc/18) |
-| `contracts/` | dir | demo/reference VM contracts (`dex.py`, `amm.py`, `router.py`, `multisig.py`, `escrow.py`, `vesting.py`, `prediction_market.py`, `raffle.py`, `token_contract.py`) + `asmtools.py` assembler helpers (doc/19, doc/24); `asmtools.assemble()` relaxes out-of-range conditional branches (jal) for large contracts |
-| `web/amm/`, `web/dex/`, `web/router/` | dir | demo SPAs + localhost signing relays for the AMM, DEX, and multi-pool router — read pool/order state from the REST API, POST signed writes (doc/24) |
+| `contracts/` | dir | demo/reference VM contracts (`dex.py`, `amm.py`, `router.py`, `poker.py`, `multisig.py`, `escrow.py`, `vesting.py`, `prediction_market.py`, `raffle.py`, `token_contract.py`) + `asmtools.py` assembler helpers (doc/19, doc/24, doc/28); `asmtools.assemble()` relaxes out-of-range conditional branches (jal) for large contracts |
+| `web/amm/`, `web/dex/`, `web/router/`, `web/poker/` | dir | demo SPAs + localhost signing relays for the AMM, DEX, multi-pool router (doc/24) and heads-up poker (doc/28; the poker relay also bridges the off-chain mental-poker deal) |
 
 ## Shielded value (doc/22)
 

@@ -61,3 +61,4 @@ difficulty)** — treat those as authoritative for validation rules.
 | [25-security-audit.md](25-security-audit.md) | Adversarial security audit: findings, fixes, regression tests |
 | [26-storage-postfork.md](26-storage-postfork.md) | Post-fork storage rearchitecture: retiring SQLite for one LMDB store, staged migration |
 | [27-plugins.md](27-plugins.md) | Modern plugin framework; the `tokens_aliases` plugin (tokens/aliases out of core) |
+| [28-poker.md](28-poker.md) | On-chain heads-up Texas Hold'em: escrow + commit-reveal + on-chain hand evaluation, off-chain mental-poker deal |
