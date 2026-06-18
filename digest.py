@@ -788,17 +788,46 @@ def handle_processing_error(node, db_handler, sdef, peer_ip, error):
     node.logger.app_log.warning(
         f"Chain: digestion from {peer_ip} failed at {where} - {type(error).__name__}: {error}")
 
-    # Restore actual data from database (roll our view back to what is committed).
-    # NOTE: we deliberately do NOT trim the on-disk stores here. A ledger.db/hyper.db split (orphan rows
-    # above the committed tip) is now made HARMLESS by bounding the replay guard to the confirmed chain
-    # (check_duplicate_signatures), so it can no longer wedge sync, and the startup reconcile
-    # (chain_ops.reconcile_ledger_hyper) trims any leftover orphans on the next restart. An in-run trim here
-    # was tried and removed: in the normal multi-block batch the working store is legitimately AHEAD of
-    # ledger.db (db_to_drive only flushes at batch end), so trimming would discard just-validated blocks;
-    # and a bare rollback_under would leave the derived consensus stores (vm_state, shielded key-images,
-    # token/alias index, balance_index) above the trimmed tip — a post-fork inflation/wedge. Keep the
-    # fallback minimal and let the bounded guard + startup reconcile do the healing. (See doc/sync audit.)
-    node.last_block = db_handler.block_max_ram()['block_height']
+    # Restore actual data, and heal a GENUINE ledger.db-ahead-of-working split in-run. The node keeps two
+    # non-atomically-committed stores (ledger.db full + hyper.db rollup); a crash or a tip reorg can leave
+    # ledger.db with rows ABOVE the committed working tip. Those orphans then make an "already have this"
+    # check reject the peer's valid re-sync forever — via the block-hash check (block_already_exists) or the
+    # replay guard — wedging sync until a manual restart runs chain_ops.reconcile_ledger_hyper. Heal it
+    # here, but SAFELY (consensus-safety audit findings):
+    #   * act ONLY when ledger.db is AHEAD of the working store (ledger_tip > working_tip) — the real split
+    #     direction. In a NORMAL multi-block batch the working store is legitimately ahead (db_to_drive only
+    #     flushes at batch end), so trimming there would discard just-validated blocks.
+    #   * read FRESH tips (clear_caches) so the 1-second read cache can't trim canonical blocks.
+    #   * route through chain_ops.rollback, NOT bare rollback_under, so the DERIVED consensus stores
+    #     (vm_state + state root, shielded key-images, token/alias index, balance_index) roll back in
+    #     lockstep — a bare ledger delete would strand them above the tip (post-fork inflation / wedge).
+    # All best-effort: a failure here must never mask the original rejection; the startup reconcile is the
+    # backstop. The bounded replay guard (check_duplicate_signatures) is the complementary defense layer.
+    try:
+        db_handler.clear_caches()
+    except Exception:
+        pass
+    try:
+        working_tip = db_handler.block_max_ram()['block_height']
+    except Exception:
+        working_tip = node.last_block
+    try:
+        ledger_tip = db_handler.block_height_max()
+    except Exception:
+        ledger_tip = working_tip
+    if ledger_tip is None:
+        ledger_tip = working_tip
+    if ledger_tip > working_tip:
+        node.logger.app_log.warning(
+            f"Chain: ledger ahead of working store (ledger={ledger_tip} > working={working_tip}); "
+            f"rolling the orphaned excess above {working_tip} back so it can't wedge sync")
+        try:
+            import chain_ops
+            chain_ops.rollback(node, db_handler, working_tip + 1)   # full rollback incl. derived stores
+        except Exception as _heal_err:
+            node.logger.app_log.warning(
+                f"Chain: orphan-heal rollback failed ({_heal_err}); startup reconcile will heal on restart")
+    node.last_block = working_tip
     node.last_block_hash = db_handler.last_block_hash()
     node.logger.app_log.warning(
         f"Chain: fell back to block {node.last_block} after rejecting a block from {peer_ip}")
