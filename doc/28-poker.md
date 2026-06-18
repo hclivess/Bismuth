@@ -34,8 +34,9 @@ Heads-up, **all-in** Texas Hold'em (each player stakes a buy-in, then plays or f
 board runs out and the showdown is evaluated on-chain). The contract is the referee:
 - **Escrow** — both buy-ins live in the contract's VM custody (doc/19); the pot can only leave to a player.
 - **Commitments** — each player posts `SHA256(hole0 | hole1 | nonce)` *before* acting, so the hand is fixed.
-- **Betting** — a bounded state machine: `STAKE0 → JOIN → COMMIT×2 → P0 PLAY/FOLD → P1 CALL/FOLD → BOARD →
-  REVEAL×2 → settle`, with a `SYS_NUMBER` block-height **timeout** so a vanishing opponent forfeits.
+- **Betting** — a bounded state machine: `STAKE0 → JOIN → COMMIT×2 → P0 PLAY/FOLD → P1 CALL/FOLD → BOARD×2
+  (both agree) → REVEAL×2 → settle`, with a `SYS_NUMBER` block-height **timeout** on every escrowed phase so a
+  vanishing opponent forfeits and funds can never wedge.
 - **Showdown** — each player reveals `(hole0, hole1, nonce)` plus **5 indices** into their seven cards
   `[hole0, hole1, board0..4]`; the contract checks the reveal against the commitment, that the five indices
   are distinct and in range, then runs an **on-chain 5-card hand evaluator** and pays the better hand (split
@@ -59,11 +60,21 @@ FN_JOIN(1)    addr(28)            +value   P1 stakes the buy-in + records its pa
 FN_COMMIT(2)  commit(32)                   caller posts SHA256(hole0|hole1|nonce)
 FN_PLAY(3)                                 P0 stays (button) / P1 calls
 FN_FOLD(4)                                 actor folds -> opponent wins the pot
-FN_BOARD(5)   c0..c4 (5 bytes)             post the community board
+FN_BOARD(5)   c0..c4 (5 distinct bytes)    BOTH players post the SAME board; 2nd matching post -> showdown
 FN_REVEAL(6)  hole0(1) hole1(1) nonce(32) idx0..idx4(5)   verify commit + rank the chosen five
-FN_TIMEOUT(7)                              the overdue player's opponent claims the pot
+FN_TIMEOUT(7)                              after the phase deadline, anyone may settle the stalled phase
 ```
-Attach BIS only to `FN_STAKE0` / `FN_JOIN`. A revert commits nothing and transfers nothing.
+Attach BIS only to `FN_STAKE0` / `FN_JOIN` — every other selector reverts on attached value (so the engine
+refunds it; nothing is ever stranded in custody). A revert commits nothing and transfers nothing. **Player
+identity is the authenticated transaction sender captured at stake/join (a dedicated id slot), not the
+calldata payout address** — so no one can occupy both seats or drive the other player's turns; payouts still
+go to each player's recorded address.
+
+`FN_TIMEOUT` makes escrow un-wedgeable: once a phase's deadline (`SYS_NUMBER`) passes, **anyone** may call it
+and it settles deterministically — `WAIT_P1` refunds P0 (no opponent joined); `COMMIT` pays the lone committer
+or, if neither committed, refunds both; `ACT_P0/ACT_P1` forfeit the overdue actor to the opponent; `BOARD`
+voids + refunds both when the two never agree on the board; `SHOWDOWN` pays the sole revealer or, if neither
+reveals, refunds both. Every phase that escrows value has a deadline, so funds can never be permanently locked.
 
 ## 3. The off-chain deal + web UI (`web/poker/`)
 
@@ -78,16 +89,27 @@ The deal (positions `0,1` = P0 hole, `2,3` = P1 hole, `4..8` = board):
 2. P1 shuffles that and encrypts with `k1` → a doubly-encrypted, doubly-shuffled deck; sends it back.
 3. To deal P0's hole, P1 strips `k1` from positions `0,1` and sends the (still `k0`-encrypted) values to P0,
    who strips `k0` to read its cards — P1 learns nothing. Symmetrically for P1's hole. The board is revealed
-   when both strip their keys from positions `4..8`.
+   when both strip their keys from positions `4..8`; **both clients then post that identical board on-chain**
+   (`FN_BOARD`), and the contract advances to the showdown only once the two posts match.
 
 ## 4. Honest limits (demo-grade; mirror the other VM demos)
 
 - **Off-chain deal trust:** card secrecy and shuffle fairness rest on the clients' mental-poker protocol; the
-  chain verifies the hole-card commitments and that each player's five cards are distinct + in range, but it
-  does **not** itself prove the shuffle was fair or that the board is the "real" decryption. A wrong board
-  card is caught by the honest client (its own decryption differs) which then refuses to continue (the
-  dispute is "don't proceed", then `FN_TIMEOUT`). Global 9-card uniqueness across both hands + board rests on
-  the off-chain deal, not an on-chain check.
+  chain verifies the hole-card commitments and that each player's five resolved cards are distinct + in range,
+  but it does **not** itself prove the shuffle was fair. The board is **not** deal-committed; instead the chain
+  requires **both players to post the identical 5-card board** before the showdown, so a single party can
+  never choose a self-favoring board. The cost of agreement-without-commitment: if the two disagree (a cheater
+  posts a fake board, or a player simply refuses), the `BOARD` deadline **voids the hand and refunds both
+  stakes**. So a player who would lose can stall to dodge the loss for a refund — but can **never steal** the
+  pot or lock the opponent's stake. Global 9-card uniqueness across both hands + board still rests on the
+  off-chain deal, not an on-chain check.
+- **Security audit (2026-06):** an adversarial multi-lens audit (each finding reproduced by executing the
+  bytecode) confirmed and **fixed** a set of escrow bugs in this contract before release: a permanent fund
+  lock in `COMMIT`/`WAIT_P1`/`SHOWDOWN` (no timeout exit), a zero-leading-word commitment that wedged the
+  `COMMIT` phase (the presence sentinel was a hash word that can legitimately be 0 — now a dedicated committed
+  flag), unilateral/forged-board theft (now both-must-agree + caller-gated + duplicate-card-checked), player
+  identity bound to the calldata payout address instead of the sender (self-join / impersonation — now the
+  authenticated caller), and attached value stranded on non-stake selectors (now rejected + refunded).
 - **Demo crypto:** the SPA's SRA cipher uses a fixed prime and a plain card→value map; a production deal uses
   a large safe prime with quadratic-residue card encoding (to avoid Legendre-symbol leaks) and zero-knowledge
   shuffle proofs (or an on-chain verifiable shuffle / VRF).

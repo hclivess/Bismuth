@@ -61,7 +61,7 @@ fold); see doc/24 §4 for the honest limits.</p>
 <script>
 // ---------------- helpers ----------------
 const $=id=>document.getElementById(id), v=id=>$(id).value.trim();
-let INFO=null, ST={}, SEAT=-1, HOLE=null, BOARD=[], NONCE=null, BUS_AT=0;
+let INFO=null, ST={}, SEAT=-1, HOLE=null, BOARD=[], NONCE=null, BUS_AT=0, BOARD_POSTED=false;
 function log(m){const l=$('log');l.textContent+=m+"\n";l.scrollTop=l.scrollHeight;}
 function relay(){return v('relay').replace(/\/$/,'');}
 function api(){return v('api').replace(/\/$/,'');}
@@ -107,7 +107,7 @@ async function busPoll(){const j=await GET(relay()+'/relay/inbox?table='+encodeU
 // The deal: positions 0,1 = P0 hole ; 2,3 = P1 hole ; 4..8 = board.
 let DECK2=null;                      // doubly-encrypted deck (both seats hold the same array after step 2)
 async function startDeal(){
-  newKeys(); BUS_AT=0; HOLE=null; BOARD=[]; DECK2=null;
+  newKeys(); BUS_AT=0; HOLE=null; BOARD=[]; DECK2=null; BOARD_POSTED=false;
   if(SEAT===0){
     const deck=shuffle([...Array(52).keys()].map(cardVal)).map(enc);   // shuffle + encrypt with k0
     await busSend('deck1',deck.map(String));
@@ -162,7 +162,10 @@ function tryFinishBoard(){
   for(let i=4;i<9;i++){ if(pendBoard[i]!==undefined && BOARD[i-4]===undefined) BOARD[i-4]=valCard(dec(pendBoard[i])); }
   if(BOARD.filter(x=>x!==undefined).length===5){
     log('board: '+BOARD.map(cardStr).join(' '));
-    if(SEAT===0){ POST('board',{address:v('addr'),cards:BOARD}).then(()=>mine()); }  // P0 posts the board on-chain
+    // BOTH seats post the agreed board on-chain (the contract advances to showdown only when the two posts
+    // match, so no single player can choose a self-favoring board). The two players decrypted the identical
+    // board cooperatively, so both submit the same 5 cards; the second matching post advances the phase.
+    if(!BOARD_POSTED){ BOARD_POSTED=true; POST('board',{address:v('addr'),cards:BOARD}).then(()=>mine()); }
     refresh();
   }
 }

@@ -17,9 +17,9 @@ THE HARD PART (mental poker) lives OFF-CHAIN, by necessity
   the pot. (Global 9-card uniqueness across both hands + board rests on the off-chain deal — see LIMITS.)
 
 FORMAT (this demo): heads-up ALL-IN Hold'em. Each player stakes BUYIN; then P0 (button) PLAYs or FOLDs, P1
-  CALLs or FOLDs. If both are in, the 5-card board is posted and both reveal for a 2*BUYIN showdown (split on
-  tie). Chip-by-chip street betting (raises, side pots) is the documented extension; the trustless core —
-  escrow + commit-reveal + on-chain hand evaluation + settlement — is identical.
+  CALLs or FOLDs. If both are in, BOTH players post the agreed 5-card board and both reveal for a 2*BUYIN
+  showdown (split on tie). Chip-by-chip street betting (raises, side pots) is the documented extension; the
+  trustless core — escrow + commit-reveal + on-chain hand evaluation + settlement — is identical.
 
 CALL ABI  (operation = "vm:call", openfield = "<contract_addr>:<calldata_hex>"); first 4 bytes = selector:
   FN_STAKE0 (0)  — sel | addr(28); ATTACH BUYIN. P0 stakes + records its payout address (once, post-deploy).
@@ -27,16 +27,27 @@ CALL ABI  (operation = "vm:call", openfield = "<contract_addr>:<calldata_hex>");
   FN_COMMIT (2)  — sel | commit(32). Caller posts SHA256(hole0|hole1|nonce). Both -> P0 to act.
   FN_PLAY   (3)  — P0 stays in (button), or P1 calls. P0 PLAY -> P1 to act; P1 CALL -> board phase.
   FN_FOLD   (4)  — the actor folds; the opponent wins the whole pot immediately.
-  FN_BOARD  (5)  — sel | c0..c4 (5 bytes, each 0..51). Post the community board (either player). -> showdown.
+  FN_BOARD  (5)  — sel | c0..c4 (5 bytes, each 0..51, mutually distinct). BOTH players must post the SAME 5
+                   community cards (the board is not committed, so neither side can choose it alone). The
+                   second matching post -> showdown; a disagreement is resolved by FN_TIMEOUT (void + refund).
   FN_REVEAL (6)  — sel | hole0(1) hole1(1) nonce(32) | idx0..idx4(5 bytes, each 0..6 into [hole0,hole1,
-                   board0..4]). Verifies the commitment + 5 distinct in-range indices, ranks the chosen five
-                   cards; once both reveal, pays the better hand (split on tie).
-  FN_TIMEOUT(7)  — if the player to act / reveal is past the deadline (SYS_NUMBER), the opponent claims.
-  Attach BIS ONLY to FN_STAKE0 / FN_JOIN. A revert commits nothing and transfers nothing.
+                   board0..4]). Verifies the commitment + 5 distinct in-range indices whose resolved cards are
+                   pairwise distinct, ranks the chosen five; once both reveal, pays the better hand (split tie).
+  FN_TIMEOUT(7)  — permissionless once the phase deadline (SYS_NUMBER) has passed, so escrow can never wedge:
+                   WAIT_P1 -> refund P0 (nobody joined); COMMIT -> the lone committer wins, or split-refund if
+                   neither committed; ACT_P0/ACT_P1 -> the overdue actor forfeits; BOARD -> void + refund both
+                   (no board agreement); SHOWDOWN -> the sole revealer wins, or split-refund if neither reveals.
+  Identity is the AUTHENTICATED caller captured at stake/join (not the calldata payout address), so no one can
+  occupy both seats or drive another player's turns. Attach BIS ONLY to FN_STAKE0 / FN_JOIN — every other
+  selector reverts if value is attached (the engine then refunds it). A revert commits nothing, transfers
+  nothing.
 
 HONEST LIMITS (demo-grade; mirror the other VM demos): off-chain deal (secrecy/shuffle fairness rest on the
 clients' mental-poker protocol; the chain checks commitments + card-distinctness, not the shuffle); all-in
-only (no chip-by-chip betting); heads-up only; 32-bit unit amounts (2*BUYIN <= 2^32-1).
+only (no chip-by-chip betting); heads-up only; 32-bit unit amounts (2*BUYIN <= 2^32-1). Because the board is
+agreed (not deal-committed), a player who would lose can refuse to co-sign it / reveal and force a
+deadline VOID that refunds both stakes — i.e. a sore loser can dodge the loss for a refund, but can never
+STEAL the pot or lock the opponent's stake (every stalled phase has a deadline exit).
 """
 import hashlib
 
@@ -71,6 +82,9 @@ S_REVEAL1 = 4        # P1 revealed (0/1)
 S_RANK0 = 5
 S_RANK1 = 6
 S_DONEFLAG = 7
+S_COMMITTED0 = 8     # P0 has committed (0/1) — a DEDICATED flag, never the commit word0 (which can be 0)
+S_COMMITTED1 = 9     # P1 has committed (0/1)
+S_BOARDER = 10       # who proposed the board: 0 none, 1 P0, 2 P1 (both must post matching cards to advance)
 
 # domains (| word/index)
 TAG_P0ADDR = 0x10000000   # w in 0..6 : P0 payout address word
@@ -80,6 +94,8 @@ TAG_COMMIT1 = 0x13000000
 TAG_BOARD = 0x14000000    # i in 0..4 : board card (0..51)
 TAG_HOLE0 = 0x15000000    # j in 0,1  : P0 revealed hole card
 TAG_HOLE1 = 0x16000000
+TAG_P0ID = 0x17000000     # P0 identity = low-32 of the staking CALLER (authenticated, not the payout addr)
+TAG_P1ID = 0x18000000     # P1 identity = low-32 of the joining CALLER
 
 TIMEOUT_BLOCKS = 60
 
@@ -92,6 +108,7 @@ SC_SHA = SCRATCH + 128     # 32-byte SHA256 output
 SC_CARDS = SCRATCH + 192   # 5 chosen card bytes
 SC_RANKS = SCRATCH + 200   # 5 chosen-index bytes (for the distinctness scan in _gather5)
 SC_CNT = SCRATCH + 216     # 13-byte rank-count array used by the hand evaluator
+SC_PROP = SCRATCH + 232    # 5 proposed board-card bytes (FN_BOARD agreement check)
 
 
 def party_id_of(address):
@@ -125,11 +142,20 @@ def _set_deadline(a):
     _sstore_imm(a, S_DEADLINE, A4)
 
 
+def _require_no_value(a):
+    """Revert if BIS is attached to a selector that must not consume callvalue; vm_engine then refunds the
+    sender on the revert, so attached value can never be silently stranded in the contract's custody. Uses A2.
+    (Mirrors amm.py's _require_no_value. SYS_CALLVALUE clobbers only a0, never the live T1/S0.)"""
+    a.callvalue(A2); a.bne(A2, ZERO, "revert")
+
+
 def _which_player(a, dst):
-    """dst = 0 if caller(T1)==P0, 1 if ==P1, else revert. Uses A3,A4 and unique local labels."""
+    """dst = 0 if caller(T1)==P0 identity, 1 if ==P1 identity, else revert. Identity is the AUTHENTICATED
+    caller captured at stake/join (TAG_P0ID/TAG_P1ID), NOT the calldata-supplied payout address. Uses A3,A4
+    and unique local labels."""
     p1 = a._uniq("wp_p1"); done = a._uniq("wp_done")
-    a.li(A3, TAG_P0ADDR | 6); a.sload_to(A4, A3); a.li(dst, 0); a.beq(A4, T1, done)
-    a.li(A3, TAG_P1ADDR | 6); a.sload_to(A4, A3); a.li(dst, 1); a.beq(A4, T1, done)
+    a.li(A3, TAG_P0ID); a.sload_to(A4, A3); a.li(dst, 0); a.beq(A4, T1, done)
+    a.li(A3, TAG_P1ID); a.sload_to(A4, A3); a.li(dst, 1); a.beq(A4, T1, done)
     a.j("revert")
     a.label(done)
 
@@ -202,39 +228,49 @@ def build(p0_id, buyin):
     a.callvalue(A4); a.li(A2, int(buyin)); a.bne(A4, A2, "revert")
     for w in range(7):
         _load_be32(a, T3, S0, 4 + w * 4); a.li(A3, TAG_P0ADDR | w); a.sstore(A3, T3)
-    a.li(A4, PH_WAIT_P1); _sstore_imm(a, S_PHASE, A4)
+    a.li(A3, TAG_P0ID); a.sstore(A3, T1)                   # bind P0 identity to the authenticated caller
+    a.li(A4, PH_WAIT_P1); _sstore_imm(a, S_PHASE, A4); _set_deadline(a)   # arm WAIT_P1 timeout/refund
     a.halt()
 
     # ---- FN_JOIN(addr): P1 stakes BUYIN (WAIT_P1 -> COMMIT) -----------------------------------------
     a.label("join")
     _sload(a, A4, S_PHASE); a.li(A2, PH_WAIT_P1); a.bne(A4, A2, "revert")
-    a.li(A3, TAG_P0ADDR | 6); a.sload_to(A4, A3); a.beq(A4, T1, "revert")   # caller must not be P0
+    a.li(A2, int(p0_id)); a.beq(T1, A2, "revert")          # joiner (caller) must not be P0 (no self-join)
     a.callvalue(A4); a.li(A2, int(buyin)); a.bne(A4, A2, "revert")
     for w in range(7):
         _load_be32(a, T3, S0, 4 + w * 4); a.li(A3, TAG_P1ADDR | w); a.sstore(A3, T3)
-    a.li(A4, PH_COMMIT); _sstore_imm(a, S_PHASE, A4)
+    a.li(A3, TAG_P1ID); a.sstore(A3, T1)                   # bind P1 identity to the authenticated caller
+    a.li(A4, PH_COMMIT); _sstore_imm(a, S_PHASE, A4); _set_deadline(a)    # arm PH_COMMIT timeout
     a.halt()
 
     # ---- FN_COMMIT(commit32): store caller's commit; both committed -> P0 to act --------------------
     a.label("commit")
+    _require_no_value(a)
     _sload(a, A4, S_PHASE); a.li(A2, PH_COMMIT); a.bne(A4, A2, "revert")
     _which_player(a, S1)
-    # commit tag base -> S2
+    # commit tag base -> S2 ; my dedicated committed-flag slot -> S3 (a hash word can legitimately be 0, so
+    # the flag — never a commit word — is the sole presence sentinel for freshness AND the advance gate)
     cm1 = a._uniq("cm_p1")
-    a.li(S2, TAG_COMMIT0); a.beq(S1, ZERO, cm1); a.li(S2, TAG_COMMIT1); a.label(cm1)
-    a.mv(A3, S2); a.sload_to(A4, A3); a.bne(A4, ZERO, "revert")   # fresh commit only (word0 == 0)
+    a.li(S2, TAG_COMMIT0); a.li(S3, S_COMMITTED0); a.beq(S1, ZERO, cm1)
+    a.li(S2, TAG_COMMIT1); a.li(S3, S_COMMITTED1)
+    a.label(cm1)
+    a.mv(A3, S3); a.sload_to(A4, A3); a.bne(A4, ZERO, "revert")   # fresh commit only (flag == 0)
     for w in range(8):
         _load_be32(a, T3, S0, 4 + w * 4)
         a.mv(A3, S2); a.li(A2, w); a.or_(A3, A3, A2); a.sstore(A3, T3)
+    a.li(A4, 1); a.mv(A3, S3); a.sstore(A3, A4)              # set my committed flag
     cmhalt = a._uniq("cm_halt")
-    a.li(A3, TAG_COMMIT0); a.sload_to(A4, A3); a.beq(A4, ZERO, cmhalt)
-    a.li(A3, TAG_COMMIT1); a.sload_to(A4, A3); a.beq(A4, ZERO, cmhalt)
+    a.li(A3, S_COMMITTED0); a.sload_to(A4, A3); a.beq(A4, ZERO, cmhalt)
+    a.li(A3, S_COMMITTED1); a.sload_to(A4, A3); a.beq(A4, ZERO, cmhalt)
     a.li(A4, PH_ACT_P0); _sstore_imm(a, S_PHASE, A4); _set_deadline(a)
+    a.halt()
     a.label(cmhalt)
+    _set_deadline(a)                                        # restart the clock on each single fresh commit
     a.halt()
 
     # ---- FN_PLAY: P0 stays (ACT_P0 -> ACT_P1) ; P1 calls (ACT_P1 -> BOARD) ---------------------------
     a.label("play")
+    _require_no_value(a)
     _sload(a, T2, S_PHASE)
     _which_player(a, S1)
     a.li(A2, PH_ACT_P0); a.bne(T2, A2, "play_try_p1$")     # P0's turn?
@@ -249,6 +285,7 @@ def build(p0_id, buyin):
 
     # ---- FN_FOLD: actor folds -> opponent wins the pot ----------------------------------------------
     a.label("fold")
+    _require_no_value(a)
     _sload(a, T2, S_PHASE)
     a.li(A2, PH_ACT_P0); a.beq(T2, A2, "fold_ok$")
     a.li(A2, PH_ACT_P1); a.beq(T2, A2, "fold_ok$")
@@ -265,22 +302,68 @@ def build(p0_id, buyin):
     _other(a, S2, S1)                                      # winner = opponent
     a.j("settle_one$")
 
-    # ---- FN_BOARD(c0..c4): post the 5 community cards (BOARD -> SHOWDOWN) ----------------------------
+    # ---- FN_BOARD(c0..c4): BOTH players must post the SAME 5 community cards (BOARD -> SHOWDOWN) -------
+    # The board is NOT committed on-chain, so a single party must not be able to choose it: only a player may
+    # post (caller gate), the 5 cards must be in range and mutually distinct, and the phase advances ONLY when
+    # the two players independently post the identical board. A disagreement / stall is resolved by the
+    # PH_BOARD timeout, which voids the hand and refunds both stakes (no one can steal with a forged board).
     a.label("board")
+    _require_no_value(a)
     _sload(a, A4, S_PHASE); a.li(A2, PH_BOARD); a.bne(A4, A2, "revert")
+    _which_player(a, S1)                                   # caller must be a player; S1 = 0 (P0) / 1 (P1)
+    # read + range-check the 5 proposed cards into SC_PROP
     a.li(T2, 0)
-    a.label("bd_loop$")
-    a.li(A2, 5); a.bgeu(T2, A2, "bd_done$")
+    a.label("bd_read$")
+    a.li(A2, 5); a.bgeu(T2, A2, "bd_dist$")
     a.add(A2, S0, T2); a.lbu(T3, A2, 4)                    # card byte at calldata 4+i
-    a.li(A2, 51); a.bltu(A2, T3, "revert")
-    a.li(A3, TAG_BOARD); a.add(A3, A3, T2); a.sstore(A3, T3)
-    a.addi(T2, T2, 1); a.j("bd_loop$")
-    a.label("bd_done$")
+    a.li(A2, 51); a.bltu(A2, T3, "revert")                 # 0..51
+    a.li(A2, SC_PROP); a.add(A2, A2, T2); a.sb(T3, A2, 0)
+    a.addi(T2, T2, 1); a.j("bd_read$")
+    # the 5 proposed cards must be mutually distinct (rejects e.g. five identical cards)
+    a.label("bd_dist$")
+    a.li(T2, 0)
+    a.label("bd_di$")
+    a.li(A2, 5); a.bgeu(T2, A2, "bd_branch$")
+    a.addi(T3, T2, 1)
+    a.label("bd_dj$")
+    a.li(A2, 5); a.bgeu(T3, A2, "bd_dinext$")
+    a.li(A2, SC_PROP); a.add(A2, A2, T2); a.lbu(T4, A2, 0)
+    a.li(A2, SC_PROP); a.add(A2, A2, T3); a.lbu(T5, A2, 0)
+    a.beq(T4, T5, "revert")
+    a.addi(T3, T3, 1); a.j("bd_dj$")
+    a.label("bd_dinext$")
+    a.addi(T2, T2, 1); a.j("bd_di$")
+    a.label("bd_branch$")
+    a.li(A2, 1); a.add(S2, S1, A2)                         # S2 = my proposer code (1=P0, 2=P1)
+    _sload(a, T6, S_BOARDER)                               # current boarder code (0 = none yet)
+    a.beq(T6, ZERO, "bd_first$")                           # first to post -> record the proposal
+    a.beq(T6, S2, "revert")                                # same player re-posting -> reject
+    # second poster: the proposal must match the stored board EXACTLY, else reject (resolve via timeout void)
+    a.li(T2, 0)
+    a.label("bd_cmp$")
+    a.li(A2, 5); a.bgeu(T2, A2, "bd_agree$")
+    a.li(A2, SC_PROP); a.add(A2, A2, T2); a.lbu(T4, A2, 0)
+    a.li(A3, TAG_BOARD); a.add(A3, A3, T2); a.sload_to(T5, A3)
+    a.bne(T4, T5, "revert")
+    a.addi(T2, T2, 1); a.j("bd_cmp$")
+    a.label("bd_agree$")
     a.li(A4, PH_SHOWDOWN); _sstore_imm(a, S_PHASE, A4); _set_deadline(a)
+    a.halt()
+    a.label("bd_first$")
+    a.li(T2, 0)
+    a.label("bd_store$")
+    a.li(A2, 5); a.bgeu(T2, A2, "bd_stored$")
+    a.li(A2, SC_PROP); a.add(A2, A2, T2); a.lbu(T3, A2, 0)
+    a.li(A3, TAG_BOARD); a.add(A3, A3, T2); a.sstore(A3, T3)
+    a.addi(T2, T2, 1); a.j("bd_store$")
+    a.label("bd_stored$")
+    a.mv(A4, S2); _sstore_imm(a, S_BOARDER, A4)            # record who proposed
+    _set_deadline(a)                                       # give the other player a fresh window to match
     a.halt()
 
     # ---- FN_REVEAL(...) : verify commit, gather best-5, rank; both revealed -> settle ----------------
     a.label("reveal")
+    _require_no_value(a)
     _sload(a, A4, S_PHASE); a.li(A2, PH_SHOWDOWN); a.bne(A4, A2, "revert")
     _which_player(a, S1)
     # my reveal flag slot -> S3 ; require not already revealed
@@ -333,25 +416,50 @@ def build(p0_id, buyin):
     _set_deadline(a)
     a.halt()
 
-    # ---- FN_TIMEOUT --------------------------------------------------------------------------------
+    # ---- FN_TIMEOUT: after the deadline, anyone may settle the stalled phase so escrow can never wedge ----
     a.label("timeout")
+    _require_no_value(a)
     _sload(a, T2, S_PHASE)
-    a.li(A2, PH_ACT_P0); a.bltu(T2, A2, "revert")          # nothing to time out before play
+    a.li(A2, PH_WAIT_P1); a.beq(T2, A2, "to_wait$")        # WAIT_P1: refund P0 if no opponent ever joined
+    a.li(A2, PH_COMMIT); a.bltu(T2, A2, "revert")          # nothing to time out before a stake is matched
     a.li(A2, PH_DONE); a.bgeu(T2, A2, "revert")
     a.number(A4); a.li(A3, S_DEADLINE); a.sload_to(A2, A3); a.bgeu(A2, A4, "revert")   # deadline passed?
+    a.li(A2, PH_COMMIT); a.beq(T2, A2, "to_commit$")       # commit overdue -> committer wins / split refund
     a.li(A2, PH_ACT_P0); a.beq(T2, A2, "to_p0turn$")       # P0 overdue -> P1 wins
     a.li(A2, PH_ACT_P1); a.beq(T2, A2, "to_p1turn$")       # P1 overdue -> P0 wins
-    a.li(A2, PH_BOARD); a.beq(T2, A2, "to_board$")         # board overdue -> either may post; nobody forfeits
-    # PH_SHOWDOWN: whoever revealed wins; if neither, revert
+    a.li(A2, PH_BOARD); a.beq(T2, A2, "to_board$")         # board not agreed in time -> void + refund both
+    # PH_SHOWDOWN: whoever revealed wins; if neither revealed, refund both (split)
     a.li(A3, S_REVEAL0); a.sload_to(A4, A3); a.bne(A4, ZERO, "to_p0rev$")
-    a.li(A3, S_REVEAL1); a.sload_to(A4, A3); a.beq(A4, ZERO, "revert")
+    a.li(A3, S_REVEAL1); a.sload_to(A4, A3); a.beq(A4, ZERO, "to_split$")
     a.li(S2, 1); a.j("settle_one$")
     a.label("to_p0rev$")
     a.li(A3, S_REVEAL1); a.sload_to(A4, A3); a.bne(A4, ZERO, "revert")   # both revealed -> use showdown
     a.li(S2, 0); a.j("settle_one$")
     a.label("to_p0turn$"); a.li(S2, 1); a.j("settle_one$")
     a.label("to_p1turn$"); a.li(S2, 0); a.j("settle_one$")
-    a.label("to_board$"); a.j("revert")                    # board phase has no forfeit; post the board instead
+    # board / showdown-both-abandoned / commit-neither: void the hand and refund each player their buyin
+    a.label("to_board$")
+    a.label("to_split$")
+    a.li(A4, PH_DONE); _sstore_imm(a, S_PHASE, A4); a.li(A4, 1); _sstore_imm(a, S_DONEFLAG, A4)
+    a.li(S2, 0); _pay_pot(a, S2, int(buyin))
+    a.li(S2, 1); _pay_pot(a, S2, int(buyin))
+    a.halt()
+    # commit overdue: the lone committer forfeits nothing and takes the pot; neither committed -> split refund
+    a.label("to_commit$")
+    a.li(A3, S_COMMITTED0); a.sload_to(T3, A3)             # T3 != 0 iff P0 committed
+    a.li(A3, S_COMMITTED1); a.sload_to(T4, A3)             # T4 != 0 iff P1 committed
+    a.bne(T3, ZERO, "to_cm_p0in$")
+    a.beq(T4, ZERO, "to_split$")                           # neither committed -> refund both
+    a.li(S2, 1); a.j("settle_one$")                        # only P1 committed -> P1 wins POT
+    a.label("to_cm_p0in$")
+    a.bne(T4, ZERO, "revert")                              # both committed is impossible here (would advance)
+    a.li(S2, 0); a.j("settle_one$")                        # only P0 committed -> P0 wins POT
+    # WAIT_P1 overdue: refund P0's single staked buyin and close the table (permissionless after deadline)
+    a.label("to_wait$")
+    a.number(A4); a.li(A3, S_DEADLINE); a.sload_to(A2, A3); a.bgeu(A2, A4, "revert")   # deadline passed?
+    a.li(A4, PH_DONE); _sstore_imm(a, S_PHASE, A4); a.li(A4, 1); _sstore_imm(a, S_DONEFLAG, A4)
+    a.li(S2, 0); _pay_pot(a, S2, int(buyin))               # custody == one buyin in WAIT_P1
+    a.halt()
 
     # ---- settlement --------------------------------------------------------------------------------
     a.label("settle_one$")                                 # pay whole POT to player S2
@@ -379,15 +487,16 @@ def build(p0_id, buyin):
 
 
 def _gather5(a, hole_tag_reg):
-    """Read 5 indices (calldata 38..42, each 0..6), map to cards from [hole0,hole1,board0..4], require the
-    indices distinct, write the 5 card bytes to SC_CARDS[0..4] (and the indices to SC_RANKS[0..4] for the
-    distinctness scan). Reverts on a bad/duplicate index. Uses T2..T6, A2..A4."""
+    """Read 5 indices (calldata 38..42, each 0..6), map to cards from [hole0,hole1,board0..4], write the 5
+    card bytes to SC_CARDS[0..4], then require those 5 CARD VALUES to be pairwise distinct. Comparing the
+    resolved cards (not just the indices) rejects any physical card reused within the ranked hand — e.g. a
+    revealed hole card that duplicates a board card — since each byte 0..51 is one unique card. Reverts on a
+    bad index or a duplicate card. Uses T2..T6, A2..A4."""
     a.li(T2, 0)
     a.label("g5_loop$")
     a.li(A2, 5); a.bgeu(T2, A2, "g5_dist$")
     a.add(A2, S0, T2); a.lbu(T3, A2, 38)                  # idx_i
     a.li(A2, 6); a.bltu(A2, T3, "revert")                 # 0..6
-    a.li(A2, SC_RANKS); a.add(A2, A2, T2); a.sb(T3, A2, 0)
     a.li(A2, 2); a.bltu(T3, A2, "g5_hole$")
     a.addi(A4, T3, -2); a.li(A3, TAG_BOARD); a.add(A3, A3, A4); a.sload_to(T4, A3)   # board[idx-2]
     a.j("g5_put$")
@@ -403,9 +512,9 @@ def _gather5(a, hole_tag_reg):
     a.addi(T3, T2, 1)
     a.label("g5_dj$")
     a.li(A2, 5); a.bgeu(T3, A2, "g5_dinext$")
-    a.li(A2, SC_RANKS); a.add(A2, A2, T2); a.lbu(T4, A2, 0)
-    a.li(A2, SC_RANKS); a.add(A2, A2, T3); a.lbu(T5, A2, 0)
-    a.beq(T4, T5, "revert")
+    a.li(A2, SC_CARDS); a.add(A2, A2, T2); a.lbu(T4, A2, 0)
+    a.li(A2, SC_CARDS); a.add(A2, A2, T3); a.lbu(T5, A2, 0)
+    a.beq(T4, T5, "revert")                               # duplicate physical card -> illegal hand
     a.addi(T3, T3, 1); a.j("g5_dj$")
     a.label("g5_dinext$")
     a.addi(T2, T2, 1); a.j("g5_di$")

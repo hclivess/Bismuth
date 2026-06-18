@@ -121,19 +121,34 @@ def _commit(d, player, h0, h1, nonce):
     d.ok(poker.FN_COMMIT, caller, commit_of(h0, h1, nonce))
 
 
+def _board(d, board):
+    """Post the agreed 5-card board. BOTH players must independently post the identical cards before the
+    table advances to SHOWDOWN (no single party can choose a self-favoring board)."""
+    bb = bytes(board)
+    r = d.ok(poker.FN_BOARD, P0, bb)
+    assert d.slot(poker.S_PHASE) == poker.PH_BOARD, "one post must not yet advance to SHOWDOWN"
+    d.ok(poker.FN_BOARD, P1, bb)
+    assert d.slot(poker.S_PHASE) == poker.PH_SHOWDOWN, "matching second post advances to SHOWDOWN"
+    return r
+
+
 # ------------------------------------------------------- evaluator (the critical correctness piece)
-def _eval_via_contract(target5, board_fill=(card(7, 0), card(9, 1))):
+def _eval_via_contract(target5, board_fill=None):
     """Drive a fresh game so P0's chosen five cards == target5, then return the contract's stored S_RANK0.
-    P0 hole = target5[0:2]; board = target5[2:5] + 2 fillers; P0 reveals indices [0,1,2,3,4]."""
+    P0 hole = target5[0:2]; board = target5[2:5] + 2 fillers; P0 reveals indices [0,1,2,3,4]. The two board
+    fillers (never chosen by P0) are picked distinct from every card in the hand so the 5-card board is a
+    legal, duplicate-free board (FN_BOARD now enforces board-internal distinctness)."""
     d = Poker()
     _start(d)
+    used = set(target5)
+    fillers = [c for c in range(52) if c not in used][:2]
     nonce0 = bytes(range(32))
     _commit(d, 0, target5[0], target5[1], nonce0)
     _commit(d, 1, card(0, 0), card(1, 0), bytes([7]) * 32)     # P1 arbitrary commit
     d.ok(poker.FN_PLAY, P0)                                     # P0 plays
     d.ok(poker.FN_PLAY, P1)                                     # P1 calls -> board phase
-    board = [target5[2], target5[3], target5[4], board_fill[0], board_fill[1]]
-    d.ok(poker.FN_BOARD, P0, bytes(board))
+    board = [target5[2], target5[3], target5[4], fillers[0], fillers[1]]
+    _board(d, board)
     tail = bytes([target5[0], target5[1]]) + nonce0 + bytes([0, 1, 2, 3, 4])
     d.ok(poker.FN_REVEAL, P0, tail)
     return d.slot(poker.S_RANK0)
@@ -203,7 +218,7 @@ def test_full_hand_pays_better_hand():
     d.ok(poker.FN_PLAY, P0)
     d.ok(poker.FN_PLAY, P1)
     board = [card(2, 2), card(5, 3), card(7, 0), card(0, 1), card(3, 2)]   # nothing that pairs either
-    d.ok(poker.FN_BOARD, P0, bytes(board))
+    _board(d, board)
     # P0 plays AA + 3 board kickers (indices 0,1,2,3,4); P1 plays K + board
     d.ok(poker.FN_REVEAL, P0, bytes([p0_hole[0], p0_hole[1]]) + n0 + bytes([0, 1, 2, 3, 4]))
     r = d.ok(poker.FN_REVEAL, P1, bytes([p1_hole[0], p1_hole[1]]) + n1 + bytes([0, 1, 2, 3, 4]))
@@ -220,7 +235,7 @@ def test_tie_splits_the_pot():
     _commit(d, 1, card(0, 1), card(1, 1), n1)
     d.ok(poker.FN_PLAY, P0); d.ok(poker.FN_PLAY, P1)
     board = [card(8, 0), card(9, 1), card(10, 2), card(11, 3), card(12, 0)]   # 10-J-Q-K-A straight
-    d.ok(poker.FN_BOARD, P0, bytes(board))
+    _board(d, board)
     # both choose the 5 board cards (indices 2,3,4,5,6)
     d.ok(poker.FN_REVEAL, P0, bytes([card(0, 0), card(1, 0)]) + n0 + bytes([2, 3, 4, 5, 6]))
     r = d.ok(poker.FN_REVEAL, P1, bytes([card(0, 1), card(1, 1)]) + n1 + bytes([2, 3, 4, 5, 6]))
@@ -243,7 +258,7 @@ def test_commit_mismatch_reverts():
     _commit(d, 0, card(12, 0), card(12, 1), n0)
     _commit(d, 1, card(0, 0), card(1, 0), bytes(32))
     d.ok(poker.FN_PLAY, P0); d.ok(poker.FN_PLAY, P1)
-    d.ok(poker.FN_BOARD, P0, bytes([card(2, 2), card(5, 3), card(7, 0), card(0, 1), card(3, 2)]))
+    _board(d, [card(2, 2), card(5, 3), card(7, 0), card(0, 1), card(3, 2)])
     # reveal with the WRONG hole cards (not matching the commitment) must revert
     d.reverts(poker.FN_REVEAL, P0, bytes([card(11, 0), card(11, 1)]) + n0 + bytes([0, 1, 2, 3, 4]))
     # reveal with a duplicate index (card used twice) must revert
@@ -268,6 +283,144 @@ def test_build_validates():
         poker.build(P0, 0)
     with pytest.raises(ValueError):
         poker.build(P0, 2 ** 32)
+
+
+def _to0(addr):
+    return int.from_bytes(addr28(addr), "big")
+
+
+# ------------------------------------------------------- audit regressions (escrow can never wedge / be stolen)
+def test_wait_p1_timeout_refunds_p0():
+    # (audit) P0 stakes and nobody ever joins: after the deadline P0's lone buyin is refundable, not locked.
+    d = Poker()
+    d.ok(poker.FN_STAKE0, P0, addr28(P0), value=BUYIN)
+    assert d.custody == BUYIN and d.slot(poker.S_PHASE) == poker.PH_WAIT_P1
+    d.reverts(poker.FN_TIMEOUT, P0)                       # before the deadline: nothing to time out
+    d.height = 1_000
+    r = d.ok(poker.FN_TIMEOUT, 0xCAFE)                    # permissionless after the deadline; refund goes to P0
+    assert (_to0(P0), BUYIN) in r.transfers
+    assert d.custody == 0 and d.slot(poker.S_PHASE) == poker.PH_DONE
+
+
+def test_commit_timeout_committer_takes_pot():
+    # (audit) both staked, only ONE commits, the other stalls: the committer claims the pot after the deadline.
+    for committer in (0, 1):
+        d = Poker(); _start(d)
+        _commit(d, committer, card(12, 0), card(12, 1), bytes(range(32)))
+        assert d.slot(poker.S_PHASE) == poker.PH_COMMIT
+        d.reverts(poker.FN_TIMEOUT, P0)                  # before the deadline
+        d.height = 1_000
+        r = d.ok(poker.FN_TIMEOUT, P1)
+        winner = P0 if committer == 0 else P1
+        assert (_to0(winner), 2 * BUYIN) in r.transfers
+        assert d.custody == 0 and d.slot(poker.S_PHASE) == poker.PH_DONE
+
+
+def test_commit_timeout_neither_splits():
+    # (audit) both staked, NEITHER commits: after the deadline each stake is refunded (no permanent lock).
+    d = Poker(); _start(d)
+    d.height = 1_000
+    r = d.ok(poker.FN_TIMEOUT, P0)
+    assert (_to0(P0), BUYIN) in r.transfers and (_to0(P1), BUYIN) in r.transfers
+    assert d.custody == 0 and d.slot(poker.S_PHASE) == poker.PH_DONE
+
+
+def test_zero_leading_word_commit_advances_and_is_fresh_once():
+    # (audit) a commitment whose first 4 bytes are zero used to wedge the COMMIT phase forever (word0 sentinel).
+    # A dedicated committed-flag now drives both freshness and the advance gate, regardless of the hash bytes.
+    d = Poker(); _start(d)
+    d.ok(poker.FN_COMMIT, P0, bytes(4) + bytes([0xAB]) * 28)      # P0 commit, leading word == 0
+    assert d.slot(poker.S_PHASE) == poker.PH_COMMIT
+    assert d.slot(poker.S_COMMITTED0) == 1
+    d.reverts(poker.FN_COMMIT, P0, bytes(4) + bytes([0xCD]) * 28)  # re-commit rejected (flag, not word0)
+    d.ok(poker.FN_COMMIT, P1, bytes(4) + bytes([0x07]) * 28)      # P1 commit, also leading word == 0
+    assert d.slot(poker.S_PHASE) == poker.PH_ACT_P0              # advanced despite both word0 == 0
+
+
+def test_showdown_no_reveal_splits():
+    # (audit) board posted, NEITHER player reveals: after the deadline both stakes are refunded.
+    d = Poker(); _start(d)
+    _commit(d, 0, card(12, 0), card(12, 1), bytes(range(32)))
+    _commit(d, 1, card(0, 0), card(1, 0), bytes(32))
+    d.ok(poker.FN_PLAY, P0); d.ok(poker.FN_PLAY, P1)
+    _board(d, [card(2, 2), card(5, 3), card(7, 0), card(0, 1), card(3, 2)])
+    assert d.slot(poker.S_PHASE) == poker.PH_SHOWDOWN
+    d.reverts(poker.FN_TIMEOUT, P0)                       # before the deadline
+    d.height = 1_000
+    r = d.ok(poker.FN_TIMEOUT, P1)
+    assert (_to0(P0), BUYIN) in r.transfers and (_to0(P1), BUYIN) in r.transfers
+    assert d.custody == 0 and d.slot(poker.S_PHASE) == poker.PH_DONE
+
+
+def test_showdown_one_reveal_then_timeout_takes_pot():
+    # a single revealer can still unilaterally claim the whole pot if the opponent never reveals.
+    d = Poker(); _start(d)
+    n0 = bytes(range(32))
+    _commit(d, 0, card(12, 0), card(12, 1), n0)
+    _commit(d, 1, card(0, 0), card(1, 0), bytes(32))
+    d.ok(poker.FN_PLAY, P0); d.ok(poker.FN_PLAY, P1)
+    _board(d, [card(2, 2), card(5, 3), card(7, 0), card(0, 1), card(3, 2)])
+    d.ok(poker.FN_REVEAL, P0, bytes([card(12, 0), card(12, 1)]) + n0 + bytes([0, 1, 2, 3, 4]))
+    d.height = 1_000
+    r = d.ok(poker.FN_TIMEOUT, P0)
+    assert (_to0(P0), 2 * BUYIN) in r.transfers and d.custody == 0
+
+
+def test_board_requires_both_to_agree_and_a_player_caller():
+    # (audit) the board is uncommitted, so a single party must NOT be able to choose it: caller-gated, and the
+    # phase advances only when both players independently post the identical, duplicate-free board.
+    d = Poker(); _start(d)
+    _commit(d, 0, card(12, 0), card(12, 1), bytes(range(32)))
+    _commit(d, 1, card(0, 0), card(1, 0), bytes(32))
+    d.ok(poker.FN_PLAY, P0); d.ok(poker.FN_PLAY, P1)
+    good = [card(2, 2), card(5, 3), card(7, 0), card(0, 1), card(3, 2)]
+    d.reverts(poker.FN_BOARD, 0xCCCC0003, bytes(good))               # a stranger cannot post the board
+    d.reverts(poker.FN_BOARD, P0, bytes([card(2, 2)] * 5))           # duplicate cards rejected
+    d.ok(poker.FN_BOARD, P0, bytes(good))
+    assert d.slot(poker.S_PHASE) == poker.PH_BOARD                   # one post does not advance
+    d.reverts(poker.FN_BOARD, P0, bytes(good))                       # same proposer cannot post twice
+    other = [card(12, 2), card(11, 3), card(10, 0), card(9, 1), card(8, 2)]
+    d.reverts(poker.FN_BOARD, P1, bytes(other))                      # a DIFFERENT board is rejected
+    assert d.slot(poker.S_PHASE) == poker.PH_BOARD
+    d.ok(poker.FN_BOARD, P1, bytes(good))                            # matching second post advances
+    assert d.slot(poker.S_PHASE) == poker.PH_SHOWDOWN
+
+
+def test_board_disagreement_voids_and_refunds():
+    # (audit) if the two players never agree on the board, the deadline voids the hand and refunds both —
+    # so a forged self-favoring board can never reach showdown and steal the pot.
+    d = Poker(); _start(d)
+    _commit(d, 0, card(12, 0), card(12, 1), bytes(range(32)))
+    _commit(d, 1, card(0, 0), card(1, 0), bytes(32))
+    d.ok(poker.FN_PLAY, P0); d.ok(poker.FN_PLAY, P1)
+    d.ok(poker.FN_BOARD, P0, bytes([card(2, 2), card(5, 3), card(7, 0), card(0, 1), card(3, 2)]))
+    d.reverts(poker.FN_TIMEOUT, P0)                       # before the deadline
+    d.height = 1_000
+    r = d.ok(poker.FN_TIMEOUT, P1)
+    assert (_to0(P0), BUYIN) in r.transfers and (_to0(P1), BUYIN) in r.transfers
+    assert d.custody == 0 and d.slot(poker.S_PHASE) == poker.PH_DONE
+
+
+def test_non_stake_selectors_reject_attached_value():
+    # (audit) only FN_STAKE0/FN_JOIN consume callvalue; value on any other selector must revert (engine refunds
+    # it), so attached BIS can never be silently stranded in custody.
+    d = Poker(); _start(d)
+    for sel in (poker.FN_COMMIT, poker.FN_PLAY, poker.FN_FOLD, poker.FN_BOARD, poker.FN_REVEAL, poker.FN_TIMEOUT):
+        d.reverts(sel, P0, bytes(45), value=1)
+
+
+def test_identity_is_the_authenticated_caller_not_the_payout_address():
+    # (audit) player identity binds to the staking CALLER, not the calldata-supplied payout address — closing
+    # both the self-join and the payout-collision impersonation footguns.
+    d = Poker()
+    payout = 0xDEADBEEF
+    d.ok(poker.FN_STAKE0, P0, addr28(payout), value=BUYIN)           # P0's payout low-32 != p0_id
+    d.reverts(poker.FN_JOIN, P0, addr28(P0), value=BUYIN)            # P0 still cannot occupy both seats
+    d.ok(poker.FN_JOIN, P1, addr28(P1), value=BUYIN)
+    bad = commit_of(card(12, 0), card(12, 1), bytes(32))
+    d.reverts(poker.FN_COMMIT, payout, bad)                          # payout-collision caller cannot act as P0
+    d.ok(poker.FN_COMMIT, P0, bad)                                   # the authenticated P0 caller can
+    assert d.slot(poker.S_PHASE) == poker.PH_COMMIT
 
 
 # ----------------------------------------------------------------------------- live regnet (deploy + escrow)
