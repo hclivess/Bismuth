@@ -61,7 +61,18 @@ class BlockProcessor:
                     raise ValueError("Rolling back chain due to old fork data")
 
     def check_duplicate_signatures(self, block: list, block_instance: Block) -> None:
-        """Check for duplicate transactions in block and ledger."""
+        """Reject a block that replays a transaction already in the CONFIRMED chain."""
+        # ROOT FIX for the "stuck, not syncing" wedge: bound the replay check to the canonical chain this
+        # block extends — heights [0, block_height_new - 1]. The node keeps two non-atomically-committed
+        # SQLite stores (full ledger.db + hyper.db rollup), so a crash or a rollback can momentarily leave
+        # one store with transaction rows ABOVE the committed tip. An UNBOUNDED replay check trusts those
+        # non-canonical orphan rows and then rejects the peer's (valid) re-sync of that very height
+        # ("Transaction ... already in ledger") — wedging sync indefinitely. Replay protection only ever
+        # needs the confirmed chain; rows above the tip are not consensus and must be ignored. This makes a
+        # ledger/hyper split HARMLESS to sync no matter how it arose, and is NOT a consensus change: a
+        # healthy node has no rows above its tip, so the bound is a no-op there — it only changes the
+        # (previously fatal) behaviour when local orphans exist.
+        confirmed_tip = block_instance.block_height_new - 1
         signature_list = []
 
         for entry in block:
@@ -72,31 +83,35 @@ class BlockProcessor:
 
             signature_list.append(entry_signature)
 
-            # Check if signature exists in main ledger
-            if self._signature_exists_in_ledger(entry_signature, self.db_handler.h):
+            # Check if signature exists in main ledger (confirmed chain only)
+            if self._signature_exists_in_ledger(entry_signature, self.db_handler.h, confirmed_tip):
                 raise ValueError(f"Transaction {entry_signature[:10]} already in ledger")
 
-            # Check if signature exists in RAM ledger
-            if self._signature_exists_in_ledger(entry_signature, self.db_handler.c):
+            # Check if signature exists in RAM ledger (confirmed chain only)
+            if self._signature_exists_in_ledger(entry_signature, self.db_handler.c, confirmed_tip):
                 raise ValueError(f"Transaction {entry_signature[:10]} already in RAM ledger")
 
         # Check for duplicates within the block
         if block_instance.tx_count != len(set(signature_list)):
             raise ValueError("There are duplicate transactions in this block, rejected")
 
-    def _signature_exists_in_ledger(self, signature: str, cursor) -> bool:
-        """Check if a signature exists in the specified ledger."""
+    def _signature_exists_in_ledger(self, signature: str, cursor, confirmed_tip: int) -> bool:
+        """Does `signature` exist in the CONFIRMED chain (block_height in [0, confirmed_tip])? Rows above
+        confirmed_tip are non-canonical (an orphan from a ledger/hyper split) and are deliberately ignored
+        so they cannot poison replay protection and wedge sync."""
         if self.node.old_sqlite:
             self.db_handler.execute_param(
                 cursor,
-                "SELECT block_height FROM transactions WHERE signature = ?1;",
-                (signature,)
+                "SELECT block_height FROM transactions WHERE signature = ?1 "
+                "AND block_height >= 0 AND block_height <= ?2;",
+                (signature, confirmed_tip)
             )
         else:
             self.db_handler.execute_param(
                 cursor,
-                "SELECT block_height FROM transactions WHERE substr(signature,1,4) = substr(?1,1,4) and signature = ?1;",
-                (signature,)
+                "SELECT block_height FROM transactions WHERE substr(signature,1,4) = substr(?1,1,4) "
+                "and signature = ?1 AND block_height >= 0 AND block_height <= ?2;",
+                (signature, confirmed_tip)
             )
         return cursor.fetchone() is not None
 
