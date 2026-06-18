@@ -462,3 +462,141 @@ def test_poker_live_deploy_and_escrow(client):
     assert int(d["balance"]) == 1 * UNIT, "the stake is escrowed in custody"
     assert slots.get(poker.S_PHASE) == poker.PH_WAIT_P1, "table advanced to WAIT_P1 after P0 staked"
     assert slots.get(poker.addr_word_key(0, 6)) == me, "P0 payout address recorded"
+
+
+def _mint_rsa_wallet(path, distinct_from_low32):
+    """Generate a fresh 4096-bit RSA wallet (the ONLY size keys_load_new accepts — pubkey length in
+    {271, 799}; a 2048-bit key yields 450 and fails to load) whose address low-32 differs from
+    `distinct_from_low32`, so party_id_of distinguishes the two seats. Returns the address."""
+    import essentials
+    from Cryptodome.PublicKey import RSA
+    while True:
+        key = RSA.generate(4096)
+        priv = key.exportKey().decode("utf-8")
+        pub = key.publickey().exportKey().decode("utf-8")
+        address = hashlib.sha224(pub.encode("utf-8")).hexdigest()
+        if (int(address, 16) & 0xFFFFFFFF) != (distinct_from_low32 & 0xFFFFFFFF):
+            essentials.keys_save(priv, pub, address, path)
+            return address
+
+
+# Full heads-up game on a LIVE regnet node between TWO independently-signing funded wallets — the end-to-end
+# proof that escrow + commit/reveal + the both-players-agree board + the showdown payout all work through the
+# real node (vm:deploy, vm:call custody on VM_SINK, SYS_TRANSFER payout crediting the winner's real address).
+# P0 (the node's mining wallet) holds a pair of Aces; P1 (a minted, P0-funded wallet) holds king-high; on a
+# no-help board P0 must win 2*BUYIN and custody must return to 0. Each step is confirmed on-chain between
+# mined blocks (regtest_generate drains the mempool into one block, so one tx per block keeps phase order).
+def test_poker_live_full_two_player_game(client, tmp_path):
+    import json
+    import time
+    import urllib.request
+    import pytest
+    import vm_engine
+    from _lite_client import LiteClient
+    API = "http://127.0.0.1:3031"
+
+    def _get(path, tries=20):
+        last = None
+        for _ in range(tries):
+            try:
+                with urllib.request.urlopen(API + path, timeout=8) as r:
+                    return json.load(r)
+            except Exception as e:
+                last = e
+                time.sleep(0.5)
+        raise last
+
+    def _state(addr):
+        d = _get("/api/vm/contract/" + addr)
+        return {int(s["key"]): int(s["value"]) for s in d["storage"]}, int(d["balance"])
+
+    def _confirm(c, n=1):
+        c.mine(n)
+        time.sleep(0.4)                                   # digest runs async after the block commits
+
+    def _phase(addr, want, label):
+        slots, bal = _state(addr)
+        assert slots.get(poker.S_PHASE) == want, \
+            "%s: phase=%s want=%s (custody=%s)" % (label, slots.get(poker.S_PHASE), want, bal)
+        return slots, bal
+
+    p0 = client
+
+    # hf2 must be active before any vm: tx executes
+    info = _get("/api/vm/contracts")
+    assert info["enabled"], "vm not enabled"
+    for _ in range(40):
+        info = _get("/api/vm/contracts")
+        if info.get("fork_height") is not None and p0.block_height() > info["fork_height"]:
+            break
+        p0.mine(3)
+    else:
+        pytest.skip("hf2 fork did not activate on this node")
+
+    # P1 = a fresh wallet (distinct seat id), funded from P0
+    p1_path = str(tmp_path / "wallet_p1.der")
+    _mint_rsa_wallet(p1_path, poker.party_id_of(p0.address))
+    p1 = LiteClient(p1_path, port=3030)
+    p0.send(p1.address, 5, "", "")
+    p0.mine(2); time.sleep(0.3)
+    assert p1.balance() >= 1.0, "P1 funding failed: balance=%s" % p1.balance()
+
+    p0_id, p1_id = poker.party_id_of(p0.address), poker.party_id_of(p1.address)
+    assert p0_id != p1_id, "P0/P1 ids collide in low-32 bits"
+
+    # deploy a fresh table with P0 baked in as the only legal seat-0 caller
+    before = set(_get("/api/vm/contracts")["contracts"])
+    p0.send(p0.address, 1, "vm:deploy", poker.build(p0_id, BUYIN).hex())
+    _confirm(p0, 2)
+    addr = (set(_get("/api/vm/contracts")["contracts"]) - before).pop()
+    slots, bal = _state(addr)
+    assert bal == 0 and slots.get(poker.S_PHASE, 0) == poker.PH_OPEN, "fresh table must be empty + PH_OPEN"
+
+    def vmcall(c, sel_bytes, value=0):
+        return c.send(vm_engine.VM_SINK, value, "vm:call", "%s:%s" % (addr, sel_bytes.hex()))
+
+    a0, a1 = bytes.fromhex(p0.address), bytes.fromhex(p1.address)
+
+    # ---- stakes: OPEN -> WAIT_P1 -> COMMIT (1 BIS == BUYIN units into custody each) ----
+    vmcall(p0, be4(poker.FN_STAKE0) + a0, value=1); _confirm(p0)
+    _, bal = _phase(addr, poker.PH_WAIT_P1, "STAKE0"); assert bal == BUYIN
+    vmcall(p1, be4(poker.FN_JOIN) + a1, value=1); _confirm(p1)
+    _, bal = _phase(addr, poker.PH_COMMIT, "JOIN"); assert bal == 2 * BUYIN
+
+    # ---- commitments: P0 = AA, P1 = K9 ----
+    p0h, p1h = (card(12, 0), card(12, 1)), (card(11, 0), card(8, 1))
+    n0, n1 = bytes(range(32)), bytes(reversed(range(32)))
+    vmcall(p0, be4(poker.FN_COMMIT) + commit_of(p0h[0], p0h[1], n0)); _confirm(p0)
+    _phase(addr, poker.PH_COMMIT, "one commit must not advance")
+    vmcall(p1, be4(poker.FN_COMMIT) + commit_of(p1h[0], p1h[1], n1)); _confirm(p1)
+    _phase(addr, poker.PH_ACT_P0, "both committed")
+
+    # ---- action: P0 PLAY -> ACT_P1, P1 PLAY -> BOARD ----
+    vmcall(p0, be4(poker.FN_PLAY)); _confirm(p0); _phase(addr, poker.PH_ACT_P1, "P0 PLAY")
+    vmcall(p1, be4(poker.FN_PLAY)); _confirm(p1); _phase(addr, poker.PH_BOARD, "P1 PLAY")
+
+    # ---- board agreement: BOTH must post the identical 5 distinct cards ----
+    board = bytes([card(2, 2), card(3, 3), card(5, 0), card(0, 1), card(4, 2)])   # pairs neither hand
+    vmcall(p0, be4(poker.FN_BOARD) + board); _confirm(p0)
+    _phase(addr, poker.PH_BOARD, "first board post must not advance")
+    vmcall(p1, be4(poker.FN_BOARD) + board); _confirm(p1)
+    _phase(addr, poker.PH_SHOWDOWN, "both agreed on the board")
+
+    # ---- reveal + showdown: SHOWDOWN -> DONE, P0 (pair of aces) wins the pot ----
+    vmcall(p0, be4(poker.FN_REVEAL) + bytes([p0h[0], p0h[1]]) + n0 + bytes([0, 1, 2, 3, 4])); _confirm(p0)
+    slots, _ = _state(addr)
+    assert slots.get(poker.S_REVEAL0) == 1 and slots.get(poker.S_PHASE) == poker.PH_SHOWDOWN, \
+        "one reveal sets the flag but must not settle"
+    vmcall(p1, be4(poker.FN_REVEAL) + bytes([p1h[0], p1h[1]]) + n1 + bytes([0, 1, 2, 3, 4])); _confirm(p1)
+    slots, bal = _state(addr)
+    assert slots.get(poker.S_PHASE) == poker.PH_DONE and slots.get(poker.S_DONEFLAG) == 1, "hand finalized"
+    assert (slots.get(poker.S_RANK0) >> 20) == 1, "P0 holds a PAIR"
+    assert (slots.get(poker.S_RANK1) >> 20) == 0, "P1 holds HIGH CARD"
+    assert slots.get(poker.S_RANK0) > slots.get(poker.S_RANK1), "pair of aces beats king-high"
+    assert bal == 0, "custody returns to 0 after the pot is paid"
+
+    # the winner was paid the full pot on-chain (vm:payout row to P0's real address; amount in BIS == 2.0)
+    txs = _get("/api/address/%s/transactions?limit=200" % p0.address).get("transactions", [])
+    payouts = [t for t in txs if t.get("operation") == "vm:payout" and str(t.get("recipient")) == p0.address]
+    assert payouts, "expected a vm:payout crediting P0's real address with the pot"
+    assert abs(max(float(t["amount"]) for t in payouts) - (2 * BUYIN) / UNIT) < 1e-9, "P0 paid exactly 2*BUYIN"
