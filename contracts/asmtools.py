@@ -46,6 +46,13 @@ _BRANCHES = {
     "bltu": rv.bltu, "bgeu": rv.bgeu,
 }
 
+# Inverted branch condition, for relaxing an out-of-range conditional branch into "b<inv> over; jal target".
+_INV_BRANCH = {"beq": "bne", "bne": "beq", "blt": "bge", "bge": "blt", "bltu": "bgeu", "bgeu": "bltu"}
+
+# RV32I B-type immediate is a SIGNED 13-bit byte offset: reachable range [-4096, +4094]. A conditional
+# branch to a farther label must be relaxed (jal reaches +-1 MiB).
+_B_MIN, _B_MAX = -4096, 4094
+
 
 class Asm:
     """A simple two-pass assembler. Emit instructions and labels in order; assemble() resolves every
@@ -293,34 +300,57 @@ class Asm:
         return "%s$%d" % (base, Asm._ctr)
 
     def assemble(self):
-        # pass 1: assign a byte address to every instruction and label
-        addr = 0
-        labels = {}
-        for it in self._items:
-            if it[0] == "label":
-                labels[it[1]] = addr
-            else:
-                addr += 4
-        # pass 2: emit, resolving label-relative branches/jumps
+        # A conditional branch reaches only +-4 KiB (B-type), so in a large contract a branch to a far label
+        # silently encodes the wrong (wrapped) offset. We relax any out-of-range "b" into an inverted branch
+        # over a jal ("b<inv> +8; jal target"), which reaches +-1 MiB. Relaxing a branch grows the code by one
+        # word, which can push OTHER branches out of range, so we iterate to a fixpoint (relaxation only ever
+        # adds, so it converges). In-range contracts relax nothing and are byte-identical to before.
+        def _addr_map(relaxed):
+            addr = 0
+            addrs = []                       # addrs[i] = byte address of item i
+            labels = {}
+            for i, it in enumerate(self._items):
+                addrs.append(addr)
+                if it[0] == "label":
+                    labels[it[1]] = addr
+                else:
+                    addr += 8 if (it[0] == "b" and i in relaxed) else 4
+            return addrs, labels
+
+        relaxed = set()
+        while True:
+            addrs, labels = _addr_map(relaxed)
+            changed = False
+            for i, it in enumerate(self._items):
+                if it[0] == "b" and i not in relaxed:
+                    lbl = it[4]
+                    if lbl not in labels:
+                        raise KeyError("undefined label %r" % lbl)
+                    off = labels[lbl] - addrs[i]
+                    if not (_B_MIN <= off <= _B_MAX):
+                        relaxed.add(i); changed = True
+            if not changed:
+                break
+
         words = []
-        addr = 0
-        for it in self._items:
+        for i, it in enumerate(self._items):
             kind = it[0]
             if kind == "label":
                 continue
+            here = addrs[i]
             if kind == "ins":
                 words.append(it[1])
             elif kind == "b":
                 _, mnem, rs1, rs2, lbl = it
-                if lbl not in labels:
-                    raise KeyError("undefined label %r" % lbl)
-                off = labels[lbl] - addr
-                words.append(_BRANCHES[mnem](rs1, rs2, off))
+                tgt = labels[lbl]
+                if i in relaxed:
+                    words.append(_BRANCHES[_INV_BRANCH[mnem]](rs1, rs2, 8))   # skip the jal if NOT taken
+                    words.append(rv.jal(ZERO, tgt - (here + 4)))              # taken: far jump to target
+                else:
+                    words.append(_BRANCHES[mnem](rs1, rs2, tgt - here))
             elif kind == "jal":
                 _, rd, lbl = it
                 if lbl not in labels:
                     raise KeyError("undefined label %r" % lbl)
-                off = labels[lbl] - addr
-                words.append(rv.jal(rd, off))
-            addr += 4
+                words.append(rv.jal(rd, labels[lbl] - here))
         return b"".join(int(w).to_bytes(4, "little") for w in words)

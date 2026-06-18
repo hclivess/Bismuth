@@ -57,7 +57,7 @@ difficulty)** — treat those as authoritative for validation rules.
 | [21-mining.md](21-mining.md) | The built-in solo miner (`miner.py`) and dual-algo PoW signalling |
 | [22-shielded.md](22-shielded.md) | Shielded value: stealth addresses, ring signatures, RingCT confidential amounts (`shieldedv1.py`, `ringct.py`, `bulletproof.py`) |
 | [23-hd-multisig.md](23-hd-multisig.md) | BIP32/BIP39 HD wallets and M‑of‑N multisig (native signer + VM vault) |
-| [24-defi-dex.md](24-defi-dex.md) | DeFi on the VM: the on-chain DEX contract; HTLC/atomic-swap plans |
+| [24-defi-dex.md](24-defi-dex.md) | DeFi on the VM: DEX order book, constant-product AMM, multi-pool any-token router; HTLC/atomic-swap plans |
 | [25-security-audit.md](25-security-audit.md) | Adversarial security audit: findings, fixes, regression tests |
 | [26-storage-postfork.md](26-storage-postfork.md) | Post-fork storage rearchitecture: retiring SQLite for one LMDB store, staged migration |
 | [27-plugins.md](27-plugins.md) | Modern plugin framework; the `tokens_aliases` plugin (tokens/aliases out of core) |

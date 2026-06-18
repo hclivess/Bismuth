@@ -69,6 +69,13 @@ def _call(state, openfield, signature, sender, recipient, amount_units, block_he
         # DEPOSIT: value carried to the custody sink funds this contract (the ledger already moved it). Credit
         # custody BEFORE execution so the contract sees it in callvalue AND self_balance (EVM-style).
         deposit = int(amount_units or 0) if recipient == VM_SINK else 0
+        if deposit > 0xFFFFFFFF:
+            # The VM exposes callvalue as a 32-bit word (rv SYS_CALLVALUE returns callvalue & 0xFFFFFFFF), so a
+            # deposit that does not fit 32 bits cannot be honestly accounted by ANY contract: it would see a
+            # truncated callvalue and strand the high bits in custody, breaking the custody == sum(contract
+            # balances) double-entry. Refund the sender and do not execute (the ledger already moved it to the
+            # sink) — same shape as the no-contract / revert refund paths. Found by the AMM audit (doc/24 §2).
+            return [(str(sender), deposit)]
         if deposit:
             state.add_balance(addr, deposit)
         result = rv.execute(stored, calldata=calldata, caller=_caller_int(sender),

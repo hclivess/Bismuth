@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Bismuth AMM (demo)</title>
+<style>
+  body{font:14px/1.5 system-ui,sans-serif;max-width:880px;margin:24px auto;padding:0 14px;color:#162}
+  h1{font-size:20px} h2{font-size:15px;margin:18px 0 6px;border-bottom:1px solid #cdd}
+  input{font:13px monospace;padding:4px 6px;border:1px solid #bcc;border-radius:5px}
+  button{font:13px system-ui;padding:5px 10px;margin:2px;border:0;border-radius:6px;background:#2a7;color:#fff;cursor:pointer}
+  button.alt{background:#46a} button.warn{background:#c64} button:disabled{background:#bbb}
+  .row{margin:6px 0} .muted{color:#789} code{background:#eef3f2;padding:1px 4px;border-radius:4px}
+  table{border-collapse:collapse;width:100%;margin-top:6px} td,th{border:1px solid #dde;padding:4px 6px;text-align:left;font-size:13px}
+  #log{white-space:pre-wrap;background:#0b1f1a;color:#7fd;padding:8px;border-radius:6px;height:120px;overflow:auto;font:12px monospace}
+  .pill{display:inline-block;background:#eef3f2;border-radius:10px;padding:1px 8px;margin-left:6px}
+  .quote{color:#262;background:#eefaf4;border-radius:6px;padding:2px 8px;display:inline-block;min-width:200px}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px 18px;max-width:560px}
+</style>
+</head>
+<body>
+<h1>Bismuth AMM <span class="muted">— constant-product (x·y=k) BIS ⇄ token pool (VM demo)</span></h1>
+<p class="muted">The pool is always a counterparty: swaps execute instantly at a slippage price off
+<code>R_bis · R_tok = k</code>, and the 0.3% fee on every swap stays in the pool — that growing <code>k</code> is
+the liquidity providers' yield. Trustless: the contract escrows both reserves, no operator. This is a demo
+(32-bit reserves capped near 10.7 BIS/side; honest impermanent-loss caveat in doc/24 §3).</p>
+
+<h2>Connection</h2>
+<div class="row">Relay <input id="relay" size="28" value="http://127.0.0.1:8098"/>
+  API <input id="api" size="28" value="http://127.0.0.1:3031"/>
+  <button onclick="loadInfo()">connect</button></div>
+<div class="row">Contract <input id="addr" size="58" placeholder="0x… (auto-filled after deploy+mine, or paste)"/>
+  <button class="alt" onclick="refresh()">refresh</button>
+  <button class="alt" onclick="mine()">mine 1</button></div>
+<div class="row muted">wallet: <span id="me">—</span> <span class="pill">fold <span id="fold">—</span></span></div>
+
+<h2>Admin</h2>
+<div class="row">supply <input id="supply" size="12" value="1000000000"/>
+  <button onclick="post('deploy',{supply:+v('supply')})">deploy</button>
+  <button onclick="act('init',{})">genesis mint</button></div>
+<div class="row">transfer token to <input id="to" size="58" placeholder="56-hex recipient"/>
+  amt <input id="tamt" size="10" value="1000000"/>
+  <button onclick="act('transfer',{to:v('to'),amt:+v('tamt')})">send token</button></div>
+
+<h2>Pool</h2>
+<div class="grid">
+  <div>BIS reserve: <b id="rbis">—</b></div><div>token reserve: <b id="rtok">—</b></div>
+  <div>price: <b id="price">—</b></div><div>k = R_bis·R_tok: <b id="kval">—</b></div>
+  <div>total LP shares: <b id="ltot">—</b></div><div>your LP shares: <b id="mylp">—</b></div>
+  <div>your token balance: <b id="bal">—</b></div><div>seeded: <b id="seeded">—</b></div>
+</div>
+
+<h2>Add / remove liquidity</h2>
+<div class="row">add BIS <input id="addbis" size="8" value="1.0" oninput="quoteAdd()"/>
+  with up-to token <input id="addtokmax" size="12" value="200000000" oninput="quoteAdd()"/>
+  <button onclick="act('add',{bis:+v('addbis'),tok_max:+v('addtokmax')})">add liquidity</button>
+  <span class="quote" id="qadd">—</span></div>
+<div class="row">remove shares <input id="remshares" size="12" value="0" oninput="quoteRemove()"/>
+  <button class="warn" onclick="act('remove',{shares:+v('remshares')})">remove</button>
+  <span class="quote" id="qrem">—</span></div>
+
+<h2>Swap</h2>
+<div class="row">buy token with BIS <input id="buybis" size="8" value="0.1" oninput="quoteBuy()"/>
+  min token out <input id="buymin" size="10" value="0"/>
+  <button onclick="act('buy',{bis:+v('buybis'),min_tok_out:+v('buymin')})">swap BIS→token</button>
+  <span class="quote" id="qbuy">—</span></div>
+<div class="row">sell token <input id="selltok" size="12" value="1000000" oninput="quoteSell()"/>
+  min BIS out <input id="sellmin" size="8" value="0"/>
+  <button class="alt" onclick="act('sell',{tok_in:+v('selltok'),min_bis:+v('sellmin')})">swap token→BIS</button>
+  <span class="quote" id="qsell">—</span></div>
+
+<h2>Log</h2>
+<div id="log"></div>
+
+<script>
+const $=id=>document.getElementById(id), v=id=>$(id).value.trim();
+let INFO=null, UNIT=100000000n, ST={};
+function log(m){const l=$('log');l.textContent+=m+"\n";l.scrollTop=l.scrollHeight;}
+function relay(){return v('relay').replace(/\/$/,'');}
+function api(){return v('api').replace(/\/$/,'');}
+function bi(x){return BigInt(Math.trunc(x));}
+function R_bis(){return BigInt(ST[INFO.slots.rbis]||0);}
+function R_tok(){return BigInt(ST[INFO.slots.rtok]||0);}
+function L(){return BigInt(ST[INFO.slots.ltot]||0);}
+const FEEN=()=>BigInt(INFO.fee_num), FEED=()=>BigInt(INFO.fee_den);
+function inEff(x){return x*FEEN()/FEED();}              // floor(x*997/1000)
+function swapOut(amtIn, rIn, rOut){const e=inEff(amtIn); if(rIn+e===0n)return 0n; return e*rOut/(rIn+e);}
+function fmtBis(units){return (Number(units)/1e8).toFixed(8).replace(/0+$/,'').replace(/\.$/,'')+' BIS';}
+
+async function loadInfo(){
+  try{const r=await fetch(relay()+'/relay/info');INFO=await r.json();UNIT=BigInt(INFO.unit||100000000);
+    $('me').textContent=INFO.address;$('fold').textContent=INFO.party_id;
+    log('connected; wallet '+INFO.address.slice(0,12)+'…  fold '+INFO.party_id+
+        '  (fee '+INFO.fee_num+'/'+INFO.fee_den+', max reserve '+fmtBis(INFO.max_reserve)+'/side)');refresh();
+  }catch(e){log('connect failed: '+e);}
+}
+async function post(path,body){
+  body=body||{}; if(path!=='deploy'&&path!=='mine')body.address=v('addr');
+  try{const r=await fetch(relay()+'/relay/'+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const j=await r.json(); if(j.error){log('✗ '+path+': '+j.error);return null;}
+    log('✓ '+path+' tx '+(j.txid||'')+(j.supply?(' supply '+j.supply):''));return j;
+  }catch(e){log('✗ '+path+': '+e);return null;}
+}
+async function act(path,body){const j=await post(path,body); if(j){await mine();}}
+async function mine(){await post('mine',{count:1}); setTimeout(refresh,300);}
+
+async function refresh(){
+  const addr=v('addr'); if(!addr||!INFO){return;}
+  try{
+    const r=await fetch(api()+'/api/vm/contract/'+addr); const d=await r.json();
+    ST={}; (d.storage||[]).forEach(s=>ST[parseInt(s.key)]=parseInt(s.value));
+    const rb=R_bis(), rt=R_tok(), l=L();
+    $('rbis').textContent=fmtBis(rb); $('rtok').textContent=rt.toString()+' units';
+    $('ltot').textContent=l.toString();
+    $('kval').textContent=(rb*rt).toString();
+    $('price').textContent = (rb>0n&&rt>0n) ? (Number(rt)/(Number(rb)/1e8)).toFixed(4)+' token / BIS' : '—';
+    $('seeded').textContent = l>0n ? 'yes' : 'no (empty — first add sets the price)';
+    const mask=INFO.slots.user_mask, fold=INFO.party_id & mask;
+    const balKey=(INFO.slots.tag_bal | fold)>>>0, lpKey=(INFO.slots.tag_lp | fold)>>>0;
+    $('bal').textContent=(ST[balKey]||0)+' units';
+    $('mylp').textContent=(ST[lpKey]||0);
+    quoteAll();
+  }catch(e){log('refresh failed: '+e);}
+}
+
+// --- live client-side quotes (BigInt, identical integer math to the contract) ---
+function quoteBuy(){ if(!INFO)return; const rb=R_bis(), rt=R_tok();
+  if(rb<=0n||rt<=0n){$('qbuy').textContent='pool empty';return;}
+  const inU=bi((+v('buybis'))*1e8); const out=swapOut(inU, rb, rt);
+  $('qbuy').textContent='≈ '+out.toString()+' token out'; }
+function quoteSell(){ if(!INFO)return; const rb=R_bis(), rt=R_tok();
+  if(rb<=0n||rt<=0n){$('qsell').textContent='pool empty';return;}
+  const inU=bi(+v('selltok')); const out=swapOut(inU, rt, rb);
+  $('qsell').textContent='≈ '+fmtBis(out)+' out'; }
+function quoteAdd(){ if(!INFO)return; const rb=R_bis(), rt=R_tok(), l=L();
+  const dBis=bi((+v('addbis'))*1e8);
+  if(l<=0n){$('qadd').textContent='first add: seeds R_bis='+fmtBis(dBis)+', R_tok=tok_max';return;}
+  const dTok=(dBis*rt + rb - 1n)/rb;              // ceil(dBis*R_tok/R_bis)
+  const sh=dBis*l/rb;                              // floor(dBis*L/R_bis)
+  $('qadd').textContent='pulls ≈ '+dTok.toString()+' token, mints ≈ '+sh.toString()+' shares'; }
+function quoteRemove(){ if(!INFO)return; const rb=R_bis(), rt=R_tok(), l=L();
+  if(l<=0n){$('qrem').textContent='—';return;}
+  const s=bi(+v('remshares'));
+  $('qrem').textContent='≈ '+fmtBis(s*rb/l)+' + '+(s*rt/l).toString()+' token'; }
+function quoteAll(){quoteBuy();quoteSell();quoteAdd();quoteRemove();}
+
+// auto-fill the contract address from the latest deploy once mined
+async function autoAddr(){
+  if(v('addr')||!INFO)return;
+  try{const r=await fetch(api()+'/api/vm/contracts');const d=await r.json();
+    const cs=d.contracts||[]; if(cs.length){$('addr').value=cs[cs.length-1];log('contract = '+cs[cs.length-1]);refresh();}
+  }catch(e){}
+}
+loadInfo();
+setInterval(()=>{ if(!v('addr'))autoAddr(); },2500);
+</script>
+</body>
+</html>
