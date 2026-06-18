@@ -773,8 +773,29 @@ def handle_processing_error(node, db_handler, sdef, peer_ip, error):
     node.logger.app_log.warning(
         f"Chain: digestion from {peer_ip} failed at {where} - {type(error).__name__}: {error}")
 
-    # Restore actual data from database (roll our view back to what is committed)
-    node.last_block = db_handler.block_max_ram()['block_height']
+    # Restore actual data from database (roll our view back to what is committed).
+    # SELF-HEAL a ledger.db/hyper.db split: a failed digest can leave one on-disk store a few blocks AHEAD
+    # of the other (they commit in separate, non-atomic transactions). Orphaned rows above the recovered
+    # tip poison the duplicate-signature guard on the NEXT block ("Transaction ... already in ledger"),
+    # wedging the node until a MANUAL restart runs chain_ops.reconcile_ledger_hyper. Snap BOTH stores down
+    # to the common (lower) tip here so the in-run fallback is self-healing — otherwise a transient digest
+    # failure mid-sync permanently stalls the node (and a fresh clone wedges the same way before it ever
+    # restarts). The trimmed blocks are re-downloadable from peers.
+    working_tip = db_handler.block_max_ram()['block_height']
+    try:
+        ledger_tip = db_handler.block_height_max()
+    except Exception:
+        ledger_tip = working_tip
+    node.last_block = min(working_tip, ledger_tip)
+    if ledger_tip != working_tip:
+        node.logger.app_log.warning(
+            f"Chain: ledger/hyper split on fallback (ledger={ledger_tip}, working={working_tip}); "
+            f"trimming both stores down to {node.last_block} so orphaned rows can't wedge sync")
+        try:
+            db_handler.rollback_under(node.last_block + 1)   # delete rows > common tip from BOTH stores
+        except Exception as _trim_err:
+            node.logger.app_log.warning(
+                f"Chain: fallback trim failed ({_trim_err}); startup reconcile will heal on next restart")
     node.last_block_hash = db_handler.last_block_hash()
     node.logger.app_log.warning(
         f"Chain: fell back to block {node.last_block} after rejecting a block from {peer_ip}")
