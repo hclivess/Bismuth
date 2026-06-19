@@ -82,7 +82,7 @@ function errBox(e){let extra='';
 let TIP=0;
 async function refreshStatus(){
   try{const s=await api('/status');TIP=s.blocks;
-    const cards=[['Height',s.blocks],['Difficulty',Number(s.difficulty).toFixed(2)],
+    const cards=[['Height',s.blocks],['Difficulty',Number(s.difficulty).toFixed(8)],
       ['Peers',s.connections],['Consensus',s.consensus===s.blocks?'100%':s.consensus],
       ['Protocol',s.protocol],['Node',s.node_version]];
     document.getElementById('status').innerHTML=cards.map(([l,v])=>
