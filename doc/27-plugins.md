@@ -54,7 +54,7 @@ namespaced per ledger (`tokenindex-<ledger>`) so a regnet run can't bleed into a
 
 | Concern | How the plugin does it |
 |---|---|
-| **Index a block** | `on_block` two-pass scans the block's txs: issuances first (so a same-block transfer sees its token), then transfers (exact overspend rule: credit `< h`, debit `<= h`) and `alias=` registrations. |
+| **Index a block** | `on_block` two-pass scans the block's txs: issuances first (so a same-block transfer sees its token), then transfers (exact overspend rule: credit `< h`, debit `<= h`), the legacy `alias=` first-claimant registrations, and the alias **evolution ops** `alias:register` / `alias:transfer` (`recipient:alias`, owner-only) / `alias:free` (owner-only) — mutable ownership with reorg-safe undo records. |
 | **Backfill history** | `backfill` scans the ledger from each anchor via `ctx.scan_ledger_operations` (read-only) when enabled mid-chain — idempotent (registry/txid dedup). |
 | **Rollback** | The store is registered as the `token_index` service → `node.token_index`; the node's existing `dbhandler.tokens_rollback`/`aliases_rollback` seam rolls it back on **every** reorg path (reliable, unlike the best-effort `rollback` action hook). |
 | **Queries** | `peer_commands` serve `tokensget`/`aliasget`/`aliasesget`/`addfromalias`; `rest_routes` serve `/api/tokens` + `/api/token/<name>` straight from the store. |

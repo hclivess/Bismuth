@@ -375,6 +375,49 @@ class TokenIndex:
             self._bump_anchor(txn, b"alias_anchor", height)
             return True
 
+    def alias_owner(self, alias: str):
+        """Current owner address of ``alias``, or None if unclaimed/free."""
+        with self.env.begin() as txn:
+            v = txn.get(alias.encode(), db=self.alias_fwd)
+        return json.loads(v)["a"] if v is not None else None
+
+    def transfer_alias(self, height, sender: str, recipient: str, alias: str) -> bool:
+        """Move ``alias`` ownership sender -> recipient (alias:transfer). No-op unless ``sender`` is the
+        current owner. Records a reorg-undo entry carrying the prior owner + height so a rollback restores it."""
+        ab = alias.encode()
+        with self.env.begin(write=True) as txn:
+            cur = txn.get(ab, db=self.alias_fwd)
+            if cur is None or json.loads(cur)["a"] != sender:
+                self._bump_anchor(txn, b"alias_anchor", height)
+                return False
+            prev_h = int(json.loads(cur)["h"])
+            seq = self._next_seq(txn)
+            txn.put(ab, json.dumps({"a": recipient, "h": int(height)}).encode(), db=self.alias_fwd)
+            txn.delete(sender.encode() + _SEP + _hbe(prev_h) + _SEP + ab, db=self.alias_rev)
+            txn.put(recipient.encode() + _SEP + _hbe(height) + _SEP + ab, b"", db=self.alias_rev)
+            txn.put(_hq(height, seq), json.dumps({"k": "transfer", "al": alias, "a": recipient,
+                    "prev": sender, "prev_h": prev_h}).encode(), db=self.ajournal)
+            self._bump_anchor(txn, b"alias_anchor", height)
+            return True
+
+    def free_alias(self, height, sender: str, alias: str) -> bool:
+        """Release ``alias`` (alias:free) so it can be claimed again. No-op unless ``sender`` is the current
+        owner. The reorg-undo entry restores the prior owner on a rollback."""
+        ab = alias.encode()
+        with self.env.begin(write=True) as txn:
+            cur = txn.get(ab, db=self.alias_fwd)
+            if cur is None or json.loads(cur)["a"] != sender:
+                self._bump_anchor(txn, b"alias_anchor", height)
+                return False
+            prev_h = int(json.loads(cur)["h"])
+            seq = self._next_seq(txn)
+            txn.delete(ab, db=self.alias_fwd)
+            txn.delete(sender.encode() + _SEP + _hbe(prev_h) + _SEP + ab, db=self.alias_rev)
+            txn.put(_hq(height, seq), json.dumps({"k": "free", "al": alias,
+                    "prev": sender, "prev_h": prev_h}).encode(), db=self.ajournal)
+            self._bump_anchor(txn, b"alias_anchor", height)
+            return True
+
     # ---- alias reads -----------------------------------------------------
     def addfromalias(self, alias: str) -> str:
         with self.env.begin() as txn:
@@ -409,7 +452,9 @@ class TokenIndex:
 
     # ---- alias rollback --------------------------------------------------
     def aliases_rollback(self, height):
-        """Drop alias registrations at block_height >= ``height`` from both maps and reset the anchor."""
+        """Undo every alias op at block_height >= ``height`` and reset the anchor. Handles register (legacy
+        ``alias=`` and ``alias:register``), ``alias:transfer`` and ``alias:free``. Ops are undone in REVERSE
+        (newest first) so a register->transfer->free stack on one alias unwinds to the correct prior state."""
         floor = _hbe(int(height))
         with self.env.begin(write=True) as txn:
             cur = txn.cursor(db=self.ajournal)
@@ -417,14 +462,27 @@ class TokenIndex:
             if cur.set_range(floor):
                 for k, v in cur:
                     entries.append((bytes(k), json.loads(v)))
-            for jk, op in entries:
+            for jk, op in reversed(entries):
                 h = struct.unpack(">QQ", jk)[0]
-                alias, address = op["al"], op["a"]
-                # only remove the forward map if THIS registration is the one that won it (height matches)
-                fwd = txn.get(alias.encode(), db=self.alias_fwd)
-                if fwd is not None and json.loads(fwd).get("h") == h:
-                    txn.delete(alias.encode(), db=self.alias_fwd)
-                txn.delete(address.encode() + _SEP + _hbe(h) + _SEP + alias.encode(), db=self.alias_rev)
+                kind = op.get("k", "register")              # legacy entries have no "k" -> register
+                ab = op["al"].encode()
+                if kind == "register":
+                    address = op["a"]
+                    # only drop the forward map if THIS registration is the one that currently holds it
+                    fwd = txn.get(ab, db=self.alias_fwd)
+                    if fwd is not None and json.loads(fwd).get("h") == h:
+                        txn.delete(ab, db=self.alias_fwd)
+                    txn.delete(address.encode() + _SEP + _hbe(h) + _SEP + ab, db=self.alias_rev)
+                elif kind == "transfer":
+                    # this op moved the alias to op["a"] at h; restore it to the prior owner
+                    new_owner, prev, prev_h = op["a"], op["prev"], int(op["prev_h"])
+                    txn.delete(new_owner.encode() + _SEP + _hbe(h) + _SEP + ab, db=self.alias_rev)
+                    txn.put(ab, json.dumps({"a": prev, "h": prev_h}).encode(), db=self.alias_fwd)
+                    txn.put(prev.encode() + _SEP + _hbe(prev_h) + _SEP + ab, b"", db=self.alias_rev)
+                elif kind == "free":
+                    prev, prev_h = op["prev"], int(op["prev_h"])
+                    txn.put(ab, json.dumps({"a": prev, "h": prev_h}).encode(), db=self.alias_fwd)
+                    txn.put(prev.encode() + _SEP + _hbe(prev_h) + _SEP + ab, b"", db=self.alias_rev)
                 txn.delete(jk, db=self.ajournal)
             txn.put(b"alias_anchor", str(max(0, int(height) - 1)).encode(), db=self.meta)
 

@@ -139,3 +139,63 @@ def test_backfill_from_ledger(tmp_path):
     assert ti.token_balance("tokx", "B") == 400000
     assert ti.addfromalias("alice") == "ALICE"
     p.teardown()
+
+
+def test_alias_register_transfer_free(tmp_path):
+    # alias evolution ops: alias:register / alias:transfer / alias:free with mutable ownership
+    p = _load_plugin()
+    p.setup(_ctx(tmp_path))
+    ti = p.services()["token_index"]
+
+    p.on_block(3, [_row(3, "ALICE", "ALICE", "s1", "alias:register", "alice")])
+    assert ti.alias_owner("alice") == "ALICE"
+    assert ti.addfromalias("alice") == "ALICE"
+    assert ti.aliasget("ALICE") == [["alice"]]
+
+    # duplicate register loses (first claimant keeps it)
+    p.on_block(4, [_row(4, "MALLORY", "MALLORY", "s2", "alias:register", "alice")])
+    assert ti.alias_owner("alice") == "ALICE"
+
+    # transfer ALICE -> BOB ("recipient:alias")
+    p.on_block(5, [_row(5, "ALICE", "ALICE", "s3", "alias:transfer", "BOB:alice")])
+    assert ti.alias_owner("alice") == "BOB"
+    assert ti.aliasget("BOB") == [["alice"]]
+    assert ti.aliasget("ALICE") == [["ALICE"]]      # ALICE no longer owns it -> address fallback
+
+    # a non-owner transfer is a no-op
+    p.on_block(6, [_row(6, "ALICE", "ALICE", "s4", "alias:transfer", "EVE:alice")])
+    assert ti.alias_owner("alice") == "BOB"
+
+    # free by the owner makes it claimable again
+    p.on_block(7, [_row(7, "BOB", "BOB", "s5", "alias:free", "alice")])
+    assert ti.alias_owner("alice") is None
+    assert ti.addfromalias("alice") == "No alias"
+    assert ti.aliasget("BOB") == [["BOB"]]
+
+    # re-register after free
+    p.on_block(8, [_row(8, "CAROL", "CAROL", "s6", "alias:register", "alice")])
+    assert ti.alias_owner("alice") == "CAROL"
+    p.teardown()
+
+
+def test_alias_ops_rollback(tmp_path):
+    # a register -> transfer -> free stack must unwind to the correct prior owner at each step
+    p = _load_plugin()
+    p.setup(_ctx(tmp_path))
+    ti = p.services()["token_index"]
+    p.on_block(3, [_row(3, "ALICE", "ALICE", "s1", "alias:register", "alice")])
+    p.on_block(5, [_row(5, "ALICE", "ALICE", "s2", "alias:transfer", "BOB:alice")])
+    p.on_block(7, [_row(7, "BOB", "BOB", "s3", "alias:free", "alice")])
+    assert ti.alias_owner("alice") is None
+
+    ti.aliases_rollback(7)                            # undo free -> BOB owns again
+    assert ti.alias_owner("alice") == "BOB"
+    assert ti.aliasget("BOB") == [["alice"]]
+
+    ti.aliases_rollback(5)                            # undo transfer -> ALICE owns again
+    assert ti.alias_owner("alice") == "ALICE"
+    assert ti.aliasget("ALICE") == [["alice"]]
+
+    ti.aliases_rollback(3)                            # undo register -> gone
+    assert ti.alias_owner("alice") is None
+    p.teardown()

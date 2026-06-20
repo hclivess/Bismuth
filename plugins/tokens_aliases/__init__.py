@@ -73,7 +73,18 @@ class TokensAliasesPlugin(BismuthPlugin):
             self._transfer(row[0], row[1], row[2], row[3], row[4], row[6])  # (bh, ts, address, recipient, signature, openfield)
         a_anchor = ti.alias_anchor()
         for row in ctx.scan_ledger_operations(a_anchor, openfield_like="alias=%"):
-            self._alias(row[0], row[2], row[6])                             # (bh, address, openfield)
+            self._alias(row[0], row[2], row[6])                             # (bh, address, openfield) — legacy
+        # structured alias ops (post-fork), one height-ordered pass so transfer/free see their register.
+        # These are all at heights above the legacy alias= claims, so global registration order is preserved.
+        for row in ctx.scan_ledger_operations(a_anchor,
+                operations=("alias:register", "alias:transfer", "alias:free")):
+            bh, address, op, openfield = row[0], row[2], row[5], row[6]
+            if op == "alias:register":
+                self._alias_register(bh, address, openfield)
+            elif op == "alias:transfer":
+                self._alias_transfer(bh, address, openfield)
+            elif op == "alias:free":
+                self._alias_free(bh, address, openfield)
         ctx.logger.warning("Plugin tokens_aliases: backfill complete {}".format(ti.stats()))
 
     def on_block(self, height, transactions):
@@ -85,11 +96,19 @@ class TokensAliasesPlugin(BismuthPlugin):
             if str(tx[_OP]) == "token:issue" and self._is_reward_zero(tx[_REWARD]):
                 self._issue(height, tx[_TS], tx[_RECIP], tx[_SIG], tx[_OPENFIELD])
         for tx in transactions:
+            if not self._is_reward_zero(tx[_REWARD]):
+                continue
             op = str(tx[_OP])
-            if op == "token:transfer" and self._is_reward_zero(tx[_REWARD]):
+            if op == "token:transfer":
                 self._transfer(height, tx[_TS], tx[_ADDR], tx[_RECIP], tx[_SIG], tx[_OPENFIELD])
-            if str(tx[_OPENFIELD]).startswith("alias=") and self._is_reward_zero(tx[_REWARD]):
-                self._alias(height, tx[_ADDR], tx[_OPENFIELD])
+            elif op == "alias:register":
+                self._alias_register(height, tx[_ADDR], tx[_OPENFIELD])
+            elif op == "alias:transfer":
+                self._alias_transfer(height, tx[_ADDR], tx[_OPENFIELD])
+            elif op == "alias:free":
+                self._alias_free(height, tx[_ADDR], tx[_OPENFIELD])
+            if str(tx[_OPENFIELD]).startswith("alias="):
+                self._alias(height, tx[_ADDR], tx[_OPENFIELD])     # legacy first-claimant convention
 
     def on_rollback(self, height):
         # The store is rolled back through the node's db_handler seam (node.token_index.*_rollback), which
@@ -147,6 +166,35 @@ class TokensAliasesPlugin(BismuthPlugin):
             self.ti.register_alias(height, address, alias)
         except Exception as e:
             self.ctx.logger.warning("tokens_aliases alias parse error: {}".format(e))
+
+    # alias evolution ops (doc/27): explicit register / transfer / free, with mutable ownership.
+    def _alias_register(self, height, address, openfield):
+        # openfield = the alias to claim for the sender (first claimant wins, like alias=)
+        try:
+            alias = str(openfield).strip()
+            if alias:
+                self.ti.register_alias(height, address, alias)
+        except Exception as e:
+            self.ctx.logger.warning("tokens_aliases alias:register parse error: {}".format(e))
+
+    def _alias_transfer(self, height, sender, openfield):
+        # openfield = "recipient:alias" — move ownership to recipient iff sender is the current owner
+        try:
+            recipient, alias = str(openfield).split(":", 1)
+            recipient, alias = recipient.strip(), alias.strip()
+            if recipient and alias:
+                self.ti.transfer_alias(height, sender, recipient, alias)
+        except Exception as e:
+            self.ctx.logger.warning("tokens_aliases alias:transfer parse error: {}".format(e))
+
+    def _alias_free(self, height, sender, openfield):
+        # openfield = the alias to release (iff sender is the current owner) so anyone can claim it again
+        try:
+            alias = str(openfield).strip()
+            if alias:
+                self.ti.free_alias(height, sender, alias)
+        except Exception as e:
+            self.ctx.logger.warning("tokens_aliases alias:free parse error: {}".format(e))
 
     # --- query surface: wire commands -----------------------------------------
     def peer_commands(self) -> dict:
