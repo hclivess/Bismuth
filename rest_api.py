@@ -307,6 +307,8 @@ def _make_handler(node):
                     return self._write(200, result)
                 if route == ["tokens"]:
                     return self._write(200, self._tokens(db))
+                if route[:2] == ["token", "tx"] and len(route) == 3:
+                    return self._write(200, self._token_tx(db, route[2], query))
                 if route[:1] == ["token"] and len(route) == 2:
                     return self._write(200, self._token(db, route[1], query))
                 raise _NotFound("unknown endpoint")
@@ -435,6 +437,9 @@ def _make_handler(node):
                         "/api/supply": "circulating supply + chain height",
                         "/api/tokens": "all tokens on chain, ranked by transfer volume",
                         "/api/token/{name}": "a token's supply, holder count, and per-address balances",
+                        "/api/token/tx/{address}": "token transfers (sent or received) for an address, newest "
+                                                   "first: [token, block_height, timestamp, sender, recipient, "
+                                                   "amount, signature]",
                         "/api/fork": "hf2 auto-fork readiness: signalling run, lock-in, activation height",
                         "/api/shield/stats": "shielded pool (doc/22): note/nullifier counts, pool value, sink",
                         "/api/shield/note/{note_id}": "public fields of a shielded note (nothing decryptable)",
@@ -766,6 +771,30 @@ def _make_handler(node):
             rows = db.fetchall(db.index_cursor, "SELECT token, COUNT(*) FROM tokens "
                                                 "GROUP BY token ORDER BY COUNT(*) DESC LIMIT 500")
             return {"count": len(rows), "tokens": [{"token": r[0], "transfers": r[1]} for r in rows]}
+
+        def _token_tx(self, db, address, query):
+            """Token transfers (sent OR received) for an address, newest first, as
+            [token, block_height, timestamp, sender, recipient, amount, signature]. Same SEAM as _tokens:
+            the LMDB token index (tokens_aliases plugin) when enabled, else the legacy index.db."""
+            try:
+                limit = max(1, min(int(query.get("limit", ["100"])[0]), 500))
+            except ValueError:
+                raise _BadRequest("limit must be an integer")
+            if node.token_index is not None:
+                rows = node.token_index.token_txs_for_address(address, limit)
+            else:
+                # legacy index.db tokens table: (block_height, timestamp, token, address, recipient, txid, amount)
+                r = db.fetchall(db.index_cursor,
+                                "SELECT token, block_height, timestamp, address, recipient, amount, txid "
+                                "FROM tokens WHERE address = ? OR recipient = ? "
+                                "ORDER BY block_height DESC LIMIT ?", (address, address, limit))
+                def _amt(v):                       # legacy index.db has some malformed rows (e.g. '{amount}')
+                    try:
+                        return int(v or 0)
+                    except (ValueError, TypeError):
+                        return 0
+                rows = [[x[0], x[1], x[2], x[3], x[4], _amt(x[5]), x[6]] for x in (r or [])]
+            return {"address": address, "count": len(rows), "limit": limit, "transactions": rows}
 
         def _token(self, db, name, query):
             """A token's holders, per-address balances, and supply (credits - debits, token index).

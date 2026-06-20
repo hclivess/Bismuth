@@ -56,3 +56,35 @@ def test_unknown_token_404(client):
         assert False, "expected 404"
     except urllib.error.HTTPError as e:
         assert e.code == 404
+
+
+def test_token_tx_for_address(client):
+    # /api/token/tx/<address>: token transfers (sent or received) for an address, as
+    # [[token, block_height, timestamp, sender, recipient, amount, signature], ...]
+    recipient = "deadbeef" * 7                      # a valid 56-hex (RSA-format) recipient address
+    client.send(client.address, 1, "token:issue", "txtok:1000000")
+    client.mine(3)
+    sleep(0.6)
+    client.send(recipient, 1, "token:transfer", "txtok:250")
+    client.mine(3)
+    sleep(0.6)
+
+    # sender side
+    d = _get("/api/token/tx/%s" % client.address)
+    rows = d["transactions"]
+    match = [r for r in rows if r[0] == "txtok" and r[4] == recipient and r[5] == 250]
+    assert match, "transfer not found in sender's token txs: %s" % rows[:5]
+    token, height, ts, sender, recip, amount, sig = match[0]
+    assert token == "txtok" and sender == client.address and recip == recipient and amount == 250
+    assert isinstance(height, int) and height > 0       # block height present
+    assert ts                                           # timestamp present (added to the journal)
+    assert sig                                          # signature/txid present
+
+    # recipient side: the same transfer shows up
+    d2 = _get("/api/token/tx/%s" % recipient)
+    assert any(r[0] == "txtok" and r[3] == client.address and r[5] == 250
+               for r in d2["transactions"]), d2["transactions"][:5]
+
+    # an address with no token activity returns an empty list (handled, not 404)
+    d3 = _get("/api/token/tx/%s" % ("cafe" * 14))
+    assert d3["transactions"] == [] and d3["count"] == 0

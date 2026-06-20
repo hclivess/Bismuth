@@ -184,7 +184,7 @@ class TokenIndex:
             self._incr_addrtok(txn, recipient, token, +1)
             self._incr_count(txn, self.tokset, token.encode(), +1)
             txn.put(_hq(height, seq), json.dumps({"k": "transfer", "tok": token, "rcp": recipient,
-                    "adr": sender, "amt": amount, "txid": txid}).encode(), db=self.journal)
+                    "adr": sender, "amt": amount, "txid": txid, "ts": ts}).encode(), db=self.journal)
             self._bump_anchor(txn, b"tok_anchor", height)
             return True
 
@@ -236,6 +236,40 @@ class TokenIndex:
                         break
                     out.append((k[len(prefix):].decode(),))
         return out
+
+    def token_txs_for_address(self, address: str, limit: int = 100):
+        """Token transfers (sent OR received) involving ``address``, newest height first, shaped as
+        ``[[token, block_height, timestamp, sender, recipient, amount, signature], ...]``.
+
+        Targeted, not a full scan: addrtok gives the address's tokens; each token's cred (received) and deb
+        (sent) rows carry the (height, seq) that keys the journal record with the full transfer. A
+        self-transfer appears in both cred and deb under the same (height, seq) and is deduped."""
+        tokens = [t for (t,) in self.tokens_user(address)]
+        rows = {}                                          # (height,seq) bytes -> row, dedups self-sends
+        with self.env.begin() as txn:
+            for token in tokens:
+                prefix = _party_prefix(token, address)
+                for db in (self.cred, self.deb):
+                    cur = txn.cursor(db=db)
+                    if not cur.set_range(prefix):
+                        continue
+                    for k, _v in cur:
+                        if not k.startswith(prefix):
+                            break
+                        hq = bytes(k[-16:])                 # == _hq(height, seq) == the journal key
+                        if hq in rows:
+                            continue
+                        rec = txn.get(hq, db=self.journal)
+                        if not rec:
+                            continue
+                        j = json.loads(rec)
+                        if j.get("k") != "transfer":
+                            continue
+                        h, _s = struct.unpack(">QQ", hq)
+                        rows[hq] = [j.get("tok"), int(h), j.get("ts"), j.get("adr"),
+                                    j.get("rcp"), j.get("amt"), j.get("txid")]
+        ordered = sorted(rows.values(), key=lambda r: (r[1], r[6] or ""), reverse=True)
+        return ordered[:max(1, int(limit))]
 
     def _group_sums(self, db, token: str) -> dict:
         """{party: Σ amount} over all of a token's cred/deb rows (the GROUP BY recipient/address queries)."""

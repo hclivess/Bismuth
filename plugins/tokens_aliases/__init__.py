@@ -185,14 +185,27 @@ class TokensAliasesPlugin(BismuthPlugin):
     def rest_routes(self) -> dict:
         if self.ti is None:
             return {}
+        # NB: ("token","tx","*") MUST precede ("token","*") — the manager matches in insertion order and the
+        # wildcard ("token","*") would otherwise swallow /api/token/tx/<address> (treating "tx" as a token).
         return {
             ("GET", ("tokens",)): self._rest_tokens,
+            ("GET", ("token", "tx", "*")): self._rest_token_tx,
             ("GET", ("token", "*")): self._rest_token,
         }
 
     def _rest_tokens(self, route, query):
         rows = self.ti.tokens_list(500)
         return {"count": len(rows), "tokens": [{"token": t, "transfers": c} for t, c in rows]}
+
+    def _rest_token_tx(self, route, query):
+        # /api/token/tx/<address> -> token transfers (sent or received) for an address, newest first:
+        # [[token, block_height, timestamp, sender, recipient, amount, signature], ...]. route == ["token","tx",<addr>]
+        try:
+            limit = max(1, min(int((query.get("limit") or ["100"])[0]), 500))
+        except (ValueError, TypeError):
+            limit = 100
+        rows = self.ti.token_txs_for_address(route[2], limit)
+        return {"address": route[2], "count": len(rows), "limit": limit, "transactions": rows}
 
     def _rest_token(self, route, query):
         # ?limit (default 200, token_detail clamps 1..1000) + ?offset page the holders array, which carries
