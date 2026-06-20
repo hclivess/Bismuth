@@ -59,8 +59,8 @@ def test_unknown_token_404(client):
 
 
 def test_token_tx_for_address(client):
-    # /api/token/tx/<address>: token transfers (sent or received) for an address, as
-    # [[token, block_height, timestamp, sender, recipient, amount, signature], ...]
+    # /api/token/tx/<address>: token transfers (sent or received) for an address, each a dict
+    # {token, block_height, timestamp, sender, recipient, amount, signature}
     recipient = "deadbeef" * 7                      # a valid 56-hex (RSA-format) recipient address
     client.send(client.address, 1, "token:issue", "txtok:1000000")
     client.mine(3)
@@ -72,17 +72,18 @@ def test_token_tx_for_address(client):
     # sender side
     d = _get("/api/token/tx/%s" % client.address)
     rows = d["transactions"]
-    match = [r for r in rows if r[0] == "txtok" and r[4] == recipient and r[5] == 250]
+    match = [r for r in rows if r["token"] == "txtok" and r["recipient"] == recipient and r["amount"] == 250]
     assert match, "transfer not found in sender's token txs: %s" % rows[:5]
-    token, height, ts, sender, recip, amount, sig = match[0]
-    assert token == "txtok" and sender == client.address and recip == recipient and amount == 250
-    assert isinstance(height, int) and height > 0       # block height present
-    assert ts                                           # timestamp present (added to the journal)
-    assert sig                                          # signature/txid present
+    row = match[0]
+    assert row["token"] == "txtok" and row["sender"] == client.address
+    assert row["recipient"] == recipient and row["amount"] == 250
+    assert isinstance(row["block_height"], int) and row["block_height"] > 0   # block height present
+    assert row["timestamp"]                             # timestamp present (added to the journal)
+    assert row["signature"]                             # signature/txid present
 
     # recipient side: the same transfer shows up
     d2 = _get("/api/token/tx/%s" % recipient)
-    assert any(r[0] == "txtok" and r[3] == client.address and r[5] == 250
+    assert any(r["token"] == "txtok" and r["sender"] == client.address and r["amount"] == 250
                for r in d2["transactions"]), d2["transactions"][:5]
 
     # an address with no token activity returns an empty list (handled, not 404)

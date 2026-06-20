@@ -438,8 +438,8 @@ def _make_handler(node):
                         "/api/tokens": "all tokens on chain, ranked by transfer volume",
                         "/api/token/{name}": "a token's supply, holder count, and per-address balances",
                         "/api/token/tx/{address}": "token transfers (sent or received) for an address, newest "
-                                                   "first: [token, block_height, timestamp, sender, recipient, "
-                                                   "amount, signature]",
+                                                   "first; each {token, block_height, timestamp, sender, "
+                                                   "recipient, amount, signature}",
                         "/api/fork": "hf2 auto-fork readiness: signalling run, lock-in, activation height",
                         "/api/shield/stats": "shielded pool (doc/22): note/nullifier counts, pool value, sink",
                         "/api/shield/note/{note_id}": "public fields of a shielded note (nothing decryptable)",
@@ -773,8 +773,8 @@ def _make_handler(node):
             return {"count": len(rows), "tokens": [{"token": r[0], "transfers": r[1]} for r in rows]}
 
         def _token_tx(self, db, address, query):
-            """Token transfers (sent OR received) for an address, newest first, as
-            [token, block_height, timestamp, sender, recipient, amount, signature]. Same SEAM as _tokens:
+            """Token transfers (sent OR received) for an address, newest first, each a dict
+            {token, block_height, timestamp, sender, recipient, amount, signature}. Same SEAM as _tokens:
             the LMDB token index (tokens_aliases plugin) when enabled, else the legacy index.db."""
             try:
                 limit = max(1, min(int(query.get("limit", ["100"])[0]), 500))
@@ -793,7 +793,8 @@ def _make_handler(node):
                         return int(v or 0)
                     except (ValueError, TypeError):
                         return 0
-                rows = [[x[0], x[1], x[2], x[3], x[4], _amt(x[5]), x[6]] for x in (r or [])]
+                rows = [{"token": x[0], "block_height": x[1], "timestamp": x[2], "sender": x[3],
+                         "recipient": x[4], "amount": _amt(x[5]), "signature": x[6]} for x in (r or [])]
             return {"address": address, "count": len(rows), "limit": limit, "transactions": rows}
 
         def _token(self, db, name, query):

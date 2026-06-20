@@ -238,8 +238,8 @@ class TokenIndex:
         return out
 
     def token_txs_for_address(self, address: str, limit: int = 100):
-        """Token transfers (sent OR received) involving ``address``, newest height first, shaped as
-        ``[[token, block_height, timestamp, sender, recipient, amount, signature], ...]``.
+        """Token transfers (sent OR received) involving ``address``, newest height first, each a dict
+        ``{token, block_height, timestamp, sender, recipient, amount, signature}``.
 
         Targeted, not a full scan: addrtok gives the address's tokens; each token's cred (received) and deb
         (sent) rows carry the (height, seq) that keys the journal record with the full transfer. A
@@ -266,9 +266,10 @@ class TokenIndex:
                         if j.get("k") != "transfer":
                             continue
                         h, _s = struct.unpack(">QQ", hq)
-                        rows[hq] = [j.get("tok"), int(h), j.get("ts"), j.get("adr"),
-                                    j.get("rcp"), j.get("amt"), j.get("txid")]
-        ordered = sorted(rows.values(), key=lambda r: (r[1], r[6] or ""), reverse=True)
+                        rows[hq] = {"token": j.get("tok"), "block_height": int(h), "timestamp": j.get("ts"),
+                                    "sender": j.get("adr"), "recipient": j.get("rcp"),
+                                    "amount": j.get("amt"), "signature": j.get("txid")}
+        ordered = sorted(rows.values(), key=lambda r: (r["block_height"], r["signature"] or ""), reverse=True)
         return ordered[:max(1, int(limit))]
 
     def _group_sums(self, db, token: str) -> dict:

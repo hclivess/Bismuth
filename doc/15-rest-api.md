@@ -54,7 +54,7 @@ duplicate, format), so the endpoint is a new transport, not a new consensus rule
 | `GET /api/supply` | circulating BIS supply (background-computed; returns `"computing"` until the first scan finishes) |
 | `GET /api/tokens` | issued tokens (from the token index) |
 | `GET /api/token/{name}` | a token's supply + holders |
-| `GET /api/token/tx/{address}?limit=N` | token transfers (sent or received) for an address, newest first: `[token, block_height, timestamp, sender, recipient, amount, signature]` (LMDB token index when enabled, else legacy index.db) |
+| `GET /api/token/tx/{address}?limit=N` | token transfers (sent or received) for an address, newest first; each a dict `{token, block_height, timestamp, sender, recipient, amount, signature}` (LMDB token index when enabled, else legacy index.db) |
 | `GET /api/vm/contracts` | deployed contracts + the current VM `state_root`, `fork_height`, `enabled` |
 | `GET /api/vm/contract/{addr}` | a contract: `engine` (`riscv`), code, custody `balance`, storage slots |
 | `GET /api/vm/market/{addr}` | prediction-market contract state: pots, odds, resolution |
