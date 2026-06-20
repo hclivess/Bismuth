@@ -45,6 +45,7 @@
   <div class="subtle small">
     <a href="#/blocks/">Blocks</a> &middot; <a href="#/tokens">Tokens</a> &middot;
     <a href="#/nodes">Nodes</a> &middot; <a href="#/vm">Contracts</a> &middot; <a href="#/supply">Supply</a>
+    &middot; <a href="#/api">API</a>
     &middot; <a href="javascript:void(0)" onclick="var u=prompt('Node API base (e.g. http://127.0.0.1:5659 for your local node):','http://127.0.0.1:5659');if(u)connectNode(u);">connect node…</a>
   </div>
   <div id="nodebar" class="pt-2"></div>
@@ -58,16 +59,26 @@
 <script>
 let API = localStorage.getItem('bisnode') || '/api';
 const el=(h)=>{const t=document.createElement('template');t.innerHTML=h.trim();return t.content.firstChild};
-async function api(p){const r=await fetch(API+p);if(!r.ok)throw new Error(r.status+' '+p);return r.json();}
+async function api(p){
+  // If this page is served over https but the chosen node is http, the browser blocks a direct fetch
+  // (mixed content). Route through THIS explorer's own same-origin node (/api/proxy), which relays the
+  // request to the target node server-side (node->node http, no browser policy). Otherwise fetch direct.
+  const url=mixedContent()?('/api/proxy?target='+encodeURIComponent(API+p)):(API+p);
+  const r=await fetch(url);if(!r.ok)throw new Error(r.status+' '+p);return r.json();}
 function connectNode(host){host=String(host||'').replace(/\/+$/,'');API=host?host+'/api':'/api';
   if(host)localStorage.setItem('bisnode',API);else localStorage.removeItem('bisnode');
-  location.hash='#/';refreshStatus();router();}
+  // Land on the node overview WITHOUT leaving an #/at/<url> entry behind: rewrite the hash in place
+  // (no extra history step, no double router() — the old code set hash='#/' AND called router(), which
+  // double-fetched and made Back re-connect the peer). replaceState doesn't fire hashchange, so we
+  // render once, here.
+  if(location.hash&&location.hash!=='#/')history.replaceState(null,'',location.pathname+location.search+'#/');
+  refreshStatus();router();}
 function resetNode(){connectNode('');}
 function mixedContent(){return location.protocol==='https:'&&/^http:\/\//i.test(API);}
 function nodeBanner(){const b=document.getElementById('nodebar');if(!b)return;
   if(API==='/api'){b.innerHTML='';return;}
-  const warn=mixedContent()?' <span class="badge bg-warning text-dark">HTTPS→HTTP is blocked by your browser — open this explorer over http:// (e.g. your local node) to browse http nodes</span>':'';
-  b.innerHTML=`<div class="alert alert-info py-1 mb-2 small">Browsing node <span class="mono">${esc(API)}</span> · <a href="javascript:resetNode()">back to this explorer's node</a>${warn}</div>`;}
+  const relay=mixedContent()?' <span class="badge bg-secondary" title="The browser can\'t fetch an http node from an https page, so requests are relayed server-side through this explorer\'s own node.">relayed via this explorer\'s node</span>':'';
+  b.innerHTML=`<div class="alert alert-info py-1 mb-2 small">Browsing node <span class="mono">${esc(API)}</span> · <a href="javascript:resetNode()">back to this explorer's node</a>${relay}</div>`;}
 const esc=(s)=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const short=(h,n=16)=>{h=String(h||'');return h.length>n?h.slice(0,n)+'…':h;};
 const tm=(ts)=>{const d=new Date(parseFloat(ts)*1000);return isNaN(d)?'-':d.toLocaleString();};
@@ -76,7 +87,7 @@ function fmtAmt(a){let n=parseFloat(a);if(!isFinite(n))return esc(a);let s=n.toF
 function setMain(h){const m=document.getElementById('main');m.innerHTML='';m.append(typeof h==='string'?el(h):h);}
 function loading(){setMain('<div class="text-center py-5 spinner">Loading…</div>');}
 function errBox(e){let extra='';
-  if(API!=='/api'){extra=`<hr class="my-2"><div class="small">Could not reach <span class="mono">${esc(API)}</span>${mixedContent()?' — your browser blocks an HTTPS page from loading an HTTP node (mixed content). Open this explorer over <b>http://</b> to browse HTTP nodes, or point at an HTTPS node.':' — it may be offline or not expose its REST API.'} <a href="javascript:resetNode()">back to this explorer\'s node</a></div>`;}
+  if(API!=='/api'){extra=`<hr class="my-2"><div class="small">Could not reach <span class="mono">${esc(API)}</span>${mixedContent()?' via this explorer\'s relay — the target node may be offline, or this explorer\'s own node is too old to relay (it needs rest_api.py with the /api/proxy endpoint).':' — it may be offline or not expose its REST API.'} <a href="javascript:resetNode()">back to this explorer\'s node</a></div>`;}
   setMain(`<div class="alert alert-danger">Not found / error: ${esc(e.message||e)}${extra}</div>`);}
 
 let TIP=0;
@@ -199,20 +210,71 @@ async function showToken(name){
       <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Address</th><th>Balance</th></tr></thead><tbody>${rows}</tbody></table></div></div>`);
   }catch(e){errBox(e);}
 }
+// Strip a trailing :port so a peer keyed "host:5658" (live connection) and "host" (known/reputation) are
+// the same node. Leaves IPv6 (multiple colons) and bare hosts untouched.
+function nodeHost(ip){const s=String(ip||'');const m=s.match(/^([^:]+):\d+$/);return m?m[1]:s;}
 async function nodesList(){
   loading();
   try{const d=await api('/nodes');
+    // Defensive merge by host: older nodes (and relayed ones) may still return the un-deduped list where
+    // every connected peer appears twice — once as host:port (connected, blank) and once as host (known,
+    // with version/height/reputation). Fold them into one row so the Version etc. always shows.
+    const by={};
+    (d.nodes||[]).forEach(n=>{const h=nodeHost(n.ip);const e=by[h]||(by[h]={ip:h,height:null,behind:null,version:null,reputation:0,connected:false,banned:false,whitelisted:false});
+      if(n.height!=null)e.height=n.height;
+      if(n.behind!=null)e.behind=n.behind;
+      if(n.version!=null)e.version=n.version;
+      if(n.connected)e.connected=true; if(n.banned)e.banned=true; if(n.whitelisted)e.whitelisted=true;
+      if(Math.abs(n.reputation||0)>Math.abs(e.reputation||0))e.reputation=n.reputation||0;});
+    const nodes=Object.values(by).sort((a,b)=>(b.connected-a.connected)||((b.reputation||0)-(a.reputation||0))||((b.height||0)-(a.height||0)));
     const badge=(n)=>n.banned?'<span class="badge bg-danger">banned</span>'
       :n.connected?'<span class="badge badge-coinbase">connected</span>':'<span class="badge bg-secondary">known</span>';
-    const rows=(d.nodes||[]).map(n=>`<tr>
+    const rows=nodes.map(n=>`<tr>
       <td class="mono"><a href="#/at/${encodeURIComponent('http://'+n.ip+':5659')}" title="browse this node's API">${esc(n.ip)}</a>${n.whitelisted?' <span class="badge bg-info">wl</span>':''}</td>
       <td>${n.height==null?'-':n.height}</td>
       <td>${n.behind==null?'-':(n.behind===0?'tip':('−'+n.behind))}</td>
-      <td>${esc(n.version||'-')}</td><td>${n.reputation}</td><td>${badge(n)}</td></tr>`).join('');
-    setMain(`<div class="card p-3"><h5>Network <span class="subtle small">(${d.count} nodes · consensus ${esc(d.consensus==null?'-':d.consensus)})</span></h5>
-      ${d.count?`<div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Node</th><th>Height</th><th>Δ</th><th>Version</th><th>Reputation</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>`
+      <td class="mono">${esc(n.version||'-')}</td><td>${n.reputation}</td><td>${badge(n)}</td></tr>`).join('');
+    setMain(`<div class="card p-3"><h5>Network <span class="subtle small">(${nodes.length} nodes · consensus ${esc(d.consensus==null?'-':d.consensus)})</span></h5>
+      ${nodes.length?`<div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Node</th><th>Height</th><th>Δ</th><th>Version</th><th>Reputation</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>`
         :'<p class="subtle">No peers visible right now.</p>'}
-      <p class="subtle small mt-2">Reputation rewards peers whose blocks validate and penalizes height-lies / invalid blocks; the agreed tip and deep-rollback recovery weight by it.</p></div>`);
+      <p class="subtle small mt-2">Reputation rewards peers whose blocks validate and penalizes height-lies / invalid blocks; the agreed tip and deep-rollback recovery weight by it. Click a node to browse its API.</p></div>`);
+  }catch(e){errBox(e);}
+}
+async function apiView(){
+  loading();
+  try{
+    const idx=await api('/');                       // self-describing index (trailing slash: matches nginx's `location /api/` and the relay's /api path guard)
+    let st=null; try{st=await api('/status');}catch(_){}
+    const eps=idx.endpoints||{};
+    const items=Object.keys(eps).map(k=>{const isPost=/^POST\s/i.test(k);const path=k.replace(/^POST\s+/i,'');
+      const param=/[{}]/.test(path);return {method:isPost?'POST':'GET',path,rel:path.replace(/^\/api/,''),run:(!isPost&&!param),desc:eps[k]};});
+    const dur=(s)=>{s=parseInt(s)||0;const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return d?d+'d '+h+'h':h?h+'h '+m+'m':m+'m';};
+    const meta=`<div class="card p-3 mb-3">
+      <div class="d-flex justify-content-between align-items-start flex-wrap" style="gap:.5rem">
+        <div><h5 class="mb-1">${esc(idx.name||'Bismuth REST API')}</h5>
+          <div class="subtle small">REST API v${esc(idx.version||'?')} · node ${esc(idx.node_version||'?')} · protocol <span class="mono">${esc(idx.protocol||'?')}</span></div></div>
+        <div class="mono small subtle">${esc(API)}</div></div>
+      ${idx.transport?`<div class="subtle small mt-2">${esc(idx.transport)}</div>`:''}</div>`;
+    const grid=st?`<div class="row g-2 mb-3">`+[['Height',st.blocks],['Difficulty',Number(st.difficulty).toFixed(4)],['Peers',st.connections],['Consensus',st.consensus===st.blocks?'100%':st.consensus],['Uptime',dur(st.uptime)],['Threads',st.threads]].map(([l,v])=>`<div class="col"><div class="card stat p-2"><div class="l">${l}</div><div class="v">${esc(v)}</div></div></div>`).join('')+`</div>`:'';
+    const rows=items.map((it,i)=>`<tr>
+      <td><span class="badge ${it.method==='POST'?'bg-warning text-dark':'bg-info text-dark'}">${it.method}</span></td>
+      <td class="mono">${esc(it.path)}</td>
+      <td class="subtle small">${esc(it.desc)}</td>
+      <td class="text-end">${it.run?`<button class="btn btn-sm btn-outline-info py-0" data-i="${i}">run ▸</button>`:''}</td></tr>
+      ${it.run?`<tr id="ao-${i}" style="display:none"><td></td><td colspan="3"><pre class="mono small mb-0" style="white-space:pre-wrap;max-height:340px;overflow:auto;background:#0d1117;padding:.5rem;border:1px solid #2a323d;border-radius:4px"></pre></td></tr>`:''}`).join('');
+    // NB: setMain()->el() keeps only the FIRST top-level node, so everything must live under ONE root div
+    // (meta + status grid + endpoints table were 3 siblings, which silently dropped all but the meta).
+    setMain(`<div>${meta}${grid}
+      <div class="card p-3"><h5 class="mb-1">API endpoints <span class="subtle small">(${items.length})</span></h5>
+        <div class="subtle small mb-2">Self-describing, live from <span class="mono">${esc(API)}</span>. GET endpoints without {parameters} can be run inline${mixedContent()?" (relayed through this explorer's node)":''}.</div>
+        <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Method</th><th>Path</th><th>Description</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div></div>`);
+    document.querySelectorAll('#main button[data-i]').forEach(btn=>btn.addEventListener('click',async()=>{
+      const i=btn.getAttribute('data-i'),it=items[+i],out=document.getElementById('ao-'+i),pre=out.querySelector('pre');
+      if(out.style.display!=='none'){out.style.display='none';btn.textContent='run ▸';return;}
+      out.style.display='';btn.textContent='running…';btn.disabled=true;
+      try{const data=await api(it.rel);pre.textContent=JSON.stringify(data,null,2);}
+      catch(e){pre.textContent='Error: '+(e.message||e);}
+      finally{btn.disabled=false;btn.textContent='hide ▾';}}));
   }catch(e){errBox(e);}
 }
 async function supplyView(){
@@ -271,6 +333,7 @@ function router(){
   if(p[0]==='tokens')return tokensList();
   if(p[0]==='token')return showToken(decodeURIComponent(p[1]));
   if(p[0]==='nodes')return nodesList();
+  if(p[0]==='api')return apiView();
   if(p[0]==='supply')return supplyView();
   if(p[0]==='vm'&&p[1])return vmContract(decodeURIComponent(p[1]));
   if(p[0]==='vm')return vmList();

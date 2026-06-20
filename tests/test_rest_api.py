@@ -214,3 +214,118 @@ def test_rest_block_reads_post_fork_use_lmdb(client):
     rheights = [b["block_height"] for b in rng["blocks"]]
     assert rheights == sorted(rheights) and max(rheights) == tip
     assert all(b["transactions"] for b in rng["blocks"])
+
+
+# --- /api/proxy: same-origin relay so an https explorer can browse an http node (no mixed-content) ---
+# The relay fetches a *target* node's read-only /api server-side and returns it. It is read-only,
+# GET-only, /api-paths-only, and SSRF-guarded (only public hosts; loopback/private/metadata refused).
+
+from urllib.parse import quote as _q
+
+
+def _proxy_get(target):
+    """GET /api/proxy?target=<url>, returning (status, body) even for 4xx/5xx (no raise)."""
+    url = BASE + "/proxy?target=" + _q(target, safe="")
+    try:
+        with urllib.request.urlopen(url, timeout=15) as r:
+            return r.status, json.loads(r.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        return e.code, json.loads(e.read().decode("utf-8"))
+
+
+def test_rest_proxy_listed_in_index(client):
+    assert _wait_rest()
+    _, body = _get("")
+    assert "/api/proxy?target={url}" in body["endpoints"]
+
+
+def test_rest_proxy_requires_target(client):
+    try:
+        with urllib.request.urlopen(BASE + "/proxy", timeout=10) as r:
+            code, body = r.status, json.loads(r.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        code, body = e.code, json.loads(e.read().decode("utf-8"))
+    assert code == 400 and body["error"] == "bad_request"
+
+
+def test_rest_proxy_rejects_non_api_path(client):
+    # Never an arbitrary-URL fetcher: only /api paths are relayable.
+    code, body = _proxy_get("http://93.184.216.34/etc/passwd")
+    assert code == 403 and body["error"] == "forbidden"
+
+
+def test_rest_proxy_rejects_non_http_scheme(client):
+    code, body = _proxy_get("file:///etc/passwd")
+    assert code == 400 and body["error"] == "bad_request"
+
+
+def test_rest_proxy_blocks_loopback_ssrf(client):
+    # The guard must refuse to let the node be used as an SSRF pivot to loopback...
+    code, body = _proxy_get("http://127.0.0.1:3031/api/status")
+    assert code == 403 and body["error"] == "forbidden"
+
+
+def test_rest_proxy_blocks_private_and_metadata_ssrf(client):
+    # ...private ranges and the cloud-metadata link-local IP.
+    for tgt in ("http://10.0.0.1:5659/api/status",
+                "http://192.168.1.1/api/status",
+                "http://169.254.169.254/api/status"):
+        code, body = _proxy_get(tgt)
+        assert code == 403 and body["error"] == "forbidden", tgt
+
+
+def test_rest_proxy_happy_path_public(client):
+    # Full relay against a real public http node. Network-gated: skipped when offline so CI stays green.
+    import pytest
+    target = "http://185.100.232.5:5659/api/status"
+    try:
+        code, body = _proxy_get(target)
+    except urllib.error.URLError as e:
+        pytest.skip("public test node unreachable: %s" % e)
+    if code == 502:
+        pytest.skip("relay could not reach public test node: %s" % body)
+    assert code == 200
+    # The relayed payload is the *target* node's status, returned same-origin to the browser.
+    assert body.get("node_version") and "blocks" in body
+
+
+# --- /api/nodes dedup: the live connection pool is keyed host:port while opinion/version/reputation are
+# keyed by bare host; unioning them verbatim listed every connected peer twice (once connected-but-blank,
+# once known-with-version). _nodes() must fold them into one row per host. Hermetic (no running node). ---
+
+def test_nodes_dedup_merges_host_and_hostport():
+    import types
+    import rest_api
+
+    class FakePeers:
+        peer_opinion_dict = {"185.100.232.5": 4862899, "185.184.192.210": 4862899}
+        ip_to_mainnet = {"185.100.232.5": "mainnet0023", "185.184.192.210": "mainnet0022"}
+        _connection_pool_set = {"185.100.232.5:5658", "185.184.192.210:5658", "207.246.101.70:5658"}
+        consensus = 4862899
+        consensus_percentage = 100.0
+        _rep = {"185.100.232.5": 20, "185.184.192.210": 100}
+
+        def reputation(self, ip):
+            return self._rep.get(ip, 0)
+
+        def is_banned(self, ip):
+            return False
+
+        def is_whitelisted(self, ip):
+            return False
+
+    node = types.SimpleNamespace(peers=FakePeers(), hdd_block=4862899)
+    Handler = rest_api._make_handler(node)
+    res = Handler.__new__(Handler)._nodes()
+    ips = [n["ip"] for n in res["nodes"]]
+
+    # one row per host, no leftover host:port rows
+    assert len(ips) == len(set(ips)), ips
+    assert not any(":" in i and i.rsplit(":", 1)[-1].isdigit() for i in ips), ips
+    # the connected peer carries its version + reputation (the whole point)
+    m = {n["ip"]: n for n in res["nodes"]}
+    assert m["185.100.232.5"]["connected"] is True
+    assert m["185.100.232.5"]["version"] == "mainnet0023"
+    assert m["185.100.232.5"]["reputation"] == 20
+    # a pool-only peer (no opinion/version yet) still shows, as connected with blanks
+    assert m["207.246.101.70"]["connected"] is True and m["207.246.101.70"]["version"] is None

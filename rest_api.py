@@ -34,10 +34,14 @@ Endpoints:
                                                  {"transaction": [ts, address, recipient, amount,
                                                   signature, public_key, operation, openfield]}
 """
+import ipaddress
 import json
 import os
+import socket
 import threading
 import time
+import urllib.error
+import urllib.request
 from decimal import Decimal
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
@@ -53,6 +57,9 @@ __version__ = "0.1.0"
 
 MEMPOOL_FIELDS = ("timestamp", "address", "recipient", "amount",
                   "signature", "public_key", "operation", "openfield")
+
+PROXY_TIMEOUT = 10            # seconds to wait on the upstream node when relaying
+PROXY_MAX_BYTES = 8_000_000   # cap on a relayed response body (a RingCT spend block is large but bounded)
 
 
 class _NotFound(Exception):
@@ -259,6 +266,11 @@ def _make_handler(node):
                     return self._write(200, self._fee())
                 if route == ["capabilities"]:
                     return self._write(200, self._capabilities())
+                if route == ["proxy"]:
+                    # Same-origin relay (no DB): lets an HTTPS-hosted explorer browse an HTTP peer node
+                    # without the browser's mixed-content block. Propagates the upstream status code.
+                    status, payload = self._proxy(query)
+                    return self._write(status, payload)
 
                 db = self._db()
                 if route == ["mempool"]:
@@ -301,6 +313,8 @@ def _make_handler(node):
                 self._write(404, {"error": "not_found", "detail": str(e)})
             except _BadRequest as e:
                 self._write(400, {"error": "bad_request", "detail": str(e)})
+            except _Forbidden as e:
+                self._write(403, {"error": "forbidden", "detail": str(e)})
             except Exception as e:
                 self._write(500, {"error": "server_error", "detail": str(e)})
             finally:
@@ -421,7 +435,82 @@ def _make_handler(node):
                                                  "{\"transaction\": [ts, address, recipient, amount, "
                                                  "signature, public_key, operation, openfield]} — the "
                                                  "post-hardfork submission path, no socket needed",
+                        "/api/proxy?target={url}": "same-origin relay to another node's read-only /api, so "
+                                                   "an HTTPS-hosted explorer can browse an HTTP node without "
+                                                   "the browser's mixed-content block (read-only, GET-only, "
+                                                   "/api paths to public hosts; disable with rest_api_proxy=False)",
                     }}
+
+        @staticmethod
+        def _proxy_guard_host(host):
+            """SSRF guard: refuse to relay to loopback / private / link-local / multicast / reserved /
+            unspecified addresses (this also covers the 169.254.169.254 cloud-metadata IP, which is
+            link-local) so the proxy can't be turned into a pivot into the node operator's own network.
+            EVERY address the host resolves to must be public. (Residual caveat: a DNS-rebind attacker who
+            controls the target's authoritative DNS could return a public IP here and a private IP to the
+            subsequent urlopen; acceptable for a read-only JSON relay on a public node, and noted here so it
+            isn't mistaken for full protection.)"""
+            try:
+                infos = socket.getaddrinfo(host, None)
+            except Exception as e:
+                raise _BadRequest("proxy target does not resolve: %s" % e)
+            for info in infos:
+                addr = info[4][0].split("%")[0]   # strip any IPv6 zone id
+                try:
+                    ip = ipaddress.ip_address(addr)
+                except ValueError:
+                    raise _Forbidden("proxy target resolves to a non-IP address")
+                if (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast
+                        or ip.is_reserved or ip.is_unspecified):
+                    raise _Forbidden("proxy target resolves to a non-public address (%s)" % ip)
+
+        def _proxy(self, query):
+            """Same-origin relay so an HTTPS-hosted explorer (explorer.bismuth.cz) can browse an HTTP peer
+            node despite the browser's mixed-content policy. The browser only ever talks to THIS node (its
+            own HTTPS origin via nginx); this node fetches the *target* node's read-only ``/api`` itself
+            (node->node HTTP — no browser policy involved) and returns the JSON. Read-only and locked down:
+            GET only, target scheme must be http(s), target path must be under ``/api``, and the host must
+            resolve to a public address. Returns ``(status, payload)`` so an upstream status such as 404
+            propagates to the explorer's existing error handling instead of masquerading as a 200."""
+            if not getattr(node, "rest_api_proxy", True):
+                raise _Forbidden("node-browsing relay is disabled (set rest_api_proxy=True to enable)")
+            target = (query.get("target") or [None])[0]
+            if not target:
+                raise _BadRequest("proxy requires ?target=<node /api url>")
+            u = urlparse(target)
+            if u.scheme not in ("http", "https"):
+                raise _BadRequest("proxy target must be an http(s) URL")
+            if not u.hostname:
+                raise _BadRequest("proxy target has no host")
+            if not (u.path == "/api" or u.path.startswith("/api/")):
+                raise _Forbidden("proxy only relays /api paths")  # never an arbitrary-URL fetcher
+            self._proxy_guard_host(u.hostname)
+            port = u.port or (443 if u.scheme == "https" else 80)
+            # Rebuild a clean URL (drops any userinfo/fragment); keep path + query verbatim. No
+            # Accept-Encoding header -> the upstream Bismuth node replies with identity (plaintext) JSON.
+            clean = "%s://%s:%d%s%s" % (u.scheme, u.hostname, port, u.path,
+                                        ("?" + u.query) if u.query else "")
+            req = urllib.request.Request(clean, method="GET",
+                                         headers={"Accept": "application/json",
+                                                  "User-Agent": "bismuth-explorer-proxy"})
+            try:
+                with urllib.request.urlopen(req, timeout=PROXY_TIMEOUT) as r:
+                    raw = r.read(PROXY_MAX_BYTES + 1)
+                    status = r.status
+            except urllib.error.HTTPError as e:          # upstream 4xx/5xx: propagate its status + body
+                try:
+                    raw = e.read(PROXY_MAX_BYTES + 1)
+                except Exception:
+                    raw = b""
+                status = e.code
+            except Exception as e:                        # DNS/connection/timeout
+                return 502, {"error": "proxy_unreachable", "detail": str(e), "target": clean}
+            if len(raw) > PROXY_MAX_BYTES:
+                return 502, {"error": "proxy_too_large", "target": clean}
+            try:
+                return status, json.loads(raw or b"null")
+            except Exception:
+                return 502, {"error": "proxy_bad_json", "target": clean}
 
         def _fork(self, db):
             import fork
@@ -529,7 +618,18 @@ def _make_handler(node):
                 return {"count": 0, "tip": 0, "consensus": None, "nodes": []}
             opinions = dict(getattr(p, "peer_opinion_dict", {}) or {})
             versions = dict(getattr(p, "ip_to_mainnet", {}) or {})
-            connected = set(getattr(p, "_connection_pool_set", set()) or [])
+            connected_raw = set(getattr(p, "_connection_pool_set", set()) or [])
+
+            # The live connection pool is keyed by host:port, but opinions / versions / reputation are all
+            # keyed by bare host. Unioning them verbatim listed every connected peer TWICE — once as
+            # "host:port" (connected, but height/version/reputation all blank) and once as bare "host"
+            # (known, with the real data). Normalize the connection set to bare host so each peer is one
+            # row carrying both its connected flag and its height/version/reputation.
+            def _host(x):
+                s = str(x)
+                head, sep, tail = s.rpartition(":")
+                return head if (sep and tail.isdigit() and head.count(":") == 0) else s  # strip IPv4 :port only
+            connected = {_host(c) for c in connected_raw}
             tip = int(getattr(node, "hdd_block", 0) or 0)
             out = []
             for ip in (set(opinions) | set(versions) | connected):

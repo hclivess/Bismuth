@@ -59,10 +59,11 @@ duplicate, format), so the endpoint is a new transport, not a new consensus rule
 | `GET /api/vm/market/{addr}` | prediction-market contract state: pots, odds, resolution |
 | `GET /api/shield/stats` | shielded pool (doc/22): note/nullifier counts, pool value, sink |
 | `GET /api/shield/note/{note_id}` | public fields of a shielded note (nothing decryptable) |
+| `GET /api/proxy?target={url}` | same-origin relay to another node's read-only `/api` (lets the https explorer browse an http node despite the browser's mixed-content block); read-only, GET-only, `/api`-paths-only, SSRF-guarded; gated by `rest_api_proxy` (default on) |
 | `POST /api/transaction` | submit a signed tx (gated by `rest_api_write`; aliases: `POST /api/sendtx`, `POST /api/mempool`) |
 
-Responses are JSON with appropriate status codes (`200`, `400` bad request, `404` not found, `500`
-server error) and `Access-Control-Allow-Origin: *`. Transactions are formatted with
+Responses are JSON with appropriate status codes (`200`, `400` bad request, `403` forbidden, `404` not
+found, `500` server error) and `Access-Control-Allow-Origin: *`. Transactions are formatted with
 `essentials.format_raw_tx` (the same shape as the socket `*json` commands), so amounts/fields match
 the legacy JSON responses.
 
@@ -74,12 +75,36 @@ curl http://127.0.0.1:5659/api/block/height/1589600
 curl http://127.0.0.1:5659/api/balance/4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed
 ```
 
+## Browsing other nodes from the hosted explorer (mixed-content relay)
+
+The explorer is served over **https** (explorer.bismuth.cz, nginx → node `127.0.0.1:5659`). When the
+explorer's "connect node…" / "Nodes" browser points at a *peer* node — which speaks plain **http** on
+`5659` — a browser refuses the cross-origin `fetch` (an https page may not load an http subresource:
+*mixed content*). This is a browser policy, not a node problem; the peer's API is reachable (e.g. by
+`curl`) the whole time.
+
+`GET /api/proxy?target=<url>` solves it without weakening the browser rule. The explorer detects the
+https→http case and routes the request through **its own** same-origin node (`/api/proxy`); that node
+fetches the target's `/api` **server-side** (node→node http — no browser policy involved) and returns
+the JSON. The browser only ever talks to its own https origin. The relay is locked down: GET only, the
+target scheme must be http(s), the target path must be under `/api`, and the host must resolve to a
+**public** address — loopback / private / link-local (incl. the `169.254.169.254` cloud-metadata IP) /
+reserved targets are refused (`403`) so the node can't be used as an SSRF pivot. Disable entirely with
+`rest_api_proxy=False`. Upstream status codes propagate (a target `404` returns `404`), and an
+unreachable target returns `502`.
+
+```bash
+# relay another node's status through this node (what the explorer does under the hood)
+curl "http://127.0.0.1:5659/api/proxy?target=http%3A%2F%2F185.100.232.5%3A5659%2Fapi%2Fstatus"
+```
+
 ## Tested
 
 `tests/test_rest_api.py` runs against a regnet node (`rest_api=True`, port 3031) and exercises the core
 read endpoints + 404 handling. The newer endpoints are covered by their feature tests:
 `/api/fee` by `test_fee_dynamics`/`test_transactions`; `/api/vm/*` by `test_vm_post_fork` + `test_vm_value`;
-`/api/supply`, `/api/tokens`, `/api/nodes` by `test_explorer_endpoints`.
+`/api/supply`, `/api/tokens`, `/api/nodes` by `test_explorer_endpoints`. The `/api/proxy` relay (happy
+path + SSRF/scheme/path guards + the disabled state) is covered by the `proxy` tests in `test_rest_api`.
 
 `POST /api/transaction` (the write path) is covered by `test_rest_api_write` — a signed tx submitted
 over HTTP alone (no socket) moves funds; a malformed body is 400; an unsigned/garbage tx is accepted by

@@ -8,8 +8,14 @@ vendored Bootstrap).
   - live status + **circulating supply**, block paging, block / transaction / address / balance lookup;
   - **Tokens** (`/api/tokens`, `/api/token/{name}`) — per-token supply, holders, balances;
   - **Nodes** (`/api/nodes`) — browse the peer network: each node's height, version, **reputation**, and
-    connected / banned / whitelisted status;
+    connected / banned / whitelisted status. Clicking a peer (or "connect node…") browses *that* node's
+    API; peers serve plain **http** while this page is **https**, so a direct cross-origin fetch is
+    blocked by the browser (mixed content). The explorer transparently relays those requests through this
+    node's `GET /api/proxy` (read-only, SSRF-guarded — see
+    [`../doc/15-rest-api.md`](../doc/15-rest-api.md)), so the browser only ever talks to its own origin;
   - **Supply** (`/api/supply`) — circulating supply + chain height.
+  - **API** — a live, self-describing console: node status + every endpoint from the `/api` index, with
+    a one-click "run" for GET endpoints (routed through the relay when browsing an http node).
   - `explorer/assets/bootstrap.min.css` is the vendored stylesheet.
 - **`site/index.html`** (+ `site/assets/`) — the **bismuth.cz** landing page: the bootstrap-snapshot
   download (`ledger.tar.gz`) plus a link to the explorer.

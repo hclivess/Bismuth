@@ -1329,6 +1329,7 @@ if __name__ == "__main__":
     node.rest_api = config.rest_api              # opt-in modern parallel REST API (see doc/15)
     node.rest_api_port = config.rest_api_port
     node.rest_api_write = getattr(config, "rest_api_write", False)   # POST /api/transaction (post-hardfork submit path)
+    node.rest_api_proxy = getattr(config, "rest_api_proxy", True)    # GET /api/proxy same-origin relay for the explorer (read-only, SSRF-guarded; on by default)
     node.rollback_consensus = config.rollback_consensus                      # AUTO-RECOVERY: reputation-gated deep rollback, ON by default (doc/14)
     node.rollback_consensus_threshold = config.rollback_consensus_threshold
     node.rollback_consensus_min_peers = config.rollback_consensus_min_peers
