@@ -14,7 +14,8 @@ from os import urandom
 from typing import Union
 
 import base58
-from coincurve import PrivateKey, verify_signature
+from coincurve import PrivateKey, PublicKey, verify_signature
+from coincurve.utils import GROUP_ORDER_INT
 from polysign.signer import Signer, SignerType, SignerSubType
 
 
@@ -135,3 +136,37 @@ class SignerECDSA(Signer):
     def sign_buffer_for_bis(self, buffer: bytes) -> str:
         """Sign a buffer, sends under the format expected by bismuth network format"""
         return b64encode(self.sign_buffer_raw(buffer)).decode('utf-8')
+
+    # --- hf2 Ethereum-shape single-sig: recoverable signature over the 32-byte txid -----------------
+    # Post-fork a single-sig secp256k1 tx signs the txid itself (32 raw bytes) and carries a RECOVERABLE
+    # compact signature (r||s||recovery_id, 65 bytes hex) instead of DER+base64; the public_key field is
+    # dropped and the signer is recovered via ecrecover. hasher=None is load-bearing on BOTH sign and
+    # recover: the message is the already-final 32-byte digest, so coincurve must NOT re-hash it.
+
+    def sign_buffer_for_bis_recoverable(self, txid_bytes: bytes) -> str:
+        """Sign the 32-byte txid, return the 65-byte recoverable signature as lowercase hex."""
+        return self._key.sign_recoverable(txid_bytes, hasher=None).hex()
+
+    @classmethod
+    def verify_bis_signature_recovered(cls, signature_hex: str, txid_hex: str, address: str) -> None:
+        """Verify a recoverable signature over the txid WITHOUT an explicit public key: recover the signer
+        from (txid, sig), derive its address, and require it to equal the tx sender ``address``. Enforces
+        low-s (rejects, never normalises) so the signature is non-malleable. Raises ValueError on any
+        failure."""
+        try:
+            sig = bytes.fromhex(signature_hex)
+        except Exception:
+            raise ValueError("signature is not valid hex")
+        if len(sig) != 65:
+            raise ValueError("bad recoverable signature length (expected 65 bytes)")
+        s = int.from_bytes(sig[32:64], "big")
+        if s == 0 or s > GROUP_ORDER_INT // 2:
+            raise ValueError("non-canonical (high-s or zero) signature")
+        if sig[64] > 3:
+            raise ValueError("bad recovery id")
+        try:
+            pub = PublicKey.from_signature_and_message(sig, bytes.fromhex(txid_hex), hasher=None)
+        except Exception as e:
+            raise ValueError(f"unrecoverable signature: {e}")
+        if address != cls.public_key_to_address(pub.format(compressed=True)):
+            raise ValueError("Attempt to spend from a wrong address")

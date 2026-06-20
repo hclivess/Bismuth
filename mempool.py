@@ -71,6 +71,9 @@ class Mempool(MempoolQueriesMixin):
             self.db = None
             self.cursor = None
             self.trace_db_calls = trace_db_calls
+            # hf2: the digester mirrors node.fork_height here each pass so mempool admission can bind a
+            # tx's signing scheme to its DESTINATION block height. None = pre-fork / not yet locked in.
+            self.fork_height = None
 
             self.testnet = testnet
 
@@ -383,16 +386,23 @@ class Mempool(MempoolQueriesMixin):
                             mempool_result.append("Mempool: Too old a transaction")
                             continue
 
-                        # Then more cpu heavy tests
-                        buffer = bismuth_serialize.signature_buffer(
-                            mempool_timestamp, mempool_address, mempool_recipient, mempool_amount,
-                            mempool_operation, mempool_openfield)
+                        # Then more cpu heavy tests. hf2: bind the signing scheme to the DESTINATION block
+                        # height (next block) so the pool admits post-fork-signed txs (recoverable, no
+                        # pubkey) once at/after the fork. Pre-filter only; the digester is the authority.
+                        mempool_post_fork = False
+                        if self.fork_height is not None:
+                            essentials.execute_param_c(c, "SELECT block_height FROM transactions WHERE 1 ORDER by block_height DESC limit ?",
+                                                       (1,), self.app_log)
+                            _tip_row = c.fetchone()
+                            _tip = _tip_row[0] if _tip_row and _tip_row[0] is not None else 0
+                            mempool_post_fork = (_tip + 1) >= self.fork_height
 
                         #  Will raise if error
                         try:
-                            SignerFactory.verify_bis_signature(mempool_signature_enc, mempool_public_key_b64encoded,
-                                                               buffer,
-                                                               mempool_address)
+                            SignerFactory.verify_tx_signature(
+                                mempool_post_fork, mempool_timestamp, mempool_address, mempool_recipient,
+                                mempool_amount, mempool_operation, mempool_openfield,
+                                mempool_signature_enc, mempool_public_key_b64encoded)
                         except Exception as e:
                             mempool_result.append(f"Mempool: Signature did not match for address ({e})")
                             continue

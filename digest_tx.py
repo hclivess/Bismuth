@@ -75,8 +75,12 @@ class Transaction:
 
         return None
 
-    def validate(self, node, last_block_timestamp: float) -> None:
-        """Validate transaction elements. Raises ValueError on invalid transaction."""
+    def validate(self, node, last_block_timestamp: float, block_height: int = None) -> None:
+        """Validate transaction elements. Raises ValueError on invalid transaction.
+
+        ``block_height`` is the height this tx is being validated INTO; it fork-gates the signature scheme
+        (post-hf2 single-sig secp256k1 verifies by ecrecover over the content txid). When None (legacy
+        callers), verification falls back to the pre-fork scheme."""
         # Timestamp checks (cheap operations first)
         if self.start_time_tx < self.q_received_timestamp:
             minutes_future = quantize_two((self.q_received_timestamp - self.start_time_tx) / 60)
@@ -95,21 +99,22 @@ class Transaction:
         if not essentials.address_validate(self.received_recipient):
             raise ValueError("Not a valid recipient address")
 
-        # Signature verification (expensive operation last)
-        buffer = bismuth_serialize.signature_buffer(
+        # Signature verification (expensive operation last). Fork-gated on the single hf2 fork_height:
+        # at/after it an ordinary single-sig secp256k1 tx is verified by ecrecover over the content txid
+        # (Ethereum-shape, public key dropped); pre-fork txs and post-fork RSA/ED25519/multisig keep the
+        # legacy buffer+explicit-pubkey verification.
+        fork_height = getattr(node, "fork_height", None)
+        post_fork = fork_height is not None and block_height is not None and block_height >= fork_height
+        SignerFactory.verify_tx_signature(
+            post_fork,
             self.received_timestamp,
             self.received_address,
             self.received_recipient,
             self.received_amount,
             self.received_operation,
             self.received_openfield,
-        )
-
-        SignerFactory.verify_bis_signature(
             self.received_signature_enc,
             self.received_public_key_b64encoded,
-            buffer,
-            self.received_address
         )
 
     def to_tuple(self) -> tuple:

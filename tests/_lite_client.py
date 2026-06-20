@@ -102,14 +102,34 @@ class LiteClient:
         self.command("mpinsert", [tx])
         return signed[4][:56]
 
+    def _post_fork_next(self, api_port=3031):
+        """True iff the NEXT block (tip+1) is at/after the hf2 fork_height — i.e. a tx built now must use
+        the post-fork (Ethereum-shape single-sig) scheme. Reads /api/fork; defaults pre-fork if unreadable."""
+        try:
+            url = "http://%s:%d/api/fork" % (self.ip, int(api_port))
+            with urllib.request.urlopen(url, timeout=self.timeout) as r:
+                d = json.load(r)
+            fh = d.get("fork_height")
+            tip = d.get("tip")
+            if tip is None:
+                tip = self.block_height()
+            return fh is not None and (tip + 1) >= fh
+        except Exception:
+            return False
+
     def send_with_signer(self, recipient, amount, signer, operation="", data=""):
         """Build, sign with an arbitrary polysign ECDSA/ED25519 signer (e.g. an HD-derived key), and
-        submit. The sender address is the signer's own address. Returns the txid."""
+        submit. The sender address is the signer's own address. Fork-aware: post-hf2 a single-sig ECDSA
+        sender signs the content txid with a recoverable sig and drops the pubkey. Returns the txid."""
         import hd_wallet
         timestamp = "%.2f" % time.time()
+        post_fork = self._post_fork_next()
         tx = hd_wallet.sign_transaction(signer, timestamp, signer.address(), recipient,
-                                        amount, operation, data)
+                                        amount, operation, data, post_fork=post_fork)
         self.command("mpinsert", [list(tx)])
+        if post_fork and tx[5] == "":
+            import bismuth_serialize
+            return bismuth_serialize.tx_id(tx[0], tx[1], tx[2], tx[3], tx[6], tx[7])
         return tx[4][:56]
 
     def send_raw_tx(self, tx):

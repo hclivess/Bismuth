@@ -13,6 +13,7 @@ from decimal import Decimal
 from polysign.signerfactory import SignerFactory
 
 import amounts
+import bismuth_serialize
 import db_helpers
 import wallet_helpers
 
@@ -61,7 +62,17 @@ End compatibility
 """
 
 
-def format_raw_tx(raw: list) -> dict:
+def format_raw_tx(raw: list, fork_height=None) -> dict:
+    # txid (doc/16, doc/18 §A.1): post-hf2 the canonical id is the content-hash txid — blake2b-256 of the
+    # same frozen pre-image consensus signs (timestamp/address/recipient/amount/operation/openfield),
+    # reproduced here on read from the STORED canonical fields (the stored timestamp/amount ARE the
+    # '%.2f'/'%.8f' strings that were signed). Pre-fork rows (or callers without a fork_height) keep the
+    # legacy signature[:56] slice, so historical ids and external references are byte-for-byte unchanged.
+    if fork_height is not None and raw[0] is not None and int(raw[0]) >= int(fork_height):
+        txid = bismuth_serialize.tx_id(str(raw[1]), str(raw[2]), str(raw[3]),
+                                       str(raw[4]), str(raw[10]), str(raw[11]))
+    else:
+        txid = raw[5][:56]
     # Pre-size dictionary with all keys for better performance
     transaction = {
         'block_height': raw[0],
@@ -76,9 +87,7 @@ def format_raw_tx(raw: list) -> dict:
         # end-to-end and this reconstruction disappears.
         'amount': amounts.display_amount(raw[4]),
         'signature': raw[5],
-        # HARDFORK (doc/16): txid is an ad-hoc signature[:56] slice; adopt nado's fixed-length
-        # content-hash txid (blake2b of tx content; the signature signs the txid).
-        'txid': raw[5][:56],
+        'txid': txid,
         'block_hash': raw[7],
         'fee': amounts.display_amount(raw[8]),
         'reward': amounts.display_amount(raw[9]),

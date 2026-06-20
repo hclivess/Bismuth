@@ -132,7 +132,7 @@ function txTable(txs){
         <td class="mono"><a class="trunc" title="${esc(t.recipient)}" href="#/address/${esc(t.recipient)}">${short(t.recipient,16)}</a> ${cb?'<span class="badge badge-coinbase">coinbase</span>':''}</td>
         <td>${fmtAmt(t.amount)}${parseFloat(t.reward||0)>0?` <span class="hash">+${fmtAmt(t.reward)}</span>`:''}</td>
         <td>${esc(t.operation||'')}</td>
-        <td class="mono hash"><a class="trunc" title="${esc(t.signature||'')}" href="#/tx/${encodeURIComponent(String(t.signature||'').slice(0,56))}">${short(t.signature,20)}</a></td></tr>`;}).join('')
+        <td class="mono hash"><a class="trunc" title="${esc(t.txid||t.signature||'')}" href="#/tx/${encodeURIComponent(t.txid||String(t.signature||'').slice(0,56))}">${short(t.txid||t.signature,20)}</a></td></tr>`;}).join('')
   }</tbody></table></div>`;
 }
 
@@ -160,7 +160,8 @@ async function showTx(txid){
   try{const t=await api(`/transaction/${encodeURIComponent(txid)}`);
     const f=(l,v,m)=>`<div class="mb-2"><div class="l">${l}</div><div class="${m?'mono':''}">${v}</div></div>`;
     setMain(`<div class="card p-3"><h5>Transaction</h5>
-      ${f('signature (txid)',esc(t.signature||txid),1)}
+      ${f('txid',esc(t.txid||txid),1)}
+      ${t.signature?f('signature',esc(t.signature),1):''}
       ${f('block',`<a href="#/block/${esc(t.block_height)}">${esc(t.block_height)}</a>`)}
       ${f('time',tm(t.timestamp))}
       ${f('from',`<a href="#/address/${esc(t.address)}">${esc(t.address)}</a>`,1)}

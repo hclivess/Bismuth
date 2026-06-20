@@ -218,13 +218,25 @@ def tx_public_key_b64(signer) -> str:
     return b64encode(bytes.fromhex(signer._public_key)).decode("utf-8")
 
 
-def sign_transaction(signer, timestamp, address, recipient, amount, operation="", openfield="") -> tuple:
-    """Build + sign the 8-field Bismuth tx tuple with an ECDSA/ED25519 signer, over the canonical buffer
-    (bismuth_serialize.signature_buffer). Self-verifies before returning, so a bad encoding fails loudly
-    here rather than being silently rejected by the node."""
+def sign_transaction(signer, timestamp, address, recipient, amount, operation="", openfield="",
+                     post_fork=False) -> tuple:
+    """Build + sign the 8-field Bismuth tx tuple with an ECDSA/ED25519 signer.
+
+    Pre-fork (default): sign the canonical ``signature_buffer`` and carry the explicit public key (legacy).
+    Post-fork (``post_fork=True``) for a single-sig secp256k1 signer: adopt the hf2 Ethereum-shape model —
+    sign the 32-byte content txid with a RECOVERABLE compact signature (hex), and DROP the public key
+    (field left empty; the node recovers the signer via ecrecover). Self-verifies before returning so a bad
+    encoding fails loudly here rather than being silently rejected by the node."""
     import bismuth_serialize
     from polysign.signerfactory import SignerFactory
     amount_s = "%.8f" % float(amount)
+    if post_fork and SignerFactory.is_single_sig_ecdsa(str(address)):
+        txid = bismuth_serialize.tx_id(str(timestamp), str(address), str(recipient),
+                                       amount_s, str(operation), str(openfield))
+        sig_hex = signer.sign_buffer_for_bis_recoverable(bytes.fromhex(txid))
+        signer.verify_bis_signature_recovered(sig_hex, txid, str(address))   # belt-and-suspenders
+        return (str(timestamp), str(address), str(recipient), amount_s,
+                sig_hex, "", str(operation), str(openfield))   # public_key dropped
     buffer = bismuth_serialize.signature_buffer(str(timestamp), str(address), str(recipient),
                                                 amount_s, str(operation), str(openfield))
     sig_b64 = signer.sign_buffer_for_bis(buffer)

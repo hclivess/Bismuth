@@ -69,6 +69,17 @@
    > content-derived txid that is the canonical identifier across node, APIs and wallets, decoupled
    > from the signature. Since the txid would become what is signed, this is a consensus change — do
    > it together with the hard fork above.
+   >
+   > **PINNED (see [18-hardfork-hf2.md](18-hardfork-hf2.md) §A.1).** Finalized as the Ethereum-shape
+   > single-sig model: `txid = blake2b(signature_buffer(timestamp,address,recipient,amount,operation,
+   > openfield), digest_size=32)` (64-hex), the signed message becomes `unhex(txid)` (32 bytes),
+   > signatures become 65-byte recoverable compact secp256k1 (hex), and the `public_key` field is
+   > DROPPED for single-sig (signer recovered via `ecrecover(txid,sig)` → address). blake2b is kept
+   > (not keccak/RLP). The frozen `signature_buffer` `'%.8f'`/`'%.2f'` string form is the **byte-stable
+   > pre-image** — the integer-amount win lands in storage/encoding, NOT the txid pre-image. Lookups
+   > shape-dispatch: `^[0-9a-f]{64}$` → exact `txid` column; else legacy `signature LIKE` prefix
+   > (a new `txid TEXT` column, NULL for pre-fork rows). Multisig/shielded keep explicit
+   > pubkeys/ring-sigs but sign the same txid. Full producer/lookup map in §A.1.
 3. **Behavior-preserving, replay-verified.** Every migration is validated by replaying the chain and
    asserting **identical block hashes** end-to-end (a consensus-equivalence test). No silent drift.
 4. **Backward compatible.** Old peers keep the socket protocol; legacy `*json` responses keep their

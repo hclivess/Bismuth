@@ -15,6 +15,7 @@ import re
 from os import urandom
 from typing import Type, Union
 
+import bismuth_serialize
 from polysign.signer import Signer, SignerType, SignerSubType
 from polysign.signer_rsa import SignerRSA  # RSA = Bismuth mainnet scheme; depends only on pycryptodomex
 
@@ -160,3 +161,28 @@ class SignerFactory:
         """Verify signature from decoded - bin - sig and pubkey"""
         verifier = cls.address_to_signer(address)
         verifier.verify_bis_signature_raw(signature, public_key, buffer, address)
+
+    @classmethod
+    def is_single_sig_ecdsa(cls, address: str) -> bool:
+        """True iff ``address`` is a regular (non-multisig) secp256k1 ECDSA address — the ONLY scheme that
+        uses the post-hf2 Ethereum-shape path (recoverable sig over the txid, public key dropped, ecrecover).
+        ED25519 (Bis1 with len > 50), RSA (56 hex) and native multisig (Bism/mBis) are excluded."""
+        return bool(RE_ECDSA_ADDRESS.match(address)) and len(address) <= 50
+
+    @classmethod
+    def verify_tx_signature(cls, post_fork: bool, timestamp, address, recipient, amount,
+                            operation, openfield, signature, public_key) -> None:
+        """Single fork-aware tx-signature verification used by BOTH the digester and the mempool.
+
+        Post-hf2, an ordinary single-sig secp256k1 sender uses the Ethereum-shape model: the signature
+        signs the 32-byte content txid and is a recoverable compact sig with NO public key (the signer is
+        recovered via ecrecover and must match the sender address). Every other case — all pre-fork txs,
+        and post-fork RSA / ED25519 / native-multisig — keeps the legacy scheme: verify the signature over
+        the frozen ``signature_buffer`` against the explicit public key. (The content-hash txid is the
+        canonical id for ALL post-fork txs regardless of which signing scheme verified them.)"""
+        if post_fork and cls.is_single_sig_ecdsa(address):
+            txid = bismuth_serialize.tx_id(timestamp, address, recipient, amount, operation, openfield)
+            _load_optional_signer("SignerECDSA").verify_bis_signature_recovered(signature, txid, address)
+            return
+        buffer = bismuth_serialize.signature_buffer(timestamp, address, recipient, amount, operation, openfield)
+        cls.verify_bis_signature(signature, public_key, buffer, address)

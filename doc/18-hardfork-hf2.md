@@ -43,6 +43,168 @@ Sign/hash **native integer units + a binary/struct tx encoding**, a bounded **co
 block body. *Risk: low-moderate* — it's a representation change, fully replay-checkable: every pre-fork
 block must still re-hash identically, every post-fork block round-trips through the new codec.
 
+#### A.1 Canonical txid + Ethereum-shape single-sig model (PINNED SPEC) — design ready
+
+This pins section A's "content-hash txid" and "canonical sig/pubkey encoding" to an exact,
+implementable spec. **Decision (final):** at `block_height >= node.fork_height`, ordinary
+**single-sig** txs adopt the Ethereum-style identity model, borrowing only its *shape* — we keep
+blake2b (the doc/18-D hash choice), **not** keccak/RLP/EIP-155.
+
+**1. txid content (what is hashed).** The txid is computed over the **frozen
+`bismuth_serialize.signature_buffer` fields** — exactly the six fields that have always been signed,
+in order:
+
+```
+content_bytes = bismuth_serialize.signature_buffer(timestamp, address, recipient, amount, operation, openfield)
+txid          = blake2b(content_bytes, digest_size=32).hexdigest()   # 64-hex, lowercase
+```
+
+`signature` and `public_key` are **excluded** from the content (just as Ethereum excludes
+`v,r,s`). *Justification:* this is the smallest possible consensus delta — the six-field tuple is
+already the frozen, characterization-locked signing pre-image (`signature_buffer`,
+`bismuth_serialize.py:22`), so the txid is a pure function of bytes the network already agreed to
+sign. Nothing new about *what* is committed; only that its blake2b-256 digest becomes the canonical
+id and the signed message. Excluding the signature makes the id **content-derived and malleability-free**
+(unlike `signature[:56]`, which is a slice of a non-deterministic ECDSA signature).
+
+**2. The signed message becomes the txid.** Post-fork, single-sig signing/verification is over the
+**32 raw txid bytes**, not the buffer:
+
+```
+message = bytes.fromhex(txid)          # 32 bytes
+sig     = ecdsa_sign_recoverable(privkey, message)     # hasher=None — message is already the digest
+```
+
+So the relationship is `sig over unhex(blake2b(content))`. (Pre-fork stays `sig over content`
+directly — the buffer itself.)
+
+**3. Signatures become recoverable compact secp256k1.** Post-fork single-sig signatures are
+**65-byte recoverable compact** `r(32) || s(32) || recovery_id(1)`, stored **hex** (130 chars), not
+DER/base64. coincurve 21.x is present and provides this directly
+(`PrivateKey.sign_recoverable(msg, hasher=None)` → 65 bytes;
+`PublicKey.from_signature_and_message(sig, msg, hasher=None)` → recovered pubkey — verified working in
+this environment). Enforce **low-s** (BIP-62) on accept so the id/sig pair is canonical.
+
+**4. The `public_key` field is DROPPED for single-sig txs.** The signer is recovered, not carried:
+
+```
+recovered_pub = ecrecover(txid_bytes, sig)             # PublicKey.from_signature_and_message
+if SignerECDSA.public_key_to_address(recovered_pub) != tx['address']:
+    reject                                              # "spend from wrong address"
+```
+
+This replaces the explicit-pubkey check in `digest_tx.Transaction.validate` (`digest_tx.py:99-113`)
+and `mempool.merge` (`mempool.py:387-398`). `public_key` is stored as the empty string post-fork (the
+column stays for schema/replay continuity; pre-fork rows keep their base64 pubkey). *Justification:*
+ecrecover makes the pubkey 1:1 derivable from (txid, sig), so carrying it is redundant — this is
+exactly section A's "public key by reference". It only works for key-recoverable schemes, hence
+single-sig (secp256k1 ECDSA) only.
+
+**5. Scope — single-sig ONLY.** ecrecover/drop-pubkey applies **only** to ordinary single-sig
+secp256k1 senders.
+  - **RSA senders** are not key-recoverable; if any RSA single-sig spends are still allowed post-fork
+    they MUST keep an explicit pubkey (RSA can't ecrecover). Recommended: post-fork single-sig =
+    secp256k1 only (the coinbase is already RSA-gated and is a special unsigned-value case — see note 8).
+  - **MULTISIG senders** (`SignerFactory.address_is_multisig`, doc/23) KEEP explicit pubkeys + their
+    N-of-M verification — but **sign the same 32-byte txid**. The digest multisig gate
+    (`digest.py:565-579`) is unchanged.
+  - **SHIELDED / RingCT** txs (doc/22) KEEP their ring-signature scheme and their own message binding
+    (`shieldedv1._ring_message`), but the *enclosing* tx still gets the same content-hash txid for
+    indexing/lookup. ecrecover is never applied to them.
+
+**6. Shape-dispatched lookup (every reader).** Tx lookups must dispatch on the query string shape so
+both eras resolve from one code path:
+
+```
+if re.fullmatch(r'[0-9a-f]{64}', q):   # post-fork content-hash txid -> exact column match
+    WHERE txid = ?            (q)
+else:                                  # legacy signature[:56] slice -> prefix match (unchanged)
+    WHERE signature LIKE ?    (q + '%')
+```
+
+A 64-hex-lowercase string is unambiguously a post-fork txid (the legacy `signature[:56]` slice is
+base64, so it contains `+/=` or uppercase and **cannot** match `^[0-9a-f]{64}$`); anything else is a
+legacy prefix. This means **add a `txid TEXT` column** to `transactions` (post-fork rows fill it;
+pre-fork rows leave it NULL and continue to resolve via the `signature LIKE` branch), plus an index on
+it. Added via `db_migrations.ledger_migrations` (new `v3`, alongside the existing TXID4 substr index
+which keeps serving the legacy branch). `digest`'s writer computes and stores `txid` for post-fork
+blocks; pre-fork replay never writes it (NULL), so block hashes are untouched (the txid column is not
+in `bismuth_serialize.TX_FIELDS` / the block-hash pre-image).
+
+**7. The integer-amount serialization freeze (byte-stability at the fork).** The txid content is only
+byte-stable if `signature_buffer`'s `amount` (and `timestamp`) string form is frozen at the fork.
+Today every signer/verifier reconstructs `amount` as `'%.8f' % float(amount)` and `timestamp` as
+`'%.2f'` *before* calling `signature_buffer` (`wallet_helpers.py:29`, `digest_tx.py:49,56`,
+`mempool.py` buffer build). doc/16 phase 2 (integer storage) is explicitly designed to keep these
+*display/consensus-edge* strings identical — storage holds integer units, but the bytes fed to
+`signature_buffer` are reconstructed via `amounts.from_units` to the **same `'%.8f'` decimal string**.
+**Decision:** the hf2 txid content keeps the existing `signature_buffer` field bytes verbatim — i.e.
+`amount` is the `'%.8f'` decimal string and `timestamp` the `'%.2f'` string, UTF-8 `repr`-of-tuple, as
+frozen by `test_consensus_signature_buffer_is_frozen`. We do **not** switch the txid pre-image to raw
+integer units, because (a) that would be a *second* byte change layered on the id change with no
+benefit, and (b) keeping the frozen buffer means the same `signature_buffer` function serves both the
+pre-fork direct-sign pre-image and the post-fork txid pre-image — one frozen byte form, characterization
+test still valid. The fork's "native integer" win (section A) is realized in *storage/encoding*, while
+the **consensus pre-image string form is the freeze point**: pin it at fork so the txid is deterministic
+across every node regardless of `ledger_integer_amounts` mode. (If a future fork ever wants the integer
+pre-image, that is a distinct, separately-characterized change — out of scope here.)
+
+**8. Coinbase / reward tx.** The mining reward tx is special-cased today: zero amount, RSA miner
+address, "only this is signed" with the nonce as openfield (`miner.py:103-112`). It still gets a
+content-hash txid (it has the six fields), but it is not an ecrecover single-sig spend (it carries no
+value and is validated by PoW + reward rules, not a sender signature). Leave its identity path as-is
+beyond computing the new txid for indexing.
+
+**Map — every txid PRODUCER (`signature[:56]`) to change (file:line):**
+- `essentials.format_raw_tx` `txid: raw[5][:56]` — `essentials.py:81` (the linchpin: feeds
+  `blockstojson`/`blocktojsondiffs` and most REST/JSON tx shapes). Post-fork: emit `raw[txid_col]`;
+  pre-fork rows fall back to `raw[5][:56]`.
+- `rpc_bitcoin.py:109` (`rpc_getblock` tx list), `:129` (`rpc_getrawtransaction` `txid`).
+- `rpc_ethereum.py:109` (block `transactions`), `:117` (`hash`).
+- `tokensv2.py:88` (issue), `:153` (transfer; already has the `txid=="0" -> blake2bhash_generate`
+  fallback) and `token_index.py` consumers (txid is just an opaque key there — feed the new id).
+- `miner.py` / `regnet.py` build the wire tx; the **signer** (wallet send path,
+  `send_nogui_noconf.py:124` `txid = signature_enc[:56]`) must switch to
+  `blake2b(content).hexdigest()` and sign `unhex(txid)` post-fork.
+- `ledger_explorer.py:175` (`x[5][:56]`), `web/explorer/index.html:135,163,320-322`
+  (`.slice(0,56)` link + the `^[0-9a-fA-F]{56}$` search heuristic → add a 64-hex branch; display
+  `t.txid` when present, fall back to `signature`).
+- `digest`'s block writer / `to_db` path: NEW — compute `txid` and store it in the new column for
+  post-fork blocks.
+
+**Map — every txid LOOKUP (`signature LIKE`) to shape-dispatch (file:line):**
+- `rest_api._transaction` — `rest_api.py:960-965` (`WHERE signature LIKE ? LIMIT 1`); also the route
+  comment `:29`/`:422` and `_submit_transaction` return `tx[4][:56]` → compute new txid for post-fork
+  submits (`rest_api.py:395`).
+- `apihandler_tx.api_gettransaction` (`apihandler_tx.py:31-38`), `api_gettransactionbysignature`
+  (`:95-100` — this one is *by full signature*, keep as exact-signature match, but note post-fork sigs
+  are hex compact), `api_gettransaction_for_recipients` (`:160-168`).
+- `rpc_bitcoin.rpc_getrawtransaction` (`rpc_bitcoin.py:124`),
+  `rpc_ethereum` equivalent (`rpc_ethereum.py:112`).
+- `tokensv2.py:132` (the `openfield LIKE` token scan is unrelated — leave; only its `r[4][:56]` id
+  derivation changes), `tokensv2.py:190` (`SELECT txid FROM tokens WHERE txid = ?` — already exact,
+  fine once the stored id is the new txid).
+- `check_tx.py:38,53` (`signature like ?`) — add the 64-hex exact-`txid` branch.
+- mempool ledger-dup check `mempool.py:410-416` (matches on full `signature`) — post-fork the dedup
+  key should be `txid` (the canonical id); the `substr(signature,1,4)` index branch is the legacy path.
+
+**Map — the VM contract-address derivation decision (`vm_engine.contract_address`,
+`vm_engine.py:26-28`).** Today `contract_address = blake2b(str(signature), digest_size=28)` — a
+function of the (legacy, malleable) signature. **Decision: move it to `blake2b(txid)`** post-fork
+(`blake2b(bytes.fromhex(txid), digest_size=28).hexdigest()`), because post-fork single-sig txs DROP the
+signature field for the recoverable compact form, and the recoverable sig is malleable in `recovery_id`
+/ low-s in a way the content-hash txid is not — deriving the contract address from the canonical,
+content-derived txid makes deploy addresses deterministic from tx content and independent of signature
+encoding. VM is post-fork-only (inert pre-fork), so there is **no legacy contract address to preserve**
+— this is a clean switch with no dual path. (Keep `digest_size=28` so the contract address stays a
+56-hex Bismuth-style address.)
+
+**Gate.** Everything above keys on the single `block_height >= node.fork_height` (no second signal),
+matching the existing VM / shield / multisig / LWMA / blake2b gates in `digest.py`. Pre-fork:
+`signature[:56]` id, DER/base64 sig, explicit pubkey, buffer-signing — **unchanged**, so no history
+rewrite (doc/18 "Continuity"). Replay-validated: pre-fork blocks re-hash identically (txid column NULL,
+not in the block-hash pre-image); post-fork blocks round-trip (content→txid→sig→ecrecover→address).
+
 ### B. Reward-sidechain cutover — foundation built (`reward_chain.py`)
 Mint dev/hypernode rewards into the sidechain instead of negative-height mirror rows; balances read
 ledger + sidechain. *Risk: moderate* — it's balance-preserving (proven for every address on regnet),

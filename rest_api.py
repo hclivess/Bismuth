@@ -47,6 +47,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
 import amounts
+import bismuth_serialize
 import dbhandler
 import essentials
 import mempool as mp
@@ -392,7 +393,13 @@ def _make_handler(node):
             # stringify to the canonical wire form merge expects, then merge (size_bypass + wait, like mpinsert)
             txs = [[str(f) for f in tx] for tx in txs]
             result = mp.MEMPOOL.merge(txs, peer_ip, db.c, True, True)
-            return {"submitted": len(txs), "txids": [tx[4][:56] for tx in txs], "result": result}
+            # Echo each tx's canonical id: post-hf2 (the next block is at/after fork_height) it's the
+            # content-hash txid; otherwise the legacy signature[:56] slice.
+            fh = getattr(node, "fork_height", None)
+            post_fork = fh is not None and (int(getattr(node, "last_block", 0)) + 1) >= int(fh)
+            txids = [bismuth_serialize.tx_id(tx[0], tx[1], tx[2], tx[3], tx[6], tx[7]) if post_fork
+                     else tx[4][:56] for tx in txs]
+            return {"submitted": len(txs), "txids": txids, "result": result}
 
         # --- helpers -------------------------------------------------------
         def _db(self):
@@ -804,7 +811,8 @@ def _make_handler(node):
                     "truncated": (offset + len(window)) < total}
 
         def _block_rows_to_json(self, rows):
-            return [essentials.format_raw_tx(row) for row in rows]
+            fh = getattr(node, "fork_height", None)
+            return [essentials.format_raw_tx(row, fh) for row in rows]
 
         # --- storage read seam (doc/26 stage 3) -----------------------------------------------------
         # The block-BODY reads below go through the seam: post-fork, when the LMDB block store is present,
@@ -865,9 +873,10 @@ def _make_handler(node):
                     "transactions": self._block_rows_to_json(rows)}
 
         def _grouped_blocks(self, rows):
+            fh = getattr(node, "fork_height", None)
             blocks = {}
             for row in rows:
-                blocks.setdefault(row[0], []).append(essentials.format_raw_tx(row))
+                blocks.setdefault(row[0], []).append(essentials.format_raw_tx(row, fh))
             return [{"block_height": h, "transactions": txs} for h, txs in blocks.items()]
 
         def _row_to_sync_tx(self, row):
@@ -958,11 +967,23 @@ def _make_handler(node):
             return {"address": address, "balance": str(quantize_eight(balance))}
 
         def _transaction(self, db, txid):
+            fh = getattr(node, "fork_height", None)
+            # Shape-dispatch (doc/18 §A.1 §6): a 64-char lowercase-hex id is a post-hf2 content-hash txid;
+            # it has no signature prefix to match, so locate the post-fork tx whose content hashes to it.
+            # Anything else is the legacy signature[:56] slice -> indexed prefix match (unchanged).
+            if len(txid) == 64 and all(c in "0123456789abcdef" for c in txid):
+                if fh is None:
+                    raise _NotFound("no transaction matching {}".format(txid))
+                rows = db.fetchall(db.h, "SELECT * FROM transactions WHERE block_height >= ?", (int(fh),))
+                for row in rows:
+                    if essentials.format_raw_tx(row, fh).get("txid") == txid:
+                        return essentials.format_raw_tx(row, fh)
+                raise _NotFound("no transaction matching {}".format(txid))
             rows = db.fetchall(db.h, "SELECT * FROM transactions WHERE signature LIKE ? LIMIT 1",
                                (txid + "%",))
             if not rows:
                 raise _NotFound("no transaction matching {}".format(txid))
-            return essentials.format_raw_tx(rows[0])
+            return essentials.format_raw_tx(rows[0], fh)
 
         def _address_txs(self, db, address, query):
             if not essentials.address_validate(address):

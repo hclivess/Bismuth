@@ -130,8 +130,8 @@ class BlockProcessor:
             if tx.received_operation in ["token:issue", "token:transfer"]:
                 block_instance.tokens_operation_present = True
 
-            # Validate transaction
-            tx.validate(self.node, self.node.last_block_timestamp)
+            # Validate transaction (pass the height it's being validated into, for the hf2 signature gate)
+            tx.validate(self.node, self.node.last_block_timestamp, block_instance.block_height_new)
 
             # Add to converted list
             block_instance.transaction_list_converted.append(tx.to_tuple())
@@ -464,6 +464,13 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
             # rare (a real bug, not the no-signal case which returns None) — but a SILENT failure here
             # means the fork never activates and the VM/LWMA gates stay inert with no explanation.
             node.logger.app_log.warning(f"fork-height detection failed: {type(e).__name__}: {e}")
+        # Keep the mempool's fork view in sync so it admits post-fork-signed txs (recoverable, no pubkey)
+        # and rejects pre-fork-signed ones aimed at a post-fork block. The digester stays the authority.
+        try:
+            if mp.MEMPOOL is not None:
+                mp.MEMPOOL.fork_height = node.fork_height
+        except Exception:
+            pass
 
         # Create block instance
         block_instance = Block(node)
