@@ -55,8 +55,21 @@ def ledger_value(raw) -> Decimal:
 def display_amount(value):
     """A stored amount/fee/reward -> the value to emit to clients. In integer mode return a float BIS
     value, matching legacy output (the legacy NUMERIC columns are read back as floats), so downstream
-    numeric checks like ``reward == 0`` keep working. No-op (stored value) in legacy mode."""
+    numeric checks like ``reward == 0`` keep working. No-op (stored value) in legacy mode.
+
+    DISPLAY ONLY. The float is lossy above 2**53 atomic units (~90.07M BIS): do NOT use this for any value
+    that re-enters consensus (signing pre-image, sync wire form, re-digest) — use consensus_amount."""
     return float(from_units(value)) if LEDGER_INTEGER else value
+
+
+def consensus_amount(value):
+    """A stored amount -> the EXACT amount for a CONSENSUS pre-image (signing buffer, REST sync wire form,
+    re-digest), never routed through a float. Integer mode: the exact integer->decimal string (from_units,
+    e.g. 9007199254740993 -> '90071992.54740993'); legacy mode: the stored decimal value unchanged. This
+    matches the legacy socket sync (node.py: ``amounts.from_units(row[4]) if LEDGER_INTEGER else ...``), so
+    a node syncing over REST and one syncing over the socket derive byte-identical blocks. display_amount
+    must NOT be used here — its float loses precision above 2**53 units and forks the two transports."""
+    return from_units(value) if LEDGER_INTEGER else value
 
 
 def display_row(row):

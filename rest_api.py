@@ -34,10 +34,12 @@ Endpoints:
                                                  {"transaction": [ts, address, recipient, amount,
                                                   signature, public_key, operation, openfield]}
 """
+import http.client
 import ipaddress
 import json
 import os
 import socket
+import ssl
 import threading
 import time
 import urllib.error
@@ -61,6 +63,41 @@ MEMPOOL_FIELDS = ("timestamp", "address", "recipient", "amount",
 
 PROXY_TIMEOUT = 10            # seconds to wait on the upstream node when relaying
 PROXY_MAX_BYTES = 8_000_000   # cap on a relayed response body (a RingCT spend block is large but bounded)
+# Bismuth REST is conventionally :5659 (mainnet) / :5658 socket; 80/443 cover plain explorers. Restricting
+# the relay to these (+ the node's own REST port) stops the proxy being used as an arbitrary-port scanner /
+# response oracle (audit M-1) while keeping the real use case — browsing a peer node's :5659 /api — working.
+PROXY_DEFAULT_PORTS = (80, 443, 5658, 5659)
+PROXY_MAX_CONCURRENCY = 8     # in-flight relayed fetches, total (audit M-2: bound the amplification surface)
+PROXY_RATE_MAX = 30          # per-client-IP relayed requests allowed per window (audit M-2)
+PROXY_RATE_WINDOW = 10       # seconds
+PROXY_MAX_REDIRECTS = 0      # the relay NEVER follows redirects (audit H-2): a 3xx to an internal host would
+                            # bypass the SSRF guard, which only validates the initial target
+
+# Bounded concurrency + a coarse per-IP token bucket for /api/proxy, shared across all handler threads.
+_PROXY_SEM = threading.BoundedSemaphore(PROXY_MAX_CONCURRENCY)
+_proxy_rl_lock = threading.Lock()
+_proxy_rl = {}               # client_ip -> deque-ish list of recent request timestamps
+
+
+def _proxy_rate_ok(ip):
+    """Coarse per-IP rate limit for the relay: at most PROXY_RATE_MAX requests per PROXY_RATE_WINDOW
+    seconds. Keeps a bounded timestamp list per active IP and prunes stale ones opportunistically."""
+    now = time.time()
+    cutoff = now - PROXY_RATE_WINDOW
+    with _proxy_rl_lock:
+        q = _proxy_rl.get(ip)
+        if q is None:
+            q = []
+            _proxy_rl[ip] = q
+        while q and q[0] < cutoff:
+            q.pop(0)
+        if len(q) >= PROXY_RATE_MAX:
+            return False
+        q.append(now)
+        if len(_proxy_rl) > 4096:                       # don't let the table grow unbounded
+            for k in [k for k, v in _proxy_rl.items() if not v or v[-1] < cutoff]:
+                _proxy_rl.pop(k, None)
+        return True
 
 
 class _NotFound(Exception):
@@ -290,7 +327,7 @@ def _make_handler(node):
                     return self._write(200, self._balance(db, route[1]))
                 if route[:1] == ["transaction"] and len(route) >= 2:
                     # a txid is a base64 signature prefix and may contain "/", so rejoin the tail
-                    return self._write(200, self._transaction(db, "/".join(route[1:])))
+                    return self._write(200, self._transaction(db, "/".join(route[1:]), query))
                 if route[:1] == ["address"] and len(route) == 3 and route[2] == "transactions":
                     return self._write(200, self._address_txs(db, route[1], query))
                 if route == ["fork"]:
@@ -413,6 +450,15 @@ def _make_handler(node):
                                        node.ledger_ram_file, node.logger,
                                        trace_db_calls=node.trace_db_calls)
 
+        @staticmethod
+        def _check_key(value, what="parameter", maxlen=256):
+            """Reject an empty / over-long path parameter early (audit L-10) so a malformed token/alias/
+            address lookup is a cheap 400 instead of a wasted DB round-trip. (Queries are already bound +
+            LIMITed, so this is hardening/consistency, not an injection fix.)"""
+            if not value or len(value) > maxlen:
+                raise _BadRequest("%s missing or too long (max %d chars)" % (what, maxlen))
+            return value
+
         def _index(self):
             # Self-describing welcome page (served at "/" and "/api"): the list of API methods and what
             # each does, so the API is discoverable without external docs.
@@ -460,18 +506,38 @@ def _make_handler(node):
                     }}
 
         @staticmethod
+        def _proxy_allowed_ports():
+            """The ports the relay may target: the standard Bismuth REST/socket ports + 80/443, plus this
+            node's own REST port, plus any operator-configured `rest_api_proxy_ports`. Restricting to these
+            stops the proxy being used as an arbitrary-port scanner / service oracle (audit M-1)."""
+            ports = set(PROXY_DEFAULT_PORTS)
+            rp = getattr(node, "rest_api_port", None)
+            if rp:
+                try:
+                    ports.add(int(rp))
+                except (TypeError, ValueError):
+                    pass
+            extra = getattr(node, "rest_api_proxy_ports", None)
+            if extra:
+                for p in str(extra).replace(",", " ").split():
+                    try:
+                        ports.add(int(p))
+                    except ValueError:
+                        pass
+            return ports
+
+        @staticmethod
         def _proxy_guard_host(host):
-            """SSRF guard: refuse to relay to loopback / private / link-local / multicast / reserved /
-            unspecified addresses (this also covers the 169.254.169.254 cloud-metadata IP, which is
-            link-local) so the proxy can't be turned into a pivot into the node operator's own network.
-            EVERY address the host resolves to must be public. (Residual caveat: a DNS-rebind attacker who
-            controls the target's authoritative DNS could return a public IP here and a private IP to the
-            subsequent urlopen; acceptable for a read-only JSON relay on a public node, and noted here so it
-            isn't mistaken for full protection.)"""
+            """SSRF guard. Resolve `host` ONCE, require EVERY resolved address to be public (refuse
+            loopback / private / link-local incl. the 169.254.169.254 cloud-metadata IP / multicast /
+            reserved / unspecified), and RETURN one validated public IP to connect to. Pinning that IP for
+            the actual fetch closes the DNS-rebind TOCTOU (audit H-3): the guard's lookup and the connection
+            can no longer resolve to different addresses, because there is exactly one lookup."""
             try:
                 infos = socket.getaddrinfo(host, None)
             except Exception as e:
                 raise _BadRequest("proxy target does not resolve: %s" % e)
+            chosen = None
             for info in infos:
                 addr = info[4][0].split("%")[0]   # strip any IPv6 zone id
                 try:
@@ -481,17 +547,59 @@ def _make_handler(node):
                 if (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast
                         or ip.is_reserved or ip.is_unspecified):
                     raise _Forbidden("proxy target resolves to a non-public address (%s)" % ip)
+                if chosen is None:
+                    chosen = addr
+            if chosen is None:
+                raise _BadRequest("proxy target does not resolve")
+            return chosen
+
+        def _proxy_fetch(self, scheme, host, ip, port, path_qs):
+            """Fetch `path_qs` from the validated, PINNED public IP (closes DNS-rebind H-3), REFUSING any
+            redirect (closes the redirect SSRF bypass H-2 — a 3xx Location to an internal host would never
+            be re-validated). For https the TLS handshake still uses the hostname for SNI + certificate
+            validation while the underlying socket connects to the pinned IP. Returns (status, raw bytes)."""
+            headers = {"Accept": "application/json", "User-Agent": "bismuth-explorer-proxy",
+                       "Connection": "close"}     # no Accept-Encoding -> upstream replies plaintext JSON
+            if scheme == "https":
+                raw_sock = socket.create_connection((ip, port), PROXY_TIMEOUT)
+                try:
+                    tls = ssl.create_default_context().wrap_socket(raw_sock, server_hostname=host)
+                except Exception:
+                    raw_sock.close()
+                    raise
+                conn = http.client.HTTPSConnection(host, port, timeout=PROXY_TIMEOUT)
+                conn.sock = tls
+            else:
+                conn = http.client.HTTPConnection(host, port, timeout=PROXY_TIMEOUT)
+                conn.sock = socket.create_connection((ip, port), PROXY_TIMEOUT)
+            try:
+                conn.request("GET", path_qs, headers=headers)
+                resp = conn.getresponse()
+                status = resp.status
+                if status in (301, 302, 303, 307, 308):
+                    raise _Forbidden("proxy does not follow redirects (target returned %d)" % status)
+                return status, resp.read(PROXY_MAX_BYTES + 1)
+            finally:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
         def _proxy(self, query):
             """Same-origin relay so an HTTPS-hosted explorer (explorer.bismuth.cz) can browse an HTTP peer
             node despite the browser's mixed-content policy. The browser only ever talks to THIS node (its
             own HTTPS origin via nginx); this node fetches the *target* node's read-only ``/api`` itself
             (node->node HTTP — no browser policy involved) and returns the JSON. Read-only and locked down:
-            GET only, target scheme must be http(s), target path must be under ``/api``, and the host must
-            resolve to a public address. Returns ``(status, payload)`` so an upstream status such as 404
-            propagates to the explorer's existing error handling instead of masquerading as a 200."""
+            GET only, target scheme must be http(s), target path must be under ``/api``, the target PORT
+            must be allowed, and the host must resolve to a public address — to which we PIN the connection
+            (no rebind) and from which we refuse redirects (no SSRF pivot). Per-IP rate-limited and globally
+            concurrency-capped. Returns ``(status, payload)`` so an upstream 404 propagates to the explorer
+            instead of masquerading as a 200."""
             if not getattr(node, "rest_api_proxy", True):
                 raise _Forbidden("node-browsing relay is disabled (set rest_api_proxy=True to enable)")
+            client_ip = self.client_address[0] if self.client_address else "?"
+            if not _proxy_rate_ok(client_ip):
+                return 429, {"error": "rate_limited", "detail": "too many relay requests; slow down"}
             target = (query.get("target") or [None])[0]
             if not target:
                 raise _BadRequest("proxy requires ?target=<node /api url>")
@@ -502,33 +610,31 @@ def _make_handler(node):
                 raise _BadRequest("proxy target has no host")
             if not (u.path == "/api" or u.path.startswith("/api/")):
                 raise _Forbidden("proxy only relays /api paths")  # never an arbitrary-URL fetcher
-            self._proxy_guard_host(u.hostname)
             port = u.port or (443 if u.scheme == "https" else 80)
-            # Rebuild a clean URL (drops any userinfo/fragment); keep path + query verbatim. No
-            # Accept-Encoding header -> the upstream Bismuth node replies with identity (plaintext) JSON.
-            clean = "%s://%s:%d%s%s" % (u.scheme, u.hostname, port, u.path,
-                                        ("?" + u.query) if u.query else "")
-            req = urllib.request.Request(clean, method="GET",
-                                         headers={"Accept": "application/json",
-                                                  "User-Agent": "bismuth-explorer-proxy"})
+            if port not in self._proxy_allowed_ports():
+                raise _Forbidden("proxy target port %d is not allowed" % port)
+            ip = self._proxy_guard_host(u.hostname)          # one resolution -> validated public IP, pinned
+            path_qs = u.path + (("?" + u.query) if u.query else "")
+            if not _PROXY_SEM.acquire(blocking=False):
+                return 503, {"error": "proxy_busy", "detail": "relay at capacity; retry shortly"}
             try:
-                with urllib.request.urlopen(req, timeout=PROXY_TIMEOUT) as r:
-                    raw = r.read(PROXY_MAX_BYTES + 1)
-                    status = r.status
-            except urllib.error.HTTPError as e:          # upstream 4xx/5xx: propagate its status + body
+                status, raw = self._proxy_fetch(u.scheme, u.hostname, ip, port, path_qs)
+            except _Forbidden:
+                raise                                         # redirect refusal -> 403
+            except Exception as e:                            # DNS/connection/timeout/TLS — generic (no oracle)
                 try:
-                    raw = e.read(PROXY_MAX_BYTES + 1)
+                    node.logger.app_log.warning("proxy fetch failed (%s): %s" % (u.hostname, e))
                 except Exception:
-                    raw = b""
-                status = e.code
-            except Exception as e:                        # DNS/connection/timeout
-                return 502, {"error": "proxy_unreachable", "detail": str(e), "target": clean}
+                    pass
+                return 502, {"error": "proxy_unreachable"}
+            finally:
+                _PROXY_SEM.release()
             if len(raw) > PROXY_MAX_BYTES:
-                return 502, {"error": "proxy_too_large", "target": clean}
+                return 502, {"error": "proxy_too_large"}
             try:
                 return status, json.loads(raw or b"null")
             except Exception:
-                return 502, {"error": "proxy_bad_json", "target": clean}
+                return 502, {"error": "proxy_bad_json"}
 
         def _fork(self, db):
             import fork
@@ -782,6 +888,7 @@ def _make_handler(node):
             """Token transfers (sent OR received) for an address, newest first, each a dict
             {token, block_height, timestamp, sender, recipient, amount, signature}. Same SEAM as _tokens:
             the LMDB token index (tokens_aliases plugin) when enabled, else the legacy index.db."""
+            self._check_key(address, "address", 128)
             try:
                 limit = max(1, min(int(query.get("limit", ["100"])[0]), 500))
             except ValueError:
@@ -807,6 +914,7 @@ def _make_handler(node):
             """Resolve an alias to its current owner address (None if unclaimed/free). Same SEAM as the
             token endpoints: the LMDB token index (tokens_aliases plugin) when enabled, else the legacy
             index.db (first claimant)."""
+            self._check_key(alias, "alias", 256)
             if node.token_index is not None:
                 owner = node.token_index.alias_owner(alias)
             else:
@@ -819,6 +927,7 @@ def _make_handler(node):
         def _aliases_for_address(self, db, address):
             """All aliases owned by an address (registration order). LMDB token index when enabled, else
             legacy index.db."""
+            self._check_key(address, "address", 128)
             if node.token_index is not None:
                 aliases = node.token_index.aliases_of(address)
             else:
@@ -944,9 +1053,11 @@ def _make_handler(node):
             # Consensus-faithful tx tuple in the EXACT order the digester consumes
             # (timestamp, address, recipient, amount, signature, public_key, operation, openfield).
             # Unlike format_raw_tx this keeps the public key BASE64-ENCODED as stored — decoding it (as
-            # the display API does) would corrupt the bytes the signature is verified against. amount is
-            # reconstructed to its decimal value so the digester re-derives the exact signed string.
-            return [row[1], row[2], row[3], amounts.display_amount(row[4]),
+            # the display API does) would corrupt the bytes the signature is verified against. amount uses
+            # consensus_amount (EXACT, never a float) so a REST-synced node and a socket-synced node derive
+            # byte-identical blocks; display_amount here was lossy above 2**53 units and would fork the two
+            # transports on any >~90M BIS tx in integer-storage mode (audit H-1).
+            return [row[1], row[2], row[3], amounts.consensus_amount(row[4]),
                     row[5], row[6], row[10], row[11]]
 
         def _grouped_sync_blocks(self, rows):
@@ -1027,7 +1138,7 @@ def _make_handler(node):
                 balance = db.balance_get(address)  # authoritative, memoized per chain height
             return {"address": address, "balance": str(quantize_eight(balance))}
 
-        def _transaction(self, db, txid):
+        def _transaction(self, db, txid, query=None):
             fh = getattr(node, "fork_height", None)
             # Shape-dispatch (doc/18 §A.1 §6): a 64-char lowercase-hex id is a post-hf2 content-hash txid;
             # it has no signature prefix to match, so locate the post-fork tx whose content hashes to it.
@@ -1035,11 +1146,34 @@ def _make_handler(node):
             if len(txid) == 64 and all(c in "0123456789abcdef" for c in txid):
                 if fh is None:
                     raise _NotFound("no transaction matching {}".format(txid))
-                rows = db.fetchall(db.h, "SELECT * FROM transactions WHERE block_height >= ?", (int(fh),))
-                for row in rows:
-                    if essentials.format_raw_tx(row, fh).get("txid") == txid:
-                        return essentials.format_raw_tx(row, fh)
-                raise _NotFound("no transaction matching {}".format(txid))
+                # The content txid has NO DB column by design (computed on read), so resolve it by scanning
+                # post-fork rows and re-hashing each. Make that scan BOUNDED + recent-first (audit H-4): an
+                # unauthenticated lookup of a random/absent 64-hex id must not drag the ENTIRE post-fork
+                # ledger through blake2b. Stream newest-first over the idx_tx_block_height range and short-
+                # circuit on the first match; cap the rows scanned. A deep historical id can be reached with
+                # ?from_height (move the window down); without it, the default window is the recent tip back.
+                try:
+                    from_h = int((query or {}).get("from_height", [0])[0])
+                except (ValueError, TypeError):
+                    raise _BadRequest("from_height must be an integer")
+                max_scan = int(getattr(node, "txid_scan_limit", 250000))
+                tip = int(getattr(node, "hdd_block", 0) or 0)
+                # default lower bound: a recent window back from the tip (covers freshly-created txids, the
+                # common lookup) but never below the fork height; ?from_height overrides it downward.
+                default_lo = max(int(fh), tip - max_scan)
+                start_h = max(int(fh), from_h) if from_h else default_lo
+                db.execute_param(db.h, "SELECT * FROM transactions WHERE block_height >= ? "
+                                       "ORDER BY block_height DESC", (start_h,))
+                scanned = 0
+                for row in db.h:
+                    scanned += 1
+                    if scanned > max_scan:
+                        raise _BadRequest("txid scan limit (%d rows) exceeded from height %d; "
+                                          "narrow the search with ?from_height=" % (max_scan, start_h))
+                    tx = essentials.format_raw_tx(row, fh)
+                    if tx.get("txid") == txid:
+                        return tx
+                raise _NotFound("no transaction matching {} at/after height {}".format(txid, start_h))
             rows = db.fetchall(db.h, "SELECT * FROM transactions WHERE signature LIKE ? LIMIT 1",
                                (txid + "%",))
             if not rows:
