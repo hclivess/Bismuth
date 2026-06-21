@@ -154,3 +154,15 @@ def block_hash_at(height, fork_height, transaction_list_converted, previous_hash
     if fork_height is not None and height is not None and int(height) >= int(fork_height):
         return block_hash_v2(transaction_list_converted, previous_hash)
     return block_hash(transaction_list_converted, previous_hash)
+
+
+def tx_id_at(height, fork_height, timestamp, address, recipient, amount, operation, openfield) -> str:
+    """Canonical content txid, fork-aware (doc/29 §4, Stage 2): at/after fork_height -> tx_id_v2 over the
+    BINARY pre-image (integer centisecond timestamp + integer atomic-unit amount); below it (or fork_height
+    None, e.g. a pre-fork mainnet row) -> the legacy tx_id over the '%.2f'/'%.8f' string buffer. `timestamp`
+    is the canonical '%.2f' string and `amount` the canonical '%.8f' string (what the stored row reconstructs
+    and what is signed); they are converted to centiseconds / atomic units for the v2 path. This is the ONE
+    canonical id of a post-fork tx regardless of which signing scheme verified it."""
+    if fork_height is not None and height is not None and int(height) >= int(fork_height):
+        return tx_id_v2(_v2_ts_cs(timestamp), address, recipient, _v2_units(amount), operation, openfield)
+    return tx_id(timestamp, address, recipient, amount, operation, openfield)

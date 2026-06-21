@@ -238,3 +238,16 @@ def test_block_hash_dispatch_selects_by_height():
     assert bismuth_serialize.block_hash_at(99, 100, txs, prev) == legacy
     assert bismuth_serialize.block_hash_at(100, 100, txs, prev) == v2
     assert bismuth_serialize.block_hash_at(100, None, txs, prev) == legacy
+
+
+def test_tx_id_dispatch_selects_by_height():
+    # Stage 2 codec (dormant): the canonical txid is tx_id_v2 (binary/integer pre-image) at/after the fork,
+    # and the legacy string-buffer tx_id below it (or with fork_height None).
+    import bismuth_serialize as b
+    ts, amt = "1500000000.00", "1.00000000"
+    args = (ts, "Bis1aaaa", "bbbb", amt, "vm:call", "x")
+    v2 = b.tx_id_v2(150000000000, "Bis1aaaa", "bbbb", 100000000, "vm:call", "x")
+    legacy = b.tx_id(*args)
+    assert b.tx_id_at(100, 100, *args) == v2
+    assert b.tx_id_at(99, 100, *args) == legacy
+    assert b.tx_id_at(100, None, *args) == legacy
