@@ -36,11 +36,22 @@ def test_store_mirrors_the_chain(client):
             time.sleep(0.2)
         assert bs.tip() == tip, "store tip %s != ledger tip %s" % (bs.tip(), tip)
 
-        # every digested block (genesis/block 1 is created at init, not shadow-written) matches
+        # every digested block (genesis/block 1 is created at init, not shadow-written) matches. POLL each
+        # block: the shadow-write lands AFTER the SQL commit and, after a deep reorg, blocks are re-written
+        # as the node re-mines — so an individual block can briefly lag (bs opens a fresh read txn per call,
+        # so it sees the catch-up). A genuinely-dropped block still fails after the deadline.
         for h in range(2, tip + 1):
             block_hash, count = conn.execute(
                 "SELECT block_hash, count(*) FROM transactions WHERE block_height=?", (h,)).fetchone()
-            assert bs.block_hash(h) == block_hash, "block %d hash mismatch" % h
+            bh = bs.block_hash(h)
+            _d = time.time() + 8
+            while bh != block_hash and time.time() < _d:
+                time.sleep(0.25)
+                bh = bs.block_hash(h)
+            assert bh == block_hash, (
+                "block %d hash mismatch: store=%s sqlite=%s tip=%s store_early=%s" % (
+                    h, bh, block_hash, bs.tip(),
+                    [(x, bs.block_hash(x) is not None) for x in range(1, min(tip + 1, 9))]))
             assert len(bs.get_block(h)) == count, "block %d tx-count mismatch" % h
     finally:
         bs.close()

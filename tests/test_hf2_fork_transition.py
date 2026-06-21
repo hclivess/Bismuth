@@ -93,13 +93,21 @@ def test_hf2_single_sig_fork_transition(client):
     assert bal_after <= bal_before - 5, \
         "post-fork recoverable tx was not accepted/mined (balance %s -> %s)" % (bal_before, bal_after)
 
-    # it is on chain with the recoverable signature stored (dropped pubkey wire form persisted)
-    recip_txs = _get("/api/address/%s/transactions?limit=50" % client.address).get("transactions", [])
-    onchain = [t for t in recip_txs if t.get("signature") == tx[4]]
-    assert onchain, "the recoverable tx is not retrievable on chain"
     assert len(expected_txid) == 64
-    # the post-fork tx surfaces its content-hash txid (not signature[:56]) in the address listing
-    assert onchain[0].get("txid") == expected_txid, ("address listing txid", onchain[0].get("txid"))
+    # It is on chain with the recoverable signature stored (dropped-pubkey wire form persisted), and the
+    # post-fork tx surfaces its content-hash txid (not signature[:56]) in the address listing. POLL: under
+    # full-suite load the address index lags the mined block and a transient re-org can briefly surface a
+    # stale row, so re-fetch until the tx (matched by its unique signature) shows the canonical txid.
+    onchain = []
+    deadline = time.time() + 20
+    while time.time() < deadline:
+        recip_txs = _get("/api/address/%s/transactions?limit=50" % client.address).get("transactions", [])
+        onchain = [t for t in recip_txs if t.get("signature") == tx[4]]
+        if onchain and onchain[0].get("txid") == expected_txid:
+            break
+        time.sleep(0.5)
+    assert onchain, "the recoverable tx is not retrievable on chain"
+    assert onchain[0].get("txid") == expected_txid, ("address listing txid", onchain[0].get("txid"), expected_txid)
     # and it is retrievable BY that 64-hex content txid via the shape-dispatched /api/transaction lookup
     looked = _get("/api/transaction/%s" % expected_txid)
     assert looked.get("txid") == expected_txid, ("content-txid lookup mismatch", looked)

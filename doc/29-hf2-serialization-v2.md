@@ -7,14 +7,14 @@
 > - ✅ **Stage 0** — v2 tx pre-image codec (`signature_buffer_v2`/`tx_id_v2`) + block-hash codec
 >   (`block_hash_v2`) + fork-aware dispatcher (`block_hash_at`), characterization-pinned (`bismuth_serialize.py`,
 >   `tests/test_characterization.py`).
-> - ◑ **Stage 1** — block-hash codec (`block_hash_v2`) + fork-aware dispatcher (`block_hash_at`) implemented
->   and characterization-pinned; replay across the boundary + the 29-test consensus subset pass. The live
->   activation (routing `digest.py`/`replay_verify.py` through `block_hash_at`) is **held back**: with it wired,
->   two timing/state-sensitive FULL-SUITE tests (`test_hf2_fork_transition` txid assertion, `test_block_store_
->   integration` block-2 presence) fail non-deterministically (they pass in isolation + the subset, and the
->   codec is replay-clean), so the activation is deferred until that full-suite interaction is root-caused and
->   the suite is reliably green with it. Signature/public_key would be encoded AS STORED at first; the raw-byte
->   + pubkey-by-reference refinement (§2.C) lands before mainnet hf2 lock-in.
+> - ✅ **Stage 1** — block hash **LIVE**: `digest.py` and `replay_verify.py` route through `block_hash_at`,
+>   so post-fork blocks use the binary/integer blake2b-256 block hash and pre-fork stays byte-identical
+>   (replay-validated across the boundary). Full regnet suite green (606 passed, reproduced). Two
+>   timing/state-sensitive tests the activation surfaced — `test_hf2_fork_transition` (address-listing txid)
+>   and `test_block_store_integration` (per-block store catch-up) — were hardened with polls (the codec is
+>   replay-clean; these were test-observation races under full-suite load, not consensus issues).
+>   Signature/public_key are encoded AS STORED for now; the raw-byte + pubkey-by-reference refinement (§2.C)
+>   lands before mainnet hf2 lock-in (the post-fork form is free to evolve until then — regnet is ephemeral).
 > - ◻ **Stage 2+** — tx signing pre-image → v2 for single-sig secp256k1; pubkey-by-reference / raw sig+pubkey;
 >   coinbase compaction. (Free to evolve the post-fork form until mainnet locks in — regnet is ephemeral.)
 

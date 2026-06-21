@@ -20,7 +20,7 @@ import amounts
 H, TS, ADDR, RECIP, AMOUNT, SIG, PUBKEY, BLOCKHASH, FEE, REWARD, OP, OPENFIELD = range(12)
 
 
-def verify_blocks(rows, integer_roundtrip=False, amounts_are_units=False):
+def verify_blocks(rows, integer_roundtrip=False, amounts_are_units=False, fork_height=None):
     """`rows` is an ordered list of raw 12-field transaction tuples (ascending block_height, then
     insertion order). Returns a list of mismatch dicts (empty == all good). The first block present
     is used only as the previous-hash anchor (its own hash can't be checked without its predecessor).
@@ -63,7 +63,7 @@ def verify_blocks(rows, integer_roundtrip=False, amounts_are_units=False):
                 amount = "%.8f" % float(r[AMOUNT])
             tx_list.append((timestamp, str(r[ADDR]), str(r[RECIP]), amount,
                             str(r[SIG]), str(r[PUBKEY]), str(r[OP]), str(r[OPENFIELD])))
-        computed = bismuth_serialize.block_hash(tx_list, prev_hash)
+        computed = bismuth_serialize.block_hash_at(height, fork_height, tx_list, prev_hash)
         if computed != stored:
             mismatches.append({"height": height, "stored": stored, "computed": computed})
         prev_hash = stored

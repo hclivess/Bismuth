@@ -2,8 +2,20 @@
 # Ledger / block tests on regnet. Confirms the raw vs JSON command parity and block hashing.
 # Run with: python3 -m pytest -v
 
-from hashlib import sha224
+import json
+import urllib.request
+from hashlib import sha224  # noqa: F401
 from time import sleep
+
+import bismuth_serialize
+
+
+def _fork_height():
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:3031/api/fork", timeout=8) as r:
+            return json.load(r).get("fork_height")
+    except Exception:
+        return None
 
 
 def test_blocklast_json_parity(client):
@@ -64,5 +76,6 @@ def test_db_blockhash(client):
     db_block_hash = rows[1][7]
     r = rows[1]
     tx_list = [("%.2f" % float(r[1]), r[2], r[3], "0.00000000", r[5], r[6], r[10], r[11])]
-    recomputed = sha224((str(tx_list) + prev_hash).encode("utf-8")).hexdigest()
+    # fork-aware (doc/29): post-fork blocks hash with block_hash_v2; pre-fork legacy sha224
+    recomputed = bismuth_serialize.block_hash_at(r[0], _fork_height(), tx_list, prev_hash)
     assert db_block_hash == recomputed

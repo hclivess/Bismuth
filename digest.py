@@ -517,8 +517,10 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
         node.difficulty = diff
         log_difficulty_info(node, diff)
 
-        # Calculate block hash
-        block_instance.block_hash = bismuth_serialize.block_hash(
+        # Calculate block hash — fork-aware (doc/29): at/after node.fork_height the binary/integer
+        # block_hash_v2 (blake2b-256); below it the frozen legacy sha224. Gated by the destination height.
+        block_instance.block_hash = bismuth_serialize.block_hash_at(
+            block_instance.block_height_new, getattr(node, "fork_height", None),
             block_instance.transaction_list_converted, node.last_block_hash
         )
 
