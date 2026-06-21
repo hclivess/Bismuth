@@ -64,13 +64,15 @@ End compatibility
 
 def format_raw_tx(raw: list, fork_height=None) -> dict:
     # txid (doc/16, doc/18 §A.1): post-hf2 the canonical id is the content-hash txid — blake2b-256 of the
-    # same frozen pre-image consensus signs (timestamp/address/recipient/amount/operation/openfield),
-    # reproduced here on read from the STORED canonical fields (the stored timestamp/amount ARE the
-    # '%.2f'/'%.8f' strings that were signed). Pre-fork rows (or callers without a fork_height) keep the
-    # legacy signature[:56] slice, so historical ids and external references are byte-for-byte unchanged.
+    # same frozen pre-image consensus signs (timestamp/address/recipient/amount/operation/openfield).
+    # Reproduce it from the stored row, but using the CANONICAL '%.8f' amount string the signature was
+    # computed over — NOT the stored representation, which is integer units in the post-fork block store
+    # (amounts.ledger_value normalises both storage modes back to the signed Decimal). Pre-fork rows (or
+    # callers without a fork_height) keep the legacy signature[:56] slice, byte-for-byte unchanged.
     if fork_height is not None and raw[0] is not None and int(raw[0]) >= int(fork_height):
+        _amount_str = '%.8f' % amounts.ledger_value(raw[4])
         txid = bismuth_serialize.tx_id(str(raw[1]), str(raw[2]), str(raw[3]),
-                                       str(raw[4]), str(raw[10]), str(raw[11]))
+                                       _amount_str, str(raw[10]), str(raw[11]))
     else:
         txid = raw[5][:56]
     # Pre-size dictionary with all keys for better performance

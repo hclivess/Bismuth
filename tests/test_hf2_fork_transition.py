@@ -65,13 +65,16 @@ def test_hf2_single_sig_fork_transition(client):
     assert _ecdsa_balance(client, addr) >= 15, "ECDSA account was not funded"
 
     # --- PRE-FORK: a recoverable / dropped-pubkey tx must be REJECTED -----------------------------
-    assert not _fork_active(), "fork activated earlier than expected; cannot exercise the pre-fork case"
-    bal = _ecdsa_balance(client, addr)
-    pre = hd_wallet.sign_transaction(signer, "%.2f" % time.time(), addr, client.address,
-                                     "3.0", post_fork=True)   # new-scheme tx, but we're pre-fork
-    _send_and_mine(client, pre)
-    assert abs(_ecdsa_balance(client, addr) - bal) < 0.5, \
-        "pre-fork node wrongly accepted a recoverable (post-fork-scheme) tx"
+    # Only exercisable while the chain is still pre-fork (this file run standalone, or first among the
+    # fork tests). In a FULL-SUITE run an earlier test may have already activated hf2 on the shared regnet
+    # node; then we skip straight to the post-fork cases below (which are the load-bearing ones).
+    if not _fork_active():
+        bal = _ecdsa_balance(client, addr)
+        pre = hd_wallet.sign_transaction(signer, "%.2f" % time.time(), addr, client.address,
+                                         "3.0", post_fork=True)   # new-scheme tx, but we're pre-fork
+        _send_and_mine(client, pre)
+        assert abs(_ecdsa_balance(client, addr) - bal) < 0.5, \
+            "pre-fork node wrongly accepted a recoverable (post-fork-scheme) tx"
 
     # --- activate hf2 ----------------------------------------------------------------------------
     _wait_fork_active(client)
@@ -94,8 +97,14 @@ def test_hf2_single_sig_fork_transition(client):
     recip_txs = _get("/api/address/%s/transactions?limit=50" % client.address).get("transactions", [])
     onchain = [t for t in recip_txs if t.get("signature") == tx[4]]
     assert onchain, "the recoverable tx is not retrievable on chain"
-    # content txid is reproducible from the stored fields (the canonical id)
     assert len(expected_txid) == 64
+    # the post-fork tx surfaces its content-hash txid (not signature[:56]) in the address listing
+    assert onchain[0].get("txid") == expected_txid, ("address listing txid", onchain[0].get("txid"))
+    # and it is retrievable BY that 64-hex content txid via the shape-dispatched /api/transaction lookup
+    looked = _get("/api/transaction/%s" % expected_txid)
+    assert looked.get("txid") == expected_txid, ("content-txid lookup mismatch", looked)
+    assert looked.get("address") == addr and looked.get("recipient") == client.address, looked
+    assert looked.get("signature") == tx[4], "looked-up tx is not the recoverable one"
 
     # --- POST-FORK: a LEGACY (buffer+pubkey) single-sig tx is now REJECTED ------------------------
     bal_before2 = _ecdsa_balance(client, addr)
