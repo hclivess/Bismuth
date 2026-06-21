@@ -514,18 +514,18 @@ def test_poker_live_full_two_player_game(client, tmp_path):
         c.mine(n)
         time.sleep(0.4)                                   # digest runs async after the block commits
 
-    def _phase(addr, want, label, tries=25):
-        # Poll: under full-suite load the async digest of a vm:call can lag the block it was mined into, so
-        # the contract state read right after _confirm is stale. Re-read (nudging a block) until the phase
-        # reaches `want` before asserting. For "must not advance" checks the phase is already `want`, so this
-        # returns immediately; if it wrongly advanced, the poll never matches and the assert still fires.
+    def _phase(addr, want, label, tries=40):
+        # Poll by RE-READING (sleep only — the vm:call is already mined by _confirm; do NOT mine more here,
+        # which would advance the chain unboundedly and disturb later tests). Under full-suite load the async
+        # digest of the vm:call lags the mined block, so the state read right after _confirm is stale; wait
+        # for it. For "must not advance" checks the phase is already `want` and this returns immediately; if
+        # it wrongly advanced, the poll never matches and the assert still fires.
         slots = bal = None
         for _ in range(tries):
             slots, bal = _state(addr)
             if slots.get(poker.S_PHASE) == want:
                 return slots, bal
-            time.sleep(0.4)
-            p0.mine(1)
+            time.sleep(0.5)
         assert slots.get(poker.S_PHASE) == want, \
             "%s: phase=%s want=%s (custody=%s)" % (label, slots.get(poker.S_PHASE), want, bal)
         return slots, bal
@@ -561,6 +561,12 @@ def test_poker_live_full_two_player_game(client, tmp_path):
     addr = (set(_get("/api/vm/contracts")["contracts"]) - before).pop()
     slots, bal = _state(addr)
     assert bal == 0 and slots.get(poker.S_PHASE, 0) == poker.PH_OPEN, "fresh table must be empty + PH_OPEN"
+    # Tip at deploy time. This game's vm:payout lands at the (later) settle block; in a FULL-SUITE run the
+    # shared regnet mining wallet (= P0's real address) has already received vm:payout rows from OTHER VM
+    # demos (raffle/AMM/etc.) at LOWER heights — scope the payout check to heights >= here so a foreign
+    # payout (e.g. a 3 BIS one) can't be mistaken for poker's pot. (vm:payout rows are negative-height
+    # mirrors keyed on the settling block, so compare on abs(block_height).)
+    start_height = int(_get("/api/status").get("blocks", 0))
 
     def vmcall(c, sel_bytes, value=0):
         return c.send(vm_engine.VM_SINK, value, "vm:call", "%s:%s" % (addr, sel_bytes.hex()))
@@ -595,11 +601,11 @@ def test_poker_live_full_two_player_game(client, tmp_path):
     # ---- reveal + showdown: SHOWDOWN -> DONE, P0 (pair of aces) wins the pot ----
     vmcall(p0, be4(poker.FN_REVEAL) + bytes([p0h[0], p0h[1]]) + n0 + bytes([0, 1, 2, 3, 4])); _confirm(p0)
     slots = None
-    for _ in range(25):                                  # poll for P0's reveal flag (digest lag under load)
+    for _ in range(40):                                  # poll for P0's reveal flag (digest lag under load; no mining)
         slots, _ = _state(addr)
         if slots.get(poker.S_REVEAL0) == 1:
             break
-        time.sleep(0.4); p0.mine(1)
+        time.sleep(0.5)
     assert slots.get(poker.S_REVEAL0) == 1 and slots.get(poker.S_PHASE) == poker.PH_SHOWDOWN, \
         "one reveal sets the flag but must not settle"
     vmcall(p1, be4(poker.FN_REVEAL) + bytes([p1h[0], p1h[1]]) + n1 + bytes([0, 1, 2, 3, 4])); _confirm(p1)
@@ -619,9 +625,11 @@ def test_poker_live_full_two_player_game(client, tmp_path):
     deadline = time.time() + 30
     while time.time() < deadline:
         txs = _get("/api/address/%s/transactions?limit=500" % p0.address).get("transactions", [])
-        payouts = [t for t in txs if t.get("operation") == "vm:payout" and str(t.get("recipient")) == p0.address]
+        payouts = [t for t in txs if t.get("operation") == "vm:payout"
+                   and str(t.get("recipient")) == p0.address
+                   and abs(int(t.get("block_height") or 0)) >= start_height]   # this game's settle, not a prior test's
         if payouts:
             break
-        _confirm(p0)
+        time.sleep(0.5)                                  # indexing lag only — payout is already on chain (custody==0)
     assert payouts, "expected a vm:payout crediting P0's real address with the pot"
     assert abs(max(float(t["amount"]) for t in payouts) - (2 * BUYIN) / UNIT) < 1e-9, "P0 paid exactly 2*BUYIN"
