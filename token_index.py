@@ -438,6 +438,11 @@ class TokenIndex:
                     out.append(k[len(prefix) + 8 + 1:].decode())   # strip address\0 + 8B height + \0
         return out
 
+    def aliases_of(self, address: str) -> list:
+        """Plain list of an address's aliases (registration order); ``[]`` if none. (The REST-friendly
+        read; ``aliasget`` keeps the legacy ``[[alias]]``/``[[address]]`` wire shape.)"""
+        return self._aliases_for(address)
+
     def aliasget(self, address: str):
         """All aliases of an address as the SQLite shape ``[[alias], ...]``; ``[[address]]`` if none."""
         rows = [[a] for a in self._aliases_for(address)]

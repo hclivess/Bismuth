@@ -311,6 +311,10 @@ def _make_handler(node):
                     return self._write(200, self._token_tx(db, route[2], query))
                 if route[:1] == ["token"] and len(route) == 2:
                     return self._write(200, self._token(db, route[1], query))
+                if route[:1] == ["alias"] and len(route) == 2:
+                    return self._write(200, self._alias_lookup(db, route[1]))
+                if route[:1] == ["aliases"] and len(route) == 2:
+                    return self._write(200, self._aliases_for_address(db, route[1]))
                 raise _NotFound("unknown endpoint")
             except _NotFound as e:
                 self._write(404, {"error": "not_found", "detail": str(e)})
@@ -440,6 +444,8 @@ def _make_handler(node):
                         "/api/token/tx/{address}": "token transfers (sent or received) for an address, newest "
                                                    "first; each {token, block_height, timestamp, sender, "
                                                    "recipient, amount, signature}",
+                        "/api/alias/{name}": "resolve an alias to its owner address: {alias, address}",
+                        "/api/aliases/{address}": "all aliases owned by an address: {address, count, aliases}",
                         "/api/fork": "hf2 auto-fork readiness: signalling run, lock-in, activation height",
                         "/api/shield/stats": "shielded pool (doc/22): note/nullifier counts, pool value, sink",
                         "/api/shield/note/{note_id}": "public fields of a shielded note (nothing decryptable)",
@@ -796,6 +802,31 @@ def _make_handler(node):
                 rows = [{"token": x[0], "block_height": x[1], "timestamp": x[2], "sender": x[3],
                          "recipient": x[4], "amount": _amt(x[5]), "signature": x[6]} for x in (r or [])]
             return {"address": address, "count": len(rows), "limit": limit, "transactions": rows}
+
+        def _alias_lookup(self, db, alias):
+            """Resolve an alias to its current owner address (None if unclaimed/free). Same SEAM as the
+            token endpoints: the LMDB token index (tokens_aliases plugin) when enabled, else the legacy
+            index.db (first claimant)."""
+            if node.token_index is not None:
+                owner = node.token_index.alias_owner(alias)
+            else:
+                rows = db.fetchall(db.index_cursor,
+                                   "SELECT address FROM aliases WHERE alias = ? ORDER BY block_height ASC LIMIT 1",
+                                   (alias,))
+                owner = rows[0][0] if rows else None
+            return {"alias": alias, "address": owner}
+
+        def _aliases_for_address(self, db, address):
+            """All aliases owned by an address (registration order). LMDB token index when enabled, else
+            legacy index.db."""
+            if node.token_index is not None:
+                aliases = node.token_index.aliases_of(address)
+            else:
+                rows = db.fetchall(db.index_cursor,
+                                   "SELECT alias FROM aliases WHERE address = ? ORDER BY block_height ASC",
+                                   (address,))
+                aliases = [r[0] for r in (rows or [])]
+            return {"address": address, "count": len(aliases), "aliases": aliases}
 
         def _token(self, db, name, query):
             """A token's holders, per-address balances, and supply (credits - debits, token index).

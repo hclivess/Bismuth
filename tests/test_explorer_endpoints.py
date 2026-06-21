@@ -89,3 +89,23 @@ def test_token_tx_for_address(client):
     # an address with no token activity returns an empty list (handled, not 404)
     d3 = _get("/api/token/tx/%s" % ("cafe" * 14))
     assert d3["transactions"] == [] and d3["count"] == 0
+
+
+def test_alias_rest_endpoints(client):
+    # register an alias via the alias:register op, then resolve it both ways over REST
+    alias = "restaliastest"
+    client.send(client.address, 1, "alias:register", alias)
+    client.mine(3)
+    sleep(0.6)
+    # alias -> owner
+    d = _get("/api/alias/%s" % alias)
+    assert d["alias"] == alias and d["address"] == client.address, d
+    # owner -> aliases
+    d2 = _get("/api/aliases/%s" % client.address)
+    assert alias in d2["aliases"] and d2["count"] >= 1, d2
+    # unknown alias -> address null
+    d3 = _get("/api/alias/definitely_not_registered_zzz")
+    assert d3["alias"] == "definitely_not_registered_zzz" and d3["address"] is None, d3
+    # address with no aliases -> empty list
+    d4 = _get("/api/aliases/%s" % ("beef" * 14))
+    assert d4["aliases"] == [] and d4["count"] == 0, d4

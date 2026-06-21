@@ -55,6 +55,8 @@ duplicate, format), so the endpoint is a new transport, not a new consensus rule
 | `GET /api/tokens` | issued tokens (from the token index) |
 | `GET /api/token/{name}` | a token's supply + holders |
 | `GET /api/token/tx/{address}?limit=N` | token transfers (sent or received) for an address, newest first; each a dict `{token, block_height, timestamp, sender, recipient, amount, signature}` (LMDB token index when enabled, else legacy index.db) |
+| `GET /api/alias/{name}` | resolve an alias to its owner address: `{alias, address}` (`address` null if unclaimed/free) |
+| `GET /api/aliases/{address}` | all aliases owned by an address: `{address, count, aliases}` |
 | `GET /api/vm/contracts` | deployed contracts + the current VM `state_root`, `fork_height`, `enabled` |
 | `GET /api/vm/contract/{addr}` | a contract: `engine` (`riscv`), code, custody `balance`, storage slots |
 | `GET /api/vm/market/{addr}` | prediction-market contract state: pots, odds, resolution |
