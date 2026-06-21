@@ -107,8 +107,10 @@ class TokensAliasesPlugin(BismuthPlugin):
                 self._alias_transfer(height, tx[_ADDR], tx[_OPENFIELD])
             elif op == "alias:free":
                 self._alias_free(height, tx[_ADDR], tx[_OPENFIELD])
-            if str(tx[_OPENFIELD]).startswith("alias="):
-                self._alias(height, tx[_ADDR], tx[_OPENFIELD])     # legacy first-claimant convention
+            elif str(tx[_OPENFIELD]).startswith("alias="):
+                # legacy first-claimant convention — `elif` so a structured alias:* tx can't ALSO claim a
+                # second name via its openfield (audit L-5: the separate `if` let one tx claim two aliases).
+                self._alias(height, tx[_ADDR], tx[_OPENFIELD])
 
     def on_rollback(self, height):
         # The store is rolled back through the node's db_handler seam (node.token_index.*_rollback), which
@@ -178,12 +180,18 @@ class TokensAliasesPlugin(BismuthPlugin):
             self.ctx.logger.warning("tokens_aliases alias:register parse error: {}".format(e))
 
     def _alias_transfer(self, height, sender, openfield):
-        # openfield = "recipient:alias" — move ownership to recipient iff sender is the current owner
+        # openfield = "recipient:alias" — move ownership to recipient iff sender is the current owner.
+        # Guard the foot-guns (audit L-6): a self-transfer is a no-op that only churns the registration
+        # height, and a malformed/empty recipient would permanently move the alias to an uncontrollable
+        # address (an effective burn) — reject both rather than record them.
         try:
             recipient, alias = str(openfield).split(":", 1)
             recipient, alias = recipient.strip(), alias.strip()
-            if recipient and alias:
-                self.ti.transfer_alias(height, sender, recipient, alias)
+            if not (recipient and alias):
+                return
+            if recipient == sender:
+                return                                  # self-transfer: a no-op that only churns the height
+            self.ti.transfer_alias(height, sender, recipient, alias)
         except Exception as e:
             self.ctx.logger.warning("tokens_aliases alias:transfer parse error: {}".format(e))
 

@@ -199,3 +199,28 @@ def test_alias_ops_rollback(tmp_path):
     ti.aliases_rollback(3)                            # undo register -> gone
     assert ti.alias_owner("alice") is None
     p.teardown()
+
+
+def test_alias_register_no_legacy_double_claim(tmp_path):
+    # audit L-5: a structured alias:register tx whose openfield also starts "alias=" must NOT ALSO claim
+    # the legacy name — the old separate `if openfield.startswith("alias=")` let one tx claim two aliases.
+    p = _load_plugin()
+    p.setup(_ctx(tmp_path))
+    ti = p.services()["token_index"]
+    p.on_block(3, [_row(3, "ALICE", "ALICE", "s1", "alias:register", "alias=evil")])
+    assert ti.alias_owner("alias=evil") == "ALICE"    # the structured register name is claimed
+    assert ti.alias_owner("evil") is None             # ...and the legacy name is NOT also claimed
+    p.teardown()
+
+
+def test_alias_self_transfer_is_noop(tmp_path):
+    # audit L-6: a self-transfer (recipient == sender) is rejected as a no-op, not recorded (it would only
+    # churn the registration height).
+    p = _load_plugin()
+    p.setup(_ctx(tmp_path))
+    ti = p.services()["token_index"]
+    p.on_block(3, [_row(3, "ALICE", "ALICE", "s1", "alias:register", "alice")])
+    assert ti.alias_owner("alice") == "ALICE"
+    p.on_block(4, [_row(4, "ALICE", "ALICE", "s2", "alias:transfer", "ALICE:alice")])   # self-transfer
+    assert ti.alias_owner("alice") == "ALICE"         # unchanged
+    p.teardown()

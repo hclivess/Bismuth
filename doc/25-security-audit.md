@@ -126,13 +126,23 @@ unless the owner == the consensus-authenticated sender), alias reorg-rollback co
 undo), replay/double-spend (per-block balance check bounds the malleable-signature dedup so there is **no
 inflation, no chain split**), coinbase RSA-lock (the ecrecover path is unreachable for coinbase).
 
+### Also fixed this session (Batch 2)
+- **L-1** post-fork single-sig secp256k1 now REJECTS a non-empty public key (`signerfactory.verify_tx_signature`)
+  — the recoverable path drops the key, so any pubkey is unverified malleability noise. (`test_hf2_recoverable`.)
+- **L-5** the tokens_aliases plugin's legacy `alias=` claim is now an `elif` of the structured-op chain, so a
+  single `alias:register` tx can no longer ALSO claim a second (legacy) name. (`test_alias_register_no_legacy_double_claim`.)
+- **L-6** `alias:transfer` rejects a self-transfer (no-op churn). (`test_alias_self_transfer_is_noop`.)
+
 ### Open / deferred (tracked)
 - **M-3/M-4** consensus dedup keys on the signature, not the canonical content txid — bounded (no
   inflation; the balance check governs), but the txid is not a unique key under signature malleability.
-  Deferred to a consensus-adjacent batch (dedup-on-txid post-fork + truncate-before-dedup).
+  Deferred to a consensus-adjacent batch (dedup-on-txid post-fork + truncate-before-dedup); best done
+  together with the txid binary form (doc/29).
 - **GPU kernels** (`bis.cu`/`bismuth.cl`) are sha224-only — an **operational gate** on any mainnet hf2
   signal (post-fork PoW is blake2b); they must be ported first. See doc/21.
-- The hf2 binary/integer serialization rework is specified in **doc/29** (Stage 0 codec shipped).
+- The hf2 binary/integer serialization rework is specified in **doc/29**: Stage 0 (v2 tx pre-image codec)
+  + Stage 1 (binary/integer block hash, fork-gated, live + regnet-green) shipped; Stages 2-4 (binary
+  signing pre-image, pubkey-by-reference, coinbase compaction) pending before mainnet lock-in.
 
 The poker dApp audit lives in **doc/28** (chain-referee escrow + off-chain mental poker + on-chain hand
 evaluator); the RV32I authoring hazards it surfaced are catalogued there.

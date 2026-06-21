@@ -181,6 +181,10 @@ class SignerFactory:
         the frozen ``signature_buffer`` against the explicit public key. (The content-hash txid is the
         canonical id for ALL post-fork txs regardless of which signing scheme verified them.)"""
         if post_fork and cls.is_single_sig_ecdsa(address):
+            # audit L-1: the recoverable path DROPS the public key (the signer is recovered via ecrecover),
+            # so a non-empty public_key is unverified malleability noise — reject it rather than ignore it.
+            if str(public_key or "").strip() != "":
+                raise ValueError("post-fork single-sig secp256k1 tx must carry an empty public key")
             txid = bismuth_serialize.tx_id(timestamp, address, recipient, amount, operation, openfield)
             _load_optional_signer("SignerECDSA").verify_bis_signature_recovered(signature, txid, address)
             return
