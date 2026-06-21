@@ -4,7 +4,8 @@ execute contracts against the contract state store (vm_state), and (re)build tha
 
 Transaction format (openfield, like the token layer):
   * deploy:  operation = "vm:deploy",  openfield = <RV32I code hex>
-             -> the contract address is deterministically derived from the deploy tx signature.
+             -> the contract address is deterministically derived from the deploy tx CONTENT txid
+                (blake2b of the 6-field pre-image), NOT the malleable post-fork signature.
   * call:    operation = "vm:call",    openfield = "<contract addr>:<calldata hex>"
              -> execute with caller = sender, callvalue = tx amount, the given calldata; storage changes
                 commit ONLY on success (REVERT / out-of-gas commit nothing).
@@ -14,7 +15,9 @@ node derives identical state. Gated post-fork by the caller (digest).
 """
 import hashlib
 
+import amounts
 import bismuth_riscv as rv
+import bismuth_serialize
 
 GAS_LIMIT = 1_000_000          # fixed per-call gas budget (gas economics are a later refinement)
 ENGINE_NAME = "riscv"          # the single execution engine: deterministic RV32I (see bismuth_riscv)
@@ -23,9 +26,24 @@ ENGINE_NAME = "riscv"          # the single execution engine: deterministic RV32
 _BH, _TS, _ADDR, _RECIP, _AMOUNT, _SIG, _PUB, _HASH, _FEE, _REWARD, _OP, _OF = range(12)
 
 
-def contract_address(signature):
-    """Deterministic 56-hex contract address from the deploy tx signature (unique per deploy)."""
-    return hashlib.blake2b(str(signature).encode(), digest_size=28).hexdigest()
+def contract_address(seed):
+    """Deterministic 56-hex contract address = blake2b-28 of `seed`. The deploy path passes the deploy
+    tx's CONTENT txid (blake2b of the 6-field pre-image), NOT the signature: post-fork a single-sig
+    recoverable signature is MALLEABLE, so a signature-derived address could be ground to different values
+    for the same deploy (doc/18 §A.1 'final decision'). The content txid is immutable, so the address is a
+    stable commitment to (deployer, recipient, amount, timestamp, code) and can't be ground."""
+    return hashlib.blake2b(str(seed).encode(), digest_size=28).hexdigest()
+
+
+def _tx_id_of(row):
+    """Canonical content txid of a 12-field ledger row. IDENTICAL on the digest execution path
+    (processor.block_transactions) and the rebuild path (SELECT * FROM transactions): both carry amount in
+    the same storage form (integer units when LEDGER_INTEGER, else decimal), and amounts.ledger_value
+    normalises both back to the signed '%.8f' string — matching essentials.format_raw_tx, so the deploy
+    address derived here equals the tx's canonical txid the explorer/API surfaces."""
+    amount_str = '%.8f' % amounts.ledger_value(row[_AMOUNT])
+    return bismuth_serialize.tx_id(str(row[_TS]), str(row[_ADDR]), str(row[_RECIP]),
+                                   amount_str, str(row[_OP]), str(row[_OF]))
 
 
 def _caller_int(address):
@@ -42,12 +60,12 @@ def _caller_int(address):
 VM_SINK = hashlib.sha224(b"bismuth-vm-custody").hexdigest()   # 56-hex sink address; no private key -> unspendable
 
 
-def _deploy(state, openfield, signature):
+def _deploy(state, openfield, deploy_id):
     try:
         of = (openfield or "").strip()
         if of.startswith("riscv:"):                  # tolerate an explicit prefix; RV32I is the only engine
             of = of[6:].strip()
-        state.deploy(contract_address(signature), bytes.fromhex(of))
+        state.deploy(contract_address(deploy_id), bytes.fromhex(of))
     except Exception:
         pass
 
@@ -118,7 +136,7 @@ def apply_block_rows(state, rows):
     for r in rows:
         op = r[_OP] or ""
         if op == "vm:deploy":
-            _deploy(state, r[_OF] or "", r[_SIG])
+            _deploy(state, r[_OF] or "", _tx_id_of(r))   # content txid, not the malleable signature
         elif op == "vm:call":
             payouts.extend(_call(state, r[_OF] or "", r[_SIG], r[_ADDR], r[_RECIP],
                                  r[_AMOUNT], int(r[_BH] or 0)))

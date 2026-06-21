@@ -102,6 +102,34 @@ def test_successful_value_call_keeps_custody(tmp_path):
         state.close()
 
 
+def test_deploy_address_is_content_derived_not_signature(tmp_path):
+    """doc/18 §A.1 'final decision' + audit: the contract address must derive from the deploy tx's CONTENT
+    txid, not its (post-fork malleable) signature — so a deployer cannot grind the signature to move the
+    address. Two deploys with identical content but different signatures must land at the SAME address."""
+    code = OK_CODE.hex()
+    # 12-field row: (bh, ts, addr, recip, amount, sig, pub, hash, fee, reward, op, openfield)
+    base = (5, "0", SENDER, SENDER, 0, None, "pub", "hash", "0", "0", "vm:deploy", code)
+    row_a = base[:5] + ("sig-AAAA",) + base[6:]
+    row_b = base[:5] + ("sig-BBBB-totally-different",) + base[6:]   # different signature, same content
+    addr = vm_engine.contract_address(vm_engine._tx_id_of(row_a))
+
+    s1 = vm_state.VMState(str(tmp_path / "s1"))
+    try:
+        vm_engine.apply_block_rows(s1, [row_a])
+        assert s1.get_code(addr) is not None, "deploy did not land at the content-txid address"
+        # and NOT at the old signature-derived address (the malleability hole that was closed)
+        assert s1.get_code(vm_engine.contract_address("sig-AAAA")) is None
+    finally:
+        s1.close()
+
+    s2 = vm_state.VMState(str(tmp_path / "s2"))
+    try:
+        vm_engine.apply_block_rows(s2, [row_b])
+        assert s2.get_code(addr) is not None, "same content + different sig must give the SAME address"
+    finally:
+        s2.close()
+
+
 def test_apply_block_rows_refund_payout_settles_against_deposit(tmp_path):
     """End-to-end at the row level: a reverting value call produces exactly the refund payout the digester
     settles from the sink, netting the sender to zero against the funding tx (supply exact)."""
