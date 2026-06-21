@@ -122,9 +122,17 @@ if __name__ == "__main__":
     signature = signer.sign(h)
     signature_enc = base64.b64encode(signature)
     txid = signature_enc[:56]
+    # doc/29 §6 bug 2: post-hf2 the canonical id is the content-hash txid (blake2b of the 6-field
+    # pre-image), not the signature prefix. RSA signing itself is unchanged post-fork, so print BOTH ids
+    # labelled by era (no node round-trip needed): use the content txid against an hf2-active node.
+    import bismuth_serialize
+    content_txid = bismuth_serialize.tx_id(str(timestamp), str(address), str(recipient_input),
+                                           '%.8f' % float(amount_input), str(operation_input),
+                                           str(openfield_input))
 
     print(f"Encoded Signature: {signature_enc.decode('utf-8')}")
-    print(f"Transaction ID: {txid.decode('utf-8')}")
+    print(f"Transaction ID (pre-hf2, signature prefix): {txid.decode('utf-8')}")
+    print(f"Transaction ID (post-hf2, content hash): {content_txid}")
 
     verifier = PKCS1_v1_5.new(key)
 

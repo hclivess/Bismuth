@@ -1229,6 +1229,7 @@ def verify(db_handler):
         # verify genesis
 
         invalid = 0
+        fork_height = getattr(node, "fork_height", None)   # fork-aware verification (doc/29 §6 bug 1)
 
         for row in db_handler.h.execute('SELECT * FROM transactions WHERE block_height > 0 and reward = 0 ORDER BY block_height'):  # native sql fx to keep compatibility
 
@@ -1246,10 +1247,18 @@ def verify(db_handler):
             db_operation = str(row[10])[:30]
             db_openfield = str(row[11])  # no limit for backward compatibility
             db_transaction = str((db_timestamp, db_address, db_recipient, db_amount, db_operation, db_openfield)).encode("utf-8")
+            # Fork-aware (doc/29 §6 bug 1): at/after fork_height an ordinary single-sig secp256k1 row is
+            # verified by ecrecover over the content txid (public key dropped); pre-fork rows + post-fork
+            # RSA/ED25519/multisig keep the legacy buffer+pubkey check. The old unconditional
+            # verify_bis_signature flagged EVERY post-fork single-sig row as invalid.
+            post_fork = fork_height is not None and int(row[0]) >= int(fork_height)
 
             try:
-                # Signer factory is aware of the different tx schemes, and will b64 decode public_key once or twice as needed.
-                SignerFactory.verify_bis_signature(db_signature_enc, db_public_key_b64encoded, db_transaction, db_address)
+                # SignerFactory routes by scheme + fork: recoverable-over-txid for post-fork single-sig,
+                # legacy buffer+pubkey otherwise — the same authority the digester/mempool use.
+                SignerFactory.verify_tx_signature(post_fork, db_timestamp, db_address, db_recipient,
+                                                  db_amount, db_operation, db_openfield,
+                                                  db_signature_enc, db_public_key_b64encoded)
             except Exception as e:
                 sha_hash = SHA.new(db_transaction)
                 try:
