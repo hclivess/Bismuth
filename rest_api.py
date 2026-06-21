@@ -334,6 +334,8 @@ def _make_handler(node):
                     return self._write(200, self._fork(db))
                 if route == ["supply"]:
                     return self._write(200, self._supply(db))
+                if route[:1] == ["stats"] and len(route) == 2:
+                    return self._write(200, self._stats(db, route[1]))
                 # Modern plugins (doc/27) may own a route — the tokens_aliases plugin serves /api/tokens and
                 # /api/token/<name> from its own LMDB store, so post-fork no token/alias code is left in this
                 # router. When no plugin claims the route, fall through to the core (legacy index.db) handlers.
@@ -485,6 +487,10 @@ def _make_handler(node):
                         "/api/nodes": "browse the peer network: per-node height, version, reputation, "
                                       "connected/banned/whitelisted status",
                         "/api/supply": "circulating supply + chain height",
+                        "/api/stats/summary": "network dashboard: height, difficulty, avg block time, peers, mempool, tokens",
+                        "/api/stats/tx_per_month": "transactions-per-month histogram (background-cached full-ledger scan)",
+                        "/api/stats/difficulty": "difficulty time-series sampled from the misc table",
+                        "/api/stats/geo": "geolocated peers for the explorer node map (cached; rest_api_geo to disable)",
                         "/api/tokens": "all tokens on chain, ranked by transfer volume",
                         "/api/token/{name}": "a token's supply, holder count, and per-address balances",
                         "/api/token/tx/{address}": "token transfers (sent or received) for an address, newest "
@@ -844,6 +850,22 @@ def _make_handler(node):
                     "outcome": outcome,                        # 0 unresolved, 1 YES, 2 NO
                     "outcome_label": {1: "YES", 2: "NO"}.get(outcome, ""),
                     "yes_odds": yes_odds, "no_odds": no_odds}  # implied probability, % of the pool
+
+        def _stats(self, db, which):
+            """Explorer statistics (doc/15). Heavy aggregates (tx-per-month) are background-cached on the
+            node; difficulty is sampled from the indexed misc table; geo is best-effort + cached. All
+            read-only / consensus-neutral."""
+            import rest_stats
+            if which == "summary":
+                return rest_stats.network_summary(node, db)
+            if which in ("tx_per_month", "txmonth"):
+                return rest_stats.tx_per_month(node, db)
+            if which == "difficulty":
+                tip = int(getattr(node, "hdd_block", 0) or 0)
+                return {"tip": tip, "series": rest_stats.difficulty_series(db, tip)}
+            if which == "geo":
+                return rest_stats.geo_nodes(node)
+            raise _NotFound("unknown stats endpoint (summary|tx_per_month|difficulty|geo)")
 
         def _supply(self, db):
             """Circulating supply = mining emission (sum(reward)-sum(fee) over positive heights) + the

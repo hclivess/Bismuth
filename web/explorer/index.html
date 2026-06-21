@@ -45,6 +45,7 @@
   <div class="subtle small">
     <a href="#/blocks/">Blocks</a> &middot; <a href="#/tokens">Tokens</a> &middot;
     <a href="#/nodes">Nodes</a> &middot; <a href="#/vm">Contracts</a> &middot; <a href="#/supply">Supply</a>
+    &middot; <a href="#/stats">Stats</a>
     &middot; <a href="#/api">API</a>
     &middot; <a href="javascript:void(0)" onclick="var u=prompt('Node API base (e.g. http://127.0.0.1:5659 for your local node):','http://127.0.0.1:5659');if(u)connectNode(u);">connect node…</a>
   </div>
@@ -316,6 +317,75 @@ async function vmContract(addr){
       <h6 class="mt-3">Bytecode</h6><div class="mono hash" style="word-break:break-all">${esc(d.code)}</div></div>`);
   }catch(e){errBox(e);}
 }
+// ---- Statistics page: inline-SVG charts + node geomap, zero external deps ----
+function svgBars(data,{w=880,h=240,pad=36}={}){
+  if(!data.length)return '<div class="subtle">No data.</div>';
+  const max=Math.max(...data.map(d=>d.v),1),bw=(w-pad*2)/data.length;
+  const bars=data.map((d,i)=>{const bh=(h-pad*2)*(d.v/max),x=pad+i*bw,y=h-pad-bh;
+    return `<rect x="${(x+1).toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(1,bw-2).toFixed(1)}" height="${bh.toFixed(1)}" fill="#6cb4ff"><title>${esc(d.k)}: ${d.v.toLocaleString()}</title></rect>`;}).join('');
+  const step=Math.max(1,Math.ceil(data.length/12));
+  const labels=data.map((d,i)=>i%step===0?`<text x="${(pad+i*bw+bw/2).toFixed(1)}" y="${h-pad+14}" font-size="10" fill="#9aa7b5" text-anchor="middle">${esc(d.k)}</text>`:'').join('');
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" preserveAspectRatio="xMidYMid meet" style="max-width:100%">
+    <line x1="${pad}" y1="${h-pad}" x2="${w-pad}" y2="${h-pad}" stroke="#2a323d"/>
+    <text x="${pad-4}" y="${pad+4}" font-size="10" fill="#9aa7b5" text-anchor="end">${max.toLocaleString()}</text>
+    ${bars}${labels}</svg>`;
+}
+function svgLine(data,{w=880,h=240,pad=44}={}){
+  if(data.length<2)return '<div class="subtle">Not enough data.</div>';
+  const xs=data.map(d=>d.x),ys=data.map(d=>d.y);
+  const minx=Math.min(...xs),maxx=Math.max(...xs),miny=Math.min(...ys),maxy=Math.max(...ys);
+  const sx=x=>pad+(w-pad*2)*((x-minx)/((maxx-minx)||1)),sy=y=>h-pad-(h-pad*2)*((y-miny)/((maxy-miny)||1));
+  const pts=data.map(d=>`${sx(d.x).toFixed(1)},${sy(d.y).toFixed(1)}`).join(' ');
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" preserveAspectRatio="xMidYMid meet" style="max-width:100%">
+    <line x1="${pad}" y1="${h-pad}" x2="${w-pad}" y2="${h-pad}" stroke="#2a323d"/>
+    <line x1="${pad}" y1="${pad}" x2="${pad}" y2="${h-pad}" stroke="#2a323d"/>
+    <polyline points="${pts}" fill="none" stroke="#9be29b" stroke-width="1.5"/>
+    <text x="${pad-4}" y="${pad+4}" font-size="10" fill="#9aa7b5" text-anchor="end">${maxy.toFixed(2)}</text>
+    <text x="${pad-4}" y="${h-pad}" font-size="10" fill="#9aa7b5" text-anchor="end">${miny.toFixed(2)}</text>
+    <text x="${pad}" y="${h-pad+14}" font-size="10" fill="#9aa7b5">${esc(data[0].lbl||'')}</text>
+    <text x="${w-pad}" y="${h-pad+14}" font-size="10" fill="#9aa7b5" text-anchor="end">${esc(data[data.length-1].lbl||'')}</text></svg>`;
+}
+function svgGeo(points,{w=880,h=440}={}){
+  const g=[];
+  for(let lon=-150;lon<=150;lon+=30)g.push(`<line x1="${((lon+180)/360*w).toFixed(1)}" y1="0" x2="${((lon+180)/360*w).toFixed(1)}" y2="${h}" stroke="#1a212b"/>`);
+  for(let lat=-60;lat<=60;lat+=30)g.push(`<line x1="0" y1="${((90-lat)/180*h).toFixed(1)}" x2="${w}" y2="${((90-lat)/180*h).toFixed(1)}" stroke="#1a212b"/>`);
+  const dots=points.map(p=>{const x=(p.lon+180)/360*w,y=(90-p.lat)/180*h;
+    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.5" fill="#6cb4ff" fill-opacity="0.7" stroke="#bcd8ff" stroke-width="0.5"><title>${esc((p.city?p.city+', ':'')+(p.country||''))} — ${esc(p.ip)}</title></circle>`;}).join('');
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" preserveAspectRatio="xMidYMid meet" style="max-width:100%;background:#0d1117;border:1px solid #2a323d;border-radius:6px">${g.join('')}${dots}</svg>`;
+}
+async function statsView(){
+  loading();
+  try{
+    const [sum,txm,diff,geo]=await Promise.all([
+      api('/stats/summary').catch(()=>null),
+      api('/stats/tx_per_month').catch(()=>({status:'error',months:[]})),
+      api('/stats/difficulty').catch(()=>({series:[]})),
+      api('/stats/geo').catch(()=>({status:'error',points:[],countries:[]})),
+    ]);
+    const sc=sum?[['Height',Number(sum.height).toLocaleString()],['Difficulty',sum.difficulty!=null?Number(sum.difficulty).toFixed(4):'-'],
+      ['Avg block',sum.avg_block_time!=null?sum.avg_block_time+'s':'-'],['Peers',sum.connections],
+      ['Mempool',sum.mempool],['Tokens',sum.tokens==null?'-':sum.tokens]]:[];
+    const cards=sc.map(([l,v])=>`<div class="col"><div class="card stat p-2"><div class="l">${l}</div><div class="v">${esc(v)}</div></div></div>`).join('');
+    const txData=(txm.months||[]).map(m=>({k:m.month,v:m.count}));
+    const txBlock=txm.status==='computing'?'<p class="subtle py-3">Computing the monthly histogram from the ledger… (first load only; reload shortly).</p>':svgBars(txData);
+    const dseries=(diff.series||[]).filter(d=>d.difficulty!=null).map(d=>({x:d.height,y:Number(d.difficulty),lbl:d.timestamp?new Date(d.timestamp*1000).toLocaleDateString():('#'+d.height)}));
+    const diffBlock=dseries.length>1?svgLine(dseries):'<p class="subtle">No difficulty history.</p>';
+    const gpts=(geo.points||[]);
+    const geoBlock=geo.status==='disabled'?'<p class="subtle py-3">Node geolocation disabled (rest_api_geo=False).</p>'
+      :geo.status==='computing'?'<p class="subtle py-3">Locating peers on the map… (reload shortly).</p>'
+      :gpts.length?svgGeo(gpts):'<p class="subtle py-3">No geolocated peers yet.</p>';
+    const ctable=(geo.countries||[]).slice(0,25).map(c=>`<tr><td>${esc(c.country||c.cc||'?')}</td><td>${c.count}</td></tr>`).join('');
+    setMain(`<div>
+      <div class="row g-2 mb-3">${cards}</div>
+      <div class="card p-3 mb-3"><h5 class="mb-2">Transactions per month <span class="subtle small">${txm.total!=null?'· '+Number(txm.total).toLocaleString()+' total':''}</span></h5>${txBlock}</div>
+      <div class="card p-3 mb-3"><h5 class="mb-2">Difficulty over time</h5>${diffBlock}</div>
+      <div class="card p-3 mb-3"><h5 class="mb-2">Node map <span class="subtle small">(${gpts.length} located)</span></h5>
+        <div class="row g-3"><div class="col-lg-8">${geoBlock}</div>
+        <div class="col-lg-4">${(geo.countries||[]).length?`<div class="table-responsive" style="max-height:440px;overflow:auto"><table class="table table-sm align-middle"><thead><tr><th>Country</th><th>Nodes</th></tr></thead><tbody>${ctable}</tbody></table></div>`:'<p class="subtle small">Country breakdown appears once peers are geolocated.</p>'}</div></div>
+        <p class="subtle small mt-2">Peer locations are looked up once and cached server-side; disable with <span class="mono">rest_api_geo=False</span>.</p></div>
+    </div>`);
+  }catch(e){errBox(e);}
+}
 function doSearch(ev){ev.preventDefault();const q=document.getElementById('q').value.trim();if(!q)return false;
   if(/^\d+$/.test(q))location.hash=`#/block/${q}`;
   else if(/^[0-9a-fA-F]{56}$/.test(q))location.hash=`#/hashlookup/${q}`;
@@ -336,6 +406,7 @@ function router(){
   if(p[0]==='nodes')return nodesList();
   if(p[0]==='api')return apiView();
   if(p[0]==='supply')return supplyView();
+  if(p[0]==='stats')return statsView();
   if(p[0]==='vm'&&p[1])return vmContract(decodeURIComponent(p[1]));
   if(p[0]==='vm')return vmList();
   if(p[0]==='hashlookup')return hashLookup(p[1]);
