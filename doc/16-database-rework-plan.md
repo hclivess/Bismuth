@@ -75,11 +75,15 @@
    > openfield), digest_size=32)` (64-hex), the signed message becomes `unhex(txid)` (32 bytes),
    > signatures become 65-byte recoverable compact secp256k1 (hex), and the `public_key` field is
    > DROPPED for single-sig (signer recovered via `ecrecover(txid,sig)` → address). blake2b is kept
-   > (not keccak/RLP). The frozen `signature_buffer` `'%.8f'`/`'%.2f'` string form is the **byte-stable
-   > pre-image** — the integer-amount win lands in storage/encoding, NOT the txid pre-image. Lookups
-   > shape-dispatch: `^[0-9a-f]{64}$` → exact `txid` column; else legacy `signature LIKE` prefix
-   > (a new `txid TEXT` column, NULL for pre-fork rows). Multisig/shielded keep explicit
-   > pubkeys/ring-sigs but sign the same txid. Full producer/lookup map in §A.1.
+   > (not keccak/RLP). The content txid is **computed on read** (`essentials.format_raw_tx`, amount via
+   > `amounts.ledger_value` so it is storage-mode agnostic) — there is **no `txid` DB column and no
+   > migration v3**. Lookups shape-dispatch: a 64-char lowercase-hex query (`^[0-9a-f]{64}$`) resolves
+   > the content txid by scanning post-fork rows; anything else uses the legacy `signature LIKE` prefix
+   > match. Only ordinary single-sig secp256k1 takes the recoverable-signature path above; RSA,
+   > ED25519, native multisig and shielded/RingCT **keep their existing legacy signing** post-fork
+   > (multisig: explicit pubkeys + N-of-M over the frozen buffer — it does **not** sign the txid), yet
+   > all post-fork txs still get the content-hash txid as their canonical id. Full producer/lookup map
+   > in §A.1.
 3. **Behavior-preserving, replay-verified.** Every migration is validated by replaying the chain and
    asserting **identical block hashes** end-to-end (a consensus-equivalence test). No silent drift.
 4. **Backward compatible.** Old peers keep the socket protocol; legacy `*json` responses keep their

@@ -67,6 +67,15 @@ receive the `node` object and read/write its attributes (e.g. `node.logger.app_l
 `node.db_lock`, `node.last_block`). `Keys` holds the RSA key object plus the readable PEMs, the
 base64-encoded public key, and the 56-hex address.
 
+> Post-fork signing note: ordinary single-sig **secp256k1** transactions switch to *recoverable*
+> signatures — the tx signs its 32-byte content-hash txid (computed on read by
+> `essentials.format_raw_tx`, amount via `amounts.ledger_value`, so it is storage-mode agnostic),
+> the `public_key` field is **dropped** from the tx, and the signer is recovered via `ecrecover`
+> (low-s enforced). RSA, ED25519, native multisig and shielded/RingCT keep their existing legacy
+> signing post-fork (e.g. multisig still carries explicit pubkeys and signs the frozen buffer N-of-M,
+> not the txid). All post-fork txs nonetheless use the content-hash txid as their canonical id;
+> pre-fork is byte-identical and historical txs keep their `signature[:56]` ids.
+
 ## Shutdown
 
 `node_stop.py` connects to `127.0.0.1:<port>` and sends `stop`. The handler sets

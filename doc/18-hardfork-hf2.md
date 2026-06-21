@@ -43,10 +43,11 @@ Sign/hash **native integer units + a binary/struct tx encoding**, a bounded **co
 block body. *Risk: low-moderate* — it's a representation change, fully replay-checkable: every pre-fork
 block must still re-hash identically, every post-fork block round-trips through the new codec.
 
-#### A.1 Canonical txid + Ethereum-shape single-sig model (PINNED SPEC) — design ready
+#### A.1 Canonical txid + Ethereum-shape single-sig model — ✅ **implemented, fork-gated, tested**
 
-This pins section A's "content-hash txid" and "canonical sig/pubkey encoding" to an exact,
-implementable spec. **Decision (final):** at `block_height >= node.fork_height`, ordinary
+This realizes section A's "content-hash txid" and "canonical sig/pubkey encoding" as an exact,
+implemented spec (`tests/test_hf2_recoverable.py`, `tests/test_hf2_fork_transition.py`).
+**Decision (final):** at `block_height >= node.fork_height`, ordinary
 **single-sig** txs adopt the Ethereum-style identity model, borrowing only its *shape* — we keep
 blake2b (the doc/18-D hash choice), **not** keccak/RLP/EIP-155.
 
@@ -102,34 +103,41 @@ single-sig (secp256k1 ECDSA) only.
 
 **5. Scope — single-sig ONLY.** ecrecover/drop-pubkey applies **only** to ordinary single-sig
 secp256k1 senders.
-  - **RSA senders** are not key-recoverable; if any RSA single-sig spends are still allowed post-fork
-    they MUST keep an explicit pubkey (RSA can't ecrecover). Recommended: post-fork single-sig =
-    secp256k1 only (the coinbase is already RSA-gated and is a special unsigned-value case — see note 8).
-  - **MULTISIG senders** (`SignerFactory.address_is_multisig`, doc/23) KEEP explicit pubkeys + their
-    N-of-M verification — but **sign the same 32-byte txid**. The digest multisig gate
-    (`digest.py:565-579`) is unchanged.
+  - **RSA senders** are not key-recoverable and KEEP their legacy path post-fork: explicit pubkey +
+    signing over the **frozen `signature_buffer`** (RSA can't ecrecover, and the recoverable-sig path is
+    secp256k1-only). The coinbase is RSA-gated and is a special unsigned-value case — see note 8.
+  - **MULTISIG senders** (`SignerFactory.address_is_multisig`, doc/23) KEEP their legacy scheme intact:
+    explicit pubkeys + N-of-M verification over the **frozen `signature_buffer`**. Multisig does **NOT**
+    sign the txid and does **NOT** drop pubkeys — only ordinary single-sig secp256k1 moves to the
+    recoverable/ecrecover path. The digest multisig gate (`digest.py:572-585`) is unchanged.
   - **SHIELDED / RingCT** txs (doc/22) KEEP their ring-signature scheme and their own message binding
     (`shieldedv1._ring_message`), but the *enclosing* tx still gets the same content-hash txid for
     indexing/lookup. ecrecover is never applied to them.
 
-**6. Shape-dispatched lookup (every reader).** Tx lookups must dispatch on the query string shape so
-both eras resolve from one code path:
+**6. txid computed ON READ; shape-dispatched lookup (every reader).** There is **NO `txid` DB column
+and NO migration** — the canonical content-hash txid is computed **on read** from the stored row by
+`essentials.format_raw_tx`, which rebuilds the signed `'%.8f'` amount string via `amounts.ledger_value`
+(so it is **storage-mode agnostic** — same id whether the row holds a NUMERIC float or post-fork integer
+units) and feeds the frozen six-field pre-image to `bismuth_serialize.tx_id` (= `blake2b`). Pre-fork rows
+(or callers with no `fork_height`) keep the `signature[:56]` slice byte-for-byte.
+
+Lookups dispatch on the **query string shape** so both eras resolve from one code path:
 
 ```
-if re.fullmatch(r'[0-9a-f]{64}', q):   # post-fork content-hash txid -> exact column match
-    WHERE txid = ?            (q)
-else:                                  # legacy signature[:56] slice -> prefix match (unchanged)
-    WHERE signature LIKE ?    (q + '%')
+if len(q) == 64 and all(c in "0123456789abcdef" for c in q):   # post-fork content-hash txid
+    # no signature prefix to match -> scan post-fork rows, recompute the content txid, compare
+    for row in SELECT * FROM transactions WHERE block_height >= fork_height:
+        if format_raw_tx(row, fork_height)['txid'] == q: return row
+else:                                                          # legacy signature[:56] slice
+    WHERE signature LIKE ?    (q + '%')                         # indexed prefix match (unchanged)
 ```
 
 A 64-hex-lowercase string is unambiguously a post-fork txid (the legacy `signature[:56]` slice is
 base64, so it contains `+/=` or uppercase and **cannot** match `^[0-9a-f]{64}$`); anything else is a
-legacy prefix. This means **add a `txid TEXT` column** to `transactions` (post-fork rows fill it;
-pre-fork rows leave it NULL and continue to resolve via the `signature LIKE` branch), plus an index on
-it. Added via `db_migrations.ledger_migrations` (new `v3`, alongside the existing TXID4 substr index
-which keeps serving the legacy branch). `digest`'s writer computes and stores `txid` for post-fork
-blocks; pre-fork replay never writes it (NULL), so block hashes are untouched (the txid column is not
-in `bismuth_serialize.TX_FIELDS` / the block-hash pre-image).
+legacy prefix. Because the id is derived, not stored, there is nothing to migrate, no new column, no
+index churn, and block hashes are untouched by construction (the txid never enters
+`bismuth_serialize.TX_FIELDS` / the block-hash pre-image). See `rest_api._transaction`
+(`rest_api.py:1030-1047`) for the live dispatch.
 
 **7. The integer-amount serialization freeze (byte-stability at the fork).** The txid content is only
 byte-stable if `signature_buffer`'s `amount` (and `timestamp`) string form is frozen at the fork.
@@ -156,9 +164,10 @@ value and is validated by PoW + reward rules, not a sender signature). Leave its
 beyond computing the new txid for indexing.
 
 **Map — every txid PRODUCER (`signature[:56]`) to change (file:line):**
-- `essentials.format_raw_tx` `txid: raw[5][:56]` — `essentials.py:81` (the linchpin: feeds
-  `blockstojson`/`blocktojsondiffs` and most REST/JSON tx shapes). Post-fork: emit `raw[txid_col]`;
-  pre-fork rows fall back to `raw[5][:56]`.
+- `essentials.format_raw_tx` `txid: raw[5][:56]` — `essentials.py:65-77` (the linchpin: feeds
+  `blockstojson`/`blocktojsondiffs` and most REST/JSON tx shapes). Post-fork (`fork_height` passed and
+  `raw[0] >= fork_height`): **compute** the content txid from the row via `bismuth_serialize.tx_id` over
+  the `amounts.ledger_value`-normalised `'%.8f'` amount; pre-fork rows fall back to `raw[5][:56]`.
 - `rpc_bitcoin.py:109` (`rpc_getblock` tx list), `:129` (`rpc_getrawtransaction` `txid`).
 - `rpc_ethereum.py:109` (block `transactions`), `:117` (`hash`).
 - `tokensv2.py:88` (issue), `:153` (transfer; already has the `txid=="0" -> blake2bhash_generate`
@@ -169,24 +178,27 @@ beyond computing the new txid for indexing.
 - `ledger_explorer.py:175` (`x[5][:56]`), `web/explorer/index.html:135,163,320-322`
   (`.slice(0,56)` link + the `^[0-9a-fA-F]{56}$` search heuristic → add a 64-hex branch; display
   `t.txid` when present, fall back to `signature`).
-- `digest`'s block writer / `to_db` path: NEW — compute `txid` and store it in the new column for
-  post-fork blocks.
+- `digest`'s block writer / `to_db` path: **unchanged** — nothing is stored for the txid; it is derived
+  on read, so the writer is storage-mode-only and the block-hash pre-image is untouched.
 
 **Map — every txid LOOKUP (`signature LIKE`) to shape-dispatch (file:line):**
-- `rest_api._transaction` — `rest_api.py:960-965` (`WHERE signature LIKE ? LIMIT 1`); also the route
-  comment `:29`/`:422` and `_submit_transaction` return `tx[4][:56]` → compute new txid for post-fork
-  submits (`rest_api.py:395`).
+- `rest_api._transaction` — `rest_api.py:1030-1047` (64-hex → scan post-fork rows recomputing the
+  content txid; else `WHERE signature LIKE ? LIMIT 1`); also `_submit_transaction` returns the computed
+  post-fork txid (`rest_api.py:403`).
 - `apihandler_tx.api_gettransaction` (`apihandler_tx.py:31-38`), `api_gettransactionbysignature`
   (`:95-100` — this one is *by full signature*, keep as exact-signature match, but note post-fork sigs
   are hex compact), `api_gettransaction_for_recipients` (`:160-168`).
 - `rpc_bitcoin.rpc_getrawtransaction` (`rpc_bitcoin.py:124`),
   `rpc_ethereum` equivalent (`rpc_ethereum.py:112`).
 - `tokensv2.py:132` (the `openfield LIKE` token scan is unrelated — leave; only its `r[4][:56]` id
-  derivation changes), `tokensv2.py:190` (`SELECT txid FROM tokens WHERE txid = ?` — already exact,
-  fine once the stored id is the new txid).
-- `check_tx.py:38,53` (`signature like ?`) — add the 64-hex exact-`txid` branch.
-- mempool ledger-dup check `mempool.py:410-416` (matches on full `signature`) — post-fork the dedup
-  key should be `txid` (the canonical id); the `substr(signature,1,4)` index branch is the legacy path.
+  derivation changes), `tokensv2.py:190` (`SELECT txid FROM tokens WHERE txid = ?` — the `tokens`
+  side-index has its own `txid` column; feed it the computed content id, no `transactions` column
+  involved).
+- `check_tx.py:38,53` (`signature like ?`) — add the 64-hex branch (scan post-fork rows recomputing the
+  content txid, as in `rest_api._transaction`).
+- mempool ledger-dup check `mempool.py:410-416` (matches on full `signature`) — the dedup key stays the
+  full `signature` (still present and unique on every tx, recoverable single-sig included); the
+  `substr(signature,1,4)` index branch is unchanged.
 
 **Map — the VM contract-address derivation decision (`vm_engine.contract_address`,
 `vm_engine.py:26-28`).** Today `contract_address = blake2b(str(signature), digest_size=28)` — a
@@ -202,8 +214,17 @@ encoding. VM is post-fork-only (inert pre-fork), so there is **no legacy contrac
 **Gate.** Everything above keys on the single `block_height >= node.fork_height` (no second signal),
 matching the existing VM / shield / multisig / LWMA / blake2b gates in `digest.py`. Pre-fork:
 `signature[:56]` id, DER/base64 sig, explicit pubkey, buffer-signing — **unchanged**, so no history
-rewrite (doc/18 "Continuity"). Replay-validated: pre-fork blocks re-hash identically (txid column NULL,
-not in the block-hash pre-image); post-fork blocks round-trip (content→txid→sig→ecrecover→address).
+rewrite (doc/18 "Continuity"). Replay-validated: pre-fork blocks re-hash identically (the txid is never
+stored and never enters the block-hash pre-image); post-fork blocks round-trip
+(content→txid→sig→ecrecover→address). RSA, ED25519, native multisig, and shielded/RingCT keep their
+existing legacy signing post-fork; ALL post-fork txs still carry the content-hash txid as their
+canonical id.
+
+**Non-consensus additions (this session).** Alongside A.1, several **read-only REST endpoints** were
+added (no consensus impact, ship any time): `/api/proxy?target=` (same-origin relay to another node's
+read-only `/api`), `/api/nodes` (peer browser, now de-duplicated), `/api/token/tx/{address}` (token
+transfers for an address), `/api/alias/{name}` (resolve alias → owner) and `/api/aliases/{address}`
+(all aliases owned by an address). See `rest_api.py:439-456`.
 
 ### B. Reward-sidechain cutover — foundation built (`reward_chain.py`)
 Mint dev/hypernode rewards into the sidechain instead of negative-height mirror rows; balances read

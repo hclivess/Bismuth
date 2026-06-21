@@ -59,8 +59,20 @@ Key properties:
 - **No hyperblocks-as-a-second-file.** Fast bootstrap is the LMDB store (compact, deduped) + REST
   headers-first / parallel block fetch (doc/15, already started) + an optional **balance-snapshot projection**
   inside the SAME env (a derived checkpoint, not a lockstep second file).
-- **Consensus frozen.** Block hashing / signing bytes are unchanged (`bismuth_serialize`); storage is an
-  internal concern behind that boundary. The same blocks produce the same hashes.
+- **Block hashing frozen; one fork-gated signing change.** The block-hash pre-image is unchanged
+  (`bismuth_serialize.block_hash` / `signature_buffer` — it excludes the signature), so the same blocks
+  produce the same hashes; storage is an internal concern behind that boundary. The one consensus change,
+  gated on `fork_height`, is **single-sig secp256k1 SIGNING**: post-fork an ordinary single-sig tx signs the
+  blake2b content-hash **txid** (`bismuth_serialize.tx_id` / `signed_message`, Ethereum-shape — a 65-byte
+  recoverable sig, the `public_key` field DROPPED, signer recovered via ecrecover with low-s enforced). RSA,
+  ED25519, native MULTISIG and shielded/RingCT KEEP their existing legacy signing post-fork (multisig:
+  explicit pubkeys + N-of-M over the frozen `signature_buffer` — it does NOT sign the txid). Pre-fork is
+  byte-identical (it stays on the legacy buffer+pubkey path).
+- **Content-hash txid, computed on read.** ALL post-fork txs get the blake2b content-hash txid as their
+  canonical id; it is derived ON READ (`essentials.format_raw_tx`, amount via `amounts.ledger_value` so it is
+  storage-mode agnostic) — there is **no `txid` DB column and no migration**. Lookup is SHAPE-DISPATCHED: a
+  64-char lowercase-hex query resolves the content txid by scanning post-fork rows; anything else uses the
+  legacy signature-prefix LIKE match. Historical txs keep their `signature[:56]` ids.
 
 ## 3. The seam — a storage interface, two backends
 
@@ -100,7 +112,12 @@ path: introduce the seam, move reads, move writes, then delete the SQLite trio. 
   projection was always the most cleanly *separable* part of the trio — its own `index.db`, a derived
   side-index of the ledger, never consensus — so it is the natural next target. Replaced with an isolated LMDB
   env (sub-DBs: `tokreg`/`seen`/`cred`/`deb`/`addrtok`/`tokset`/`journal` for tokens, `alias_fwd`/`alias_rev`/
-  `ajournal` for aliases, `meta` for anchors). *Materialized* indexes stand in for the SQLite SUM/GROUP-BY:
+  `ajournal` for aliases, `meta` for anchors). Aliases gained mutable ownership via the **alias-evolution ops**
+  (`register_alias`/`transfer_alias`/`free_alias`): `alias:register` claims an unowned alias (first claimant
+  wins), `alias:transfer` moves ownership owner → recipient (no-op unless the sender is the current owner),
+  and `alias:free` releases an alias so it can be claimed again — `alias_fwd` tracks the live owner and
+  `alias_rev` the per-address set, both height-ordered so the `ajournal` range-scan rolls them back on reorg.
+  *Materialized* indexes stand in for the SQLite SUM/GROUP-BY:
   `cred`/`deb` are height-ordered so the **exact** overspend rule survives (credit at `block_height < h`,
   debit at `<= h` — no same-block re-spend); reorg rollback range-scans the height journals (same shape as
   the shielded store). Wired behind a **storage seam** (§3): `node.token_index` set → LMDB, else the legacy

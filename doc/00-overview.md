@@ -34,7 +34,7 @@ the VM [`19`](19-vm.md), post-quantum signatures [`20`](20-post-quantum.md), the
 | Bitcoin JSON-RPC | `rpc_bitcoin.py` — getblockcount/getblock/getbalance/getrawtransaction/… | **implemented**, flag `rpc_bitcoin` (off); regnet-tested |
 | Ethereum/ERC shim | `rpc_ethereum.py` — `eth_*` subset (bounded; not an EVM) | **implemented**, flag `rpc_ethereum` (off); regnet-tested |
 | Block explorer | `explorer.bismuth.cz` (SPA over the REST API) | **live** — blocks/tx/address + **Tokens / Nodes / Supply / Contracts** views, SVG favicon, node-switcher |
-| Explorer/RPC endpoints | `/api/supply`, `/api/tokens`, `/api/token/{n}`, `/api/nodes`, `/api/vm/*` + token-index | **live/done** (supply background-computed; token-first indexes) |
+| Explorer/RPC endpoints | `/api/supply`, `/api/tokens`, `/api/token/{n}`, `/api/token/tx/{address}`, `/api/alias/{name}`, `/api/aliases/{address}`, `/api/nodes`, `/api/vm/*`, `/api/proxy?target=` + token-index | **live/done** (supply background-computed; token-first indexes) |
 | Bootstrap hosting + snapshot | `https://bismuth.cz/ledger.tar.gz` + `scripts/snapshot.py` | **live** — live-safe (SQLite online-backup + LMDB `env.copy`), integrity-checked |
 | Balance index | `balance_index.py` — O(1) display balance | **WIRED** (flag `balance_index`): maintained on commit, reorg-rebuilt, read by `/api/balance`; consensus stays on `ledger_balance3` |
 | Peer reputation + penalization | `peers_reputation.py` | **WIRED** — validate-height-is-real reward/penalize (synced-only), reputation-weighted tip |

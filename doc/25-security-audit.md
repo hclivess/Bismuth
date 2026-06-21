@@ -38,6 +38,21 @@ attacks. Every finding below has a regression test.
   output commitment. (`test_bulletproof::test_generators_are_independent`.)
 - **ECDSA signature malleability (BIP62/BIP146, txid-malleability class).** libsecp256k1 enforces low-s on
   verify, so a high-`s` malleated multisig component signature is rejected. (`test_multisig_signer::test_signature_malleability_low_s_rejected`.)
+- **Post-fork single-sig recoverable path & content-hash txid (Ethereum-shape, txid-malleability class).**
+  Post-hf2 the canonical id of *every* tx is the **content-hash txid** — `blake2b-256` of the frozen
+  pre-image consensus signs (timestamp/address/recipient/amount/operation/openfield). It is computed
+  **on read** (`essentials.format_raw_tx`, amount normalised via `amounts.ledger_value` so it is
+  storage-mode agnostic) — there is **no `txid` DB column and no migration** for it. Lookup is
+  **shape-dispatched** (`rest_api`): a 64-char lowercase-hex query resolves the content txid by scanning
+  post-fork rows, while anything else falls back to the legacy `signature[:56]` LIKE match; pre-fork rows
+  keep their historical `signature[:56]` ids byte-for-byte. Only an **ordinary single-sig secp256k1** tx
+  uses the new recoverable-signature path: it signs the 32-byte content txid, carries a 65-byte recoverable
+  hex signature, **drops the `public_key` field**, and the signer is recovered via `ecrecover` and required
+  to equal the sender address — low-s is enforced (rejected, never normalised), so the signature is
+  non-malleable and the txid is stable. **RSA, ED25519, and native MULTISIG keep buffer+explicit-pubkey
+  signing** post-fork (multisig still verifies N-of-M over the frozen buffer with explicit pubkeys — it does
+  **not** sign the txid), and **shielded/RingCT keep their ring signatures**; all of these still receive the
+  content-hash txid as their canonical id. (`test_hf2_recoverable`, `test_hf2_fork_transition`.)
 - **Double-spend / key-image attacks (Monero key-image class).** The spent-set keys on the **canonicalised
   (compressed)** key image (closing the compressed-vs-uncompressed bypass); an intra-block guard (`seen_images`)
   rejects two ops with the same key image in one block; a spend and a redeem of the same note share a key

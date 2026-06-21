@@ -40,6 +40,19 @@ rows are balance-consolidation rows from pruning. Amounts/timestamps are text, q
 `quantizer` (below). Most balance queries must account for mirror rows (`block_height <= ?` plus the
 negative range, or `abs(block_height)`).
 
+### Canonical txid (no schema change)
+
+Post-fork the canonical transaction id is a blake2b-256 **content hash** computed **on read** by
+`essentials.format_raw_tx` (blake2b-256 of the frozen pre-image consensus signs — timestamp / address
+/ recipient / amount / operation / openfield, with the amount taken via `amounts.ledger_value` so it
+is storage-mode agnostic). This is **not** persisted: there is no `txid` column on `transactions` and
+no migration adds one — `format_raw_tx` reconstructs it for rows at/after `fork_height` and falls back
+to the legacy `signature[:56]` slice for pre-fork rows (and whenever no `fork_height` is supplied), so
+historical txs keep their original ids byte-for-byte. Lookup by id is **shape-dispatched** (e.g.
+`rest_api._transaction`): a 64-char lowercase-hex query is treated as a content txid and resolved by
+scanning post-fork rows (`format_raw_tx(row).txid == query`); anything else uses the legacy
+signature-prefix `LIKE` match.
+
 ## `DbHandler` (selected methods)
 
 Constructor: `DbHandler(index_db, ledger_path, hyper_path, ram, ledger_ram_file, logger,

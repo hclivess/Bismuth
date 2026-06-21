@@ -42,12 +42,12 @@ duplicate, format), so the endpoint is a new transport, not a new consensus rule
 | `GET /api/blocks/since/{h}?limit=N` | positive-height blocks after `h` (`limit` ≤ 1000) — for parallel sync |
 | `GET /api/blocks/range/{start}/{end}` | blocks in `[start, end]` (span capped at 1000) — for parallel sync |
 | `GET /api/balance/{address}` | `{address, balance}` (the O(1) balance index when enabled, else `ledger_balance3`) |
-| `GET /api/transaction/{txid}` | a transaction (matched by signature prefix) |
+| `GET /api/transaction/{txid}` | a transaction, **shape-dispatched** by the id: a 64-char lowercase-hex id resolves the post-fork content-hash txid (computed on read — no column); anything else matches by legacy signature prefix |
 | `GET /api/address/{address}/transactions?limit=N` | recent txs for an address (newest first; `limit` ≤ 500) |
 | `GET /api/mempool` | `{count, transactions[]}` of pending txs |
 | `GET /api/peers` | `{count, peers}` of known peers |
 | `GET /api/headers/range/{start}/{end}` | block headers in `[start, end]` (lightweight headers-first sync) |
-| `GET /api/nodes` | known nodes with reachable-API status + reputation (explorer node browser) |
+| `GET /api/nodes` | known nodes with reachable-API status + reputation (explorer node browser); deduplicated to one row per host (the connection set is normalized to bare host so a connected peer isn't listed twice) |
 | `GET /api/capabilities` | peer-sync capability descriptor: `version`, `node_version`, `rest_api`/`rest_port`, `compress` (transport codecs), `blocks`, `rest_api_write`, `testnet`/`regnet` — reachability of this endpoint is itself the REST-capable test |
 | `GET /api/fork` | hf2 readiness: signalling %, lock-in state, activation height |
 | `GET /api/fee` | current fee params: `base_fee` (demand-responsive post-fork), `vm_surcharge`, target/window |
@@ -63,7 +63,7 @@ duplicate, format), so the endpoint is a new transport, not a new consensus rule
 | `GET /api/shield/stats` | shielded pool (doc/22): note/nullifier counts, pool value, sink |
 | `GET /api/shield/note/{note_id}` | public fields of a shielded note (nothing decryptable) |
 | `GET /api/proxy?target={url}` | same-origin relay to another node's read-only `/api` (lets the https explorer browse an http node despite the browser's mixed-content block); read-only, GET-only, `/api`-paths-only, SSRF-guarded; gated by `rest_api_proxy` (default on) |
-| `POST /api/transaction` | submit a signed tx (gated by `rest_api_write`; aliases: `POST /api/sendtx`, `POST /api/mempool`) |
+| `POST /api/transaction` | submit a signed tx (gated by `rest_api_write`; aliases: `POST /api/sendtx`, `POST /api/mempool`). The response echoes each tx's canonical id in `txids` (post-fork the content-hash txid; pre-fork the legacy signature prefix) |
 
 Responses are JSON with appropriate status codes (`200`, `400` bad request, `403` forbidden, `404` not
 found, `500` server error) and `Access-Control-Allow-Origin: *`. Transactions are formatted with

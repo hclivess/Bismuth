@@ -17,9 +17,17 @@ characterization tests (see [14](14-known-issues-and-improvements.md)) passing i
       reward stored at `POW_FORK+1` is `< REWARD_MAX (6)`; otherwise the node is on the old chain →
       `rollback_under(POW_FORK-1)` and abort.
    3. **Parse & sign-check every transaction** (`from_raw_transaction` + `Transaction.validate`):
-      truncate fields to max lengths; verify the signature with
-      `SignerFactory.verify_bis_signature(sig, pubkey_b64, buffer, address)` where
-      `buffer = str((timestamp, address, recipient, amount, operation, openfield)).encode()`. The
+      truncate fields to max lengths; verify the signature via the fork-gated
+      `SignerFactory.verify_tx_signature(post_fork, …)` (`post_fork = block_height >= node.fork_height`,
+      the single hf2 fork). **Post-fork ordinary single-sig secp256k1** uses the Ethereum-shape path:
+      the signature is a 65-byte recoverable hex sig over the 32-byte **content txid** (the canonical
+      pre-image `(timestamp, address, recipient, amount, operation, openfield)`), the `public_key`
+      field is **dropped**, the signer is recovered via `ecrecover` and must match the sender address,
+      and low-s is enforced. **All other cases** — every pre-fork tx, and post-fork RSA / ED25519 /
+      native multisig / shielded — keep the legacy path:
+      `verify_bis_signature(sig, pubkey_b64, buffer, address)` over the explicit public key, where
+      `buffer = str((timestamp, address, recipient, amount, operation, openfield)).encode()` (multisig
+      requires M-of-N DER sigs over that frozen buffer — it does **not** sign the txid). The
       **last** transaction in the block is the coinbase/mining tx (amount 0, RSA sender, nonce =
       first 128 chars of its openfield).
    4. **Block timestamp ordering** — coinbase timestamp must be strictly greater than

@@ -138,7 +138,7 @@ imported library; *script* = run directly.
 | File | Kind | Description |
 |---|---|---|
 | `tokensv2.py` | module | token issue/transfer indexing |
-| `aliases.py` / `aliasesv2.py` | modules | alias indexing (v1 `alias=` / v2 `alias:register`) |
+| `aliases.py` / `aliasesv2.py` | modules | alias indexing (v1 `alias=` / v2 `alias:register`); the `tokens_aliases` plugin (doc/27) implements mutable-ownership evolution ops: `alias:register` (claim), `alias:transfer` (owner-only, recipient in openfield), `alias:free` (owner-only release) |
 | `staking.py` | module | offline-staking proof of concept (experimental) |
 | `plugins.py` | module | `PluginManager` (action/filter hooks) |
 | `plugin_base.py` | module | modern plugin framework (doc/27): typed `BismuthPlugin` base (`setup`/`backfill`/`on_block`/`on_rollback` + service/REST/peer-command surfaces) |

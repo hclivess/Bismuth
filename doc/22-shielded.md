@@ -15,9 +15,28 @@ privacy pool carried in the `operation`/`openfield` of ordinary Bismuth transact
 properties that made the prototype unsafe as money, by validating the pool **in consensus** instead of
 in a per-user sidecar app.
 
-PoW, block format, and the signature/balance rules for transparent transactions are **unchanged**.
-Mining is untouched: shielded transactions are ordinary signed transactions with a known `operation`,
-and the extra validation runs in the digest path next to the token/VM logic, not in the miner.
+**Shielded itself** adds only optional `shield:` operations; it does not touch the rules for transparent
+transactions. PoW and block format are **unchanged**, and mining is untouched: shielded transactions are
+ordinary signed transactions with a known `operation`, and the extra validation runs in the digest path
+next to the token/VM logic, not in the miner.
+
+Note, however, that **hf2 — the same fork that gates shielded — separately changes transparent
+single-sig signing.** Post-fork, an ordinary single-sig secp256k1 sender uses an Ethereum-shape model:
+the signature is a 65-byte recoverable compact sig over the **content-hash txid** (blake2b-256 of the
+frozen pre-image: timestamp/address/recipient/amount/operation/openfield), the `public_key` field is
+**dropped**, the signer is recovered via `ecrecover` and must match the sender address, and low-s is
+enforced. This applies *only* to ordinary single-sig secp256k1; **RSA, ED25519, native MULTISIG, and
+shielded/RingCT keep their existing legacy signing** post-fork (multisig: explicit pubkeys + N-of-M over
+the frozen `signature_buffer` — it does **not** sign the txid). The block-hash pre-image is **unchanged**
+(it hashes the 8-field tx tuples as before, and excludes nothing new). That change is part of hf2, not of
+the shielded feature, and is documented here only because the two activate together.
+
+The post-fork content-hash txid becomes the canonical id for **all** post-fork txs (regardless of which
+scheme verified them). It is computed **on read** (`essentials.format_raw_tx`, with the amount taken via
+`amounts.ledger_value` so it is storage-mode agnostic) — there is **no** `txid` DB column and **no**
+migration. Lookup is **shape-dispatched**: a 64-char lowercase-hex query resolves the content txid by
+scanning post-fork rows, while anything else uses the legacy `signature`-prefix `LIKE` match. Pre-fork
+txs are byte-identical and keep their historical `signature[:56]` ids.
 
 ---
 

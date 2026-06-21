@@ -26,7 +26,12 @@ Per transaction (inside `self.lock`):
 2. parse timestamp / amount; validate sender & recipient addresses; enforce field max-lengths;
 3. mandatory-message check (exchanges in `config.mandatory_message` require a non-trivial openfield);
 4. amount ≥ 0, not future-dated, not older than `REFUSE_OLDER_THAN = 7200 s` (2 h);
-5. signature verifies (`SignerFactory.verify_bis_signature`, same buffer as consensus);
+5. signature verifies via the fork-aware `SignerFactory.verify_tx_signature`, bound to the
+   **destination** block height (next block). Post-fork an ordinary single-sig secp256k1 tx is
+   recovered from its recoverable sig over the content txid (no pubkey, signer via `ecrecover`,
+   low-s enforced); pre-fork txs and post-fork RSA / ED25519 / native-multisig keep the legacy
+   buffer + explicit-pubkey check (multisig: N-of-M over the frozen buffer, never the txid). This is
+   only a pre-filter — the digester re-verifies and is authoritative;
 6. not already in mempool (`sig_check`) nor in the ledger;
 7. balance: `amount <= ledger_balance_before_mempool` **and** `balance - fee >= 0`
    (fee via `essentials.fee_calculate(..., block=last_block)`; see fee note below);

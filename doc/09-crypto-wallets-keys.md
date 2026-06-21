@@ -55,7 +55,33 @@ public_key_b64encoded)` builds the canonical buffer
 signs it via `SignerFactory.from_private_key(...).sign_buffer_for_bis(buffer)`, verifies it
 immediately, and returns the 8-field transaction tuple (or `False`). Verification anywhere uses
 `SignerFactory.verify_bis_signature(signature, public_key_b64, buffer, address)`. The public key is
-stored on-chain base64-encoded; the txid is the first 56 chars of the signature.
+stored on-chain base64-encoded; **pre-fork** the txid is the first 56 chars of the signature.
+
+**Post-fork (hf2) — content-hash txid.** Post-fork the canonical id is no longer a slice of the
+signature but a **content-hash txid**: `blake2b-256` (`digest_size=32`, **64-hex**) over the same
+frozen pre-image consensus signs — `(timestamp, address, recipient, amount, operation, openfield)`
+(`bismuth_serialize.tx_id`). It is computed **on read** in `essentials.format_raw_tx` (gated on the
+row's `block_height >= fork_height`), using the canonical `'%.8f'` amount string via
+`amounts.ledger_value` so it is **storage-mode agnostic** (the post-fork block store keeps integer
+units). There is **no `txid` DB column and no migration** — nothing is persisted. Lookup is
+**shape-dispatched** (`rest_api._transaction`): a 64-char lowercase-hex query is treated as a
+content-hash txid and resolved by scanning post-fork rows (`block_height >= fork_height`) and
+re-deriving the hash; anything else falls through to the legacy signature-prefix `LIKE` match.
+Pre-fork rows (and callers without a `fork_height`) keep the byte-identical `signature[:56]` slice.
+
+**Post-fork single-sig secp256k1 — recoverable path.** An ordinary (non-multisig) secp256k1 sender
+switches to an Ethereum-shape model: it signs the **32-byte content txid itself** via
+`signer.sign_buffer_for_bis_recoverable(txid_bytes)`, producing a **65-byte recoverable** compact
+signature (`r‖s‖recovery_id`) as lowercase hex; the **`public_key` field is dropped**. Verification
+(`SignerFactory.verify_tx_signature` → `SignerECDSA.verify_bis_signature_recovered(sig, txid_hex,
+address)`) recovers the signer via **ecrecover** and requires the derived address to equal the sender
+— there is no explicit public key to check. **Low-s is enforced** (high-s/zero is rejected, never
+normalised) so the signature is non-malleable. Everything else — all pre-fork txs, and post-fork
+**RSA / ED25519 / native multisig / shielded (RingCT)** — keeps the legacy
+`verify_bis_signature(signature, public_key, buffer, address)` path over the frozen
+`signature_buffer` with an explicit public key (multisig signs the buffer with N-of-M explicit
+pubkeys; it does **not** sign the txid). All post-fork txs still get the content-hash txid as their
+canonical id regardless of which scheme verified them.
 
 ## Fees
 
@@ -85,6 +111,23 @@ first-come-first-served.
 The active version is selected by a comment toggle at the top of `node.py` (`import aliases` vs
 `import aliasesv2 as aliases`). During the revival, `aliases.py` was changed to reuse the shared
 lru-cached `essentials.replace_regex` instead of a private copy.
+
+### Alias evolution ops (mutable ownership)
+
+The `tokens_aliases` plugin (doc/27) adds three structured operations giving aliases **mutable
+ownership** instead of one-shot first-claimant binding. These are **plugin-level (non-consensus)** —
+projected into the plugin's own LMDB store from committed blocks; the base layer is unaffected:
+
+| `operation` | `openfield` | Effect |
+|---|---|---|
+| `alias:register` | the alias to claim | claims `alias` for the sender (first claimant wins, like `alias=`) |
+| `alias:transfer` | `recipient:alias` | moves ownership of `alias` to `recipient` — **owner-only** (sender must be the current owner) |
+| `alias:free` | the alias to release | releases `alias` so anyone can claim it again — **owner-only** |
+
+Coinbase rows are filtered (`reward == 0`), and structured ops are projected in one height-ordered
+pass so a `transfer`/`free` always sees its prior `register`. The **legacy `alias=` first-claimant
+convention still applies pre-fork** (and remains honored alongside the structured ops); the evolution
+ops are the post-fork path to mutable, transferable names.
 
 ## Logging
 

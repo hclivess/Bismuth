@@ -12,7 +12,7 @@ none change base consensus.
 > [mining](21-mining.md): the Heavy3 PoW, the built-in solo miner (`miner.py`, `mine=True`), and the
 > dual-algo (sha224 → blake2b) PoW swap, bundled into the single hf2 fork.
 
-## Tokens (`tokensv2.py`)
+## Tokens & aliases (`tokensv2.py`; post-fork: the `tokens_aliases` plugin)
 
 Custom tokens are issued and transferred via ordinary transactions:
 
@@ -26,6 +26,25 @@ Custom tokens are issued and transferred via ordinary transactions:
 the first 56 chars of the signature (or a blake2b-160 of the row for mirror txs). It is called from
 `digest_block()` whenever a block contains a token operation, and fires the `token_issue` /
 `token_transfer` plugin hooks.
+
+**Post-fork** this lives entirely outside the core: tokens and aliases are owned by the optional
+`tokens_aliases` plugin (`plugins/tokens_aliases/`, see [doc/27](27-plugins.md)), which owns its own
+LMDB store (no SQLite) and reacts to the block lifecycle. The node carries no token/alias code; the
+plugin is gated by the `token_index` flag (inert on mainnet pre-fork). Alongside the legacy
+first-claimant **`openfield = "alias=<name>"`** and the `token:issue` / `token:transfer` ops, the
+plugin adds the alias-evolution ops for **mutable ownership**: **`alias:register`** (claim, first
+claimant wins), **`alias:transfer`** (hand ownership to the recipient), and **`alias:free`** (release
+the claim). Legacy `alias=` claims sit below these in registration order, so global ordering is
+preserved.
+
+> **Canonical txid, post-fork.** The canonical transaction id post-`hf2` is the **content-hash txid**
+> — blake2b-256 of the same frozen pre-image consensus signs
+> (timestamp/address/recipient/amount/operation/openfield). It is computed **on read**
+> (`essentials.format_raw_tx`, with the amount normalised via `amounts.ledger_value` so it is
+> storage-mode agnostic); there is **no new `txid` DB column and no schema migration**. Lookup is
+> **shape-dispatched**: a 64-char lowercase-hex query is resolved as a content txid by scanning the
+> post-fork rows, while anything else falls through to the legacy signature-prefix (`signature[:56]`)
+> `LIKE` match. Pre-fork rows are byte-identical and historical txs keep their `signature[:56]` ids.
 
 ## Staking (`staking.py`)
 

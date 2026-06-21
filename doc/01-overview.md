@@ -13,6 +13,15 @@ Distinguishing design choices:
   operation, openfield, timestamp). The `operation` + `openfield` pair is a generic data channel
   used to build features (tokens, aliases, hypernode registration, messages) *on top of* the chain
   without changing consensus.
+- **Transaction id (`txid`).** *Pre-fork* the txid is the first 56 chars of the signature. *Post-fork*
+  the canonical txid is a **content hash** — `blake2b-256` over the frozen 6-field buffer
+  (`timestamp,address,recipient,amount,operation,openfield`, the same pre-image the signature is
+  computed on), rendered as 64 lowercase hex chars. It is computed **on read**
+  (`essentials.format_raw_tx`, amount via `amounts.ledger_value`, so it is storage-mode agnostic) —
+  there is **no `txid` DB column and no migration**. Lookup is **shape-dispatched**: a 64-char
+  lowercase-hex query resolves the content txid by scanning post-fork rows, while anything else falls
+  back to the legacy signature-prefix `LIKE` match. Pre-fork rows are byte-identical and keep their
+  `signature[:56]` ids.
 - **SQLite everywhere.** The ledger, the pruned "hyperblock" copy, the secondary index, and the
   mempool are all SQLite databases. Amounts are stored as text and manipulated as `Decimal`
   quantized to 8 places (see [05](05-database-and-ledger.md)).
@@ -21,7 +30,11 @@ Distinguishing design choices:
 - **RSA-4096 signatures** by default, abstracted through `polysign` (which also offers a menu of
   schemes: ECDSA secp256k1/secp256r1, ED25519, and the post-quantum ML-DSA family — 44/65/87). As of
   this revival, polysign is **vendored in-tree** (see [09](09-crypto-wallets-keys.md) and
-  [14](14-known-issues-and-improvements.md)).
+  [14](14-known-issues-and-improvements.md)). *Post-fork*, only **ordinary single-sig secp256k1**
+  switches to a recoverable signature: it signs the 32-byte content txid, carries a 65-byte
+  recoverable hex sig, **drops the `public_key` field** (the signer is recovered via `ecrecover`, with
+  low-s enforced). RSA, ED25519, native multisig, and shielded/RingCT keep their existing legacy
+  signing post-fork (multisig still signs the frozen buffer with explicit pubkeys, not the txid).
 - **A bespoke wire protocol**: a 10-byte zero-padded length header followed by a JSON payload, over
   a raw TCP socket (see [06](06-networking-protocol.md)).
 

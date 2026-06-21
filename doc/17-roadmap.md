@@ -121,6 +121,22 @@
   site is tagged `# HARDFORK (doc/16)` — `grep -rn "HARDFORK (doc/16)"`). Adopt a bounded,
   content-derived **txid** (nado-style: `blake2b(tx_content)`, the signature signs the txid) to replace
   the ad-hoc `signature[:56]` slice. After the fork, storage/boundary/APIs are integer end-to-end.
+  - ✅ **Content-hash txid + single-sig recoverable signature — IMPLEMENTED + tested.** Post-fork the
+    canonical id is the content-hash txid — `blake2b-256` of the same frozen pre-image consensus signs
+    (timestamp/address/recipient/amount/operation/openfield). It is computed **ON READ**
+    (`essentials.format_raw_tx`, amount via `amounts.ledger_value` so it is **storage-mode agnostic** —
+    integer-units rows and legacy decimal rows both normalise back to the canonical `'%.8f'` signed
+    string). There is **no new `txid` DB column and no migration** — lookup is **shape-dispatched**: a
+    64-char lowercase-hex query resolves the content txid by scanning post-fork rows, anything else
+    falls through to the legacy signature-prefix `LIKE` match (`rest_api._transaction`). **Scope: only
+    ordinary single-sig secp256k1 uses the post-fork recoverable-signature path** — it signs the 32-byte
+    content txid, carries a 65-byte recoverable hex signature, **drops the `public_key` field**, recovers
+    the signer via `ecrecover`, and enforces **low-s** (`signer_ecdsa.sign_buffer_for_bis_recoverable` /
+    `verify_recoverable`). **RSA, ED25519, native MULTISIG, and shielded/RingCT keep their existing
+    legacy signing** post-fork (multisig: explicit pubkeys + N-of-M over the frozen buffer — it does
+    **not** sign the txid). **ALL post-fork txs still receive the content-hash txid as their canonical
+    id.** Pre-fork is byte-identical; historical txs keep their `signature[:56]` ids. Covered by
+    `tests/test_hf2_recoverable.py` and `tests/test_hf2_fork_transition.py`.
   - **Signature & public-key storage optimization (a stated goal for the fork).** The 1068-byte base64
     RSA public key is carried and stored on **every** transaction, as is the 684-byte base64 signature —
     together the dominant part of a block body. The fork should: (a) carry the public key by
