@@ -4,7 +4,7 @@ The single map of the Bismuth node modernization: what exists, what's active, wh
 inert, and what's planned. Detailed companions: file index [`13`](13-file-reference.md), DB deep-dive
 [`16`](16-database-rework-plan.md), roadmap [`17`](17-roadmap.md), the hard fork [`18`](18-hardfork-hf2.md),
 the VM [`19`](19-vm.md), post-quantum signatures [`20`](20-post-quantum.md), the solo miner / PoW
-[`21`](21-mining.md).
+[`21`](21-mining.md), the hf2 binary/integer serialization spec [`29`](29-hf2-serialization-v2.md).
 
 ## Principles (non-negotiable)
 
@@ -28,7 +28,7 @@ the VM [`19`](19-vm.md), post-quantum signatures [`20`](20-post-quantum.md), the
 | Reward sidechain | `reward_chain.py` — retires negative-height mirror rows, balance-preserving | **built + validated**, not wired |
 | Auto hard-fork scheduler | `fork.dynamic_fork_height` + coinbase signal writer + `/api/fork` | **WIRED** — signal→detect→schedule works end-to-end on regnet (`test_fork_wiring`); inert on mainnet until miners signal |
 | LWMA difficulty | `difficulty_lwma.py`, gated in `difficulty()` | **GATED behind `fork_height`** (LWMA past activation, legacy before); inert until a fork activates |
-| GPU miner | `gpuminer/` — CUDA (kbkminer) + OpenCL, today's Heavy3 | **vendored**, GPU-untested here |
+| GPU miner | `gpuminer/` — CUDA (`bis.cu`) + OpenCL (`bismuth.cl`), today's **sha224-inner** Heavy3 | **vendored**, GPU-untested here; kernels are **sha224-only** (no blake2b path) — must be ported to blake2b before any mainnet hf2 signal (operational gate) |
 | REST API | `rest_api.py` — status/blocks/balance/tx/headers/peers/`fork` | **active** on the live node (:5659) |
 | Address-history query | composite indexes (migration v2) + UNION rewrite | **done + LIVE** — 2.5 s → 0.06 s |
 | Bitcoin JSON-RPC | `rpc_bitcoin.py` — getblockcount/getblock/getbalance/getrawtransaction/… | **implemented**, flag `rpc_bitcoin` (off); regnet-tested |
@@ -40,7 +40,7 @@ the VM [`19`](19-vm.md), post-quantum signatures [`20`](20-post-quantum.md), the
 | Peer reputation + penalization | `peers_reputation.py` | **WIRED** — validate-height-is-real reward/penalize (synced-only), reputation-weighted tip |
 | Auto-recovery rollback | `essentials.rollback_allowed` | **default ON** (`rollback_consensus`) — reputation-gated deep rollback replaces the rigid `rollback_depth` strand |
 | Unified rollback + reorg test | `chain_ops._rollback_aux_stores` | **done** — ledger + all stores roll back in sync (`test_rollback_reorg`) |
-| **Decentralized-apps VM** | `bismuth_riscv.py` (RV32I) + `vm_state`/`vm_engine` | **built + regnet-tested, POST-FORK + flag** — deploy/call, a single RISC-V engine, ENFORCED state root, value custody (contracts move real BIS), HTLC. **See [doc/19](19-vm.md)** for the full status |
+| **Decentralized-apps VM** | `bismuth_riscv.py` (RV32I) + `vm_state`/`vm_engine` | **built + regnet-tested, POST-FORK + flag** — deploy/call, a single RISC-V engine, ENFORCED state root (covers code + storage + **contract custody balances**, `vm_state.py:107-110`), value custody (contracts move real BIS), HTLC; the contract **address now derives from the content txid** (`contract_address`/`_tx_id_of` in `vm_engine.py`), not the malleable signature. **See [doc/19](19-vm.md)** for the full status |
 | Connectivity/sync fixes | self-dial false-consensus, back-off, headers-first, ed25519 dep | **active** |
 
 "Shadow" = written/maintained alongside the authoritative store but not yet read from. "Inert" =
@@ -63,10 +63,16 @@ node **dialing itself and reporting false 100 % consensus** (`peers_pool.can_con
 deliberately-scheduled event, activated by `fork.dynamic_fork_height`: upgraded miners stamp a signal
 into their coinbase, every node computes the activation height identically from the chain (no split),
 and the new rules switch on at the next round-1000 boundary. Bundle: integer/binary serialization +
-content-hash txid + canonical sig/pubkey encoding; the reward-sidechain cutover; and the **LWMA
-difficulty** (symmetric, delicate, deterministically calculable — the fix for the brutal up-only
-ratchet); and the **blake2b Heavy3 PoW swap** (bundled into the same single fork since 2026-06-12 —
-stamping `hf2` asserts blake2b mining readiness too). **Continuity:** old blocks keep their bytes and
+content-hash txid (which also now anchors the VM contract address) + canonical raw-byte sig/pubkey
+encoding + pubkey-by-reference + coinbase compaction — the full serialization rework folds into this
+**single** hf2 fork (no second signal), specified in [doc/29](29-hf2-serialization-v2.md) with **Stage 0
+shipped** (`bismuth_serialize.signature_buffer_v2` / `tx_id_v2`, dormant); the reward-sidechain cutover;
+and the **LWMA difficulty** (symmetric, delicate, deterministically calculable — the fix for the brutal
+up-only ratchet); and the **blake2b Heavy3 PoW swap** (bundled into the same single fork since 2026-06-12 —
+stamping `hf2` asserts blake2b mining readiness too). The only consensus change to the coinbase *reward*
+tx is the **mandatory VM pre-state-root commitment** (`vm_engine.embed/extract_state_root`, REJECTED if
+missing or mismatched post-fork, `digest.py:545-569`) — the **reward formula itself is unchanged**.
+**Continuity:** old blocks keep their bytes and
 hashes; new rules apply forward only; validation is height-gated; no re-sync. The gate scaffold now
 exists: the **scheduler is wired** (`fork.dynamic_fork_height`, cached on the single `node.fork_height`
 in `digest.py`) and **LWMA is gated** in `difficulty.py` (active past activation, legacy before); only
@@ -78,7 +84,9 @@ vs. the modernised blake2b-inner Heavy3, same anneal + substring difficulty, sel
 
 **Mining.** Today's PoW is Heavy3 (`mining_heavy3.py`: sha224 → 1 GB memory-hard anneal → substring
 difficulty). `gpuminer/` mines it on GPU. The miner is coupled to the PoW: any Heavy3 change must update
-the kernels in lockstep.
+the kernels in lockstep — and the vendored CUDA/OpenCL kernels (`bis.cu`, `bismuth.cl`) are **sha224-only**
+today, so they must be ported to the blake2b inner hash before any mainnet hf2 signal (an operational gate
+on the bundled PoW swap, not a separate fork).
 
 **Edges.** `rest_api.py` (+ `rest_client.py`, `transport.py`, `api_sync.py`) is the modern, parallel,
 compressed alternative to the legacy socket stack; `explorer.bismuth.cz` consumes it. Planned edge
@@ -108,8 +116,12 @@ the suite green *with the shadow store active* is itself the proof it's mining-i
    signal writer in `miner.py`, `dynamic_fork_height` cached on `node.fork_height` in `digest.py`,
    `/api/fork`, and the height gate in the digester are all in place.
 2. **Gate the remaining consensus upgrades** behind it: the reward-sidechain cutover, then the
-   serialization/txid/sig-pubkey changes — each replay-validated. (LWMA difficulty is already gated.)
+   serialization/txid/sig-pubkey changes — each replay-validated. (LWMA difficulty is already gated; the
+   serialization rework's Stage 0 — the dormant `signature_buffer_v2`/`tx_id_v2` codec — has landed, see
+   [doc/29](29-hf2-serialization-v2.md).)
 3. **Storage read-path cutover** (LMDB primary), then mainnet integer-amount cutover.
 4. **Edge adapters:** Bitcoin JSON-RPC, ETH/ERC shim.
 5. **Agreement hardening** (optional): enable/harden `rollback_consensus`, checkpoints.
-6. **Heavy3/PoW change** (optional, separate fork) + the matching GPU-miner kernel update.
+6. **GPU-miner kernel port** to the blake2b inner hash (`bis.cu`/`bismuth.cl`): the operational gate that
+   must land before the blake2b Heavy3 swap — which is bundled *in* hf2, not a separate fork — can be
+   safely signalled on mainnet.

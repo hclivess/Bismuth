@@ -68,8 +68,11 @@ PeersReputationMixin)`); the files `peers_storage.py` / `peers_pool.py` / `peers
 - **Files** are single-line JSON `{ip: port}`: `peers.txt` (mainnet), `peers_test.txt` (testnet),
   `peers_reg.txt` (regnet, `{}`), plus `suggested_peers*.txt`. Writes are atomic (`.tmp` + move).
 - **Bans**: `warning(ip, reason, count)` accumulates points; at `ban_threshold` the peer is banned.
-  Warning sources: forked (+1 outbound / +2 inbound), rollback (+2), consensus deviation (+10). Three
-  conditions auto-reset the banlist when the pool is small (`nodes_ban_reset`).
+  Warning sources: forked (+1 outbound / +2 inbound), rollback (+2), consensus deviation (+10). Two
+  conditions auto-reset the banlist when the pool is small (`peershandler.py:211,222`): (a) when the
+  outbound `pool_size < nodes_ban_reset` (and the node has been up >15 s), and (b) when the banlist is
+  at least `nodes_ban_reset` long *and* as long as the pool, rate-limited to once per 600 s. (A third,
+  separate `pool_size < 10` check resets only the `tried`/retry history, not the banlist.)
 - **Limits**: at most 2 connections per IP C-class (`peers_pool.py`); inbound connections are accepted
   only while `threading.active_count() < thread_limit * 2/3` (or the peer is whitelisted).
 - **`is_allowed(ip, command)`** (`peers_access.py`): `stop`/`addpeers` only from `127.0.0.1`;
@@ -98,10 +101,12 @@ The flat 1-peer-1-vote `most_common` height is hardened with a per-peer **reputa
 
 ## Hyperlane
 
-`hyperlane.py` / `hyperlane_asyncio.py` are placeholder managers (log-and-sleep loops); the
-`hyperlane` worker command is a no-op (`pass`). The asyncio variant's class-level
-`asyncio.get_event_loop()` (which raises on Python ≥3.10) has been fixed to create a loop in
-`__init__` — see [14](14-known-issues-and-improvements.md).
+`hyperlane.py` is a placeholder manager (a log-and-sleep heartbeat loop); the `hyperlane` worker
+command (`worker.py:325`) is a no-op (`pass`). Nothing imports `hyperlane.py` — it is vestigial and
+kept pending a human decision. The asyncio variant has been retired to `attic/hyperlane_asyncio.py`
+(no longer in the active tree); its class-level `asyncio.get_event_loop()` (which raised on
+Python ≥3.10) was fixed to create a per-instance loop (`asyncio.new_event_loop()`) in `__init__`
+before it was attic'd — see [14](14-known-issues-and-improvements.md).
 
 ## Graceful shutdown
 

@@ -85,10 +85,27 @@ canonical id regardless of which scheme verified them.
 
 ## Fees
 
-`essentials.fee_calculate(openfield, operation='', block=0)` = `0.01 + len(openfield)/100000`, **+10**
-for `token:issue`, **+1** when `openfield` starts with `alias=`; quantized to 8 dp (`block` is unused,
-kept for call-site compatibility). This is the consensus fee — pinned by the characterization checks
-in `tests/regnet_smoke.py`.
+`essentials.fee_calculate(openfield, operation='', block=0, base_fee=None, vm_surcharge=False)`
+(`essentials.py:268`) = `base + len(openfield)/100000`, **+10** for `token:issue`, **+1** when
+`openfield` starts with `alias=`; quantized to 8 dp (`block` is unused, kept for call-site
+compatibility). `base` is the static `BASE_FEE = 0.01` (`essentials.py:40`) when `base_fee is None`.
+This **static** formula is the **pre-fork** consensus fee — pinned by the characterization checks in
+`tests/regnet_smoke.py` (and `tests/test_characterization.py`).
+
+**Post-fork (hf2) — dynamic base fee + surcharges.** Post-fork the base is **demand-responsive**, not
+the static `0.01`. Once per block (`digest.py:483-500`) `node.base_fee` is set to
+`fee_dynamics.base_fee(BASE_FEE, recent_loads, target=TARGET_WEIGHT)` (`fee_dynamics.py:39`): a
+window-averaged (`WINDOW=20`), clamped (`[MIN_MULT=0.5, MAX_MULT=10]×` the static fee) multiple of
+`0.01` that scales with recent **block WEIGHT** — `tx count + openfield-bytes // W_UNIT` (a
+gas/vbyte-style measure), **not** tx count alone. The weight window is read from the **LMDB block
+store** (`block_store.recent_block_weights`, `block_store.py:148`), **never SQLite** — there is no
+SQLite on any post-fork path. `digest` passes this `base_fee` (and `vm_surcharge=node.fee_post_fork`)
+into every `fee_calculate` call (`digest.py:207-209, 248-250`). With `vm_surcharge` on, `vm:` txs add
+`fee_dynamics.VM_SURCHARGE = 0.01` (gas) and `shield:` txs add **+1** (larger, EC-heavy to validate;
+discourages pool spam) — `essentials.py:280-286`. Wallets read the live minimum from `/api/fee`
+(`base_fee`, plus `static_base_fee`, `post_fork`, `vm_surcharge`, `target_weight`, `window`, the mult
+clamps). The formula is a pure, deterministic function of the recent chain (no saved fee state across
+restarts), and the store is rolled back with the chain so the window is always canonical.
 
 ## `simplecrypt.py`
 

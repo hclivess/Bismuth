@@ -55,9 +55,11 @@
    > `'250000000.00000000'`, which does not match the signed bytes and fails verification. Every site
    > that performs one of these consensus/display string conversions (or guards one with a broad
    > `except`) is tagged `# HARDFORK (doc/16)` in the code — run `grep -rn "HARDFORK (doc/16)"` to find
-   > them all: the consensus boundaries in `digest.py`, `mempool.py` and `node.verify`; the display-edge
-   > reconstruction in `essentials.format_raw_tx`; and the O(history)-balance / `recompress_ledger` /
-   > schema-sniff smells in `node.py` (plus `ledger_queries.py`). The hard fork signs/hashes native
+   > them all: the consensus boundaries in `digest.py`, `digest_tx.py` (the `Transaction` value object
+   > extracted from `digest.py`), `mempool.py` and `node.verify`; the display-edge reconstruction in
+   > `essentials.format_raw_tx`; and the O(history)-balance / schema-sniff smells in `node.py`, the
+   > `recompress_ledger` hyperblock rollup in `chain_ops.py` (tagged `# HARDFORK / cleanup (doc/16)`),
+   > plus the SUM-over-native-unit balances in `ledger_queries.py`. The hard fork signs/hashes native
    > integer units and deletes the lot.
 
    > **Transaction id.** Today a txid is the first 56 chars of the base64 signature
@@ -84,6 +86,13 @@
    > (multisig: explicit pubkeys + N-of-M over the frozen buffer — it does **not** sign the txid), yet
    > all post-fork txs still get the content-hash txid as their canonical id. Full producer/lookup map
    > in §A.1.
+   >
+   > **VM contract address — IMPLEMENTED.** The first concrete consumer of the content txid has landed:
+   > a `vm:deploy` contract address now derives from the deploy tx's **content txid**, not its malleable
+   > signature — `vm_engine.contract_address(seed) = blake2b(seed, digest_size=28)` fed the canonical
+   > `_tx_id_of(row)` (which rebuilds the 6-field pre-image via `bismuth_serialize.tx_id` and normalises
+   > the amount through `amounts.ledger_value`, so the digest and rebuild paths and both storage modes
+   > agree). This closes the doc/18 §A.1 malleability decision for VM addresses (`vm_engine.py:29-46`).
 3. **Behavior-preserving, replay-verified.** Every migration is validated by replaying the chain and
    asserting **identical block hashes** end-to-end (a consensus-equivalence test). No silent drift.
 4. **Backward compatible.** Old peers keep the socket protocol; legacy `*json` responses keep their

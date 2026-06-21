@@ -116,11 +116,20 @@
 
 ## 🗺️ Planned
 
-- **Consensus hard fork.** Change the consensus serialization itself to sign/hash **native integer
-  units + a binary/struct tx encoding**, deleting the `'%.8f'`/`'%.2f'` string reconstructions (every
-  site is tagged `# HARDFORK (doc/16)` — `grep -rn "HARDFORK (doc/16)"`). Adopt a bounded,
-  content-derived **txid** (nado-style: `blake2b(tx_content)`, the signature signs the txid) to replace
-  the ad-hoc `signature[:56]` slice. After the fork, storage/boundary/APIs are integer end-to-end.
+- **Consensus hard fork (the SINGLE hf2 fork).** Change the consensus serialization itself to sign/hash
+  **native integer units + a binary/struct tx encoding**, deleting the `'%.8f'`/`'%.2f'` string
+  reconstructions (every site is tagged `# HARDFORK (doc/16)` — `grep -rn "HARDFORK (doc/16)"`). Adopt a
+  bounded, content-derived **txid** (nado-style: `blake2b(tx_content)`, the signature signs the txid) to
+  replace the ad-hoc `signature[:56]` slice. After the fork, storage/boundary/APIs are integer
+  end-to-end. **This serialization rework folds into the ONE hf2 fork — not a second fork signal:** every
+  gate reads `node.fork_height` (`fork.py`; the Heavy3 PoW modernisation and LWMA difficulty are bundled
+  into the same `hf2` signal). The full byte-level spec is [`29-hf2-serialization-v2.md`](29-hf2-serialization-v2.md).
+  - ✅ **Stage 0 — the v2 codec shipped (dormant).** `bismuth_serialize.signature_buffer_v2` /
+    `tx_id_v2` (`bismuth_serialize.py:76-97`): the canonical little-endian BINARY tx pre-image over the
+    same six content fields with **native integer units** (atomic) and an **integer centisecond
+    timestamp** — no `'%.8f'`/`'%.2f'` reconstruction. Added BESIDE the frozen legacy functions (never
+    mutated, characterization-locked); a `0xB2` magic byte can't alias a legacy pre-image. **Inert until
+    a consensus site routes through a fork-aware dispatcher** (staged rollout, doc/29 §4).
   - ✅ **Content-hash txid + single-sig recoverable signature — IMPLEMENTED + tested.** Post-fork the
     canonical id is the content-hash txid — `blake2b-256` of the same frozen pre-image consensus signs
     (timestamp/address/recipient/amount/operation/openfield). It is computed **ON READ**
@@ -137,20 +146,21 @@
     **not** sign the txid). **ALL post-fork txs still receive the content-hash txid as their canonical
     id.** Pre-fork is byte-identical; historical txs keep their `signature[:56]` ids. Covered by
     `tests/test_hf2_recoverable.py` and `tests/test_hf2_fork_transition.py`.
-  - **Signature & public-key storage optimization (a stated goal for the fork).** The 1068-byte base64
-    RSA public key is carried and stored on **every** transaction, as is the 684-byte base64 signature —
-    together the dominant part of a block body. The fork should: (a) carry the public key by
+  - **Signature & public-key storage optimization (a stated goal for the fork; spec'd in doc/29 §2-3).**
+    The 1068-byte base64 RSA public key is carried and stored on **every** transaction, as is the
+    684-byte base64 signature — together the dominant part of a block body. The fork should: (a) carry the public key by
     **reference** — a sender's address is the hash of its key, so after an address's first appearance the
     full key need never be repeated (a per-address key table); (b) store keys/signatures as **raw bytes**
     rather than base64 (~25 % smaller for RSA, and far smaller for the 32–33-byte ECDSA/ED25519 keys and
     64-byte sigs); (c) keep only the content-hash txid + signature on-chain. The same dedup can be done
     **pre-fork, locally** in the LMDB block store (transparent, lossless — the measured 4.3 GB→ below
     SQLite); the fork makes it canonical and network-wide.
-  - **Coinbase compaction.** The coinbase (miner reward) is ingested as a *full* signed transaction — a
-    1068-byte RSA public key + 684-byte signature like any tx, plus (a Bismuth quirk) the PoW **nonce in
-    its openfield** (which the hf2 readiness signal currently rides in). Wasteful: the reward is
-    consensus-derived (needs no repeated key) and the nonce deserves its own field. The fork should give
-    the coinbase a compact, purpose-built encoding (Bitcoin-style special coinbase).
+  - **Coinbase compaction (spec'd in doc/29 §2.4).** The coinbase (miner reward) is ingested as a *full*
+    signed transaction — a 1068-byte RSA public key + 684-byte signature like any tx, plus (a Bismuth
+    quirk) the PoW **nonce in its openfield** (which the hf2 readiness signal currently rides in).
+    Wasteful: the reward is consensus-derived (needs no repeated key) and the nonce deserves its own
+    field. The fork should give the coinbase a compact, purpose-built encoding (Bitcoin-style special
+    coinbase).
 
   The current retarget (`difficulty.py:difficulty()`) needs replacing:
   the **per-block jumps are too steep** and the **approach is convoluted**. Concretely — the steep

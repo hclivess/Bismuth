@@ -130,11 +130,17 @@ honest consequences:
   larger on the wire. On a small network (~15 nodes) propagation latency and per-peer bandwidth matter
   for orphan rates; this is a real operational cost, not a rounding error.
 - **More storage.** The ledger grows much faster per tx. This compounds with — and strengthens the case
-  for — the storage rework already planned (LMDB block store, **public-key dedup**, integer units;
-  see [`16-database-rework-plan.md`](16-database-rework-plan.md)). Pubkey-dedup is *especially*
-  valuable here: a ~2 KB PQ pubkey should be stored once and referenced, exactly the
-  "public key by reference — 1:1 with the address" idea already in the `hf2` plan
-  ([18 §A](18-hardfork-hf2.md)).
+  for — the storage rework already shipping (the **pubkey-deduped LMDB block store**, integer units;
+  see [`16-database-rework-plan.md`](16-database-rework-plan.md) and
+  [`26-storage-postfork.md`](26-storage-postfork.md)). This **generic, storage-layer** dedup is the
+  PQ-relevant one and it is **algorithm-agnostic**: a ~2 KB PQ pubkey is stored once and referenced no
+  matter which scheme signed it (the block store is already pubkey-deduped — `block_store.py`,
+  [26](26-storage-postfork.md) "Block store (LMDB), pubkey-deduped"). It is **not** the same thing as the
+  `hf2` consensus-level "public key by reference" — that one is the **ecrecover pubkey-DROP**, which works
+  **only for key-recoverable single-sig secp256k1** (`signerfactory.py:166-170,183-185`; an ECDSA pubkey
+  is *recovered* from `(txid, sig)` and not carried at all). A lattice ML-DSA signature is **not**
+  key-recoverable, so a PQ tx must always carry its ~2 KB pubkey on the wire; the only relief for it is the
+  store-once-and-reference dedup above, not the consensus drop.
 - **Heavier verification.** ML-DSA verification is more CPU-intensive than an Ed25519 check (lattice
   arithmetic, NTTs). At Bismuth's throughput this is unlikely to be a bottleneck for a *single* node,
   but it raises the cost of initial block download / full replay (`replay_verify.py` re-checks the
@@ -209,10 +215,15 @@ Four pieces:
 2. **A new signature-type tag in the tx / serialization.** The verifier is currently selected from the
    **address shape** (`address_to_signer`); a PQ family needs its own recognizable form — its own
    `_address_versions` prefix in `signer_mldsa.py`, yielding a distinct `Bis…`/prefixed address class
-   that `address_to_signer` and `address_is_valid` learn to route. (The `hf2` serialization rework
-   [18 §A] is already moving sig/pubkey to canonical raw-bytes encoding with **pubkey-by-reference**;
-   a PQ tag fits cleanly into that post-fork encoding, and pubkey-by-reference is what keeps the ~2 KB
-   PQ key from being repeated on every tx.)
+   that `address_to_signer` and `address_is_valid` learn to route. (The `hf2` serialization rework — now
+   byte-specified in [`29-hf2-serialization-v2.md`](29-hf2-serialization-v2.md) and still **design-stage**:
+   only the dormant Stage-0 siblings `bismuth_serialize.signature_buffer_v2` / `tx_id_v2` exist, with **no
+   consensus site routing through them yet** — moves sig/pubkey to canonical raw-byte encoding; a PQ tag
+   fits cleanly into that post-fork encoding.) Note that the `hf2` **"public key by reference"** is the
+   secp256k1 **ecrecover pubkey-DROP** ([18 §A](18-hardfork-hf2.md), single-sig-secp256k1-only) and does
+   **not** apply to a non-recoverable ML-DSA key — a PQ tx still carries its ~2 KB pubkey on the wire; what
+   keeps that key from bloating *storage* is the algorithm-agnostic block-store dedup (§3), not the
+   consensus drop.
 
 3. **Addresses still = hash(pubkey), so old and new coexist.** A PQ address is the **same kind of
    object** as today's addresses — a hash-derived commitment to a public key, just over a PQ key, with

@@ -56,9 +56,12 @@ signature-prefix `LIKE` match.
 ## `DbHandler` (selected methods)
 
 Constructor: `DbHandler(index_db, ledger_path, hyper_path, ram, ledger_ram_file, logger,
-trace_db_calls=False)`. It applies PRAGMAs to all connections (`synchronous=NORMAL`,
-`cache_size=-64000`, `temp_store=MEMORY`, `mmap_size=512 MiB`, `case_sensitive_like=1`; WAL on
-`conn`) and keeps small per-handler caches (pubkey/alias/address/height).
+trace_db_calls=False)`. It applies PRAGMAs to **every** connection (`_optimize_connections`,
+`dbhandler.py`): WAL + `synchronous` (**FULL** on the authoritative `ledger.db`/`hdd` so an
+acknowledged block survives a power cut, **NORMAL** on index/hyper/working — still tear-proof under
+WAL, and they reconcile DOWN to the ledger on restart), plus `cache_size=-64000`,
+`temp_store=MEMORY`, `mmap_size=512 MiB`, `case_sensitive_like=1`. It keeps small per-handler caches
+(pubkey/alias/address/height).
 
 | Group | Methods |
 |---|---|
@@ -108,3 +111,26 @@ text rather than floats.
 - `ledger_queries.py` (`LedgerQueries`) — classmethod query helpers (balances, block-by-timestamp,
   hypernode register scans) used by plugins/hypernodes; takes a raw connection, not a `DbHandler`.
 - `ledger_explorer.py` — an early standalone Tornado block explorer (port 5492); unmaintained.
+
+## LMDB stores (post-fork, replacing the SQLite trio)
+
+The storage rearchitecture (doc/26) retires the SQLite ledger/hyper/index trio in favour of embedded,
+memory-mapped **LMDB** key/value stores. These are byte-for-byte derivable from / equivalent to the
+SQLite rows and land behind config flags (replay-validated); the digester wires them in optionally
+(`getattr(node, …)` in `digest.py`):
+
+- `block_store.py` (`BlockStore`) — append-only block-body store: `blocks` (BE-uint64 height →
+  msgpack `{h, t:[tx,…]}`) + `hashes` (block_hash → height) sub-DBs. Stored tx rows are byte-identical
+  to the 12-field SQLite ledger rows (it sits behind the frozen serialization boundary). Also the
+  source the dynamic base fee reads block weight from (`recent_block_weights`, `digest.py`/`fee_dynamics.py`).
+- `balance_index.py` (`BalanceIndex`) — maintained O(1) per-address balance (integer atomic units),
+  updated on apply / reversed on rollback; bit-identical to the `ledger_balance3` full-table aggregate
+  in integer-amount mode. Cross-checked against the authoritative query in `digest.py` (LOG-ONLY,
+  display-only).
+- `token_index.py` (`TokenIndex`) — the post-fork LMDB successor to `index.db` (tokens + aliases):
+  materialized `tokreg`/`cred`/`deb`/`addrtok`/alias maps with height-ordered keys for range-delete
+  rollback; preserves the legacy overspend asymmetry exactly. NO SQLite post-fork (also doc/27 plugin).
+- `shieldedv1.py` (`ShieldedState`) — per-ledger shielded sidecar (doc/22), namespaced
+  `shielded-<ledger>`: `notes`/`notes_h` (decoy/scan note set), `kimg`/`kimg_h` (**key-image**
+  spent-set — not a per-note nullifiers table), `flows`, `meta` sub-DBs. `validate_block` runs before
+  the commit; `apply_block` writes the sidecar after `to_db`.

@@ -27,7 +27,7 @@ class BismuthPlugin:                       # plugin_base.py
     name = "..."
     def setup(self, ctx): ...              # ctx: PluginContext (logger, private data_dir, ledger_path, config)
     def backfill(self): ...                # build derived state for history already on disk (mid-chain enable)
-    def on_block(self, height, txs): ...   # a committed block (txs = the 12-field ledger rows)
+    def on_block(self, height, txs): ...   # a validated block, pre-to_db-commit (txs = the 12-field ledger rows)
     def on_rollback(self, height): ...     # a reorg dropped blocks at >= height
     def services(self) -> dict: ...        # objects to expose to the node (e.g. {"token_index": store})
     def peer_commands(self) -> dict: ...   # {command: handler(data, socket)}  — extra wire commands
@@ -43,8 +43,11 @@ A loaded plugin module exposes a `PLUGIN` instance. The manager (`plugins.Plugin
 - `peer_command_handler(data)` / `rest_handle(method, route, query)` — dispatch a wire command / REST route
   to whichever plugin owns it (REST supports a trailing `"*"` wildcard segment, e.g. `("token", "*")`).
 
-A plugin is **consensus-inert**: `on_block` runs AFTER a block is committed and only writes the plugin's own
-store; it can never change a block hash or accept/reject a tx.
+A plugin is **consensus-inert**: `on_block` actually runs BEFORE the SQLite commit — after the block is
+validated and its hash computed, in `execute_block_hooks` (digest.py:543), well ahead of
+`db_handler.to_db(...)` (digest.py:601). It stays inert anyway because `dispatch_block` swallows every
+plugin exception (plugins.py:131-135) so an `on_block` failure can never raise to reject the block, and the
+plugin only writes its own LMDB store — it can never change a block hash or accept/reject a tx.
 
 ## 3. The tokens_aliases plugin (`plugins/tokens_aliases/`)
 
@@ -64,7 +67,8 @@ namespaced per ledger (`tokenindex-<ledger>`) so a regnet run can't bleed into a
 The plugin is enabled by the `token_index` config flag (default off; on in the regnet test config). The node
 core was made to **defer** to it:
 - `node.plugin_manager.start(node)` (in node bootstrap) opens the store and sets `node.token_index`.
-- The digester calls `dispatch_block` per committed block (in `execute_block_hooks`).
+- The digester calls `dispatch_block` per validated block in `execute_block_hooks` (digest.py:543) — after
+  the hash/PoW check, before the `to_db` commit (digest.py:601).
 - `tokensv2.tokens_update` / `aliases.aliases_update` become **no-ops** when `node.token_index` is set — the
   plugin owns indexing; otherwise the legacy SQLite `index.db` path runs unchanged.
 - The wire loop and REST router consult the plugin's command/route tables; the legacy core handlers remain as

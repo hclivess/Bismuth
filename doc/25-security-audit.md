@@ -90,3 +90,49 @@ attacks. Every finding below has a regression test.
   properties of the base chain, unchanged by this branch.
 - **Multi-input RingCT, BIP62 low-s for the legacy ECDSA signer, and RingCT mempool key-image dedup** are
   documented enhancements, not soundness gaps.
+
+---
+
+## 2026-06-21 audit — hf2 REST/proxy, txid/sig, mempool boundary, alias ops
+
+A second deep adversarial pass (7 attack classes, each finding re-verified by an independent skeptic
+before it was retained) over this session's new surface: the recoverable single-sig/ecrecover path,
+content-txid determinism, the mempool fork transition, alias evolution ops, the `/api/proxy` relay, and
+the new REST read endpoints. **No critical and no high-severity defect in the hf2 cryptographic or
+block-determinism core** — the recoverable verifier rejects (does not normalise) high-s, binds the
+recovered key to the sender, checks recovery-id + 65-byte length, prevents double-hashing, and the
+scheme dispatch + fork-gating are unambiguous in both directions (see the attack-class list above).
+Counts: **0 critical · 4 high · 4 medium · 11 low**. The high/medium issues were all in the REST/sync
+transport, not the consensus rules.
+
+### Fixed this session
+
+| Sev | Finding | Fix | Test |
+|---|---|---|---|
+| High | **H-1** integer-mode REST sync shipped a lossy float amount (`display_amount`), diverging from the exact-string socket sync above 2⁵³ units → a REST-synced vs socket-synced partition once integer storage is on (latent today). | `amounts.consensus_amount` (exact, never float) on the sync wire (`rest_api._row_to_sync_tx`). | `test_audit_fixes::test_*consensus_amount*` |
+| High | **H-2** `/api/proxy` followed HTTP redirects, so a 3xx `Location` to an internal host bypassed the SSRF guard. | refuse redirects (`_proxy_fetch` raises on 3xx). | `test_audit_fixes::test_proxy_fetch_refuses_redirect` |
+| High | **H-3** DNS-rebind TOCTOU: the guard resolved once, `urlopen` re-resolved at connect. | pin the validated public IP and connect to it (Host/SNI keep the hostname). | `test_audit_fixes::test_proxy_guard_*` |
+| High | **H-4** the 64-hex content-txid lookup full-scanned the whole post-fork ledger (unauth DoS). | bounded, recent-first streaming scan over `idx_tx_block_height` with optional `?from_height`. | (regnet) `test_hf2_fork_transition` |
+| Med | **M-1** proxy reachable to any public host/port (scanner/oracle). | target-port allowlist + collapsed error surface. | `test_audit_fixes::test_proxy_*port*` |
+| Med | **M-2** no proxy rate/concurrency cap (amplification DoS). | per-IP token bucket + global concurrency semaphore. | `test_audit_fixes::test_proxy_rate_limit_blocks_floods` |
+| Med | **VM contract address** derived from the (post-fork malleable) signature, contradicting doc/18 §A.1's "final decision". | derive from the content txid (`vm_engine.contract_address(_tx_id_of(row))`), dual-path safe. | `test_vm_revert_refund::test_deploy_address_is_content_derived_not_signature` |
+| Low | **L-2** `node.verify` (startup `--verify`) was fork-unaware → flagged every post-fork single-sig row invalid. | route through `SignerFactory.verify_tx_signature` by row height. | (mirrors the tested `digest_tx.validate`) |
+| Low | **L-10** token/alias/address read params uncapped. | length-cap + 400 early. | `test_audit_fixes` |
+
+### Verified-safe (claimed but refuted on the second pass)
+Alternate-IP-encoding SSRF (the guard validates resolved IPs, not the raw host), SQL injection on the
+token/alias/transaction endpoints (all bound `?` params), alias ownership theft (transfer/free no-op
+unless the owner == the consensus-authenticated sender), alias reorg-rollback correctness (reverse-order
+undo), replay/double-spend (per-block balance check bounds the malleable-signature dedup so there is **no
+inflation, no chain split**), coinbase RSA-lock (the ecrecover path is unreachable for coinbase).
+
+### Open / deferred (tracked)
+- **M-3/M-4** consensus dedup keys on the signature, not the canonical content txid — bounded (no
+  inflation; the balance check governs), but the txid is not a unique key under signature malleability.
+  Deferred to a consensus-adjacent batch (dedup-on-txid post-fork + truncate-before-dedup).
+- **GPU kernels** (`bis.cu`/`bismuth.cl`) are sha224-only — an **operational gate** on any mainnet hf2
+  signal (post-fork PoW is blake2b); they must be ported first. See doc/21.
+- The hf2 binary/integer serialization rework is specified in **doc/29** (Stage 0 codec shipped).
+
+The poker dApp audit lives in **doc/28** (chain-referee escrow + off-chain mental poker + on-chain hand
+evaluator); the RV32I authoring hazards it surfaced are catalogued there.

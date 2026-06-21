@@ -61,16 +61,23 @@ Activation is the hf2 signalling itself (`fork.dynamic_fork_height`):
   LWMA, fees, the VM and the serialization era.
 
 So the miner runs old→new across the fork automatically: below the height it mines/validates sha224, at
-and above it mines/validates blake2b. The GPU kernels (`bis.cu` / `bismuth.cl`) must swap sha224→blake2b
-in lockstep at that height — they implement the same `diffme_heavy3`. Do NOT signal hf2 from a GPU
-setup whose kernels aren't blake2b-ready: post-activation its blocks fail PoW.
+and above it mines/validates blake2b. The CPU paths already do this (`mining_heavy3.diffme_heavy3:87` —
+`blake2b(_data, digest_size=28)` vs `sha224(_data)`; `miner.py:88`).
+
+**⚠ GPU kernels are sha224-ONLY — port before any mainnet hf2 signal.** The in-tree kernels
+(`gpuminer/bis.cu`, `gpuminer/opencl_alt/kernels/bismuth.cl`) hard-code SHA-224: `bis.cu` defines
+`sha224_init`/`sha224_final` and launches `sha224_find` (no `blake` symbol anywhere); `bismuth.cl` is built
+on `SHA224_SIZE`/`SHA224_BLOCK` with no blake2b. They do NOT yet implement the `new_pow` branch of
+`diffme_heavy3`. They must be ported to swap sha224→blake2b in lockstep at the fork height — this is an
+**operational gate**: do NOT signal hf2 from a GPU setup whose kernels aren't blake2b-ready, because
+post-activation its blocks fail PoW.
 
 ## Configuration
 
 | Key | Default | Meaning |
 |---|---|---|
 | `mine` | `False` | run the built-in solo miner (`miner.py`) |
-| `fork_signal` | `False` | stamp the `hf2` signal into mined coinbases — asserts whole-bundle readiness, incl. the blake2b Heavy3 |
+| `fork_signal` | `False` | stamp the `hf2` signal into mined coinbases — asserts whole-bundle readiness, incl. the blake2b Heavy3 (do NOT set on a GPU rig until `bis.cu`/`bismuth.cl` are blake2b-ported — see the ⚠ above) |
 | `heavy` / `heavy3_path` | — | require/locate the 1 GB `heavy3a.bin` (generated on first boot, ~5 min, then cached) |
 
 ## Tested (regnet)

@@ -9,7 +9,7 @@ Values are typed per the loader (`int`, `bool` — false for `false/0/""/no` —
 
 | Key | Type | Meaning |
 |---|---|---|
-| `port` | int | TCP listen port (mainnet 5658) |
+| `port` | str | TCP listen port (mainnet 5658); kept as a string by the loader (`options.py:21`) |
 | `verify` | bool | full signature re-verification of the ledger at startup |
 | `testnet` / `regnet` | bool | network selection |
 | `heavy` | bool | require the Heavy3 `heavy3a.bin` file (false on regnet) |
@@ -34,12 +34,12 @@ Values are typed per the loader (`int`, `bool` — false for `false/0/""/no` —
 | `light_ip` | dict | `{ip: port}` light/wallet servers |
 | `reveal_address` | bool | expose the wallet address in status replies |
 | `accept_peers` | bool | accept peer announcements |
-| `mempool_allowed` | list | addresses that bypass the 0.5–0.6 MB mempool tier |
+| `mempool_allowed` | list | **unused** — declared (`options.py:49`) but read by no module |
 | `mempool_ram` | bool | mempool in RAM vs on disk (default true) |
 | `mempool_path` | str | on-disk mempool path |
 | `terminal_output` | bool | echo logs to stdout |
 | `log_color` | bool | ANSI-coloured console/journald log by level (`log.ColoredFormatter`; honors `NO_COLOR`); file logs stay plain |
-| `mandatory_message` | dict | exchange deposit address → required-memo note; built-in defaults, overridden by `mandatory_message.json` (see below) |
+| `mandatory_message` | list | exchange deposit address → required-memo note; the loader's type schema is `list` (`options.py:59`), but the built-in default and `mandatory_message.json` override (see below) are a **dict** — set it via the JSON file, not a `config.txt` line |
 | `egress` | bool | relay blocks to peers (false = receive-only) |
 | `trace_db_calls` | bool | log every SQL statement |
 | `heavy3_path` | str | path to `heavy3a.bin` |
@@ -51,7 +51,10 @@ After load, `genesis` is hardcoded to `4edadac9093d9326ee4b17f869b14f1a2534f96f9
 ## Modernization keys (storage / consensus / VM — doc/16–19)
 
 Declared in `options.py`, assigned onto `node.*` at startup. All default to a safe value and, where
-consensus-affecting, are **inert until the hf2 fork activates**.
+consensus-affecting, are **inert until the hf2 fork activates**. (The three `rest_api_proxy_ports` /
+`rest_api_geo` / `txid_scan_limit` knobs below are the exception: they are *not* in the `options.py`
+schema — the REST layer reads them via `getattr(node, …, default)`, so they only take effect when set
+as a `node.*` attribute / config line.)
 
 | Key | Type | Meaning |
 |---|---|---|
@@ -71,6 +74,9 @@ consensus-affecting, are **inert until the hf2 fork activates**.
 | `rest_api` / `rest_api_port` | bool/int | enable the read-only REST API (doc/15) and its port |
 | `rest_api_write` | bool | enable `POST /api/transaction` (tx submission over REST — the post-fork transport, doc/15); off by default so a read-only node stays read-only |
 | `rest_api_proxy` | bool | enable `GET /api/proxy` (default **ON**) — a read-only, SSRF-guarded same-origin relay so an https explorer can browse http nodes (doc/15) |
+| `rest_api_proxy_ports` | str/list | extra target ports the proxy may reach, beyond the built-in `80/443/5658/5659` + this node's `rest_api_port` (`rest_api.py:526`, `PROXY_DEFAULT_PORTS`); space/comma-separated. The allowlist stops the relay being used as an arbitrary-port scanner (audit M-1) |
+| `rest_api_geo` | bool | enable the geolocated peer map behind `/api/stats/geo` (default **ON**, `rest_stats.py:282`); set false to suppress the outbound geo lookup |
+| `txid_scan_limit` | int | max rows the bounded, recent-first content-txid (`/api/tx/<64-hex>`) scan will re-hash before erroring (default **250000**, `rest_api.py:1181`); deeper history is reachable with `?from_height` (audit H-4) |
 | `shield` | bool | opt-in shielded value (doc/22): validate/index `shield:` txs — inert until hf2 activates |
 | `token_index` | bool | opt-in LMDB token/alias side-index (doc/26 stage 2, served by the `tokens_aliases` plugin — doc/27), replacing the SQLite `index.db` projection post-fork |
 | `rpc_bitcoin` / `rpc_bitcoin_port`, `rpc_ethereum` / `rpc_ethereum_port` | bool/int | external RPC-bridge config keys (atomic-swap tooling) |

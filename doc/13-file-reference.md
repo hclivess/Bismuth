@@ -7,7 +7,7 @@ imported library; *script* = run directly.
 
 | File | Kind | Description |
 |---|---|---|
-| `node.py` | script | the full node (entry point); startup, threading, TCP server, command dispatch |
+| `node.py` | script | the full node (entry point); startup, threading, TCP server, command dispatch; `verify` is **fork-aware** (`node.py:1254`) — at/after `fork_height` single-sig rows route through `SignerFactory.verify_tx_signature` (recoverable-over-txid, pubkey dropped) (doc/29) |
 | `node_init.py` | module | node bootstrap/init helpers lifted from `node.py` by DI: `setup_net_type`, `node_block_init`, `ram_init`, `initial_db_check`, `load_keys`, `add_indices` |
 | `node_stop.py` | script | sends `stop` to a local node |
 | `digest.py` | module | block validation/commit pipeline (consensus core): the `BlockProcessor` engine + `digest_block`/`process_block_data` orchestration + helpers |
@@ -28,10 +28,10 @@ imported library; *script* = run directly.
 | `miner.py` | module | built-in solo miner — builds + mines (Heavy3) + digests on the tip; stamps the `hf2` coinbase signal; opt-in `mine=True` (doc/21) |
 | `mining.py` | module | legacy PoW (unused; kept for reference) |
 | `difficulty.py` | module | difficulty retarget (legacy PID controller) |
-| `difficulty_lwma.py` | module | proposed hf2 LWMA retarget — symmetric/delicate/calculable; pure + fork-gated, inert (doc/18) |
-| `fork.py` | module | hardfork heights + post-fork reward validation; **+ the deterministic signal-activated `dynamic_fork_height` scheduler** (doc/18), inert |
+| `difficulty_lwma.py` | module | hf2 LWMA retarget — symmetric/delicate/calculable; pure + **live fork-gated**: at/after `node.fork_height` `difficulty.py` (`difficulty.py:101`) routes its output through `lwma_next_difficulty` (doc/18) |
+| `fork.py` | module | hardfork heights + post-fork reward validation; **+ the deterministic signal-activated `dynamic_fork_height` scheduler** (doc/18) — **live**: `digest.py` (`digest.py:448`) runs it each digest and persists the locked height (replayed at startup) |
 | `hmac_drbg.py` | module | HMAC-DRBG (SHA512) that seeds `heavy3a.bin` |
-| `bismuth_serialize.py` | module | the FROZEN consensus byte forms (signing buffer, block hash) centralised — the boundary storage/API rework must not move (doc/16) |
+| `bismuth_serialize.py` | module | the FROZEN consensus byte forms (signing buffer, block hash) centralised — the boundary storage/API rework must not move (doc/16); **+ hf2 stage-0** `signature_buffer_v2`/`tx_id_v2` (native-integer + binary pre-image, dormant, caller-gated on `fork_height`) folded into the single hf2 fork (doc/29) |
 | `gpuminer/` | dir | vendored Heavy3 GPU miners — CUDA (kbkminer) + OpenCL (`opencl_alt/`); coupled to the PoW (`gpuminer/README.md`) |
 
 ## Storage
@@ -70,7 +70,7 @@ imported library; *script* = run directly.
 | `vm_engine.py` | module | contract deploy/call orchestration over `bismuth_riscv` — gas/value custody, HTLC, host calls (doc/19) |
 | `vm_state.py` | module | contract state store + the ENFORCED state root committed into the coinbase (doc/19) |
 | `fee_dynamics.py` | module | dynamic/EIP-1559-style fee schedule (post-fork, gated) — see doc/18 |
-| `difficulty_lwma.py` | module | fork-gated LWMA retarget (also listed under Consensus/PoW) — pure + inert until a fork activates (doc/18) |
+| `difficulty_lwma.py` | module | fork-gated LWMA retarget (also listed under Consensus/PoW) — pure; live at/after `node.fork_height` (doc/18) |
 | `contracts/` | dir | demo/reference VM contracts (`dex.py`, `amm.py`, `router.py`, `poker.py`, `multisig.py`, `escrow.py`, `vesting.py`, `prediction_market.py`, `raffle.py`, `token_contract.py`) + `asmtools.py` assembler helpers (doc/19, doc/24, doc/28); `asmtools.assemble()` relaxes out-of-range conditional branches (jal) for large contracts |
 | `web/amm/`, `web/dex/`, `web/router/`, `web/poker/` | dir | demo SPAs + localhost signing relays for the AMM, DEX, multi-pool router (doc/24) and heads-up poker (doc/28; the poker relay also bridges the off-chain mental-poker deal) |
 
@@ -97,7 +97,8 @@ imported library; *script* = run directly.
 | `worker.py` | module | outbound per-peer sync thread |
 | `rpcconnections.py` | module | client-side `Connection` class (for wallets/scripts) |
 | `hyperlane.py` | module | placeholder hyperlane manager (stub); `attic/hyperlane_asyncio.py` is the retired asyncio variant |
-| `rest_api.py` | module | read-only modern REST/JSON API server (status/blocks/balance/tx/peers); `/headers/range` (headers-first) + `/blocks/range?format=sync` (consensus-faithful digester tuples) |
+| `rest_api.py` | module | read-only modern REST/JSON API server (status/blocks/balance/tx/peers); `/headers/range` (headers-first) + `/blocks/range?format=sync` (consensus-faithful digester tuples) + `/api/stats/{summary,tx_per_month,difficulty,geo}` (delegated to `rest_stats`) |
+| `rest_stats.py` | module | explorer stats payloads (doc/15): cheap on-demand `network_summary`/`difficulty_series` + background-cached `tx_per_month` (full-ledger histogram) + best-effort `geo_nodes` peer geolocation (gated `rest_api_geo`) |
 | `rest_client.py` | module | stdlib REST client: capability discovery + parallel block fetch (`parallel_fetch`/`parallel_fetch_sync`) + `fetch_headers` for headers-first quick sync |
 | `api_sync.py` | module | capability-gated, fail-soft headers-first chain-segment fetch (`sync_segment`) — the seam between `rest_client` (transport) and the digester (consensus) |
 | `rpc_bitcoin.py` | module | bitcoind-compatible JSON-RPC adapter (flag `rpc_bitcoin`, off): getblockcount/getblock/getbalance/getrawtransaction/… for exchange/explorer tooling |

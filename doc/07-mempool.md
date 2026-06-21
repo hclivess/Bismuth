@@ -46,12 +46,18 @@ Per transaction (inside `self.lock`):
 `fee = base + len(openfield)/100000`, plus +1 BIS for an `alias=` openfield and +10 BIS for a
 `token:issue` operation, quantized to 8 dp. `base` is the static `BASE_FEE` pre-fork. Post-fork
 (`hf2`) the base becomes the **dynamic base
-fee** from `fee_dynamics.base_fee(BASE_FEE, recent_tx_counts)`: a smooth, calculable, EIP-1559-style
-analogue of the LWMA difficulty that scales the base over a `WINDOW=20`-block demand window toward
-`TARGET_TXS=30`, clamped to `[0.5×, 10×]` — it is deterministic and stateless (a pure function of
-recent per-block tx counts, no saved fee state across restarts). `fee_calculate` also takes a
-`vm_surcharge` flag that adds `VM_SURCHARGE` (gas) to `vm:` operations post-fork. The mempool's own
-fee checks call `fee_calculate` with the static base today; the dynamic value is gated on the fork.
+fee** from `fee_dynamics.base_fee(BASE_FEE, recent_block_weights)`: a smooth, calculable, EIP-1559-style
+analogue of the LWMA difficulty. The congestion signal is per-block **WEIGHT**, not tx count — each
+block's load is `tx count + openfield_bytes // W_UNIT` (`W_UNIT=1000`), a gas/vbyte-style measure, so a
+block of large RingCT/VM txs prices in its real footprint, not merely how many txs it holds. `base_fee`
+scales the base over a `WINDOW=20`-block demand window toward `TARGET_WEIGHT=30`, clamped to `[0.5×, 10×]`
+— it is deterministic and stateless (a pure function of recent block weights, no saved fee state across
+restarts). The weight window is read from the post-fork **block store (LMDB)**
+(`block_store.recent_block_weights`, computed once per block in `digest.py` ~494), never SQLite — the old
+SQLite `recent_tx_counts` helper was removed. `fee_calculate` also takes a `vm_surcharge` flag that adds
+`VM_SURCHARGE = 0.01` (gas) to `vm:` operations and a flat +1 BIS to `shield:` operations post-fork. The
+mempool's own fee checks call `fee_calculate` with the static base and no surcharge today; the dynamic
+value and surcharges are gated on the fork (set per block as `node.base_fee` in `digest.py`).
 
 ## Size tiers (`space_left_for_tx`, MB of valid txs)
 

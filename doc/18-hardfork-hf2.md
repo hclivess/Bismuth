@@ -41,7 +41,11 @@ Sign/hash **native integer units + a binary/struct tx encoding**, a bounded **co
 (`blake2b(tx_content)`, replacing the `signature[:56]` slice), and **canonical sig/pubkey encoding**
 (public key by reference — 1:1 with the address — and raw bytes, not base64). This is the bulk of a
 block body. *Risk: low-moderate* — it's a representation change, fully replay-checkable: every pre-fork
-block must still re-hash identically, every post-fork block round-trips through the new codec.
+block must still re-hash identically, every post-fork block round-trips through the new codec. The full
+spec — native integer + binary tx encoding, pubkey-by-reference, raw-byte sig/pubkey, coinbase
+compaction — folds into this SINGLE hf2 fork (no second fork) and lives in **doc/29**; Stage 0 has
+shipped the dormant primitives `bismuth_serialize.signature_buffer_v2` / `tx_id_v2`
+(`bismuth_serialize.py:76,92`).
 
 #### A.1 Canonical txid + Ethereum-shape single-sig model — ✅ **implemented, fork-gated, tested**
 
@@ -94,8 +98,11 @@ if SignerECDSA.public_key_to_address(recovered_pub) != tx['address']:
     reject                                              # "spend from wrong address"
 ```
 
-This replaces the explicit-pubkey check in `digest_tx.Transaction.validate` (`digest_tx.py:99-113`)
-and `mempool.merge` (`mempool.py:387-398`). `public_key` is stored as the empty string post-fork (the
+This is implemented in the single fork-aware verifier `SignerFactory.verify_tx_signature`
+(`polysign/signerfactory.py:173-188`), called by BOTH the digester (`digest_tx.py:108`) and the
+mempool (`mempool.py:402`): post-fork single-sig dispatches to ecrecover-over-txid, every other case
+(pre-fork, post-fork RSA / ED25519 / multisig) keeps the legacy explicit-pubkey buffer check.
+`public_key` is stored as the empty string post-fork (the
 column stays for schema/replay continuity; pre-fork rows keep their base64 pubkey). *Justification:*
 ecrecover makes the pubkey 1:1 derivable from (txid, sig), so carrying it is redundant — this is
 exactly section A's "public key by reference". It only works for key-recoverable schemes, hence
@@ -137,7 +144,9 @@ base64, so it contains `+/=` or uppercase and **cannot** match `^[0-9a-f]{64}$`)
 legacy prefix. Because the id is derived, not stored, there is nothing to migrate, no new column, no
 index churn, and block hashes are untouched by construction (the txid never enters
 `bismuth_serialize.TX_FIELDS` / the block-hash pre-image). See `rest_api._transaction`
-(`rest_api.py:1030-1047`) for the live dispatch.
+(`rest_api.py:1163-1199`) for the live dispatch — the 64-hex branch is a BOUNDED, recent-first
+streaming scan (`txid_scan_limit`, default 250000) with an optional `?from_height` to move the window
+down, so an absent id can't drag the whole post-fork range (audit H-4).
 
 **7. The integer-amount serialization freeze (byte-stability at the fork).** The txid content is only
 byte-stable if `signature_buffer`'s `amount` (and `timestamp`) string form is frozen at the fork.
@@ -182,9 +191,9 @@ beyond computing the new txid for indexing.
   on read, so the writer is storage-mode-only and the block-hash pre-image is untouched.
 
 **Map — every txid LOOKUP (`signature LIKE`) to shape-dispatch (file:line):**
-- `rest_api._transaction` — `rest_api.py:1030-1047` (64-hex → scan post-fork rows recomputing the
-  content txid; else `WHERE signature LIKE ? LIMIT 1`); also `_submit_transaction` returns the computed
-  post-fork txid (`rest_api.py:403`).
+- `rest_api._transaction` — `rest_api.py:1163-1199` (64-hex → bounded recent-first scan of post-fork
+  rows recomputing the content txid; else `WHERE signature LIKE ? LIMIT 1`); also `_submit_transaction`
+  (`rest_api.py:420`) returns the computed post-fork txid.
 - `apihandler_tx.api_gettransaction` (`apihandler_tx.py:31-38`), `api_gettransactionbysignature`
   (`:95-100` — this one is *by full signature*, keep as exact-signature match, but note post-fork sigs
   are hex compact), `api_gettransaction_for_recipients` (`:160-168`).
@@ -200,16 +209,18 @@ beyond computing the new txid for indexing.
   full `signature` (still present and unique on every tx, recoverable single-sig included); the
   `substr(signature,1,4)` index branch is unchanged.
 
-**Map — the VM contract-address derivation decision (`vm_engine.contract_address`,
-`vm_engine.py:26-28`).** Today `contract_address = blake2b(str(signature), digest_size=28)` — a
-function of the (legacy, malleable) signature. **Decision: move it to `blake2b(txid)`** post-fork
-(`blake2b(bytes.fromhex(txid), digest_size=28).hexdigest()`), because post-fork single-sig txs DROP the
-signature field for the recoverable compact form, and the recoverable sig is malleable in `recovery_id`
-/ low-s in a way the content-hash txid is not — deriving the contract address from the canonical,
-content-derived txid makes deploy addresses deterministic from tx content and independent of signature
-encoding. VM is post-fork-only (inert pre-fork), so there is **no legacy contract address to preserve**
-— this is a clean switch with no dual path. (Keep `digest_size=28` so the contract address stays a
-56-hex Bismuth-style address.)
+**Map — the VM contract-address derivation (`vm_engine.contract_address`,
+`vm_engine.py:29-35`) — ✅ IMPLEMENTED.** The deploy address now derives from the deploy tx's CONTENT
+txid, **not** the (legacy, malleable) signature: `contract_address(seed)` returns
+`blake2b(str(seed).encode(), digest_size=28).hexdigest()`, and the deploy path feeds it the content
+txid via `_tx_id_of(row)` (`vm_engine.py:38-46`, `_deploy` at `:63-70`) — `blake2b` over the frozen
+six-field pre-image, normalised through `amounts.ledger_value` so it is storage-mode-agnostic and
+identical on the digest-execution and rebuild paths. Rationale: post-fork single-sig txs DROP the
+signature for the recoverable compact form, and that sig is malleable in `recovery_id` / low-s in a way
+the content-hash txid is not — so deriving the address from the canonical, content-derived txid makes
+deploy addresses deterministic from tx content and independent of signature encoding. VM is
+post-fork-only (inert pre-fork), so there was **no legacy contract address to preserve** — a clean
+switch with no dual path. (`digest_size=28` keeps the contract address a 56-hex Bismuth-style address.)
 
 **Gate.** Everything above keys on the single `block_height >= node.fork_height` (no second signal),
 matching the existing VM / shield / multisig / LWMA / blake2b gates in `digest.py`. Pre-fork:
@@ -223,8 +234,12 @@ canonical id.
 **Non-consensus additions (this session).** Alongside A.1, several **read-only REST endpoints** were
 added (no consensus impact, ship any time): `/api/proxy?target=` (same-origin relay to another node's
 read-only `/api`), `/api/nodes` (peer browser, now de-duplicated), `/api/token/tx/{address}` (token
-transfers for an address), `/api/alias/{name}` (resolve alias → owner) and `/api/aliases/{address}`
-(all aliases owned by an address). See `rest_api.py:439-456`.
+transfers for an address), `/api/alias/{name}` (resolve alias → owner), `/api/aliases/{address}`
+(all aliases owned by an address), and the explorer dashboard set `/api/stats/{summary,tx_per_month,
+difficulty,geo}` (`rest_stats.py`). The `/api/proxy` relay was hardened (audit H-3): it pins the
+validated public IP (no DNS-rebind TOCTOU), refuses redirects (no SSRF pivot), and enforces a
+target-port allowlist + per-IP rate limit + global concurrency cap (`rest_api.py:76-83,540-601`). The
+64-hex content-txid lookup is the bounded recent-first streaming scan noted above (audit H-4).
 
 ### B. Reward-sidechain cutover — foundation built (`reward_chain.py`)
 Mint dev/hypernode rewards into the sidechain instead of negative-height mirror rows; balances read
@@ -262,15 +277,21 @@ block-rejection rather than a silent divergence. Full map: **doc/19**. (`tests/t
 
 ### F. Dynamic fees → congestion-responsive base fee — ✅ **implemented, fork-gated, tested**
 A smooth, clamped, *deterministic* base fee that tracks recent network **congestion** over a window
-(`fee_dynamics.py`, the fee analogue of the LWMA), plus a `vm:` execution surcharge; exposed at
-`/api/fee` for wallets. *Risk: low* — gated; pre-fork the static `BASE_FEE` is unchanged.
+(`fee_dynamics.py`, the fee analogue of the LWMA), plus post-fork operation surcharges — a `vm:`
+execution surcharge (`fee_dynamics.VM_SURCHARGE`) and a flat `shield:` surcharge (+1, EC-validation cost,
+`essentials.py:280-286`); exposed at `/api/fee` for wallets. *Risk: low* — gated; pre-fork the static
+`BASE_FEE` is unchanged.
 
 Congestion is measured by **block WEIGHT**, not just tx count: `weight = tx count + openfield bytes //
-W_UNIT` (`essentials.recent_block_weights`), a gas/vbyte-style measure — so a block of large RingCT/VM txs
-prices in its real footprint, not merely how many txs it holds (the baseline is unchanged for all-tiny
-blocks, since each tiny tx is ~1 weight). `base_fee = static × clamp(avg(recent_weights)/TARGET_WEIGHT,
-0.5×, 10×)` over `WINDOW=20` blocks. Read from the **canonical SQLite ledger** via `db_handler` (the same
-source as the LWMA difficulty and the fork signal — *not* the additive LMDB shadow), so it is consensus-
+W_UNIT` (`block_store.BlockStore.recent_block_weights`, `W_UNIT=1000`), a gas/vbyte-style measure — so a
+block of large RingCT/VM txs prices in its real footprint, not merely how many txs it holds (the baseline
+is unchanged for all-tiny blocks, since each tiny tx is ~1 weight). `base_fee = static ×
+clamp(avg(recent_weights)/TARGET_WEIGHT, 0.5×, 10×)` over `WINDOW=20` blocks. The weight window is read
+from the **LMDB block store** (`digest.py:494-498` → `node.block_store.recent_block_weights`), **not**
+SQLite — there is no SQLite on any post-fork path, and the earlier SQLite `recent_tx_counts` /
+`recent_block_weights` helpers were removed (`essentials.py:291-293`). (This differs from the LWMA
+retarget, which still reads solvetimes from SQLite — `difficulty.py` — at a different consensus boundary.)
+The store is rolled back with the chain so the window is always canonical, making the fee consensus-
 deterministic and storage-mode-independent (integer storage, doc/16, never touches `openfield`).
 Manipulation-resistant: window-averaged (one block barely moves it), clamped (no runaway spike), and a
 miner who stuffs blocks to inflate the fee pays the very fees they raise — the same bounded shape as

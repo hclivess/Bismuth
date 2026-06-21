@@ -61,13 +61,17 @@ Key properties:
   inside the SAME env (a derived checkpoint, not a lockstep second file).
 - **Block hashing frozen; one fork-gated signing change.** The block-hash pre-image is unchanged
   (`bismuth_serialize.block_hash` / `signature_buffer` — it excludes the signature), so the same blocks
-  produce the same hashes; storage is an internal concern behind that boundary. The one consensus change,
-  gated on `fork_height`, is **single-sig secp256k1 SIGNING**: post-fork an ordinary single-sig tx signs the
-  blake2b content-hash **txid** (`bismuth_serialize.tx_id` / `signed_message`, Ethereum-shape — a 65-byte
-  recoverable sig, the `public_key` field DROPPED, signer recovered via ecrecover with low-s enforced). RSA,
-  ED25519, native MULTISIG and shielded/RingCT KEEP their existing legacy signing post-fork (multisig:
-  explicit pubkeys + N-of-M over the frozen `signature_buffer` — it does NOT sign the txid). Pre-fork is
-  byte-identical (it stays on the legacy buffer+pubkey path).
+  produce the same hashes; storage is an internal concern behind that boundary. hf2 carries several other
+  consensus changes too (VM state-root commitment, shielded/RingCT, native multisig senders, and the
+  serialization rework of doc/29) — all gated on the SAME single `fork_height`; the one this storage doc
+  touches is **single-sig secp256k1 SIGNING**: post-fork an ordinary single-sig tx signs the blake2b
+  content-hash **txid** (`bismuth_serialize.tx_id` / `signed_message`, Ethereum-shape — a 65-byte
+  recoverable sig, the `public_key` field DROPPED, signer recovered via ecrecover with low-s enforced).
+  Verification is fork-aware and routed through one entry point, `SignerFactory.verify_tx_signature`
+  (`polysign/signerfactory.py:173`), used by both the digester and the mempool. RSA, ED25519, native
+  MULTISIG and shielded/RingCT KEEP their existing legacy signing post-fork (multisig: explicit pubkeys +
+  N-of-M over the frozen `signature_buffer` — it does NOT sign the txid). Pre-fork is byte-identical (it
+  stays on the legacy buffer+pubkey path).
 - **Content-hash txid, computed on read.** ALL post-fork txs get the blake2b content-hash txid as their
   canonical id; it is derived ON READ (`essentials.format_raw_tx`, amount via `amounts.ledger_value` so it is
   storage-mode agnostic) — there is **no `txid` DB column and no migration**. Lookup is SHAPE-DISPATCHED: a

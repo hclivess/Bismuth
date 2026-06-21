@@ -2,9 +2,13 @@
 
 Status: **HD wallet implemented + tested** (`hd_wallet.py`). Multisig: see §2 below.
 
-Both features are **wallet-side and non-consensus**. A Bismuth address is a hash of a public key, so the
-chain neither knows nor cares how the key was derived — these work identically pre- and post-fork, and add
-no rules to the node. They build on the in-tree secp256k1 ECDSA signer (`polysign/signer_ecdsa.py`,
+Both features are **wallet-side and non-consensus** in the sense that matters here: a Bismuth address is a
+hash of a public key, so the chain neither knows nor cares how the key was *derived*, and the HD/multisig
+key-management layers add no rules to the node. The address derivation works identically pre- and
+post-fork. (The *spend* form does differ post-fork for single-sig ECDSA — hf2 adopts the Ethereum-shape
+model where the signature signs the content txid and the public key is dropped; see §1 "To spend". That is
+a consensus change in the signature scheme itself, orthogonal to how the key was derived.) They build on
+the in-tree secp256k1 ECDSA signer (`polysign/signer_ecdsa.py`,
 `Bis1...` Base58Check addresses), because secp256k1 is what makes both BIP32 derivation and key
 aggregation natural; `coincurve` and `base58` are already hard dependencies.
 
@@ -47,10 +51,21 @@ for i, a in w.addresses(20): ...         # the external (receive) chain, fresh a
 node   = w.master.derive_path("m/44'/0'/3'/0/7")   # arbitrary BIP32 path
 ```
 To spend from a derived address: `hd_wallet.sign_transaction(signer, ts, signer.address(), recipient,
-amount, op, openfield)` returns the 8-field tx tuple to `mpinsert` (the test client exposes
-`LiteClient.send_with_signer`). The one easy-to-get-wrong detail, centralised in `tx_public_key_b64`: the
-tx's `public_key` field for ECDSA/ED25519 is the **raw compressed pubkey bytes, base64-encoded** — NOT the
-hex string — because `verify_bis_signature` b64-decodes it and reconstructs the address from those bytes.
+amount, op, openfield, post_fork=False)` returns the 8-field tx tuple to `mpinsert` (the test client
+exposes `LiteClient.send_with_signer`). It self-verifies before returning, and the wire form depends on the
+fork:
+- **Pre-fork (`post_fork=False`, the default).** Sign the canonical `signature_buffer` and carry the
+  explicit public key. The one easy-to-get-wrong detail, centralised in `tx_public_key_b64`: the tx's
+  `public_key` field for ECDSA/ED25519 is the **raw compressed pubkey bytes, base64-encoded** — NOT the hex
+  string — because `verify_bis_signature` b64-decodes it and reconstructs the address from those bytes.
+- **Post-fork (`post_fork=True`) for a single-sig secp256k1 sender.** hf2 adopts the Ethereum-shape model
+  (`hd_wallet.sign_transaction` lines 233-239, `signer_ecdsa.sign_buffer_for_bis_recoverable`): the
+  signature signs the **32-byte content txid** (`bismuth_serialize.tx_id`, blake2b-256 over the same frozen
+  6-field pre-image) as a **recoverable compact sig** (`r‖s‖recovery_id`, 65 bytes, lowercase hex), and the
+  **`public_key` field is DROPPED** (left empty) — the node recovers the signer via ecrecover and requires
+  the recovered address to equal the sender, enforcing low-s. The node selects this path fork-aware in
+  `SignerFactory.verify_tx_signature(post_fork, …)` (signerfactory.py:173-188), gated on
+  `is_single_sig_ecdsa(address)`; RSA, ED25519 and native multisig keep the legacy scheme even post-fork.
 
 ### Tests (`tests/test_hd_wallet.py`)
 Offline: address validity + factory routing, determinism, per-index/account/change uniqueness, seed

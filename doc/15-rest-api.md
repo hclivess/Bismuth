@@ -42,7 +42,7 @@ duplicate, format), so the endpoint is a new transport, not a new consensus rule
 | `GET /api/blocks/since/{h}?limit=N` | positive-height blocks after `h` (`limit` ≤ 1000) — for parallel sync |
 | `GET /api/blocks/range/{start}/{end}` | blocks in `[start, end]` (span capped at 1000) — for parallel sync |
 | `GET /api/balance/{address}` | `{address, balance}` (the O(1) balance index when enabled, else `ledger_balance3`) |
-| `GET /api/transaction/{txid}` | a transaction, **shape-dispatched** by the id: a 64-char lowercase-hex id resolves the post-fork content-hash txid (computed on read — no column); anything else matches by legacy signature prefix |
+| `GET /api/transaction/{txid}` | a transaction, **shape-dispatched** by the id: a 64-char lowercase-hex id resolves the post-fork content-hash txid (computed on read — no column; a **bounded recent-first scan**, see below); anything else matches by legacy signature prefix |
 | `GET /api/address/{address}/transactions?limit=N` | recent txs for an address (newest first; `limit` ≤ 500) |
 | `GET /api/mempool` | `{count, transactions[]}` of pending txs |
 | `GET /api/peers` | `{count, peers}` of known peers |
@@ -60,15 +60,27 @@ duplicate, format), so the endpoint is a new transport, not a new consensus rule
 | `GET /api/vm/contracts` | deployed contracts + the current VM `state_root`, `fork_height`, `enabled` |
 | `GET /api/vm/contract/{addr}` | a contract: `engine` (`riscv`), code, custody `balance`, storage slots |
 | `GET /api/vm/market/{addr}` | prediction-market contract state: pots, odds, resolution |
-| `GET /api/shield/stats` | shielded pool (doc/22): note/nullifier counts, pool value, sink |
+| `GET /api/shield/stats` | shielded pool (doc/22): `notes`/`key_images` counts, `pool_units`, `sink` |
 | `GET /api/shield/note/{note_id}` | public fields of a shielded note (nothing decryptable) |
-| `GET /api/proxy?target={url}` | same-origin relay to another node's read-only `/api` (lets the https explorer browse an http node despite the browser's mixed-content block); read-only, GET-only, `/api`-paths-only, SSRF-guarded; gated by `rest_api_proxy` (default on) |
-| `POST /api/transaction` | submit a signed tx (gated by `rest_api_write`; aliases: `POST /api/sendtx`, `POST /api/mempool`). The response echoes each tx's canonical id in `txids` (post-fork the content-hash txid; pre-fork the legacy signature prefix) |
+| `GET /api/proxy?target={url}` | same-origin relay to another node's read-only `/api` (lets the https explorer browse an http node despite the browser's mixed-content block); read-only, GET-only, `/api`-paths-only, SSRF-guarded (IP-pinned, no-redirect, port-allowlisted, rate-limited); gated by `rest_api_proxy` (default on) |
+| `POST /api/transaction` | submit a signed tx (gated by `rest_api_write`; aliases: `POST /api/sendtx`, `POST /api/mempool`). The response echoes each tx's canonical id in `txids` (post-fork the content-hash txid; pre-fork the legacy signature prefix)¹ |
+| `GET /api/stats/summary` | network dashboard: height, difficulty, recent avg block time, peers, consensus, mempool, token count (`rest_stats.network_summary`) |
+| `GET /api/stats/tx_per_month` | transactions-per-month histogram — a full-ledger GROUP BY computed in the background and topped up incrementally; returns `status:"computing"` until the first scan finishes (`rest_stats.tx_per_month`) |
+| `GET /api/stats/difficulty` | difficulty time-series sampled from the indexed `misc` table (~180 points, cheap — no full scan) (`rest_stats.difficulty_series`) |
+| `GET /api/stats/geo` | geolocated peers for the explorer world map (best-effort ip-api.com batch lookup, cached with a TTL; gated by `rest_api_geo`, default on) (`rest_stats.geo_nodes`) |
 
 Responses are JSON with appropriate status codes (`200`, `400` bad request, `403` forbidden, `404` not
-found, `500` server error) and `Access-Control-Allow-Origin: *`. Transactions are formatted with
-`essentials.format_raw_tx` (the same shape as the socket `*json` commands), so amounts/fields match
-the legacy JSON responses.
+found, `429` rate-limited, `500` server error, plus `502`/`503` from the relay) and
+`Access-Control-Allow-Origin: *`. Transactions are formatted with `essentials.format_raw_tx` (the same
+shape as the socket `*json` commands), so amounts/fields match the legacy JSON responses; synced amounts
+go through `amounts.consensus_amount` (the exact, never-float value) so a REST-synced node derives the
+same hashes as a socket-synced one (`rest_api.py:1079-1082`).
+
+¹ The echoed post-fork txid is `bismuth_serialize.tx_id` over the submitted wire fields
+(`rest_api.py:445`), and `tx_id`/`signature_buffer` use the **amount string exactly as it arrived on the
+wire** — they do not reformat it to canonical `'%.8f'` (`bismuth_serialize.py:25-28`). A wallet that signs
+a non-canonical amount string therefore gets an echoed id over that same raw string; the echo is a
+convenience commitment, not a re-canonicalization.
 
 Example:
 
@@ -92,21 +104,55 @@ fetches the target's `/api` **server-side** (node→node http — no browser pol
 the JSON. The browser only ever talks to its own https origin. The relay is locked down: GET only, the
 target scheme must be http(s), the target path must be under `/api`, and the host must resolve to a
 **public** address — loopback / private / link-local (incl. the `169.254.169.254` cloud-metadata IP) /
-reserved targets are refused (`403`) so the node can't be used as an SSRF pivot. Disable entirely with
-`rest_api_proxy=False`. Upstream status codes propagate (a target `404` returns `404`), and an
-unreachable target returns `502`.
+multicast / reserved / unspecified targets are refused (`403`) so the node can't be used as an SSRF
+pivot. Disable entirely with `rest_api_proxy=False`. Upstream status codes propagate (a target `404`
+returns `404`), and an unreachable target returns `502`.
+
+The SSRF guard was hardened against the bypasses a basic public-address check still leaves open
+(`rest_api.py:536-643`):
+
+- **IP-pinned fetch (no DNS rebind).** The host is resolved **exactly once**; *every* returned address
+  must be public, and the single validated IP is then **pinned** for the actual connection
+  (`_proxy_guard_host` → `_proxy_fetch`). The guard's lookup and the connecting socket can no longer
+  resolve to different addresses, closing the rebind TOCTOU. For https the TLS handshake still uses the
+  hostname for SNI + cert validation while the socket connects to the pinned IP.
+- **No redirects.** The relay refuses any `3xx` (`PROXY_MAX_REDIRECTS = 0`); a `Location` to an internal
+  host would never be re-validated, so a redirect is treated as a `403` rather than followed.
+- **Port allowlist.** The target port must be one of `80, 443, 5658, 5659` (`PROXY_DEFAULT_PORTS`) plus
+  any `rest_api_proxy_ports` set on the node, so the relay can't be turned into an arbitrary-port scanner /
+  service oracle. A disallowed port is `403`. (`rest_api_proxy_ports`, like `rest_api_geo` and
+  `txid_scan_limit` below, is read via `getattr` with a built-in default and is **not yet declared in
+  `options.py`**, so today it takes its default unless set programmatically.)
+- **Rate limit + concurrency cap.** A coarse per-client-IP token bucket (`PROXY_RATE_MAX = 30` per
+  `PROXY_RATE_WINDOW = 10`s → `429`) and a global in-flight cap (`PROXY_MAX_CONCURRENCY = 8`, a
+  `BoundedSemaphore` → `503` when saturated) bound the amplification surface. Bodies are capped at
+  `PROXY_MAX_BYTES` (8 MB → `502`).
 
 ```bash
 # relay another node's status through this node (what the explorer does under the hood)
 curl "http://127.0.0.1:5659/api/proxy?target=http%3A%2F%2F185.100.232.5%3A5659%2Fapi%2Fstatus"
 ```
 
+## Looking up a post-fork content-hash txid (bounded scan)
+
+The post-hf2 content-hash txid is `blake2b(signature_buffer)` computed **on read** — it deliberately has
+**no DB column** (`rest_api.py:1163-1203`). Resolving one therefore means re-hashing post-fork rows until a
+match. To stop an unauthenticated lookup of a random/absent 64-hex id from dragging the entire post-fork
+ledger through blake2b, the scan is **bounded and recent-first** (audit H-4): it streams the
+`transactions` index newest-first (`ORDER BY block_height DESC`) and short-circuits on the first match. By
+default the window is a recent slice — `max(fork_height, tip − txid_scan_limit)` — which covers the common
+case of a freshly-created id. `?from_height=N` moves the window's lower bound down to reach a deep
+historical id. The rows scanned are capped at `txid_scan_limit` (default 250 000); exceeding the cap
+returns `400` asking the caller to narrow with `?from_height`. (The legacy signature-prefix lookup is a
+single indexed `LIKE` query and is unaffected.)
+
 ## Tested
 
 `tests/test_rest_api.py` runs against a regnet node (`rest_api=True`, port 3031) and exercises the core
 read endpoints + 404 handling. The newer endpoints are covered by their feature tests:
 `/api/fee` by `test_fee_dynamics`/`test_transactions`; `/api/vm/*` by `test_vm_post_fork` + `test_vm_value`;
-`/api/supply`, `/api/tokens`, `/api/nodes` by `test_explorer_endpoints`. The `/api/proxy` relay (happy
+`/api/supply`, `/api/tokens`, `/api/nodes` by `test_explorer_endpoints`; `/api/stats/*` by
+`test_stats_endpoints` (summary/tx_per_month/difficulty/geo shapes). The `/api/proxy` relay (happy
 path + SSRF/scheme/path guards + the disabled state) is covered by the `proxy` tests in `test_rest_api`.
 
 `POST /api/transaction` (the write path) is covered by `test_rest_api_write` — a signed tx submitted

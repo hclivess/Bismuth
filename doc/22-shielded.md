@@ -170,18 +170,24 @@ sig       = ECDSA_p( SHA256("bis-shield-spend/v1" || note_id || canonical(output
 
 `openfield` carries compact JSON (well under the 100 000-byte cap; `operation` ≤ 30 bytes).
 
-`shield:mint` — transparent `recipient = SHIELD_SINK`, `amount = note_amount`:
+`shield:mint` — transparent `recipient = SHIELD_SINK`, `amount = note_amount` (unchanged across stages):
 ```json
 {"v":1,"R":"<66 hex>","P":"<66 hex>","amt":<int units>,"tok":"bis","memo":"<b64>","c":"<commitment>"}
 ```
 
-`shield:spend` — transparent amount 0:
+> **Superseded for spends/redeems.** The single-input `{"in","nf"}` spend/redeem encoding below was the
+> stage-1 nullifier model and is **no longer accepted by consensus** — `shieldedv1.validate_block` only
+> dispatches a `shield:spend`/`shield:redeem` that carries a **`ring`** (v2 ring signature, §12) or the v3
+> RingCT proof (§13); there is no `_resolve` path for an `in`/`nf` spend. Read §12 for the live v2 encoding
+> and §13 for v3. The two blocks are kept here only to show the original stage-1 shape.
+
+`shield:spend` (stage-1 nullifier model — superseded by §12) — transparent amount 0:
 ```json
 {"v":1,"in":"<note_id>","P":"<66 hex>","nf":"<nullifier>","sig":"<hex>",
  "out":[{"R":..,"P":..,"amt":..,"tok":..,"memo":..,"c":..}, ...]}
 ```
 
-`shield:redeem` — consensus pays out SINK→`to`:
+`shield:redeem` (stage-1 nullifier model — superseded by §12) — consensus pays out SINK→`to`:
 ```json
 {"v":1,"in":"<note_id>","P":"<66 hex>","nf":"<nullifier>","sig":"<hex>","to":"<address>","amt":<int>}
 ```
@@ -194,13 +200,18 @@ Validation runs in `digest.process_block_data` **before `to_db`**, so a violatin
 never committed (same placement as the VM state-root check). Enforced only when
 `block_height >= node.fork_height` (pre-fork these ops are inert data, exactly like `vm:`).
 
+> **Stage-2 supersedes the spend/redeem rule below.** The live consensus rule for spends/redeems is the
+> **ring + key-image** check in §12 (no `nullifier`, no referenced-input lookup). The mint rule is
+> unchanged. The stage-1 spend/redeem bullet is retained for context.
+
 A block is **invalid** if any `shield:` tx in it fails:
 
 - **mint**: malformed; `note_id` already exists; transparent `recipient != SHIELD_SINK`; transparent
   `amount != amt`.
-- **spend/redeem**: malformed; referenced input note does not exist (as of height−1) or is already
-  spent; `nullifier` already in the consensus set, or repeated earlier in the *same* block; ownership
-  `sig` invalid under the input note's `P`; for spend, `Σ out.amt != in.amt`; for redeem, `amt != in.amt`.
+- **spend/redeem** (stage-1 model — superseded by §12): malformed; referenced input note does not exist
+  (as of height−1) or is already spent; `nullifier` already in the consensus set, or repeated earlier in
+  the *same* block; ownership `sig` invalid under the input note's `P`; for spend, `Σ out.amt != in.amt`;
+  for redeem, `amt != in.amt`.
 
 Notes:
 - **One-block maturity:** a note can be spent only in a block *after* the one that mints it (the input
@@ -209,10 +220,11 @@ Notes:
   node computes them identically — no committed state root is required for correctness in stage 1
   (a committed `shield_state_root` in the coinbase, like the VM's, is an optional hardening listed in §9).
 
-After `to_db`, the parsed ops are applied to the sidecar (notes inserted, nullifiers recorded) and each
-redeem writes a consensus payout row `SHIELD_SINK → to` via `db_handler.shield_payout` (a negative-height
-mirror row, exactly like `vm_payout`/dev rewards), so the sink's ledger balance tracks the pool and rolls
-back with the chain.
+After `to_db`, the parsed ops are applied to the sidecar (`shieldedv1.apply_block`, called from
+`digest.py` after `to_db`): notes inserted, **key images recorded** (stage 2 — §12; the stage-1
+"nullifiers recorded" wording is obsolete) and pool flows updated. Each redeem writes a consensus payout
+row `SHIELD_SINK → to` via `db_handler.shield_payout` (a negative-height mirror row, exactly like
+`vm_payout`/dev rewards), so the sink's ledger balance tracks the pool and rolls back with the chain.
 
 **Supply invariant:** `Σ unspent note.amt == ledger_balance(SHIELD_SINK)` at every height. Mints credit
 the pool and the sink together; redeems debit both; spends conserve. Because amounts are transparent,
@@ -222,25 +234,35 @@ this is publicly auditable — there is no path to undetected inflation (contras
 
 ## 7. Sidecar state (per-ledger, reorg-safe)
 
-A SQLite sidecar next to the ledger, **namespaced by ledger filename** to avoid the regnet→mainnet
-pollution class of bug (doc/18 incident): `shielded-<ledger file>.db`.
+> **The sidecar is an LMDB store, not SQLite** (`shieldedv1.ShieldedState`). The schema below describes
+> the live stage-2 layout (key images, not nullifiers); the stage-1 `nullifiers`-table description that
+> earlier drafts carried is obsolete. §12 cross-references this section.
+
+An LMDB environment next to the ledger, **namespaced by ledger filename** to avoid the regnet→mainnet
+pollution class of bug (doc/18 incident): `shielded-<ledger file>` (a directory). It opens with six
+sub-DBs (`shieldedv1.py` `__init__`):
 
 ```
-notes(note_id TEXT PK, create_height INT, token TEXT, amount INT,
-      r_pub TEXT, p_pub TEXT, memo TEXT, commitment TEXT)
-nullifiers(nullifier TEXT PK, spend_height INT, note_id TEXT)
+notes   (note_id        -> {h,tok,amt,R,P,memo,C})   -- decoys + scanning targets
+notes_h (height||note_id -> "")                       -- height-ordered index for rollback
+kimg    (image          -> height)                    -- the spent-set (key images)
+kimg_h  (height||image  -> "")                         -- height-ordered index for rollback
+flows   (height||seq    -> delta)                      -- pool value = Σ delta
+meta    (pool / nnotes / nki / flowseq counters)
 ```
-"Spent" is **not** a mutable flag on the note — it is the existence of a `nullifiers` row referencing it.
-This makes rollback a pure delete:
+"Spent" is **not** a mutable flag on the note — it is the existence of a `kimg` entry (key image). This
+makes rollback a pure height-delete that range-scans the `*_h` secondary keys (O(rolled-back rows), not a
+full scan):
 ```
-rollback_under(H):  DELETE FROM nullifiers WHERE spend_height >= H;
-                    DELETE FROM notes      WHERE create_height >= H;
+rollback_under(H):  delete kimg/kimg_h, notes/notes_h, flows rows with height >= H
 ```
-Wired into **every** rollback site that already rolls the token index — `chain_ops.rollback`,
-`chain_ops.blocknf`, `chain_ops.sequencing_check` — so a reorg can never desync the spent set from the
-ledger (deleting the nullifier rows makes the notes spendable again on the new branch, which is correct).
-The sidecar is a deterministic projection of the chain and can also be rebuilt from scratch by replaying
-post-fork `shield:` txs (used on first sync; the same idea as VM-state rebuild).
+Writes are buffered per block and flushed **atomically in one txn at `commit()`** (a block's shield ops
+are all-or-nothing); `begin()` drops any partial buffer left by a failed prior apply. Wired into **every**
+rollback site that already rolls the token index — `chain_ops.rollback`, `chain_ops.blocknf`,
+`chain_ops.sequencing_check` — so a reorg can never desync the spent set from the ledger (deleting the
+key-image rows makes the notes spendable again on the new branch, which is correct). The sidecar is a
+deterministic projection of the chain and can also be rebuilt from scratch by replaying post-fork
+`shield:` txs (used on first sync; the same idea as VM-state rebuild).
 
 ---
 
@@ -252,7 +274,9 @@ post-fork `shield:` txs (used on first sync; the same idea as VM-state rebuild).
 - **Config:** `shield=True` (off by default; `options.py`), mirroring `vm`. The sidecar opens at startup
   when enabled; inert until hf2 activates.
 - **API (read-only):**
-  - `GET /api/shield/stats` → `{enabled, fork_height, notes, nullifiers, pool_units}`
+  - `GET /api/shield/stats` → `{enabled, fork_height, sink, notes, key_images, pool_units}`
+    (`rest_api.py` `_shield_stats`; the spent-set count is **`key_images`**, not `nullifiers`, and the
+    response also pins the `sink` address whose ledger balance must equal `pool_units`)
   - `GET /api/shield/note/{note_id}` → public note fields (never anything decryptable without keys)
   Wallets *scan* by pulling `shield:` txs from the existing `/api/address/.../transactions` /
   block endpoints and trial-decrypting locally; the node never holds view keys.
@@ -349,13 +373,14 @@ amount/token; repeats a ring member; has `1 > n` or `n > MAX_RING`; presents a k
 set (cross-block) or repeated in-block; fails `ring_verify`; or breaks conservation (`Σout != A` / `amt
 != A`). Mints are unchanged from stage 1.
 
-### Sidecar (revised schema)
+### Sidecar (revised layout — LMDB, see §7)
+The spent-set is a set of **key images** in the `kimg` sub-DB (image→height), not a `nullifiers` table;
+notes become purely the decoy/scanning set, and the pool is tracked in the `flows` sub-DB. The full LMDB
+sub-DB list (`notes`/`notes_h`/`kimg`/`kimg_h`/`flows`/`meta`) is in §7.
 ```
-notes(note_id PK, create_height, token, amount, r_pub, p_pub, memo, commitment)   -- decoys + scanning
-keyimages(image TEXT PK, spend_height INT)                                         -- the spent-set
-flows(rowid, height INT, delta INT)                                               -- pool = Σ delta
-rollback_under(H): DELETE FROM keyimages WHERE spend_height>=H; notes WHERE create_height>=H;
-                   flows WHERE height>=H;
+kimg  (image -> height)              -- the spent-set (replaces stage-1 nullifiers)
+flows (height||seq -> delta)          -- pool value = Σ delta
+rollback_under(H): height-delete kimg/notes/flows rows with height >= H (range-scan the *_h indexes)
 ```
 Rollback stays a pure height-delete at the same three sites; a reorg removes the key images of undone
 spends, making those notes spendable again on the new branch.

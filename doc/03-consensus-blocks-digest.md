@@ -48,11 +48,22 @@ characterization tests (see [14](14-known-issues-and-improvements.md)) passing i
        the mempool.
    11. **Update tip** — set `node.last_block` / `node.last_block_hash` (then write).
    12. **Plugin hooks** — fire `block` / `fullblock`.
-   13. **Write** — `db_handler.to_db(block, diff_save, block_transactions)` (one batched commit).
-   14. **Mirror hash** — `blake2b(latest-block rows, digest_size=20)`.
-   15. **Dev/HN rewards** — only when `height % 10 == 0` and `height < 4,380,000`:
+   13. **Post-fork reject checks** — once `block_height >= node.fork_height` (the dynamic hf2 fork; all
+       three are inert pre-fork and on regnet/when state is absent), still BEFORE the commit:
+       - **VM state-root** (`digest.py` ~545): the coinbase MUST commit the pre-state VM root
+         (`vm_engine.extract_state_root`); a missing root, or one `!= node.vm_state_root`, raises and
+         rejects the block (see [19](19-vm.md)).
+       - **Multisig timing** (`digest.py` ~572): a multisig SENDER address
+         (`SignerFactory.address_is_multisig`) is only accepted at/after `fork_height`; any multisig
+         spend at a lower height raises (chain-split safety — receiving INTO a multisig is always fine).
+       - **Shielded value** (`digest.py` ~588): `shieldedv1.validate_block(...)` consensus-validates the
+         block's `shield:` txs (key-image double-spend, value conservation, ownership proofs); failure
+         raises. Parsed ops are stashed and applied to the LMDB sidecar only after `to_db` succeeds.
+   14. **Write** — `db_handler.to_db(block, diff_save, block_transactions)` (one batched commit).
+   15. **Mirror hash** — `blake2b(latest-block rows, digest_size=20)`.
+   16. **Dev/HN rewards** — only when `height % 10 == 0` and `height < 4,380,000`:
        `db_handler.dev_reward(...)` and `db_handler.hn_reward(...)` (negative "mirror" block heights).
-   16. **Token update** — if the block carried `token:issue`/`token:transfer`, run
+   17. **Token update** — if the block carried `token:issue`/`token:transfer`, run
        `tokens.tokens_update()`.
 4. **Checkpoint** — `checkpoint_set(node)` advances `node.checkpoint` (the rollback floor).
 5. **Cleanup (`finally`)** — `db_handler.db_to_drive()` flushes; release `db_lock`; fire `digestblock`.
@@ -79,35 +90,60 @@ and `openfield` starting with `alias=` trigger feature processing and fee surcha
 
 ## Reward & fee model
 
-**Mining reward** (`min` floor 0.5 BIS):
+**Mining reward** (`min` floor 0.5 BIS; the switch is keyed on the fixed `POW_FORK`, **not** hf2):
 
 | Range | Formula |
 |---|---|
-| pre-fork (height < 1,450,000) | `15 - height/500000 - 2.4` |
-| post-fork mainnet (≥ 1,450,000) | `15 - (height-1450000)/1100000 - 9.5` |
-| post-fork testnet (≥ 894,170) | `15 - (height-894170)/1100000 - 9.5` |
+| pre-`POW_FORK` (height < 1,450,000) | `15 - height/500000 - 2.4` |
+| post-`POW_FORK` mainnet (≥ 1,450,000) | `15 - (height-1450000)/1100000 - 9.5` |
+| post-`POW_FORK` testnet (≥ 894,170) | `15 - (height-894170)/1100000 - 9.5` |
 
 The coinbase `reward` column stores `mining_reward + sum(fees in block)` — all fees go to the miner.
 
-**Fee** (`essentials.fee_calculate`): `0.01 + len(openfield)/100000`, plus **+10** for
+**Fee** (`essentials.fee_calculate`): `base + len(openfield)/100000`, plus **+10** for
 `operation == "token:issue"`, plus **+1** when `openfield` starts with `alias=`; quantized to 8 dp.
+`base` is the static `BASE_FEE = 0.01` pre-fork (and whenever no `base_fee` is passed). **Post-fork**
+the caller passes the **dynamic base fee** (`fee_dynamics.base_fee`): `0.01 × clamp(avg(recent block
+weights)/TARGET_WEIGHT, 0.5, 10)`. The congestion signal is per-block **WEIGHT/`TARGET_WEIGHT` (30)**
+read from the LMDB block store (`block_store.recent_block_weights`) — NOT a SQLite tx-count. Post-fork
+also adds two execution surcharges (only when `vm_surcharge=True`): **+0.01** (`fee_dynamics.VM_SURCHARGE`)
+for `operation` starting `vm:`, and **+1** for `operation` starting `shield:` (doc/22 EC-validation cost).
 
 **Dev / HN rewards**: applied every 10th block until height 4,380,000, written as negative-height
 "mirror" rows by `db_handler.dev_reward` / `hn_reward`.
 
 ## Hardforks (`fork.py`)
 
+There are **two distinct forks**, gated by **different signals** — do not conflate them:
+
+**1. Legacy `POW_FORK` (a FIXED height, `Fork.__init__`)** — the historical 2020 reward/version fork.
+
 | Symbol | Value | Meaning |
 |---|---|---|
-| `POW_FORK` | 1,450,000 | mainnet PoW fork height |
+| `POW_FORK` | 1,450,000 | mainnet legacy reward/version fork height |
 | `POW_FORK_TESTNET` | 894,170 | testnet equivalent |
 | `FORK_AHEAD` | 5 | blocks before the fork at which old protocol versions start being rejected |
-| `REWARD_MAX` | 6 | reward at `POW_FORK+1` ≥ this ⇒ wrong chain ⇒ rollback |
+| `REWARD_MAX` | 6 | reward at `POW_FORK+1` ≥ this ⇒ wrong chain ⇒ rollback (`check_postfork_reward`) |
 | `versions_remove` | `mainnet0017..0020` | versions banned after the fork |
 
-At the fork: reward formula switches, old versions are dropped (`limit_version`), the tx-age window
-tightens to 2 h, and the checkpoint granularity drops from 1000 to 30 blocks (≈ max 59-block
-rollback).
+At `POW_FORK`: the reward formula switches, old versions are dropped (`limit_version`), the tx-age
+window tightens to 2 h, and the checkpoint granularity drops from 1000 to 30 blocks (≈ max 59-block
+rollback). This is a **fixed-height** fork — nothing here reads `node.fork_height`.
+
+**2. Dynamic `hf2` fork (`node.fork_height`, signal-activated)** — the modern single bundle. Its height
+is **not** a constant: it is derived deterministically from an on-chain miner signal
+(`FORK2_SIGNAL = "hf2"` in coinbase openfields; `dynamic_fork_height` locks in after a
+`FORK2_WINDOW`-block run and activates a `FORK2_BURY`-buried round boundary later) and persisted to a
+sidecar. `node.fork_height` is `None` until lock-in, so every rule below is inert on mainnet pre-fork.
+Everything bundled into hf2 gates on `block_height >= node.fork_height`: the blake2b Heavy3 PoW swap
+(`new_pow`, pipeline step 9), the fork-aware signature path (steps 3, `SignerFactory.verify_tx_signature`),
+the three post-fork reject checks (step 13: VM state-root, multisig timing, shielded `validate_block`),
+and the LWMA difficulty retarget (`difficulty_lwma.py`, gated in `difficulty.py`). There is one signal
+and one activation height — never add a second fork knob.
+
+**Regnet** never participates in either fork's difficulty path: `difficulty(node, …)` returns a fixed
+`regnet.REGNET_DIFF` tuple immediately when `node.is_regnet` (`difficulty.py:75`), so the LWMA/legacy
+controllers are bypassed entirely.
 
 ## Ledger schema (created by `genesis.py`)
 
