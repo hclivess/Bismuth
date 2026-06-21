@@ -86,9 +86,9 @@ def test_hf2_single_sig_fork_transition(client):
     assert tx[5] == "" and len(tx[4]) == 130, "tx is not in recoverable/dropped-pubkey wire form"
     expected_txid = bismuth_serialize.tx_id(tx[0], tx[1], tx[2], tx[3], tx[6], tx[7])
     _send_and_mine(client, tx)
-    deadline = time.time() + 10
+    deadline = time.time() + 30                       # generous: the tx must be mined AND digested
     while _ecdsa_balance(client, addr) > bal_before - 4 and time.time() < deadline:
-        client.mine(1)
+        client.mine(1); time.sleep(0.4)              # let the async digest catch up before re-reading
     bal_after = _ecdsa_balance(client, addr)
     assert bal_after <= bal_before - 5, \
         "post-fork recoverable tx was not accepted/mined (balance %s -> %s)" % (bal_before, bal_after)

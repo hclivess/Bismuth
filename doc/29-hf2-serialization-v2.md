@@ -2,6 +2,21 @@
 
 > Generated 2026-06-21 by a multi-agent design pass cross-checked against the tree. The single hf2 fork
 > includes the full serialization rework (user directive: one fork). Implementation staged below.
+>
+> **Implementation status (2026-06-21):**
+> - ✅ **Stage 0** — v2 tx pre-image codec (`signature_buffer_v2`/`tx_id_v2`) + block-hash codec
+>   (`block_hash_v2`) + fork-aware dispatcher (`block_hash_at`), characterization-pinned (`bismuth_serialize.py`,
+>   `tests/test_characterization.py`).
+> - ◑ **Stage 1** — block-hash codec (`block_hash_v2`) + fork-aware dispatcher (`block_hash_at`) implemented
+>   and characterization-pinned; replay across the boundary + the 29-test consensus subset pass. The live
+>   activation (routing `digest.py`/`replay_verify.py` through `block_hash_at`) is **held back**: with it wired,
+>   two timing/state-sensitive FULL-SUITE tests (`test_hf2_fork_transition` txid assertion, `test_block_store_
+>   integration` block-2 presence) fail non-deterministically (they pass in isolation + the subset, and the
+>   codec is replay-clean), so the activation is deferred until that full-suite interaction is root-caused and
+>   the suite is reliably green with it. Signature/public_key would be encoded AS STORED at first; the raw-byte
+>   + pubkey-by-reference refinement (§2.C) lands before mainnet hf2 lock-in.
+> - ◻ **Stage 2+** — tx signing pre-image → v2 for single-sig secp256k1; pubkey-by-reference / raw sig+pubkey;
+>   coinbase compaction. (Free to evolve the post-fork form until mainnet locks in — regnet is ephemeral.)
 
 # Bismuth hf2 — Binary/Integer Serialization Rework: Authoritative Engineering Spec
 

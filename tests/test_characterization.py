@@ -217,3 +217,24 @@ def test_v2_and_legacy_preimages_cannot_alias():
     v2 = bismuth_serialize.signature_buffer_v2(150000000000, "a", "b", 100000000, "op", "d")
     legacy = bismuth_serialize.signature_buffer("1500000000.00", "a", "b", "1.00000000", "op", "d")
     assert v2[0] == 0xB2 and legacy[0] == 0x28 and v2 != legacy
+
+
+def test_consensus_block_hash_v2_is_frozen():
+    import bismuth_serialize
+    txs = [("1500000000.00", "a", "r", "0.00000000", "sig", "pk", "0", "of")]
+    h = bismuth_serialize.block_hash_v2(txs, "ab" * 32)   # 64-hex post-fork parent
+    assert h == "3fa7eebf31b44f6c1851a969ac3ead838ea845fd1d0988b7b2490a9b37e337ec"
+    assert len(h) == 64
+
+
+def test_block_hash_dispatch_selects_by_height():
+    # the load-bearing pre-fork-byte-identity guarantee: below fork_height (or fork_height None) the
+    # block hash is the frozen legacy sha224; at/after it is block_hash_v2.
+    import bismuth_serialize
+    txs = [("1500000000.00", "a", "r", "0.00000000", "sig", "pk", "0", "of")]
+    prev = "ab" * 32
+    legacy = bismuth_serialize.block_hash(txs, prev)
+    v2 = bismuth_serialize.block_hash_v2(txs, prev)
+    assert bismuth_serialize.block_hash_at(99, 100, txs, prev) == legacy
+    assert bismuth_serialize.block_hash_at(100, 100, txs, prev) == v2
+    assert bismuth_serialize.block_hash_at(100, None, txs, prev) == legacy

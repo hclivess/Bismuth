@@ -11,6 +11,7 @@ These functions reproduce the legacy forms EXACTLY and are locked by characteriz
 tests/test_characterization.py. DO NOT change their output.
 """
 import hashlib
+from decimal import Decimal
 
 __version__ = "0.0.1"
 
@@ -95,3 +96,61 @@ def tx_id_v2(timestamp_cs, address, recipient, amount_units, operation, openfiel
     return hashlib.blake2b(
         signature_buffer_v2(timestamp_cs, address, recipient, amount_units, operation, openfield),
         digest_size=32).hexdigest()
+
+
+def _v2_ts_cs(ts) -> int:
+    """A '%.2f'-form timestamp -> integer centiseconds (exact, no float; matches quantize_two precision)."""
+    return int((Decimal(str(ts)).quantize(Decimal("0.01")) * 100).to_integral_value())
+
+
+def _v2_units(amount) -> int:
+    """A '%.8f'-form amount -> integer atomic units (exact; matches amounts.to_units, kept inline so the
+    frozen consensus module stays dependency-light)."""
+    return int((Decimal(str(amount)).quantize(Decimal("0.00000001")) * 100000000).to_integral_value())
+
+
+def _v2_tx_bytes(tx) -> bytes:
+    """Canonical binary encoding of ONE converted 8-field tx tuple for the block hash (doc/29 §2.B):
+    (timestamp, address, recipient, amount, signature, public_key, operation, openfield). timestamp ->
+    integer centiseconds, amount -> integer atomic units; all variable fields length-prefixed, little-
+    endian. NOTE: signature/public_key are encoded AS STORED (still base64 in this stage); the raw-byte +
+    pubkey-by-reference refinement (doc/29 §2.C) lands later, before mainnet hf2 lock-in."""
+    of = tx[7]
+    of_b = of.encode("utf-8") if isinstance(of, str) else bytes(of)
+    return (_v2_ts_cs(tx[0]).to_bytes(8, "little")
+            + _v2_units(tx[3]).to_bytes(8, "little")
+            + _v2_lp(str(tx[1]).encode("utf-8"), 1)      # address
+            + _v2_lp(str(tx[2]).encode("utf-8"), 1)      # recipient
+            + _v2_lp(str(tx[4]).encode("utf-8"), 2)      # signature
+            + _v2_lp(str(tx[5]).encode("utf-8"), 2)      # public_key
+            + _v2_lp(str(tx[6]).encode("utf-8"), 1)      # operation
+            + _v2_lp(of_b, 4))                           # openfield
+
+
+def block_hash_v2(transaction_list_converted, previous_hash: str) -> str:
+    """Post-hf2 block hash (doc/29 §2.B): blake2b-256 over a canonical BINARY per-tx encoding with native
+    integer amount + integer timestamp, replacing sha224(str(8-tuples)+prev). Deterministic and stronger
+    than the legacy repr (explicit lengths -> two implementations can't diverge on quoting/escaping).
+    previous_hash: a 64-hex post-fork parent is taken as raw bytes; the FIRST post-fork block's parent is
+    the last pre-fork 56-hex sha224 hash -> encoded as UTF-8 (one-time boundary case)."""
+    pre = len(transaction_list_converted).to_bytes(4, "little")
+    for tx in transaction_list_converted:
+        pre += _v2_tx_bytes(tx)
+    prev = str(previous_hash)
+    if len(prev) == 64:
+        try:
+            prev_b = bytes.fromhex(prev)
+        except ValueError:
+            prev_b = prev.encode("utf-8")
+    else:
+        prev_b = prev.encode("utf-8")              # pre-fork 56-hex parent at the boundary
+    return hashlib.blake2b(pre + prev_b, digest_size=32).hexdigest()
+
+
+# --- fork-aware dispatchers: legacy below fork_height (byte-identical), v2 at/after (doc/29 §4) ---------
+def block_hash_at(height, fork_height, transaction_list_converted, previous_hash: str) -> str:
+    """Select the block-hash encoding by the DESTINATION block height. fork_height None or height below it
+    -> the frozen legacy sha224 form (pre-fork byte-identity); at/after -> block_hash_v2."""
+    if fork_height is not None and height is not None and int(height) >= int(fork_height):
+        return block_hash_v2(transaction_list_converted, previous_hash)
+    return block_hash(transaction_list_converted, previous_hash)
