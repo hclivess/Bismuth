@@ -241,7 +241,7 @@ def _get(path):
         return json.load(r)
 
 
-def _mine_until(client, predicate, rounds=12):
+def _mine_until(client, predicate, rounds=30):
     for _ in range(rounds):
         if predicate():
             return

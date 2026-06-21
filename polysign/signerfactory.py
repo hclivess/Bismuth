@@ -185,7 +185,8 @@ class SignerFactory:
             # so a non-empty public_key is unverified malleability noise — reject it rather than ignore it.
             if str(public_key or "").strip() != "":
                 raise ValueError("post-fork single-sig secp256k1 tx must carry an empty public key")
-            txid = bismuth_serialize.tx_id(timestamp, address, recipient, amount, operation, openfield)
+            # Stage 2 (doc/29): the recoverable sig signs the BINARY-pre-image content txid (tx_id_v2_s).
+            txid = bismuth_serialize.tx_id_v2_s(timestamp, address, recipient, amount, operation, openfield)
             _load_optional_signer("SignerECDSA").verify_bis_signature_recovered(signature, txid, address)
             return
         buffer = bismuth_serialize.signature_buffer(timestamp, address, recipient, amount, operation, openfield)

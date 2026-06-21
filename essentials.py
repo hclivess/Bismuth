@@ -70,9 +70,12 @@ def format_raw_tx(raw: list, fork_height=None) -> dict:
     # (amounts.ledger_value normalises both storage modes back to the signed Decimal). Pre-fork rows (or
     # callers without a fork_height) keep the legacy signature[:56] slice, byte-for-byte unchanged.
     if fork_height is not None and raw[0] is not None and int(raw[0]) >= int(fork_height):
+        # Stage 2 (doc/29): the canonical post-fork txid is over the BINARY pre-image (integer units +
+        # centisecond timestamp), not the legacy '%.8f'/'%.2f' string buffer. tx_id_v2_s normalises the
+        # canonical decimal strings to ints, so it is storage-mode agnostic and matches what consensus signs.
         _amount_str = '%.8f' % amounts.ledger_value(raw[4])
-        txid = bismuth_serialize.tx_id(str(raw[1]), str(raw[2]), str(raw[3]),
-                                       _amount_str, str(raw[10]), str(raw[11]))
+        txid = bismuth_serialize.tx_id_v2_s(str(raw[1]), str(raw[2]), str(raw[3]),
+                                            _amount_str, str(raw[10]), str(raw[11]))
     else:
         txid = raw[5][:56]
     # Pre-size dictionary with all keys for better performance

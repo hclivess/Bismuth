@@ -42,8 +42,9 @@ def _tx_id_of(row):
     normalises both back to the signed '%.8f' string — matching essentials.format_raw_tx, so the deploy
     address derived here equals the tx's canonical txid the explorer/API surfaces."""
     amount_str = '%.8f' % amounts.ledger_value(row[_AMOUNT])
-    return bismuth_serialize.tx_id(str(row[_TS]), str(row[_ADDR]), str(row[_RECIP]),
-                                   amount_str, str(row[_OP]), str(row[_OF]))
+    # Stage 2 (doc/29): the VM is post-fork-only, so the canonical txid is the BINARY-pre-image tx_id_v2_s.
+    return bismuth_serialize.tx_id_v2_s(str(row[_TS]), str(row[_ADDR]), str(row[_RECIP]),
+                                        amount_str, str(row[_OP]), str(row[_OF]))
 
 
 def _caller_int(address):

@@ -15,8 +15,15 @@
 >   replay-clean; these were test-observation races under full-suite load, not consensus issues).
 >   Signature/public_key are encoded AS STORED for now; the raw-byte + pubkey-by-reference refinement (§2.C)
 >   lands before mainnet hf2 lock-in (the post-fork form is free to evolve until then — regnet is ephemeral).
-> - ◻ **Stage 2+** — tx signing pre-image → v2 for single-sig secp256k1; pubkey-by-reference / raw sig+pubkey;
->   coinbase compaction. (Free to evolve the post-fork form until mainnet locks in — regnet is ephemeral.)
+> - ✅ **Stage 2** — tx pre-image / **txid LIVE**: post-fork the canonical content txid is `tx_id_v2_s`
+>   (binary pre-image: integer atomic-unit amount + integer centisecond timestamp), wired through
+>   `essentials.format_raw_tx` (surfacing), `signerfactory.verify_tx_signature` + `hd_wallet.sign_transaction`
+>   (single-sig secp256k1 signs/verifies the binary txid via ecrecover), `vm_engine` (contract address),
+>   the REST `POST` echo, and the lite client. RSA/ED25519/multisig keep their legacy buffer **signing**
+>   (their canonical id is still the binary txid). Full regnet suite green.
+> - ◻ **Stage 3** — pubkey-by-reference + raw-byte sig/pubkey (the block-body SIZE win; needs a consensus
+>   address→key registry); **Stage 4** — coinbase compaction. Both gated on the one hf2 fork, before mainnet
+>   lock-in (the post-fork form is free to evolve until then — regnet is ephemeral).
 
 # Bismuth hf2 — Binary/Integer Serialization Rework: Authoritative Engineering Spec
 

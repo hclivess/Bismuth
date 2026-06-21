@@ -231,8 +231,9 @@ def sign_transaction(signer, timestamp, address, recipient, amount, operation=""
     from polysign.signerfactory import SignerFactory
     amount_s = "%.8f" % float(amount)
     if post_fork and SignerFactory.is_single_sig_ecdsa(str(address)):
-        txid = bismuth_serialize.tx_id(str(timestamp), str(address), str(recipient),
-                                       amount_s, str(operation), str(openfield))
+        # Stage 2 (doc/29): sign the BINARY-pre-image content txid (tx_id_v2_s), matching the digester.
+        txid = bismuth_serialize.tx_id_v2_s(str(timestamp), str(address), str(recipient),
+                                            amount_s, str(operation), str(openfield))
         sig_hex = signer.sign_buffer_for_bis_recoverable(bytes.fromhex(txid))
         signer.verify_bis_signature_recovered(sig_hex, txid, str(address))   # belt-and-suspenders
         return (str(timestamp), str(address), str(recipient), amount_s,

@@ -128,8 +128,8 @@ class LiteClient:
                                         amount, operation, data, post_fork=post_fork)
         self.command("mpinsert", [list(tx)])
         if post_fork and tx[5] == "":
-            import bismuth_serialize
-            return bismuth_serialize.tx_id(tx[0], tx[1], tx[2], tx[3], tx[6], tx[7])
+            import bismuth_serialize          # Stage 2 (doc/29): canonical post-fork id = binary-pre-image txid
+            return bismuth_serialize.tx_id_v2_s(tx[0], tx[1], tx[2], tx[3], tx[6], tx[7])
         return tx[4][:56]
 
     def send_raw_tx(self, tx):

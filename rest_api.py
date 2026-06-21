@@ -442,7 +442,10 @@ def _make_handler(node):
             # content-hash txid; otherwise the legacy signature[:56] slice.
             fh = getattr(node, "fork_height", None)
             post_fork = fh is not None and (int(getattr(node, "last_block", 0)) + 1) >= int(fh)
-            txids = [bismuth_serialize.tx_id(tx[0], tx[1], tx[2], tx[3], tx[6], tx[7]) if post_fork
+            # Stage 2 (doc/29): post-fork the canonical id is the BINARY-pre-image content txid; tx_id_v2_s
+            # normalises the wire ts/amount to canonical centiseconds/units (also fixes audit L-3 — the echo
+            # no longer hashes the raw, possibly non-'%.8f', wire amount).
+            txids = [bismuth_serialize.tx_id_v2_s(tx[0], tx[1], tx[2], tx[3], tx[6], tx[7]) if post_fork
                      else tx[4][:56] for tx in txs]
             return {"submitted": len(txs), "txids": txids, "result": result}
 

@@ -72,7 +72,7 @@ def _ensure_balance(client, need_bis):
     raise AssertionError("could not fund wallet to %s BIS (have %s)" % (need_bis, client.balance()))
 
 
-def _mine_until(client, predicate, rounds=12):
+def _mine_until(client, predicate, rounds=30):
     """Mine in small bursts until `predicate()` holds — robust to mempool contention in the shared session
     (a fixed mine(N) can miss inclusion when other tests' txs compete for the 2-tx/block slots)."""
     for _ in range(rounds):

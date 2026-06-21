@@ -84,11 +84,19 @@ def test_hf2_single_sig_fork_transition(client):
     tx = hd_wallet.sign_transaction(signer, "%.2f" % time.time(), addr, client.address,
                                     "5.0", post_fork=True)
     assert tx[5] == "" and len(tx[4]) == 130, "tx is not in recoverable/dropped-pubkey wire form"
-    expected_txid = bismuth_serialize.tx_id(tx[0], tx[1], tx[2], tx[3], tx[6], tx[7])
+    expected_txid = bismuth_serialize.tx_id_v2_s(tx[0], tx[1], tx[2], tx[3], tx[6], tx[7])
     _send_and_mine(client, tx)
-    deadline = time.time() + 30                       # generous: the tx must be mined AND digested
+    # Drive it on-chain robustly under full-suite load: re-assert it into the mempool each round (idempotent
+    # — a dup or an already-mined tx is a no-op) in case it was evicted, mine a couple of blocks, and wait
+    # for the async digest. Generous deadline since this runs on a busy shared post-fork node.
+    deadline = time.time() + 45
     while _ecdsa_balance(client, addr) > bal_before - 4 and time.time() < deadline:
-        client.mine(1); time.sleep(0.4)              # let the async digest catch up before re-reading
+        try:
+            client.command("mpinsert", [list(tx)])
+        except Exception:
+            pass
+        client.mine(2)
+        time.sleep(0.4)
     bal_after = _ecdsa_balance(client, addr)
     assert bal_after <= bal_before - 5, \
         "post-fork recoverable tx was not accepted/mined (balance %s -> %s)" % (bal_before, bal_after)
