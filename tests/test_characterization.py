@@ -190,3 +190,30 @@ def test_consensus_block_hash_is_frozen():
     # must equal the canonical legacy formula exactly
     assert (bismuth_serialize.block_hash(txs, prev)
             == hashlib.sha224((str(txs) + prev).encode("utf-8")).hexdigest())
+
+
+# --- hf2 post-fork BINARY serialization (doc/29) — pin the v2 codec so it can't drift either --------
+
+def test_consensus_signature_buffer_v2_is_frozen():
+    import bismuth_serialize
+    # canonical little-endian binary pre-image: MAGIC|VERSION|ts_cs(u64)|amount(u64)|lp(addr,recip,op)|lp(of,u32)
+    buf = bismuth_serialize.signature_buffer_v2(150000000000, "Bis1aaaa", "bbbb",
+                                                100000000, "vm:call", "x")
+    assert buf.hex() == ("b201005cb2ec2200000000e1f50500000000"
+                         "084269733161616161046262626207766d3a63616c6c0100000078")
+    assert buf[0] == bismuth_serialize.V2_MAGIC and buf[1] == bismuth_serialize.V2_VERSION
+
+
+def test_consensus_tx_id_v2_is_frozen():
+    import bismuth_serialize
+    assert (bismuth_serialize.tx_id_v2(150000000000, "Bis1aaaa", "bbbb", 100000000, "vm:call", "x")
+            == "53b11e1ba5cfb4194ca66063a9944e9a46588a6b434bae634878cff841164a20")
+
+
+def test_v2_and_legacy_preimages_cannot_alias():
+    # a v2 pre-image starts with 0xB2; a legacy one starts with ASCII '(' (0x28) — so even an un-gated
+    # mixup can never produce the same bytes for the two encodings.
+    import bismuth_serialize
+    v2 = bismuth_serialize.signature_buffer_v2(150000000000, "a", "b", 100000000, "op", "d")
+    legacy = bismuth_serialize.signature_buffer("1500000000.00", "a", "b", "1.00000000", "op", "d")
+    assert v2[0] == 0xB2 and legacy[0] == 0x28 and v2 != legacy

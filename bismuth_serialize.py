@@ -52,3 +52,46 @@ def block_hash(transaction_list_converted, previous_hash: str) -> str:
     return hashlib.sha224(
         (str(transaction_list_converted) + previous_hash).encode("utf-8")
     ).hexdigest()
+
+
+# === hf2 binary/integer serialization (doc/29) — POST-FORK variants, gated by the CALLER on fork_height ===
+# Added BESIDE the frozen legacy functions above; the legacy forms are NEVER mutated (characterization-
+# locked, tests/test_characterization.py). These are inert until a consensus site routes through a
+# fork-aware dispatcher (staged rollout, doc/29 §4). A post-fork tx pre-image is a canonical little-endian
+# BINARY encoding over the SAME six content fields, with NATIVE INTEGER amount (atomic units) and an
+# integer centisecond timestamp — no '%.8f'/'%.2f' string reconstruction. signature and public_key are
+# excluded by construction (like the legacy buffer). The binary form is only ever BUILT from validated
+# fields for signing/hashing — it is not a wire format (the wire stays the 8-field tuple), so no decoder
+# is needed on the consensus path.
+V2_MAGIC = 0xB2            # 0xB2 can't begin a legacy pre-image (legacy starts with ASCII '(' = 0x28),
+V2_VERSION = 0x01         # so a v2 and a legacy pre-image can never alias even if a gate were missed.
+V2_OPENFIELD_MAX = 100000  # consensus cap (matches digest_tx truncation), u32 length prefix
+
+
+def _v2_lp(b: bytes, width: int) -> bytes:
+    """A length-prefixed field: `width`-byte little-endian byte-length, then the raw bytes."""
+    return len(b).to_bytes(width, "little") + b
+
+
+def signature_buffer_v2(timestamp_cs, address, recipient, amount_units, operation, openfield) -> bytes:
+    """Post-hf2 canonical BINARY transaction pre-image (doc/29 §2.A): the exact bytes a post-fork
+    signature signs and ``tx_id_v2`` hashes. ``timestamp_cs`` = integer centiseconds (preserves the
+    legacy '%.2f' precision), ``amount_units`` = integer atomic units (1 BIS = 1e8). Deterministic,
+    little-endian, length-prefixed; signature/public_key excluded. Layout:
+    MAGIC u8 | VERSION u8 | ts_cs u64 | amount u64 | addr(lp u8) | recip(lp u8) | op(lp u8) | openfield(lp u32)."""
+    addr_b = str(address).encode("utf-8")
+    recip_b = str(recipient).encode("utf-8")
+    op_b = str(operation).encode("utf-8")
+    of_b = openfield.encode("utf-8") if isinstance(openfield, str) else bytes(openfield)
+    return (bytes((V2_MAGIC, V2_VERSION))
+            + int(timestamp_cs).to_bytes(8, "little")
+            + int(amount_units).to_bytes(8, "little")
+            + _v2_lp(addr_b, 1) + _v2_lp(recip_b, 1) + _v2_lp(op_b, 1) + _v2_lp(of_b, 4))
+
+
+def tx_id_v2(timestamp_cs, address, recipient, amount_units, operation, openfield) -> str:
+    """Post-hf2 content txid over the BINARY pre-image — blake2b-256, 64 lowercase hex. Same role as the
+    legacy ``tx_id`` but over ``signature_buffer_v2`` (integer units, binary layout)."""
+    return hashlib.blake2b(
+        signature_buffer_v2(timestamp_cs, address, recipient, amount_units, operation, openfield),
+        digest_size=32).hexdigest()
