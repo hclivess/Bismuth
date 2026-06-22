@@ -65,6 +65,15 @@ def _rebuild_derived_state(node, db_handler, keep_height):
             if getattr(node, "balance_index_consensus", "off") != "off":
                 raise
             node.logger.app_log.warning(f"balance index rollback rebuild failed: {e}")
+    # the txid index is a full-ledger post-fork projection (doc/26 stage 4) — rebuild from the cursor so the
+    # dup-replay read can never trust txids confirmed above the new tip. HALT (not drift) when consensus-on.
+    if getattr(node, "txid_index", None) is not None:
+        try:
+            node.txid_index.rebuild_from_cursor(db_handler.c, getattr(node, "fork_height", None))
+        except Exception as e:
+            if getattr(node, "txid_index_consensus", "off") != "off":
+                raise
+            node.logger.app_log.warning(f"txid index rollback rebuild failed: {e}")
     # the VM contract state is a re-executable projection of the chain's vm: txs — rebuild it from the
     # rolled-back ledger and recompute the committed state root (deterministic, post-fork only).
     if getattr(node, "vm_state", None) is not None and getattr(node, "fork_height", None) is not None:

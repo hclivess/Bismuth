@@ -74,6 +74,16 @@ class BlockProcessor:
         # (previously fatal) behaviour when local orphans exist.
         confirmed_tip = block_instance.block_height_new - 1
         signature_list = []
+        txid_list = []
+
+        # doc/26 stage 4: shadow/primary the dup-replay read on the LMDB txid index. Engages POST-FORK only
+        # (pre-fork txs have no content txid and stay signature-deduped) and only when the index exists.
+        node = self.node
+        post_fork = (getattr(node, "fork_height", None) is not None
+                     and block_instance.block_height_new >= node.fork_height)
+        txi = getattr(node, "txid_index", None)
+        txi_mode = getattr(node, "txid_index_consensus", "off")
+        shadow_txid = post_fork and txi_mode != "off" and txi is not None
 
         for entry in block:
             entry_signature = entry[4]
@@ -83,17 +93,55 @@ class BlockProcessor:
 
             signature_list.append(entry_signature)
 
+            # Authoritative replay verdict (signature, confirmed chain only) — computed BEFORE raising so
+            # the shadow can compare without changing the (byte-identical) signature behaviour below.
+            sig_in_h = self._signature_exists_in_ledger(entry_signature, self.db_handler.h, confirmed_tip)
+            sig_in_c = self._signature_exists_in_ledger(entry_signature, self.db_handler.c, confirmed_tip)
+
+            if shadow_txid:
+                # The canonical content txid of this entry (== txid_index.txid_of of the stored row: both
+                # funnel the amount through the same atomic-unit normalization inside tx_id_v2_s).
+                txid = bismuth_serialize.tx_id_at(
+                    block_instance.block_height_new, node.fork_height,
+                    str(entry[0]), str(entry[1]), str(entry[2]), str(entry[3]), str(entry[6]), str(entry[7]))
+                txid_list.append(txid)
+                idx_seen = txi.contains(txid, confirmed_tip)
+                sig_seen = sig_in_h or sig_in_c
+                if idx_seen != sig_seen:
+                    msg = (f"txid-index dedup parity mismatch at {block_instance.block_height_new}: "
+                           f"txid {txid[:12]} index={idx_seen} sig={sig_seen}")
+                    if txi_mode == "primary":
+                        # index authoritative: a disagreement means a replay the SQLite read would miss,
+                        # or a stale index — HALT (a wrong dedup either inflates or wedges). Never bypass.
+                        raise ValueError(msg)
+                    if getattr(node, "parity_strict", False):
+                        raise AssertionError(msg)
+                    node.logger.app_log.warning(msg)
+
             # Check if signature exists in main ledger (confirmed chain only)
-            if self._signature_exists_in_ledger(entry_signature, self.db_handler.h, confirmed_tip):
+            if sig_in_h:
                 raise ValueError(f"Transaction {entry_signature[:10]} already in ledger")
 
             # Check if signature exists in RAM ledger (confirmed chain only)
-            if self._signature_exists_in_ledger(entry_signature, self.db_handler.c, confirmed_tip):
+            if sig_in_c:
                 raise ValueError(f"Transaction {entry_signature[:10]} already in RAM ledger")
 
         # Check for duplicates within the block
         if block_instance.tx_count != len(set(signature_list)):
             raise ValueError("There are duplicate transactions in this block, rejected")
+
+        # doc/26 stage 4: the same in-block dedup, keyed on the content txid. Under malleability two entries
+        # can share a txid while carrying different signatures (audit M-3/M-4) — the txid key catches that,
+        # the signature key does not. In shadow it only flags the divergence; in primary the txid is the
+        # authoritative dedup key.
+        if shadow_txid and len(set(txid_list)) != len(set(signature_list)):
+            msg = (f"txid-index in-block dedup parity mismatch at {block_instance.block_height_new}: "
+                   f"{len(set(txid_list))} unique txids vs {len(set(signature_list))} unique sigs")
+            if txi_mode == "primary":
+                raise ValueError("There are duplicate transactions in this block (txid), rejected")
+            if getattr(node, "parity_strict", False):
+                raise AssertionError(msg)
+            node.logger.app_log.warning(msg)
 
     def _signature_exists_in_ledger(self, signature: str, cursor, confirmed_tip: int) -> bool:
         """Does `signature` exist in the CONFIRMED chain (block_height in [0, confirmed_tip])? Rows above
@@ -709,6 +757,19 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
                     raise
                 node.logger.app_log.warning(
                     f"balance index maintain failed at {block_instance.block_height_new}: {e}")
+
+        # Optional maintained txid -> height index (doc/26 stage 4): index this block's POST-FORK txs
+        # (apply_rows skips pre-fork/negative-height rows itself) so the dup-sig replay read can move off
+        # SQLite. Like the balance index, a silently-stale index becomes a dedup-bypass risk once it is
+        # consensus-critical, so HALT rather than drift when txid_index_consensus != off.
+        if getattr(node, "txid_index", None) is not None:
+            try:
+                node.txid_index.apply_rows(processor.block_transactions, node.fork_height)
+            except Exception as e:
+                if getattr(node, "txid_index_consensus", "off") != "off":
+                    raise
+                node.logger.app_log.warning(
+                    f"txid index maintain failed at {block_instance.block_height_new}: {e}")
 
         # Log success
         node.logger.app_log.warning(

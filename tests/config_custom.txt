@@ -26,6 +26,7 @@ rpc_ethereum=True
 rpc_ethereum_port=8546
 balance_index=True
 balance_index_consensus=shadow
+txid_index_consensus=shadow
 parity_strict=True
 vm=True
 shield=True

@@ -1370,6 +1370,8 @@ if __name__ == "__main__":
     node.balance_index_enabled = config.balance_index  # opt-in O(1) display-balance index (doc/17)
     node.balance_index = None                          # the index object, built at startup if enabled
     node.balance_index_consensus = getattr(config, "balance_index_consensus", "off")  # doc/26 stage 4: off|shadow|primary
+    node.txid_index_consensus = getattr(config, "txid_index_consensus", "off")  # doc/26 stage 4: off|shadow|primary (the dup-sig replay read off SQLite)
+    node.txid_index = None                             # the LMDB txid->height projection, built at startup when txid_index_consensus != off
     node.parity_strict = getattr(config, "parity_strict", False)  # doc/26 stage 4: raise (not warn) on a parity mismatch
     node.vm_enabled = config.vm                         # opt-in decentralized-apps VM (doc/17); POST-FORK only
     node.vm_state = None                               # the contract state store, built at startup if enabled
@@ -1547,6 +1549,31 @@ if __name__ == "__main__":
                 except Exception as e:
                     node.logger.app_log.warning("Status: balance index could not start: {}".format(e))
                     node.balance_index = None
+
+            # optional maintained txid -> height index (doc/26 stage 4). Off unless txid_index_consensus
+            # != "off". Backs the duplicate-signature replay check (digest.check_duplicate_signatures) with
+            # an O(1) content-txid lookup instead of the SQLite signature scan, and keys dedup on the txid
+            # (audit M-3/M-4). POST-FORK only; rebuilt from the ledger at startup (empty pre-fork), maintained
+            # on commit, rebuilt on a reorg. Like the balance index it never changes the dedup OUTCOME until
+            # the flag flips to "primary" -- in "shadow" it only cross-checks the SQLite verdict.
+            if getattr(node, "txid_index_consensus", "off") != "off":
+                try:
+                    import os as _os
+                    import txid_index as _txi_mod
+                    txi_path = _os.path.join(_os.path.dirname(node.ledger_path) or ".", "txidindex")
+                    node.txid_index = _txi_mod.TxidIndex(txi_path)
+                    _txidb = dbhandler.DbHandler(node.index_db, node.ledger_path, node.hyper_path, node.ram,
+                                                 node.ledger_ram_file, node.logger,
+                                                 trace_db_calls=node.trace_db_calls)
+                    try:
+                        n = node.txid_index.rebuild_from_cursor(_txidb.c, node.fork_height)
+                        node.logger.app_log.warning("Status: txid index ({}), rebuilt {} post-fork txids".format(
+                            node.txid_index_consensus, n))
+                    finally:
+                        _txidb.close()
+                except Exception as e:
+                    node.logger.app_log.warning("Status: txid index could not start: {}".format(e))
+                    node.txid_index = None
 
             # optional decentralized-apps VM contract-state store (doc/17). Off unless vm=True. The store
             # persists on disk and the digester maintains it as it processes blocks (POST-FORK only) and

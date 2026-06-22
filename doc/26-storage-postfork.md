@@ -1,9 +1,11 @@
 # doc/26 — Post-fork storage rearchitecture (no SQLite)
 
 > Status: **stages 1–2 ✅ shipped (shielded store + token/alias side-index on LMDB); stage 3 read-seam +
-> stage 4 balance-read PARITY-ASSERT bake-in ✅ shipped.** The LMDB balance index is now proven
-> consensus-faithful — the regnet suite runs the overspend read in `shadow`+`parity_strict` mode, raising on
-> any divergence from `ledger_balance3` (default `off` on mainnet → byte-identical). The remaining flips
+> stage 4 balance-read AND duplicate-replay PARITY-ASSERT bake-ins ✅ shipped.** The TWO consensus reads that
+> still hit SQLite — the overspend check (`ledger_balance3`) and the duplicate-signature replay scan — are now
+> each shadowed by a proven-consensus-faithful LMDB projection (`balance_index`, `txid_index`): the regnet
+> suite runs both in `shadow`+`parity_strict` mode, raising on any divergence (default `off` on mainnet →
+> byte-identical). The remaining flips
 > (canonical LMDB write, true-byte sig/pubkey, headers-first sync, SQLite-trio retirement) need a **two-node
 > harness** and are deferred (see Next stages). The endgame of doc/16: retire the 2014-era SQLite trio
 > **post-fork**, single LMDB store canonical. Consensus serialization is fork-gated (doc/29); legacy SQLite
@@ -191,6 +193,24 @@ path: introduce the seam, move reads, move writes, then delete the SQLite trio. 
   != off` — a stale index halts rather than drifts. The regnet suite runs **`balance_index_consensus=shadow` +
   `parity_strict=True`**, so the parity assert fires on EVERY consensus overspend read + reorg suite-wide:
   **green ⇒ the LMDB balance index is proven consensus-faithful and authoritative-capable.**
+
+- ✅ **Stage 4 (centerpiece 2): duplicate-replay PARITY-ASSERT bake-in** (`txid_index.py` NEW,
+  `digest.check_duplicate_signatures`, `chain_ops._rebuild_derived_state`, `options.py`/`node.py`). The
+  duplicate-signature replay check (`digest._signature_exists_in_ledger`, a SQLite signature scan) is the
+  SECOND consensus read on SQLite. A new maintained LMDB projection — `txid_index` mapping the canonical
+  **content txid** (`bismuth_serialize.tx_id_at`, doc/29) → confirmed height — backs it with an O(1) lookup
+  and keys dedup on the txid (closing the audit M-3/M-4 malleability gap where two ledger rows share a txid
+  but differ in signature). POST-FORK only (pre-fork txs have no content txid → stay signature-deduped);
+  rebuilt from the ledger at startup (empty pre-fork), maintained on commit, rebuilt on a reorg (re-raises,
+  never drifts, once consensus-on). A `txid_index_consensus` flag (**off | shadow | primary**, default off):
+  - **off** (default / mainnet): signature scan authoritative, no index → byte-identical.
+  - **shadow**: also compute the per-tx txid verdict (confirmed-chain + in-block) and compare to the signature
+    verdict; warn, or RAISE under `parity_strict`; the signature read stays authoritative (outcome unchanged).
+  - **primary**: the txid index is the authoritative dedup key (the malleability-tight one); a divergence halts.
+
+  The regnet suite runs **`txid_index_consensus=shadow` + `parity_strict=True`** alongside the balance bake-in,
+  so the replay parity assert fires on EVERY post-fork block + reorg suite-wide (55 post-fork txids indexed,
+  zero divergence): **green ⇒ the LMDB txid index is proven consensus-faithful and authoritative-capable.**
 
 ### Next stages (in order)
 - **Stage 4 (cont.): set `balance_index_consensus=primary`** to make the index authoritative (the per-read
