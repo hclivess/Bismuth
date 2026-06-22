@@ -386,8 +386,12 @@ def top_miners(node, db, top=50):
 BIGTX_K = 100
 _BIGTX_COLD_SQL = ("SELECT block_height, timestamp, address, recipient, amount, signature FROM transactions "
                    "WHERE block_height > 0 AND reward = 0 ORDER BY amount DESC LIMIT ?")
+# NB: the per-request range query must NOT "ORDER BY amount" — there is no index on amount, so combined with
+# the height range SQLite falls back to a (near) full-table scan EVERY request (observed: 25s+ on mainnet).
+# Filter by the indexed block_height range only (tiny: the new blocks since the cached tip) and let Python
+# rank the merge below. The cold scan can afford the one-time amount-sort; the hot path must not.
 _BIGTX_RANGE_SQL = ("SELECT block_height, timestamp, address, recipient, amount, signature FROM transactions "
-                    "WHERE block_height > ? AND block_height <= ? AND reward = 0 ORDER BY amount DESC LIMIT ?")
+                    "WHERE block_height > ? AND block_height <= ? AND reward = 0")
 
 
 def _bigtx_row(r):
@@ -412,7 +416,7 @@ def largest_txs(node, db, top=25):
     ch = int(cache.get("height", 0))
     if tip > ch:
         try:
-            new = [_bigtx_row(r) for r in (db.fetchall(db.h, _BIGTX_RANGE_SQL, (ch, tip, BIGTX_K)) or [])]
+            new = [_bigtx_row(r) for r in (db.fetchall(db.h, _BIGTX_RANGE_SQL, (ch, tip)) or [])]
             seen, uniq = set(), []
             for t in sorted(cache.get("txs", []) + new, key=lambda x: -x["amount"]):
                 k = t["signature"] or (t["height"], t["sender"], t["recipient"], t["amount"])
