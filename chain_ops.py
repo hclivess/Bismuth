@@ -727,3 +727,59 @@ def sequencing_check(node, db_handler):
         if y:
             with open("sequencing_last", 'w') as filename:
                 filename.write(str(y - 1000))  # room for rollbacks
+
+
+def detect_recent_sequence_break(db_handler, tip, window=2000):
+    """READ-ONLY: scan the most recent `window` coinbase heights for a gap or duplicate — the corruption a
+    crash / block-churn leaves at the TIP. Returns the height to cut back to (first divergence from a
+    strictly-consecutive run), or None if the recent tail is clean. Cheap (one indexed range, ~`window`
+    rows); deep-history breaks remain the startup sequencing_check's full-scan job."""
+    tip = int(tip or 0)
+    if tip < 3:
+        return None
+    lo = max(2, tip - int(window))
+    rows = db_handler.fetchall(db_handler.h,
+                               "SELECT block_height FROM transactions WHERE reward != 0 "
+                               "AND block_height >= ? AND block_height <= ? ORDER BY block_height ASC",
+                               (lo, tip))
+    expect = None
+    for (h,) in (rows or []):
+        h = int(h)
+        if expect is None:
+            expect = h
+        if h != expect:
+            return min(h, expect)   # dupe -> the repeated height; gap -> the missing height; both = the cut
+        expect += 1
+    return None
+
+
+def autoheal_live(node, db_handler, window=2000):
+    """Self-heal a sequence/dupe corruption WITHOUT a restart. Detect a break in the recent tail (read-only);
+    if found, roll the chain back to the clean prefix using the SAME rollback() blocknf uses (truncate
+    ledger+hyper + rebuild every derived projection: balance/txid index, VM state+root, tokens/aliases,
+    shielded set), reset the node's in-memory tip from disk, and let the normal sync loop re-fetch the
+    discarded blocks. No-op (just the cheap recent scan) on a healthy chain. MUST be called holding
+    node.db_lock (serialised with digestion). ram=False assumed (disk is the tip source). Returns True iff
+    it repaired."""
+    tip = int(getattr(node, "last_block", 0) or 0)
+    brk = detect_recent_sequence_break(db_handler, tip, window)
+    if brk is None:
+        return False
+    node.logger.app_log.warning(
+        f"Status: AUTOHEAL — sequence/dupe break detected at height {brk} (tip {tip}); rolling back live")
+    rollback(node, db_handler, brk)
+    # reset the in-memory tip from the truncated DB (node_block_init pattern)
+    node.hdd_block = db_handler.block_height_max()
+    node.last_block = node.hdd_block
+    node.last_block_hash = db_handler.last_block_hash()
+    node.hdd_hash = node.last_block_hash
+    node.last_block_timestamp = db_handler.last_block_timestamp()
+    try:
+        from difficulty import difficulty as _difficulty
+        node.difficulty = _difficulty(node, db_handler)
+    except Exception:
+        pass
+    essentials.checkpoint_set(node)
+    node.logger.app_log.warning(
+        f"Status: AUTOHEAL — rolled back to {node.last_block}; the sync loop will re-fetch the clean chain")
+    return True

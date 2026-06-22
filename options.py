@@ -66,6 +66,8 @@ class Get:
         "rest_api_market": ["bool"],
         "api_sync": ["bool"],
         "api_sync_source": ["str"],
+        "autoheal": ["bool"],
+        "autoheal_interval": ["int"],
         "rollback_consensus": ["bool"],
         "rollback_consensus_threshold": ["int"],
         "rollback_consensus_min_peers": ["int"],
@@ -113,6 +115,8 @@ class Get:
         "rest_api_market": True,  # GET /api/stats/market price/market-cap (coingecko, server-side TTL-cached); on by default
         "api_sync": False,        # opt-in: catch up the chain over a peer's REST API instead of the socket (doc/17, api_sync_worker); off by default
         "api_sync_source": "",    # the REST peer to fast-sync from, "host:rest_port" (used when api_sync=True)
+        "autoheal": True,         # live self-heal of tip sequence/dupe corruption WITHOUT a restart (chain_ops.autoheal_live); ON by default
+        "autoheal_interval": 300, # seconds between live autoheal checks (cheap recent-tail scan; repairs only on a real break)
 
         "rollback_consensus": True,          # AUTO-RECOVERY: reputation-gated deep rollback so a forked node rejoins on its own (doc/14); ON by default (replaces the rigid rollback_depth stranding)
         "rollback_consensus_threshold": 75,  # % peer agreement required to allow a deep rollback

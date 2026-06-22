@@ -1348,6 +1348,8 @@ if __name__ == "__main__":
     node.api_sync_enabled = os.environ.get("BISMUTH_API_SYNC", "").lower() in ("1", "true", "yes") \
         or getattr(config, "api_sync", False)
     node.api_sync_source = os.environ.get("BISMUTH_API_SYNC_SOURCE", "") or getattr(config, "api_sync_source", "")
+    node.autoheal = getattr(config, "autoheal", True)                       # live tip sequence/dupe self-heal (no restart)
+    node.autoheal_interval = int(os.environ.get("BISMUTH_AUTOHEAL_INTERVAL") or getattr(config, "autoheal_interval", 300))
     node.rollback_consensus = config.rollback_consensus                      # AUTO-RECOVERY: reputation-gated deep rollback, ON by default (doc/14)
     node.rollback_consensus_threshold = config.rollback_consensus_threshold
     node.rollback_consensus_min_peers = config.rollback_consensus_min_peers
@@ -1665,6 +1667,35 @@ if __name__ == "__main__":
             api_sync_worker.start(node)
         except Exception as e:
             node.logger.app_log.warning(f"Status: API-sync worker could not start: {e}")
+
+    # Live self-heal (doc/14): periodically scan the recent tip for a sequence/dupe corruption and, if found,
+    # roll back to the clean prefix + resync WITHOUT a restart. The check is a cheap recent-tail scan; it
+    # only truncates on a genuine break (healthy chains have strictly-consecutive heights -> no-op). Runs in
+    # its own thread + DB handle, serialised with digestion via a non-blocking db_lock acquire (skips while a
+    # block is mid-digest). On by default; set autoheal=False to disable.
+    if getattr(node, "autoheal", True):
+        def _autoheal_loop():
+            import chain_ops as _chain_ops
+            try:
+                _hdb = dbhandler.DbHandler(node.index_db, node.ledger_path, node.hyper_path, node.ram,
+                                           node.ledger_ram_file, node.logger, trace_db_calls=node.trace_db_calls)
+            except Exception as e:
+                node.logger.app_log.warning(f"autoheal: could not open DB handle: {e}")
+                return
+            interval = max(30, int(getattr(node, "autoheal_interval", 300)))
+            while not node.IS_STOPPING:
+                time.sleep(interval)
+                if node.IS_STOPPING:
+                    break
+                if not node.db_lock.acquire(blocking=False):
+                    continue   # node is digesting a block right now; check next cycle
+                try:
+                    _chain_ops.autoheal_live(node, _hdb)
+                except Exception as e:
+                    node.logger.app_log.warning(f"autoheal loop: {e}")
+                finally:
+                    node.db_lock.release()
+        threading.Thread(target=_autoheal_loop, daemon=True, name="autoheal").start()
 
     while True:
         if node.IS_STOPPING:
