@@ -21,9 +21,18 @@
 >   (single-sig secp256k1 signs/verifies the binary txid via ecrecover), `vm_engine` (contract address),
 >   the REST `POST` echo, and the lite client. RSA/ED25519/multisig keep their legacy buffer **signing**
 >   (their canonical id is still the binary txid). Full regnet suite green.
-> - ◻ **Stage 3** — pubkey-by-reference + raw-byte sig/pubkey (the block-body SIZE win; needs a consensus
->   address→key registry); **Stage 4** — coinbase compaction. Both gated on the one hf2 fork, before mainnet
->   lock-in (the post-fork form is free to evolve until then — regnet is ephemeral).
+> - ◑ **Stage 3** — pubkey compaction. A rigorous design pass (§Stage 3 below) **REJECTED the consensus
+>   address→key registry** (pubkey-by-reference): it would add the first-ever intra-block tx-ordering
+>   dependency + a reorg/snapshot-fragile consensus registry + a state-dependent reject path, only to
+>   compress RSA/ML-DSA keys **whose repetition `block_store` already dedupes losslessly** — a bad trade. And
+>   A-hex raw-byte wire encoding *grows* the text fields (hex 2× vs base64 1.33×); the real raw-byte win needs
+>   true-bytes in the Stage-4 store rewrite. **Shipped: the stateless ED25519 pubkey drop** (`signerfactory.
+>   is_single_sig_ed25519` + `SignerED25519.public_key_from_address` — recovered from the address like
+>   secp256k1 ecrecover; rejects a non-empty pubkey post-fork; `tests/test_hf2_ed25519_drop.py`). BOTH
+>   single-sig schemes now drop their pubkey post-fork.
+> - ◻ **Stage 4** — coinbase compaction + raw-byte (true-bytes / A-bin) sig+pubkey as part of an LMDB
+>   store-primary rewrite (where raw bytes are a real storage win, not the A-hex regression) + M-3/M-4 dedup.
+>   GPU kernels (bis.cu/bismuth.cl) must be ported to blake2b before any mainnet hf2 signal. All in the one fork.
 
 # Bismuth hf2 — Binary/Integer Serialization Rework: Authoritative Engineering Spec
 

@@ -238,6 +238,15 @@ def sign_transaction(signer, timestamp, address, recipient, amount, operation=""
         signer.verify_bis_signature_recovered(sig_hex, txid, str(address))   # belt-and-suspenders
         return (str(timestamp), str(address), str(recipient), amount_s,
                 sig_hex, "", str(operation), str(openfield))   # public_key dropped
+    if post_fork and SignerFactory.is_single_sig_ed25519(str(address)):
+        # Stage 3 (doc/29): ED25519 signs the legacy buffer but DROPS the pubkey (recovered from the address).
+        buffer = bismuth_serialize.signature_buffer(str(timestamp), str(address), str(recipient),
+                                                    amount_s, str(operation), str(openfield))
+        sig_b64 = signer.sign_buffer_for_bis(buffer)
+        SignerFactory.verify_tx_signature(True, str(timestamp), str(address), str(recipient), amount_s,
+                                          str(operation), str(openfield), sig_b64, "")   # belt-and-suspenders
+        return (str(timestamp), str(address), str(recipient), amount_s,
+                sig_b64, "", str(operation), str(openfield))   # public_key dropped
     buffer = bismuth_serialize.signature_buffer(str(timestamp), str(address), str(recipient),
                                                 amount_s, str(operation), str(openfield))
     sig_b64 = signer.sign_buffer_for_bis(buffer)

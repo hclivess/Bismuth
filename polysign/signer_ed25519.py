@@ -106,6 +106,20 @@ class SignerED25519(Signer):
         return base58.b58encode(base + checksum).decode('utf-8')
 
     @classmethod
+    def public_key_from_address(cls, address: str) -> bytes:
+        """Recover the raw 32-byte ED25519 public key embedded in a Bismuth ED25519 address. The address is
+        base58(version(4B) + raw_pubkey(32B) + checksum(4B)) — the inverse of public_key_to_address — so the
+        key need not be carried on a post-hf2 tx (doc/29 Stage 3: ED25519 drops the pubkey, recovered here,
+        same stateless class as secp256k1 ecrecover). Raises ValueError on a malformed address."""
+        raw = base58.b58decode(address)
+        if len(raw) != 40:               # 4 version + 32 key + 4 checksum
+            raise ValueError("not a valid ED25519 address (length)")
+        key = raw[4:-4]
+        if cls.public_key_to_address(key) != address:   # round-trip guard (version + checksum match)
+            raise ValueError("ED25519 address checksum/version mismatch")
+        return key
+
+    @classmethod
     def verify_signature(cls, signature: Union[bytes, str], public_key: Union[bytes, str], buffer: bytes,
                          address: str='') -> None:
         """Verify signature from raw signature. Address may be used to determine the sig subtype"""

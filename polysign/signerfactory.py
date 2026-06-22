@@ -170,6 +170,13 @@ class SignerFactory:
         return bool(RE_ECDSA_ADDRESS.match(address)) and len(address) <= 50
 
     @classmethod
+    def is_single_sig_ed25519(cls, address: str) -> bool:
+        """True iff `address` is an ED25519 address (Bis1... with len > 50 — distinct from the shorter
+        secp256k1 ECDSA addresses). Post-hf2 these DROP the public key (it is embedded in the address and
+        recovered via SignerED25519.public_key_from_address), the stateless analogue of secp256k1 ecrecover."""
+        return bool(RE_ECDSA_ADDRESS.match(address)) and len(address) > 50
+
+    @classmethod
     def verify_tx_signature(cls, post_fork: bool, timestamp, address, recipient, amount,
                             operation, openfield, signature, public_key) -> None:
         """Single fork-aware tx-signature verification used by BOTH the digester and the mempool.
@@ -188,6 +195,18 @@ class SignerFactory:
             # Stage 2 (doc/29): the recoverable sig signs the BINARY-pre-image content txid (tx_id_v2_s).
             txid = bismuth_serialize.tx_id_v2_s(timestamp, address, recipient, amount, operation, openfield)
             _load_optional_signer("SignerECDSA").verify_bis_signature_recovered(signature, txid, address)
+            return
+        if post_fork and cls.is_single_sig_ed25519(address):
+            # doc/29 Stage 3: ED25519 drops the pubkey post-fork — recover it from the address (the key is
+            # embedded there) and verify the base64 sig over the legacy buffer with the recovered key.
+            # A non-empty pubkey is unverified noise → reject (one canonical form, like the secp256k1 rule).
+            if str(public_key or "").strip() != "":
+                raise ValueError("post-fork single-sig ED25519 tx must carry an empty public key")
+            import base64 as _b64
+            ed = _load_optional_signer("SignerED25519")
+            pub = ed.public_key_from_address(address)
+            buffer = bismuth_serialize.signature_buffer(timestamp, address, recipient, amount, operation, openfield)
+            ed.verify_bis_signature_raw(_b64.b64decode(signature), pub, buffer, address)
             return
         buffer = bismuth_serialize.signature_buffer(timestamp, address, recipient, amount, operation, openfield)
         cls.verify_bis_signature(signature, public_key, buffer, address)
