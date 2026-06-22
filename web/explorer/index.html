@@ -380,18 +380,23 @@ async function statsView(){
       api('/stats/geo').catch(()=>({status:'error',points:[],countries:[]})),
     ]);
     const months=(mon.months||[]);
+    // Height/Difficulty/Peers/Consensus/Protocol/Node already live in the persistent #status banner above —
+    // so the stats summary shows only stats-SPECIFIC cards, and skips any that are null (no empty cards).
     const cardsArr=[];
-    if(sum)cardsArr.push(['Height',nf(sum.height)],['Difficulty',sum.difficulty!=null?nf(sum.difficulty,4):'-'],
-      ['Avg block',sum.avg_block_time!=null?sum.avg_block_time+'s':'-'],['Peers',nf(sum.connections)],
-      ['Mempool',nf(sum.mempool)],['Tokens',sum.tokens==null?'-':nf(sum.tokens)]);
+    if(sum){
+      if(sum.avg_block_time!=null)cardsArr.push(['Avg block',sum.avg_block_time+'s']);
+      cardsArr.push(['Mempool',nf(sum.mempool)]);
+      if(sum.tokens!=null)cardsArr.push(['Tokens',nf(sum.tokens)]);
+    }
     if(mon.totals)cardsArr.push(['Total txs',nf(mon.totals.txs)]);
+    if(nad&&nad.total!=null)cardsArr.push(['Addresses',nf(nad.total)]);
     if(market&&market.status==='ok'){
       if(market.price_usd!=null)cardsArr.push(['Price','$'+nf(market.price_usd,4)]);
       if(market.market_cap_usd!=null)cardsArr.push(['Market cap','$'+compact(market.market_cap_usd)]);
       if(market.volume_24h_usd!=null)cardsArr.push(['24h vol','$'+compact(market.volume_24h_usd)]);
       if(market.change_24h!=null)cardsArr.push(['24h',`<span style="color:${market.change_24h>=0?'#9be29b':'#ff8585'}">${market.change_24h>=0?'+':''}${nf(market.change_24h,2)}%</span>`]);
     }
-    const cards=cardsArr.map(([l,v])=>`<div class="col"><div class="card stat p-2"><div class="l">${l}</div><div class="v">${v}</div></div></div>`).join('');
+    const cards=cardsArr.length?`<div class="row g-2 mb-3">${cardsArr.map(([l,v])=>`<div class="col"><div class="card stat p-2"><div class="l">${l}</div><div class="v">${v}</div></div></div>`).join('')}</div>`:'';
     const txBlock=barsBlock(mon,months.map(m=>({k:m.month,v:m.txs})),'the monthly histogram');
     const volBlock=barsBlock(mon,months.map(m=>({k:m.month,v:m.volume})),'transaction volume');
     const feeBlock=barsBlock(mon,months.map(m=>({k:m.month,v:m.fees})),'fees');
@@ -413,7 +418,7 @@ async function statsView(){
       :gpts.length?svgGeo(gpts):'<p class="subtle py-3">No geolocated peers yet.</p>';
     const ctable=(geo.countries||[]).slice(0,25).map(c=>`<tr><td>${esc(c.country||c.cc||'?')}</td><td>${c.count}</td></tr>`).join('');
     setMain(`<div>
-      <div class="row g-2 mb-3">${cards}</div>
+      ${cards}
       <div class="row g-3">
         <div class="col-lg-6">${statCard('Transactions per month',mon.totals?'· '+nf(mon.totals.txs)+' total':'',txBlock)}</div>
         <div class="col-lg-6">${statCard('New addresses per month',nad.total!=null?'· '+nf(nad.total)+' total':'',naBlock)}</div>
