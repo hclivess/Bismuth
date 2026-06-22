@@ -7,9 +7,10 @@ A "top explorer" dashboard's worth of metrics, in three cost classes:
     active-addresses, new addresses, rich list, top miners, largest transactions) is computed ONCE in a
     daemon thread, mirrored to a small JSON file beside the ledger, then topped up over only the new blocks
     per call — the pattern rest_api uses for circulating supply. The first call returns status "computing".
-    A single stats-page load spawns ONE self-driving background pass (``_warm_cold``) that computes every
-    cold aggregate SEQUENTIALLY — never several multi-GB scans at once, and it does not need the page held
-    open to finish (it warms the whole set, persists each to disk, then exits).
+    The request path NEVER does heavy work: it returns the current cached snapshot immediately and kicks ONE
+    guarded background maintainer (``_maintain``) that brings every cache up to tip — cold build if missing,
+    incremental advance if stale — one stat at a time, then exits (never several multi-GB scans at once, and
+    no API request can block on a scan, not even the first after a restart).
   * EXTERNAL, TTL-cached: node geolocation (ip-api.com) for the world map and market data (coingecko) for
     price / market cap, both fetched server-side (no https mixed-content), gated by rest_api_geo /
     rest_api_market (default on) and degrading to nothing on failure.
@@ -93,49 +94,51 @@ def _to_bis(raw):
 
 
 # ------------------------------------------------- self-driving heavy background compute ----
-def _warm_cold(node):
-    """Warm ALL cold heavy stats in ONE background pass. A single request (one stats-page load) spawns a
-    daemon that computes every not-yet-cached full-ledger aggregate SEQUENTIALLY (one heavy scan at a time,
-    so the 23GB ledger is never hit by several scans at once). Crucially this is SELF-DRIVING: it does NOT
-    depend on the page being held open / re-requested to advance to the next stat — one trigger warms the
-    whole set, the caches persist on disk, and thereafter only the cheap per-request incremental top-up runs.
-    Idempotent: re-entrancy is guarded by node._stats_warming, and any stat already cached is skipped."""
-    if getattr(node, "_stats_warming", False):
+def _maintain(node):
+    """The ONLY place heavy ledger work happens for stats. A single guarded background daemon brings every
+    heavy stat cache up to the current tip — COLD build if missing, INCREMENTAL advance if stale — one stat
+    at a time (the 23GB ledger is never hit by several scans at once), then exits. The request path NEVER
+    does heavy work: it returns the current cached snapshot immediately (a few blocks stale at most) and just
+    kicks this. So no API request can ever block on a scan — not even the first one after a restart, which
+    used to run a multi-block catch-up on the request thread and trip nginx's read timeout."""
+    if getattr(node, "_stats_maintaining", False):
         return
-    node._stats_warming = True
-    specs = [("monthly", _monthly_cold), ("newaddr", _newaddr_cold), ("rich", _rich_cold),
-             ("miners", _miners_cold), ("bigtx", _bigtx_cold)]
+    node._stats_maintaining = True
+    specs = [("monthly", _monthly_cold, _monthly_advance), ("newaddr", _newaddr_cold, _newaddr_advance),
+             ("rich", _rich_cold, _rich_advance), ("miners", _miners_cold, _miners_advance),
+             ("bigtx", _bigtx_cold, _bigtx_advance)]
 
     def work():
         try:
-            for name, fn in specs:
-                attr = "_stats_%s_cache" % name
-                if getattr(node, attr, None) is not None:
-                    continue
-                disk = _load(node, name)
-                if disk is not None:                 # already on disk -> just memoize, no scan
-                    setattr(node, attr, disk)
-                    continue
-                try:
-                    d = _open_db(node)
+            d = _open_db(node)
+            try:
+                for name, cold_fn, adv_fn in specs:
+                    attr = "_stats_%s_cache" % name
+                    cache = getattr(node, attr, None) or _load(node, name)
+                    tip = int(getattr(node, "hdd_block", 0) or 0)
                     try:
-                        tip = int(getattr(node, "hdd_block", 0) or 0)
-                        cache = fn(d, tip)
+                        if cache is None:
+                            cache = cold_fn(d, tip)
+                            try:
+                                node.logger.app_log.warning("Status: stats '%s' cache built at height %s" % (name, tip))
+                            except Exception:
+                                pass
+                        elif tip > int(cache.get("height", 0)):
+                            cache = adv_fn(d, cache, tip)
+                        else:
+                            setattr(node, attr, cache)       # at tip already -> just memoize
+                            continue
                         setattr(node, attr, cache)
                         _save(node, name, cache)
+                    except Exception as e:
                         try:
-                            node.logger.app_log.warning("Status: stats '%s' cache built at height %s" % (name, tip))
+                            node.logger.app_log.warning("stats '%s' maintain failed: %s" % (name, e))
                         except Exception:
                             pass
-                    finally:
-                        d.close()
-                except Exception as e:
-                    try:
-                        node.logger.app_log.warning("stats '%s' warm failed: %s" % (name, e))
-                    except Exception:
-                        pass
+            finally:
+                d.close()
         finally:
-            node._stats_warming = False
+            node._stats_maintaining = False
 
     threading.Thread(target=work, daemon=True).start()
 
@@ -172,30 +175,28 @@ def _monthly_cold(d, tip):
     return {"height": tip, "active_height": tip, "months": months}
 
 
+def _monthly_advance(d, cache, tip):
+    ch = int(cache.get("height", 0))
+    months = {k: dict(v) for k, v in cache.get("months", {}).items()}
+    for (m, txs, vol, fees, em) in (d.fetchall(d.h, _MONTHLY_ADD_SQL, (ch, tip)) or []):
+        if not m:
+            continue
+        e = months.setdefault(m, _month_blank())
+        e["txs"] += int(txs or 0); e["vol"] += (vol or 0)
+        e["fees"] += (fees or 0); e["emission"] += (em or 0)
+    return {"height": tip, "active_height": cache.get("active_height", ch), "months": months}
+
+
 def monthly(node, db):
     """Per-month {month, txs, volume, fees, emission, issued (cumulative block reward), active}. status ok|computing.
     NB: `issued` is cumulative block-reward emission (coins minted), NOT exact circulating supply — it does not
     net burned fees or the dev/HN reward mirrors; /api/supply is the authoritative circulating figure."""
     cache = _load_cache(node, "monthly")
     if cache is None:
-        _warm_cold(node)
+        _maintain(node)
         return {"status": "computing", "height": int(getattr(node, "hdd_block", 0) or 0), "months": []}
-    tip = int(getattr(node, "hdd_block", 0) or 0)
-    ch = int(cache.get("height", 0))
-    if tip > ch:
-        try:
-            months = {k: dict(v) for k, v in cache.get("months", {}).items()}
-            for (m, txs, vol, fees, em) in (db.fetchall(db.h, _MONTHLY_ADD_SQL, (ch, tip)) or []):
-                if not m:
-                    continue
-                e = months.setdefault(m, _month_blank())
-                e["txs"] += int(txs or 0); e["vol"] += (vol or 0)
-                e["fees"] += (fees or 0); e["emission"] += (em or 0)
-            cache = {"height": tip, "active_height": cache.get("active_height", ch), "months": months}
-            node._stats_monthly_cache = cache
-            _save(node, "monthly", cache)
-        except Exception:
-            pass
+    if int(cache.get("height", 0)) < int(getattr(node, "hdd_block", 0) or 0):
+        _maintain(node)                          # advance in the background; serve the current snapshot now
     out, cum = [], 0.0
     for m in sorted(cache.get("months", {})):
         e = cache["months"][m]
@@ -236,29 +237,27 @@ def _newaddr_cold(d, tip):
     return {"height": tip, "months": months, "total": sum(months.values())}
 
 
+def _newaddr_advance(d, cache, tip):
+    ch = int(cache.get("height", 0))
+    months = dict(cache.get("months", {}))
+    for (recip, first_ts) in (d.fetchall(d.h, _NEWADDR_RANGE_SQL, (ch, tip)) or []):
+        if not recip or first_ts is None:
+            continue
+        if d.fetchall(d.h, _NEWADDR_SEEN_SQL, (recip, ch)):
+            continue                                    # appeared before the cached tip -> not new
+        m = time.strftime("%Y-%m", time.gmtime(float(first_ts)))
+        months[m] = months.get(m, 0) + 1
+    return {"height": tip, "months": months, "total": sum(months.values())}
+
+
 def new_addresses(node, db):
     """Cached monthly count of newly-created addresses. {status, height, total (cumulative), months:[{month,count}]}."""
     cache = _load_cache(node, "newaddr")
     if cache is None:
-        _warm_cold(node)
+        _maintain(node)
         return {"status": "computing", "height": int(getattr(node, "hdd_block", 0) or 0), "months": []}
-    tip = int(getattr(node, "hdd_block", 0) or 0)
-    ch = int(cache.get("height", 0))
-    if tip > ch:
-        try:
-            months = dict(cache.get("months", {}))
-            for (recip, first_ts) in (db.fetchall(db.h, _NEWADDR_RANGE_SQL, (ch, tip)) or []):
-                if not recip or first_ts is None:
-                    continue
-                if db.fetchall(db.h, _NEWADDR_SEEN_SQL, (recip, ch)):
-                    continue                            # appeared before the cached tip -> not new
-                m = time.strftime("%Y-%m", time.gmtime(float(first_ts)))
-                months[m] = months.get(m, 0) + 1
-            cache = {"height": tip, "months": months, "total": sum(months.values())}
-            node._stats_newaddr_cache = cache
-            _save(node, "newaddr", cache)
-        except Exception:
-            pass
+    if int(cache.get("height", 0)) < int(getattr(node, "hdd_block", 0) or 0):
+        _maintain(node)
     ms = sorted(cache.get("months", {}).items())
     return {"status": "ok", "height": cache["height"], "total": cache.get("total", 0),
             "months": [{"month": m, "count": c} for m, c in ms]}
@@ -301,32 +300,30 @@ def _rich_cold(d, tip):
     return {"height": tip, "top": top}
 
 
+def _rich_advance(d, cache, tip):
+    ch = int(cache.get("height", 0))
+    balances = dict(cache.get("top", {}))
+    touched = {a for (a,) in (d.fetchall(d.h, _RICH_TOUCHED_SQL, (ch, tip)) or []) if a}
+    for a in touched:
+        cr, dr = (d.fetchall(d.h, _RICH_ADDR_SQL, (a,)) or [(0, 0)])[0]
+        bal = _rich_balance_bis(cr, dr)
+        if bal > 0:
+            balances[a] = bal
+        else:
+            balances.pop(a, None)
+    ranked = sorted(balances.items(), key=lambda kv: -kv[1])[:RICH_K]
+    return {"height": tip, "top": dict(ranked)}
+
+
 def rich_list(node, db, top=100):
     """Cached top-balance address list. {status, height, count, rich:[{rank,address,balance}]}."""
     top = max(1, min(int(top or 100), RICH_K))
     cache = _load_cache(node, "rich")
     if cache is None:
-        _warm_cold(node)
+        _maintain(node)
         return {"status": "computing", "height": int(getattr(node, "hdd_block", 0) or 0), "rich": []}
-    tip = int(getattr(node, "hdd_block", 0) or 0)
-    ch = int(cache.get("height", 0))
-    if tip > ch:
-        try:
-            balances = dict(cache.get("top", {}))
-            touched = {a for (a,) in (db.fetchall(db.h, _RICH_TOUCHED_SQL, (ch, tip)) or []) if a}
-            for a in touched:
-                cr, dr = (db.fetchall(db.h, _RICH_ADDR_SQL, (a,)) or [(0, 0)])[0]
-                bal = _rich_balance_bis(cr, dr)
-                if bal > 0:
-                    balances[a] = bal
-                else:
-                    balances.pop(a, None)
-            ranked = sorted(balances.items(), key=lambda kv: -kv[1])[:RICH_K]
-            cache = {"height": tip, "top": dict(ranked)}
-            node._stats_rich_cache = cache
-            _save(node, "rich", cache)
-        except Exception:
-            pass
+    if int(cache.get("height", 0)) < int(getattr(node, "hdd_block", 0) or 0):
+        _maintain(node)
     ranked = sorted(cache.get("top", {}).items(), key=lambda kv: -kv[1])[:top]
     return {"status": "ok", "height": cache["height"], "count": len(ranked),
             "rich": [{"rank": i + 1, "address": a, "balance": round(b, 8)}
@@ -350,28 +347,25 @@ def _miners_cold(d, tip):
     return {"height": tip, "miners": m}
 
 
+def _miners_advance(d, cache, tip):
+    m = {k: dict(v) for k, v in cache.get("miners", {}).items()}
+    for (r, b, rw) in (d.fetchall(d.h, _MINERS_RANGE_SQL, (int(cache.get("height", 0)), tip)) or []):
+        if not r:
+            continue
+        e = m.setdefault(r, {"blocks": 0, "reward": 0})
+        e["blocks"] += int(b or 0); e["reward"] += (rw or 0)
+    return {"height": tip, "miners": m}
+
+
 def top_miners(node, db, top=50):
     """Cached mining distribution. {status, height, miner_count, miners:[{rank,address,blocks,reward,share%}]}."""
     top = max(1, min(int(top or 50), 1000))
     cache = _load_cache(node, "miners")
     if cache is None:
-        _warm_cold(node)
+        _maintain(node)
         return {"status": "computing", "height": int(getattr(node, "hdd_block", 0) or 0), "miners": []}
-    tip = int(getattr(node, "hdd_block", 0) or 0)
-    ch = int(cache.get("height", 0))
-    if tip > ch:
-        try:
-            m = {k: dict(v) for k, v in cache.get("miners", {}).items()}
-            for (r, b, rw) in (db.fetchall(db.h, _MINERS_RANGE_SQL, (ch, tip)) or []):
-                if not r:
-                    continue
-                e = m.setdefault(r, {"blocks": 0, "reward": 0})
-                e["blocks"] += int(b or 0); e["reward"] += (rw or 0)
-            cache = {"height": tip, "miners": m}
-            node._stats_miners_cache = cache
-            _save(node, "miners", cache)
-        except Exception:
-            pass
+    if int(cache.get("height", 0)) < int(getattr(node, "hdd_block", 0) or 0):
+        _maintain(node)
     miners = cache.get("miners", {})
     total_blocks = sum(v["blocks"] for v in miners.values()) or 1
     ranked = sorted(miners.items(), key=lambda kv: -kv[1]["blocks"])[:top]
@@ -404,32 +398,29 @@ def _bigtx_cold(d, tip):
     return {"height": tip, "txs": [_bigtx_row(r) for r in (d.fetchall(d.h, _BIGTX_COLD_SQL, (BIGTX_K,)) or [])]}
 
 
+def _bigtx_advance(d, cache, tip):
+    new = [_bigtx_row(r) for r in (d.fetchall(d.h, _BIGTX_RANGE_SQL, (int(cache.get("height", 0)), tip)) or [])]
+    seen, uniq = set(), []
+    for t in sorted(cache.get("txs", []) + new, key=lambda x: -x["amount"]):
+        k = t["signature"] or (t["height"], t["sender"], t["recipient"], t["amount"])
+        if k in seen:
+            continue
+        seen.add(k); uniq.append(t)
+        if len(uniq) >= BIGTX_K:
+            break
+    return {"height": tip, "txs": uniq}
+
+
 def largest_txs(node, db, top=25):
     """Cached largest (by amount) non-coinbase transactions. {status, height, txs:[{height,timestamp,sender,
     recipient,amount,signature}]}. Incremental: only new blocks' top txs are merged into the cached top-K."""
     top = max(1, min(int(top or 25), BIGTX_K))
     cache = _load_cache(node, "bigtx")
     if cache is None:
-        _warm_cold(node)
+        _maintain(node)
         return {"status": "computing", "height": int(getattr(node, "hdd_block", 0) or 0), "txs": []}
-    tip = int(getattr(node, "hdd_block", 0) or 0)
-    ch = int(cache.get("height", 0))
-    if tip > ch:
-        try:
-            new = [_bigtx_row(r) for r in (db.fetchall(db.h, _BIGTX_RANGE_SQL, (ch, tip)) or [])]
-            seen, uniq = set(), []
-            for t in sorted(cache.get("txs", []) + new, key=lambda x: -x["amount"]):
-                k = t["signature"] or (t["height"], t["sender"], t["recipient"], t["amount"])
-                if k in seen:
-                    continue
-                seen.add(k); uniq.append(t)
-                if len(uniq) >= BIGTX_K:
-                    break
-            cache = {"height": tip, "txs": uniq}
-            node._stats_bigtx_cache = cache
-            _save(node, "bigtx", cache)
-        except Exception:
-            pass
+    if int(cache.get("height", 0)) < int(getattr(node, "hdd_block", 0) or 0):
+        _maintain(node)
     return {"status": "ok", "height": cache["height"], "txs": cache.get("txs", [])[:top]}
 
 
