@@ -83,7 +83,8 @@ class Mempool(MempoolQueriesMixin):
                 self.mempool_ram_file = "file:mempool_testnet?mode=memory&cache=shared"
             else:
                 self.mempool_ram_file = "file:mempool?mode=memory&cache=shared"
-                self.mempool_path = self.config.mempool_path #default
+                # env override so co-located instances (the two-node harness) don't share one mempool.db
+                self.mempool_path = os.environ.get("BISMUTH_MEMPOOL_PATH") or self.config.mempool_path
 
             self.check()
 

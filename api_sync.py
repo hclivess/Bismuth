@@ -11,9 +11,12 @@ Division of responsibility: this layer validates the *transport* (capability, co
 correspondence); the *consensus* validation (PoW, signatures, balance, hash linkage) stays in the
 digester, which ingests whatever this returns exactly as it would socket-delivered blocks.
 
-No live mainnet peer is REST-capable yet, so today this lets a node SERVE fast sync and is the path
-the network takes once peers upgrade; the catch-up-loop wiring (calling this, then ``digest_block``
-on the result, behind a default-off flag) needs a two-node harness and is deliberately separate.
+The catch-up-loop wiring — calling this, then ``digest_block`` on the result, behind the default-off
+``api_sync`` flag — now lives in ``api_sync_worker`` and is proven by the two-node harness
+(``tests/test_two_node_api_sync.py``): node B reconstructs node A's entire chain over REST alone (no
+socket sync), block-for-block identical under primary balance/txid parity. No live mainnet peer is
+REST-capable yet, so on mainnet this still only SERVES today; a node opts into consuming it via
+``api_sync`` + ``api_sync_source``.
 """
 import rest_client
 

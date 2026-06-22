@@ -92,13 +92,18 @@
     tx still verifies through the sync serialization and each body re-hashes to its header — so the
     blocks can be fed straight to the digester. This removes the "careful REST-block → digester
     mapping" risk.
-  - ◻ **Remaining: the live wiring** — call this path in the catch-up loop behind a config flag
-    (default off) and validate node-to-node. Needs a two-node harness; the single-node regnet suite
-    can't exercise one node ingesting another's blocks. **Reality check (measured on mainnet 2026-06):**
-    no live peer is REST-capable yet (legacy peers expose only the socket port), so this path helps
-    only once peers upgrade and lets THIS node *serve* fast sync. Live catch-up against the current
-    network is stuck on the legacy socket protocol (measured ≈0.8 blocks/s, bursty, ~4 min to ramp
-    peer connections) — improvable only by tuning that protocol (see the legacy-stack item below).
+  - ✅ **Live wiring DONE + two-node-proven.** `api_sync_worker` runs the catch-up loop behind the
+    default-off `api_sync` flag (+ `api_sync_source` = a `host:rest_port` peer): it polls the peer tip,
+    pulls validated segments via `api_sync.sync_segment`, and feeds them to the SAME `digest_block` the
+    socket path uses (transport-only swap; consensus validation identical). The two-node harness now
+    exists — `tests/test_two_node_api_sync.py` (regnet paths/port env-parameterized so N nodes co-exist):
+    node B starts at genesis and reconstructs node A's entire chain **over REST alone**, block-for-block
+    identical, under `block_store` + `balance_index=primary` + `txid_index=primary` + `parity_strict`. So
+    one node ingesting another's blocks over the API is validated end-to-end.
+  - ◻ **Remaining: mainnet rollout.** **Reality check (measured on mainnet 2026-06):** no live peer is
+    REST-capable yet (legacy peers expose only the socket port), so on mainnet this still only lets THIS
+    node *serve* fast sync; live catch-up stays on the legacy socket protocol (≈0.8 blocks/s) until peers
+    upgrade and `api_sync` is turned on against a REST-capable source.
 - **Incremental balance index (phase 4 deep).** A maintained O(1) credit/debit index, updated on
   apply/rollback, that bit-matches the authoritative computation. Depends on integer storage.
 - **Explicit reward & pruning model (phase 5).** Replace negative-height "mirror" reward rows and

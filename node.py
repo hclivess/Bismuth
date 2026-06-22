@@ -1336,11 +1336,18 @@ if __name__ == "__main__":
     node.heavy = config.heavy
     node.rollback_depth = config.rollback_depth  # max blocks the node will roll back to rejoin a longer chain
     node.rest_api = config.rest_api              # opt-in modern parallel REST API (see doc/15)
-    node.rest_api_port = config.rest_api_port
+    # rest_api_port is env-overridable so co-located instances (the two-node API-sync harness) each get
+    # their own REST port without separate config files.
+    node.rest_api_port = int(os.environ.get("BISMUTH_REST_API_PORT", config.rest_api_port))
     node.rest_api_write = getattr(config, "rest_api_write", False)   # POST /api/transaction (post-hardfork submit path)
     node.rest_api_proxy = getattr(config, "rest_api_proxy", True)    # GET /api/proxy same-origin relay for the explorer (read-only, SSRF-guarded; on by default)
     node.rest_api_geo = getattr(config, "rest_api_geo", True)        # GET /api/stats/geo node-map geolocation lookup (ip-api.com, cached; on by default)
     node.rest_api_market = getattr(config, "rest_api_market", True)  # GET /api/stats/market price/market-cap lookup (coingecko, cached; on by default)
+    # API-sync: catch up over a peer's REST API instead of the socket (doc/17). Off by default; env-overridable
+    # for the harness. The consume loop (api_sync_worker) is started after the node is fully initialized.
+    node.api_sync_enabled = os.environ.get("BISMUTH_API_SYNC", "").lower() in ("1", "true", "yes") \
+        or getattr(config, "api_sync", False)
+    node.api_sync_source = os.environ.get("BISMUTH_API_SYNC_SOURCE", "") or getattr(config, "api_sync_source", "")
     node.rollback_consensus = config.rollback_consensus                      # AUTO-RECOVERY: reputation-gated deep rollback, ON by default (doc/14)
     node.rollback_consensus_threshold = config.rollback_consensus_threshold
     node.rollback_consensus_min_peers = config.rollback_consensus_min_peers
@@ -1647,6 +1654,17 @@ if __name__ == "__main__":
             import miner
             miner.mining_loop(node, _mdb)
         threading.Thread(target=_solo_mine, daemon=True, name="solo-miner").start()
+
+    # API-sync consume loop (doc/17, the "API fork"): catch up the chain over a peer's REST API instead of
+    # the socket. Off unless api_sync=True + api_sync_source set. Own thread + DB handle, serialised with the
+    # rest via db_lock. Started here, after all stores are open and node.last_block is primed, so any block it
+    # ingests maintains the same projections (block_store / balance_index / txid_index) as socket-delivered.
+    if getattr(node, "api_sync_enabled", False):
+        try:
+            import api_sync_worker
+            api_sync_worker.start(node)
+        except Exception as e:
+            node.logger.app_log.warning(f"Status: API-sync worker could not start: {e}")
 
     while True:
         if node.IS_STOPPING:

@@ -23,14 +23,19 @@ import mining_heavy3 as mining
 # fixed diff for regnet
 REGNET_DIFF = 16
 
-REGNET_PORT = 3030
+# Port + storage paths are env-overridable so SEVERAL regnet nodes can run side by side (the two-node API
+# sync harness sets these per process). Defaults are the historical single-node values, so an un-set env is
+# byte-for-byte the old behaviour. The derived LMDB stores (blockstore / balanceindex / txidindex / vmstate)
+# and the shielded / token-index / fork-lockin sidecars all hang off the ledger path, so pointing REGNET_DB
+# at a per-instance directory isolates a node's ENTIRE on-disk footprint.
+REGNET_PORT = int(os.environ.get("BISMUTH_REGNET_PORT", "3030"))
 
-REGNET_DB = "static/regmode.db"
+REGNET_DB = os.environ.get("BISMUTH_REGNET_DB", "static/regmode.db")
 
-REGNET_INDEX = "static/index_reg.db"
+REGNET_INDEX = os.environ.get("BISMUTH_REGNET_INDEX", "static/index_reg.db")
 
-REGNET_PEERS = "peers_reg.txt"
-REGNET_SUGGESTED_PEERS = "peers_reg.txt"
+REGNET_PEERS = os.environ.get("BISMUTH_REGNET_PEERS", "peers_reg.txt")
+REGNET_SUGGESTED_PEERS = REGNET_PEERS
 
 SQL_INDEX = [ "CREATE TABLE aliases (block_height INTEGER, address, alias)",
               "CREATE TABLE tokens (block_height INTEGER, timestamp, token, address, recipient, txid, amount INTEGER)" ]
