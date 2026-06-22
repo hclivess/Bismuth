@@ -7,8 +7,9 @@ A "top explorer" dashboard's worth of metrics, in three cost classes:
     active-addresses, new addresses, rich list, top miners, largest transactions) is computed ONCE in a
     daemon thread, mirrored to a small JSON file beside the ledger, then topped up over only the new blocks
     per call — the pattern rest_api uses for circulating supply. The first call returns status "computing".
-    All heavy cold scans share ONE lock (``_heavy``), so a cold stats-page load can never fire several
-    multi-GB scans at once — they run strictly one at a time and populate over a few page loads.
+    A single stats-page load spawns ONE self-driving background pass (``_warm_cold``) that computes every
+    cold aggregate SEQUENTIALLY — never several multi-GB scans at once, and it does not need the page held
+    open to finish (it warms the whole set, persists each to disk, then exits).
   * EXTERNAL, TTL-cached: node geolocation (ip-api.com) for the world map and market data (coingecko) for
     price / market cap, both fetched server-side (no https mixed-content), gated by rest_api_geo /
     rest_api_market (default on) and degrading to nothing on failure.
@@ -91,46 +92,50 @@ def _to_bis(raw):
     return float(raw or 0)
 
 
-# ------------------------------------------------- serialized heavy background compute ----
-def _heavy_lock(node):
-    lk = getattr(node, "_stats_heavy_lock", None)
-    if lk is None:
-        lk = threading.Lock()
-        node._stats_heavy_lock = lk
-    return lk
-
-
-def _heavy(node, name, compute_fn):
-    """Run a heavy cold full-ledger scan in a daemon thread, SERIALIZED across ALL stats (one heavy scan at
-    a time). compute_fn(d, tip) -> the cache dict to store/mirror. If the single heavy slot is busy this
-    call no-ops and is retried on a later request (so the page just keeps showing 'computing')."""
-    busy_attr = "_stats_busy_" + name
-    if getattr(node, busy_attr, False):
+# ------------------------------------------------- self-driving heavy background compute ----
+def _warm_cold(node):
+    """Warm ALL cold heavy stats in ONE background pass. A single request (one stats-page load) spawns a
+    daemon that computes every not-yet-cached full-ledger aggregate SEQUENTIALLY (one heavy scan at a time,
+    so the 23GB ledger is never hit by several scans at once). Crucially this is SELF-DRIVING: it does NOT
+    depend on the page being held open / re-requested to advance to the next stat — one trigger warms the
+    whole set, the caches persist on disk, and thereafter only the cheap per-request incremental top-up runs.
+    Idempotent: re-entrancy is guarded by node._stats_warming, and any stat already cached is skipped."""
+    if getattr(node, "_stats_warming", False):
         return
-    setattr(node, busy_attr, True)
-    lock = _heavy_lock(node)
+    node._stats_warming = True
+    specs = [("monthly", _monthly_cold), ("newaddr", _newaddr_cold), ("rich", _rich_cold),
+             ("miners", _miners_cold), ("bigtx", _bigtx_cold)]
 
     def work():
-        if not lock.acquire(blocking=False):
-            setattr(node, busy_attr, False)     # another heavy scan holds the slot; retry later
-            return
         try:
-            d = _open_db(node)
-            try:
-                tip = int(getattr(node, "hdd_block", 0) or 0)
-                cache = compute_fn(d, tip)
-                setattr(node, "_stats_" + name + "_cache", cache)
-                _save(node, name, cache)
-            finally:
-                d.close()
-        except Exception as e:
-            try:
-                node.logger.app_log.warning("%s compute failed: %s" % (name, e))
-            except Exception:
-                pass
+            for name, fn in specs:
+                attr = "_stats_%s_cache" % name
+                if getattr(node, attr, None) is not None:
+                    continue
+                disk = _load(node, name)
+                if disk is not None:                 # already on disk -> just memoize, no scan
+                    setattr(node, attr, disk)
+                    continue
+                try:
+                    d = _open_db(node)
+                    try:
+                        tip = int(getattr(node, "hdd_block", 0) or 0)
+                        cache = fn(d, tip)
+                        setattr(node, attr, cache)
+                        _save(node, name, cache)
+                        try:
+                            node.logger.app_log.warning("Status: stats '%s' cache built at height %s" % (name, tip))
+                        except Exception:
+                            pass
+                    finally:
+                        d.close()
+                except Exception as e:
+                    try:
+                        node.logger.app_log.warning("stats '%s' warm failed: %s" % (name, e))
+                    except Exception:
+                        pass
         finally:
-            lock.release()
-            setattr(node, busy_attr, False)
+            node._stats_warming = False
 
     threading.Thread(target=work, daemon=True).start()
 
@@ -138,8 +143,7 @@ def _heavy(node, name, compute_fn):
 # ===================================================================== monthly series ====
 # One scan, many per-month metrics: non-coinbase tx count, value transferred, fees, coin emission (block
 # subsidy), and distinct active senders. The additive four top up incrementally; active-senders (a COUNT
-# DISTINCT, not additively mergeable) is refreshed on the cold scan and on a large-gap rebuild.
-MONTHLY_REBUILD_GAP = 50000
+# DISTINCT, not additively mergeable) is the cold-scan value and is not advanced by the incremental top-up.
 _MONTHLY_ADD_SQL = (
     "SELECT strftime('%Y-%m', timestamp, 'unixepoch') AS m, "
     "SUM(CASE WHEN reward = 0 THEN 1 ELSE 0 END) AS txs, "
@@ -174,13 +178,11 @@ def monthly(node, db):
     net burned fees or the dev/HN reward mirrors; /api/supply is the authoritative circulating figure."""
     cache = _load_cache(node, "monthly")
     if cache is None:
-        _heavy(node, "monthly", _monthly_cold)
+        _warm_cold(node)
         return {"status": "computing", "height": int(getattr(node, "hdd_block", 0) or 0), "months": []}
     tip = int(getattr(node, "hdd_block", 0) or 0)
     ch = int(cache.get("height", 0))
     if tip > ch:
-        if tip - ch > MONTHLY_REBUILD_GAP:
-            _heavy(node, "monthly", _monthly_cold)     # far behind: refresh active too, in the background
         try:
             months = {k: dict(v) for k, v in cache.get("months", {}).items()}
             for (m, txs, vol, fees, em) in (db.fetchall(db.h, _MONTHLY_ADD_SQL, (ch, tip)) or []):
@@ -238,7 +240,7 @@ def new_addresses(node, db):
     """Cached monthly count of newly-created addresses. {status, height, total (cumulative), months:[{month,count}]}."""
     cache = _load_cache(node, "newaddr")
     if cache is None:
-        _heavy(node, "newaddr", _newaddr_cold)
+        _warm_cold(node)
         return {"status": "computing", "height": int(getattr(node, "hdd_block", 0) or 0), "months": []}
     tip = int(getattr(node, "hdd_block", 0) or 0)
     ch = int(cache.get("height", 0))
@@ -267,7 +269,6 @@ def new_addresses(node, db):
 # ALL heights — identical to essentials.ledger_balance3). Cold = one capped GROUP BY; incremental =
 # recompute only TOUCHED addresses (indexed per-address aggregate) and re-merge into the cached top-K.
 RICH_K = 500
-RICH_REBUILD_GAP = 25000
 _RICH_COLD_SQL = (
     "SELECT a, SUM(v) AS bal FROM ("
     "  SELECT recipient AS a, amount + reward AS v FROM transactions"
@@ -305,30 +306,27 @@ def rich_list(node, db, top=100):
     top = max(1, min(int(top or 100), RICH_K))
     cache = _load_cache(node, "rich")
     if cache is None:
-        _heavy(node, "rich", _rich_cold)
+        _warm_cold(node)
         return {"status": "computing", "height": int(getattr(node, "hdd_block", 0) or 0), "rich": []}
     tip = int(getattr(node, "hdd_block", 0) or 0)
     ch = int(cache.get("height", 0))
     if tip > ch:
-        if tip - ch > RICH_REBUILD_GAP:
-            _heavy(node, "rich", _rich_cold)            # too far behind: rebuild in the background, serve stale
-        else:
-            try:
-                balances = dict(cache.get("top", {}))
-                touched = {a for (a,) in (db.fetchall(db.h, _RICH_TOUCHED_SQL, (ch, tip)) or []) if a}
-                for a in touched:
-                    cr, dr = (db.fetchall(db.h, _RICH_ADDR_SQL, (a,)) or [(0, 0)])[0]
-                    bal = _rich_balance_bis(cr, dr)
-                    if bal > 0:
-                        balances[a] = bal
-                    else:
-                        balances.pop(a, None)
-                ranked = sorted(balances.items(), key=lambda kv: -kv[1])[:RICH_K]
-                cache = {"height": tip, "top": dict(ranked)}
-                node._stats_rich_cache = cache
-                _save(node, "rich", cache)
-            except Exception:
-                pass
+        try:
+            balances = dict(cache.get("top", {}))
+            touched = {a for (a,) in (db.fetchall(db.h, _RICH_TOUCHED_SQL, (ch, tip)) or []) if a}
+            for a in touched:
+                cr, dr = (db.fetchall(db.h, _RICH_ADDR_SQL, (a,)) or [(0, 0)])[0]
+                bal = _rich_balance_bis(cr, dr)
+                if bal > 0:
+                    balances[a] = bal
+                else:
+                    balances.pop(a, None)
+            ranked = sorted(balances.items(), key=lambda kv: -kv[1])[:RICH_K]
+            cache = {"height": tip, "top": dict(ranked)}
+            node._stats_rich_cache = cache
+            _save(node, "rich", cache)
+        except Exception:
+            pass
     ranked = sorted(cache.get("top", {}).items(), key=lambda kv: -kv[1])[:top]
     return {"status": "ok", "height": cache["height"], "count": len(ranked),
             "rich": [{"rank": i + 1, "address": a, "balance": round(b, 8)}
@@ -357,7 +355,7 @@ def top_miners(node, db, top=50):
     top = max(1, min(int(top or 50), 1000))
     cache = _load_cache(node, "miners")
     if cache is None:
-        _heavy(node, "miners", _miners_cold)
+        _warm_cold(node)
         return {"status": "computing", "height": int(getattr(node, "hdd_block", 0) or 0), "miners": []}
     tip = int(getattr(node, "hdd_block", 0) or 0)
     ch = int(cache.get("height", 0))
@@ -408,7 +406,7 @@ def largest_txs(node, db, top=25):
     top = max(1, min(int(top or 25), BIGTX_K))
     cache = _load_cache(node, "bigtx")
     if cache is None:
-        _heavy(node, "bigtx", _bigtx_cold)
+        _warm_cold(node)
         return {"status": "computing", "height": int(getattr(node, "hdd_block", 0) or 0), "txs": []}
     tip = int(getattr(node, "hdd_block", 0) or 0)
     ch = int(cache.get("height", 0))
