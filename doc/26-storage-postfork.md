@@ -1,9 +1,13 @@
 # doc/26 — Post-fork storage rearchitecture (no SQLite)
 
-> Status: **design done; stages 1–2 ✅ shipped (shielded store + token/alias side-index on LMDB).** The
-> endgame of doc/16: retire the 2014-era SQLite trio **post-fork** and make a single LMDB store canonical.
-> Consensus serialization stays frozen (same block hashes, same validation); legacy SQLite keeps working
-> **pre-fork** for old peers.
+> Status: **stages 1–2 ✅ shipped (shielded store + token/alias side-index on LMDB); stage 3 read-seam +
+> stage 4 balance-read PARITY-ASSERT bake-in ✅ shipped.** The LMDB balance index is now proven
+> consensus-faithful — the regnet suite runs the overspend read in `shadow`+`parity_strict` mode, raising on
+> any divergence from `ledger_balance3` (default `off` on mainnet → byte-identical). The remaining flips
+> (canonical LMDB write, true-byte sig/pubkey, headers-first sync, SQLite-trio retirement) need a **two-node
+> harness** and are deferred (see Next stages). The endgame of doc/16: retire the 2014-era SQLite trio
+> **post-fork**, single LMDB store canonical. Consensus serialization is fork-gated (doc/29); legacy SQLite
+> keeps working **pre-fork** for old peers.
 
 ## 1. What's there today — the "H1/H2/H3" architecture, and why it isn't ideal
 
@@ -171,20 +175,27 @@ path: introduce the seam, move reads, move writes, then delete the SQLite trio. 
   tracks the consensus linkage block-for-block — the prerequisite for making `block_store.tip()`/`block_hash`
   the crash-recovery + last-block-linkage authority. (The last-block-linkage SQLite read is only a
   startup/post-rollback seed held in memory during digestion, so there is no per-block read to swap.)
-- 🚧 **Stage 3 (shadow): balance-read cross-check** (`digest.py` `_validate_balance` /
-  `_balance_index_crosscheck`). The overspend check reads the authoritative `ledger_balance3` (a ledger scan)
-  — the LAST consensus read still on SQLite and the real gate for retiring the SQLite write. Post-fork, on an
-  address's FIRST appearance in a block (the one point the two line up — `ledger_balance3` has no intra-block
-  delta cached yet and `balance_index` reflects the last committed block), the maintained LMDB `balance_index`
-  is compared against it, **log-only**. `ledger_balance3` stays authoritative and `balance_index` stays
-  display-only, so a mismatch can NEVER affect validation — it is pure evidence that the index is byte-faithful
-  before the read could ever be flipped (a wrong index = inflation, the highest-risk migration). Validated:
-  504/504 green, node ran to h340 post-fork with `balance_index` enabled, ZERO divergences.
+- ✅ **Stage 4 (centerpiece): balance-read PARITY-ASSERT bake-in** (`digest.py` `_validate_balance`,
+  `chain_ops._rebuild_derived_state`, `options.py`/`node.py`). The overspend check is the LAST consensus read
+  on SQLite (`ledger_balance3`) and the real gate for retiring the SQLite write. A new `balance_index_consensus`
+  flag (**off | shadow | primary**, default off) drives a dual-read at the gating point, on an address's FIRST
+  appearance (the one point the two views line up — no intra-block delta cached, index at the last committed
+  block), post-fork, integer mode:
+  - **off** (default / mainnet): `ledger_balance3` authoritative, NO index read → byte-identical.
+  - **shadow**: compute the index too and compare; warn, or RAISE under `parity_strict`; SQLite stays authoritative.
+  - **primary**: the index is authoritative; still compute SQLite and **RAISE on mismatch** (halt > inflate).
+
+  The index **bit-matches** `ledger_balance3` in integer mode by construction (exact, order-independent integer
+  addition through the same `to_decimal`; mirror reward rows included). To make that a guarantee, the index
+  apply (`digest.py`) and reorg rebuild (`chain_ops.py`) now **re-raise** (not warn) once `balance_index_consensus
+  != off` — a stale index halts rather than drifts. The regnet suite runs **`balance_index_consensus=shadow` +
+  `parity_strict=True`**, so the parity assert fires on EVERY consensus overspend read + reorg suite-wide:
+  **green ⇒ the LMDB balance index is proven consensus-faithful and authoritative-capable.**
 
 ### Next stages (in order)
-- **Stage 3 (cont.): FLIP the `ledger_balance3` overspend read onto `balance_index`** — only after a long
-  clean shadow period (above), ideally on mainnet once `balance_index` is enabled there. The single
-  highest-risk change (a wrong balance index is inflation). This is the real gate for retiring the SQLite write.
+- **Stage 4 (cont.): set `balance_index_consensus=primary`** to make the index authoritative (the per-read
+  cross-check + RAISE-on-mismatch is the permanent backstop). With SQLite still computed the byte outcome is
+  identical, so the real win lands only once the SQLite read/write is removed — which needs the items below.
 - **Stage 4 (cont.): flip the canonical write to LMDB + retire the lockstep.** Once the reads are off SQLite
   and the LMDB write is continuously cross-checked/trusted: make `block_store.tip()` the crash-recovery
   anchor (atomic ⇒ an unambiguous floor), delete the `commit_marker`/`ATTACH` machinery, and reduce SQLite

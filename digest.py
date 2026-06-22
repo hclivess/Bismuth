@@ -253,42 +253,50 @@ class BlockProcessor:
         return block_debit_address, block_fees_address
 
     def _validate_balance(self, address: str, amount: str, debit: Decimal, fees: Decimal, balances: dict) -> None:
-        """Validate that an address has sufficient balance."""
-        first_seen = address not in balances          # first appearance this block: comparable to balance_index
-        balance_pre = ledger_balance3(address, balances, self.db_handler)
-        balance = quantize_eight(balance_pre - debit)
+        """Validate that an address has sufficient balance.
 
+        Balance-read migration seam (doc/26 stage 4). The overspend check is the LAST consensus read still on
+        SQLite (ledger_balance3, a ledger scan). The maintained LMDB balance_index BIT-MATCHES it in
+        integer-units mode (exact, order-independent integer addition through the same to_decimal; mirror
+        reward rows included), so it can become the authoritative read. Gated by node.balance_index_consensus,
+        and engaged only on an address's FIRST appearance this block (where the two views coincide:
+        ledger_balance3 has no intra-block delta cached yet and the index reflects the last committed block),
+        post-fork, integer mode:
+          off (default / mainnet): ledger_balance3 authoritative, NO index read -> byte-identical.
+          shadow: compute the index too + compare; warn (raise under parity_strict) on a mismatch; keep SQLite.
+          primary: the index is authoritative; still compute SQLite and RAISE on a mismatch (halt > inflate)."""
+        node = self.node
+        first_seen = address not in balances
+        balance_pre = ledger_balance3(address, balances, self.db_handler)   # SQLite — the safe authoritative read
+
+        mode = getattr(node, "balance_index_consensus", "off")
+        bi = getattr(node, "balance_index", None)
+        fh = getattr(node, "fork_height", None)
+        if (mode != "off" and bi is not None and fh is not None and first_seen
+                and (getattr(node, "last_block", 0) or 0) >= fh and amounts.LEDGER_INTEGER):
+            strict = (mode == "primary") or getattr(node, "parity_strict", False)
+            try:
+                indexed = quantize_eight(bi.get_balance(address))
+            except Exception as e:
+                if strict:
+                    raise
+                node.logger.app_log.warning(f"balance seam read failed for {address[:16]}: {e}")
+                indexed = None
+            if indexed is not None and indexed != quantize_eight(balance_pre):
+                msg = (f"balance seam: index {indexed} != ledger_balance3 {balance_pre} for {address[:16]} "
+                       f"at height {getattr(node, 'last_block', 0)}")
+                if strict:
+                    raise ValueError(msg)
+                node.logger.app_log.warning(msg + " — investigate before trusting the LMDB balance read")
+            elif indexed is not None and mode == "primary":
+                balance_pre = indexed                   # the index is now the authoritative starting balance
+
+        balance = quantize_eight(balance_pre - debit)
         if quantize_eight(balance_pre) < quantize_eight(amount):
             raise ValueError(f"{address} sending more than owned: {amount}/{balance_pre}")
 
         if quantize_eight(balance) - quantize_eight(fees) < 0:
             raise ValueError(f"{address} Cannot afford to pay fees (balance: {balance}, block fees: {fees})")
-
-        # Balance-read cross-check SHADOW (doc/26 stage 4). The overspend check above reads the authoritative
-        # ledger_balance3 (a ledger scan) — the LAST consensus read still on SQLite and the gate for retiring
-        # the SQLite write. Here we shadow the maintained LMDB balance_index against it to build the evidence
-        # that the index is byte-faithful before that read could ever be flipped (a wrong index = inflation,
-        # so this is the highest-risk migration). Compared only on an address's FIRST appearance in the block,
-        # where the two line up: ledger_balance3 has no intra-block delta cached yet and balance_index reflects
-        # the last committed block. LOG-ONLY — balance_index stays display-only and ledger_balance3 stays
-        # authoritative, so a mismatch can never affect validation; it just flags an index bug to fix.
-        if first_seen:
-            self._balance_index_crosscheck(address, balance_pre)
-
-    def _balance_index_crosscheck(self, address: str, authoritative: Decimal) -> None:
-        node = self.node
-        bi = getattr(node, "balance_index", None)
-        fork_height = getattr(node, "fork_height", None)
-        if bi is None or fork_height is None or (getattr(node, "last_block", 0) or 0) < fork_height:
-            return
-        try:
-            indexed = bi.get_balance(address)
-            if quantize_eight(indexed) != quantize_eight(authoritative):
-                node.logger.app_log.warning(
-                    f"balance seam: index {indexed} != ledger_balance3 {authoritative} for {address[:16]} "
-                    f"at height {node.last_block} — investigate before trusting the LMDB balance read")
-        except Exception as e:
-            node.logger.app_log.warning(f"balance seam cross-check failed for {address[:16]}: {e}")
 
     def _remove_from_mempool(self, signature: str) -> None:
         """Remove processed transaction from mempool."""
@@ -695,6 +703,10 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
                 if mirrors:
                     node.balance_index.apply_rows(mirrors)
             except Exception as e:
+                # doc/26 stage 4 (S1): once the index is consensus-critical, a silently-stale index is an
+                # inflation risk — HALT rather than drift. Inert (warn-only) while balance_index_consensus=off.
+                if getattr(node, "balance_index_consensus", "off") != "off":
+                    raise
                 node.logger.app_log.warning(
                     f"balance index maintain failed at {block_instance.block_height_new}: {e}")
 

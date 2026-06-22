@@ -60,6 +60,10 @@ def _rebuild_derived_state(node, db_handler, keep_height):
         try:
             node.balance_index.rebuild_from_cursor(db_handler.c)
         except Exception as e:
+            # doc/26 stage 4 (S1): consensus-critical once the overspend read trusts the index — a failed
+            # reorg rebuild would leave it ahead of the ledger; HALT rather than drift. Inert while off.
+            if getattr(node, "balance_index_consensus", "off") != "off":
+                raise
             node.logger.app_log.warning(f"balance index rollback rebuild failed: {e}")
     # the VM contract state is a re-executable projection of the chain's vm: txs — rebuild it from the
     # rolled-back ledger and recompute the committed state root (deterministic, post-fork only).

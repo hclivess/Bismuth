@@ -80,6 +80,8 @@ class Get:
         "rpc_ethereum": ["bool"],
         "rpc_ethereum_port": ["int"],
         "balance_index": ["bool"],
+        "balance_index_consensus": ["str"],
+        "parity_strict": ["bool"],
         "vm": ["bool"],
         "shield": ["bool"],
         "token_index": ["bool"],
@@ -123,6 +125,8 @@ class Get:
         "rpc_ethereum": False,               # opt-in eth_* compatibility shim (doc/17); off by default
         "rpc_ethereum_port": 8545,
         "balance_index": False,              # opt-in maintained O(1) balance index for the DISPLAY read path (doc/17); off by default. Consensus stays on ledger_balance3.
+        "balance_index_consensus": "off",    # doc/26 stage 4: off|shadow|primary. off=ledger_balance3 (SQLite) authoritative (default/mainnet). shadow=compute the LMDB balance_index too + compare at the overspend read (warn, or raise under parity_strict). primary=index authoritative, still cross-check SQLite + RAISE on mismatch (halt > inflate). Needs balance_index + integer-units + post-fork; never engages pre-fork.
+        "parity_strict": False,              # doc/26 stage 4: turn store/index parity mismatches (balance seam) into a raised AssertionError instead of a log warning — for CI/regnet, NEVER prod.
         "vm": False,                         # opt-in decentralized-apps VM (doc/17); executes vm: txs POST-FORK only. Off by default; inert until hf2 activates.
         "shield": False,                     # opt-in shielded value (doc/22); validates shield: txs POST-FORK only. Off by default; inert until hf2 activates.
         "token_index": False,                # opt-in LMDB token/alias side-index (doc/26 stage 2), replacing the SQLite index.db projection. Off by default (mainnet stays on index.db pre-fork); becomes the post-fork home for tokens/aliases.

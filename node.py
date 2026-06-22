@@ -1369,6 +1369,8 @@ if __name__ == "__main__":
     node.rpc_ethereum_port = config.rpc_ethereum_port
     node.balance_index_enabled = config.balance_index  # opt-in O(1) display-balance index (doc/17)
     node.balance_index = None                          # the index object, built at startup if enabled
+    node.balance_index_consensus = getattr(config, "balance_index_consensus", "off")  # doc/26 stage 4: off|shadow|primary
+    node.parity_strict = getattr(config, "parity_strict", False)  # doc/26 stage 4: raise (not warn) on a parity mismatch
     node.vm_enabled = config.vm                         # opt-in decentralized-apps VM (doc/17); POST-FORK only
     node.vm_state = None                               # the contract state store, built at startup if enabled
     node.vm_state_root = None                          # committed VM state root (doc/19), maintained post-fork
