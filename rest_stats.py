@@ -562,19 +562,36 @@ def network_summary(node, db):
 
 
 # ------------------------------------------------------------------- node geolocation ----
-def _peer_ips(node):
-    """Distinct bare-host peer IPs the node knows (connection pool + opinions), capped."""
+def _peer_status(node):
+    """Every peer IP the node knows -> 'connected' | 'banned' | 'known'. Includes the FULL set, not just
+    live connections: the banlist (config bans + reputation bans, peers_reputation appends to it) and the
+    known-peer set (peer_dict from peers.txt / suggested_peers.txt), so the map paints every peer the node
+    is aware of. Non-routable / local IPs are dropped (not geolocatable). Capped."""
     p = getattr(node, "peers", None)
     if not p:
-        return []
-    ips = set()
+        return {}
+
+    def host(x):
+        return str(x).split(":")[0]
+
+    connected, banned, known = set(), set(), set()
     for ip in (getattr(p, "peer_opinion_dict", {}) or {}):
-        ips.add(str(ip).split(":")[0])
+        connected.add(host(ip))
     for c in (getattr(p, "_connection_pool_set", set()) or set()):
-        ips.add(str(c).split(":")[0])
-    # only public IPv4-ish entries are geolocatable; drop obvious non-routables cheaply
-    out = [ip for ip in ips if ip and not ip.startswith(("127.", "10.", "192.168.", "169.254.", "0."))]
-    return sorted(out)[:300]
+        connected.add(host(c))
+    for c in (getattr(p, "connection_pool", []) or []):
+        connected.add(host(c))
+    for ip in (getattr(p, "banlist", []) or []):
+        banned.add(host(ip))
+    for ip in (getattr(p, "peer_dict", {}) or {}):
+        known.add(host(ip))
+    status = {}
+    for ip in (known | connected | banned):
+        if not ip or ip.startswith(("127.", "10.", "192.168.", "169.254.", "0.")):
+            continue
+        # precedence: banned (even if also in peer_dict) > connected > merely known
+        status[ip] = "banned" if ip in banned else ("connected" if ip in connected else "known")
+    return dict(sorted(status.items())[:500])
 
 
 def _geo_fetch(ips):
@@ -607,7 +624,7 @@ def _geo_compute(node):
 
     def work():
         try:
-            ips = _peer_ips(node)
+            ips = list(_peer_status(node).keys())   # geolocate the FULL set (connected + known + banned)
             geo = _geo_fetch(ips) if ips else {}
             cache = {"ts": int(time.time()), "geo": geo}
             node._stats_geo_cache = cache
@@ -625,8 +642,9 @@ def _geo_compute(node):
 
 def geo_nodes(node):
     """Geolocated peers for the world map. Best-effort + cached with a TTL; gated by ``rest_api_geo``.
-    Returns {status, points:[{ip,lat,lon,country,cc,city}], countries:[{country,cc,count}]}. The first call
-    (cold) kicks the background lookup and returns status 'computing'."""
+    Returns {status, points:[{ip,lat,lon,country,cc,city,status}], status_counts, countries}. Geolocation is
+    cached (it doesn't change); each peer's status (connected|banned|known) is recomputed fresh per call.
+    The first call (cold) kicks the background lookup and returns status 'computing'."""
     if not getattr(node, "rest_api_geo", True):
         return {"status": "disabled", "points": [], "countries": []}
     cache = getattr(node, "_stats_geo_cache", None)
@@ -640,15 +658,19 @@ def geo_nodes(node):
     if cache is None:
         return {"status": "computing", "points": [], "countries": []}
     geo = cache.get("geo", {}) or {}
+    status_map = _peer_status(node)              # CURRENT status per ip (cheap; geolocation stays cached)
     points, by_country = [], {}
+    counts = {"connected": 0, "known": 0, "banned": 0}
     for ip, g in geo.items():
         if g.get("lat") is None or g.get("lon") is None:
             continue
-        points.append({"ip": ip, "lat": g["lat"], "lon": g["lon"],
-                       "country": g.get("country"), "cc": g.get("cc"), "city": g.get("city")})
+        st = status_map.get(ip, "known")         # geolocated earlier but no longer in any set -> treat as known
+        points.append({"ip": ip, "lat": g["lat"], "lon": g["lon"], "country": g.get("country"),
+                       "cc": g.get("cc"), "city": g.get("city"), "status": st})
+        counts[st] = counts.get(st, 0) + 1
         key = (g.get("cc") or "??", g.get("country") or "Unknown")
         by_country[key] = by_country.get(key, 0) + 1
     countries = [{"cc": cc, "country": c, "count": n}
                  for (cc, c), n in sorted(by_country.items(), key=lambda kv: -kv[1])]
     return {"status": "ok", "ts": cache.get("ts"), "count": len(points),
-            "points": points, "countries": countries}
+            "status_counts": counts, "points": points, "countries": countries}

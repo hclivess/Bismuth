@@ -351,8 +351,13 @@ function svgGeo(points,{w=880,h=440}={}){
   for(let lat=-60;lat<=60;lat+=30)g.push(`<line x1="0" y1="${((90-lat)/180*h).toFixed(1)}" x2="${w}" y2="${((90-lat)/180*h).toFixed(1)}" stroke="#1a212b" stroke-opacity="0.6"/>`);
   // Earth in the background (equirectangular world.svg, same lon/lat projection as the dots below).
   const earth=`<image x="0" y="0" width="${w}" height="${h}" href="assets/world.svg" preserveAspectRatio="none"/>`;
-  const dots=points.map(p=>{const x=(p.lon+180)/360*w,y=(90-p.lat)/180*h;
-    return `<g><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="7" fill="#6cb4ff" fill-opacity="0.18"/><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.5" fill="#6cb4ff" fill-opacity="0.85" stroke="#dcebff" stroke-width="0.6"><title>${esc((p.city?p.city+', ':'')+(p.country||''))} — ${esc(p.ip)}</title></circle></g>`;}).join('');
+  const COL={connected:'#6cb4ff',known:'#8aa0bd',banned:'#ff5d5d'};
+  // banned drawn last (on top) so they're never hidden under a connected dot at the same location
+  const order={connected:0,known:1,banned:2};
+  const dots=points.slice().sort((a,b)=>(order[a.status]||0)-(order[b.status]||0)).map(p=>{
+    const x=(p.lon+180)/360*w,y=(90-p.lat)/180*h,st=p.status||'connected',c=COL[st]||'#6cb4ff';
+    const r=st==='connected'?3.6:(st==='banned'?3.2:2.4),o=st==='known'?0.6:0.9;
+    return `<g><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(r+3).toFixed(1)}" fill="${c}" fill-opacity="0.16"/><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r}" fill="${c}" fill-opacity="${o}" stroke="#0b1016" stroke-width="0.5"><title>${esc(st)} · ${esc((p.city?p.city+', ':'')+(p.country||''))} — ${esc(p.ip)}</title></circle></g>`;}).join('');
   return `<svg viewBox="0 0 ${w} ${h}" width="100%" preserveAspectRatio="xMidYMid meet" style="max-width:100%;background:#0b1016;border:1px solid #2a323d;border-radius:6px">${earth}${g.join('')}${dots}</svg>`;
 }
 // ---- stats helpers ----
@@ -417,6 +422,9 @@ async function statsView(){
       :geo.status==='computing'?'<p class="subtle py-3">Locating peers on the map… (refreshes automatically).</p>'
       :gpts.length?svgGeo(gpts):'<p class="subtle py-3">No geolocated peers yet.</p>';
     const ctable=(geo.countries||[]).slice(0,25).map(c=>`<tr><td>${esc(c.country||c.cc||'?')}</td><td>${c.count}</td></tr>`).join('');
+    const scnt=geo.status_counts||{};
+    const swatch=(col,lbl,n)=>`<span class="me-3" style="white-space:nowrap"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${col};vertical-align:middle;margin-right:5px"></span>${lbl}${n!=null?' · '+n:''}</span>`;
+    const geoLegend=geo.status==='ok'?`<div class="subtle small mb-2">${swatch('#6cb4ff','Connected',scnt.connected||0)}${swatch('#8aa0bd','Known',scnt.known||0)}${swatch('#ff5d5d','Banned',scnt.banned||0)}</div>`:'';
     setMain(`<div>
       ${cards}
       <div class="row g-3">
@@ -435,6 +443,7 @@ async function statsView(){
       </div>
       ${statCard('Largest transactions','· by amount',bigBlock)}
       <div class="card p-3 mb-3"><h5 class="mb-2">Node map <span class="subtle small">(${gpts.length} located)</span></h5>
+        ${geoLegend}
         <div class="row g-3"><div class="col-lg-8">${geoBlock}</div>
         <div class="col-lg-4">${(geo.countries||[]).length?`<div class="table-responsive" style="max-height:440px;overflow:auto"><table class="table table-sm align-middle"><thead><tr><th>Country</th><th>Nodes</th></tr></thead><tbody>${ctable}</tbody></table></div>`:'<p class="subtle small">Country breakdown appears once peers are geolocated.</p>'}</div></div>
         <p class="subtle small mt-2">Peer locations are looked up once and cached server-side; disable with <span class="mono">rest_api_geo=False</span>.</p></div>
