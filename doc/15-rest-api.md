@@ -65,9 +65,17 @@ duplicate, format), so the endpoint is a new transport, not a new consensus rule
 | `GET /api/proxy?target={url}` | same-origin relay to another node's read-only `/api` (lets the https explorer browse an http node despite the browser's mixed-content block); read-only, GET-only, `/api`-paths-only, SSRF-guarded (IP-pinned, no-redirect, port-allowlisted, rate-limited); gated by `rest_api_proxy` (default on) |
 | `POST /api/transaction` | submit a signed tx (gated by `rest_api_write`; aliases: `POST /api/sendtx`, `POST /api/mempool`). The response echoes each tx's canonical id in `txids` (post-fork the content-hash txid; pre-fork the legacy signature prefix)¹ |
 | `GET /api/stats/summary` | network dashboard: height, difficulty, recent avg block time, peers, consensus, mempool, token count (`rest_stats.network_summary`) |
-| `GET /api/stats/tx_per_month` | transactions-per-month histogram — a full-ledger GROUP BY computed in the background and topped up incrementally; returns `status:"computing"` until the first scan finishes (`rest_stats.tx_per_month`) |
+| `GET /api/stats/monthly` | per-month series in one cached scan: tx count, value transferred, fees, coin emission, cumulative `issued` (block-reward issuance, NOT exact circulating supply), and active (distinct-sender) addresses (`rest_stats.monthly`) |
+| `GET /api/stats/tx_per_month` | transactions-per-month histogram — served from the `monthly` cache; returns `status:"computing"` until the first scan finishes (`rest_stats.tx_per_month`) |
+| `GET /api/stats/new_addresses` | newly-created addresses per month (first positive-height receive); background-cached, incremental per-recipient first-seen test (`rest_stats.new_addresses`) |
+| `GET /api/stats/rich_list` | top addresses by balance (identical to `ledger_balance3`); `?top=N` (≤500); background-cached, incremental over touched addresses (`rest_stats.rich_list`) |
+| `GET /api/stats/top_miners` | mining distribution: blocks + reward + share% per coinbase recipient; `?top=N`; background-cached, additive (`rest_stats.top_miners`) |
+| `GET /api/stats/largest_txs` | largest transactions by amount; `?top=N` (≤100); background-cached, incremental top-K merge (`rest_stats.largest_txs`) |
+| `GET /api/stats/market` | price / market cap / 24h volume + change (coingecko `bismuth`, server-side TTL-cached; gated by `rest_api_market`, default on) (`rest_stats.market`) |
 | `GET /api/stats/difficulty` | difficulty time-series sampled from the indexed `misc` table (~180 points, cheap — no full scan) (`rest_stats.difficulty_series`) |
 | `GET /api/stats/geo` | geolocated peers for the explorer world map (best-effort ip-api.com batch lookup, cached with a TTL; gated by `rest_api_geo`, default on) (`rest_stats.geo_nodes`) |
+
+All heavy `/api/stats` aggregates (`monthly`, `new_addresses`, `rich_list`, `top_miners`, `largest_txs`) are full-ledger scans run **once** in a background daemon thread, mirrored to a small JSON cache beside the ledger, then topped up incrementally as the tip advances. They share **one** lock, so a cold stats-page load can never fire several multi-GB scans at once — they run strictly one at a time and warm over a few page loads. The explorer's Stats page renders them as inline-SVG charts + tables over an equirectangular world map (`web/explorer`), zero external JS.
 
 Responses are JSON with appropriate status codes (`200`, `400` bad request, `403` forbidden, `404` not
 found, `429` rate-limited, `500` server error, plus `502`/`503` from the relay) and

@@ -335,7 +335,7 @@ def _make_handler(node):
                 if route == ["supply"]:
                     return self._write(200, self._supply(db))
                 if route[:1] == ["stats"] and len(route) == 2:
-                    return self._write(200, self._stats(db, route[1]))
+                    return self._write(200, self._stats(db, route[1], query))
                 # Modern plugins (doc/27) may own a route — the tokens_aliases plugin serves /api/tokens and
                 # /api/token/<name> from its own LMDB store, so post-fork no token/alias code is left in this
                 # router. When no plugin claims the route, fall through to the core (legacy index.db) handlers.
@@ -491,7 +491,13 @@ def _make_handler(node):
                                       "connected/banned/whitelisted status",
                         "/api/supply": "circulating supply + chain height",
                         "/api/stats/summary": "network dashboard: height, difficulty, avg block time, peers, mempool, tokens",
-                        "/api/stats/tx_per_month": "transactions-per-month histogram (background-cached full-ledger scan)",
+                        "/api/stats/monthly": "per-month tx count, volume, fees, coin emission, cumulative supply, active addresses (background-cached, incremental)",
+                        "/api/stats/tx_per_month": "transactions-per-month histogram (served from the monthly cache)",
+                        "/api/stats/new_addresses": "newly-created addresses per month (background-cached, incremental)",
+                        "/api/stats/rich_list": "top addresses by balance (background-cached, incremental); ?top=N (<=500)",
+                        "/api/stats/top_miners": "mining distribution: blocks + reward per miner, share% (background-cached); ?top=N",
+                        "/api/stats/largest_txs": "largest transactions by amount (background-cached); ?top=N (<=100)",
+                        "/api/stats/market": "price / market cap / 24h volume (coingecko, TTL-cached; rest_api_market to disable)",
                         "/api/stats/difficulty": "difficulty time-series sampled from the misc table",
                         "/api/stats/geo": "geolocated peers for the explorer node map (cached; rest_api_geo to disable)",
                         "/api/tokens": "all tokens on chain, ranked by transfer volume",
@@ -854,21 +860,40 @@ def _make_handler(node):
                     "outcome_label": {1: "YES", 2: "NO"}.get(outcome, ""),
                     "yes_odds": yes_odds, "no_odds": no_odds}  # implied probability, % of the pool
 
-        def _stats(self, db, which):
-            """Explorer statistics (doc/15). Heavy aggregates (tx-per-month) are background-cached on the
-            node; difficulty is sampled from the indexed misc table; geo is best-effort + cached. All
-            read-only / consensus-neutral."""
+        def _stats(self, db, which, query=None):
+            """Explorer statistics (doc/15). Heavy aggregates (tx-per-month, new-addresses, rich-list) are
+            background-cached on the node and topped up incrementally; difficulty is sampled from the indexed
+            misc table; geo is best-effort + cached. All read-only / consensus-neutral."""
             import rest_stats
+            query = query or {}
+            def _top(default):
+                try:
+                    return int((query.get("top") or [str(default)])[0])
+                except (TypeError, ValueError):
+                    return default
             if which == "summary":
                 return rest_stats.network_summary(node, db)
+            if which == "monthly":
+                return rest_stats.monthly(node, db)
             if which in ("tx_per_month", "txmonth"):
                 return rest_stats.tx_per_month(node, db)
+            if which in ("new_addresses", "newaddr"):
+                return rest_stats.new_addresses(node, db)
+            if which in ("rich_list", "richlist", "rich"):
+                return rest_stats.rich_list(node, db, top=_top(100))
+            if which in ("top_miners", "miners"):
+                return rest_stats.top_miners(node, db, top=_top(50))
+            if which in ("largest_txs", "largest", "bigtx"):
+                return rest_stats.largest_txs(node, db, top=_top(25))
+            if which == "market":
+                return rest_stats.market(node)
             if which == "difficulty":
                 tip = int(getattr(node, "hdd_block", 0) or 0)
                 return {"tip": tip, "series": rest_stats.difficulty_series(db, tip)}
             if which == "geo":
                 return rest_stats.geo_nodes(node)
-            raise _NotFound("unknown stats endpoint (summary|tx_per_month|difficulty|geo)")
+            raise _NotFound("unknown stats endpoint (summary|monthly|tx_per_month|new_addresses|"
+                            "rich_list|top_miners|largest_txs|market|difficulty|geo)")
 
         def _supply(self, db):
             """Circulating supply = mining emission (sum(reward)-sum(fee) over positive heights) + the

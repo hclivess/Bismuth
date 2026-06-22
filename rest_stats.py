@@ -1,17 +1,17 @@
 """Aggregate statistics for the explorer stats page (doc/15). Read-only and consensus-neutral.
 
-Two cost classes:
-  * CHEAP, per-request: a difficulty time-series sampled from the indexed ``misc(block_height, difficulty)``
-    table, and the current-status numbers — computed on demand.
-  * HEAVY, background-cached: the transactions-per-month histogram is a full-ledger GROUP BY (multi-minute
-    on a multi-GB mainnet ledger), so it is computed in a daemon thread, cached on the node, mirrored to a
-    small JSON file beside the ledger, and topped up INCREMENTALLY as the tip advances — exactly the
-    pattern ``rest_api`` uses for circulating supply. The first call returns ``status: "computing"``.
-
-Node geolocation for the world map is fetched best-effort from the public ip-api.com batch endpoint
-(server-side, so the https explorer has no mixed-content problem), cached on the node with a TTL and
-mirrored to disk. It is gated by ``rest_api_geo`` (default on); a node that does not want the outbound
-lookup sets ``rest_api_geo=False`` and the map simply shows nothing.
+A "top explorer" dashboard's worth of metrics, in three cost classes:
+  * CHEAP, per-request: difficulty time-series (sampled from the indexed misc table) and the current-status
+    numbers.
+  * HEAVY, background-cached + INCREMENTAL: every full-ledger aggregate (monthly tx/volume/fees/emission/
+    active-addresses, new addresses, rich list, top miners, largest transactions) is computed ONCE in a
+    daemon thread, mirrored to a small JSON file beside the ledger, then topped up over only the new blocks
+    per call — the pattern rest_api uses for circulating supply. The first call returns status "computing".
+    All heavy cold scans share ONE lock (``_heavy``), so a cold stats-page load can never fire several
+    multi-GB scans at once — they run strictly one at a time and populate over a few page loads.
+  * EXTERNAL, TTL-cached: node geolocation (ip-api.com) for the world map and market data (coingecko) for
+    price / market cap, both fetched server-side (no https mixed-content), gated by rest_api_geo /
+    rest_api_market (default on) and degrading to nothing on failure.
 """
 import json
 import os
@@ -23,6 +23,9 @@ import dbhandler
 
 GEO_TTL = 6 * 3600          # re-geolocate peers at most every 6 hours
 GEO_API = "http://ip-api.com/batch"   # free tier: http only, 100 IPs/batch, ~15 req/min — fine when cached
+MARKET_TTL = 300            # refresh price at most every 5 minutes
+MARKET_API = ("https://api.coingecko.com/api/v3/coins/bismuth?localization=false&tickers=false"
+              "&market_data=true&community_data=false&developer_data=false&sparkline=false")
 
 
 # ------------------------------------------------------------------ disk cache helpers ----
@@ -63,76 +66,422 @@ def _save(node, name, obj):
             pass
 
 
+def _load_cache(node, name):
+    """In-memory cache, falling back to the on-disk mirror (and memoizing it)."""
+    attr = "_stats_%s_cache" % name
+    c = getattr(node, attr, None)
+    if c is None:
+        c = _load(node, name)
+        if c is not None:
+            setattr(node, attr, c)
+    return c
+
+
 def _open_db(node):
     return dbhandler.DbHandler(node.index_db, node.ledger_path, node.hyper_path, node.ram,
                                node.ledger_ram_file, node.logger, trace_db_calls=node.trace_db_calls)
 
 
-# ------------------------------------------------------- transactions-per-month (cached) ----
-# Non-coinbase, positive-height transactions grouped by calendar month. reward=0 excludes the coinbase;
-# negative heights (dev/HN reward mirrors) are excluded by block_height>0.
-_TXM_SQL = ("SELECT strftime('%Y-%m', timestamp, 'unixepoch') AS m, COUNT(*) "
-            "FROM transactions WHERE block_height > ? AND block_height <= ? AND reward = 0 "
-            "GROUP BY m")
+def _to_bis(raw):
+    """A raw ledger amount/fee/reward SUM -> float BIS, honoring the storage mode (integer units vs decimal).
+    Display only; lossy above 2**53 units, never used for consensus."""
+    import amounts
+    if amounts.LEDGER_INTEGER:
+        return float(amounts.to_decimal(raw or 0))
+    return float(raw or 0)
 
 
-def _txm_compute(node):
-    if getattr(node, "_stats_txm_computing", False):
+# ------------------------------------------------- serialized heavy background compute ----
+def _heavy_lock(node):
+    lk = getattr(node, "_stats_heavy_lock", None)
+    if lk is None:
+        lk = threading.Lock()
+        node._stats_heavy_lock = lk
+    return lk
+
+
+def _heavy(node, name, compute_fn):
+    """Run a heavy cold full-ledger scan in a daemon thread, SERIALIZED across ALL stats (one heavy scan at
+    a time). compute_fn(d, tip) -> the cache dict to store/mirror. If the single heavy slot is busy this
+    call no-ops and is retried on a later request (so the page just keeps showing 'computing')."""
+    busy_attr = "_stats_busy_" + name
+    if getattr(node, busy_attr, False):
         return
-    node._stats_txm_computing = True
+    setattr(node, busy_attr, True)
+    lock = _heavy_lock(node)
 
     def work():
+        if not lock.acquire(blocking=False):
+            setattr(node, busy_attr, False)     # another heavy scan holds the slot; retry later
+            return
         try:
             d = _open_db(node)
             try:
                 tip = int(getattr(node, "hdd_block", 0) or 0)
-                rows = d.fetchall(d.h, _TXM_SQL, (0, tip))
-                months = {m: int(c) for (m, c) in rows if m}
-                cache = {"height": tip, "months": months,
-                         "total": sum(months.values())}
-                node._stats_txm_cache = cache
-                _save(node, "txmonth", cache)
+                cache = compute_fn(d, tip)
+                setattr(node, "_stats_" + name + "_cache", cache)
+                _save(node, name, cache)
             finally:
                 d.close()
         except Exception as e:
             try:
-                node.logger.app_log.warning("tx-per-month compute failed: %s" % e)
+                node.logger.app_log.warning("%s compute failed: %s" % (name, e))
             except Exception:
                 pass
         finally:
-            node._stats_txm_computing = False
+            lock.release()
+            setattr(node, busy_attr, False)
 
     threading.Thread(target=work, daemon=True).start()
 
 
-def tx_per_month(node, db):
-    """Cached monthly histogram of non-coinbase transactions. Returns a dict with ``status`` ('ok' |
-    'computing'), ``height``, ``total`` and ``months`` (sorted list of {month, count}). The cold scan runs
-    in the background; once cached it is topped up incrementally over only the new blocks per call."""
-    tip = int(getattr(node, "hdd_block", 0) or 0)
-    cache = getattr(node, "_stats_txm_cache", None)
+# ===================================================================== monthly series ====
+# One scan, many per-month metrics: non-coinbase tx count, value transferred, fees, coin emission (block
+# subsidy), and distinct active senders. The additive four top up incrementally; active-senders (a COUNT
+# DISTINCT, not additively mergeable) is refreshed on the cold scan and on a large-gap rebuild.
+MONTHLY_REBUILD_GAP = 50000
+_MONTHLY_ADD_SQL = (
+    "SELECT strftime('%Y-%m', timestamp, 'unixepoch') AS m, "
+    "SUM(CASE WHEN reward = 0 THEN 1 ELSE 0 END) AS txs, "
+    "SUM(amount) AS vol, SUM(fee) AS fees, SUM(reward) AS emission "
+    "FROM transactions WHERE block_height > ? AND block_height <= ? GROUP BY m")
+_MONTHLY_ACTIVE_SQL = (
+    "SELECT strftime('%Y-%m', timestamp, 'unixepoch') AS m, COUNT(DISTINCT address) "
+    "FROM transactions WHERE block_height > 0 GROUP BY m")
+
+
+def _month_blank():
+    return {"txs": 0, "vol": 0, "fees": 0, "emission": 0, "active": 0}
+
+
+def _monthly_cold(d, tip):
+    months = {}
+    for (m, txs, vol, fees, em) in (d.fetchall(d.h, _MONTHLY_ADD_SQL, (0, tip)) or []):
+        if not m:
+            continue
+        months[m] = {"txs": int(txs or 0), "vol": vol or 0, "fees": fees or 0,
+                     "emission": em or 0, "active": 0}
+    for (m, a) in (d.fetchall(d.h, _MONTHLY_ACTIVE_SQL, ()) or []):
+        if not m:
+            continue
+        months.setdefault(m, _month_blank())["active"] = int(a or 0)
+    return {"height": tip, "active_height": tip, "months": months}
+
+
+def monthly(node, db):
+    """Per-month {month, txs, volume, fees, emission, issued (cumulative block reward), active}. status ok|computing.
+    NB: `issued` is cumulative block-reward emission (coins minted), NOT exact circulating supply — it does not
+    net burned fees or the dev/HN reward mirrors; /api/supply is the authoritative circulating figure."""
+    cache = _load_cache(node, "monthly")
     if cache is None:
-        cache = _load(node, "txmonth")
-        if cache is not None:
-            node._stats_txm_cache = cache
-    if cache is not None:
-        if tip > int(cache.get("height", 0)):
-            try:                                    # cheap incremental top-up over the new blocks only
-                rows = db.fetchall(db.h, _TXM_SQL, (int(cache["height"]), tip))
-                months = dict(cache.get("months", {}))
-                for (m, c) in rows:
-                    if m:
-                        months[m] = months.get(m, 0) + int(c)
-                cache = {"height": tip, "months": months, "total": sum(months.values())}
-                node._stats_txm_cache = cache
-                _save(node, "txmonth", cache)
+        _heavy(node, "monthly", _monthly_cold)
+        return {"status": "computing", "height": int(getattr(node, "hdd_block", 0) or 0), "months": []}
+    tip = int(getattr(node, "hdd_block", 0) or 0)
+    ch = int(cache.get("height", 0))
+    if tip > ch:
+        if tip - ch > MONTHLY_REBUILD_GAP:
+            _heavy(node, "monthly", _monthly_cold)     # far behind: refresh active too, in the background
+        try:
+            months = {k: dict(v) for k, v in cache.get("months", {}).items()}
+            for (m, txs, vol, fees, em) in (db.fetchall(db.h, _MONTHLY_ADD_SQL, (ch, tip)) or []):
+                if not m:
+                    continue
+                e = months.setdefault(m, _month_blank())
+                e["txs"] += int(txs or 0); e["vol"] += (vol or 0)
+                e["fees"] += (fees or 0); e["emission"] += (em or 0)
+            cache = {"height": tip, "active_height": cache.get("active_height", ch), "months": months}
+            node._stats_monthly_cache = cache
+            _save(node, "monthly", cache)
+        except Exception:
+            pass
+    out, cum = [], 0.0
+    for m in sorted(cache.get("months", {})):
+        e = cache["months"][m]
+        em = _to_bis(e.get("emission", 0)); cum += em
+        out.append({"month": m, "txs": int(e.get("txs", 0)),
+                    "volume": round(_to_bis(e.get("vol", 0)), 4), "fees": round(_to_bis(e.get("fees", 0)), 8),
+                    "emission": round(em, 4), "issued": round(cum, 4), "active": int(e.get("active", 0))})
+    totals = {"txs": sum(x["txs"] for x in out), "volume": round(sum(x["volume"] for x in out), 4),
+              "fees": round(sum(x["fees"] for x in out), 8), "emission": round(cum, 4)}
+    return {"status": "ok", "height": cache["height"], "active_height": cache.get("active_height"),
+            "totals": totals, "months": out}
+
+
+def tx_per_month(node, db):
+    """Back-compat: the transactions-per-month histogram, now served from the unified monthly cache."""
+    m = monthly(node, db)
+    if m.get("status") != "ok":
+        return {"status": m.get("status", "computing"), "height": m.get("height"), "months": []}
+    return {"status": "ok", "height": m["height"], "total": m["totals"]["txs"],
+            "months": [{"month": x["month"], "count": x["txs"]} for x in m["months"]]}
+
+
+# ================================================================ new addresses / month ====
+# An address is "created" the first time it RECEIVES at a positive height. Cold = MIN(timestamp)-per-recipient
+# GROUP BY; incremental = only new recipients, each tested for a prior appearance via one indexed lookup.
+_NEWADDR_COLD_SQL = (
+    "SELECT strftime('%Y-%m', f, 'unixepoch') AS m, COUNT(*) FROM ("
+    "  SELECT recipient AS r, MIN(timestamp) AS f FROM transactions WHERE block_height > 0 GROUP BY recipient"
+    ") GROUP BY m")
+_NEWADDR_RANGE_SQL = ("SELECT recipient, MIN(timestamp) FROM transactions "
+                      "WHERE block_height > ? AND block_height <= ? GROUP BY recipient")
+_NEWADDR_SEEN_SQL = ("SELECT 1 FROM transactions WHERE recipient = ? AND block_height > 0 "
+                     "AND block_height <= ? LIMIT 1")
+
+
+def _newaddr_cold(d, tip):
+    months = {m: int(c) for (m, c) in (d.fetchall(d.h, _NEWADDR_COLD_SQL, ()) or []) if m}
+    return {"height": tip, "months": months, "total": sum(months.values())}
+
+
+def new_addresses(node, db):
+    """Cached monthly count of newly-created addresses. {status, height, total (cumulative), months:[{month,count}]}."""
+    cache = _load_cache(node, "newaddr")
+    if cache is None:
+        _heavy(node, "newaddr", _newaddr_cold)
+        return {"status": "computing", "height": int(getattr(node, "hdd_block", 0) or 0), "months": []}
+    tip = int(getattr(node, "hdd_block", 0) or 0)
+    ch = int(cache.get("height", 0))
+    if tip > ch:
+        try:
+            months = dict(cache.get("months", {}))
+            for (recip, first_ts) in (db.fetchall(db.h, _NEWADDR_RANGE_SQL, (ch, tip)) or []):
+                if not recip or first_ts is None:
+                    continue
+                if db.fetchall(db.h, _NEWADDR_SEEN_SQL, (recip, ch)):
+                    continue                            # appeared before the cached tip -> not new
+                m = time.strftime("%Y-%m", time.gmtime(float(first_ts)))
+                months[m] = months.get(m, 0) + 1
+            cache = {"height": tip, "months": months, "total": sum(months.values())}
+            node._stats_newaddr_cache = cache
+            _save(node, "newaddr", cache)
+        except Exception:
+            pass
+    ms = sorted(cache.get("months", {}).items())
+    return {"status": "ok", "height": cache["height"], "total": cache.get("total", 0),
+            "months": [{"month": m, "count": c} for m, c in ms]}
+
+
+# ============================================================================ rich list ====
+# Top addresses by balance (credit = SUM(amount+reward) as recipient, debit = SUM(amount+fee) as address,
+# ALL heights — identical to essentials.ledger_balance3). Cold = one capped GROUP BY; incremental =
+# recompute only TOUCHED addresses (indexed per-address aggregate) and re-merge into the cached top-K.
+RICH_K = 500
+RICH_REBUILD_GAP = 25000
+_RICH_COLD_SQL = (
+    "SELECT a, SUM(v) AS bal FROM ("
+    "  SELECT recipient AS a, amount + reward AS v FROM transactions"
+    "  UNION ALL"
+    "  SELECT address AS a, -(amount + fee) AS v FROM transactions"
+    ") GROUP BY a ORDER BY bal DESC LIMIT ?")
+_RICH_ADDR_SQL = (
+    "SELECT SUM(CASE WHEN recipient = ?1 THEN amount + reward ELSE 0 END), "
+    "       SUM(CASE WHEN address = ?1 THEN amount + fee ELSE 0 END) "
+    "FROM transactions WHERE recipient = ?1 OR address = ?1")
+_RICH_TOUCHED_SQL = (
+    "SELECT recipient AS a FROM transactions WHERE (block_height > ?1 AND block_height <= ?2) "
+    "  OR (block_height < -?1 AND block_height >= -?2) "
+    "UNION SELECT address AS a FROM transactions WHERE (block_height > ?1 AND block_height <= ?2) "
+    "  OR (block_height < -?1 AND block_height >= -?2)")
+
+
+def _rich_balance_bis(credit_raw, debit_raw):
+    import amounts
+    if amounts.LEDGER_INTEGER:
+        return float(amounts.to_decimal(credit_raw or 0) - amounts.to_decimal(debit_raw or 0))
+    return float((credit_raw or 0) - (debit_raw or 0))
+
+
+def _rich_cold(d, tip):
+    top = {}
+    for (a, bal) in (d.fetchall(d.h, _RICH_COLD_SQL, (RICH_K,)) or []):
+        if a:
+            top[a] = _rich_balance_bis(bal, 0)          # cold `bal` is already credit-minus-debit (net)
+    return {"height": tip, "top": top}
+
+
+def rich_list(node, db, top=100):
+    """Cached top-balance address list. {status, height, count, rich:[{rank,address,balance}]}."""
+    top = max(1, min(int(top or 100), RICH_K))
+    cache = _load_cache(node, "rich")
+    if cache is None:
+        _heavy(node, "rich", _rich_cold)
+        return {"status": "computing", "height": int(getattr(node, "hdd_block", 0) or 0), "rich": []}
+    tip = int(getattr(node, "hdd_block", 0) or 0)
+    ch = int(cache.get("height", 0))
+    if tip > ch:
+        if tip - ch > RICH_REBUILD_GAP:
+            _heavy(node, "rich", _rich_cold)            # too far behind: rebuild in the background, serve stale
+        else:
+            try:
+                balances = dict(cache.get("top", {}))
+                touched = {a for (a,) in (db.fetchall(db.h, _RICH_TOUCHED_SQL, (ch, tip)) or []) if a}
+                for a in touched:
+                    cr, dr = (db.fetchall(db.h, _RICH_ADDR_SQL, (a,)) or [(0, 0)])[0]
+                    bal = _rich_balance_bis(cr, dr)
+                    if bal > 0:
+                        balances[a] = bal
+                    else:
+                        balances.pop(a, None)
+                ranked = sorted(balances.items(), key=lambda kv: -kv[1])[:RICH_K]
+                cache = {"height": tip, "top": dict(ranked)}
+                node._stats_rich_cache = cache
+                _save(node, "rich", cache)
             except Exception:
                 pass
-        ms = sorted(cache.get("months", {}).items())
-        return {"status": "ok", "height": cache["height"], "total": cache.get("total", 0),
-                "months": [{"month": m, "count": c} for m, c in ms]}
-    _txm_compute(node)
-    return {"status": "computing", "height": tip, "months": []}
+    ranked = sorted(cache.get("top", {}).items(), key=lambda kv: -kv[1])[:top]
+    return {"status": "ok", "height": cache["height"], "count": len(ranked),
+            "rich": [{"rank": i + 1, "address": a, "balance": round(b, 8)}
+                     for i, (a, b) in enumerate(ranked)]}
+
+
+# ========================================================================== top miners ====
+# Mining distribution: blocks mined + reward earned per coinbase recipient (reward>0, positive height).
+# Cold = GROUP BY recipient; incremental = additive over new blocks.
+_MINERS_COLD_SQL = ("SELECT recipient, COUNT(*), SUM(reward) FROM transactions "
+                    "WHERE block_height > 0 AND reward > 0 GROUP BY recipient")
+_MINERS_RANGE_SQL = ("SELECT recipient, COUNT(*), SUM(reward) FROM transactions "
+                     "WHERE block_height > ? AND block_height <= ? AND reward > 0 GROUP BY recipient")
+
+
+def _miners_cold(d, tip):
+    m = {}
+    for (r, b, rw) in (d.fetchall(d.h, _MINERS_COLD_SQL, ()) or []):
+        if r:
+            m[r] = {"blocks": int(b or 0), "reward": rw or 0}
+    return {"height": tip, "miners": m}
+
+
+def top_miners(node, db, top=50):
+    """Cached mining distribution. {status, height, miner_count, miners:[{rank,address,blocks,reward,share%}]}."""
+    top = max(1, min(int(top or 50), 1000))
+    cache = _load_cache(node, "miners")
+    if cache is None:
+        _heavy(node, "miners", _miners_cold)
+        return {"status": "computing", "height": int(getattr(node, "hdd_block", 0) or 0), "miners": []}
+    tip = int(getattr(node, "hdd_block", 0) or 0)
+    ch = int(cache.get("height", 0))
+    if tip > ch:
+        try:
+            m = {k: dict(v) for k, v in cache.get("miners", {}).items()}
+            for (r, b, rw) in (db.fetchall(db.h, _MINERS_RANGE_SQL, (ch, tip)) or []):
+                if not r:
+                    continue
+                e = m.setdefault(r, {"blocks": 0, "reward": 0})
+                e["blocks"] += int(b or 0); e["reward"] += (rw or 0)
+            cache = {"height": tip, "miners": m}
+            node._stats_miners_cache = cache
+            _save(node, "miners", cache)
+        except Exception:
+            pass
+    miners = cache.get("miners", {})
+    total_blocks = sum(v["blocks"] for v in miners.values()) or 1
+    ranked = sorted(miners.items(), key=lambda kv: -kv[1]["blocks"])[:top]
+    return {"status": "ok", "height": cache["height"], "miner_count": len(miners),
+            "miners": [{"rank": i + 1, "address": a, "blocks": v["blocks"],
+                        "reward": round(_to_bis(v["reward"]), 4),
+                        "share": round(100.0 * v["blocks"] / total_blocks, 2)}
+                       for i, (a, v) in enumerate(ranked)]}
+
+
+# ===================================================================== largest transactions ====
+BIGTX_K = 100
+_BIGTX_COLD_SQL = ("SELECT block_height, timestamp, address, recipient, amount, signature FROM transactions "
+                   "WHERE block_height > 0 AND reward = 0 ORDER BY amount DESC LIMIT ?")
+_BIGTX_RANGE_SQL = ("SELECT block_height, timestamp, address, recipient, amount, signature FROM transactions "
+                    "WHERE block_height > ? AND block_height <= ? AND reward = 0 ORDER BY amount DESC LIMIT ?")
+
+
+def _bigtx_row(r):
+    return {"height": int(r[0]), "timestamp": float(r[1]) if r[1] is not None else None,
+            "sender": r[2], "recipient": r[3], "amount": round(_to_bis(r[4]), 8),
+            "signature": (r[5] or "")[:56]}
+
+
+def _bigtx_cold(d, tip):
+    return {"height": tip, "txs": [_bigtx_row(r) for r in (d.fetchall(d.h, _BIGTX_COLD_SQL, (BIGTX_K,)) or [])]}
+
+
+def largest_txs(node, db, top=25):
+    """Cached largest (by amount) non-coinbase transactions. {status, height, txs:[{height,timestamp,sender,
+    recipient,amount,signature}]}. Incremental: only new blocks' top txs are merged into the cached top-K."""
+    top = max(1, min(int(top or 25), BIGTX_K))
+    cache = _load_cache(node, "bigtx")
+    if cache is None:
+        _heavy(node, "bigtx", _bigtx_cold)
+        return {"status": "computing", "height": int(getattr(node, "hdd_block", 0) or 0), "txs": []}
+    tip = int(getattr(node, "hdd_block", 0) or 0)
+    ch = int(cache.get("height", 0))
+    if tip > ch:
+        try:
+            new = [_bigtx_row(r) for r in (db.fetchall(db.h, _BIGTX_RANGE_SQL, (ch, tip, BIGTX_K)) or [])]
+            seen, uniq = set(), []
+            for t in sorted(cache.get("txs", []) + new, key=lambda x: -x["amount"]):
+                k = t["signature"] or (t["height"], t["sender"], t["recipient"], t["amount"])
+                if k in seen:
+                    continue
+                seen.add(k); uniq.append(t)
+                if len(uniq) >= BIGTX_K:
+                    break
+            cache = {"height": tip, "txs": uniq}
+            node._stats_bigtx_cache = cache
+            _save(node, "bigtx", cache)
+        except Exception:
+            pass
+    return {"status": "ok", "height": cache["height"], "txs": cache.get("txs", [])[:top]}
+
+
+# ============================================================ market / price (external) ====
+def _market_compute(node):
+    if getattr(node, "_stats_market_computing", False):
+        return
+    node._stats_market_computing = True
+
+    def work():
+        try:
+            req = urllib.request.Request(MARKET_API, headers={"User-Agent": "bismuth-node"})
+            with urllib.request.urlopen(req, timeout=12) as r:
+                j = json.loads(r.read().decode("utf-8"))
+            md = j.get("market_data", {}) or {}
+            def g(d, k):
+                return (md.get(d) or {}).get(k)
+            data = {"price_usd": g("current_price", "usd"), "price_btc": g("current_price", "btc"),
+                    "market_cap_usd": g("market_cap", "usd"), "volume_24h_usd": g("total_volume", "usd"),
+                    "change_24h": md.get("price_change_percentage_24h"),
+                    "circulating_supply": md.get("circulating_supply"), "ath_usd": g("ath", "usd")}
+            cache = {"ts": int(time.time()), "data": data}
+            node._stats_market_cache = cache
+            _save(node, "market", cache)
+        except Exception as e:
+            try:
+                node.logger.app_log.warning("market compute failed: %s" % e)
+            except Exception:
+                pass
+        finally:
+            node._stats_market_computing = False
+
+    threading.Thread(target=work, daemon=True).start()
+
+
+def market(node):
+    """Best-effort price / market cap from coingecko (id 'bismuth'), TTL-cached server-side. Gated by
+    rest_api_market (default on). {status, ts, price_usd, price_btc, market_cap_usd, volume_24h_usd,
+    change_24h, circulating_supply, ath_usd}."""
+    if not getattr(node, "rest_api_market", True):
+        return {"status": "disabled"}
+    cache = getattr(node, "_stats_market_cache", None)
+    if cache is None:
+        cache = _load(node, "market")
+        if cache is not None:
+            node._stats_market_cache = cache
+    fresh = cache is not None and (int(time.time()) - int(cache.get("ts", 0)) < MARKET_TTL)
+    if not fresh:
+        _market_compute(node)               # refresh in the background; serve stale meanwhile
+    if cache is None:
+        return {"status": "computing"}
+    out = {"status": "ok", "ts": cache.get("ts")}
+    out.update(cache.get("data", {}))
+    return out
 
 
 # ------------------------------------------------------------ difficulty series (cheap) ----

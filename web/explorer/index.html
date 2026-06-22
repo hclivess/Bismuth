@@ -347,43 +347,97 @@ function svgLine(data,{w=880,h=240,pad=44}={}){
 }
 function svgGeo(points,{w=880,h=440}={}){
   const g=[];
-  for(let lon=-150;lon<=150;lon+=30)g.push(`<line x1="${((lon+180)/360*w).toFixed(1)}" y1="0" x2="${((lon+180)/360*w).toFixed(1)}" y2="${h}" stroke="#1a212b"/>`);
-  for(let lat=-60;lat<=60;lat+=30)g.push(`<line x1="0" y1="${((90-lat)/180*h).toFixed(1)}" x2="${w}" y2="${((90-lat)/180*h).toFixed(1)}" stroke="#1a212b"/>`);
+  for(let lon=-150;lon<=150;lon+=30)g.push(`<line x1="${((lon+180)/360*w).toFixed(1)}" y1="0" x2="${((lon+180)/360*w).toFixed(1)}" y2="${h}" stroke="#1a212b" stroke-opacity="0.6"/>`);
+  for(let lat=-60;lat<=60;lat+=30)g.push(`<line x1="0" y1="${((90-lat)/180*h).toFixed(1)}" x2="${w}" y2="${((90-lat)/180*h).toFixed(1)}" stroke="#1a212b" stroke-opacity="0.6"/>`);
+  // Earth in the background (equirectangular world.svg, same lon/lat projection as the dots below).
+  const earth=`<image x="0" y="0" width="${w}" height="${h}" href="assets/world.svg" preserveAspectRatio="none"/>`;
   const dots=points.map(p=>{const x=(p.lon+180)/360*w,y=(90-p.lat)/180*h;
-    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.5" fill="#6cb4ff" fill-opacity="0.7" stroke="#bcd8ff" stroke-width="0.5"><title>${esc((p.city?p.city+', ':'')+(p.country||''))} — ${esc(p.ip)}</title></circle>`;}).join('');
-  return `<svg viewBox="0 0 ${w} ${h}" width="100%" preserveAspectRatio="xMidYMid meet" style="max-width:100%;background:#0d1117;border:1px solid #2a323d;border-radius:6px">${g.join('')}${dots}</svg>`;
+    return `<g><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="7" fill="#6cb4ff" fill-opacity="0.18"/><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.5" fill="#6cb4ff" fill-opacity="0.85" stroke="#dcebff" stroke-width="0.6"><title>${esc((p.city?p.city+', ':'')+(p.country||''))} — ${esc(p.ip)}</title></circle></g>`;}).join('');
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" preserveAspectRatio="xMidYMid meet" style="max-width:100%;background:#0b1016;border:1px solid #2a323d;border-radius:6px">${earth}${g.join('')}${dots}</svg>`;
 }
+// ---- stats helpers ----
+function nf(v,dp){if(v==null||v===''||isNaN(v))return '-';return Number(v).toLocaleString(undefined,{minimumFractionDigits:dp||0,maximumFractionDigits:dp||0});}
+function compact(v){if(v==null||isNaN(v))return '-';const n=Number(v),a=Math.abs(n);
+  if(a>=1e9)return (n/1e9).toFixed(2)+'B';if(a>=1e6)return (n/1e6).toFixed(2)+'M';if(a>=1e3)return (n/1e3).toFixed(2)+'K';return nf(n,a>0&&a<10?4:2);}
+function shortAddr(a){a=String(a||'');return a.length>20?a.slice(0,10)+'…'+a.slice(-6):a;}
+function addrLink(a){return a?`<a href="#/address/${encodeURIComponent(a)}" class="mono">${esc(shortAddr(a))}</a>`:'-';}
+function statCard(title,sub,body){return `<div class="card p-3 mb-3"><h5 class="mb-2">${title}${sub?` <span class="subtle small">${sub}</span>`:''}</h5>${body}</div>`;}
+function computingMsg(what){return `<p class="subtle py-3">Computing ${what} from the ledger… (first load; this page refreshes automatically).</p>`;}
+function barsBlock(resp,data,what){if(resp&&resp.status==='computing')return computingMsg(what);if(!data||!data.length||data.every(d=>!d.v))return '<p class="subtle py-3">No data yet.</p>';return svgBars(data);}
+let _statsRefresh=null;
 async function statsView(){
   loading();
   try{
-    const [sum,txm,diff,geo]=await Promise.all([
+    const [sum,mon,nad,rich,miners,big,market,diff,geo]=await Promise.all([
       api('/stats/summary').catch(()=>null),
-      api('/stats/tx_per_month').catch(()=>({status:'error',months:[]})),
+      api('/stats/monthly').catch(()=>({status:'error',months:[]})),
+      api('/stats/new_addresses').catch(()=>({status:'error',months:[]})),
+      api('/stats/rich_list?top=100').catch(()=>({status:'error',rich:[]})),
+      api('/stats/top_miners?top=50').catch(()=>({status:'error',miners:[]})),
+      api('/stats/largest_txs?top=25').catch(()=>({status:'error',txs:[]})),
+      api('/stats/market').catch(()=>({status:'error'})),
       api('/stats/difficulty').catch(()=>({series:[]})),
       api('/stats/geo').catch(()=>({status:'error',points:[],countries:[]})),
     ]);
-    const sc=sum?[['Height',Number(sum.height).toLocaleString()],['Difficulty',sum.difficulty!=null?Number(sum.difficulty).toFixed(4):'-'],
-      ['Avg block',sum.avg_block_time!=null?sum.avg_block_time+'s':'-'],['Peers',sum.connections],
-      ['Mempool',sum.mempool],['Tokens',sum.tokens==null?'-':sum.tokens]]:[];
-    const cards=sc.map(([l,v])=>`<div class="col"><div class="card stat p-2"><div class="l">${l}</div><div class="v">${esc(v)}</div></div></div>`).join('');
-    const txData=(txm.months||[]).map(m=>({k:m.month,v:m.count}));
-    const txBlock=txm.status==='computing'?'<p class="subtle py-3">Computing the monthly histogram from the ledger… (first load only; reload shortly).</p>':svgBars(txData);
+    const months=(mon.months||[]);
+    const cardsArr=[];
+    if(sum)cardsArr.push(['Height',nf(sum.height)],['Difficulty',sum.difficulty!=null?nf(sum.difficulty,4):'-'],
+      ['Avg block',sum.avg_block_time!=null?sum.avg_block_time+'s':'-'],['Peers',nf(sum.connections)],
+      ['Mempool',nf(sum.mempool)],['Tokens',sum.tokens==null?'-':nf(sum.tokens)]);
+    if(mon.totals)cardsArr.push(['Total txs',nf(mon.totals.txs)]);
+    if(market&&market.status==='ok'){
+      if(market.price_usd!=null)cardsArr.push(['Price','$'+nf(market.price_usd,4)]);
+      if(market.market_cap_usd!=null)cardsArr.push(['Market cap','$'+compact(market.market_cap_usd)]);
+      if(market.volume_24h_usd!=null)cardsArr.push(['24h vol','$'+compact(market.volume_24h_usd)]);
+      if(market.change_24h!=null)cardsArr.push(['24h',`<span style="color:${market.change_24h>=0?'#9be29b':'#ff8585'}">${market.change_24h>=0?'+':''}${nf(market.change_24h,2)}%</span>`]);
+    }
+    const cards=cardsArr.map(([l,v])=>`<div class="col"><div class="card stat p-2"><div class="l">${l}</div><div class="v">${v}</div></div></div>`).join('');
+    const txBlock=barsBlock(mon,months.map(m=>({k:m.month,v:m.txs})),'the monthly histogram');
+    const volBlock=barsBlock(mon,months.map(m=>({k:m.month,v:m.volume})),'transaction volume');
+    const feeBlock=barsBlock(mon,months.map(m=>({k:m.month,v:m.fees})),'fees');
+    const emBlock=barsBlock(mon,months.map(m=>({k:m.month,v:m.emission})),'emission');
+    const actBlock=barsBlock(mon,months.map(m=>({k:m.month,v:m.active})),'active addresses');
+    const naBlock=barsBlock(nad,(nad.months||[]).map(m=>({k:m.month,v:m.count})),'new addresses');
+    const issuedLine=mon.status==='computing'?computingMsg('the issuance curve'):(months.length>1?svgLine(months.map((m,i)=>({x:i,y:m.issued,lbl:m.month}))):'<p class="subtle py-3">Not enough data.</p>');
     const dseries=(diff.series||[]).filter(d=>d.difficulty!=null).map(d=>({x:d.height,y:Number(d.difficulty),lbl:d.timestamp?new Date(d.timestamp*1000).toLocaleDateString():('#'+d.height)}));
-    const diffBlock=dseries.length>1?svgLine(dseries):'<p class="subtle">No difficulty history.</p>';
+    const diffBlock=dseries.length>1?svgLine(dseries):'<p class="subtle py-3">No difficulty history.</p>';
+    const richBlock=rich.status==='computing'?computingMsg('address balances')
+      :(rich.rich&&rich.rich.length)?`<div class="table-responsive" style="max-height:460px;overflow:auto"><table class="table table-sm align-middle"><thead><tr><th>#</th><th>Address</th><th class="text-end">Balance (BIS)</th></tr></thead><tbody>${rich.rich.map(r=>`<tr><td>${r.rank}</td><td>${addrLink(r.address)}</td><td class="text-end mono">${nf(r.balance,4)}</td></tr>`).join('')}</tbody></table></div>`:'<p class="subtle py-3">No data yet.</p>';
+    const minersBlock=miners.status==='computing'?computingMsg('the mining distribution')
+      :(miners.miners&&miners.miners.length)?`<div class="table-responsive" style="max-height:460px;overflow:auto"><table class="table table-sm align-middle"><thead><tr><th>#</th><th>Miner</th><th class="text-end">Blocks</th><th class="text-end">Share</th><th class="text-end">Reward</th></tr></thead><tbody>${miners.miners.map(m=>`<tr><td>${m.rank}</td><td>${addrLink(m.address)}</td><td class="text-end">${nf(m.blocks)}</td><td class="text-end">${nf(m.share,2)}%</td><td class="text-end mono">${compact(m.reward)}</td></tr>`).join('')}</tbody></table></div>`:'<p class="subtle py-3">No data yet.</p>';
+    const bigBlock=big.status==='computing'?computingMsg('the largest transactions')
+      :(big.txs&&big.txs.length)?`<div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th class="text-end">Amount (BIS)</th><th>From</th><th>To</th><th>Block</th><th>Date</th></tr></thead><tbody>${big.txs.map(t=>`<tr><td class="text-end mono">${nf(t.amount,4)}</td><td>${addrLink(t.sender)}</td><td>${addrLink(t.recipient)}</td><td><a href="#/block/${t.height}">${nf(t.height)}</a></td><td class="subtle small">${t.timestamp?new Date(t.timestamp*1000).toLocaleDateString():'-'}</td></tr>`).join('')}</tbody></table></div>`:'<p class="subtle py-3">No data yet.</p>';
     const gpts=(geo.points||[]);
     const geoBlock=geo.status==='disabled'?'<p class="subtle py-3">Node geolocation disabled (rest_api_geo=False).</p>'
-      :geo.status==='computing'?'<p class="subtle py-3">Locating peers on the map… (reload shortly).</p>'
+      :geo.status==='computing'?'<p class="subtle py-3">Locating peers on the map… (refreshes automatically).</p>'
       :gpts.length?svgGeo(gpts):'<p class="subtle py-3">No geolocated peers yet.</p>';
     const ctable=(geo.countries||[]).slice(0,25).map(c=>`<tr><td>${esc(c.country||c.cc||'?')}</td><td>${c.count}</td></tr>`).join('');
     setMain(`<div>
       <div class="row g-2 mb-3">${cards}</div>
-      <div class="card p-3 mb-3"><h5 class="mb-2">Transactions per month <span class="subtle small">${txm.total!=null?'· '+Number(txm.total).toLocaleString()+' total':''}</span></h5>${txBlock}</div>
-      <div class="card p-3 mb-3"><h5 class="mb-2">Difficulty over time</h5>${diffBlock}</div>
+      <div class="row g-3">
+        <div class="col-lg-6">${statCard('Transactions per month',mon.totals?'· '+nf(mon.totals.txs)+' total':'',txBlock)}</div>
+        <div class="col-lg-6">${statCard('New addresses per month',nad.total!=null?'· '+nf(nad.total)+' total':'',naBlock)}</div>
+        <div class="col-lg-6">${statCard('Transaction volume per month','· BIS',volBlock)}</div>
+        <div class="col-lg-6">${statCard('Active addresses per month','· distinct senders',actBlock)}</div>
+        <div class="col-lg-6">${statCard('Coins mined per month','· block emission (BIS)',emBlock)}</div>
+        <div class="col-lg-6">${statCard('Fees collected per month','· BIS',feeBlock)}</div>
+        <div class="col-lg-6">${statCard('Coins issued over time','· cumulative block rewards',issuedLine)}</div>
+        <div class="col-lg-6">${statCard('Difficulty over time','',diffBlock)}</div>
+      </div>
+      <div class="row g-3">
+        <div class="col-lg-6">${statCard('Rich list','· top 100 by balance',richBlock)}</div>
+        <div class="col-lg-6">${statCard('Top miners','· by blocks mined',minersBlock)}</div>
+      </div>
+      ${statCard('Largest transactions','· by amount',bigBlock)}
       <div class="card p-3 mb-3"><h5 class="mb-2">Node map <span class="subtle small">(${gpts.length} located)</span></h5>
         <div class="row g-3"><div class="col-lg-8">${geoBlock}</div>
         <div class="col-lg-4">${(geo.countries||[]).length?`<div class="table-responsive" style="max-height:440px;overflow:auto"><table class="table table-sm align-middle"><thead><tr><th>Country</th><th>Nodes</th></tr></thead><tbody>${ctable}</tbody></table></div>`:'<p class="subtle small">Country breakdown appears once peers are geolocated.</p>'}</div></div>
         <p class="subtle small mt-2">Peer locations are looked up once and cached server-side; disable with <span class="mono">rest_api_geo=False</span>.</p></div>
     </div>`);
+    if(_statsRefresh){clearTimeout(_statsRefresh);_statsRefresh=null;}
+    const computing=[mon,nad,rich,miners,big,geo].some(r=>r&&r.status==='computing');
+    if(computing&&(location.hash||'').indexOf('stats')>=0)
+      _statsRefresh=setTimeout(()=>{if((location.hash||'').indexOf('stats')>=0)statsView();},5000);
   }catch(e){errBox(e);}
 }
 function doSearch(ev){ev.preventDefault();const q=document.getElementById('q').value.trim();if(!q)return false;

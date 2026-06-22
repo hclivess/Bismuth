@@ -235,8 +235,9 @@ canonical id.
 added (no consensus impact, ship any time): `/api/proxy?target=` (same-origin relay to another node's
 read-only `/api`), `/api/nodes` (peer browser, now de-duplicated), `/api/token/tx/{address}` (token
 transfers for an address), `/api/alias/{name}` (resolve alias → owner), `/api/aliases/{address}`
-(all aliases owned by an address), and the explorer dashboard set `/api/stats/{summary,tx_per_month,
-difficulty,geo}` (`rest_stats.py`). The `/api/proxy` relay was hardened (audit H-3): it pins the
+(all aliases owned by an address), and the explorer dashboard set `/api/stats/{summary,monthly,
+tx_per_month,new_addresses,rich_list,top_miners,largest_txs,market,difficulty,geo}` (`rest_stats.py`).
+The `/api/proxy` relay was hardened (audit H-3): it pins the
 validated public IP (no DNS-rebind TOCTOU), refuses redirects (no SSRF pivot), and enforces a
 target-port allowlist + per-IP rate limit + global concurrency cap (`rest_api.py:76-83,540-601`). The
 64-hex content-txid lookup is the bounded recent-first streaming scan noted above (audit H-4).

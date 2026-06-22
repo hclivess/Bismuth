@@ -97,7 +97,7 @@ imported library; *script* = run directly.
 | `worker.py` | module | outbound per-peer sync thread |
 | `rpcconnections.py` | module | client-side `Connection` class (for wallets/scripts) |
 | `hyperlane.py` | module | placeholder hyperlane manager (stub); `attic/hyperlane_asyncio.py` is the retired asyncio variant |
-| `rest_api.py` | module | read-only modern REST/JSON API server (status/blocks/balance/tx/peers); `/headers/range` (headers-first) + `/blocks/range?format=sync` (consensus-faithful digester tuples) + `/api/stats/{summary,tx_per_month,difficulty,geo}` (delegated to `rest_stats`) |
+| `rest_api.py` | module | read-only modern REST/JSON API server (status/blocks/balance/tx/peers); `/headers/range` (headers-first) + `/blocks/range?format=sync` (consensus-faithful digester tuples) + `/api/stats/{summary,monthly,tx_per_month,new_addresses,rich_list,top_miners,largest_txs,market,difficulty,geo}` (delegated to `rest_stats`) |
 | `rest_stats.py` | module | explorer stats payloads (doc/15): cheap on-demand `network_summary`/`difficulty_series` + background-cached `tx_per_month` (full-ledger histogram) + best-effort `geo_nodes` peer geolocation (gated `rest_api_geo`) |
 | `rest_client.py` | module | stdlib REST client: capability discovery + parallel block fetch (`parallel_fetch`/`parallel_fetch_sync`) + `fetch_headers` for headers-first quick sync |
 | `api_sync.py` | module | capability-gated, fail-soft headers-first chain-segment fetch (`sync_segment`) — the seam between `rest_client` (transport) and the digester (consensus) |
