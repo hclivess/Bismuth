@@ -236,3 +236,25 @@ def test_subtype_for_address_unknown_prefix_defaults_mainnet():
     cls = signer_for_type(SignerType.MLDSA65)
     assert cls.subtype_for_address("not-a-valid-base58-0OIl") == SignerSubType.MAINNET_REGULAR
     assert cls.subtype_for_address("") == SignerSubType.MAINNET_REGULAR
+
+
+# --------------------------------------------------------------------------- on-chain dispatch wiring
+
+def test_mldsa_secp256r1_routed_and_fork_gated():
+    """ML-DSA (44/65/87) + secp256r1 are wired into the node's address dispatch (doc/20): their addresses
+    route to the right verifier, validate as addresses, and are flagged as post-fork-only SENDER types
+    (chain-split safety) — while pre-existing ECDSA/ED25519 are NOT."""
+    pytest.importorskip("dilithium_py")
+    pytest.importorskip("cryptography")
+    from polysign.signerfactory import SignerFactory
+    H = "ab" * 32
+    for st, cls_name in [(SignerType.MLDSA44, "SignerMLDSA44"), (SignerType.MLDSA65, "SignerMLDSA65"),
+                         (SignerType.MLDSA87, "SignerMLDSA87"), (SignerType.SECP256R1, "SignerSECP256R1")]:
+        addr = SignerFactory.from_seed(H, signer_type=st).address()
+        assert SignerFactory.address_to_signer(addr).__name__ == cls_name
+        assert SignerFactory.address_is_valid(addr)
+        assert SignerFactory.address_is_post_fork_sender_type(addr)
+    # the legacy Bis1 single-sig families are valid but NOT post-fork-only senders (they predate hf2)
+    ec = SignerFactory.from_seed(H, signer_type=SignerType.ECDSA).address()
+    assert SignerFactory.address_is_valid(ec)
+    assert not SignerFactory.address_is_post_fork_sender_type(ec)

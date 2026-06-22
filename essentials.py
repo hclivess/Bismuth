@@ -17,6 +17,14 @@ import bismuth_serialize
 import db_helpers
 import wallet_helpers
 
+# Max base64 lengths for a tx's signature / public-key fields (anti-DoS bounds applied at mempool admission
+# and tx parsing). Originally 684 / 1068 — sized for RSA (512-byte sig, PEM pubkey). Raised to fit the
+# largest post-quantum signer, ML-DSA-87 (doc/20): sig 4627 B -> ~6172 b64, pubkey 2592 B -> ~3456 b64.
+# Inert for every pre-existing scheme (RSA/ECDSA/ED25519/secp256r1/multisig fields are all well under the
+# old caps, so a higher bound never changes how they parse); it only lets the larger ML-DSA fields through.
+MAX_TX_SIGNATURE_LEN = 8192
+MAX_TX_PUBKEY_LEN = 4096
+
 # Wallet & key management was lifted into wallet_helpers; re-bind here so the historical
 # `essentials.sign_rsa` / `essentials.keys_load` / `from essentials import ...` call sites keep working.
 sign_rsa = wallet_helpers.sign_rsa

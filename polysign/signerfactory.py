@@ -90,9 +90,35 @@ class SignerFactory:
         """Build a signer from full key info (not implemented; placeholder)."""
         pass
 
+    # ML-DSA (44/65/87) and secp256r1 carry a distinct 4-byte base58 address VERSION that self-identifies the
+    # scheme. Their leading characters can collide (ML-DSA-44 and -87 both render "KALo…"), so they are routed
+    # by the DECODED version, not a prefix regex. base58 is imported lazily so an RSA-only node stays light.
+    _VERSIONED_SIGNERS = ("SignerMLDSA44", "SignerMLDSA65", "SignerMLDSA87", "SignerSECP256R1")
+
+    @classmethod
+    def _versioned_signer(cls, address: str):
+        """Signer class for a post-quantum / NIST address family (ML-DSA, secp256r1) matched by its 4-byte
+        base58 version prefix, or None if `address` is not one of those (incl. unreadable/short input)."""
+        try:
+            import base58
+            raw = base58.b58decode(address)
+        except Exception:
+            return None
+        if len(raw) < 8:
+            return None
+        version = bytes(raw[:4])
+        for name in cls._VERSIONED_SIGNERS:
+            try:
+                sc = _load_optional_signer(name)
+            except Exception:
+                continue
+            if version in sc._address_versions.values():
+                return sc
+        return None
+
     @classmethod
     def address_to_signer(cls, address: str) -> Type[Signer]:
-        """Return the signer class matching an address (by its textual format)."""
+        """Return the signer class matching an address (by its textual format / version prefix)."""
         if RE_RSA_ADDRESS.match(address):
             return SignerRSA
         elif RE_MULTISIG_ADDRESS.match(address):
@@ -102,7 +128,9 @@ class SignerFactory:
                 return _load_optional_signer("SignerED25519")
             else:
                 return _load_optional_signer("SignerECDSA")
-
+        vs = cls._versioned_signer(address)   # ML-DSA / secp256r1 (post-quantum / NIST families, doc/20)
+        if vs is not None:
+            return vs
         raise ValueError("Unsupported Address type")
 
     @classmethod
@@ -111,6 +139,14 @@ class SignerFactory:
         fork-gate multisig SENDERS to post-hf2 (an upgraded node must not accept what a pre-fork node
         would reject). Cheap textual check — the verifier re-derives the address from the redeem anyway."""
         return RE_MULTISIG_ADDRESS.match(address) is not None
+
+    @classmethod
+    def address_is_post_fork_sender_type(cls, address: str) -> bool:
+        """True iff `address` is a base-layer sender type only a POST-hf2 node understands — native multisig
+        (doc/23) OR the ML-DSA / secp256r1 families (doc/20). The digester fork-gates these SENDERS to
+        post-activation so an upgraded node never accepts a spend a pre-fork node would reject (chain-split
+        safety). Receiving INTO such an address is always fine (it's just an address)."""
+        return RE_MULTISIG_ADDRESS.match(address) is not None or cls._versioned_signer(address) is not None
 
     @classmethod
     def address_is_valid(cls, address: str) -> bool:
@@ -128,6 +164,8 @@ class SignerFactory:
             if 30 < len(address) < 50:
                 # ecdsa, around 37
                 return True
+        if cls._versioned_signer(address) is not None:
+            return True   # ML-DSA (44/65/87) / secp256r1 (doc/20)
         return False
 
     @classmethod

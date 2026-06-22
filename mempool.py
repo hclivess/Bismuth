@@ -348,17 +348,17 @@ class Mempool(MempoolQueriesMixin):
                         except Exception as e:
                             mempool_result.append("Mempool: Invalid amount {}".format(transaction[3]))
                             continue
-                        if len(transaction[4]) > 684:
+                        if len(transaction[4]) > essentials.MAX_TX_SIGNATURE_LEN:
                             mempool_result.append("Mempool: Invalid signature len{}".format(len(transaction[4])))
                             continue
-                        mempool_signature_enc = str(transaction[4])[:684]
-                        if len(transaction[5]) > 1068:
+                        mempool_signature_enc = str(transaction[4])[:essentials.MAX_TX_SIGNATURE_LEN]
+                        if len(transaction[5]) > essentials.MAX_TX_PUBKEY_LEN:
                             mempool_result.append("Mempool: Invalid pubkey len{}".format(len(transaction[5])))
                             continue
-                        mempool_public_key_b64encoded = str(transaction[5])[:1068]
+                        mempool_public_key_b64encoded = str(transaction[5])[:essentials.MAX_TX_PUBKEY_LEN]
                         if "b'" == mempool_public_key_b64encoded[:2]:
                             # Binary content instead of str - leftover from legacy code?
-                            mempool_public_key_b64encoded = transaction[5][2:1070]
+                            mempool_public_key_b64encoded = transaction[5][2:essentials.MAX_TX_PUBKEY_LEN + 2]
                         if len(transaction[6]) > 30:
                             mempool_result.append("Mempool: Invalid operation len{}".format(len(transaction[6])))
                             continue

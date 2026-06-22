@@ -1242,8 +1242,8 @@ def verify(db_handler):
             # from_units -> '2.50000000'; quantize_eight(250000000) would yield '250000000.00000000' and
             # fail EVERY signature. The hard fork that signs native integers deletes this branch.
             db_amount = amounts.from_units(row[4]) if amounts.LEDGER_INTEGER else '%.8f' % (quantize_eight(row[4]))
-            db_signature_enc = str(row[5])[:684]
-            db_public_key_b64encoded = str(row[6])[:1068]
+            db_signature_enc = str(row[5])[:essentials.MAX_TX_SIGNATURE_LEN]
+            db_public_key_b64encoded = str(row[6])[:essentials.MAX_TX_PUBKEY_LEN]
             db_operation = str(row[10])[:30]
             db_openfield = str(row[11])  # no limit for backward compatibility
             db_transaction = str((db_timestamp, db_address, db_recipient, db_amount, db_operation, db_openfield)).encode("utf-8")

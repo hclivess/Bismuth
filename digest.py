@@ -233,8 +233,8 @@ class BlockProcessor:
             db_address = str(transaction[1])[:56]
             db_recipient = str(transaction[2])[:56]
             db_amount = '%.8f' % quantize_eight(transaction[3])
-            db_signature = str(transaction[4])[:684]
-            db_public_key_b64encoded = str(transaction[5])[:1068]
+            db_signature = str(transaction[4])[:essentials.MAX_TX_SIGNATURE_LEN]
+            db_public_key_b64encoded = str(transaction[5])[:essentials.MAX_TX_PUBKEY_LEN]
             db_operation = str(transaction[6])[:30]
             db_openfield = str(transaction[7])[:100000]
 
@@ -627,21 +627,22 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
                     f"VM state-root mismatch at {block_instance.block_height_new}: coinbase "
                     f"{_claimed[:16]} != local {str(_local)[:16]}")
 
-        # native multisig (doc/23 §2): a multisig SENDER is a post-fork-only base-layer address type. The
-        # M-of-N threshold itself is verified per-tx in Transaction.validate (SignerMultisig factory route);
-        # here we add the hf2 TIMING gate — before activation an upgraded node MUST NOT accept a multisig
-        # spend that a pre-fork node rejects (chain-split safety), so reject any block carrying a multisig
-        # SENDER at/below the fork height. Receiving INTO a multisig address is always fine (just an address).
+        # post-fork-only SENDER types (native multisig doc/23 §2; ML-DSA / secp256r1 doc/20): base-layer
+        # address types a pre-fork node does not understand. The per-tx signature itself is verified in
+        # Transaction.validate (SignerFactory route); here we add the hf2 TIMING gate — before activation an
+        # upgraded node MUST NOT accept a spend FROM one of these that a pre-fork node rejects (chain-split
+        # safety), so reject any block carrying such a SENDER at/below the fork height. Receiving INTO one of
+        # these addresses is always fine (just an address). _t[2] is the sender (12-field converted row).
         _mfh = getattr(node, "fork_height", None)
         # active at height >= fork_height, identical to the shield/VM gates above (which use >= _fh). Using
-        # '<' (not '<=') so multisig activates at the SAME block as shield/VM, not one block later.
+        # '<' (not '<=') so these activate at the SAME block as shield/VM, not one block later.
         if _mfh is None or block_instance.block_height_new < _mfh:
             from polysign.signerfactory import SignerFactory as _SF
             for _t in processor.block_transactions:
-                if _SF.address_is_multisig(str(_t[2])):
+                if _SF.address_is_post_fork_sender_type(str(_t[2])):
                     raise ValueError(
-                        f"multisig sender {str(_t[2])[:12]} at block {block_instance.block_height_new} "
-                        f"requires hf2 activation (fork_height {_mfh})")
+                        f"post-fork-only sender type {str(_t[2])[:12]} at block "
+                        f"{block_instance.block_height_new} requires hf2 activation (fork_height {_mfh})")
 
         # shielded value (doc/22): consensus-validate this block's shield: txs BEFORE committing — a block
         # that double-spends a nullifier, spends an unknown/already-spent note, fails an ownership proof,

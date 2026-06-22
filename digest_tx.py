@@ -13,7 +13,7 @@ from typing import Any
 
 import bismuth_serialize
 import essentials
-from essentials import address_is_rsa
+from essentials import address_is_rsa, MAX_TX_SIGNATURE_LEN, MAX_TX_PUBKEY_LEN
 from polysign.signerfactory import SignerFactory
 
 
@@ -54,8 +54,8 @@ class Transaction:
         # reconstruct these strings here. transaction[3] is the received wire amount (always decimal),
         # so this stays until the hard fork signs/hashes native integer units and these conversions go.
         self.received_amount = '%.8f' % (quantize_eight(transaction[3]))
-        self.received_signature_enc = str(transaction[4])[:684]
-        self.received_public_key_b64encoded = str(transaction[5])[:1068]
+        self.received_signature_enc = str(transaction[4])[:MAX_TX_SIGNATURE_LEN]
+        self.received_public_key_b64encoded = str(transaction[5])[:MAX_TX_PUBKEY_LEN]
         self.received_operation = str(transaction[6])[:30]
         self.received_openfield = str(transaction[7])[:100000]
 
