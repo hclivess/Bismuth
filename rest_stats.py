@@ -486,10 +486,16 @@ def difficulty_series(db, tip, points=180):
     if tip <= 0:
         return []
     step = max(1, tip // max(1, points))
-    # `%` is SQLite's modulo operator here (qmark params -> no Python %-formatting on this string).
+    # Query the ~`points` explicit sample heights via the misc block_height index. NOT `block_height % step`
+    # -- a modulo on the column can't use any index, so it full-scans the multi-million-row misc table every
+    # call (~1.3s in isolation, and it gets I/O-starved + times out under concurrent page load -> the chart
+    # intermittently fell back to "No difficulty history"). An IN list of indexed point lookups is ~ms.
+    sample = list(range(step, tip + 1, step))
+    if not sample:
+        return []
+    qmarks = ",".join("?" * len(sample))
     rows = db.fetchall(db.h, "SELECT block_height, difficulty FROM misc "
-                             "WHERE block_height > 0 AND (block_height % ?) = 0 "
-                             "ORDER BY block_height ASC", (step,))
+                             "WHERE block_height IN (%s) ORDER BY block_height ASC" % qmarks, tuple(sample))
     series = []
     heights = []
     for h, diff in (rows or []):
