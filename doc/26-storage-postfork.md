@@ -213,9 +213,12 @@ path: introduce the seam, move reads, move writes, then delete the SQLite trio. 
   zero divergence): **green ⇒ the LMDB txid index is proven consensus-faithful and authoritative-capable.**
 
 ### Next stages (in order)
-- **Stage 4 (cont.): set `balance_index_consensus=primary`** to make the index authoritative (the per-read
-  cross-check + RAISE-on-mismatch is the permanent backstop). With SQLite still computed the byte outcome is
-  identical, so the real win lands only once the SQLite read/write is removed — which needs the items below.
+- ✅ **Stage 4 (cont.): both indexes proven in `primary`.** The regnet proving-ground suite now runs
+  **`balance_index_consensus=primary` + `txid_index_consensus=primary` + `parity_strict=True`** (619 passed):
+  the LMDB projections DRIVE both consensus reads (overspend start-balance + dup-replay key), with SQLite
+  still computed as the permanent RAISE-on-mismatch backstop. Default stays `off` on mainnet (byte-identical).
+  With SQLite still computed the byte outcome is identical, so the real win lands once the SQLite read/write
+  is removed — which needs the items below.
 - **Stage 4 (cont.): flip the canonical write to LMDB + retire the lockstep.** Once the reads are off SQLite
   and the LMDB write is continuously cross-checked/trusted: make `block_store.tip()` the crash-recovery
   anchor (atomic ⇒ an unambiguous floor), delete the `commit_marker`/`ATTACH` machinery, and reduce SQLite
