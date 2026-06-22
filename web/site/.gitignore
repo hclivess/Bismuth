@@ -1,0 +1,4 @@
+# Deploy artifacts served from /var/www/bismuth.cz, NOT source — never commit:
+ledger.tar.gz
+*.tar.gz
+HEIGHT
