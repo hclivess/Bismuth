@@ -1,0 +1,62 @@
+[center][size=14pt][b]Bismuth — Interview & Coverage Source Catalog[/b][/size][/center]
+
+[center][i]A working bibliography of published interviews, profiles and reviews of the Bismuth blockchain (BIS)[/i][/center]
+
+[i]Compiled June 2026 · assembled for press outreach and source assessment[/i]
+
+[hr]
+
+This is a reference index, not a reproduction. Each entry lists where the piece lives, who made it, and a one-line note on what it covers. Full texts remain at the linked URLs; where a live page may have changed or vanished, retrieve the snapshot via the Wayback Machine by prefixing the URL with https://web.archive.org/web/*/ (paste the original link into archive.org's search box). The bismuth.cz and bismuthplatform.com domains are both heavily archived there.
+
+Source-type key: PRIMARY = subject speaking about itself (interviews, the foundation's own posts) — useful for facts, not for establishing notability. SPS = self-published platform (Medium, Steemit, publish0x) — generally not treated as a reliable independent source. PEER-REVIEW = academic, but co-authored by the project lead (not independent). None of the items below are independent secondary coverage in the Wikipedia sense — that is the gap. They are, however, exactly the body of material a journalist would want to see to know the story is real.
+
+[size=12pt][b]1. Interviews with the founder / core team[/b][/size]
+
+[table]
+[tr][td][b]Title[/b][/td][td][b]By / Where[/b][/td][td][b]Date[/b][/td][td][b]Type[/b][/td][td][b]What it is[/b][/td][/tr]
+[tr][td][b]Cryptointerview with the lead developer of Bismuth[/b][/td][td][url=https://xamanap.medium.com/cryptointerview-with-tezosevangelist-b45cbb72e414]Panama_TJ / xamanap — Medium[/url][/td][td]29 Sep 2017[/td][td]PRIMARY / SPS[/td][td]The original Q&A; source of the “blockchain Lego” framing. Earliest interview. (Author renamed; old @Panama_TJ link may 404.)[/td][/tr]
+[tr][td][b]Bismuth Developer Interview — HCLivess (The First Python Crypto Currency)[/b][/td][td][url=https://steemit.com/cryptocurrency/@aetsen/bismuth-developer-interview-hclivess]aetsen — Steemit[/url][/td][td]7 Mar 2018[/td][td]PRIMARY / SPS[/td][td]Technical Q&A: mempool design, throughput, sidechains, dev background.[/td][/tr]
+[tr][td][b]Bismuth — the First Python Blockchain (An Interview with Jan)[/b][/td][td][url=https://medium.com/@cblackbeard/bismuth-the-first-python-blockchain-6e2fb0b53a4f]cblackbeard — Medium[/url][/td][td]16 Jan 2019[/td][td]PRIMARY / SPS[/td][td]Team, why-Python, use cases, fund/treasury disclosure.[/td][/tr]
+[tr][td][b]teamtalks #32 — bismuth[/b][/td][td][url=https://medium.com/@flashygordy/teamtalks-32-bismuth-82d56f9b37c]Jens Ibsen (flashygordy) — Medium[/url][/td][td]Aug 2019[/td][td]PRIMARY / SPS[/td][td]Long Q&A on emission schedule, hypernodes, supply, philosophy.[/td][/tr]
+[tr][td][b]Bismuth Core Developer Interview[/b][/td][td]Bismuth Foundation / community[/td][td]7 Mar 2018[/td][td]PRIMARY[/td][td]On external indexing for open-field data, token/alias handling.[/td][/tr]
+[tr][td][b]Dragginator.com NFT Interview[/b][/td][td]EggdraSyl[/td][td]11 Jul 2018[/td][td]PRIMARY[/td][td]Interview with the dev of Dragginator, an NFT-style game on Bismuth (early non-ETH NFT).[/td][/tr]
+[/table]
+
+[size=12pt][b]2. BisBabble — the community interview series[/b][/size]
+
+[i]Bismuth's own interview series (originally on hypernodes.bismuth.live, now mirrored on bismuthcoin.org/blog). Each profiles a community contributor. Primary source — good colour for a feature, not independent.[/i]
+
+[table]
+[tr][td][b]Title[/b][/td][td][b]By / Where[/b][/td][td][b]Date[/b][/td][td][b]Type[/b][/td][td][b]What it is[/b][/td][/tr]
+[tr][td][b]BisBabble — Aravind[/b][/td][td][url=https://bismuthcoin.org/blog/2019-12-18-interview]bismuthcoin.org/blog[/url][/td][td]18 Dec 2019[/td][td]PRIMARY[/td][td]Issue 1. New contributor — background and dev work.[/td][/tr]
+[tr][td][b]BisBabble — Endogen (Telegram bot ‘Bauer’)[/b][/td][td][url=https://bismuthcoin.org/blog/2020-01-18-interview]hypernodes.bismuth.live / bismuthcoin.org[/url][/td][td]18 Jan 2020[/td][td]PRIMARY[/td][td]Issue 2. German engineer behind the Bauer Telegram bot.[/td][/tr]
+[tr][td][b]BisBabble — ShadowCrypto (Pawer bot)[/b][/td][td][url=https://bismuthcoin.org/blog/2020-02-07-interview]bismuthcoin.org/blog[/url][/td][td]7 Feb 2020[/td][td]PRIMARY[/td][td]Contributor to the Pawer Discord bot.[/td][/tr]
+[tr][td][b]BisBabble — Nyzblossom (wBismuth dev)[/b][/td][td][url=https://bismuthcoin.org/blog/2020-11-04-interview]bismuthcoin.org/blog[/url][/td][td]4 Nov 2020[/td][td]PRIMARY[/td][td]Q&A with the wBismuth wallet developer.[/td][/tr]
+[/table]
+
+[size=12pt][b]3. Profiles, reviews & spotlights[/b][/size]
+
+[table]
+[tr][td][b]Title[/b][/td][td][b]By / Where[/b][/td][td][b]Date[/b][/td][td][b]Type[/b][/td][td][b]What it is[/b][/td][/tr]
+[tr][td][b]Bismuth — No ICO, No Premine and First Python Coin![/b][/td][td][url=https://steemit.com/bitcoin/@kingscrown/bismuth-no-ico-no-premine-and-first-python-coin]kingscrown — Steemit[/url][/td][td]5 Oct 2017[/td][td]SPS[/td][td]Early write-up + embedded interview; fair-launch framing.[/td][/tr]
+[tr][td][b]Crypto Spotlight: Bismuth (BIS)[/b][/td][td][url=https://steemit.com/cryptocurrency/@coinstats/crypto-spotlight-bismuth-bis]coinstats — Steemit[/url][/td][td]12 Apr 2018[/td][td]SPS[/td][td]Profile contrasting Bismuth with ERC-20 hype (CryptoKitties example).[/td][/tr]
+[tr][td][b]Bismuth [$BIS] — Valuable project. Hidden gem.[/b][/td][td][url=https://medium.com/@bitcointrading/bismuth-bis-cryptocurrency-valuable-project-hidden-gem-576c90152cb0]Joseph L. / bitcointrading — Medium[/url][/td][td]May 2018[/td][td]SPS[/td][td]Investor-oriented profile; quotes the cryptointerview.[/td][/tr]
+[tr][td][b]Bismuth — Project Review[/b][/td][td][url=https://medium.com/@thant11/bismuth-project-review-fdaa4976bd33]Thant11 — Medium[/url][/td][td]2018[/td][td]SPS[/td][td]Independent-ish community review of the platform.[/td][/tr]
+[tr][td][b]3 Promising Altcoins to Invest in for 2018 (A Thoreau Analysis)[/b][/td][td][url=https://medium.com/@altcointhoreau/3-promising-altcoins-to-invest-in-for-2018-a-thoreau-analysis-f6cc95cd83]altcointhoreau — Medium[/url][/td][td]2018[/td][td]SPS[/td][td]Bismuth featured as one of three picks.[/td][/tr]
+[tr][td][b]Coin Report — Bismuth[/b][/td][td]community / crypto blog[/td][td]7 Dec 2018[/td][td]SPS[/td][td]Structured ‘coin report’ on the first Python blockchain.[/td][/tr]
+[tr][td][b]Bismuth: A Dapp Building Platform that doesn’t Bite[/b][/td][td]Medium[/td][td]12 Apr 2020[/td][td]SPS[/td][td]On Python dApp accessibility.[/td][/tr]
+[tr][td][b]Bismuth (BIS) — A Sleeping Legend that Should be Remembered[/b][/td][td][url=https://publish0x.com/crypto-bits/bismuthbis-a-sleeping-legend-that-should-be-remembered-xxvlvol]publish0x — crypto-bits[/url][/td][td]5 Mar 2024[/td][td]SPS[/td][td]Retrospective appreciation piece, ~7 years in.[/td][/tr]
+[/table]
+
+[size=12pt][b]4. Academic & patent record (not interviews — included for the press kit)[/b][/size]
+
+[table]
+[tr][td][b]Title[/b][/td][td][b]By / Where[/b][/td][td][b]Date[/b][/td][td][b]Type[/b][/td][td][b]What it is[/b][/td][/tr]
+[tr][td][b]Nonlinear Feedback Control and Stability Analysis of a Proof-of-Work Blockchain[/b][/td][td][url=https://mic-journal.no/ABS/MIC-2017-4-1.asp]G. Hovland & J. Kučera — Modeling, Identification and Control (MIC) 38(4)[/url][/td][td]2017[/td][td]PEER-REVIEW[/td][td]Difficulty controller as a feedback-control problem. doi:10.4173/mic.2017.4.1[/td][/tr]
+[tr][td][b]Tail Removal Block Validation: Implementation and Analysis[/b][/td][td][url=https://mic-journal.no/ABS/MIC-2018-3-1.asp]G. Hovland & J. Kučera — MIC[/url][/td][td]2018[/td][td]PEER-REVIEW[/td][td]Block-validation method, simulation and analysis.[/td][/tr]
+[tr][td][b]Optimizing Performance of a Blockchain (US 10,880,073)[/b][/td][td][url=https://patents.google.com/patent/US10880073B2/en]Hwang et al. — IBM (USPTO)[/url][/td][td]granted 2020[/td][td]PATENT[/td][td]IBM patent; Bismuth/Hovland work reportedly listed in prior-art citations (verify the ‘Non-patent citations’ section yourself).[/td][/tr]
+[/table]
+
+[hr]
+
+How to recover anything dead: open web.archive.org, paste the original URL, pick a snapshot. For a whole-domain sweep, browse web.archive.org/web/*/bismuth.cz/* and /bismuthplatform.com/*. The Bismuth Foundation's own ‘Awesome-Bismuth’ repo (github.com/bismuthfoundation/Awesome-Bismuth, Articles.md) is the most complete living list and is worth checking for anything added after this catalog. This document indexes what was findable as of June 2026 and is not guaranteed exhaustive.
