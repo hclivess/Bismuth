@@ -95,11 +95,17 @@ def footer():
 
 
 def dlbuttons(items):
-    """Unified download-button group. items = [(href,label,primary_bool), ...]."""
-    out = ["<div class='dl d-flex flex-wrap'>"]
-    for href, label, primary in items:
-        cls = "btn btn-sm " + ("btn-info" if primary else "btn-outline-secondary")
-        out.append(f"<a href='{e(href)}' class='{cls}'>{e(label)}</a>")
+    """Unified download-button group. items = [(href,label,_ignored), ...].
+
+    ONE consistent look for every file download across the whole site (btn-outline-info):
+    the same action must never render filled in one place and hollow in another. Filled
+    buttons (btn-info / btn-primary) are reserved for navigation CTAs (Explorer, Read on
+    site, Browse catalog), never for downloads. The third tuple element is ignored, kept
+    only so existing callers don't break."""
+    out = ["<div class='dl d-flex flex-wrap gap-2'>"]
+    for item in items:
+        href, label = item[0], item[1]
+        out.append(f"<a href='{e(href)}' class='btn btn-sm btn-outline-info'>{e(label)}</a>")
     out.append("</div>")
     return "".join(out)
 

@@ -221,7 +221,7 @@ def build_index():
 curl -L -o static/ledger.db.tar.gz https://bismuth.cz/ledger.tar.gz
 tar xzf static/ledger.db.tar.gz -C static/
 python3 node.py</code></pre>
-            <a href='/ledger.tar.gz' class='btn btn-sm btn-primary'>⬇&nbsp; Download ledger.tar.gz</a>
+            <a href='/ledger.tar.gz' class='btn btn-sm btn-outline-info'>⬇&nbsp; Download ledger.tar.gz</a>
           </div></div>
         </div>
         <div class='col-lg-5'>
@@ -342,7 +342,7 @@ def build_articles():
                 f"<h1 class='fw-bold h2'>{e(title)}</h1>"
                 f"<p class='text-secondary small mb-2'>{meta_line}</p>"
                 "<div class='d-flex flex-wrap gap-2'>"
-                f"<a class='btn btn-sm btn-outline-secondary' href='/coverage/{slug}.md'>Markdown</a>{orig}"
+                f"<a class='btn btn-sm btn-outline-info' href='/coverage/{slug}.md'>Markdown</a>{orig}"
                 "</div></div></header>\n")
         body = (S.nav("press") + hero + "  <main class='container pb-5'><article class='col-lg-9'>\n"
                 + body_html + "\n  </article></main>\n" + S.footer())
