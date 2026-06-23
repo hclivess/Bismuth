@@ -103,6 +103,40 @@ def rollback(node, db_handler, block_height):
     node.logger.app_log.warning(f"Status: Chain rolled back below {block_height} and will be resynchronized")
 
 
+def _rollup_balances(conn, depth_specific):
+    """Collapsed {recipient_address: balance} for the hyperblock rollup of all blocks in the prune range
+    (``block_height`` in the open interval that excludes the kept tail and the negative mirror rows).
+
+    Replaces the old O(distinct-recipients x 2 index scans) per-address double loop — which on a deep
+    rollup issues millions of indexed queries and runs for hours — with a SINGLE range scan that
+    accumulates per-address credit/debit in memory. The arithmetic is byte-identical to the original:
+    the same ``quantize_eight`` is applied per entry before summing (Decimal sums are exact and
+    order-independent), and — exactly like the original, which iterates ``distinct(recipient)`` — only
+    addresses that appear as a RECIPIENT in the range get a collapsed row (``credit - debit`` if > 0).
+    The legacy ``except -> 0`` per-address reset is preserved (it is dead code on numeric decimal-mode
+    data, but kept so behaviour is identical)."""
+    credit, debit = {}, {}
+    cur = conn.cursor()
+    cur.execute("SELECT recipient, amount, reward, address, fee FROM transactions "
+                "WHERE block_height < ? AND block_height > ?", (depth_specific, -depth_specific))
+    for rcpt, amount, reward, addr, fee in cur:
+        try:
+            credit[rcpt] = quantize_eight(credit.get(rcpt, Decimal("0"))) + quantize_eight(amount) + quantize_eight(reward)
+        except Exception:
+            credit[rcpt] = 0
+        try:
+            debit[addr] = quantize_eight(debit.get(addr, Decimal("0"))) + quantize_eight(amount) + quantize_eight(fee)
+        except Exception:
+            debit[addr] = 0
+    cur.close()
+    out = {}
+    for addr in credit:                      # recipients only — matches the original distinct(recipient)
+        end_balance = quantize_eight(Decimal(credit[addr]) - Decimal(debit.get(addr, 0)))
+        if end_balance > 0:
+            out[addr] = end_balance
+    return out
+
+
 def recompress_ledger(node, rebuild=False, depth=15000):
     # TODO: Candidate for single user mode
     # HARDFORK / cleanup (doc/16): NOT integer-storage safe — this hyperblock rollup sums amount/reward
@@ -138,39 +172,14 @@ def recompress_ledger(node, rebuild=False, depth=15000):
     db_block_height = int(hyp.fetchone()[0])
     depth_specific = db_block_height - depth
 
-    hyp.execute(
-        "SELECT distinct(recipient) FROM transactions WHERE (block_height < ? AND block_height > ?) ORDER BY block_height;",
-        (depth_specific, -depth_specific,))  # new addresses will be ignored until depth passed
-    unique_addressess = hyp.fetchall()
-
-    for x in set(unique_addressess):
-        credit = Decimal("0")
-        for entry in hyp.execute(
-                "SELECT amount,reward FROM transactions WHERE recipient = ? AND (block_height < ? AND block_height > ?);",
-                (x[0],) + (depth_specific, -depth_specific,)):
-            try:
-                credit = quantize_eight(credit) + quantize_eight(entry[0]) + quantize_eight(entry[1])
-                credit = 0 if credit is None else credit
-            except Exception:
-                credit = 0
-
-        debit = Decimal("0")
-        for entry in hyp.execute(
-                "SELECT amount,fee FROM transactions WHERE address = ? AND (block_height < ? AND block_height > ?);",
-                (x[0],) + (depth_specific, -depth_specific,)):
-            try:
-                debit = quantize_eight(debit) + quantize_eight(entry[0]) + quantize_eight(entry[1])
-                debit = 0 if debit is None else debit
-            except Exception:
-                debit = 0
-
-        end_balance = quantize_eight(credit - debit)
-
-        if end_balance > 0:
-            timestamp = str(time.time())
-            hyp.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
-                depth_specific - 1, timestamp, "Hyperblock", x[0], str(end_balance), "0", "0", "0", "0",
-                "0", "0", "0"))
+    # OPTIMIZED: one range scan + in-memory accumulation (see _rollup_balances) instead of the old
+    # per-recipient double index-scan loop that ran for hours on a deep rollup. Byte-identical output.
+    rollup = _rollup_balances(hyper, depth_specific)
+    timestamp = str(time.time())
+    for addr, end_balance in rollup.items():
+        hyp.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (
+            depth_specific - 1, timestamp, "Hyperblock", addr, str(end_balance), "0", "0", "0", "0",
+            "0", "0", "0"))
     hyper.commit()
 
     hyp.execute(
