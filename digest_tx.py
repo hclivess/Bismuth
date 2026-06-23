@@ -75,12 +75,17 @@ class Transaction:
 
         return None
 
-    def validate(self, node, last_block_timestamp: float, block_height: int = None) -> None:
+    def validate(self, node, last_block_timestamp: float, block_height: int = None,
+                 verify_signature: bool = True) -> None:
         """Validate transaction elements. Raises ValueError on invalid transaction.
 
         ``block_height`` is the height this tx is being validated INTO; it fork-gates the signature scheme
         (post-hf2 single-sig secp256k1 verifies by ecrecover over the content txid). When None (legacy
-        callers), verification falls back to the pre-fork scheme."""
+        callers), verification falls back to the pre-fork scheme.
+
+        ``verify_signature`` False skips ONLY the expensive cryptographic signature check (the field/amount/
+        timestamp/address checks still run). Used by the from-genesis ``assume_valid_height`` fast-path
+        (doc/30) for history already buried under millions of PoW blocks. Default True == verify every sig."""
         # Timestamp checks (cheap operations first)
         if self.start_time_tx < self.q_received_timestamp:
             minutes_future = quantize_two((self.q_received_timestamp - self.start_time_tx) / 60)
@@ -103,6 +108,8 @@ class Transaction:
         # at/after it an ordinary single-sig secp256k1 tx is verified by ecrecover over the content txid
         # (Ethereum-shape, public key dropped); pre-fork txs and post-fork RSA/ED25519/multisig keep the
         # legacy buffer+explicit-pubkey verification.
+        if not verify_signature:
+            return   # assume-valid fast-path (doc/30): trusted history, signature re-check skipped
         fork_height = getattr(node, "fork_height", None)
         post_fork = fork_height is not None and block_height is not None and block_height >= fork_height
         SignerFactory.verify_tx_signature(

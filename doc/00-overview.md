@@ -122,6 +122,10 @@ the suite green *with the shadow store active* is itself the proof it's mining-i
 3. **Storage read-path cutover** (LMDB primary), then mainnet integer-amount cutover.
 4. **Edge adapters:** Bitcoin JSON-RPC, ETH/ERC shim.
 5. **Agreement hardening** (optional): enable/harden `rollback_consensus`, checkpoints.
+   - **From-genesis sync** ([doc/30](30-genesis-sync-exceptions.md)): a trusted
+     `assume_valid_height` + a mainnet-only, default-inert registry of targeted
+     per-height waivers so a verifying replay can clear the handful of historical
+     manual-intervention blocks (coin rescues / fork-edge edits) instead of halting.
 6. **GPU-miner kernel port** to the blake2b inner hash (`bis.cu`/`bismuth.cl`): the operational gate that
    must land before the blake2b Heavy3 swap — which is bundled *in* hf2, not a separate fork — can be
    safely signalled on mainnet.

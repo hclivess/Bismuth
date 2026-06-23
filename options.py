@@ -68,6 +68,8 @@ class Get:
         "api_sync_source": ["str"],
         "autoheal": ["bool"],
         "autoheal_interval": ["int"],
+        "assume_valid_height": ["int"],
+        "validation_exceptions_file": ["str"],
         "rollback_consensus": ["bool"],
         "rollback_consensus_threshold": ["int"],
         "rollback_consensus_min_peers": ["int"],
@@ -117,6 +119,8 @@ class Get:
         "api_sync_source": "",    # the REST peer to fast-sync from, "host:rest_port" (used when api_sync=True)
         "autoheal": True,         # live self-heal of tip sequence/dupe corruption WITHOUT a restart (chain_ops.autoheal_live); ON by default
         "autoheal_interval": 300, # seconds between live autoheal checks (cheap recent-tail scan; repairs only on a real break)
+        "assume_valid_height": 0,           # doc/30 from-genesis sync: skip the expensive per-tx SIGNATURE re-verify at/below this height (PoW/overspend/etc still checked); 0 = off = verify every signature
+        "validation_exceptions_file": "",   # doc/30: optional JSON of historical validation waivers (coin rescues / fork-edge edits), merged over the in-source MAINNET_EXCEPTIONS; empty = built-in registry only
 
         "rollback_consensus": True,          # AUTO-RECOVERY: reputation-gated deep rollback so a forked node rejoins on its own (doc/14); ON by default (replaces the rigid rollback_depth stranding)
         "rollback_consensus_threshold": 75,  # % peer agreement required to allow a deep rollback

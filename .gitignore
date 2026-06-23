@@ -27,6 +27,15 @@ static/*.db-shm
 static/*.db-wal
 static/*.tar.gz
 static/*.db
+# runtime artifacts — NEVER commit (caches, sidecars, ledger dumps/backups, LMDB stores)
+static/*.json
+static/*.bak
+static/*.bak-*
+static/*.sql
+static/balanceindex/
+static/blockstore/
+static/txidindex/
+static/vmstate/
 heavy3a.bin
 heavy3a.bin_
 config_custom.txt

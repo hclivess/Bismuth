@@ -25,6 +25,7 @@ import bismuth_serialize
 import essentials
 import mempool as mp
 import mining_heavy3
+import validation_exceptions
 from difficulty import difficulty
 from essentials import checkpoint_set, ledger_balance3
 from fork import Fork
@@ -118,17 +119,31 @@ class BlockProcessor:
                         raise AssertionError(msg)
                     node.logger.app_log.warning(msg)
 
-            # Check if signature exists in main ledger (confirmed chain only)
+            # Check if signature exists in main ledger (confirmed chain only). doc/30: a curated DUPLICATE
+            # waiver lets a known historical replay (manual rescue re-broadcast) through during sync.
+            _dup_h = block_instance.block_height_new
             if sig_in_h:
-                raise ValueError(f"Transaction {entry_signature[:10]} already in ledger")
+                if not validation_exceptions.is_exempt(node, _dup_h, validation_exceptions.DUPLICATE,
+                                                       entry_signature):
+                    raise ValueError(f"Transaction {entry_signature[:10]} already in ledger")
+                validation_exceptions.note(node, _dup_h, validation_exceptions.DUPLICATE,
+                                           f"replay {entry_signature[:12]} (ledger)")
 
             # Check if signature exists in RAM ledger (confirmed chain only)
             if sig_in_c:
-                raise ValueError(f"Transaction {entry_signature[:10]} already in RAM ledger")
+                if not validation_exceptions.is_exempt(node, _dup_h, validation_exceptions.DUPLICATE,
+                                                       entry_signature):
+                    raise ValueError(f"Transaction {entry_signature[:10]} already in RAM ledger")
+                validation_exceptions.note(node, _dup_h, validation_exceptions.DUPLICATE,
+                                           f"replay {entry_signature[:12]} (ram)")
 
         # Check for duplicates within the block
         if block_instance.tx_count != len(set(signature_list)):
-            raise ValueError("There are duplicate transactions in this block, rejected")
+            if not validation_exceptions.is_exempt(node, block_instance.block_height_new,
+                                                   validation_exceptions.DUPLICATE):
+                raise ValueError("There are duplicate transactions in this block, rejected")
+            validation_exceptions.note(node, block_instance.block_height_new,
+                                       validation_exceptions.DUPLICATE, "in-block duplicate signatures")
 
         # doc/26 stage 4: the same in-block dedup, keyed on the content txid. Under malleability two entries
         # can share a txid while carrying different signatures (audit M-3/M-4) — the txid key catches that,
@@ -178,8 +193,21 @@ class BlockProcessor:
             if tx.received_operation in ["token:issue", "token:transfer"]:
                 block_instance.tokens_operation_present = True
 
-            # Validate transaction (pass the height it's being validated into, for the hf2 signature gate)
-            tx.validate(self.node, self.node.last_block_timestamp, block_instance.block_height_new)
+            # Validate transaction (pass the height it's being validated into, for the hf2 signature gate).
+            # doc/30 from-genesis sync: below assume_valid_height skip the expensive sig re-verify; and a
+            # curated SIGNATURE waiver (manual coin-rescue / fork-edge tx) lets a known-irregular tx through.
+            height = block_instance.block_height_new
+            _verify_sig = not validation_exceptions.assume_valid_skip_signature(self.node, height)
+            try:
+                tx.validate(self.node, self.node.last_block_timestamp, height, verify_signature=_verify_sig)
+            except ValueError:
+                if not validation_exceptions.is_exempt(self.node, height, validation_exceptions.SIGNATURE,
+                                                       tx.received_signature_enc):
+                    raise
+                validation_exceptions.note(
+                    self.node, height, validation_exceptions.SIGNATURE,
+                    "tx %s %s->%s" % (str(tx.received_signature_enc)[:12],
+                                      tx.received_address, tx.received_recipient))
 
             # Add to converted list
             block_instance.transaction_list_converted.append(tx.to_tuple())
@@ -340,11 +368,21 @@ class BlockProcessor:
                 balance_pre = indexed                   # the index is now the authoritative starting balance
 
         balance = quantize_eight(balance_pre - debit)
+        # doc/30: the block being validated is node.last_block + 1 (last_block is only advanced after this
+        # whole block's balances are processed). A curated OVERSPEND waiver lets a historical manual coin
+        # rescue / fork-edge balance edit replay from genesis instead of halting the sync here.
+        _ovr_h = (getattr(node, "last_block", 0) or 0) + 1
         if quantize_eight(balance_pre) < quantize_eight(amount):
-            raise ValueError(f"{address} sending more than owned: {amount}/{balance_pre}")
+            if not validation_exceptions.is_exempt(node, _ovr_h, validation_exceptions.OVERSPEND):
+                raise ValueError(f"{address} sending more than owned: {amount}/{balance_pre}")
+            validation_exceptions.note(node, _ovr_h, validation_exceptions.OVERSPEND,
+                                       f"{address} {amount}/{balance_pre}")
 
         if quantize_eight(balance) - quantize_eight(fees) < 0:
-            raise ValueError(f"{address} Cannot afford to pay fees (balance: {balance}, block fees: {fees})")
+            if not validation_exceptions.is_exempt(node, _ovr_h, validation_exceptions.OVERSPEND):
+                raise ValueError(f"{address} Cannot afford to pay fees (balance: {balance}, block fees: {fees})")
+            validation_exceptions.note(node, _ovr_h, validation_exceptions.OVERSPEND,
+                                       f"{address} fee shortfall (balance {balance}, fees {fees})")
 
     def _remove_from_mempool(self, signature: str) -> None:
         """Remove processed transaction from mempool."""
@@ -558,12 +596,17 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
         # Sort and validate transactions
         miner_tx = processor.sort_and_validate_transactions(block, block_instance)
 
-        # Validate block timestamp
+        # Validate block timestamp. doc/30: a curated TIMESTAMP waiver lets a historical out-of-order
+        # block (hard-fork-edge / manual insert) replay from genesis instead of halting the sync.
         if miner_tx.q_block_timestamp <= node.last_block_timestamp:
-            raise ValueError(
-                f"Block is older {miner_tx.q_block_timestamp} than the previous one "
-                f"{node.last_block_timestamp}, will be rejected"
-            )
+            if not validation_exceptions.is_exempt(node, block_instance.block_height_new,
+                                                   validation_exceptions.TIMESTAMP):
+                raise ValueError(
+                    f"Block is older {miner_tx.q_block_timestamp} than the previous one "
+                    f"{node.last_block_timestamp}, will be rejected"
+                )
+            validation_exceptions.note(node, block_instance.block_height_new, validation_exceptions.TIMESTAMP,
+                                       f"block ts {miner_tx.q_block_timestamp} <= prev {node.last_block_timestamp}")
 
         # Check for duplicate signatures
         processor.check_duplicate_signatures(block, block_instance)
@@ -588,7 +631,18 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
         # Get last transaction for PoW verification
         last_tx = Transaction()
         last_tx.from_raw_transaction(block[-1], len(block) - 1, len(block))
-        diff_save = processor.verify_proof_of_work(block_instance, miner_tx, last_tx, diff)
+        # doc/30: a curated POW waiver lets a historical manually-inserted block (no/irregular PoW) replay
+        # from genesis. Default-off; below assume_valid_height it never fires (PoW is always re-verified
+        # there — only signatures are skipped). diff[0] is recorded as the block's difficulty when waived.
+        try:
+            diff_save = processor.verify_proof_of_work(block_instance, miner_tx, last_tx, diff)
+        except ValueError:
+            if not validation_exceptions.is_exempt(node, block_instance.block_height_new,
+                                                   validation_exceptions.POW):
+                raise
+            diff_save = diff[0]
+            validation_exceptions.note(node, block_instance.block_height_new, validation_exceptions.POW,
+                                       f"recorded diff {diff_save}")
 
         # Process transaction balances
         processor.process_transaction_balances(block, block_instance, miner_tx)
