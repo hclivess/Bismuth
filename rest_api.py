@@ -769,24 +769,43 @@ def _make_handler(node):
                 head, sep, tail = s.rpartition(":")
                 return head if (sep and tail.isdigit() and head.count(":") == 0) else s  # strip IPv4 :port only
             connected = {_host(c) for c in connected_raw}
+            connected |= {_host(c) for c in (getattr(p, "connection_pool", []) or [])}
+            # FULL peer set, not just live connections: the KNOWN set (peer_dict from peers.txt /
+            # suggested_peers.txt — every node we've learned about / talked to) and the banlist, mirroring
+            # rest_stats._peer_status / the geomap. Without this the list only showed the handful of live
+            # connections while the map showed everyone; now both paint the whole network the node is aware of.
+            known = {_host(ip) for ip in (getattr(p, "peer_dict", {}) or {})}
+            banned = {_host(ip) for ip in (getattr(p, "banlist", []) or [])}
             tip = int(getattr(node, "hdd_block", 0) or 0)
             out = []
-            for ip in (set(opinions) | set(versions) | connected):
+            counts = {"connected": 0, "known": 0, "banned": 0}
+            for ip in (set(opinions) | set(versions) | connected | known | banned):
+                if not ip:
+                    continue
                 h = opinions.get(ip)
+                is_banned = (ip in banned) or (p.is_banned(ip) if hasattr(p, "is_banned") else False)
+                is_conn = ip in connected
+                # precedence matches _peer_status: banned > connected > merely known/seen
+                status = "banned" if is_banned else ("connected" if is_conn else "known")
+                counts[status] += 1
                 out.append({
                     "ip": ip,
                     "height": h,
                     "behind": (tip - h) if isinstance(h, int) else None,
                     "version": versions.get(ip),
                     "reputation": p.reputation(ip) if hasattr(p, "reputation") else 0,
-                    "connected": ip in connected,
-                    "banned": p.is_banned(ip) if hasattr(p, "is_banned") else False,
+                    "connected": is_conn,
+                    "banned": is_banned,
                     "whitelisted": p.is_whitelisted(ip) if hasattr(p, "is_whitelisted") else False,
+                    "status": status,
                 })
-            out.sort(key=lambda n: (n["connected"], n["reputation"], n["height"] or 0), reverse=True)
+            # connected first, then known (by reputation/height), banned last
+            _rank = {"connected": 2, "known": 1, "banned": 0}
+            out.sort(key=lambda n: (_rank[n["status"]], n["reputation"], n["height"] or 0), reverse=True)
             return {"count": len(out), "tip": tip,
                     "consensus": getattr(p, "consensus", None),
                     "consensus_percentage": getattr(p, "consensus_percentage", None),
+                    "status_counts": counts,
                     "nodes": out}
 
         def _fee(self):
