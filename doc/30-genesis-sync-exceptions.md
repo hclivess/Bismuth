@@ -66,6 +66,24 @@ and **practical** (no millions of memory-hard PoW + RSA re-verifications).
   `verify_checkpoint` after the block hash is computed) and
   `digest_tx.Transaction.validate(verify_signature=...)`.
 
+### Starting a sync from block 1 (`sync_from_genesis`)
+
+The horizon/checkpoint above removes the *validation* halts, but a fresh mainnet
+node still **bootstraps from a snapshot by default** (that's where the genesis
+block lives). To actually begin from block 1:
+
+* Config `sync_from_genesis` (or env `BISMUTH_SYNC_FROM_GENESIS=1`).
+* On a fresh ledger this **seeds the canonical genesis block** (`chain_ops.seed_genesis`
+  — height 1, block hash `7a0f3848…`, the `4edadac…` genesis address, reused from
+  `regnet.SQL_LEDGER`) and **skips the snapshot download** (`bootstrap()` is the single
+  choke point; it seeds instead of fetching). Catch-up then builds block 2..tip from
+  peers, accepting the trusted prefix below the horizon and anchoring it at each
+  checkpoint.
+* It never clobbers a ledger that already has blocks, and is a no-op once synced —
+  so it is safe to leave on.
+* Regnet starts from genesis natively (it always seeds `SQL_LEDGER`), which is what
+  the end-to-end test below exercises.
+
 ### 2. The exception registry — targeted per-height waivers
 
 For the specific manual-intervention blocks that fail a **structural** check
@@ -197,3 +215,12 @@ present, anchor-required so an unanchored or no-checkpoint horizon never skips);
 and the real `BlockProcessor` wiring (overspend / duplicate / signature each
 suppressed only when registered, the trusted prefix skipping overspend, and
 `assume_valid` skipping the signature verify entirely).
+
+[`tests/test_sync_from_genesis.py`](../tests/test_sync_from_genesis.py) — genesis
+seeding (canonical genesis, no-clobber of a populated ledger, the `bootstrap()`
+guard seeding instead of downloading) plus an **end-to-end regnet two-node test**
+(env-gated `BISMUTH_RUN_TWONODE`): node A mines a chain past a checkpoint; node B
+starts at genesis and catches A's chain over REST with the checkpoint +
+`assume_valid_height` set — it reaches A's tip and logs `checkpoint OK`, while a
+third node given a WRONG checkpoint **halts at the checkpoint height** with
+`checkpoint MISMATCH`. (Verified: passes in ~73s.)

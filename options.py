@@ -70,6 +70,7 @@ class Get:
         "autoheal_interval": ["int"],
         "assume_valid_height": ["int"],
         "validation_exceptions_file": ["str"],
+        "sync_from_genesis": ["bool"],
         "rollback_consensus": ["bool"],
         "rollback_consensus_threshold": ["int"],
         "rollback_consensus_min_peers": ["int"],
@@ -121,6 +122,7 @@ class Get:
         "autoheal_interval": 300, # seconds between live autoheal checks (cheap recent-tail scan; repairs only on a real break)
         "assume_valid_height": 4000000,     # doc/30 from-genesis sync: trust horizon. At/below it skip per-item validation (sig/timestamp/pow/dup/overspend), ANCHORED by the hardcoded block-hash checkpoints (mismatch halts). Inert for a synced node (never re-digests historical heights) and for networks without checkpoints (regnet/testnet). 0 = off = full validation everywhere.
         "validation_exceptions_file": "",   # doc/30: optional JSON of historical validation waivers (coin rescues / fork-edge edits), merged over the in-source MAINNET_EXCEPTIONS; empty = built-in registry only
+        "sync_from_genesis": False,         # doc/30: on a fresh ledger, seed the canonical genesis block and sync the chain from block 1 instead of downloading a snapshot (trusted prefix below assume_valid_height anchored by checkpoints). No effect once the ledger has blocks.
 
         "rollback_consensus": True,          # AUTO-RECOVERY: reputation-gated deep rollback so a forked node rejoins on its own (doc/14); ON by default (replaces the rigid rollback_depth stranding)
         "rollback_consensus_threshold": 75,  # % peer agreement required to allow a deep rollback

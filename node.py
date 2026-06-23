@@ -1363,6 +1363,17 @@ if __name__ == "__main__":
     node.validation_exceptions_file = os.environ.get("BISMUTH_VALIDATION_EXCEPTIONS_FILE") \
         or getattr(config, "validation_exceptions_file", "")
     node.validation_exceptions = validation_exceptions.load(node)
+    # doc/30: sync the chain from BLOCK 1 instead of bootstrapping from a snapshot. On a fresh ledger the
+    # node seeds the canonical genesis block and skips the snapshot download, then catch-up builds 2..tip
+    # (the trusted prefix below assume_valid_height is anchored by the checkpoints). No effect once synced.
+    node.sync_from_genesis = os.environ.get("BISMUTH_SYNC_FROM_GENESIS", "").lower() in ("1", "true", "yes") \
+        or getattr(config, "sync_from_genesis", False)
+    # doc/30: optional checkpoint override (JSON {height: blockhash}) — used by tests/private chains to
+    # anchor a trusted prefix; unset -> validation_exceptions.MAINNET_CHECKPOINTS (mainnet) is used.
+    _cp_env = os.environ.get("BISMUTH_CHECKPOINTS")
+    if _cp_env:
+        import json as _json
+        node.checkpoints = {int(k): str(v) for k, v in _json.loads(_cp_env).items()}
     node.rollback_consensus = config.rollback_consensus                      # AUTO-RECOVERY: reputation-gated deep rollback, ON by default (doc/14)
     node.rollback_consensus_threshold = config.rollback_consensus_threshold
     node.rollback_consensus_min_peers = config.rollback_consensus_min_peers
@@ -1415,6 +1426,13 @@ if __name__ == "__main__":
         print("Upgrading wallet location")
         os.rename("../wallet.der", "wallet.der")
     # upgrade wallet location after nuitka-required "files" folder introduction
+
+    # doc/30: from-genesis sync — seed the canonical genesis block into a FRESH ledger before the
+    # hyperblock clone / integrity check run, so neither the clone (needs hyper.db to exist) nor
+    # check_integrity/initial_db_check trigger a snapshot bootstrap. No-op once the ledger has blocks.
+    if getattr(node, "sync_from_genesis", False):
+        from chain_ops import seed_genesis
+        seed_genesis(node)
 
     if not node.full_ledger and os.path.exists(node.ledger_path) and node.is_mainnet:
         os.remove(node.ledger_path)

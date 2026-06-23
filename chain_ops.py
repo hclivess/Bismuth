@@ -526,8 +526,67 @@ def blocknf(node, block_hash_delete, peer_ip, db_handler, hyperblocks=False):
         node.logger.app_log.info(reason)
 
 
+def seed_genesis(node):
+    """doc/30 sync_from_genesis: create a fresh GENESIS-ONLY ledger (block 1) instead of
+    downloading a snapshot, so the node syncs the chain from block 1. The genesis block is
+    the canonical one shared by mainnet/regnet (height 1, block_hash 7a0f3848…, the
+    4edadac… genesis address) — reused from regnet.SQL_LEDGER so the long key/sig literal is
+    not duplicated. Catch-up then pulls block 2..tip from peers; everything below the
+    assume_valid_height horizon is accepted on the trusted prefix and anchored by the
+    checkpoints. Never clobbers a ledger that already has blocks."""
+    import amounts
+    import regnet
+    ledger_sql = regnet.SQL_LEDGER_INTEGER if amounts.LEDGER_INTEGER else regnet.SQL_LEDGER
+
+    def _has_blocks(path):
+        if not os.path.exists(path) or os.path.getsize(path) == 0:
+            return False
+        try:
+            con = sqlite3.connect(path); cur = con.cursor()
+            cur.execute("SELECT MAX(block_height) FROM transactions")
+            mx = cur.fetchone()[0]; con.close()
+            return bool(mx) and int(mx) >= 1
+        except Exception:
+            return False
+
+    # the node reads from hyper_path and (cloned) ledger_path; seed both with genesis
+    for path in dict.fromkeys([p for p in (node.hyper_path, node.ledger_path) if p]):
+        if _has_blocks(path):
+            node.logger.app_log.warning(f"sync_from_genesis: {path} already populated — not reseeding")
+            continue
+        d = os.path.dirname(path) or "."
+        if d and not os.path.exists(d):
+            os.makedirs(d, exist_ok=True)
+        for ext in ("", "-wal", "-shm"):
+            try: os.remove(path + ext)
+            except OSError: pass
+        with sqlite3.connect(path) as con:
+            for stmt in ledger_sql:
+                con.execute(stmt)
+            con.commit()
+        node.logger.app_log.warning(f"sync_from_genesis: seeded canonical genesis (height 1) into {path}")
+
+    # the alias/token index db
+    idx = getattr(node, "index_db", None)
+    if idx and not (os.path.exists(idx) and os.path.getsize(idx) > 0):
+        d = os.path.dirname(idx) or "."
+        if d and not os.path.exists(d):
+            os.makedirs(d, exist_ok=True)
+        with sqlite3.connect(idx) as con:
+            for stmt in regnet.SQL_INDEX:
+                con.execute(stmt)
+            con.commit()
+    node.logger.app_log.warning("sync_from_genesis: genesis seeded; will sync the chain from block 2")
+
+
 def bootstrap(node):
     # TODO: Candidate for single user mode
+    # doc/30: when syncing from genesis, never download a snapshot — seed the genesis block and let
+    # catch-up build the chain from block 1. Single choke point for every bootstrap call site.
+    if getattr(node, "sync_from_genesis", False):
+        node.logger.app_log.warning("Status: sync_from_genesis set — seeding genesis instead of bootstrapping")
+        seed_genesis(node)
+        return
     try:
         # Extract into the ledger's own directory (the default mainnet ledger lives in static/).
         dest_dir = os.path.dirname(node.ledger_path) or "."
