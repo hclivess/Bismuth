@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Bismuth Wallet</title>
+<style>
+  :root{--bg:#0e1512;--panel:#16201b;--ink:#dff3ea;--muted:#7fa394;--accent:#36c98c;--warn:#e0683f;--line:#26352d}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.55 system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+  .wrap{max-width:520px;margin:0 auto;padding:18px 16px 60px}
+  h1{font-size:18px;margin:0 0 2px;display:flex;align-items:center;gap:8px}
+  .logo{width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,#36c98c,#1a6b48)}
+  .sub{color:var(--muted);font-size:12px;margin-bottom:14px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin:10px 0}
+  label{display:block;color:var(--muted);font-size:12px;margin:8px 0 3px}
+  input{width:100%;font:13px monospace;padding:9px 10px;background:#0b1310;border:1px solid var(--line);border-radius:8px;color:var(--ink)}
+  button{font:13px system-ui;padding:9px 14px;margin:6px 6px 0 0;border:0;border-radius:9px;background:var(--accent);color:#06150e;font-weight:600;cursor:pointer}
+  button.alt{background:#23463a;color:var(--ink)} button.warn{background:var(--warn);color:#fff} button:disabled{opacity:.45;cursor:default}
+  .muted{color:var(--muted)} code,.mono{font-family:monospace}
+  .addr{word-break:break-all;font-size:12px;background:#0b1310;border:1px solid var(--line);border-radius:8px;padding:8px}
+  .mnem{font:14px/1.9 monospace;background:#0b1310;border:1px dashed var(--accent);border-radius:8px;padding:12px;word-spacing:6px}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .pill{font-size:11px;background:#0b1310;border:1px solid var(--line);border-radius:20px;padding:2px 9px;color:var(--muted)}
+  .hide{display:none!important}
+  .danger{color:var(--warn)} .ok{color:var(--accent)}
+  /* approval modal */
+  #modal{position:fixed;inset:0;background:rgba(4,9,7,.86);display:flex;align-items:center;justify-content:center;z-index:50}
+  .card{max-width:440px;width:92%;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:0 18px 60px rgba(0,0,0,.6)}
+  .kv{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px}
+  .kv b{font-weight:600} .kv .v{font-family:monospace;text-align:right;word-break:break-all;max-width:62%}
+  .big{font-size:20px;font-weight:700} .origin{font-size:12px;color:var(--muted)}
+  .valwarn{background:#3a1d12;border:1px solid var(--warn);border-radius:8px;padding:8px;margin-top:10px;font-size:12px}
+  #log{white-space:pre-wrap;font:11px/1.4 monospace;color:var(--muted);max-height:120px;overflow:auto;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1><span class="logo"></span> Bismuth Wallet <span class="pill" id="mode">standalone</span></h1>
+  <div class="sub">Keys are generated and stored <b>only in this origin</b>, encrypted with your passphrase.
+    No seed or private key is ever exported or sent to a dApp or relay. <span class="danger">Demo-grade
+    (deterministic RSA-from-mnemonic) — not for real funds.</span></div>
+
+  <!-- ============ locked / setup ============ -->
+  <div id="setup" class="panel">
+    <div id="welcome">
+      <div class="muted" id="vaultState">checking for a stored wallet…</div>
+      <div id="newBox" class="hide">
+        <label>Choose a passphrase (encrypts your seed at rest)</label>
+        <input id="newPass" type="password" placeholder="passphrase"/>
+        <label>Confirm passphrase</label>
+        <input id="newPass2" type="password" placeholder="repeat passphrase"/>
+        <button onclick="createWallet()">Create new wallet</button>
+        <button class="alt" onclick="showRestore()">Restore from seed phrase</button>
+      </div>
+      <div id="unlockBox" class="hide">
+        <label>Unlock your wallet</label>
+        <input id="unlockPass" type="password" placeholder="passphrase" onkeydown="if(event.key==='Enter')unlockWallet()"/>
+        <button onclick="unlockWallet()">Unlock</button>
+        <button class="alt" onclick="forgetWallet()">Forget / reset</button>
+      </div>
+      <div id="restoreBox" class="hide">
+        <label>Seed phrase (12/24 words)</label>
+        <input id="restoreMnem" placeholder="word1 word2 …"/>
+        <label>New passphrase</label>
+        <input id="restorePass" type="password" placeholder="passphrase"/>
+        <button onclick="restoreWallet()">Restore</button>
+        <button class="alt" onclick="location.reload()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ first-run backup (shown once) ============ -->
+  <div id="backup" class="panel hide">
+    <div class="ok"><b>Write down your seed phrase.</b> It is the ONLY backup — shown once.</div>
+    <div class="mnem" id="mnemOut"></div>
+    <button onclick="ackBackup()">I have saved it — continue</button>
+  </div>
+
+  <!-- ============ unlocked ============ -->
+  <div id="unlocked" class="panel hide">
+    <div class="row" style="justify-content:space-between">
+      <span class="pill ok">unlocked</span>
+      <span class="row"><span class="pill" id="netPill">net —</span><button class="alt" onclick="lockWallet()">Lock</button></span>
+    </div>
+    <label>Your address</label>
+    <div class="addr" id="addrOut">—</div>
+    <div class="row" style="margin-top:8px">
+      <span class="pill">balance <b id="balOut">—</b></span>
+      <button class="alt" onclick="refreshBalance()">refresh</button>
+    </div>
+    <label>Node (REST API) — reads + tx submission</label>
+    <input id="nodeUrl" value="http://127.0.0.1:3031"/>
+    <div class="muted" style="font-size:11px;margin-top:6px">Connected dApps may request your address and ask
+      you to approve transactions. You approve each one below.</div>
+  </div>
+
+  <div id="log"></div>
+</div>
+
+<!-- ============ approval modal ============ -->
+<div id="modal" class="hide">
+  <div class="card">
+    <div class="big" id="mTitle">Approve request</div>
+    <div class="origin" id="mOrigin">from —</div>
+    <div id="mBody" style="margin:12px 0"></div>
+    <div class="valwarn hide" id="mValWarn"></div>
+    <div class="row" style="margin-top:14px;justify-content:flex-end">
+      <button class="warn" id="mReject">Reject</button>
+      <button id="mApprove">Approve</button>
+    </div>
+  </div>
+</div>
+
+<!-- jsrsasign (classic script) supplies KJUR/KEYUTIL/RSAKey/SecureRandom globals for wallet-core.js -->
+<script src="../lib/vendor/jsrsasign-all-min.js"></script>
+<script type="module">
+import { Wallet, hasVault, destroyVault } from "./wallet-core.js";
+import * as btx from "../lib/bismuth-tx.js";
+
+const $ = (id) => document.getElementById(id);
+function log(m){ const l=$("log"); l.textContent += m + "\n"; l.scrollTop = l.scrollHeight; }
+
+const wallet = new Wallet();
+let CONNECTED_ORIGINS = new Map();   // origin -> {approvedContracts:Set}
+let IDLE_TIMER = null;
+const IDLE_MS = 5 * 60 * 1000;
+
+// ---------------------------------------------------------------- selector decode (for the modal)
+const FN_NAME = Object.fromEntries(Object.entries(btx.FN).map(([k, v]) => [v, k]));
+function decodeCalldata(calldataHex){
+  const b = btx.fromHex(calldataHex);
+  if (b.length < 4) return { selector: null, name: "(empty)", detail: "" };
+  const sel = (b[0]<<24)|(b[1]<<16)|(b[2]<<8)|b[3];
+  const name = FN_NAME[sel] !== undefined ? "FN_" + FN_NAME[sel] : ("selector " + sel);
+  let detail = "";
+  const be4 = (o) => (b[o]<<24>>>0)+(b[o+1]<<16)+(b[o+2]<<8)+b[o+3];
+  try {
+    if (sel === btx.FN.SIT)        detail = "seat " + be4(4) + " (BUY-IN — moves funds)";
+    else if (sel === btx.FN.LEAVE) detail = "seat " + be4(4) + " (refund stack)";
+    else if (sel === btx.FN.BET)   detail = "raise street total to " + be4(4) + " units";
+    else if (sel === btx.FN.COMMIT)detail = "anchor 32-byte hole commitment";
+    else if (sel === btx.FN.REVEAL)detail = "reveal cards " + Array.from(b.slice(4,9)).join(",");
+    else if (sel === btx.FN.DECK_DIGEST) detail = "anchor deal-stage deck hash (idx " + be4(4) + ")";
+    else detail = "no arguments";
+  } catch(e){ detail = "(unparsed args)"; }
+  return { selector: sel, name, detail, isValueBearing: sel === btx.FN.SIT };
+}
+
+// ---------------------------------------------------------------- node REST
+async function nodeGet(path){
+  const base = $("nodeUrl").value.replace(/\/$/, "");
+  const r = await fetch(base + path);
+  return r.json();
+}
+async function nodePostTx(tx){
+  const base = $("nodeUrl").value.replace(/\/$/, "");
+  const r = await fetch(base + "/api/transaction", {
+    method:"POST", headers:{"Content-Type":"application/json"}, body: btx.submitBody(tx) });
+  const j = await r.json();
+  if (j.error) throw new Error(j.error);
+  return j;
+}
+async function networkId(){
+  try { const d = await nodeGet("/api/fork"); return (d && (d.network || d.genesis || d.fork_height!=null)) ? ("fork@"+d.fork_height) : "node"; }
+  catch(e){ return null; }
+}
+
+// ---------------------------------------------------------------- UI lifecycle
+async function boot(){
+  const stored = await hasVault();
+  $("vaultState").classList.add("hide");
+  if (stored){ $("unlockBox").classList.remove("hide"); }
+  else { $("newBox").classList.remove("hide"); }
+  if (parent !== window) $("mode").textContent = "connected (iframe)";
+}
+window.createWallet = async () => {
+  const p = $("newPass").value, p2 = $("newPass2").value;
+  if (p.length < 6) return alert("passphrase must be at least 6 characters");
+  if (p !== p2) return alert("passphrases do not match");
+  log("generating mnemonic + deriving RSA account (a few seconds)…");
+  const { mnemonic, address } = await wallet.create(p);
+  $("setup").classList.add("hide");
+  $("mnemOut").textContent = mnemonic;
+  $("backup").classList.remove("hide");
+  log("wallet created: " + address);
+};
+window.showRestore = () => { $("newBox").classList.add("hide"); $("restoreBox").classList.remove("hide"); };
+window.restoreWallet = async () => {
+  const m = $("restoreMnem").value, p = $("restorePass").value;
+  if (p.length < 6) return alert("passphrase must be at least 6 characters");
+  try { log("restoring + deriving RSA account…"); const { address } = await wallet.restore(m, p);
+    afterUnlock(address); } catch(e){ alert(e.message); }
+};
+window.unlockWallet = async () => {
+  try { const { address } = await wallet.unlock($("unlockPass").value); afterUnlock(address); }
+  catch(e){ alert(e.message); }
+};
+window.ackBackup = () => { $("backup").classList.add("hide"); afterUnlock(wallet.account.address); };
+window.forgetWallet = async () => {
+  if (!confirm("Erase the stored wallet from this browser? You will need your seed phrase to restore.")) return;
+  await destroyVault(); location.reload();
+};
+window.lockWallet = () => { wallet.lock(); location.reload(); };
+
+async function afterUnlock(address){
+  $("setup").classList.add("hide"); $("backup").classList.add("hide");
+  $("unlocked").classList.remove("hide");
+  $("addrOut").textContent = address;
+  const nid = await networkId();
+  $("netPill").textContent = nid ? ("net " + nid) : "net offline";
+  refreshBalance();
+  resetIdle();
+  // tell any connected dApp the account is available
+  for (const [origin] of CONNECTED_ORIGINS) postEvent(origin, "accountsChanged", [address]);
+}
+window.refreshBalance = async () => {
+  if (wallet.locked) return;
+  try { const d = await nodeGet("/api/balance/" + wallet.account.address);
+    const bal = (d && (d.balance!=null ? d.balance : (Array.isArray(d)?d[0]:null)));
+    $("balOut").textContent = bal!=null ? (bal + " BIS") : "—";
+  } catch(e){ $("balOut").textContent = "(node unreachable)"; }
+};
+
+function resetIdle(){ if (IDLE_TIMER) clearTimeout(IDLE_TIMER);
+  IDLE_TIMER = setTimeout(() => { if (!wallet.locked){ log("idle auto-lock"); wallet.lock(); location.reload(); } }, IDLE_MS); }
+["click","keydown","mousemove"].forEach(e => window.addEventListener(e, () => { if (!wallet.locked) resetIdle(); }));
+
+// ---------------------------------------------------------------- approval modal
+// Serialized via a FIFO so concurrent vm:calls each get their own modal in turn — without the queue a second
+// request would overwrite the shared #modal handlers and silently resolve/reject the wrong one.
+let _approveQueue = Promise.resolve();
+function approve(opts){
+  const run = () => new Promise((resolve) => {
+    $("mTitle").textContent = opts.title || "Approve request";
+    $("mOrigin").textContent = "from " + (opts.origin || "unknown origin");
+    $("mBody").innerHTML = opts.bodyHtml || "";
+    const vw = $("mValWarn");
+    if (opts.valueWarn){ vw.textContent = opts.valueWarn; vw.classList.remove("hide"); } else vw.classList.add("hide");
+    $("modal").classList.remove("hide");
+    const cleanup = (v) => { $("modal").classList.add("hide"); $("mApprove").onclick=null; $("mReject").onclick=null; resolve(v); };
+    $("mApprove").onclick = () => cleanup(true);
+    $("mReject").onclick = () => cleanup(false);
+  });
+  const p = _approveQueue.then(run, run);   // wait for any in-flight modal, then show this one
+  _approveQueue = p.catch(() => {});
+  return p;
+}
+function kv(k,v){ return '<div class="kv"><b>'+k+'</b><span class="v">'+v+'</span></div>'; }
+
+// ---------------------------------------------------------------- provider protocol (wallet side)
+// Envelope shape (bismuth-provider.js): {__bismuth:1,id,method,params} -> {__bismuth:1,id,result|error}.
+const PROTO = "__bismuth";
+function reply(origin, source, id, result, error){
+  const env = {}; env[PROTO]=1; env.id=id;
+  if (error) env.error = { code: error.code || 4001, message: error.message || String(error) };
+  else env.result = result;
+  (source || parent).postMessage(env, origin);
+}
+function postEvent(origin, event, data){
+  const env = {}; env[PROTO]=1; env.event=event; env.data=data;
+  try { (window.__dappSource || parent).postMessage(env, origin); } catch(e){}
+}
+
+const REJECTED = () => ({ code: 4001, message: "user rejected" });
+
+async function handleRpc(origin, source, msg){
+  const { id, method, params } = msg;
+  const p = (params && params[0]) || {};
+  try {
+    switch(method){
+      case "bismuth_networkId":
+        return reply(origin, source, id, await networkId());
+
+      case "bismuth_accounts":
+        return reply(origin, source, id, (!wallet.locked && CONNECTED_ORIGINS.has(origin)) ? [wallet.account.address] : []);
+
+      case "bismuth_requestAccounts": {
+        if (wallet.locked){ return reply(origin, source, id, null, { code:4100, message:"wallet locked — unlock it first" }); }
+        const ok = await approve({ title:"Connect wallet", origin,
+          bodyHtml: kv("Site", origin) + kv("Account", wallet.account.address.slice(0,20)+"…") +
+                    '<div class="muted" style="margin-top:8px">This site will see your address. It must still ask you to approve every transaction.</div>' });
+        if (!ok) return reply(origin, source, id, null, REJECTED());
+        CONNECTED_ORIGINS.set(origin, { approvedContracts: new Set() });
+        window.__dappSource = source;
+        return reply(origin, source, id, [wallet.account.address]);
+      }
+
+      case "bismuth_getBalance": {
+        const d = await nodeGet("/api/balance/" + (p.address || (wallet.account && wallet.account.address)));
+        return reply(origin, source, id, d);
+      }
+
+      case "bismuth_signMessage": {
+        if (wallet.locked) return reply(origin, source, id, null, {code:4100,message:"wallet locked"});
+        if (!CONNECTED_ORIGINS.has(origin)) return reply(origin, source, id, null, {code:4100,message:"connect first"});
+        const ok = await approve({ title:"Sign message", origin,
+          bodyHtml: kv("Site", origin) + kv("Message", '<span class="mono">'+escapeHtml(String(p.message)).slice(0,200)+'</span>') });
+        if (!ok) return reply(origin, source, id, null, REJECTED());
+        return reply(origin, source, id, wallet.account.signMessage(p.message));
+      }
+
+      case "bismuth_vmCall":
+      case "bismuth_sendTransaction":
+      case "bismuth_signTransaction": {
+        if (wallet.locked) return reply(origin, source, id, null, {code:4100,message:"wallet locked"});
+        if (!CONNECTED_ORIGINS.has(origin)) return reply(origin, source, id, null, {code:4100,message:"connect first"});
+        // Normalize to a vm:call shape (contract, calldata_hex, value).
+        let contract, calldataHex, value;
+        if (method === "bismuth_vmCall"){ contract = p.contract; calldataHex = p.calldata_hex; value = p.value || 0; }
+        else { // raw tx with openfield "<addr>:<calldata_hex>"
+          const of = String(p.openfield || ""); const ci = of.indexOf(":");
+          contract = p.recipient || of.slice(0, ci); calldataHex = of.slice(ci+1); value = p.amount || p.value || 0;
+        }
+        const dec = decodeCalldata(calldataHex);
+        const valueWarn = dec.isValueBearing || Number(value) > 0
+          ? ("This call attaches " + value + " BIS of your funds.") : "";
+        const ok = await approve({
+          title:"Approve transaction", origin,
+          bodyHtml: kv("Site", origin) + kv("Action", '<b>'+dec.name+'</b>') + kv("", dec.detail) +
+                    kv("Contract", contract.slice(0,16)+"…"+contract.slice(-6)) +
+                    kv("Value", (Number(value)||0) + " BIS") +
+                    kv("Calldata", '<span class="mono">'+calldataHex.slice(0,40)+(calldataHex.length>40?"…":"")+'</span>'),
+          valueWarn });
+        if (!ok) return reply(origin, source, id, null, REJECTED());
+
+        // Build + sign with the in-origin key (bismuth-tx.js owns the canonical buffer/framing).
+        const built = btx.buildVmCall(wallet.account, contract, calldataHex, { value: Number(value)||0 });
+        if (method === "bismuth_signTransaction") return reply(origin, source, id, { tx: built.tx });
+        // sendTransaction / vmCall: submit to the node and return the txid echo.
+        try {
+          const res = await nodePostTx(built.tx);
+          const txid = (res.txids && res.txids[0]) || built.txidPrefix;
+          log("submitted " + dec.name + " -> " + txid);
+          return reply(origin, source, id, { txid, result: res.result });
+        } catch(e){
+          // surface "already in mempool" so the dApp can poll for inclusion (doc/33 §4 nonce/dup)
+          return reply(origin, source, id, null, { code:4900, message:"submit failed: " + e.message });
+        }
+      }
+
+      default:
+        return reply(origin, source, id, null, { code:4200, message:"unsupported method: " + method });
+    }
+  } catch(e){
+    reply(origin, source, id, null, { code:4001, message: e.message });
+  }
+}
+
+function escapeHtml(s){ return s.replace(/[&<>"]/g, (c)=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c])); }
+
+window.addEventListener("message", (ev) => {
+  const d = ev.data;
+  if (!d || d[PROTO] !== 1 || d.id == null || !d.method) return;
+  // Bind the dApp source window for events; never trust message contents beyond the protocol envelope.
+  handleRpc(ev.origin, ev.source, d);
+});
+
+boot();
+log("wallet ready" + (parent !== window ? " (embedded as provider for the dApp page)" : ""));
+</script>
+</body>
+</html>
