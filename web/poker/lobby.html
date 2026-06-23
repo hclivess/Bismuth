@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Bismuth Poker — Tournament Lobby</title>
+<style>
+  :root { --felt:#0b6e4f; --felt2:#0a5d43; --gold:#f2c14e; --ink:#11161c; --pane:#161d26; --line:#2a3543; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.45 system-ui, sans-serif; background:var(--ink); color:#e8edf2; }
+  header { display:flex; align-items:center; gap:14px; padding:12px 18px; background:#0c1014;
+           border-bottom:1px solid var(--line); }
+  header h1 { font-size:18px; margin:0; color:var(--gold); }
+  header .who { margin-left:auto; font-size:12px; color:#9fb0bf; }
+  main { display:grid; grid-template-columns: 360px 1fr; gap:16px; padding:16px; }
+  .pane { background:var(--pane); border:1px solid var(--line); border-radius:10px; padding:14px; }
+  .pane h2 { margin:0 0 10px; font-size:14px; color:var(--gold); letter-spacing:.3px; }
+  label { display:block; font-size:11px; color:#9fb0bf; margin:8px 0 3px; }
+  input, select, button { font:13px system-ui; }
+  input, select { width:100%; padding:7px 9px; background:#0e141b; border:1px solid var(--line);
+                  border-radius:7px; color:#e8edf2; }
+  button { cursor:pointer; padding:8px 12px; border-radius:7px; border:1px solid var(--line);
+           background:#1d2734; color:#e8edf2; }
+  button.primary { background:var(--gold); color:#1a1206; border-color:#caa23a; font-weight:600; }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  .row { display:flex; gap:8px; }
+  .row > * { flex:1; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  th, td { text-align:left; padding:6px 8px; border-bottom:1px solid #20293400; }
+  th { color:#8aa0b3; font-weight:600; border-bottom:1px solid var(--line); }
+  tr.t:hover { background:#1b232e; cursor:pointer; }
+  .tag { display:inline-block; padding:1px 7px; border-radius:99px; font-size:11px; }
+  .tag.reg { background:#173a2b; color:#5fd6a0; }
+  .tag.run { background:#3a2f17; color:var(--gold); }
+  .tag.done { background:#2a3543; color:#9fb0bf; }
+  .felt { background:linear-gradient(160deg,var(--felt),var(--felt2)); border-radius:12px; padding:14px;
+          border:2px solid #0a4f3a; }
+  .blinds { font-size:22px; color:var(--gold); font-weight:700; }
+  .small { font-size:11px; color:#9fb0bf; }
+  .pool { font-size:26px; color:var(--gold); font-weight:800; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  pre#log { background:#0a0e12; border:1px solid var(--line); border-radius:8px; padding:10px;
+            height:150px; overflow:auto; font:11px ui-monospace, monospace; color:#9fe7c4; white-space:pre-wrap; }
+  .ladder li { margin:2px 0; }
+  .pill { font:11px ui-monospace; color:#bcd; }
+</style>
+</head>
+<body>
+<header>
+  <h1>♣ Bismuth Poker — Tournament Lobby</h1>
+  <div class="who">
+    node <input id="api" style="width:200px;display:inline-block" value="http://127.0.0.1:5659" />
+    <button id="connect">Connect wallet</button>
+    <span id="me" class="pill"></span>
+  </div>
+</header>
+
+<main>
+  <!-- left column: create + register + my action -->
+  <section class="pane">
+    <h2>Find / open a tournament</h2>
+    <label>Contract address (56 hex)</label>
+    <input id="addr" placeholder="tournament contract address" />
+    <div class="row" style="margin-top:8px">
+      <button id="load">Load</button>
+      <button id="scan">Scan deployed</button>
+    </div>
+
+    <h2 style="margin-top:18px">Register</h2>
+    <p class="small">Buy-in attaches as transaction value. The exact configured buy-in is escrowed into the
+      single prize pool and credits your starting chips.</p>
+    <label>Buy-in (BIS)</label>
+    <input id="buyin" type="number" step="0.00000001" value="0.0000001" />
+    <button id="register" class="primary" style="margin-top:8px;width:100%">Register (attach buy-in)</button>
+
+    <h2 style="margin-top:18px">Run controls</h2>
+    <p class="small">Permissionless: anyone may advance the tournament once its on-chain conditions hold.</p>
+    <div class="grid2">
+      <button id="start">Start (MTT)</button>
+      <button id="bust">Bust (tid 0)</button>
+      <button id="finalize">Finalize</button>
+      <button id="deal">Deal (tid 0)</button>
+    </div>
+
+    <h2 style="margin-top:18px">Activity</h2>
+    <pre id="log"></pre>
+  </section>
+
+  <!-- right column: tournament view -->
+  <section class="pane">
+    <h2>Tournament</h2>
+    <div class="felt">
+      <div class="grid2">
+        <div>
+          <div class="small">Status</div>
+          <div id="status"><span class="tag done">no tournament loaded</span></div>
+          <div class="small" style="margin-top:8px">Prize pool</div>
+          <div class="pool" id="pool">—</div>
+        </div>
+        <div>
+          <div class="small">Current blinds (by block height)</div>
+          <div class="blinds" id="blinds">—</div>
+          <div class="small" id="levelinfo"></div>
+          <div class="small" style="margin-top:8px">Entrants · alive · tables</div>
+          <div id="counts" class="blinds" style="font-size:16px">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid2" style="margin-top:14px">
+      <div>
+        <h2>Payout schedule</h2>
+        <ul class="ladder" id="ladder"><li class="small">load a tournament</li></ul>
+      </div>
+      <div>
+        <h2>Conservation</h2>
+        <div class="small">Σ buy-ins == prize pool == Σ payouts (asserted on-chain).</div>
+        <div id="conserve" class="small" style="margin-top:6px">—</div>
+      </div>
+    </div>
+
+    <h2 style="margin-top:14px">Registrants</h2>
+    <table>
+      <thead><tr><th>#</th><th>address</th><th>tid</th><th>seat</th><th>chips</th><th>status</th><th>place</th></tr></thead>
+      <tbody id="players"><tr><td colspan="7" class="small">—</td></tr></tbody>
+    </table>
+  </section>
+</main>
+
+<script type="module">
+import { installBismuthProvider } from "../lib/bismuth-provider.js";
+import { buildVmCall, submitBody, hex, addr28FromHex } from "../lib/bismuth-tx.js";
+import * as tt from "../lib/bismuth-tourney.js";
+
+// ----- config baked to match a deployed tournament's build() params (edit per deployment) -----
+// The blind schedule + level_blocks + finisher ladder are baked into the bytecode at build(); the lobby
+// mirrors them here for display only (the chain is the source of truth for state).
+const CFG = {
+  levels: [[10, 20], [20, 40], [40, 80], [80, 160]],   // (sb, bb) per level
+  levelBlocks: 50,
+  schedule: tt.SCHED_SNG_TOP3,                          // 50 / 30 / 20
+};
+
+const WALLET_URL = new URL("../wallet/index.html", location.href).href;
+const provider = installBismuthProvider({ walletUrl: WALLET_URL });
+
+const $ = (id) => document.getElementById(id);
+const api = () => $("api").value.replace(/\/$/, "");
+function log(m) { const l = $("log"); l.textContent += m + "\n"; l.scrollTop = l.scrollHeight; }
+
+let ME = null;            // my 56-hex address
+let SLOTS = {};           // contract storage map keyInt -> valueInt
+let HEIGHT = 0;           // current chain height (for the blind level)
+const UNIT = 1e8;
+const RANKS = "23456789TJQKA", SUITS = "cdhs";
+const fmtBIS = (u) => (u / UNIT).toFixed(8).replace(/0+$/, "").replace(/\.$/, "");
+
+// ----- node reads (RO, state-root backed) -----
+async function GET(url) { const r = await fetch(url); return r.json(); }
+
+async function refreshHeight() {
+  try { const s = await GET(api() + "/api/status"); HEIGHT = parseInt(s.block_height || s.height || 0, 10) || HEIGHT; }
+  catch (e) { /* keep last */ }
+}
+
+async function loadTournament() {
+  const addr = $("addr").value.trim();
+  if (!addr) return;
+  try {
+    await refreshHeight();
+    const d = await GET(api() + "/api/vm/contract/" + addr);
+    SLOTS = {};
+    (d.storage || []).forEach((s) => { SLOTS[parseInt(s.key, 10) >>> 0] = parseInt(s.value, 10); });
+    render(parseInt(d.balance || "0", 10));
+  } catch (e) { log("load failed: " + e.message); }
+}
+
+async function scanDeployed() {
+  try {
+    const cs = await GET(api() + "/api/vm/contracts");
+    const list = cs.contracts || [];
+    log("deployed contracts: " + list.length);
+    list.forEach((c) => log("  " + (c.address || c)));
+    if (list.length && !$("addr").value) { $("addr").value = list[0].address || list[0]; loadTournament(); }
+  } catch (e) { log("scan failed: " + e.message); }
+}
+
+// ----- render -----
+function render(balance) {
+  const t = tt.readTournament(SLOTS);
+  const phaseTag = t.phase === tt.TPH.REG ? '<span class="tag reg">REGISTERING</span>'
+    : t.phase === tt.TPH.RUNNING ? '<span class="tag run">RUNNING</span>'
+      : '<span class="tag done">FINISHED</span>';
+  $("status").innerHTML = phaseTag;
+  $("pool").textContent = fmtBIS(t.prizePool) + " BIS";
+  $("counts").textContent = t.nreg + " · " + t.nalive + " · " + (t.ntables || 1);
+
+  // blinds for the current height (the ONLY height-gated value)
+  const start = t.startBlock || 0;
+  const [sb, bb] = tt.blindsAtHeight(CFG.levels, CFG.levelBlocks, start, HEIGHT || start);
+  $("blinds").textContent = sb + " / " + bb;
+  const level = start && HEIGHT > start ? Math.min(Math.floor((HEIGHT - start) / CFG.levelBlocks), CFG.levels.length - 1) : 0;
+  $("levelinfo").textContent = t.phase === tt.TPH.RUNNING
+    ? "level " + (level + 1) + " of " + CFG.levels.length + " · height " + HEIGHT + " (epoch " + start + ")"
+    : "blinds advance every " + CFG.levelBlocks + " blocks once running";
+
+  // payout ladder from the live pool
+  const shares = tt.payoutSplit(t.prizePool, CFG.schedule);
+  $("ladder").innerHTML = CFG.schedule.map((pm, i) =>
+    `<li class="small"><b>${ordinal(i + 1)}</b> — ${(pm / 10).toFixed(0)}% = <span style="color:var(--gold)">${fmtBIS(shares[i])} BIS</span></li>`
+  ).join("");
+
+  // conservation check (display)
+  const sumPayouts = t.entrants.reduce((acc, e) => acc + (e.paid ? 0 : 0), 0); // paid amount not stored; show pool match
+  $("conserve").innerHTML = `Σ buy-ins (entrants × buy-in) escrowed into pool = <b>${fmtBIS(t.prizePool)} BIS</b>` +
+    (t.phase === tt.TPH.DONE ? ` · <span style="color:#5fd6a0">paid out</span>` : "");
+
+  // registrants table
+  const rows = t.entrants.map((e) => {
+    const chips = e.tid !== undefined ? (SLOTS[tt.stackKey(e.tid, e.seat)] || 0) : 0;
+    const st = e.alive ? '<span class="tag run">alive</span>' : '<span class="tag done">out</span>';
+    const place = e.place ? "#" + e.place : "—";
+    const short = e.addrHex.slice(0, 8) + "…" + e.addrHex.slice(-6);
+    const mine = ME && e.addrHex.slice(-8).toLowerCase() === ME.slice(-8).toLowerCase() ? " ★" : "";
+    return `<tr class="t"><td>${e.e}</td><td class="pill">${short}${mine}</td><td>${e.tid}</td><td>${e.seat}</td><td>${chips}</td><td>${st}</td><td>${place}</td></tr>`;
+  });
+  $("players").innerHTML = rows.length ? rows.join("") : '<tr><td colspan="7" class="small">no registrants yet</td></tr>';
+  updateButtons(t);
+}
+
+function ordinal(n) { return n === 1 ? "1st" : n === 2 ? "2nd" : n === 3 ? "3rd" : n + "th"; }
+
+function updateButtons(t) {
+  const connected = !!ME, loaded = !!$("addr").value.trim();
+  $("register").disabled = !(connected && loaded && t && t.phase !== tt.TPH.DONE);
+  $("start").disabled = !(connected && loaded && t && t.phase === tt.TPH.REG);
+  $("deal").disabled = !(connected && loaded && t && t.phase === tt.TPH.RUNNING);
+  $("bust").disabled = !(connected && loaded && t && t.phase === tt.TPH.RUNNING);
+  $("finalize").disabled = !(connected && loaded && t && t.phase === tt.TPH.RUNNING && t.nalive === 1);
+}
+
+// ----- sign + send a vm:call through the wallet provider -----
+async function send(calldataBytes, valueBIS) {
+  const addr = $("addr").value.trim();
+  if (!addr) throw new Error("load a tournament first");
+  const calldataHex = hex(calldataBytes);
+  // The wallet builds + signs + POSTs; the provider exposes signAndSend(unsignedTx) -> txid.
+  const tx = await provider.signAndSend({
+    operation: "vm:call",
+    recipient: addr,
+    amount: valueBIS || 0,
+    openfield: addr + ":" + calldataHex,
+  });
+  log("sent: " + (tx.txid || JSON.stringify(tx)).slice(0, 64));
+  setTimeout(loadTournament, 1500);
+  return tx;
+}
+
+// ----- wire up -----
+$("connect").onclick = async () => {
+  try { await provider.connect(); ME = await provider.getAddress(); $("me").textContent = ME.slice(0, 10) + "…"; log("connected " + ME); loadTournament(); }
+  catch (e) { log("connect failed: " + e.message); }
+};
+$("load").onclick = loadTournament;
+$("scan").onclick = scanDeployed;
+$("register").onclick = async () => {
+  try {
+    const v = Math.round(parseFloat($("buyin").value) * UNIT);
+    const addr28 = addr28FromHex(ME);
+    await send(tt.registerCalldata(addr28), parseFloat($("buyin").value));
+  } catch (e) { log("register failed: " + e.message); }
+};
+$("start").onclick = () => send(tt.startCalldata(), 0).catch((e) => log("start failed: " + e.message));
+$("deal").onclick = () => send(tt.dealCalldata(0), 0).catch((e) => log("deal failed: " + e.message));
+$("bust").onclick = () => send(tt.bustCalldata(0), 0).catch((e) => log("bust failed: " + e.message));
+$("finalize").onclick = () => send(tt.finalizeCalldata(), 0).catch((e) => log("finalize failed: " + e.message));
+
+// auto-refresh
+setInterval(loadTournament, 6000);
+log("Tournament lobby ready. Connect a wallet and load a tournament contract address.");
+</script>
+</body>
+</html>
