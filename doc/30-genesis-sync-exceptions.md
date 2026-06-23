@@ -29,21 +29,42 @@ tip from genesis.
 ## The mechanism — two complementary, opt-in pieces
 
 Both live in [`validation_exceptions.py`](../validation_exceptions.py) and are
-**mainnet-only** and **inert by default** (an empty registry + `assume_valid`
-off is byte-identical to having no mechanism at all).
+**mainnet-only**. They are **inert for any live node**: a synced or
+snapshot-bootstrapped node never re-digests historical heights, so neither the
+checkpoint check nor the trusted-prefix skip ever changes its behaviour. They
+take effect *only* during a genuine from-genesis catch-up. (Setting
+`assume_valid_height = 0` disables the trusted prefix entirely and re-validates
+every block from genesis; the checkpoint hashes are still verified.)
 
-### 1. `assume_valid_height` — a trusted checkpoint (like Bitcoin's `-assumevalid`)
+### 1. `assume_valid_height` + checkpoints — a trusted, hash-anchored prefix
 
-For blocks at or below this height, skip the **expensive per-transaction
-signature re-verification** only. The block is still bound to the real chain by
-proof-of-work, the block-hash linkage, the difficulty retarget, the timestamp
-ordering **and** the overspend/duplicate checks — none of those are skipped.
-This is purely a speed optimisation for deeply-buried history.
+For blocks at or below the trust horizon `assume_valid_height`, skip the per-item
+validation — **signature, block-timestamp ordering, proof-of-work,
+duplicate-signature and overspend**. Integrity is not taken on faith: it is
+guaranteed *in aggregate* by **checkpoints**. Because a Bismuth block hash chains
+the previous block hash, the canonical block hash at height H recursively commits
+the **entire** chain 1..H. A from-genesis node still recomputes every block's hash
+and, on reaching a checkpoint height, must reproduce the hardcoded canonical
+value — any tampering anywhere in the skipped prefix changes the chained hash and
+halts the sync. This is the "a single CRC at height ~4M replaces a thousand
+signature validations" idea, realised with the (stronger) recursive block-hash
+chain.
+
+This is what makes a real from-genesis replay both **possible** (the earliest
+history can't pass today's stricter signature/timestamp rules — see *Findings*)
+and **practical** (no millions of memory-hard PoW + RSA re-verifications).
 
 * Config: `assume_valid_height` (or env `BISMUTH_ASSUME_VALID_HEIGHT`).
-* Default `0` ⇒ **off** ⇒ every signature is verified, exactly as before.
-* Wired in `digest_tx.Transaction.validate(verify_signature=...)`, driven from
-  `BlockProcessor.sort_and_validate_transactions`.
+* Default `0` ⇒ **off** ⇒ every check runs on every block, exactly as before.
+* Recommended: set it to a checkpoint height (e.g. `4000000`) so the trusted
+  prefix is anchored at its top edge.
+* Checkpoints (`MAINNET_CHECKPOINTS`) are **verified always** — independent of
+  `assume_valid_height`. This is pure added safety: inert for a synced node
+  (which never re-digests historical heights), it fires only as a catch-up passes
+  a checkpoint height. A mismatch halts (the prefix is not the canonical chain).
+* Wired in `digest.py` (timestamp / duplicate / PoW / overspend skips +
+  `verify_checkpoint` after the block hash is computed) and
+  `digest_tx.Transaction.validate(verify_signature=...)`.
 
 ### 2. The exception registry — targeted per-height waivers
 
@@ -118,21 +139,61 @@ Two methods, complementary:
 Always **review** the emitted list before trusting it — every entry *loosens* a
 historical block.
 
+## Findings — the mainnet ledger (scan of a snapshot to height 4,845,489)
+
+A full scan of a mainnet ledger copy (the bismuth.cz bootstrap snapshot) was run
+through the detectors above. The result is the reason the design centres on the
+checkpoint, not a big registry: **every from-genesis blocker is in the early
+chain, below the 4,000,000 trust horizon.**
+
+* **Overspend — none.** Exactly two addresses have a negative net balance, and
+  both are the synthetic *placeholder senders* on the mirror-reward rows
+  (`"Development Reward"`, `"Hypernode Payouts"`), not real spendable addresses.
+  No real transaction ever overspends; a faithful replay never trips it.
+* **Duplicate — one.** Height **708335** re-includes 10 transactions already in
+  708334 (a reorg artifact at the ~700k hard fork). Below the horizon → covered
+  by the checkpoint.
+* **Timestamp — early only.** ~870 blocks have a coinbase timestamp ≤ the
+  previous block's, **all below height ~60,000** (2017 sub-0.01s block spacing).
+  Below the horizon → covered.
+* **Signature — early only, systematic.** Tens of thousands of early-chain
+  transactions fail re-verification under today's stricter rules — early
+  1024-bit-RSA signing-buffer / address-binding drift, not per-incident rescues.
+  Targeted samples across 1M / 2M / 3M / 4M / 4.8M and a focused re-verification
+  of the **(4,000,000 … tip]** range found **zero** failures. All are below the
+  horizon → covered.
+
+So the populated artifact is the **checkpoint set** (`MAINNET_CHECKPOINTS`,
+computed and re-verified from the copy), not a list of per-height waivers — the
+4M checkpoint anchors the entire early prefix at once. `MAINNET_EXCEPTIONS` stays
+**empty**; the registry remains available for any *future* discrete anomaly that
+appears **above** the horizon (where full validation still runs).
+
 ## Safety properties
 
-* **Mainnet-scoped.** Testnet/regnet return an empty registry (overridable
-  per-node via `node.validation_exceptions` for tests).
-* **Default-inert.** Empty registry + `assume_valid_height = 0` ⇒ no behavioural
-  change; the node validates exactly as before.
-* **Monotonic loosening.** Adding an entry can only ever *accept* one specific
+* **Checkpoint-anchored.** The trusted prefix is only skipped when a checkpoint
+  commits it (no checkpoints, or a horizon past the last checkpoint ⇒ no skip).
+  A from-genesis node recomputes every block hash and halts on any checkpoint
+  mismatch, so a forged early prefix cannot be accepted.
+* **Inert for live nodes.** A synced (or snapshot-bootstrapped) node never
+  re-digests historical heights, so neither the prefix skip nor the checkpoint
+  check changes its behaviour. The horizon only affects a genuine from-genesis
+  catch-up.
+* **Network-scoped.** Mainnet only; regnet/testnet have no checkpoints, so they
+  never enter the trusted prefix even with a horizon configured (tests keep full
+  validation). Per-node overrides (`node.checkpoints`, `node.validation_exceptions`)
+  exist for tests.
+* **Monotonic loosening.** A registry entry can only *accept* one specific
   historical block that would otherwise be rejected; it cannot make the node
   reject anything it accepts today, and cannot affect new blocks.
 
 ## Tests
 
 [`tests/test_validation_exceptions.py`](../tests/test_validation_exceptions.py)
-— 17 hermetic tests: the registry logic (height/check/signature scoping,
-assume-valid threshold, external-file load/merge, fail-closed, inert-by-default)
-plus the real `BlockProcessor` wiring (overspend / duplicate / signature each
-suppressed **only** when registered, and `assume_valid` skipping the signature
-verify entirely).
+— 21 hermetic tests: the registry logic (height/check/signature scoping,
+assume-valid threshold, external-file load/merge, fail-closed, inert-by-default);
+the checkpoint logic (match / mismatch-halts / not-a-checkpoint, mainnet set
+present, anchor-required so an unanchored or no-checkpoint horizon never skips);
+and the real `BlockProcessor` wiring (overspend / duplicate / signature each
+suppressed only when registered, the trusted prefix skipping overspend, and
+`assume_valid` skipping the signature verify entirely).

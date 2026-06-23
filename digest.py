@@ -372,13 +372,14 @@ class BlockProcessor:
         # whole block's balances are processed). A curated OVERSPEND waiver lets a historical manual coin
         # rescue / fork-edge balance edit replay from genesis instead of halting the sync here.
         _ovr_h = (getattr(node, "last_block", 0) or 0) + 1
-        if quantize_eight(balance_pre) < quantize_eight(amount):
+        _ovr_trusted = validation_exceptions.in_trusted_prefix(node, _ovr_h)
+        if quantize_eight(balance_pre) < quantize_eight(amount) and not _ovr_trusted:
             if not validation_exceptions.is_exempt(node, _ovr_h, validation_exceptions.OVERSPEND):
                 raise ValueError(f"{address} sending more than owned: {amount}/{balance_pre}")
             validation_exceptions.note(node, _ovr_h, validation_exceptions.OVERSPEND,
                                        f"{address} {amount}/{balance_pre}")
 
-        if quantize_eight(balance) - quantize_eight(fees) < 0:
+        if quantize_eight(balance) - quantize_eight(fees) < 0 and not _ovr_trusted:
             if not validation_exceptions.is_exempt(node, _ovr_h, validation_exceptions.OVERSPEND):
                 raise ValueError(f"{address} Cannot afford to pay fees (balance: {balance}, block fees: {fees})")
             validation_exceptions.note(node, _ovr_h, validation_exceptions.OVERSPEND,
@@ -596,9 +597,10 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
         # Sort and validate transactions
         miner_tx = processor.sort_and_validate_transactions(block, block_instance)
 
-        # Validate block timestamp. doc/30: a curated TIMESTAMP waiver lets a historical out-of-order
-        # block (hard-fork-edge / manual insert) replay from genesis instead of halting the sync.
-        if miner_tx.q_block_timestamp <= node.last_block_timestamp:
+        # Validate block timestamp. doc/30: skipped in the trusted prefix (early sub-0.01s granularity)
+        # and waivable per-height; otherwise a block older than the previous one is rejected.
+        _trusted = validation_exceptions.in_trusted_prefix(node, block_instance.block_height_new)
+        if miner_tx.q_block_timestamp <= node.last_block_timestamp and not _trusted:
             if not validation_exceptions.is_exempt(node, block_instance.block_height_new,
                                                    validation_exceptions.TIMESTAMP):
                 raise ValueError(
@@ -608,8 +610,9 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
             validation_exceptions.note(node, block_instance.block_height_new, validation_exceptions.TIMESTAMP,
                                        f"block ts {miner_tx.q_block_timestamp} <= prev {node.last_block_timestamp}")
 
-        # Check for duplicate signatures
-        processor.check_duplicate_signatures(block, block_instance)
+        # Check for duplicate signatures (skipped in the trusted prefix — the checkpoint anchors integrity)
+        if not _trusted:
+            processor.check_duplicate_signatures(block, block_instance)
 
         # Calculate difficulty
         diff = difficulty(node, db_handler)
@@ -623,6 +626,12 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
             block_instance.transaction_list_converted, node.last_block_hash
         )
 
+        # doc/30 from-genesis anchor: at a checkpoint height the COMPUTED block hash must reproduce the
+        # hardcoded canonical value. Because the block hash chains the previous one, this pins the ENTIRE
+        # prefix below it — making it safe to have skipped per-item validation in the trusted prefix. Always
+        # on; inert for a synced node (never re-digests these historical heights), fires only on catch-up.
+        validation_exceptions.verify_checkpoint(node, block_instance.block_height_new, block_instance.block_hash)
+
         # Check if we already have this block
         if block_already_exists(db_handler, block_instance.block_hash, peer_ip):
             continue
@@ -631,18 +640,21 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
         # Get last transaction for PoW verification
         last_tx = Transaction()
         last_tx.from_raw_transaction(block[-1], len(block) - 1, len(block))
-        # doc/30: a curated POW waiver lets a historical manually-inserted block (no/irregular PoW) replay
-        # from genesis. Default-off; below assume_valid_height it never fires (PoW is always re-verified
-        # there — only signatures are skipped). diff[0] is recorded as the block's difficulty when waived.
-        try:
-            diff_save = processor.verify_proof_of_work(block_instance, miner_tx, last_tx, diff)
-        except ValueError:
-            if not validation_exceptions.is_exempt(node, block_instance.block_height_new,
-                                                   validation_exceptions.POW):
-                raise
+        # doc/30: in the trusted prefix skip the memory-hard PoW re-verify entirely (the checkpoint anchors
+        # integrity); record the computed required difficulty. Outside it, verify PoW — a curated POW waiver
+        # still lets a specific historical manually-inserted block through. diff[0] is the required difficulty.
+        if _trusted:
             diff_save = diff[0]
-            validation_exceptions.note(node, block_instance.block_height_new, validation_exceptions.POW,
-                                       f"recorded diff {diff_save}")
+        else:
+            try:
+                diff_save = processor.verify_proof_of_work(block_instance, miner_tx, last_tx, diff)
+            except ValueError:
+                if not validation_exceptions.is_exempt(node, block_instance.block_height_new,
+                                                       validation_exceptions.POW):
+                    raise
+                diff_save = diff[0]
+                validation_exceptions.note(node, block_instance.block_height_new, validation_exceptions.POW,
+                                           f"recorded diff {diff_save}")
 
         # Process transaction balances
         processor.process_transaction_balances(block, block_instance, miner_tx)

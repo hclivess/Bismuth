@@ -119,11 +119,63 @@ def test_signature_waiver_scoped_to_prefix():
 
 def test_assume_valid_threshold():
     n = _node(assume_valid_height=1000000)
+    n.checkpoints = {1000000: "x"}                      # signature skip requires checkpoint anchoring
     assert V.assume_valid_skip_signature(n, 999999) is True
     assert V.assume_valid_skip_signature(n, 1000000) is True
     assert V.assume_valid_skip_signature(n, 1000001) is False
     n.assume_valid_height = 0
     assert V.assume_valid_skip_signature(n, 5) is False
+
+
+def test_in_trusted_prefix():
+    n = _node(assume_valid_height=4000000)
+    n.checkpoints = {4000000: "x", 4800000: "y"}        # anchored
+    assert V.in_trusted_prefix(n, 1) is True
+    assert V.in_trusted_prefix(n, 4000000) is True
+    assert V.in_trusted_prefix(n, 4000001) is False
+    # off
+    off = _node(assume_valid_height=0); off.checkpoints = {4000000: "x"}
+    assert V.in_trusted_prefix(off, 1) is False
+    # SAFETY: no checkpoints -> never skip (regnet/testnet with a configured horizon)
+    bare = _node(assume_valid_height=4000000); bare.checkpoints = {}
+    assert V.in_trusted_prefix(bare, 1) is False
+    # SAFETY: horizon beyond the last checkpoint -> unanchored tail -> never skip
+    past = _node(assume_valid_height=9999999); past.checkpoints = {4000000: "x"}
+    assert V.in_trusted_prefix(past, 1) is False
+
+
+def test_checkpoint_verify_match_mismatch_and_none():
+    cp = {4000000: "6f4794262f38f5de41379fd860bb58332f1825c1c6e04885ca11db7f"}
+    n = _node()
+    n.checkpoints = cp
+    assert V.checkpoint_hash(n, 4000000) == cp[4000000]
+    assert V.verify_checkpoint(n, 4000000, cp[4000000]) is True
+    assert V.verify_checkpoint(n, 3999999, "anything") is False        # not a checkpoint height
+    with pytest.raises(ValueError, match="MISMATCH"):
+        V.verify_checkpoint(n, 4000000, "deadbeef")
+
+
+def test_mainnet_checkpoints_present_inert_elsewhere():
+    m = _node(is_mainnet=True, is_regnet=False)
+    assert 4000000 in V.MAINNET_CHECKPOINTS
+    assert V.checkpoint_hash(m, 4000000) == V.MAINNET_CHECKPOINTS[4000000]
+    # regnet/testnet have no mainnet checkpoints unless explicitly injected
+    assert V.checkpoint_hash(_node(is_regnet=True), 4000000) is None
+
+
+def test_trusted_prefix_skips_overspend():
+    """In the trusted prefix an overspend does NOT raise (anchored by the checkpoint),
+    even with no per-height waiver."""
+    n = _node(last_block=699999, assume_valid_height=4000000)
+    n.checkpoints = {4000000: "x"}
+    proc = digest.BlockProcessor(n, db_handler=None, peer_ip="t")
+    proc._validate_balance(GEN, "10.00000000", Decimal("0"), Decimal("0"), {GEN: Decimal("5.0")})  # no raise
+    # but ABOVE the horizon it still raises
+    n2 = _node(last_block=5000000, assume_valid_height=4000000)
+    n2.checkpoints = {4000000: "x"}
+    proc2 = digest.BlockProcessor(n2, db_handler=None, peer_ip="t")
+    with pytest.raises(ValueError, match="more than owned"):
+        proc2._validate_balance(GEN, "10.00000000", Decimal("0"), Decimal("0"), {GEN: Decimal("5.0")})
 
 
 def test_malformed_registry_fails_closed():
@@ -262,6 +314,7 @@ def test_assume_valid_skips_signature_check(monkeypatch):
         raise ValueError("should not be called")
     monkeypatch.setattr(SignerFactory, "verify_tx_signature", staticmethod(fake))
     n = _node(last_block=699999, assume_valid_height=1000000)
+    n.checkpoints = {1000000: "x"}                                      # anchors the trusted prefix
     proc = digest.BlockProcessor(n, db_handler=None, peer_ip="t")
     bi = digest_tx.Block(n); bi.tx_count = 2
     proc.sort_and_validate_transactions(_sig_block(), bi)               # no raise

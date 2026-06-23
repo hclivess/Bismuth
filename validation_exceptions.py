@@ -161,17 +161,97 @@ def is_exempt(node, height, check, signature=None) -> bool:
         return False
 
 
-def assume_valid_skip_signature(node, height) -> bool:
-    """True iff ``height`` is at or below the node's trusted ``assume_valid_height``,
-    so the expensive per-tx signature re-verification can be skipped. Off by
-    default (``assume_valid_height`` is 0/None) -> always returns False, so every
-    signature is verified exactly as before. Never applies on regnet/testnet
-    unless the operator set the height explicitly there too."""
+def in_trusted_prefix(node, height) -> bool:
+    """True for blocks AT OR BELOW the trust horizon ``assume_valid_height``.
+
+    In the trusted prefix the per-item validation is skipped — signature, block
+    timestamp ordering, proof-of-work, duplicate-signature and overspend — because
+    re-checking it is expensive (millions of memory-hard PoW + signature ops) and,
+    for the earliest history, impossible under today's stricter rules (early RSA
+    signing-buffer / sub-0.01s timestamp granularity). Integrity is instead
+    guaranteed in aggregate by the CHECKPOINT hashes (below): a from-genesis node
+    still computes every block's hash and, on reaching a checkpoint height, must
+    match the hardcoded canonical hash — which (because Bismuth's block hash chains
+    the previous one) cryptographically pins the ENTIRE prefix. Any tampering in
+    the skipped region changes the chained hash and halts the sync.
+
+    SAFETY — the prefix is skipped ONLY when it is actually checkpoint-anchored:
+    the node must have checkpoints AND the horizon must not exceed the highest one
+    (so the entire skipped region is committed by a hash that will be checked).
+    A network without checkpoints (regnet / testnet without an override) therefore
+    NEVER enters the trusted prefix, even if a horizon is configured — so a global
+    default horizon is safe there (tests still run full validation)."""
     try:
-        h = getattr(node, "assume_valid_height", 0) or 0
-        return int(h) > 0 and int(height) <= int(h)
+        h = int(getattr(node, "assume_valid_height", 0) or 0)
+        if h <= 0 or int(height) > h:
+            return False
+        cps = _checkpoints(node)
+        if not cps or h > max(cps):     # no anchor / horizon past the last checkpoint -> don't skip
+            return False
+        return True
     except Exception:
         return False
+
+
+# back-compat alias (signatures are skipped throughout the trusted prefix)
+def assume_valid_skip_signature(node, height) -> bool:
+    return in_trusted_prefix(node, height)
+
+
+# ---- trusted-history checkpoints (the "CRC at height N" the prefix is anchored to) ----
+# Bismuth's block hash chains the previous block hash, so the canonical block hash at
+# height H recursively commits the WHOLE chain 1..H. A single hardcoded value per
+# checkpoint height therefore vouches for everything below it: a from-genesis node that
+# skipped per-item validation in the trusted prefix recomputes each block hash and, at a
+# checkpoint, must reproduce the canonical value — else the (skipped) prefix is not the
+# real chain and the sync halts. Verification is ALWAYS on; it is inert for a synced node
+# (which never re-digests these historical heights) and only fires during a from-genesis
+# catch-up as it passes a checkpoint height. These are the legacy sha224 block hashes
+# (mainnet is pre-fork; block_hash_at uses the frozen legacy codec below fork_height).
+MAINNET_CHECKPOINTS = {
+    4000000: "6f4794262f38f5de41379fd860bb58332f1825c1c6e04885ca11db7f",
+    4500000: "f717f8368c668408c18f34acaa2ede445e90174366ddb0f666756f8c",
+    4800000: "88d6292c08e0371a20ea630af491933547f1aed71be519f0de591cb4",
+}
+
+
+def _checkpoints(node) -> dict:
+    override = getattr(node, "checkpoints", None)
+    if override is not None:
+        return override
+    if getattr(node, "is_testnet", False) or getattr(node, "is_regnet", False):
+        return {}
+    if getattr(node, "is_mainnet", True) is False:
+        return {}
+    return MAINNET_CHECKPOINTS
+
+
+def checkpoint_hash(node, height):
+    """The hardcoded canonical block hash at ``height``, or None if not a checkpoint."""
+    try:
+        return _checkpoints(node).get(int(height))
+    except Exception:
+        return None
+
+
+def verify_checkpoint(node, height, block_hash) -> bool:
+    """If ``height`` is a checkpoint, the node's COMPUTED ``block_hash`` must equal the
+    canonical value — this anchors any skip-validated prefix below it. Raises ValueError
+    on mismatch; returns True if a checkpoint matched, False if there is none here."""
+    want = checkpoint_hash(node, height)
+    if want is None:
+        return False
+    if str(block_hash) != str(want):
+        raise ValueError(
+            "checkpoint MISMATCH at height %s: computed block hash %s != canonical %s — the "
+            "chain below this height is NOT the canonical chain; refusing it" % (height, block_hash, want))
+    try:
+        node.logger.app_log.warning(
+            "checkpoint OK at height %s (%s…) — trusted prefix anchored to the canonical chain"
+            % (height, str(block_hash)[:16]))
+    except Exception:
+        pass
+    return True
 
 
 def note(node, height, check, detail="") -> None:

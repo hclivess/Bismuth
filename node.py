@@ -1351,11 +1351,13 @@ if __name__ == "__main__":
     node.api_sync_source = os.environ.get("BISMUTH_API_SYNC_SOURCE", "") or getattr(config, "api_sync_source", "")
     node.autoheal = getattr(config, "autoheal", True)                       # live tip sequence/dupe self-heal (no restart)
     node.autoheal_interval = int(os.environ.get("BISMUTH_AUTOHEAL_INTERVAL") or getattr(config, "autoheal_interval", 300))
-    # doc/30 from-genesis sync: trusted-history checkpoint. At/below this height the EXPENSIVE per-tx
-    # signature re-verify is skipped (PoW/hash/difficulty/timestamp/overspend still checked); 0 = off =
-    # verify every signature. Targeted manual-intervention waivers live in validation_exceptions.py.
+    # doc/30 from-genesis sync: trust horizon. At/below it the per-item validation (signature, timestamp,
+    # PoW, duplicate, overspend) is skipped, ANCHORED by the hardcoded block-hash checkpoints in
+    # validation_exceptions.py (the node recomputes each block hash and must reproduce the canonical value
+    # at every checkpoint it passes — a mismatch halts). Inert for a synced node (never re-digests these
+    # heights) and for networks without checkpoints (regnet/testnet). 0 = off = full validation everywhere.
     node.assume_valid_height = int(os.environ.get("BISMUTH_ASSUME_VALID_HEIGHT")
-                                   or getattr(config, "assume_valid_height", 0) or 0)
+                                   or getattr(config, "assume_valid_height", 4000000) or 0)
     # doc/30: optional external JSON of historical validation waivers (coin rescues / fork-edge edits),
     # merged over the in-source MAINNET_EXCEPTIONS. None when unset -> built-in mainnet registry is used.
     node.validation_exceptions_file = os.environ.get("BISMUTH_VALIDATION_EXCEPTIONS_FILE") \
