@@ -14,7 +14,7 @@ for p in (ROOT, os.path.join(ROOT, "tests")):
     if p not in sys.path:
         sys.path.insert(0, p)
 
-from poker_ref import Table, ACTIVE, FOLDED, ALLIN
+from poker_ref import Table, ACTIVE, FOLDED, ALLIN, RIVER
 
 
 def _run_to_showdown_checks(t):
@@ -118,6 +118,28 @@ def test_uncontested_everyone_folds():
     pay = t.settle({})                              # no reveals needed
     assert pay == {"A2": 3}                         # SB(1) + BB(2) = 3, BB nets +1
     assert sum(pay.values()) == 3
+
+
+def test_orphan_apex_pot_cascades_down_no_locked_funds():
+    # Review bug #1: an apex side-pot layer whose contributors ALL fold has no eligible winner. Left as its
+    # own pot it can never be awarded -> settle reverts forever -> escrowed buy-ins locked. Reachable: two
+    # deep stacks (0,1) build a 30-each apex on the flop then BOTH voluntarily fold, while two short all-ins
+    # (2,3) remain to keep the hand contested (>=2 non-folded -> not uncontested). The dead apex chips must
+    # fold DOWN into the nearest lower live pot, conserving Σ.
+    t = Table(4, 1, 2)
+    for i in range(4):
+        t.sit(i, "A%d" % i, 100)
+    t.button = 0
+    t.escrow = 80
+    for i, (hb, stt) in enumerate([(30, FOLDED), (30, FOLDED), (10, ALLIN), (10, ALLIN)]):
+        t.seats[i].hand_bet = hb
+        t.seats[i].state = stt
+    t._rebuild_pots()
+    assert len(t.pots) == 1                                  # the orphan apex folded into the all-in pot
+    assert t.pots[0]["amount"] == 80 and t.pots[0]["eligible"] == frozenset({2, 3})
+    pay = t.settle({2: 5000, 3: 10})                        # seat2 has the best hand of the live all-ins
+    assert pay == {"A2": 80}                                # 40 main + 40 dead apex, nothing locked
+    assert sum(pay.values()) == t.escrow
 
 
 def test_closing_invariant_holds_across_a_full_three_way_hand():

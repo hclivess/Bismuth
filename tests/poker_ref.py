@@ -188,9 +188,18 @@ class Table:
                 eligible = frozenset(i for i in contributors if self.seats[i].state != FOLDED)
                 pots.append({"amount": amount, "eligible": eligible})
             prev = L
-        merged = []                                          # merge adjacent layers with identical eligibility
-        for p in pots:
-            if merged and merged[-1]["eligible"] == p["eligible"]:
+        merged = []                                          # merge adjacent identical-eligibility layers AND
+        for p in pots:                                       # cascade ORPHAN layers (no eligible winner) down
+            if not p["eligible"]:
+                # Every contributor to this layer folded (e.g. an apex side pot both deep stacks abandoned
+                # while shorter all-ins remain). Those chips have no eligible winner, so the hand could
+                # never settle if we left an unwinnable pot. Standard resolution: the dead chips fold into
+                # the nearest LOWER pot, which always has eligible winners (the lowest layer's contributors
+                # can never all be folded — at least the lone non-folded seat ends the hand). This conserves
+                # Σpots == escrow and never refunds a (possibly timed-out) folder. [SEC-C2 / review bug #1]
+                assert merged, "orphan pot layer with no lower eligible pot (impossible in valid play)"
+                merged[-1]["amount"] += p["amount"]
+            elif merged and merged[-1]["eligible"] == p["eligible"]:
                 merged[-1]["amount"] += p["amount"]
             else:
                 merged.append(dict(p))

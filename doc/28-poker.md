@@ -86,6 +86,16 @@ to hijack a seat or redirect a payout. **Design:** store all **7 words** (28 byt
 to scratch before any other syscall — a0/a1 clobbered). The 32-bit `party_id` survives only as an
 off-chain display/index key, never authorization/payout.
 
+> **Implemented (Stage 1) — engine constraint + guards.** The in-tree engine's `SYS_CALLER` returns
+> *only* `caller & WMASK` (the low 32 bits; `bismuth_riscv.py:175`), so on-chain authentication can bind to
+> those 32 bits **only** — the upper 6 address words are stored (`TAG_ADDR|s,w`) and used verbatim as the
+> payout recipient (`SYS_TRANSFER` reads the full 28 bytes), but cannot themselves be authenticated until
+> the engine exposes the full caller. `poker_table.py` makes that binding sound with two `FN_SIT` guards:
+> **(a) self-seat** — the supplied identity word-6 must equal the authenticated caller (you cannot seat
+> someone else); **(b) collision-reject** — a new seat whose identity low-32 matches an already-occupied
+> seat is refused, so `_seat_of_caller` (first low-32 match) is unambiguous. Grinding a low-32 collision is
+> therefore detected and blocked at sit time rather than silently hijacking a seat. (Reviewer bug #2.)
+
 ### 4.2 Storage layout (32-bit words; every accumulator guarded)
 Globals: `S_MAGIC`(0 "POKR"|ver), `S_NSEATS`(1), `S_PHASE`(2), `S_DEADLINE`(3 SYS_NUMBER),
 `S_BUTTON`(4, STORED state only [SEC-H2]), `S_SB`(5)/`S_BB`(6), `S_STREET`(7), `S_TOACT`(8),
@@ -114,8 +124,13 @@ before the modulo. Street closes when the cursor returns to `S_LASTAGGR` with al
 accumulator guarded against the **total-custody** bound [SEC-C3/M4]; all-in-for-less doesn't reopen
 betting (`S_LASTAGGR`). **Side pots built INCREMENTALLY at each all-in**, never reconstructed at showdown:
 `_rebuild_pots` distinct-level scan over `TAG_HANDBET` (O(N²)≤81 unsigned compares, no DIV/sort);
-eligibility = contributed-to-layer AND not-folded; folded chips stay in lower pots. **Closing invariant
-[SEC-C2/H3]:** `Σ TAG_POTAMT == Σ TAG_HANDBET == S_ESCROW` (guarded), revert on mismatch.
+eligibility = contributed-to-layer AND not-folded; folded chips stay in lower pots. **Orphan layers
+cascade down [SEC-C2; reviewer bug #1]:** a layer whose contributors *all* folded (e.g. an apex side pot
+two deep stacks build then both abandon while shorter all-ins remain) has no eligible winner; left as its
+own pot the hand could never settle and the buy-ins would lock. Levels ascend and the contributor set only
+shrinks, so such orphans form a contiguous top block — each folds its chips into the nearest lower live
+pot (never refunded to a folder), keeping every pot winnable. **Closing invariant [SEC-C2/H3]:**
+`Σ TAG_POTAMT == Σ TAG_HANDBET == S_ESCROW` (guarded), revert on mismatch.
 
 ### 4.5 Showdown & checked payout **[SEC-C2, SEC-H3]**
 `_rank5` runs once per `FN_REVEAL` → `TAG_RANK[s]` (`_gather5` checks 5 indices distinct/in-range/
