@@ -63,6 +63,9 @@ FN_FOLD = 9
 FN_REVEAL = 10
 FN_TIMEOUT = 11
 FN_SETTLE = 12
+# ---- Stage-6 spectator parimutuel side-pool (doc/34) — purely ADDITIVE selectors ----
+FN_SPECTATE_BET = 13   # (seat) + VALUE — a NON-seated spectator stakes on a seat winning this hand
+FN_SETTLE_SBETS = 14   # () permissionless — pay the side-pool parimutuel from the hand's own winner(s)
 
 # ---- phases ----
 PH_OPEN = 0       # accepting seats
@@ -95,6 +98,15 @@ S_WINBYFOLD = 19   # 0 = none; else (seat+1) of the lone non-folded seat (uncont
 S_HANDNO = 15
 S_NPOTS = 14       # number of layered side pots (persisted across calls; mem SC_LEVELS is per-call only)
 S_RESULTCNT = 16   # [Stage 4] append-only TAG_RESULT high-water (count of result records ever written)
+# ---- Stage-6 spectator parimutuel side-pool slots (doc/34) — STRICTLY SEPARATE from S_ESCROW / the player
+# pots. These never feed the betting SM, _rebuild_pots, _settle's payout math, or the player closing
+# invariant; they have their OWN conservation (Σ side-payouts == S_SBET_POOL) asserted in FN_SETTLE_SBETS. ----
+S_SBET_POOL = 21   # total spectator stake escrowed this hand (side-pool; disjoint from S_ESCROW)
+S_SBET_CNT = 22    # append-only high-water: number of spectator bet records ever written (like S_RESULTCNT)
+S_SBET_DONE = 23   # set-once flag: FN_SETTLE_SBETS has paid this hand's side-pool (idempotent [SEC-H4])
+S_SBET_CLOSE = 24  # block-height betting-close deadline; FN_SPECTATE_BET allowed only while height <= this
+S_SBET_HANDNO = 25 # the S_HANDNO this side-pool belongs to; a new hand LAZILY resets the pool (FN_DEAL is
+                   # never edited — the side-pool stays strictly separate, so it self-resets on first touch)
 
 # ---- per-seat tag domains (tag | seat, or tag | (seat<<4) | word) ----
 TAG_ADDR = 0x11000000      # | (seat<<4) | w  (w 0..6) : 7-word identity+payout address
@@ -134,7 +146,22 @@ RESULT_WORDS = 11          # 4 scalar words (hand_no, seat, payout, contrib) + 7
 DECKH_MAXIDX = 0x0FFFFFF   # idx < this anchors TAG_DECKH; idx == IDX_CARDMAP anchors TAG_CARDMAP_H
 IDX_CARDMAP = 0x10000000   # sentinel index selecting the card-map root anchor
 
+# ---- Stage-6 spectator parimutuel side-pool tag domains (doc/34) — DISJOINT from every domain above. The
+# side-pool keys NEVER overlap the player domains (0x11..0x21), so a spectator bet can never read or write a
+# seat's stack/state/pot. Two domains, both append-only / self-describing like TAG_RESULT:
+TAG_SBET_SEAT = 0x30000000 # | seat : Σ spectator stake backing each seat this hand (the parimutuel winstake)
+TAG_SBET = 0x31000000      # | (seq<<4) | w : per-bet record `seq` (self-describing — the indexer/UI decodes
+                           #   it without the mutable per-seat slots). w0 = chosen seat, w1 = amount staked,
+                           #   w2..w8 = the bettor's FULL 28-byte address (7 words), captured AT BET time.
+SBET_W_SEAT = 0            # word 0: the seat this bettor backed
+SBET_W_AMT = 1             # word 1: the amount staked (side-pool units)
+SBET_W_ADDR = 2            # words 2..8: the bettor's FULL 28-byte address (7 words) — payout/refund routing
+SBET_WORDS = 9             # 2 scalar words (seat, amount) + 7 address words
+
 TIMEOUT_BLOCKS = 60
+SBET_CLOSE_BLOCKS = 30   # spectator betting closes this many blocks after the first bet of a hand [SEC-H2]
+SBET_POOL_MAX = 0x3FFFFFFF  # the side-pool is bounded < 2^32 so stake*pool fits 64 bits (mulu64) and the
+                            # parimutuel quotient fits 32 bits (divu64) [SEC-C3], like the player N*buyin bound
 
 # ---- mem scratch (well past code + calldata) ----
 SCRATCH = 30000
@@ -239,6 +266,36 @@ def result_count(storage):
     return int(storage.get(S_RESULTCNT, 0))
 
 
+# ---- [Stage 6] spectator side-pool read helpers (indexer / UI decode; doc/34) ----
+def sbet_seat_key(seat):
+    """Storage key for TAG_SBET_SEAT|seat — Σ spectator stake backing `seat` this hand (the parimutuel pool
+    share for that seat). The live implied odds for a 1-unit bet = S_SBET_POOL / TAG_SBET_SEAT[seat]."""
+    return TAG_SBET_SEAT | seat
+
+
+def sbet_record_key(seq, w):
+    """Storage key for word w (0..8) of spectator bet record `seq` (0..S_SBET_CNT-1)."""
+    return TAG_SBET | (seq << 4) | w
+
+
+def read_sbet(storage, seq):
+    """Decode spectator bet record `seq` from a {int_key:int_val} storage dict into a dict (indexer / UI /
+    tests). `addr_hex` is the bettor's FULL 28-byte address captured AT BET time (self-describing)."""
+    g = lambda w: int(storage.get(sbet_record_key(seq, w), 0))
+    addr = b"".join((g(SBET_W_ADDR + w) & 0xFFFFFFFF).to_bytes(4, "big") for w in range(7))
+    return {"seq": seq, "seat": g(SBET_W_SEAT), "amount": g(SBET_W_AMT), "addr_hex": addr.hex()}
+
+
+def sbet_count(storage):
+    """The append-only spectator-bet high-water (S_SBET_CNT) from a {int_key:int_val} storage dict."""
+    return int(storage.get(S_SBET_CNT, 0))
+
+
+def sbet_pool(storage):
+    """The total spectator stake escrowed this hand (S_SBET_POOL)."""
+    return int(storage.get(S_SBET_POOL, 0))
+
+
 def build(nseats, sb, bb, max_buyin=None):
     """Assemble the N-seat Hold'em table. nseats in 2..9; sb<bb blinds (units). Each seat buys in with a
     variable stack = the BIS attached to FN_SIT (1..max_buyin units), so per-seat stacks differ (short
@@ -276,6 +333,8 @@ def build(nseats, sb, bb, max_buyin=None):
     a.li(A2, FN_REVEAL);  a.beq(T0, A2, "reveal")
     a.li(A2, FN_TIMEOUT); a.beq(T0, A2, "timeout")
     a.li(A2, FN_SETTLE);  a.beq(T0, A2, "settle_entry")
+    a.li(A2, FN_SPECTATE_BET); a.beq(T0, A2, "spectate_bet")   # [Stage 6] spectator side-pool
+    a.li(A2, FN_SETTLE_SBETS); a.beq(T0, A2, "settle_sbets")
     a.j("revert")
 
     # =============================================================== FN_SIT(seat, addr28) + BUYIN
@@ -783,6 +842,10 @@ def build(nseats, sb, bb, max_buyin=None):
     _rebuild_pots(a, N)   # re-layer after forfeits so folded laggards lose eligibility
     a.j("do_settle$")
 
+    # =============================================================== [Stage 6] spectator parimutuel side-pool
+    _spectate_bet(a, N, int(max_buyin))
+    _settle_sbets(a, N)
+
     # =============================================================== settlement (multi-way, checked)
     _settle(a, N, int(max_buyin))
 
@@ -877,6 +940,30 @@ def _seat_of_caller(a, dst):
     a.addi(T0, T0, 1); a.j(loop)
     a.label(hit)
     a.mv(dst, T0)
+
+
+def _caller_is_seat_flag(a, dst):
+    """dst = 1 if SYS_CALLER low-32 matches some OCCUPIED seat's stored address word-6, else 0 (NON-reverting,
+    unlike _seat_of_caller). Used by FN_SPECTATE_BET to reject a seated player betting on its own hand
+    [doc/34 §2]. _spill_caller must have run first. Uses T0,A2,A3,A4,A5,A6 and dst."""
+    a.li(A2, SC_CALLER + 24); a.lbu(A6, A2, 0); a.slli(A6, A6, 8)
+    a.lbu(A5, A2, 1); a.or_(A6, A6, A5); a.slli(A6, A6, 8)
+    a.lbu(A5, A2, 2); a.or_(A6, A6, A5); a.slli(A6, A6, 8)
+    a.lbu(A5, A2, 3); a.or_(A6, A6, A5)                       # A6 = caller low-32
+    loop = a._uniq("cisf"); hit = a._uniq("cisf_hit"); nxt = a._uniq("cisf_next"); done = a._uniq("cisf_done")
+    a.li(dst, 0)
+    a.li(T0, 0)
+    a.label(loop)
+    a.li(A2, 9); a.bgeu(T0, A2, done)                        # at most 9 seats
+    a.li(A3, TAG_STATE); a.or_(A3, A3, T0); a.sload_to(A4, A3); a.beq(A4, ZERO, nxt)   # skip EMPTY
+    a.li(A3, TAG_ADDR); a.slli(A5, T0, 4); a.or_(A3, A3, A5); a.li(A2, 6); a.or_(A3, A3, A2)
+    a.sload_to(A4, A3)
+    a.beq(A4, A6, hit)
+    a.label(nxt)
+    a.addi(T0, T0, 1); a.j(loop)
+    a.label(hit)
+    a.li(dst, 1)
+    a.label(done)
 
 
 def _action_prologue(a):
@@ -1262,6 +1349,269 @@ def _settle(a, N, buyin):
     a.addi(T0, T0, 1); a.j("st_pay$")
     a.label("st_pay_done$")
     a.halt()
+
+
+def _sbet_reset_if_new_hand(a, N):
+    """LAZY per-hand reset of the spectator side-pool. If S_SBET_HANDNO != S_HANDNO (a new hand started since
+    the pool was last touched — FN_DEAL is never edited, so the side-pool resets itself on first touch), zero
+    S_SBET_POOL/S_SBET_CNT/S_SBET_DONE/S_SBET_CLOSE and clear every TAG_SBET_SEAT|seat, then stamp the pool's
+    hand number. Strictly separate from the player pots: touches only the S_SBET_*/TAG_SBET_SEAT domains.
+    Uses T0,A2,A3,A4. Bounded (<=9 seats)."""
+    skip = a._uniq("sbr_skip"); clr = a._uniq("sbr_clr"); clrd = a._uniq("sbr_clrd")
+    _sload(a, A4, S_SBET_HANDNO)
+    _sload(a, A2, S_HANDNO)
+    a.beq(A4, A2, skip)                                       # same hand -> pool already current
+    # [review HIGH fix] a NEW hand started since this pool was last touched. If the predecessor pool was never
+    # settled (pool>0 and not DONE), REFUND every bettor their stake BEFORE discarding it — FN_DEAL doesn't
+    # force a settle, so a stale pool must never be silently zeroed (that would orphan spectator funds). Σ
+    # refunds == old pool; never mint/lock. If FN_SETTLE_SBETS already resolved it, DONE is set -> skip.
+    norefund = a._uniq("sbr_noref")
+    _sload(a, A4, S_SBET_POOL); a.beq(A4, ZERO, norefund)
+    _sload(a, A4, S_SBET_DONE); a.bne(A4, ZERO, norefund)
+    _sbet_refund_all(a)
+    a.label(norefund)
+    # new hand: clear the side-pool state
+    a.li(T0, 0)
+    a.label(clr)
+    a.li(A2, N); a.bgeu(T0, A2, clrd)
+    a.li(A3, TAG_SBET_SEAT); a.or_(A3, A3, T0); a.sstore(A3, ZERO)
+    a.addi(T0, T0, 1); a.j(clr)
+    a.label(clrd)
+    a.li(A4, 0); _sstore_imm(a, S_SBET_POOL, A4)
+    a.li(A4, 0); _sstore_imm(a, S_SBET_CNT, A4)
+    a.li(A4, 0); _sstore_imm(a, S_SBET_DONE, A4)
+    a.li(A4, 0); _sstore_imm(a, S_SBET_CLOSE, A4)
+    _sload(a, A4, S_HANDNO); _sstore_imm(a, S_SBET_HANDNO, A4)
+    a.label(skip)
+
+
+def _spectate_bet(a, N, max_buyin):
+    """FN_SPECTATE_BET(seat) + VALUE — a NON-seated spectator stakes the attached BIS on seat `seat` winning
+    the CURRENT hand. Calldata: [sel][seat BE][addr28] (same shape as FN_SIT). Only while PH_BET and block
+    height <= S_SBET_CLOSE (the deadline is armed on the FIRST bet of a hand). A SEATED player is rejected
+    [doc/34 §2]. Escrows the value into the side-pool (guarded; pool bounded < 2^32 [SEC-C3]) and appends a
+    self-describing record. STRICTLY SEPARATE: never touches S_ESCROW, the player pots, or the betting SM."""
+    a.label("spectate_bet")
+    _sload(a, A4, S_PHASE); a.li(A2, PH_BET); a.bne(A4, A2, "revert")   # only while a hand is live
+    _sbet_reset_if_new_hand(a, N)
+    # reject a seated player betting on its own hand
+    _spill_caller(a)
+    _caller_is_seat_flag(a, S2)
+    a.bne(S2, ZERO, "revert")                                # caller is a seat -> reject
+    # authenticate: supplied address word-6 must equal the authenticated caller low-32 (like FN_SIT (a))
+    _load_be32(a, T4, S0, 8 + 6 * 4)                         # T4 = supplied addr word 6
+    a.li(A2, SC_CALLER + 24); a.lbu(T3, A2, 0); a.slli(T3, T3, 8)
+    a.lbu(A5, A2, 1); a.or_(T3, T3, A5); a.slli(T3, T3, 8)
+    a.lbu(A5, A2, 2); a.or_(T3, T3, A5); a.slli(T3, T3, 8)
+    a.lbu(A5, A2, 3); a.or_(T3, T3, A5)                      # T3 = authenticated caller low-32
+    a.bne(T4, T3, "revert")                                  # must bet under your own address
+    # betting-close deadline: arm on the first bet of the hand (S_SBET_CLOSE == 0), then enforce
+    _sload(a, A4, S_SBET_CLOSE)
+    a.bne(A4, ZERO, "sb_haveclose$")
+    a.number(A4); a.li(A2, SBET_CLOSE_BLOCKS); a.add(A4, A4, A2); _sstore_imm(a, S_SBET_CLOSE, A4)
+    a.label("sb_haveclose$")
+    a.number(A4); _sload(a, A2, S_SBET_CLOSE); a.bltu(A2, A4, "revert")   # height > close -> rejected [SEC-H2]
+    # seat in 0..N-1
+    _load_be32(a, S1, S0, 4)                                 # S1 = chosen seat
+    a.li(A2, N); a.bgeu(S1, A2, "revert")
+    # amount = attached callvalue, must be 1..max_buyin
+    a.callvalue(S2)                                          # S2 = amount (low 32 bits)
+    a.beq(S2, ZERO, "revert")
+    a.li(A2, int(max_buyin)); a.bltu(A2, S2, "revert")      # amount <= max_buyin
+    # pool += amount, guarded against 32-bit wrap AND bounded < SBET_POOL_MAX [SEC-C3]
+    _sload(a, A4, S_SBET_POOL); a.add(A5, A4, S2)
+    a.bltu(A5, A4, "revert")                                 # wrap guard
+    a.li(A2, SBET_POOL_MAX); a.bltu(A2, A5, "revert")       # pool bounded < 2^32
+    _sstore_imm(a, S_SBET_POOL, A5)
+    # TAG_SBET_SEAT|seat += amount (guarded)
+    a.li(A3, TAG_SBET_SEAT); a.or_(A3, A3, S1); a.sload_to(A4, A3); a.add(A5, A4, S2)
+    a.bltu(A5, A4, "revert"); a.li(A3, TAG_SBET_SEAT); a.or_(A3, A3, S1); a.sstore(A3, A5)
+    # append the self-describing record at TAG_SBET | (seq<<4): w0=seat, w1=amount, w2..8 = addr (7 words)
+    _sload(a, T5, S_SBET_CNT)                                # T5 = next seq
+    a.li(A6, TAG_SBET); a.slli(A4, T5, 4); a.or_(A6, A6, A4) # A6 = record base key
+    a.mv(A3, A6); a.li(A2, SBET_W_SEAT); a.or_(A3, A3, A2); a.sstore(A3, S1)   # w0 = seat
+    a.mv(A3, A6); a.li(A2, SBET_W_AMT);  a.or_(A3, A3, A2); a.sstore(A3, S2)   # w1 = amount
+    for w in range(7):
+        _load_be32(a, T3, S0, 8 + w * 4)                    # addr word w from calldata
+        a.mv(A3, A6); a.li(A2, SBET_W_ADDR + w); a.or_(A3, A3, A2); a.sstore(A3, T3)
+    a.addi(T5, T5, 1); _sstore_imm(a, S_SBET_CNT, T5)        # bump append-only high-water
+    a.halt()
+
+
+def _settle_sbets(a, N):
+    """FN_SETTLE_SBETS — permissionless, idempotent (set-once via S_SBET_DONE [SEC-H4]). Once the hand is
+    decided (PH_SHOWDOWN/SETTLED), reads the winning seat(s) the SAME way _settle does (the per-pot winner
+    masks / S_WINBYFOLD) and pays the side-pool PARIMUTUEL: payout = stake*pool//winstake (mulu64/divu64),
+    odd unit to the FIRST winning bettor in record order, asserting Σ payouts == S_SBET_POOL BEFORE any
+    transfer [SEC-C2]; checked transfers. If winstake == 0 (no winner backed / empty pool), REFUND every
+    bettor their own stake. Block height gates ONLY the betting-close deadline, never the outcome [SEC-H2].
+    STRICTLY SEPARATE: reads winners but NEVER touches S_ESCROW / the player pots / the player payout math."""
+    a.label("settle_sbets")
+    _require_no_value(a)
+    # the hand must be decided (betting over)
+    _sload(a, A4, S_PHASE); a.li(A2, PH_SHOWDOWN); a.bltu(A4, A2, "revert")   # need PH_SHOWDOWN or PH_SETTLED
+    # idempotent: already paid -> no-op success
+    _sload(a, A4, S_SBET_DONE); a.bne(A4, ZERO, "ss_noop$")
+    # [review HIGH fix] If the side-pool belongs to an OLDER hand (a new hand was dealt without settling it),
+    # NEVER settle it against the CURRENT hand's winners — REFUND every bettor their stake instead. Set DONE
+    # first [SEC-H4]. (The lazy reset covers the case where a new BET arrives; this covers a settle call.)
+    _sload(a, A4, S_SBET_HANDNO); _sload(a, A2, S_HANDNO); a.beq(A4, A2, "ss_curhand$")
+    a.li(A4, 1); _sstore_imm(a, S_SBET_DONE, A4)              # set-once before any transfer
+    _sload(a, S2, S_SBET_POOL)
+    a.j("ss_refund$")
+    a.label("ss_curhand$")
+    # ---- WINSTAKE = Σ TAG_SBET_SEAT|w over the WINNING seats. Build the winner-seat mask in S3. ----
+    a.li(S3, 0)                       # S3 = winning-seat mask (union across pots)
+    _sload(a, A4, S_WINBYFOLD)
+    a.beq(A4, ZERO, "ss_contested$")
+    # uncontested: the lone non-folded seat (winbyfold-1) is the winner
+    a.addi(A2, A4, -1); a.li(A4, 1); a.sll_r(S3, A4, A2)
+    a.j("ss_have_winmask$")
+    a.label("ss_contested$")
+    # contested: winners are the seats whose TAG_RANK == the best rank among REVEALED seats (these are exactly
+    # the seats that win the MAIN pot at showdown — the same determination _settle makes). Find best rank.
+    a.li(T4, 0)                       # T4 = best rank
+    a.li(T1, 0)                       # T1 = found any
+    a.li(T0, 0)
+    a.label("ss_best$")
+    a.li(A2, N); a.bgeu(T0, A2, "ss_best_done$")
+    a.li(A3, TAG_REVEALED); a.or_(A3, A3, T0); a.sload_to(A4, A3); a.beq(A4, ZERO, "ss_best_next$")
+    a.li(A3, TAG_RANK); a.or_(A3, A3, T0); a.sload_to(A4, A3)
+    a.bne(T1, ZERO, "ss_best_cmp$")
+    a.mv(T4, A4); a.li(T1, 1); a.j("ss_best_next$")
+    a.label("ss_best_cmp$")
+    a.bgeu(T4, A4, "ss_best_next$"); a.mv(T4, A4)
+    a.label("ss_best_next$")
+    a.addi(T0, T0, 1); a.j("ss_best$")
+    a.label("ss_best_done$")
+    a.beq(T1, ZERO, "ss_have_winmask$")   # nobody revealed -> empty winner mask -> refund path
+    # winner mask = revealed seats with rank == best
+    a.li(T0, 0)
+    a.label("ss_wm$")
+    a.li(A2, N); a.bgeu(T0, A2, "ss_have_winmask$")
+    a.li(A3, TAG_REVEALED); a.or_(A3, A3, T0); a.sload_to(A4, A3); a.beq(A4, ZERO, "ss_wm_next$")
+    a.li(A3, TAG_RANK); a.or_(A3, A3, T0); a.sload_to(A4, A3); a.bne(A4, T4, "ss_wm_next$")
+    a.li(A2, 1); a.sll_r(A2, A2, T0); a.or_(S3, S3, A2)
+    a.label("ss_wm_next$")
+    a.addi(T0, T0, 1); a.j("ss_wm$")
+    a.label("ss_have_winmask$")
+    # winstake = Σ TAG_SBET_SEAT|w for w in winner mask (S3). Guarded sum (pool is bounded < 2^32).
+    a.li(S1, 0)                       # S1 = winstake
+    a.li(T0, 0)
+    a.label("ss_ws$")
+    a.li(A2, N); a.bgeu(T0, A2, "ss_ws_done$")
+    a.li(A2, 1); a.sll_r(A2, A2, T0); a.and_(A2, A2, S3); a.beq(A2, ZERO, "ss_ws_next$")
+    a.li(A3, TAG_SBET_SEAT); a.or_(A3, A3, T0); a.sload_to(A4, A3); a.add(S1, S1, A4)
+    a.label("ss_ws_next$")
+    a.addi(T0, T0, 1); a.j("ss_ws$")
+    a.label("ss_ws_done$")
+    # mark DONE (set-once) BEFORE any transfer (idempotent / reorg-safe [SEC-H4])
+    a.li(A4, 1); _sstore_imm(a, S_SBET_DONE, A4)
+    _sload(a, S2, S_SBET_POOL)        # S2 = pool
+    a.beq(S1, ZERO, "ss_refund$")     # winstake == 0 (no winner backed / empty pool) -> refund everyone
+    # ---- parimutuel payout. Persistent loop state lives in registers the mulu64/divu64 macros NEVER touch:
+    #      S0=distributed, S1=winstake, S2=pool, S3=winmask, T0=seq, T1=first-winner seq. The macros use
+    #      T2..T6,A5,A6 (passed explicitly so ra never aliases a temp), so T0/T1/S* survive every call. ----
+    # First pass: accumulate Σ floor shares and record the FIRST winning bettor (record order) — conservation
+    # is checked BEFORE any transfer [SEC-C2].
+    a.li(S0, 0)                       # S0 = distributed
+    a.li(T1, 0xFFFFFFFF)              # T1 = first-winner seq (sentinel)
+    a.li(T0, 0)                       # T0 = seq
+    a.label("ss_dist$")
+    _sload(a, A5, S_SBET_CNT); a.bgeu(T0, A5, "ss_dist_done$")   # loop while seq < count
+    a.li(A6, TAG_SBET); a.slli(A4, T0, 4); a.or_(A6, A6, A4)     # A6 = record base key
+    a.mv(A3, A6); a.li(A2, SBET_W_SEAT); a.or_(A3, A3, A2); a.sload_to(A5, A3)   # A5 = bettor's seat
+    a.li(A2, 1); a.sll_r(A2, A2, A5); a.and_(A2, A2, S3); a.beq(A2, ZERO, "ss_dist_next$")  # not a winner
+    a.mv(A3, A6); a.li(A2, SBET_W_AMT); a.or_(A3, A3, A2); a.sload_to(A4, A3)    # A4 = stake (mulu64 ra)
+    a.mulu64(A2, A3, A4, S2, m_hi=T2, m_lo=T3, bits=T4, carry=T5)   # (A2:A3) = stake*pool
+    a.divu64(A4, A2, A3, S1, rem=T2, bit=T3, i=T4)                  # A4 = (stake*pool)//winstake
+    a.add(S0, S0, A4)                 # distributed += share
+    a.li(A2, 0xFFFFFFFF); a.bne(T1, A2, "ss_dist_next$")
+    a.mv(T1, T0)                      # remember the first winning bettor's seq
+    a.label("ss_dist_next$")
+    a.addi(T0, T0, 1); a.j("ss_dist$")
+    a.label("ss_dist_done$")
+    # conservation guard BEFORE any transfer [SEC-C2]: Σ floor shares must not exceed the pool. The odd-unit
+    # remainder (pool - distributed) is then added to the first winning bettor so Σ payouts == pool EXACTLY.
+    a.bltu(S2, S0, "revert")          # distributed must not exceed pool
+    # Second pass: pay each winning bettor (checked); the first winner also gets the odd remainder.
+    a.li(T0, 0)                       # T0 = seq
+    a.label("ss_pay$")
+    _sload(a, A5, S_SBET_CNT); a.bgeu(T0, A5, "ss_pay_done$")
+    a.li(A6, TAG_SBET); a.slli(A4, T0, 4); a.or_(A6, A6, A4)
+    a.mv(A3, A6); a.li(A2, SBET_W_SEAT); a.or_(A3, A3, A2); a.sload_to(A5, A3)   # A5 = bettor's seat
+    a.li(A2, 1); a.sll_r(A2, A2, A5); a.and_(A2, A2, S3); a.beq(A2, ZERO, "ss_pay_next$")
+    a.mv(A3, A6); a.li(A2, SBET_W_AMT); a.or_(A3, A3, A2); a.sload_to(A4, A3)    # A4 = stake
+    a.mulu64(A2, A3, A4, S2, m_hi=T2, m_lo=T3, bits=T4, carry=T5)
+    a.divu64(A4, A2, A3, S1, rem=T2, bit=T3, i=T4)                  # A4 = share
+    a.bne(T0, T1, "ss_pay_noodd$")    # first winning bettor -> add the odd remainder
+    a.sub(A2, S2, S0); a.add(A4, A4, A2)
+    a.label("ss_pay_noodd$")
+    _sbet_pay_record_checked(a, T0, A4)   # checked transfer (A4 = this bettor's payout; preserves T0,T1,S0..S3)
+    a.label("ss_pay_next$")
+    a.addi(T0, T0, 1); a.j("ss_pay$")
+    a.label("ss_pay_done$")
+    a.halt()
+    # ---- refund path: winstake == 0 -> each bettor gets exactly their own stake back (Σ == pool) ----
+    a.label("ss_refund$")
+    a.li(T0, 0)
+    a.label("ss_ref$")
+    _sload(a, A5, S_SBET_CNT); a.bgeu(T0, A5, "ss_ref_done$")
+    a.li(A6, TAG_SBET); a.slli(A4, T0, 4); a.or_(A6, A6, A4)
+    a.mv(A3, A6); a.li(A2, SBET_W_AMT); a.or_(A3, A3, A2); a.sload_to(A4, A3)    # A4 = stake
+    _sbet_pay_record_checked(a, T0, A4)
+    a.label("ss_ref_next$")
+    a.addi(T0, T0, 1); a.j("ss_ref$")
+    a.label("ss_ref_done$")
+    a.halt()
+    a.label("ss_noop$")
+    a.halt()
+
+
+def _sbet_refund_all(a):
+    """Emit a self-contained loop that REFUNDS each spectator bet record (0..S_SBET_CNT-1) its OWN stake via a
+    checked transfer (Σ refunds == S_SBET_POOL). Used to drain an UNSETTLED stale pool — at FN_SETTLE_SBETS when
+    the pool belongs to a past hand, and at the lazy reset before a new hand would discard it — so spectator
+    funds are NEVER orphaned [review HIGH]. Uses T0,A2..A6 + _sbet_pay_record_checked's scratch (no S-regs)."""
+    loop = a._uniq("sbrf"); done = a._uniq("sbrf_done")
+    a.li(T0, 0)
+    a.label(loop)
+    _sload(a, A5, S_SBET_CNT); a.bgeu(T0, A5, done)
+    a.li(A6, TAG_SBET); a.slli(A4, T0, 4); a.or_(A6, A6, A4)
+    a.mv(A3, A6); a.li(A2, SBET_W_AMT); a.or_(A3, A3, A2); a.sload_to(A4, A3)   # A4 = this record's stake
+    _sbet_pay_record_checked(a, T0, A4)
+    a.addi(T0, T0, 1); a.j(loop)
+    a.label(done)
+
+
+def _sbet_pay_record_checked(a, seq_reg, amount_reg):
+    """CHECKED transfer of amount_reg units to spectator record `seq_reg`'s stored 7-word address
+    (TAG_SBET|(seq<<4)|SBET_W_ADDR+w). Reverts if the engine returns 0 [SEC-C2]. Preserves seq_reg and the
+    caller's other loop registers (T6,S1,S2,S3) by using only the scratch set + a unique label group; uses
+    T0..T4 internally? NO — those are the caller's loop temps, so this routine confines itself to
+    T1-free scratch via A-registers and SC_RECIP/SC_AMT. Implementation copies the 7 address words then
+    issues SYS_TRANSFER. Uses A2..A6 and a private counter in A5; seq_reg/amount_reg must be S- or T-regs the
+    A-set never aliases. Skips a zero-amount transfer (a winner whose floor share rounded to 0)."""
+    loop = a._uniq("sbpr"); done = a._uniq("sbpr_done"); zero = a._uniq("sbpr_zero")
+    a.beq(amount_reg, ZERO, zero)     # nothing to send (share floored to 0) -> skip the transfer
+    # persist the amount to SC_AMT FIRST (the address-copy loop below clobbers A4, which may BE amount_reg)
+    a.li(A3, SC_AMT); a.store_u64_be(amount_reg, A3, 0)
+    # write 7 address words to SC_RECIP as BE bytes
+    a.li(A5, 0)
+    a.label(loop)
+    a.li(A2, 7); a.bgeu(A5, A2, done)
+    a.li(A3, TAG_SBET); a.slli(A4, seq_reg, 4); a.or_(A3, A3, A4)
+    a.li(A2, SBET_W_ADDR); a.add(A2, A2, A5); a.or_(A3, A3, A2); a.sload_to(A4, A3)   # A4 = addr word A5
+    a.li(A2, SC_RECIP); a.slli(A6, A5, 2); a.add(A2, A2, A6)
+    a.srli(A6, A4, 24); a.sb(A6, A2, 0)
+    a.srli(A6, A4, 16); a.sb(A6, A2, 1)
+    a.srli(A6, A4, 8); a.sb(A6, A2, 2)
+    a.sb(A4, A2, 3)
+    a.addi(A5, A5, 1); a.j(loop)
+    a.label(done)
+    a.li(A4, SC_RECIP); a.li(A5, SC_AMT); a.transfer(A4, A5)
+    a.li(A2, 1); a.bne(A0, A2, "revert")                      # CHECKED [SEC-C2]
+    a.label(zero)
 
 
 def _mod_n(a, reg, N):
