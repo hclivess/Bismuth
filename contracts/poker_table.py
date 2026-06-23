@@ -55,6 +55,7 @@ FN_SIT = 0
 FN_LEAVE = 1
 FN_DEAL = 2
 FN_COMMIT = 3
+FN_DECK_DIGEST = 4   # (idx, H32) — anchor a deal-stage deck hash (Stage 2, doc/28 §5); purely additive
 FN_CHECK = 6
 FN_CALL = 7
 FN_BET = 8
@@ -108,6 +109,11 @@ TAG_REVEALED = 0x19000000  # | seat
 TAG_CARD = 0x1B000000      # | (seat<<4) | k  (k 0..4) : the seat's revealed 5 cards
 TAG_POTAMT = 0x1D000000    # | p : pot p amount
 TAG_POTELIG = 0x1E000000   # | p : pot p eligibility (N-bit mask)
+# ---- Stage-2 mental-poker anchoring (doc/28 §5) — purely ADDITIVE, never read by the betting SM ----
+TAG_DECKH = 0x1F000000     # | (idx<<4) | w  (w 0..7) : SHA256 of the deck after shuffle/lock stage `idx`
+TAG_CARDMAP_H = 0x21000000 # | w  (w 0..7) : SHA256 of the agreed card->field-value map (chain root)
+DECKH_MAXIDX = 0x0FFFFFF   # idx < this anchors TAG_DECKH; idx == IDX_CARDMAP anchors TAG_CARDMAP_H
+IDX_CARDMAP = 0x10000000   # sentinel index selecting the card-map root anchor
 
 TIMEOUT_BLOCKS = 60
 
@@ -180,6 +186,16 @@ def potelig_key(p):
     return TAG_POTELIG | p
 
 
+def deckh_key(idx, w):
+    """Storage key for word w (0..7) of the stage-`idx` deck-hash anchor (FN_DECK_DIGEST)."""
+    return TAG_DECKH | (idx << 4) | w
+
+
+def cardmap_h_key(w):
+    """Storage key for word w (0..7) of the card->value-map root anchor."""
+    return TAG_CARDMAP_H | w
+
+
 def build(nseats, sb, bb, max_buyin=None):
     """Assemble the N-seat Hold'em table. nseats in 2..9; sb<bb blinds (units). Each seat buys in with a
     variable stack = the BIS attached to FN_SIT (1..max_buyin units), so per-seat stacks differ (short
@@ -209,6 +225,7 @@ def build(nseats, sb, bb, max_buyin=None):
     a.li(A2, FN_LEAVE);   a.beq(T0, A2, "leave")
     a.li(A2, FN_DEAL);    a.beq(T0, A2, "deal")
     a.li(A2, FN_COMMIT);  a.beq(T0, A2, "commit")
+    a.li(A2, FN_DECK_DIGEST); a.beq(T0, A2, "deckdigest")
     a.li(A2, FN_CHECK);   a.beq(T0, A2, "check")
     a.li(A2, FN_CALL);    a.beq(T0, A2, "call")
     a.li(A2, FN_BET);     a.beq(T0, A2, "bet")
@@ -378,6 +395,45 @@ def build(nseats, sb, bb, max_buyin=None):
         a.li(A3, TAG_COMMIT); a.slli(A4, S1, 4); a.or_(A3, A3, A4); a.li(A2, w); a.or_(A3, A3, A2)
         a.sstore(A3, T3)
     a.li(A3, TAG_COMMITTED); a.or_(A3, A3, S1); a.li(A4, 1); a.sstore(A3, A4)
+    a.halt()
+
+    # =============================================================== FN_DECK_DIGEST(idx, H32)  [Stage 2]
+    # Purely-additive anchoring of the off-chain mental-poker deal (doc/28 §5). A player (any seated party)
+    # posts the SHA256 of the deck after a shuffle/lock stage `idx`, or the card->value map root (idx ==
+    # IDX_CARDMAP). This pins each stage HASH so the deal is publicly auditable / disputable; it does NOT
+    # verify an honest shuffle (that needs ZK proofs — out of scope [SEC-H1]). It NEVER feeds the betting
+    # state machine, side pots, or settlement — read-only audit metadata. Caller must be a seated party
+    # (anchors are authenticated to a real seat so a stranger cannot spam the chain), and no value attaches.
+    a.label("deckdigest")
+    _require_no_value(a)
+    _spill_caller(a)
+    _seat_of_caller(a, S1)                                  # must be a seated party (reverts if none)
+    _load_be32(a, S2, S0, 4)                                # S2 = idx
+    a.li(A2, IDX_CARDMAP); a.beq(S2, A2, "deckdigest_cardmap$")
+    a.li(A2, DECKH_MAXIDX); a.bgeu(S2, A2, "revert")        # idx out of the deck-stage range
+    # write 8 words of H32 to TAG_DECKH | (idx<<4) | w
+    a.li(T0, 0)
+    a.label("deckdigest_w$")
+    a.li(A2, 8); a.bgeu(T0, A2, "deckdigest_done$")
+    a.li(A2, 8); a.slli(A4, T0, 2); a.add(A2, A2, A4)        # A2 = calldata offset 8 + 4*w
+    a.add(A4, S0, A2); a.lbu(T3, A4, 0); a.slli(T3, T3, 8)
+    a.lbu(A5, A4, 1); a.or_(T3, T3, A5); a.slli(T3, T3, 8)
+    a.lbu(A5, A4, 2); a.or_(T3, T3, A5); a.slli(T3, T3, 8)
+    a.lbu(A5, A4, 3); a.or_(T3, T3, A5)                      # T3 = H32 word w
+    a.li(A3, TAG_DECKH); a.slli(A4, S2, 4); a.or_(A3, A3, A4); a.or_(A3, A3, T0); a.sstore(A3, T3)
+    a.addi(T0, T0, 1); a.j("deckdigest_w$")
+    a.label("deckdigest_cardmap$")
+    a.li(T0, 0)
+    a.label("deckdigest_cm$")
+    a.li(A2, 8); a.bgeu(T0, A2, "deckdigest_done$")
+    a.li(A2, 8); a.slli(A4, T0, 2); a.add(A2, A2, A4)
+    a.add(A4, S0, A2); a.lbu(T3, A4, 0); a.slli(T3, T3, 8)
+    a.lbu(A5, A4, 1); a.or_(T3, T3, A5); a.slli(T3, T3, 8)
+    a.lbu(A5, A4, 2); a.or_(T3, T3, A5); a.slli(T3, T3, 8)
+    a.lbu(A5, A4, 3); a.or_(T3, T3, A5)
+    a.li(A3, TAG_CARDMAP_H); a.or_(A3, A3, T0); a.sstore(A3, T3)
+    a.addi(T0, T0, 1); a.j("deckdigest_cm$")
+    a.label("deckdigest_done$")
     a.halt()
 
     # =============================================================== FN_CHECK

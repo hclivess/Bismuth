@@ -173,6 +173,21 @@ without its own key**. Soft collusion irreducible. Demo SRA must move to a **lar
 encoding** before real money. ZK-shuffle proofs = production hardening. **Metadata side channel [SEC-M1]:**
 victim positions are **e2e-encrypted to the victim**; timing is a documented honest-limit.
 
+> **Implemented (Stage 2).** `contracts/poker_deal.py` is the pure-Python reference for the N-party deal —
+> SRA commutative cipher (true secp256k1 field prime `P = 2^256−2^32−977`, Fermat-checked at import) + the
+> Barnett–Smart per-position locking round + victim-key-last hole dealing + cooperative board reveal, with an
+> `assert_needs_my_key` client guard that refuses to open a hole already legible without the seat's own key.
+> On-chain anchoring is additive in `poker_table.py`: `FN_DECK_DIGEST(idx,H32)` (selector 4) writes
+> `TAG_DECKH[idx]` for the N+1 shuffle/lock stage hashes, or `TAG_CARDMAP_H` (`0x21`) when `idx==IDX_CARDMAP`;
+> it runs `_require_no_value`+`_seat_of_caller` and never touches betting/settle (the 39 Stage-1 tests stay
+> green). `tests/test_poker_deal.py` (23 vectors) covers correctness (distinctness/in-range over N=2..9,
+> holes bind to `TAG_COMMIT`, board identical for all + un-steerable), the digest↔chain round-trip, and
+> secrecy under coalition / independent-opening / board-steering / early-read / key-reuse attacks. The deal
+> messages mirror the heads-up demo's bus shape so the **Stage-3 JS client ports this byte-for-byte** —
+> including the correct 64-hex prime (the current `web/poker/index.html` literal is a truncated, non-prime
+> 224-bit value that breaks the SRA roundtrip). NOTE [SEC-H1]: demo-grade `cardVal=c+2` must move to a large
+> safe prime + QR encoding before real money; the chain pins deck *hashes*, not an honest shuffle.
+
 ## 6. Tournaments (`tournament.py`)
 ONE contract, logical tables (`tid`), Balancer-Vault, embeds the §4 engine; **all §4 fixes apply per
 table**. Betting selectors gain a leading `tid`; value only on `FN_REGISTER`. Escrow: `FN_REGISTER+buyin`
