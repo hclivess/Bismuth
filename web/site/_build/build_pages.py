@@ -80,6 +80,89 @@ def build_index():
                              " · " + e(m.get("date", "")) if m.get("date") else ""))
     featured_html = ("<div class='row g-3 mb-3'>%s</div>" % "".join(fcards)) if fcards else ""
 
+    # ---- Wallets (hosted locally on bismuth.cz; mirrored from the official release builds) ----
+    def wcard(name, blurb, version, dls, note=""):
+        n = ("<p class='text-secondary small mb-2'>%s</p>" % note) if note else ""
+        return ("<div class='col-lg-6'><div class='card h-100 bg-body-tertiary border-secondary-subtle'>"
+                "<div class='card-body'><h3 class='h6 card-title'>%s "
+                "<span class='badge text-bg-secondary align-middle'>%s</span></h3>"
+                "<p class='text-secondary small mb-2'>%s</p>%s%s</div></div></div>"
+                % (e(name), e(version), blurb, S.dlbuttons(dls), n))
+    wallets = "".join([
+        wcard("Tornado Wallet", "The recommended desktop wallet — full GUI, HD accounts, tokens &amp; aliases. "
+              "Runs on Windows, macOS and Linux.", "v0.1.48",
+              [("/wallets/TornadoBismuthWallet-0.1.48-setup.exe", "🪟 Windows", True),
+               ("/wallets/Tornado.Bismuth.Wallet.dmg", "🍎 macOS", True),
+               ("/wallets/TornadoBismuthWallet-x86_64.AppImage", "🐧 Linux", True)],
+              "Source &amp; release notes: <a href='https://github.com/bismuthfoundation/TornadoWallet'>github.com/bismuthfoundation/TornadoWallet</a>"),
+        wcard("Tk Wallet", "Classic lightweight Tkinter wallet — small, simple, battle-tested.", "0.9.4",
+              [("/wallets/Bismuth_wallet.exe", "🪟 Windows", False)],
+              "Source: <a href='https://github.com/bismuthfoundation/tk-wallet'>github.com/bismuthfoundation/tk-wallet</a>"),
+        wcard("Paper Wallet", "Generate an offline cold-storage key pair in your browser — air-gapped, nothing "
+              "sent anywhere.", "offline",
+              [("https://github.com/AngainorDev/BIS-Paper", "Get it on GitHub", False)]),
+        wcard("Web wallets", "Run your own node and connect a wallet to it, or use a public wallet server.",
+              "self-host",
+              [("https://bismuth.im/wservers", "Active wallet servers", False)]),
+    ])
+    wallets_section = f"""
+    <section class='mb-5' id='wallets'>
+      <h2 class='h4 mb-3'>💼 Get a wallet</h2>
+      <p class='text-secondary'>Hosted right here on bismuth.cz — no third-party redirects.
+        Verify your download against <a href='/wallets/SHA256SUMS.txt'>SHA256SUMS.txt</a>.</p>
+      <div class='row g-3'>{wallets}</div>
+    </section>"""
+
+    # ---- Ecosystem & services (scavenged from the old bismuth.cz + bismuth.im) ----
+    def linkrow(title, items):
+        lis = "".join("<li class='mb-1'><a href='%s'%s>%s</a>%s</li>"
+                      % (e(u), "" if u.startswith("/") else " target='_blank' rel='noopener'", e(lbl),
+                         (" <span class='text-secondary small'>— %s</span>" % d) if d else "")
+                      for lbl, u, d in items)
+        return ("<div class='col-md-6 col-lg-4'><div class='card h-100 bg-body-tertiary border-secondary-subtle'>"
+                "<div class='card-body'><h3 class='h6 card-title'>%s</h3>"
+                "<ul class='list-unstyled small mb-0'>%s</ul></div></div></div>" % (e(title), lis))
+    eco = "".join([
+        linkrow("Explorers", [
+            ("explorer.bismuth.cz", "https://explorer.bismuth.cz/", "this site — full stats &amp; geomap"),
+            ("bismuth.im", "https://bismuth.im/", "community explorer &amp; API"),
+            ("mybismuth.com", "https://mybismuth.com/", "alternative explorer"),
+        ]),
+        linkrow("Mining", [
+            ("Eggpool", "http://eggpool.net/", "mining pool"),
+            ("kbkminer", "https://github.com/bismuthfoundation/kbkminer", "open-source miner"),
+            ("Difficulty chart", "https://bismuth.im/diff_chart", ""),
+        ]),
+        linkrow("Infrastructure", [
+            ("Hypernode", "https://github.com/bismuthfoundation/hypernode/tree/beta99", "second-tier network"),
+            ("Wallet servers", "https://bismuth.im/wservers", "public node endpoints"),
+            ("API help", "https://bismuth.im/apihelp", "explorer API docs"),
+        ]),
+        linkrow("Trading", [
+            ("wBIS on Ethereum", "https://www.dextools.io/app/ether/pair-explorer/0xf4f82f8d84c529987201609cecee8ab136a50c8c", "DEXTools"),
+            ("wBIS on BSC", "https://www.dextools.io/app/bsc/pair-explorer/0x731b8244f818fd488d9dc516edd976a96459ae59", "DEXTools"),
+        ]),
+        linkrow("Community", [
+            ("Discord", "https://discord.com/invite/DsEuMQ3", ""),
+            ("Telegram", "https://t.me/cryptobismuth", ""),
+            ("Reddit", "https://www.reddit.com/r/cryptobismuth/", ""),
+            ("Mastodon", "https://mstdn.social/@bis", ""),
+            ("Bitcointalk", "https://bitcointalk.org/index.php?topic=1896497.0", "original 2017 thread"),
+            ("Linktree", "https://linktr.ee/bismuthcoin", ""),
+        ]),
+        linkrow("Docs &amp; project", [
+            ("bismuthcoin.org", "https://bismuthcoin.org/", "main site &amp; docs"),
+            ("Whitepaper", "https://bismuthcoin.org/docs/papers/whitepaper/", ""),
+            ("Source (GitHub)", "https://github.com/hclivess/Bismuth", ""),
+        ]),
+    ])
+    ecosystem_section = f"""
+    <section class='mb-5'>
+      <h2 class='h4 mb-3'>🌐 Ecosystem &amp; services</h2>
+      <p class='text-secondary'>The wider Bismuth ecosystem — explorers, pools, infrastructure and community.</p>
+      <div class='row g-3'>{eco}</div>
+    </section>"""
+
     body = f"""{S.nav('home')}
   <header class='hero py-5'>
     <div class='container py-4'>
@@ -89,6 +172,7 @@ def build_index():
         testbed for ideas the rest of the industry named years later.</p>
       <div class='d-flex flex-wrap gap-2 mt-2'>
         <a href='https://explorer.bismuth.cz/' class='btn btn-primary btn-lg'>🔍&nbsp; Block Explorer</a>
+        <a href='#wallets' class='btn btn-outline-light btn-lg'>💼&nbsp; Get a wallet</a>
         <a href='/10-years-of-bismuth.html' class='btn btn-outline-light btn-lg'>📜&nbsp; The 10-year story</a>
         <a href='#run' class='btn btn-outline-light btn-lg'>⬇&nbsp; Run a node</a>
       </div>
@@ -100,6 +184,7 @@ def build_index():
       <h2 class='h4 mb-3'>What is Bismuth?</h2>
       <div class='row g-3'>{fact_cards}</div>
     </section>
+{wallets_section}
 
     <section class='mb-5'>
       <h2 class='h4 mb-3'>📜 The story</h2>
@@ -149,6 +234,7 @@ python3 node.py</code></pre>
         </div>
       </div>
     </section>
+{ecosystem_section}
 
     <section>
       <h2 class='h4 mb-3'>🛠️ Build</h2>

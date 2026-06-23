@@ -66,7 +66,8 @@ def head(title, desc, canonical, og_type="website", jsonld=None, extra_css=""):
 
 
 def nav(active=""):
-    items = [("/", "Home", "home"), ("/10-years-of-bismuth.html", "The Story", "story"),
+    items = [("/", "Home", "home"), ("/#wallets", "Wallets", "wallets"),
+             ("/10-years-of-bismuth.html", "The Story", "story"),
              ("/Bismuth_Interview_Catalog.html", "Press", "press"),
              ("https://explorer.bismuth.cz/", "Explorer", "explorer"),
              ("/#run", "Run a node", "run"),
