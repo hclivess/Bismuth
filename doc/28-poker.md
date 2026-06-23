@@ -204,8 +204,13 @@ global stall pays remaining alive by chip count.
 
 ## 7. Accounts + leaderboard (indexer, not a contract)
 No LOG opcode → canonical results are append-only storage records the indexer reads via
-`/api/vm/contract/{addr}` (state-root-backed). `TAG_RESULT|seq`: R0 `hand_seq|street`, R1 winner ref
-(`0xFFFFFFFF`=split), R2 `pot_units`, R3 `category<<20|tiebreak`; `S_RESULTCNT` high-water.
+`/api/vm/contract/{addr}` (state-root-backed). **Shipped (Stage 4)** `TAG_RESULT|(seq<<4)|w` is an
+**11-word, SELF-DESCRIBING per-seat record** (one per participating seat, written in `_settle` AFTER the
+closing invariant, never touching payouts): `w0 hand_no`, `w1 seat`, `w2 payout`, `w3 contribution`,
+`w4..w10` the seat's **full 28-byte address captured at settle**; `S_RESULTCNT` high-water. The embedded
+address (not the original §7 draft's bare "winner ref", and NOT the mutable per-seat `TAG_ADDR`) makes the
+indexer a pure fold immune to later seat reassignment (Stage-5 turnover) — per-seat net `= payout − contrib`
+conserves to 0 per hand by the closing invariant; pot total `= Σ payout` over a hand's records.
 `poker_stats.py` copies `rest_stats.py`: CHEAP per-request (cache + `{"status":"computing"}` first call);
 HEAVY `_maintain` daemon scanning **only poker contract addresses** (never full prod-ledger scan),
 per-ledger JSON cache namespaced by ledger filename; account keyed by **full 28-byte address** [SEC-C1];

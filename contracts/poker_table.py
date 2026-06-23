@@ -94,6 +94,7 @@ S_DONEFLAG = 18
 S_WINBYFOLD = 19   # 0 = none; else (seat+1) of the lone non-folded seat (uncontested)
 S_HANDNO = 15
 S_NPOTS = 14       # number of layered side pots (persisted across calls; mem SC_LEVELS is per-call only)
+S_RESULTCNT = 16   # [Stage 4] append-only TAG_RESULT high-water (count of result records ever written)
 
 # ---- per-seat tag domains (tag | seat, or tag | (seat<<4) | word) ----
 TAG_ADDR = 0x11000000      # | (seat<<4) | w  (w 0..6) : 7-word identity+payout address
@@ -112,6 +113,24 @@ TAG_POTELIG = 0x1E000000   # | p : pot p eligibility (N-bit mask)
 # ---- Stage-2 mental-poker anchoring (doc/28 §5) — purely ADDITIVE, never read by the betting SM ----
 TAG_DECKH = 0x1F000000     # | (idx<<4) | w  (w 0..7) : SHA256 of the deck after shuffle/lock stage `idx`
 TAG_CARDMAP_H = 0x21000000 # | w  (w 0..7) : SHA256 of the agreed card->field-value map (chain root)
+# ---- Stage-4 append-only result log (doc/28 §7) — written DURING _settle AFTER the closing invariant is
+# asserted; NEVER alters a payout. The off-chain indexer (poker_stats.py) reads these via /api/vm/contract.
+# One 4-word record per PARTICIPATING SEAT this hand (every seat that put chips in the pot, winners AND
+# losers): w0 = hand_no, w1 = seat, w2 = payout (chips won, 0 for a non-winner), w3 = contribution (the
+# seat's TAG_HANDBET this hand). This makes the indexer a PURE, reproducible fold over the append-only log
+# alone — no reliance on mutable per-seat slots: per-seat net = payout − contribution (conserves to 0 across
+# a hand by the closing invariant Σ payouts == Σ contributions == pot), and the hand's pot total = Σ payouts
+# over its records. S_RESULTCNT is the append-only high-water so the indexer reads only records >= its cached
+# count (no rescans). [SEC-M2] reorg-safe + deduped by (contract, block, seq).
+TAG_RESULT = 0x20000000    # | (seq<<4) | w  (w 0..10) : result record `seq`
+RESULT_W_HANDNO = 0        # word 0: hand number (S_HANDNO at settle)
+RESULT_W_SEAT = 1          # word 1: seat index
+RESULT_W_PAYOUT = 2        # word 2: chips this seat won this hand (0 if it won nothing)
+RESULT_W_CONTRIB = 3       # word 3: chips this seat put into the pot this hand (its TAG_HANDBET)
+RESULT_W_ADDR = 4          # words 4..10: the seat's FULL 28-byte address (7 words), CAPTURED AT SETTLE so the
+                           # record is SELF-DESCRIBING — the indexer keys off this, never the mutable TAG_ADDR,
+                           # so a later seat re-assignment (Stage 5 turnover) can't mis-credit prior hands.
+RESULT_WORDS = 11          # 4 scalar words (hand_no, seat, payout, contrib) + 7 address words
 DECKH_MAXIDX = 0x0FFFFFF   # idx < this anchors TAG_DECKH; idx == IDX_CARDMAP anchors TAG_CARDMAP_H
 IDX_CARDMAP = 0x10000000   # sentinel index selecting the card-map root anchor
 
@@ -194,6 +213,30 @@ def deckh_key(idx, w):
 def cardmap_h_key(w):
     """Storage key for word w (0..7) of the card->value-map root anchor."""
     return TAG_CARDMAP_H | w
+
+
+def result_key(seq, w):
+    """Storage key for word w (0..10) of append-only result record `seq` (0..S_RESULTCNT-1). [Stage 4]"""
+    return TAG_RESULT | (seq << 4) | w
+
+
+def read_result(storage, seq):
+    """Decode result record `seq` from a {int_key:int_val} storage dict into a dict (indexer / tests). The
+    `addr_hex` is the seat's full 28-byte address captured AT SETTLE (self-describing — never re-read from the
+    mutable TAG_ADDR), so the indexer credits the right player even after a seat is later reassigned."""
+    g = lambda w: int(storage.get(result_key(seq, w), 0))
+    addr = b"".join((g(RESULT_W_ADDR + w) & 0xFFFFFFFF).to_bytes(4, "big") for w in range(7))
+    return {"seq": seq,
+            "hand_no": g(RESULT_W_HANDNO),
+            "seat": g(RESULT_W_SEAT),
+            "payout": g(RESULT_W_PAYOUT),
+            "contrib": g(RESULT_W_CONTRIB),
+            "addr_hex": addr.hex()}
+
+
+def result_count(storage):
+    """The append-only result high-water (S_RESULTCNT) from a {int_key:int_val} storage dict. [Stage 4]"""
+    return int(storage.get(S_RESULTCNT, 0))
 
 
 def build(nseats, sb, bb, max_buyin=None):
@@ -1168,6 +1211,39 @@ def _settle(a, N, buyin):
     a.addi(T0, T0, 1); a.j("st_inv$")
     a.label("st_inv_done$")
     _sload(a, A4, S_ESCROW); a.bne(T6, A4, "revert")
+    # ---- [Stage 4] append-only TAG_RESULT log (doc/28 §7) ----------------------------------------------
+    # AFTER the closing invariant has been asserted and WITHOUT touching any payout/transfer: append one
+    # 4-word record per PARTICIPATING seat this hand (handbet > 0): (hand_no, seat, payout, contribution).
+    # payout = TAG_STREETBET[seat] (the per-seat payout accumulated above), contribution = TAG_HANDBET[seat]
+    # (chips put in the pot this hand, still intact here — only reset at FN_DEAL). The off-chain
+    # poker_stats.py indexer reads these via /api/vm/contract and folds a pure, reproducible per-account view;
+    # consensus-neutral (no money is moved here). Bump S_RESULTCNT (append-only high-water).
+    _sload(a, S3, S_HANDNO)           # S3 = hand number
+    _sload(a, T5, S_RESULTCNT)        # T5 = next result seq (current high-water)
+    a.li(T0, 0)
+    a.label("st_res$")
+    a.li(A2, N); a.bgeu(T0, A2, "st_res_done$")
+    a.li(A3, TAG_HANDBET); a.or_(A3, A3, T0); a.sload_to(S2, A3)     # S2 = seat contribution (hand_bet)
+    a.beq(S2, ZERO, "st_res_next$")   # only emit for seats that put chips in the pot this hand
+    a.li(A3, TAG_STREETBET); a.or_(A3, A3, T0); a.sload_to(T4, A3)   # T4 = seat payout (0 if it won nothing)
+    # base key = TAG_RESULT | (seq<<4)
+    a.li(A6, TAG_RESULT); a.slli(A5, T5, 4); a.or_(A6, A6, A5)
+    a.mv(A3, A6); a.li(A2, RESULT_W_HANDNO);  a.or_(A3, A3, A2); a.sstore(A3, S3)   # w0 = hand_no
+    a.mv(A3, A6); a.li(A2, RESULT_W_SEAT);    a.or_(A3, A3, A2); a.sstore(A3, T0)   # w1 = seat
+    a.mv(A3, A6); a.li(A2, RESULT_W_PAYOUT);  a.or_(A3, A3, A2); a.sstore(A3, T4)   # w2 = payout
+    a.mv(A3, A6); a.li(A2, RESULT_W_CONTRIB); a.or_(A3, A3, A2); a.sstore(A3, S2)   # w3 = contribution
+    # words 4..10 = the seat's FULL 28-byte address, copied from TAG_ADDR AT SETTLE so the record is
+    # self-describing (the indexer never re-reads the mutable per-seat TAG_ADDR; [review #1 fix / Stage-5 prereq])
+    for w in range(7):
+        a.li(A3, TAG_ADDR); a.slli(A5, T0, 4); a.or_(A3, A3, A5); a.li(A2, w); a.or_(A3, A3, A2)
+        a.sload_to(A5, A3)                                                          # A5 = seat addr word w
+        a.mv(A3, A6); a.li(A2, RESULT_W_ADDR + w); a.or_(A3, A3, A2); a.sstore(A3, A5)
+    a.addi(T5, T5, 1)                 # seq++
+    a.label("st_res_next$")
+    a.addi(T0, T0, 1); a.j("st_res$")
+    a.label("st_res_done$")
+    _sstore_imm(a, S_RESULTCNT, T5)   # bump append-only high-water
+    # ----------------------------------------------------------------------------------------------------
     # mark settled (idempotent terminal) BEFORE transfers
     a.li(A4, PH_SETTLED); _sstore_imm(a, S_PHASE, A4)
     a.li(A4, 1); _sstore_imm(a, S_DONEFLAG, A4)

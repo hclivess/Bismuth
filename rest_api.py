@@ -336,6 +336,11 @@ def _make_handler(node):
                     return self._write(200, self._supply(db))
                 if route[:1] == ["stats"] and len(route) == 2:
                     return self._write(200, self._stats(db, route[1], query))
+                # Poker accounts + leaderboard (doc/28 §7, Stage 4). READ-ONLY, consensus-neutral: a pure fold
+                # over the poker tables' append-only TAG_RESULT log read from CONTRACT STATE (never the
+                # ledger). /api/poker/leaderboard, /api/poker/account/<addr>, /api/poker/table/<addr>/results.
+                if route[:1] == ["poker"] and len(route) >= 2:
+                    return self._write(200, self._poker(route[1:], query))
                 # Modern plugins (doc/27) may own a route — the tokens_aliases plugin serves /api/tokens and
                 # /api/token/<name> from its own LMDB store, so post-fork no token/alias code is left in this
                 # router. When no plugin claims the route, fall through to the core (legacy index.db) handlers.
@@ -500,6 +505,9 @@ def _make_handler(node):
                         "/api/stats/market": "price / market cap / 24h volume (coingecko, TTL-cached; rest_api_market to disable)",
                         "/api/stats/difficulty": "difficulty time-series sampled from the misc table",
                         "/api/stats/geo": "geolocated peers for the explorer node map (cached; rest_api_geo to disable)",
+                        "/api/poker/leaderboard": "poker accounts ranked by ?metric=net|won|hands_won|hands_played|biggest_pot&top=N (off-chain fold over contract state; background-cached, incremental)",
+                        "/api/poker/account/{address}": "one player's poker stats keyed by full 28-byte address: hands played/won, net chips, biggest pot, tables seen",
+                        "/api/poker/table/{address}/results": "a poker table's append-only result log (?since=&limit=); read from contract state, never the ledger",
                         "/api/tokens": "all tokens on chain, ranked by transfer volume",
                         "/api/token/{name}": "a token's supply, holder count, and per-address balances",
                         "/api/token/tx/{address}": "token transfers (sent or received) for an address, newest "
@@ -913,6 +921,43 @@ def _make_handler(node):
                 return rest_stats.geo_nodes(node)
             raise _NotFound("unknown stats endpoint (summary|monthly|tx_per_month|new_addresses|"
                             "rich_list|top_miners|largest_txs|market|difficulty|geo)")
+
+        def _poker(self, route, query=None):
+            """Poker accounts + leaderboard (doc/28 §7, Stage 4). READ-ONLY + consensus-neutral. poker_stats.py
+            folds the poker tables' append-only TAG_RESULT log read from CONTRACT STATE (node.vm_state, NOT
+            the ledger) into a per-account view; a per-ledger JSON cache (namespaced by ledger filename) is
+            advanced incrementally by a single guarded background daemon — the request path never scans.
+              GET /api/poker/leaderboard?metric=net|won|hands_won|hands_played|biggest_pot&top=N
+              GET /api/poker/account/<address>            (full 28-byte hex [SEC-C1])
+              GET /api/poker/table/<addr>/results?since=&limit=
+            """
+            import poker_stats
+            q = query or {}
+
+            def _q(name, default=None):
+                v = q.get(name)
+                if isinstance(v, list):
+                    v = v[0] if v else None
+                return v if v is not None else default
+
+            def _int(name, default, hi=None):
+                try:
+                    n = int(_q(name, default))
+                except (TypeError, ValueError):
+                    n = int(default)
+                if hi is not None:
+                    n = min(n, hi)
+                return max(0, n)
+
+            if route == ["leaderboard"]:
+                metric = _q("metric", "net")
+                return poker_stats.request_leaderboard(node, metric=metric, top=_int("top", 50, 500))
+            if route[:1] == ["account"] and len(route) == 2:
+                return poker_stats.request_account(node, route[1])
+            if len(route) == 3 and route[0] == "table" and route[2] == "results":
+                return poker_stats.request_table_results(node, route[1],
+                                                         since=_int("since", 0), limit=_int("limit", 200, 1000))
+            raise _NotFound("unknown poker endpoint (leaderboard|account/<addr>|table/<addr>/results)")
 
         def _supply(self, db):
             """Circulating supply = mining emission (sum(reward)-sum(fee) over positive heights) + the
