@@ -66,7 +66,7 @@ import mining_heavy3
 import regnet
 import validation_exceptions
 from digest import digest_block
-from chain_ops import recompress_ledger, ledger_check_heights, blocknf, check_integrity, sequencing_check, reconcile_ledger_hyper
+from chain_ops import recompress_ledger, ledger_check_heights, blocknf, check_integrity, sequencing_check, reconcile_ledger_hyper, rollback
 from balances import balanceget
 from node_init import setup_net_type, node_block_init, ram_init, initial_db_check, load_keys, add_indices
 from quantizer import quantize_eight, quantize_two
@@ -1501,6 +1501,22 @@ if __name__ == "__main__":
             # node.token_index set and no-ops (no stray index.db writes when the plugin owns it).
             node.plugin_manager.start(node)
             node.token_index = node.plugin_manager.get_service("token_index")
+
+            # doc/30 recovery: one-shot deep rollback. Drop a file `rollback_to` containing a height to
+            # force a clean rollback of the chain + ALL derived indexes (difficulty/misc, balances, token
+            # & alias indexes, VM/shielded state) to that tip, then resync from peers — rebuilds derived
+            # state corrupted by a past event (e.g. a difficulty drift the recursive controller locked in).
+            # Self-limiting: the trigger file is removed immediately, so it fires exactly once. Runs here,
+            # after token_index is live (for the index rollback) but before ram_init / node_block_init read
+            # the tip and before the balance/txid stores are built (they rebuild from the truncated ledger).
+            if os.path.exists("rollback_to"):
+                try:
+                    _rbk_target = int(open("rollback_to").read().strip())
+                finally:
+                    os.remove("rollback_to")
+                node.logger.app_log.warning(f"Status: rollback_to trigger -> deep rollback to height {_rbk_target}, then resync from peers")
+                rollback(node, db_handler_initial, _rbk_target + 1)   # rollback_under drops >= target+1 -> new tip = target
+                node.logger.app_log.warning(f"Status: rolled back to {_rbk_target}; derived state will rebuild and the chain resync")
 
             ram_init(node, db_handler_initial)
             node_block_init(node, db_handler_initial)
