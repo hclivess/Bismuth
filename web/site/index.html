@@ -1,100 +1,143 @@
 <!doctype html>
-<html lang="en" data-bs-theme="dark">
+<html lang='en' data-bs-theme='dark'>
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Bismuth Ledger Bootstrap</title>
-  <link href="/assets/bootstrap.min.css" rel="stylesheet">
+  <meta charset='utf-8'>
+  <meta name='viewport' content='width=device-width, initial-scale=1'>
+  <title>Bismuth — fair-launched Python blockchain (since 2017)</title>
+  <meta name='description' content='Bismuth — a fair-launched, from-scratch Python blockchain (no ICO, no premine) live since 1 May 2017. Block explorer, ledger bootstrap, a 10-year retrospective, and a press archive.'>
+  <link rel='canonical' href='https://bismuth.cz/'>
+  <meta name='robots' content='index, follow, max-image-preview:large'>
+  <meta name='theme-color' content='#0d1117'>
+  <meta name='author' content='Bismuth Foundation'>
+  <meta property='og:type' content='website'>
+  <meta property='og:site_name' content='Bismuth'>
+  <meta property='og:title' content='Bismuth — fair-launched Python blockchain (since 2017)'>
+  <meta property='og:description' content='Bismuth — a fair-launched, from-scratch Python blockchain (no ICO, no premine) live since 1 May 2017. Block explorer, ledger bootstrap, a 10-year retrospective, and a press archive.'>
+  <meta property='og:url' content='https://bismuth.cz/'>
+  <meta property='og:image' content='https://bismuth.cz/assets/og.png'>
+  <meta property='og:image:width' content='1200'>
+  <meta property='og:image:height' content='630'>
+  <meta name='twitter:card' content='summary_large_image'>
+  <meta name='twitter:title' content='Bismuth — fair-launched Python blockchain (since 2017)'>
+  <meta name='twitter:description' content='Bismuth — a fair-launched, from-scratch Python blockchain (no ICO, no premine) live since 1 May 2017. Block explorer, ledger bootstrap, a 10-year retrospective, and a press archive.'>
+  <meta name='twitter:image' content='https://bismuth.cz/assets/og.png'>
+  <link rel='icon' href='/favicon.svg'>
+  <link href='/assets/bootstrap.min.css' rel='stylesheet'>
   <style>
     body { background:#0d1117; }
     .hero { background:linear-gradient(180deg,#16263a 0%, transparent 100%); }
+    a { overflow-wrap:anywhere; }
+    article { font-size:1.04rem; line-height:1.7; }
+    article h2 { font-size:1.4rem; margin-top:2rem; margin-bottom:.6rem; padding-bottom:.3rem; border-bottom:1px solid #21262d; }
+    article h3 { font-size:1.15rem; margin-top:1.4rem; }
+    article p { margin-bottom:1rem; } article a { color:#6cb4ff; }
+    article ul, article ol { margin-bottom:1rem; } article li { margin-bottom:.4rem; }
+    article blockquote { border-left:3px solid #30475e; padding-left:1rem; color:#adbac7; }
+    article code { color:#7ee787; } article em { color:#c9d1d9; } article hr { border-color:#21262d; }
+    .dl .btn { margin:.15rem .15rem 0 0; }
     pre { background:#010409; border:1px solid #21262d; border-radius:.5rem; padding:1rem; color:#c9d1d9; }
     code.tok { color:#7ee787; }
+    
   </style>
+  <script type='application/ld+json'>{"@context": "https://schema.org", "@type": "WebSite", "name": "Bismuth", "url": "https://bismuth.cz/", "description": "Bismuth \u2014 a fair-launched, from-scratch Python blockchain (no ICO, no premine) live since 1 May 2017. Block explorer, ledger bootstrap, a 10-year retrospective, and a press archive.", "publisher": {"@type": "Organization", "name": "Bismuth Foundation", "url": "https://bismuth.cz/"}}</script>
 </head>
 <body>
-  <nav class="navbar border-bottom border-secondary-subtle">
-    <div class="container">
-      <span class="navbar-brand fw-semibold">⛏️ Bismuth</span>
-      <div>
-        <a class="navbar-text text-decoration-none me-3" href="/10-years-of-bismuth.html">10 Years</a>
-        <a class="navbar-text text-decoration-none me-3" href="/Bismuth_Interview_Catalog.html">Interviews</a>
-        <a class="navbar-text text-decoration-none me-3" href="https://explorer.bismuth.cz/">Explorer</a>
-        <a class="navbar-text text-decoration-none" href="https://github.com/hclivess/Bismuth">GitHub</a>
+  <nav class='navbar border-bottom border-secondary-subtle'>
+    <div class='container'>
+      <a class='navbar-brand fw-semibold text-decoration-none d-inline-flex align-items-center gap-2' href='/'><img src='/favicon.svg' alt='' height='24' width='16'> Bismuth</a>
+      <div class='d-flex flex-wrap align-items-center'>
+        <a class='navbar-text text-decoration-none me-3 fw-semibold text-info' href='/'>Home</a>
+        <a class='navbar-text text-decoration-none me-3' href='/10-years-of-bismuth.html'>The Story</a>
+        <a class='navbar-text text-decoration-none me-3' href='/Bismuth_Interview_Catalog.html'>Press</a>
+        <a class='navbar-text text-decoration-none me-3' href='https://explorer.bismuth.cz/'>Explorer</a>
+        <a class='navbar-text text-decoration-none me-3' href='/#run'>Run a node</a>
+        <a class='navbar-text text-decoration-none me-3' href='https://bismuthcoin.org/'>Community</a>
+        <a class='navbar-text text-decoration-none me-3' href='https://github.com/hclivess/Bismuth'>GitHub</a>
       </div>
     </div>
   </nav>
 
-  <header class="hero py-5">
-    <div class="container py-4 text-center">
-      <h1 class="display-5 fw-bold">Bismuth Ledger Bootstrap</h1>
-      <p class="lead text-secondary col-lg-8 mx-auto">
-        A recent snapshot of the Bismuth mainnet ledger so a new node can start near the chain tip
-        instead of syncing from genesis.
-      </p>
-      <a href="/ledger.tar.gz" class="btn btn-primary btn-lg mt-2">⬇&nbsp; Download ledger.tar.gz</a>
-      <a href="https://explorer.bismuth.cz/" class="btn btn-outline-light btn-lg mt-2 ms-2">🔍&nbsp; Block Explorer</a>
-      <p class="text-secondary small mt-3 mb-0" id="meta">
-        Contains <code class="tok">ledger.db</code> + <code class="tok">hyper.db</code> + <code class="tok">index.db</code>.
-      </p>
+  <header class='hero py-5'>
+    <div class='container py-4'>
+      <h1 class='display-5 fw-bold'>Bismuth</h1>
+      <p class='lead text-secondary col-lg-8'>A fair-launched, from-scratch <strong>Python blockchain</strong> —
+        no ICO, no premine — running on mainnet since 1&nbsp;May&nbsp;2017. A decade-long, academically grounded
+        testbed for ideas the rest of the industry named years later.</p>
+      <div class='d-flex flex-wrap gap-2 mt-2'>
+        <a href='https://explorer.bismuth.cz/' class='btn btn-primary btn-lg'>🔍&nbsp; Block Explorer</a>
+        <a href='/10-years-of-bismuth.html' class='btn btn-outline-light btn-lg'>📜&nbsp; The 10-year story</a>
+        <a href='#run' class='btn btn-outline-light btn-lg'>⬇&nbsp; Run a node</a>
+      </div>
     </div>
   </header>
+  <main class='container pb-5'>
 
-  <main class="container pb-5">
-    <div class="row g-4 justify-content-center">
-      <div class="col-lg-8">
-        <div class="card bg-body-tertiary border-info-subtle">
-          <div class="card-body">
-            <h2 class="h5 card-title">📜 10 Years of Bismuth</h2>
-            <p class="text-secondary small mb-2">A cited retrospective on the project's architectural firsts (2017–2026): semantic data/meaning layering, an early plugin ecosystem and NFTs, on-chain sensor data before &ldquo;DePIN&rdquo; had a name, and a peer-reviewed proof-of-work difficulty controller.</p>
-            <a href="/10-years-of-bismuth.pdf" class="btn btn-sm btn-info">⬇&nbsp; PDF</a>
-            <a href="/10-years-of-bismuth.html" class="btn btn-sm btn-outline-info ms-1">Read online</a>
-            <a href="/10-years-of-bismuth.bbcode.txt" class="btn btn-sm btn-outline-secondary ms-1">BitcoinTalk</a>
-            <a href="/10-years-of-bismuth.md" class="btn btn-sm btn-outline-secondary ms-1">Markdown</a>
-          </div>
+    <section class='mb-5'>
+      <h2 class='h4 mb-3'>What is Bismuth?</h2>
+      <div class='row g-3'><div class='col-md-6 col-lg-4'><div class='card h-100 bg-body-tertiary border-secondary-subtle'><div class='card-body'><h3 class='h6 card-title'>Fair launch</h3><p class='text-secondary small mb-0'>No ICO, no premine — mainnet since 1 May 2017.</p></div></div></div><div class='col-md-6 col-lg-4'><div class='card h-100 bg-body-tertiary border-secondary-subtle'><div class='card-body'><h3 class='h6 card-title'>Python, from scratch</h3><p class='text-secondary small mb-0'>Widely cited as the first blockchain written in Python — not a fork.</p></div></div></div><div class='col-md-6 col-lg-4'><div class='card h-100 bg-body-tertiary border-secondary-subtle'><div class='card-body'><h3 class='h6 card-title'>Account model</h3><p class='text-secondary small mb-0'>Signature-derived transaction IDs; arbitrary <code class='tok'>operation</code> + <code class='tok'>openfield</code> data.</p></div></div></div><div class='col-md-6 col-lg-4'><div class='card h-100 bg-body-tertiary border-secondary-subtle'><div class='card-body'><h3 class='h6 card-title'>Heavy3 PoW</h3><p class='text-secondary small mb-0'>CPU/GPU-friendly proof-of-work with a peer-reviewed difficulty controller.</p></div></div></div><div class='col-md-6 col-lg-4'><div class='card h-100 bg-body-tertiary border-secondary-subtle'><div class='card-body'><h3 class='h6 card-title'>Plugin ecosystem</h3><p class='text-secondary small mb-0'>Tokens, aliases, NFTs, DEX, naming, state channels — as building blocks.</p></div></div></div><div class='col-md-6 col-lg-4'><div class='card h-100 bg-body-tertiary border-secondary-subtle'><div class='card-body'><h3 class='h6 card-title'>Peer-reviewed</h3><p class='text-secondary small mb-0'>Consensus analysed in <em>Modeling, Identification and Control</em> (2017–2018).</p></div></div></div></div>
+    </section>
+
+    <section class='mb-5'>
+      <h2 class='h4 mb-3'>📜 The story</h2>
+      <div class='card bg-body-tertiary border-info-subtle'><div class='card-body'>
+        <h3 class='h5 card-title'>10 Years of Bismuth</h3>
+        <p class='text-secondary small mb-2'>A cited retrospective on the project's architectural firsts (2017–2026):
+          semantic data/meaning layering, an early plugin ecosystem and NFTs, on-chain sensor data before
+          &ldquo;DePIN&rdquo; had a name, and a peer-reviewed proof-of-work difficulty controller.</p>
+        <div class='d-flex flex-wrap align-items-center gap-2'>
+          <a href='/10-years-of-bismuth.html' class='btn btn-sm btn-info'>Read on site</a>
+          <div class='dl d-flex flex-wrap'><a href='/10-years-of-bismuth.pdf' class='btn btn-sm btn-outline-secondary'>PDF</a><a href='/10-years-of-bismuth.md' class='btn btn-sm btn-outline-secondary'>Markdown</a><a href='/10-years-of-bismuth.bbcode.txt' class='btn btn-sm btn-outline-secondary'>BitcoinTalk</a></div>
         </div>
-      </div>
+      </div></div>
+    </section>
 
-      <div class="col-lg-8">
-        <div class="card bg-body-tertiary border-info-subtle">
-          <div class="card-body">
-            <h2 class="h5 card-title">🎙️ Interview &amp; Coverage Catalog</h2>
-            <p class="text-secondary small mb-2">A working bibliography of published interviews, profiles, reviews and academic papers covering Bismuth (2017–2024) — founder/team Q&amp;As, the BisBabble community series, spotlights, and the peer-reviewed record. Assembled for press outreach and source assessment.</p>
-            <a href="/Bismuth_Interview_Catalog.html" class="btn btn-sm btn-info">Browse on site</a>
-            <a href="/Bismuth_Interview_Catalog.pdf" class="btn btn-sm btn-outline-info ms-1">PDF</a>
-            <a href="/Bismuth_Interview_Catalog.bbcode.txt" class="btn btn-sm btn-outline-secondary ms-1">BitcoinTalk</a>
-            <a href="/Bismuth_Interview_Catalog.md" class="btn btn-sm btn-outline-secondary ms-1">Markdown</a>
-          </div>
-        </div>
-      </div>
+    <section class='mb-5'>
+      <h2 class='h4 mb-3'>🎙️ Press &amp; coverage</h2>
+      <p class='text-secondary'>A working bibliography of interviews, profiles, reviews and academic papers
+        covering Bismuth (2017–2024) — with cleaned, link-rot-proof local copies of each piece.</p>
+      <div class='row g-3 mb-3'><div class='col-md-6'><a class='card h-100 bg-body-tertiary border-secondary-subtle text-decoration-none' href='/coverage/developer-interview-hclivess.html'><div class='card-body'><h3 class='h6 card-title text-info-emphasis'>Bismuth Developer Interview HCLivess (The First Python Crypto Currency)</h3><p class='text-secondary small mb-0'>Steemit · &quot;&quot;</p></div></a></div><div class='col-md-6'><a class='card h-100 bg-body-tertiary border-secondary-subtle text-decoration-none' href='/coverage/teamtalks-32-bismuth.html'><div class='card-body'><h3 class='h6 card-title text-info-emphasis'>TEAMTALKS #32 — Bismuth</h3><p class='text-secondary small mb-0'>Medium · Aug 8, 2019</p></div></a></div><div class='col-md-6'><a class='card h-100 bg-body-tertiary border-secondary-subtle text-decoration-none' href='/coverage/sleeping-legend.html'><div class='card-body'><h3 class='h6 card-title text-info-emphasis'>Bismuth(BIS) - A Sleeping Legend that Should be Remembered</h3><p class='text-secondary small mb-0'>publish0x · 5 Mar 2024</p></div></a></div><div class='col-md-6'><a class='card h-100 bg-body-tertiary border-secondary-subtle text-decoration-none' href='/coverage/first-python-blockchain-blackbeard.html'><div class='card-body'><h3 class='h6 card-title text-info-emphasis'>Bismuth — the first Python Blockchain</h3><p class='text-secondary small mb-0'>Medium · Jan 16, 2019</p></div></a></div></div>
+      <a href='/Bismuth_Interview_Catalog.html' class='btn btn-info'>Browse the full catalog →</a>
+    </section>
 
-      <div class="col-lg-8">
-        <div class="card bg-body-tertiary border-secondary-subtle">
-          <div class="card-body">
-            <h2 class="h5 card-title">⌨️ Use it</h2>
-            <p class="text-secondary small mb-2">A fresh node auto-bootstraps from this URL on first start. To apply it manually:</p>
-<pre class="mb-0"><code>cd Bismuth
+    <section class='mb-5' id='run'>
+      <h2 class='h4 mb-3'>⛏️ Run a node</h2>
+      <div class='row g-4'>
+        <div class='col-lg-7'>
+          <div class='card bg-body-tertiary border-secondary-subtle h-100'><div class='card-body'>
+            <h3 class='h6 card-title'>Ledger bootstrap</h3>
+            <p class='text-secondary small mb-2'>A recent mainnet snapshot so a new node starts near the chain
+              tip instead of syncing from genesis. A fresh node auto-bootstraps from this URL on first start;
+              to apply it manually:</p>
+            <pre class='mb-2'><code>cd Bismuth
 curl -L -o static/ledger.db.tar.gz https://bismuth.cz/ledger.tar.gz
 tar xzf static/ledger.db.tar.gz -C static/
 python3 node.py</code></pre>
-          </div>
+            <a href='/ledger.tar.gz' class='btn btn-sm btn-primary'>⬇&nbsp; Download ledger.tar.gz</a>
+          </div></div>
+        </div>
+        <div class='col-lg-5'>
+          <div class='card bg-body-tertiary border-warning-subtle h-100'><div class='card-body'>
+            <h3 class='h6 card-title text-warning-emphasis'>⚠️ Full node needs the non-RSA signer libs</h3>
+            <p class='text-secondary small mb-2'>mainnet carries ed25519 / ecdsa transactions; without these
+              the node rejects those blocks and cannot sync:</p>
+            <pre class='mb-0'><code>pip install coincurve ed25519</code></pre>
+          </div></div>
         </div>
       </div>
+    </section>
 
-      <div class="col-lg-8">
-        <div class="card bg-body-tertiary border-warning-subtle">
-          <div class="card-body">
-            <h2 class="h5 card-title text-warning-emphasis">⚠️ A full node needs the non-RSA signer libs</h2>
-            <p class="text-secondary small mb-2">mainnet carries ed25519 / ecdsa transactions; without these the node rejects those blocks and cannot sync:</p>
-<pre class="mb-0"><code>pip install coincurve ed25519</code></pre>
-          </div>
-        </div>
+    <section>
+      <h2 class='h4 mb-3'>🛠️ Build</h2>
+      <div class='d-flex flex-wrap gap-2'>
+        <a href='https://github.com/hclivess/Bismuth' class='btn btn-outline-light'>GitHub</a>
+        <a href='https://bismuthcoin.org/' class='btn btn-outline-light'>Community &amp; docs</a>
+        <a href='https://explorer.bismuth.cz/' class='btn btn-outline-light'>Block Explorer</a>
+        <a href='/Bismuth_Interview_Catalog.html' class='btn btn-outline-light'>Press archive</a>
       </div>
-    </div>
+    </section>
   </main>
-
-  <footer class="container text-center text-secondary small py-4 border-top border-secondary-subtle">
-    Served from bismuth.cz · <a class="link-secondary" href="https://github.com/hclivess/Bismuth">github.com/hclivess/Bismuth</a>
+  <footer class='container text-center text-secondary small py-4 border-top border-secondary-subtle'>
+    Bismuth — fair-launched since 1 May 2017 · <a class='link-secondary' href='https://explorer.bismuth.cz/'>Explorer</a> · <a class='link-secondary' href='https://bismuthcoin.org/'>Community</a> · <a class='link-secondary' href='https://github.com/hclivess/Bismuth'>GitHub</a> · <a class='link-secondary' href='/Bismuth_Interview_Catalog.html'>Press</a>
   </footer>
 </body>
 </html>

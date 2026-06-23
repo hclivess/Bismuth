@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang='en' data-bs-theme='dark'>
+<head>
+  <meta charset='utf-8'>
+  <meta name='viewport' content='width=device-width, initial-scale=1'>
+  <title>Developer Interview - Draggon&#x27;s Eggs Soccer Cup — Bismuth coverage</title>
+  <meta name='description' content='Developer Interview - Draggon&#x27;s Eggs Soccer Cup — Bismuth coverage by bitsignal (Steemit). Archived on bismuth.cz.'>
+  <link rel='canonical' href='https://bismuth.cz/coverage/dragginator-developer-interview.html'>
+  <meta name='robots' content='index, follow, max-image-preview:large'>
+  <meta name='theme-color' content='#0d1117'>
+  <meta name='author' content='Bismuth Foundation'>
+  <meta property='og:type' content='article'>
+  <meta property='og:site_name' content='Bismuth'>
+  <meta property='og:title' content='Developer Interview - Draggon&#x27;s Eggs Soccer Cup — Bismuth coverage'>
+  <meta property='og:description' content='Developer Interview - Draggon&#x27;s Eggs Soccer Cup — Bismuth coverage by bitsignal (Steemit). Archived on bismuth.cz.'>
+  <meta property='og:url' content='https://bismuth.cz/coverage/dragginator-developer-interview.html'>
+  <meta property='og:image' content='https://bismuth.cz/assets/og.png'>
+  <meta property='og:image:width' content='1200'>
+  <meta property='og:image:height' content='630'>
+  <meta name='twitter:card' content='summary_large_image'>
+  <meta name='twitter:title' content='Developer Interview - Draggon&#x27;s Eggs Soccer Cup — Bismuth coverage'>
+  <meta name='twitter:description' content='Developer Interview - Draggon&#x27;s Eggs Soccer Cup — Bismuth coverage by bitsignal (Steemit). Archived on bismuth.cz.'>
+  <meta name='twitter:image' content='https://bismuth.cz/assets/og.png'>
+  <link rel='icon' href='/favicon.svg'>
+  <link href='/assets/bootstrap.min.css' rel='stylesheet'>
+  <style>
+    body { background:#0d1117; }
+    .hero { background:linear-gradient(180deg,#16263a 0%, transparent 100%); }
+    a { overflow-wrap:anywhere; }
+    article { font-size:1.04rem; line-height:1.7; }
+    article h2 { font-size:1.4rem; margin-top:2rem; margin-bottom:.6rem; padding-bottom:.3rem; border-bottom:1px solid #21262d; }
+    article h3 { font-size:1.15rem; margin-top:1.4rem; }
+    article p { margin-bottom:1rem; } article a { color:#6cb4ff; }
+    article ul, article ol { margin-bottom:1rem; } article li { margin-bottom:.4rem; }
+    article blockquote { border-left:3px solid #30475e; padding-left:1rem; color:#adbac7; }
+    article code { color:#7ee787; } article em { color:#c9d1d9; } article hr { border-color:#21262d; }
+    .dl .btn { margin:.15rem .15rem 0 0; }
+    pre { background:#010409; border:1px solid #21262d; border-radius:.5rem; padding:1rem; color:#c9d1d9; }
+    code.tok { color:#7ee787; }
+    
+  </style>
+  <script type='application/ld+json'>{"@context": "https://schema.org", "@type": "Article", "headline": "Developer Interview - Draggon's Eggs Soccer Cup", "author": {"@type": "Person", "name": "bitsignal"}, "publisher": {"@type": "Organization", "name": "Bismuth Foundation"}, "mainEntityOfPage": "https://bismuth.cz/coverage/dragginator-developer-interview.html"}</script>
+</head>
+<body>
+  <nav class='navbar border-bottom border-secondary-subtle'>
+    <div class='container'>
+      <a class='navbar-brand fw-semibold text-decoration-none d-inline-flex align-items-center gap-2' href='/'><img src='/favicon.svg' alt='' height='24' width='16'> Bismuth</a>
+      <div class='d-flex flex-wrap align-items-center'>
+        <a class='navbar-text text-decoration-none me-3' href='/'>Home</a>
+        <a class='navbar-text text-decoration-none me-3' href='/10-years-of-bismuth.html'>The Story</a>
+        <a class='navbar-text text-decoration-none me-3 fw-semibold text-info' href='/Bismuth_Interview_Catalog.html'>Press</a>
+        <a class='navbar-text text-decoration-none me-3' href='https://explorer.bismuth.cz/'>Explorer</a>
+        <a class='navbar-text text-decoration-none me-3' href='/#run'>Run a node</a>
+        <a class='navbar-text text-decoration-none me-3' href='https://bismuthcoin.org/'>Community</a>
+        <a class='navbar-text text-decoration-none me-3' href='https://github.com/hclivess/Bismuth'>GitHub</a>
+      </div>
+    </div>
+  </nav>
+  <header class='hero py-4'><div class='container py-2'><p class='small mb-1'><a href='/Bismuth_Interview_Catalog.html' class='link-secondary text-decoration-none'>← Press &amp; coverage</a></p><h1 class='fw-bold h2'>Developer Interview - Draggon&#x27;s Eggs Soccer Cup</h1><p class='text-secondary small mb-2'>bitsignal · Steemit · 8 years ago</p><div class='d-flex flex-wrap gap-2'><a class='btn btn-sm btn-outline-secondary' href='/coverage/dragginator-developer-interview.md'>Markdown</a><a class='btn btn-sm btn-outline-secondary' href='https://steemit.com/cryptocurrency/@bitsignal/developer-interview-draggon-s-eggs-soccer-cup' target='_blank' rel='noopener'>Original ↗</a></div></div></header>
+  <main class='container pb-5'><article class='col-lg-9'>
+<p>EggdraSyl interviewed the developer of dragginator.com, which is a fun game on top of the #Bismuth blockchain. This chat about the the Draggon&#8217;s Eggs Soccer Cup is for you players out there to get to know more about this creative and fantastic game which has many players hooked and luckily the permission was given to post this interview.</p>
+
+<p><strong>EggdraSyl:</strong> Hi @Iyomisc, I&#8217;m not a big sports fan, and I&#8217;m a little lost with how this cup is handled, matches organized aso. Can you help me figure it out?</p>
+
+<p>lyomisc: sure</p>
+
+<p><strong>EggdraSyl:</strong> First of all, the pools: how were the players splits among the pools? Is it pure random or is there some rule?</p>
+
+<p>lyomisc: Each pool had 4 players. I used a custom algo to make sure: a/ each pool has a good team, a bad team, and 2 average teams. b/ not two players from the same owner (address) are in the same pool</p>
+
+<p><strong>EggdraSyl:</strong> Then, how did you decide what is a good or a bad team?</p>
+
+<p>lyomisc: I used a score based on the team characteristic: the sum of the features that play a role in the simulator. The first player of a pool is the strongest one, the last one is the weakest one. But as you can see in the results, there is always some luck factor :-)</p>
+
+<p><strong>EggdraSyl:</strong> I see! Then how will the brackets be organized? Who is qualified once the pools matches are played?</p>
+
+<p>lyomisc: The first 2 players of each pool are qualified.</p>
+
+<p><strong>EggdraSyl:</strong> What metric is used there?</p>
+
+<p>lyomisc: The rank is computed from Points, then Scored goals, then Goal difference, and if still they are even, then DNA - random then.</p>
+
+<p><strong>EggdraSyl:</strong> And the brackets?</p>
+
+<p>lyomisc: There is a special algorithm, that sorts the qualified players depending on their rank, and has the first of the numbers 1 play with the last of the numbers 2, aso. It&#8217;s complicated but stick with what is done in official sports competitions. I try to follow as close as possible what is done in the real world. Then each winner goes to the next step until the final.</p>
+
+<p><strong>EggdraSyl:</strong> You do one match per egg per day. Can&#8217;t you do it faster? Is it computer intensive?</p>
+
+<p>lyomisc: The simulator itself is fast but I have some other things to do, and I prefer to do it like in the real world. So the players need some rest and will not play more than one match a day.</p>
+
+<p><strong>EggdraSyl:</strong> The pools screen only shows the total stats, not the individuals matches. Will we see more for the rest of the cup?</p>
+
+<p>lyomisc: You will see the number of goals of each team, then - if there is a draw - the number of penalties. for instance 3 and 2 (no penalties) or 3.2 and 3.3 (3 goals each, then 2 penalties vs 3)</p>
+
+<p><strong>EggdraSyl:</strong> Great! And can we hope for more insight into the matches, how the simulator works?</p>
+
+<p>lyomisc: Maybe, we will see.</p>
+
+<p><strong>EggdraSyl:</strong> More graphs and stats as the cup goes on?</p>
+
+<p>lyomisc: I will try to update the graphs, yes.</p>
+
+<p><strong>EggdraSyl:</strong> Thanks a bunch!</p>
+
+<p>mikeomike: Good info thnx :-) How does it work if I already had 10/11 eggs registered and im going to buy now a new one that has been qualified?</p>
+
+<p>lyomisc: You&#8217;ll get the egg, and if it wins, you&#8217;ll receive the price</p>
+
+<p><strong>EggdraSyl:</strong> Nice! 7 days left then. Can we see the up to date graphs, now that half of the eggs have been eliminated?</p>
+
+<p>lyomisc: Here is the graph of the qualified eggs.</p>
+
+<p>Thank you to lyomisc for giving us some insights about the Draggon&#8217;s Eggs Soccer Cup.</p>
+
+<p>Link<br />
+http://dragginator.com/cup.php</p>
+
+  </article></main>
+  <footer class='container text-center text-secondary small py-4 border-top border-secondary-subtle'>
+    Bismuth — fair-launched since 1 May 2017 · <a class='link-secondary' href='https://explorer.bismuth.cz/'>Explorer</a> · <a class='link-secondary' href='https://bismuthcoin.org/'>Community</a> · <a class='link-secondary' href='https://github.com/hclivess/Bismuth'>GitHub</a> · <a class='link-secondary' href='/Bismuth_Interview_Catalog.html'>Press</a>
+  </footer>
+</body>
+</html>

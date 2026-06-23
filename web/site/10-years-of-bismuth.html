@@ -3,48 +3,61 @@
 <head>
   <meta charset='utf-8'>
   <meta name='viewport' content='width=device-width, initial-scale=1'>
-  <title>10 Years of Bismuth</title>
+  <title>10 Years of Bismuth — Bismuth</title>
+  <meta name='description' content='A cited 10-year retrospective on Bismuth&#x27;s architectural firsts (2017–2026): modular data/meaning layering, plugins &amp; NFTs, on-chain sensor data before DePIN, and a peer-reviewed PoW difficulty controller.'>
+  <link rel='canonical' href='https://bismuth.cz/10-years-of-bismuth.html'>
+  <meta name='robots' content='index, follow, max-image-preview:large'>
+  <meta name='theme-color' content='#0d1117'>
+  <meta name='author' content='Bismuth Foundation'>
+  <meta property='og:type' content='article'>
+  <meta property='og:site_name' content='Bismuth'>
+  <meta property='og:title' content='10 Years of Bismuth — Bismuth'>
+  <meta property='og:description' content='A cited 10-year retrospective on Bismuth&#x27;s architectural firsts (2017–2026): modular data/meaning layering, plugins &amp; NFTs, on-chain sensor data before DePIN, and a peer-reviewed PoW difficulty controller.'>
+  <meta property='og:url' content='https://bismuth.cz/10-years-of-bismuth.html'>
+  <meta property='og:image' content='https://bismuth.cz/assets/og.png'>
+  <meta property='og:image:width' content='1200'>
+  <meta property='og:image:height' content='630'>
+  <meta name='twitter:card' content='summary_large_image'>
+  <meta name='twitter:title' content='10 Years of Bismuth — Bismuth'>
+  <meta name='twitter:description' content='A cited 10-year retrospective on Bismuth&#x27;s architectural firsts (2017–2026): modular data/meaning layering, plugins &amp; NFTs, on-chain sensor data before DePIN, and a peer-reviewed PoW difficulty controller.'>
+  <meta name='twitter:image' content='https://bismuth.cz/assets/og.png'>
+  <link rel='icon' href='/favicon.svg'>
   <link href='/assets/bootstrap.min.css' rel='stylesheet'>
   <style>
     body { background:#0d1117; }
     .hero { background:linear-gradient(180deg,#16263a 0%, transparent 100%); }
+    a { overflow-wrap:anywhere; }
     article { font-size:1.04rem; line-height:1.7; }
     article h2 { font-size:1.4rem; margin-top:2rem; margin-bottom:.6rem; padding-bottom:.3rem; border-bottom:1px solid #21262d; }
     article h3 { font-size:1.15rem; margin-top:1.4rem; }
-    article p { margin-bottom:1rem; }
-    article a { color:#6cb4ff; word-break:break-word; }
+    article p { margin-bottom:1rem; } article a { color:#6cb4ff; }
     article ul, article ol { margin-bottom:1rem; } article li { margin-bottom:.4rem; }
-    article hr { border-color:#21262d; }
-    article code { color:#7ee787; }
-    article em { color:#c9d1d9; }
-    /* the trailing References list reads as a compact bibliography */
-    article ol:last-of-type { font-size:.9rem; color:#9aa7b5; }
+    article blockquote { border-left:3px solid #30475e; padding-left:1rem; color:#adbac7; }
+    article code { color:#7ee787; } article em { color:#c9d1d9; } article hr { border-color:#21262d; }
+    .dl .btn { margin:.15rem .15rem 0 0; }
+    pre { background:#010409; border:1px solid #21262d; border-radius:.5rem; padding:1rem; color:#c9d1d9; }
+    code.tok { color:#7ee787; }
+    
   </style>
+  <script type='application/ld+json'>{"@context": "https://schema.org", "@type": "Article", "headline": "10 Years of Bismuth", "description": "A cited 10-year retrospective on Bismuth's architectural firsts (2017\u20132026): modular data/meaning layering, plugins & NFTs, on-chain sensor data before DePIN, and a peer-reviewed PoW difficulty controller.", "author": {"@type": "Organization", "name": "Bismuth Foundation"}, "publisher": {"@type": "Organization", "name": "Bismuth Foundation"}, "mainEntityOfPage": "https://bismuth.cz/10-years-of-bismuth.html", "datePublished": "2026-06-01"}</script>
 </head>
 <body>
   <nav class='navbar border-bottom border-secondary-subtle'>
     <div class='container'>
-      <a class='navbar-brand fw-semibold text-decoration-none' href='/'>⛏️ Bismuth</a>
-      <div>
-        <a class='navbar-text text-decoration-none me-3' href='/10-years-of-bismuth.html'>10 Years</a>
-        <a class='navbar-text text-decoration-none me-3' href='/Bismuth_Interview_Catalog.html'>Interviews</a>
+      <a class='navbar-brand fw-semibold text-decoration-none d-inline-flex align-items-center gap-2' href='/'><img src='/favicon.svg' alt='' height='24' width='16'> Bismuth</a>
+      <div class='d-flex flex-wrap align-items-center'>
+        <a class='navbar-text text-decoration-none me-3' href='/'>Home</a>
+        <a class='navbar-text text-decoration-none me-3 fw-semibold text-info' href='/10-years-of-bismuth.html'>The Story</a>
+        <a class='navbar-text text-decoration-none me-3' href='/Bismuth_Interview_Catalog.html'>Press</a>
         <a class='navbar-text text-decoration-none me-3' href='https://explorer.bismuth.cz/'>Explorer</a>
-        <a class='navbar-text text-decoration-none' href='https://github.com/hclivess/Bismuth'>GitHub</a>
+        <a class='navbar-text text-decoration-none me-3' href='/#run'>Run a node</a>
+        <a class='navbar-text text-decoration-none me-3' href='https://bismuthcoin.org/'>Community</a>
+        <a class='navbar-text text-decoration-none me-3' href='https://github.com/hclivess/Bismuth'>GitHub</a>
       </div>
     </div>
   </nav>
-  <header class='hero py-5'>
-    <div class='container py-3'>
-      <h1 class='fw-bold'>10 Years of Bismuth</h1>
-      <p class='lead text-secondary col-lg-9'>Architectural anticipation in a fair-launched blockchain, 2017–2026</p>
-      <p class='text-secondary small mb-3'>Bismuth Foundation — June 2026</p>
-      <a href='/10-years-of-bismuth.pdf' class='btn btn-info btn-sm'>⬇&nbsp; PDF</a>
-      <a href='/10-years-of-bismuth.md' class='btn btn-outline-secondary btn-sm ms-1'>Markdown</a>
-      <a href='/10-years-of-bismuth.bbcode.txt' class='btn btn-outline-secondary btn-sm ms-1'>BitcoinTalk</a>
-    </div>
-  </header>
-  <main class='container pb-5'>
-    <article class='col-lg-9'>
+  <header class='hero py-5'><div class='container py-3'><h1 class='fw-bold'>10 Years of Bismuth</h1><p class='lead text-secondary col-lg-9'>Architectural anticipation in a fair-launched blockchain, 2017–2026</p><p class='text-secondary small mb-3'>Bismuth Foundation — June 2026</p><div class='dl d-flex flex-wrap'><a href='/10-years-of-bismuth.pdf' class='btn btn-sm btn-info'>⬇ PDF</a><a href='/10-years-of-bismuth.md' class='btn btn-sm btn-outline-secondary'>Markdown</a><a href='/10-years-of-bismuth.bbcode.txt' class='btn btn-sm btn-outline-secondary'>BitcoinTalk</a></div></div></header>
+  <main class='container pb-5'><article class='col-lg-9'>
 <h2>Abstract</h2>
 
 <p>Bismuth is a from-scratch, fair-launched blockchain whose mainnet began on 1 May 2017 with no initial coin offering and no premine [1, 2]. Across its first decade the project repeatedly shipped designs that the wider industry arrived at independently, and named, years later — and it did so with unusual rigour: its difficulty controller and block-validation changes were analysed in the peer-reviewed control-systems literature as early as 2017 [3, 4, 5]. This article surveys Bismuth&#8217;s public record — its whitepaper, its peer-reviewed papers, its development blog (2018–2026), and a documented corpus of application protocols [6] — and maps each early design decision to the mainstream pattern it anticipated, with dates. The cases examined include: the separation of consensus over <em>data</em> from consensus over <em>meaning</em> (later: modular blockchains and data-availability layers; Bitcoin inscriptions and off-chain indexers); a plugin &#8220;building-blocks&#8221; architecture and a documented ecosystem of on-chain protocols (tokens, aliases, decentralized social, naming/DNS, event sourcing, state channels, NFTs); confidential assets (2019); on-chain governance (2019); the recording of real-world sensor data on-chain in 2020, two years before &#8220;DePIN&#8221; was coined; and cross-chain bridges (2021). We argue that Bismuth functioned, largely unheralded, as a long-running and academically grounded testbed for ideas that later defined market cycles, and we identify the single recurring caveat its own architecture exposes: where interpretation carries value, the semantic layer must re-converge on one canonical engine.</p>
@@ -181,10 +194,9 @@
 
 <p><em>Dates verified against the cited sources. Primary sources are Bismuth&#8217;s whitepaper, peer-reviewed papers (Modeling, Identification and Control), dated blog entries, and the Hack-with-BIS protocol corpus; secondary sources mark each idea&#8217;s entry into mainstream practice or its academic treatment.</em></p>
 
-    </article>
-  </main>
+  </article></main>
   <footer class='container text-center text-secondary small py-4 border-top border-secondary-subtle'>
-    Served from bismuth.cz · <a class='link-secondary' href='https://github.com/hclivess/Bismuth'>github.com/hclivess/Bismuth</a>
+    Bismuth — fair-launched since 1 May 2017 · <a class='link-secondary' href='https://explorer.bismuth.cz/'>Explorer</a> · <a class='link-secondary' href='https://bismuthcoin.org/'>Community</a> · <a class='link-secondary' href='https://github.com/hclivess/Bismuth'>GitHub</a> · <a class='link-secondary' href='/Bismuth_Interview_Catalog.html'>Press</a>
   </footer>
 </body>
 </html>
