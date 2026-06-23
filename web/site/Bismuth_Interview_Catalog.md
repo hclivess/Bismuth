@@ -18,8 +18,9 @@ Source-type key: PRIMARY = subject speaking about itself (interviews, the founda
 | Bismuth Developer Interview — HCLivess (The First Python Crypto Currency) | [aetsen — Steemit](https://steemit.com/cryptocurrency/@aetsen/bismuth-developer-interview-hclivess) | 7 Mar 2018 | PRIMARY / SPS | Technical Q&A: mempool design, throughput, sidechains, dev background. |
 | Bismuth — the First Python Blockchain (An Interview with Jan) | [cblackbeard — Medium](https://medium.com/@cblackbeard/bismuth-the-first-python-blockchain-6e2fb0b53a4f) | 16 Jan 2019 | PRIMARY / SPS | Team, why-Python, use cases, fund/treasury disclosure. |
 | teamtalks #32 — bismuth | [Jens Ibsen (flashygordy) — Medium](https://medium.com/@flashygordy/teamtalks-32-bismuth-82d56f9b37c) | Aug 2019 | PRIMARY / SPS | Long Q&A on emission schedule, hypernodes, supply, philosophy. |
-| Bismuth Core Developer Interview | Bismuth Foundation / community | 7 Mar 2018 | PRIMARY | On external indexing for open-field data, token/alias handling. |
-| Dragginator.com NFT Interview | EggdraSyl | 11 Jul 2018 | PRIMARY | Interview with the dev of Dragginator, an NFT-style game on Bismuth (early non-ETH NFT). |
+| Bismuth Core Developer Interview | [aetsen — PeakD (backup: Steemit)](https://peakd.com/@aetsen/bismuth-developer-interview-hclivess) | 7 Mar 2018 | PRIMARY / SPS | On external indexing for open-field data, token/alias handling. (Same interview as the aetsen Steemit post.) |
+| The Bismuth Plugin System | [bitsignal — Steemit / PeakD](https://steemit.com/cryptocurrency/@bitsignal/the-bismuth-plugin-system) | 16 Jul 2018 | PRIMARY / SPS | Dev-oriented talk on Bismuth's plugin (Crystal) system and its applications. |
+| Dragginator.com NFT Interview | [bitsignal (EggdraSyl) — Steemit / PeakD](https://steemit.com/cryptocurrency/@bitsignal/developer-interview-draggon-s-eggs-soccer-cup) | 11 Jul 2018 | PRIMARY / SPS | Interview with the dev of Dragginator, an NFT-style game on Bismuth (early non-ETH NFT). |
 
 ## 2. BisBabble — the community interview series
 
@@ -27,9 +28,9 @@ Source-type key: PRIMARY = subject speaking about itself (interviews, the founda
 
 | Title | By / Where | Date | Type | What it is |
 |---|---|---|---|---|
-| BisBabble — Aravind | [bismuthcoin.org/blog](https://bismuthcoin.org/blog/2019-12-18-interview) | 18 Dec 2019 | PRIMARY | Issue 1. New contributor — background and dev work. |
-| BisBabble — Endogen (Telegram bot ‘Bauer’) | [hypernodes.bismuth.live / bismuthcoin.org](https://bismuthcoin.org/blog/2020-01-18-interview) | 18 Jan 2020 | PRIMARY | Issue 2. German engineer behind the Bauer Telegram bot. |
-| BisBabble — ShadowCrypto (Pawer bot) | [bismuthcoin.org/blog](https://bismuthcoin.org/blog/2020-02-07-interview) | 7 Feb 2020 | PRIMARY | Contributor to the Pawer Discord bot. |
+| BisBabble — Aravind | [bismuthcoin.org / hypernodes.bismuth.live](https://bismuthcoin.org/blog/2019-12-18-interview) | 18 Dec 2019 | PRIMARY | Issue 1. New contributor — background and dev work. |
+| BisBabble — Endogen (Telegram bot ‘Bauer’) | [hypernodes.bismuth.live](https://hypernodes.bismuth.live/?p=1086) | 18 Jan 2020 | PRIMARY | Issue 2. German engineer behind the Bauer Telegram bot. |
+| BisBabble — ShadowCrypto (Pawer bot) | [hypernodes.bismuth.live](https://hypernodes.bismuth.live/?p=1110) | 7 Feb 2020 | PRIMARY | Contributor to the Pawer Discord bot. |
 | BisBabble — Nyzblossom (wBismuth dev) | [bismuthcoin.org/blog](https://bismuthcoin.org/blog/2020-11-04-interview) | 4 Nov 2020 | PRIMARY | Q&A with the wBismuth wallet developer. |
 
 ## 3. Profiles, reviews & spotlights
@@ -41,8 +42,8 @@ Source-type key: PRIMARY = subject speaking about itself (interviews, the founda
 | Bismuth [$BIS] — Valuable project. Hidden gem. | [Joseph L. / bitcointrading — Medium](https://medium.com/@bitcointrading/bismuth-bis-cryptocurrency-valuable-project-hidden-gem-576c90152cb0) | May 2018 | SPS | Investor-oriented profile; quotes the cryptointerview. |
 | Bismuth — Project Review | [Thant11 — Medium](https://medium.com/@thant11/bismuth-project-review-fdaa4976bd33) | 2018 | SPS | Independent-ish community review of the platform. |
 | 3 Promising Altcoins to Invest in for 2018 (A Thoreau Analysis) | [altcointhoreau — Medium](https://medium.com/@altcointhoreau/3-promising-altcoins-to-invest-in-for-2018-a-thoreau-analysis-f6cc95cd83) | 2018 | SPS | Bismuth featured as one of three picks. |
-| Coin Report — Bismuth | community / crypto blog | 7 Dec 2018 | SPS | Structured ‘coin report’ on the first Python blockchain. |
-| Bismuth: A Dapp Building Platform that doesn’t Bite | Medium | 12 Apr 2020 | SPS | On Python dApp accessibility. |
+| Bismuth: A Dapp Building Platform that doesn’t Bite | [CryptoShib](https://cryptoshib.com/bismuth-dapp-building-platform/) | 12 Apr 2020 | SPS | On Python dApp accessibility. |
+| Coin Report — Bismuth | [Altcoin Trader’s Handbook](https://altcointradershandbook.com/coin-report-bismuth/) | 7 Dec 2018 | SPS | Structured ‘coin report’ on the first Python blockchain. |
 | Bismuth (BIS) — A Sleeping Legend that Should be Remembered | [publish0x — crypto-bits](https://publish0x.com/crypto-bits/bismuthbis-a-sleeping-legend-that-should-be-remembered-xxvlvol) | 5 Mar 2024 | SPS | Retrospective appreciation piece, ~7 years in. |
 
 ## 4. Academic & patent record (not interviews — included for the press kit)
