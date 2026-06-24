@@ -274,9 +274,24 @@ def test_rest_port_resolution_failure_is_not_cached(monkeypatch):
     node = _Node()
     cache = {}
     assert chain_ops._resolve_rest_port(node, "1.2.3.4", 5555, cache) is None
+    n_after_first = calls["n"]
     assert chain_ops._resolve_rest_port(node, "1.2.3.4", 5555, cache) is None
-    assert "1.2.3.4" not in cache          # failure NOT memoized
-    assert calls["n"] == 2                  # retried instead of returning a stale cached None
+    assert "1.2.3.4" not in cache              # failure NOT memoized
+    assert calls["n"] > n_after_first           # retried (did not return a stale cached None)
+
+
+def test_rest_port_resolved_via_socket_plus_one_convention(monkeypatch):
+    # [soak finding] connection_pool holds SOCKET addrs; the resolver must reach /api/capabilities on the REST
+    # port. Standard deployment is REST = socket+1 (mainnet 5658->5659). Only sock+1 answers here; the body's
+    # rest_port is authoritative and gets cached. (Probing only the socket port — the old behavior — would
+    # have resolved nothing and the detector would perpetually ABSTAIN on a real network.)
+    import rest_client
+    monkeypatch.setattr(rest_client, "get_capabilities",
+                        lambda h, p: {"rest_api": True, "rest_port": 5659} if p == 5659 else None)
+    node = _Node()
+    cache = {}
+    assert chain_ops._resolve_rest_port(node, "1.2.3.4", 5658, cache) == 5659
+    assert cache["1.2.3.4"] == 5659             # successful resolution memoized
 
 
 def test_target_clamped_to_checkpoint_floor(tmp_path):

@@ -73,8 +73,13 @@ def difficulty(node, db_handler):
         time_to_generate = timestamp_last - timestamp_before_last
 
         if node.is_regnet:
-            return (float('%.10f' % regnet.REGNET_DIFF), float('%.10f' % (regnet.REGNET_DIFF - 8)), float(time_to_generate),
-                    float(regnet.REGNET_DIFF), float(block_time), float(0), float(0), block_height)
+            # TEST-ONLY divergence injection for the #23 regnet soak (doc/35): BISMUTH_TEST_DIFF_OFFSET shifts
+            # THIS node's reported regnet difficulty so a soak can make one node genuinely diverge from its
+            # peers. Inert in prod — mainnet never takes the is_regnet branch — and 0 unless the env var is set.
+            import os as _os
+            _rd = float(regnet.REGNET_DIFF) + float(_os.environ.get("BISMUTH_TEST_DIFF_OFFSET", "0") or "0")
+            return (float('%.10f' % _rd), float('%.10f' % (_rd - 8)), float(time_to_generate),
+                    float(_rd), float(block_time), float(0), float(0), block_height)
 
         hashrate = pow(2, diff_block_previous / Decimal(2.0)) / (
                 block_time * math.ceil(28 - diff_block_previous / Decimal(16.0)))

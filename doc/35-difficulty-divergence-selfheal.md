@@ -71,6 +71,20 @@ human); restart-loop (cooldown+max-heals+bounded-depth); reconcile/hyper wedge (
 restarts — the proven startup sequence does the truncation, never an in-place deep rollback from the thread);
 REST-port mismatch (capabilities discovery); prod I/O (no ledger scan); HF2/LWMA transition (skip window).
 
+## Regnet soak (validated — `tools/diff_selfheal_soak.py`)
+A 3-node regnet cluster brought to a common tip via `api_sync` (A mines; B,C catch up over REST), then the
+real `detect_difficulty_divergence` is driven against the live 3-peer quorum across phases. Result (PASS):
+**HEALTHY** 50 cycles, real ≥3 quorum, **0 false positives**, 0 exceptions; **INJECT_LOCAL** divergence
+detected every cycle; **LYING_PEER** a single peer reporting a wrong difficulty (via the prod-inert
+`BISMUTH_TEST_DIFF_OFFSET` regnet hook) does **not** flag us — robust.
+
+**Soak finding (fixed):** `connection_pool` holds SOCKET addresses, and `/api/capabilities` isn't served on
+the socket port — so probing only the socket port resolved **zero** peers and the detector would have
+**perpetually abstained on a real network** (the unit/two-node tests masked this by feeding REST ports
+directly). `_resolve_rest_port` now probes the standard convention **REST = socket+1** (mainnet 5658→5659),
+then the socket port, then our own REST port, and trusts the authoritative `rest_port` from the capabilities
+body. Covered by `test_rest_port_resolved_via_socket_plus_one_convention`.
+
 ## Test plan (regnet only — never prod ledger / 5658-5659 / systemd)
 Two-node regnet harness (model `tests/test_two_node_api_sync.py`). Regnet `difficulty()` is the constant
 `REGNET_DIFF`, so **inject** the corruption (set node B's `node.difficulty` + its `misc` tip row wrong).

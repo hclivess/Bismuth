@@ -49,3 +49,7 @@ ledger_queries.py
 _start_mainnet.sh
 _restart.pid
 config.txt
+
+# regnet diff-selfheal soak run artifacts (regenerate via tools/diff_selfheal_soak.py)
+tools/diff_selfheal_soak_report.json
+tools/diff_selfheal_soak.out

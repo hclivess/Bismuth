@@ -897,26 +897,32 @@ def _diff_effective_threshold(local, base_threshold):
 
 
 def _resolve_rest_port(node, host, sock_port, cache):
-    """Resolve a socket peer's REST port via /api/capabilities (cached ip->rest_port). The socket port
-    is NOT the REST port (peershandler.connection_pool holds socket ip:port). Returns the int REST port
-    or None (peer not REST-capable => "if the API is inaccessible it doesn't exist"). Best-effort: tries
-    the advertised socket port first as a candidate base only as a fallback probe is intentionally avoided
-    — capabilities discovery on the socket port itself is the canonical path, and many deployments co-host
-    REST on a deterministic port the peer advertises."""
+    """Resolve a socket peer's REST port via /api/capabilities (cached ip->rest_port). connection_pool holds
+    SOCKET ip:port, and the socket port does NOT speak HTTP — so to REACH /api/capabilities we must probe the
+    peer's REST port, which we don't yet know. Probe a small candidate set derived from the standard Bismuth
+    deployment convention REST = socket+1 (e.g. mainnet 5658->5659; the regnet harness 4060->4061), then the
+    socket port itself (co-hosted REST), then our OWN rest port (homogeneous clusters). The FIRST candidate
+    that answers yields the AUTHORITATIVE rest_port from its body (used even if it differs from the candidate
+    we reached it on). Returns the int REST port, or None if no candidate is REST-capable ("if the API is
+    inaccessible it doesn't exist"). Only SUCCESSFUL resolutions are cached [review #2] — a failure is a cache
+    miss that retries. (The socket handshake does NOT advertise the REST port — left untouched per the
+    legacy-networking-being-replaced direction — hence this convention probe. Found by the doc/35 regnet soak:
+    probing only the socket port resolved zero peers, so the detector would perpetually abstain on a real net.)"""
     import rest_client
     if host in cache:
         return cache[host]
     rest_port = None
-    # The peer advertises its real REST port in /api/capabilities. We must reach that endpoint to learn
-    # it; probe the same port the socket is on (common single-port-offset deployments advertise correctly
-    # regardless of which port we hit, since the body carries rest_port). Tests inject the right port.
-    for candidate in (sock_port,):
+    candidates = []
+    for c in (sock_port + 1, sock_port, getattr(node, "rest_api_port", None)):
+        if c and int(c) not in candidates:
+            candidates.append(int(c))
+    for candidate in candidates:
         try:
             caps = rest_client.get_capabilities(host, candidate)
         except Exception:
             caps = None
         if caps and caps.get("rest_api") and caps.get("rest_port"):
-            rest_port = int(caps["rest_port"])
+            rest_port = int(caps["rest_port"])   # authoritative, from the body
             break
     # Only memoize a SUCCESSFUL resolution. A transient /api/capabilities failure (peer restart, brief network
     # blip) must be a cache MISS that retries next cycle — never a permanent "non-REST" verdict that erodes the
