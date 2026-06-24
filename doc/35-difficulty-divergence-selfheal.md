@@ -30,17 +30,20 @@ A `_difficulty_divergence_loop()` daemon thread in `node.py` (modeled on `_autoh
 Core logic factored as `chain_ops.detect_difficulty_divergence(node, db, peers, threshold) -> (diverged,
 local, median, sample_count)` (unit-testable, beside `autoheal_live`).
 
-## Action posture — SAFE BY DEFAULT
-Three independent config flags; the prod-safe default is **detect + log only**:
+## Action posture
+Three independent config flags:
 - `diff_divergence_detect` (default **True**): run the detector; on confirmed divergence emit a LOUD warning
-  (local vs median vs sample_count) + a plugin alert hook. **No other action.** Cheap (a 5-min HTTP poll).
+  (local vs median vs sample_count) + a plugin alert hook. Cheap (a 5-min HTTP poll).
 - `diff_divergence_pause_mining` (default **False**, opt-in): on confirmed divergence set `node.mining_paused`
   (checked in `miner.py`/`mining.py` before using `difficulty()`), since a wrong local difficulty in *either*
   direction makes our mined blocks orphan-bound. Auto-clears on the next CLEAN reading (itself debounced).
-- `diff_divergence_autoheal` (default **False**, opt-in — enable only after regnet/testnet soak): perform the
-  guarded heal below.
+- `diff_divergence_autoheal` (default **True**, operator-enabled): perform the guarded heal below. Originally
+  shipped opt-in pending a soak; the regnet soak validated detection (0 false positives, real quorum) and
+  surfaced + fixed the REST-port resolution gap, after which autoheal was enabled by default. Its loop guards
+  (PERMANENT lifetime cap → advisory-only; cooldown; bounded depth; `rollback_allowed` anti-sybil) make it
+  self-limiting; a persistent/false trigger can cost at most two resyncs before it falls to advisory-only.
 
-## Guarded self-heal (opt-in)
+## Guarded self-heal
 Reuse the proven one-shot `rollback_to` trigger (`node.py:1512-1519`, runs at the one safe startup point that
 already rebuilds derived state), **not** an in-place deep rollback:
 1. target = `max(last_block − rollback_depth(30), checkpoint)`, clamped to never go below `node.checkpoint` /

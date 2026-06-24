@@ -124,13 +124,16 @@ class Get:
         "api_sync_source": "",    # the REST peer to fast-sync from, "host:rest_port" (used when api_sync=True)
         "autoheal": True,         # live self-heal of tip sequence/dupe corruption WITHOUT a restart (chain_ops.autoheal_live); ON by default
         "autoheal_interval": 300, # seconds between live autoheal checks (cheap recent-tail scan; repairs only on a real break)
-        # doc/35 peer-difficulty divergence detector + guarded self-heal (#23). SAFE BY DEFAULT: the prod node
-        # picks this up on its next restart and must take NO action — detect + LOUD log only. Pause/heal are
-        # OPT-IN (enable only after regnet/testnet soak). The detector reads cached node.difficulty + polls
-        # peers over HTTP every interval — it NEVER scans the ledger (cf. no-heavy-scans-on-prod-ledger).
-        "diff_divergence_detect": True,         # run the detector + loud-log + plugin alert on confirmed divergence; NO other action
+        # doc/35 peer-difficulty divergence detector + guarded self-heal (#23). The detector AND the guarded
+        # AUTOHEAL are ENABLED (operator decision); pause_mining stays opt-in. On a CONFIRMED peer divergence
+        # (>=3-peer quorum, 75% supermajority, 3-cycle debounce) the node writes the one-shot rollback_to
+        # trigger + restarts to roll back below the corruption and resync, so difficulty re-derives from a
+        # clean base. Restart-loops are impossible: a per-ledger PERMANENT lifetime cap (2 heals) -> advisory-
+        # only forever, plus a 1h cooldown + bounded depth + rollback_allowed anti-sybil gate. The detector
+        # reads cached node.difficulty + polls peers over HTTP — it NEVER scans the ledger.
+        "diff_divergence_detect": True,         # run the detector + loud-log + plugin alert on confirmed divergence
         "diff_divergence_pause_mining": False,  # OPT-IN: set node.mining_paused on confirmed divergence (auto-clears on CLEAN)
-        "diff_divergence_autoheal": False,      # OPT-IN: guarded rollback_to + restart heal (cooldown/max-heals/bounded-depth)
+        "diff_divergence_autoheal": True,       # ENABLED: guarded rollback_to + restart heal (cooldown/lifetime-cap/bounded-depth)
         "diff_divergence_interval": 300,        # seconds between divergence poll cycles
         "assume_valid_height": 4000000,     # doc/30 from-genesis sync: trust horizon. At/below it skip per-item validation (sig/timestamp/pow/dup/overspend), ANCHORED by the hardcoded block-hash checkpoints (mismatch halts). Inert for a synced node (never re-digests historical heights) and for networks without checkpoints (regnet/testnet). 0 = off = full validation everywhere.
         "validation_exceptions_file": "",   # doc/30: optional JSON of historical validation waivers (coin rescues / fork-edge edits), merged over the in-source MAINNET_EXCEPTIONS; empty = built-in registry only
