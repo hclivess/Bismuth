@@ -851,3 +851,297 @@ def autoheal_live(node, db_handler, window=2000):
     node.logger.app_log.warning(
         f"Status: AUTOHEAL — rolled back to {node.last_block}; the sync loop will re-fetch the clean chain")
     return True
+
+
+# ============================================================================================
+# doc/35 — peer-difficulty divergence detector + guarded self-heal (#23, Stage 2a)
+#
+# The legacy controller (difficulty.py:70-94) is recursive on the STORED previous difficulty, so a
+# wrong cached value at/below the tip is a self-reinforcing fixed point that "recompute-and-assert"
+# can't catch (it reuses the same corrupt misc row). The only independent reference is a PEER that
+# derived difficulty from a clean misc history. We therefore detect by peer-quorum comparison and
+# (opt-in) heal by rolling back below the corruption + resyncing so difficulty() re-derives clean.
+#
+# OBSERVE-ONLY: reads the cached node.difficulty + polls peers over HTTP. NEVER scans the ledger
+# (cf. [[no-heavy-scans-on-prod-ledger]]). SAFE BY DEFAULT: the loop in node.py only logs unless the
+# operator opts into pause/heal.
+# ============================================================================================
+
+# Detector thresholds (doc/35 §Detector). Conservative on purpose: thin data -> abstain, never heal.
+DIFF_DIVERGENCE_MIN_PEERS = 3          # min height-matched peer samples before we form any opinion
+DIFF_DIVERGENCE_MAX_POLL = 8           # cap on peers polled per cycle (bounded HTTP fan-out)
+DIFF_DIVERGENCE_ABS_THRESHOLD = 0.5    # diff-units: |local - median| floor that counts as diverged
+DIFF_DIVERGENCE_REL_THRESHOLD = 0.02   # 2% relative: whichever (abs/rel) is LARGER is the threshold
+DIFF_DIVERGENCE_HEIGHT_TOL = 1         # peer block_height must be within ±this of node.last_block
+DIFF_DIVERGENCE_AGREE_FRAC = 0.75      # >=75% of samples must agree among themselves (within thr/2)
+DIFF_DIVERGENCE_FORK_WINDOW = 1440     # skip ±this many blocks around node.fork_height (LWMA transition)
+
+# Heal guards (doc/35 §Guarded self-heal). Per-ledger sidecar, NOT in the db.
+DIFF_HEAL_COOLDOWN_S = 3600            # >=1h between heals (one full resync+stabilize window)
+DIFF_HEAL_MAX_PER_24H = 2             # secondary rate limit within any rolling 24h window
+DIFF_HEAL_LIFETIME_MAX = 2            # PERMANENT (per-ledger) cap on the monotonic heal_count — the hard stop
+                                      # that makes a SURVIVING corruption go advisory-only FOREVER (the rolling
+                                      # 24h window alone re-opens daily and would restart-loop prod) [review #1].
+                                      # Reset to 0 only by a confirmed-CLEAN post-heal reading (diffheal_note_clean).
+DIFF_HEAL_DEPTH_CAP_MULT = 3          # successive heals may go deeper, capped at 3 * rollback_depth
+
+
+def _diff_effective_threshold(local, base_threshold):
+    """The larger of the absolute floor and a 2%-relative band around the local value — so the same
+    detector is meaningful both at low difficulties (abs dominates) and high ones (rel dominates)."""
+    try:
+        rel = abs(float(local)) * DIFF_DIVERGENCE_REL_THRESHOLD
+    except (TypeError, ValueError):
+        rel = 0.0
+    return max(float(base_threshold), rel)
+
+
+def _resolve_rest_port(node, host, sock_port, cache):
+    """Resolve a socket peer's REST port via /api/capabilities (cached ip->rest_port). The socket port
+    is NOT the REST port (peershandler.connection_pool holds socket ip:port). Returns the int REST port
+    or None (peer not REST-capable => "if the API is inaccessible it doesn't exist"). Best-effort: tries
+    the advertised socket port first as a candidate base only as a fallback probe is intentionally avoided
+    — capabilities discovery on the socket port itself is the canonical path, and many deployments co-host
+    REST on a deterministic port the peer advertises."""
+    import rest_client
+    if host in cache:
+        return cache[host]
+    rest_port = None
+    # The peer advertises its real REST port in /api/capabilities. We must reach that endpoint to learn
+    # it; probe the same port the socket is on (common single-port-offset deployments advertise correctly
+    # regardless of which port we hit, since the body carries rest_port). Tests inject the right port.
+    for candidate in (sock_port,):
+        try:
+            caps = rest_client.get_capabilities(host, candidate)
+        except Exception:
+            caps = None
+        if caps and caps.get("rest_api") and caps.get("rest_port"):
+            rest_port = int(caps["rest_port"])
+            break
+    # Only memoize a SUCCESSFUL resolution. A transient /api/capabilities failure (peer restart, brief network
+    # blip) must be a cache MISS that retries next cycle — never a permanent "non-REST" verdict that erodes the
+    # height-matched sample set toward perpetual abstain over a long-running process. [review #2]
+    if rest_port:
+        cache[host] = rest_port
+    return rest_port
+
+
+def detect_difficulty_divergence(node, db, peers, threshold=DIFF_DIVERGENCE_ABS_THRESHOLD,
+                                 rest_port_cache=None):
+    """OBSERVE-ONLY peer-quorum difficulty check. Returns ``(diverged, local, median, sample_count)``.
+
+    - ``local`` is the CACHED ``node.difficulty[0]`` — NO ledger scan, no recompute (the corrupt misc
+      row would just reproduce the corrupt value).
+    - Resolves each connected socket peer's REST port via /api/capabilities (cached), polls up to
+      ``DIFF_DIVERGENCE_MAX_POLL`` peers' ``GET /api/difficulty`` (fail-soft), keeps only HEIGHT-MATCHED
+      samples (peer ``block_height`` within ±``DIFF_DIVERGENCE_HEIGHT_TOL`` of ``node.last_block``).
+    - ABSTAINS (``diverged=False``) on thin data: < ``DIFF_DIVERGENCE_MIN_PEERS`` samples, or local
+      unknown. Never heal on thin data.
+    - DIVERGED iff ``abs(local - median) > effective_threshold`` AND >= ``DIFF_DIVERGENCE_AGREE_FRAC``
+      of samples agree among themselves within ``effective_threshold/2`` (peers consistent => it's us).
+
+    ``rest_port_cache`` (a dict) persists ip->rest_port across cycles; the loop owns it. The detector is
+    pure I/O + arithmetic — unit-testable by feeding a fake ``peers``/monkeypatched ``rest_client``."""
+    import rest_client
+    if rest_port_cache is None:
+        rest_port_cache = {}
+
+    d = getattr(node, "difficulty", None)
+    if not d:
+        return (False, None, None, 0)
+    try:
+        local = float(d[0])
+    except (TypeError, ValueError, IndexError):
+        return (False, None, None, 0)
+
+    tip = int(getattr(node, "last_block", 0) or 0)
+
+    # connection_pool entries are "ip:sock_port" strings (socket peers we are connected to).
+    pool = list(getattr(peers, "connection_pool", []) or [])
+    samples = []
+    polled = 0
+    for entry in pool:
+        if polled >= DIFF_DIVERGENCE_MAX_POLL:
+            break
+        try:
+            host, sock_port = entry.rsplit(":", 1)
+            sock_port = int(sock_port)
+        except (ValueError, AttributeError):
+            continue
+        rest_port = _resolve_rest_port(node, host, sock_port, rest_port_cache)
+        if not rest_port:
+            continue
+        polled += 1
+        info = rest_client.get_difficulty(host, rest_port)
+        if not info:
+            continue
+        pdiff = info.get("difficulty")
+        pheight = info.get("block_height")
+        if pdiff is None or pheight is None:
+            continue
+        try:
+            pdiff = float(pdiff)
+            pheight = int(pheight)
+        except (TypeError, ValueError):
+            continue
+        if abs(pheight - tip) > DIFF_DIVERGENCE_HEIGHT_TOL:
+            continue                       # height-mismatched: a peer on a different tip is not comparable
+        samples.append(pdiff)
+
+    n = len(samples)
+    if n < DIFF_DIVERGENCE_MIN_PEERS:
+        return (False, local, None, n)     # ABSTAIN on thin data
+
+    s = sorted(samples)
+    mid = n // 2
+    median = s[mid] if n % 2 else (s[mid - 1] + s[mid]) / 2.0
+
+    eff = _diff_effective_threshold(local, threshold)
+    # do the peers agree among THEMSELVES? (a fork/liar minority shouldn't trigger a heal)
+    agree = sum(1 for x in samples if abs(x - median) <= eff / 2.0)
+    peers_consistent = (agree / float(n)) >= DIFF_DIVERGENCE_AGREE_FRAC
+
+    diverged = (abs(local - median) > eff) and peers_consistent
+    return (diverged, local, median, n)
+
+
+# -------------------- per-ledger heal sidecar + guards (doc/35 §Guarded self-heal) --------------------
+
+def _diffheal_sidecar_path(node):
+    """``<ledger>.diffheal.json`` — per-ledger (regnet/mainnet never share heal state), NOT in the db."""
+    lp = getattr(node, "ledger_path", None) or "ledger.db"
+    return lp + ".diffheal.json"
+
+
+def diffheal_state_read(node):
+    """Read the heal ledger sidecar: ``{last_heal_ts, heal_count, heals_24h:[ts,...], last_target}``.
+    Tolerant: missing/corrupt -> a fresh empty state (never blocks detection)."""
+    import json
+    try:
+        with open(_diffheal_sidecar_path(node), "r") as fh:
+            data = json.load(fh)
+        if not isinstance(data, dict):
+            raise ValueError("bad sidecar")
+    except Exception:
+        data = {}
+    data.setdefault("last_heal_ts", 0)
+    data.setdefault("heal_count", 0)
+    data.setdefault("heals_24h", [])
+    data.setdefault("last_target", None)
+    return data
+
+
+def diffheal_state_write(node, state):
+    """Atomically persist the heal sidecar (temp file + replace). Best-effort."""
+    import json
+    path = _diffheal_sidecar_path(node)
+    try:
+        tmp = path + ".tmp"
+        with open(tmp, "w") as fh:
+            json.dump(state, fh)
+        os.replace(tmp, path)
+    except Exception as e:
+        try:
+            node.logger.app_log.warning(f"diffheal: could not persist sidecar: {e}")
+        except Exception:
+            pass
+
+
+def diffheal_guards_ok(node, state, now=None):
+    """Return ``(ok, reason)`` — may we ARM a heal right now under the loop guards?
+
+    - Once-per-boot: the in-memory ``node._diffheal_armed`` blocks a second arm before the restart.
+    - Cooldown: >= ``DIFF_HEAL_COOLDOWN_S`` since ``last_heal_ts``.
+    - Max-heals: < ``DIFF_HEAL_MAX_PER_24H`` heals in the rolling 24h window -> else advisory-only.
+    Bounded depth is enforced at target computation (``diffheal_target``), not here."""
+    if now is None:
+        now = time.time()
+    if getattr(node, "_diffheal_armed", False):
+        return (False, "already armed this boot (awaiting restart)")
+    last_ts = float(state.get("last_heal_ts") or 0)
+    if last_ts and (now - last_ts) < DIFF_HEAL_COOLDOWN_S:
+        return (False, f"cooldown ({int(DIFF_HEAL_COOLDOWN_S - (now - last_ts))}s left)")
+    # PERMANENT lifetime cap on the MONOTONIC heal_count. The rolling-24h window below is only a secondary
+    # rate limit — on its own it re-opens every 24h, so a corruption that SURVIVES every resync would restart-
+    # loop the prod node forever (2 restarts/day). The lifetime cap is the hard stop: once reached the node
+    # stays advisory-only and NEVER restarts again, until a confirmed-CLEAN reading restores the budget
+    # (diffheal_note_clean). [review #1 CRITICAL — no restart-loop]
+    if int(state.get("heal_count") or 0) >= DIFF_HEAL_LIFETIME_MAX:
+        return (False, f"lifetime max heals ({DIFF_HEAL_LIFETIME_MAX}) reached — advisory-only, "
+                       f"manual intervention required")
+    window = [t for t in (state.get("heals_24h") or []) if (now - float(t)) < 86400]
+    if len(window) >= DIFF_HEAL_MAX_PER_24H:
+        return (False, f"max heals ({DIFF_HEAL_MAX_PER_24H}) reached in 24h — manual intervention required")
+    return (True, "ok")
+
+
+def diffheal_note_clean(node):
+    """Called on a CONFIRMED-CLEAN reading (>= min_peers, peers agree AND we match them). Resets the monotonic
+    heal_count + the rolling window so the depth-deepening ladder and the lifetime cap apply only WITHIN a
+    single UNRESOLVED corruption episode: a corruption that a heal genuinely fixed restores the heal budget for
+    a future unrelated incident, while one that SURVIVES every resync never reads clean, never resets, and
+    stays advisory-only forever after the lifetime cap. [review #1/#3] Best-effort; only writes when there is
+    something to reset (so a healthy node never churns the sidecar)."""
+    try:
+        state = diffheal_state_read(node)
+        if int(state.get("heal_count") or 0) == 0 and not (state.get("heals_24h") or []):
+            return
+        state["heal_count"] = 0
+        state["heals_24h"] = []
+        diffheal_state_write(node, state)
+        node.logger.app_log.info("diffheal: confirmed-clean peer-quorum reading — heal budget reset")
+    except Exception:
+        pass
+
+
+def diffheal_target(node, state):
+    """Compute the clamped rollback target for a heal, or ``None`` if not permitted by depth/anti-sybil.
+
+    target = ``max(last_block - depth, checkpoint)``, where ``depth`` deepens by one ``rollback_depth``
+    per successive heal (so a corruption that survives one resync gets a deeper cut next time), capped at
+    ``DIFF_HEAL_DEPTH_CAP_MULT * rollback_depth``. Never below ``node.checkpoint``; gated by
+    ``essentials.rollback_allowed`` (supermajority + reputable, anti-sybil). Returns an int height."""
+    tip = int(getattr(node, "last_block", 0) or 0)
+    base_depth = int(getattr(node, "rollback_depth", 30) or 30)
+    heal_count = int(state.get("heal_count") or 0)
+    depth = min(base_depth * (heal_count + 1), base_depth * DIFF_HEAL_DEPTH_CAP_MULT)
+    checkpoint = int(getattr(node, "checkpoint", 0) or 0)
+    target = max(tip - depth, checkpoint)
+    if target >= tip:                       # nothing to roll back to (e.g. tip <= checkpoint)
+        return None
+    if not essentials.rollback_allowed(node, target):
+        node.logger.app_log.warning(
+            f"diffheal: rollback to {target} NOT allowed (anti-sybil/consensus gate) — staying advisory")
+        return None
+    return target
+
+
+def diffheal_arm(node, target):
+    """ARM a one-shot heal: write the proven ``rollback_to`` trigger file under ``node.db_lock`` (the SAME
+    one-shot path node.py:1512 consumes once at the safe startup point that rebuilds derived state), record
+    the heal in the per-ledger sidecar, set the once-per-boot flag, and return True. The caller requests a
+    clean restart (systemd auto-restarts). We do NOT do an in-place deep rollback from the thread — only the
+    startup sequence truncates, exactly as the recovery design requires."""
+    now = time.time()
+    locked = node.db_lock.acquire(blocking=True, timeout=30)
+    if not locked:
+        node.logger.app_log.warning("diffheal: could not acquire db_lock to arm heal; will retry next cycle")
+        return False
+    try:
+        with open("rollback_to", "w") as fh:
+            fh.write(str(int(target)))
+        state = diffheal_state_read(node)
+        state["last_heal_ts"] = now
+        state["heal_count"] = int(state.get("heal_count") or 0) + 1
+        window = [t for t in (state.get("heals_24h") or []) if (now - float(t)) < 86400]
+        window.append(now)
+        state["heals_24h"] = window
+        state["last_target"] = int(target)
+        diffheal_state_write(node, state)
+        node._diffheal_armed = True
+        node.logger.app_log.warning(
+            f"Status: DIFFICULTY-HEAL ARMED — rollback_to={int(target)} written; requesting clean restart "
+            f"(heal #{state['heal_count']}). On boot the chain rolls back below the corruption and resyncs.")
+        return True
+    finally:
+        node.db_lock.release()

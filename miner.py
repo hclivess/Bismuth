@@ -135,6 +135,12 @@ def mining_loop(node, db_handler):
     node.logger.app_log.warning("Status: solo miner started (mine=True)")
     while not node.IS_STOPPING:
         try:
+            # doc/35: skip a round while the peer-difficulty divergence detector has paused mining (opt-in).
+            # A wrong LOCAL difficulty — in EITHER direction — makes our mined blocks orphan-bound, so we
+            # mustn't burn work at the configured difficulty() until a CLEAN peer-quorum reading clears it.
+            if getattr(node, "mining_paused", False):
+                time.sleep(1)
+                continue
             if node.db_lock.locked():                 # sync in progress; don't fight it
                 time.sleep(0.2)
                 continue

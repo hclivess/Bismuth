@@ -52,9 +52,14 @@ already rebuilds derived state), **not** an in-place deep rollback:
 **Hard loop guards** (per-ledger sidecar JSON next to the ledger — `<ledger>.diffheal.json`, NOT in the db,
 so regnet/mainnet never share heal state):
 - **Cooldown** ≥1h between heals (one full resync+stabilize window).
-- **Max-heals** 2 per rolling 24h → then **stop, fall to advisory-only, emit a persistent "manual
-  intervention required" warning.** Prevents the classic restart-loop when corruption survives resync (e.g.
-  network-wide, or a wrong threshold) — the exact failure [[debug-root-cause-not-symptoms]] warns against.
+- **Lifetime cap** a PERMANENT per-ledger cap of 2 on the **monotonic** `heal_count` — the hard stop. (A
+  rolling-24h-window limit *alone* re-opens every day, so a corruption that survives every resync would
+  restart-loop the node forever at 2/day — caught in review.) Once `heal_count` hits the cap the node **stays
+  advisory-only and NEVER restarts again**, emitting a persistent "manual intervention required" warning. The
+  budget resets to 0 **only on a confirmed-CLEAN post-heal reading** (a genuinely fixed corruption restores
+  the budget for a future unrelated incident; one that survives resync never reads clean, so it stays capped
+  forever). A secondary ≤2-per-rolling-24h rate limit also applies. This is the exact restart-loop
+  [[debug-root-cause-not-symptoms]] warns against.
 - **Bounded depth**: never below checkpoint; successive heals may go one `rollback_depth` deeper, capped at
   `3×rollback_depth`, then advisory-only.
 - **Once-per-boot**: an in-memory flag blocks a second arm before the restart completes.

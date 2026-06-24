@@ -61,6 +61,22 @@ def get_height(host, port, timeout=DEFAULT_TIMEOUT):
         return None
 
 
+def get_difficulty(host, port, timeout=DEFAULT_TIMEOUT):
+    """A peer's current difficulty descriptor from ``GET /api/difficulty``, or ``None`` if its REST API
+    is unreachable / not REST-capable (cf. ``get_height``). Returns the raw dict
+    ``{"difficulty", "diff_block_previous", "block_height", ...}`` — the divergence detector reads
+    ``difficulty`` (peer-derived from that peer's OWN misc history, the independent reference) and
+    ``block_height`` (to keep only height-matched samples). Fail-soft: any HTTP/parse error -> None,
+    so one dead/slow peer never stalls or biases the poll."""
+    try:
+        d = _get_json(base_url(host, port) + "/difficulty", timeout=timeout)
+        if not d or d.get("difficulty") is None:
+            return None
+        return d
+    except Exception:
+        return None
+
+
 def fetch_range(host, port, start, end, timeout=DEFAULT_TIMEOUT):
     """Blocks in the inclusive ``[start, end]`` height range as a list of
     ``{"block_height", "transactions"}`` dicts, ascending. Raises on HTTP/parse error."""

@@ -138,6 +138,11 @@ class Node:
 
         self.accept_peers = True
         self.difficulty = None
+        # doc/35: when the peer-difficulty divergence detector (opt-in pause) confirms our local difficulty
+        # is wrong, the miner skips rounds (a wrong difficulty in either direction orphan-binds our blocks).
+        # Default False (no pause); auto-cleared on the next CLEAN reading.
+        self.mining_paused = False
+        self._diffheal_armed = False  # once-per-boot guard: blocks a 2nd heal arm before the restart completes
         self.ledger_temp = None
         self.hyper_temp = None
         self.q = queue.Queue()

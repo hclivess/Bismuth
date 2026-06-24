@@ -1351,6 +1351,16 @@ if __name__ == "__main__":
     node.api_sync_source = os.environ.get("BISMUTH_API_SYNC_SOURCE", "") or getattr(config, "api_sync_source", "")
     node.autoheal = getattr(config, "autoheal", True)                       # live tip sequence/dupe self-heal (no restart)
     node.autoheal_interval = int(os.environ.get("BISMUTH_AUTOHEAL_INTERVAL") or getattr(config, "autoheal_interval", 300))
+    # doc/35 peer-difficulty divergence detector + guarded self-heal (#23). SAFE BY DEFAULT: detect + log only.
+    # The prod node picks this up on its next restart; with these defaults it never pauses mining or rolls back.
+    # pause/heal are OPT-IN. env-overridable so the regnet harness can flip them without a separate config file.
+    def _envbool(name, default):
+        v = os.environ.get(name)
+        return v.lower() in ("1", "true", "yes") if v is not None else bool(default)
+    node.diff_divergence_detect = _envbool("BISMUTH_DIFF_DIVERGENCE_DETECT", getattr(config, "diff_divergence_detect", True))
+    node.diff_divergence_pause_mining = _envbool("BISMUTH_DIFF_DIVERGENCE_PAUSE_MINING", getattr(config, "diff_divergence_pause_mining", False))
+    node.diff_divergence_autoheal = _envbool("BISMUTH_DIFF_DIVERGENCE_AUTOHEAL", getattr(config, "diff_divergence_autoheal", False))
+    node.diff_divergence_interval = int(os.environ.get("BISMUTH_DIFF_DIVERGENCE_INTERVAL") or getattr(config, "diff_divergence_interval", 300))
     # doc/30 from-genesis sync: trust horizon. At/below it the per-item validation (signature, timestamp,
     # PoW, duplicate, overspend) is skipped, ANCHORED by the hardcoded block-hash checkpoints in
     # validation_exceptions.py (the node recomputes each block hash and must reproduce the canonical value
@@ -1743,6 +1753,127 @@ if __name__ == "__main__":
                 finally:
                     node.db_lock.release()
         threading.Thread(target=_autoheal_loop, daemon=True, name="autoheal").start()
+
+    # doc/35 (#23): peer-difficulty DIVERGENCE detector + opt-in guarded self-heal. Prevents a silent
+    # recurrence of the difficulty-corruption incident (node mined at 84.48 while the network was ~89.8).
+    # SAFE BY DEFAULT — with the shipped config the prod node only polls peers every 5 min and LOUD-logs on
+    # confirmed divergence; it NEVER pauses mining or rolls back unless the operator opts in. OBSERVE-ONLY:
+    # reads the cached node.difficulty + an HTTP poll, NEVER scans the ledger. Own thread + DB handle (the DB
+    # handle is only used as the detect_difficulty_divergence signature parameter — the detector does not
+    # touch it; kept for template parity + future use). Modeled exactly on _autoheal_loop above.
+    if getattr(node, "diff_divergence_detect", True):
+        def _difficulty_divergence_loop():
+            import chain_ops as _chain_ops
+            try:
+                _ddb = dbhandler.DbHandler(node.index_db, node.ledger_path, node.hyper_path, node.ram,
+                                           node.ledger_ram_file, node.logger, trace_db_calls=node.trace_db_calls)
+            except Exception as e:
+                node.logger.app_log.warning(f"diff-divergence: could not open DB handle: {e}")
+                _ddb = None
+            interval = max(60, int(getattr(node, "diff_divergence_interval", 300)))
+            grace = time.time() + interval        # startup grace: let the tip + peers settle before judging
+            confirm = 0                           # N_confirm debounce counter
+            last_median = None
+            last_tip = -1
+            rest_port_cache = {}                  # ip -> rest_port, persists across cycles
+            N_CONFIRM = 3
+            while not node.IS_STOPPING:
+                time.sleep(interval)
+                if node.IS_STOPPING:
+                    break
+                try:
+                    if time.time() < grace:
+                        continue
+                    tip = int(getattr(node, "last_block", 0) or 0)
+                    # Skip while initial-syncing (we're not at the network tip, so our difficulty legitimately
+                    # lags): require our tip within a small band of peer consensus.
+                    consensus = getattr(node.peers, "consensus", None)
+                    if consensus is not None and tip < int(consensus) - 5:
+                        confirm = 0
+                        continue
+                    # Skip within ±FORK_WINDOW of the hf2 activation (the LWMA transition can legitimately
+                    # diverge from the legacy controller). Inert pre-fork (fork_height is None).
+                    fh = getattr(node, "fork_height", None)
+                    if fh is not None and abs(tip - int(fh)) <= _chain_ops.DIFF_DIVERGENCE_FORK_WINDOW:
+                        confirm = 0
+                        continue
+
+                    diverged, local, median, n = _chain_ops.detect_difficulty_divergence(
+                        node, _ddb, node.peers, rest_port_cache=rest_port_cache)
+
+                    if not diverged:
+                        # CLEAN or ABSTAIN: reset debounce; clear an opt-in mining pause once we read clean.
+                        confirm = 0
+                        last_median = None
+                        if n >= _chain_ops.DIFF_DIVERGENCE_MIN_PEERS:
+                            # genuinely CLEAN (peers agree AND we match), not a thin-data ABSTAIN: restore the
+                            # heal budget (so a corruption a heal actually fixed doesn't leave us advisory-only)
+                            # and clear an opt-in mining pause.
+                            _chain_ops.diffheal_note_clean(node)
+                            if getattr(node, "mining_paused", False):
+                                node.mining_paused = False
+                                node.logger.app_log.warning(
+                                    "Status: difficulty divergence CLEARED (peer-quorum agrees) — mining un-paused")
+                        continue
+
+                    # DIVERGED this cycle. Debounce: require N_CONFIRM consecutive at a non-decreasing tip
+                    # with a stable median; any CLEAN/abstain resets (handled above).
+                    median_stable = (last_median is None
+                                     or abs(median - last_median) <= _chain_ops._diff_effective_threshold(
+                                         local, _chain_ops.DIFF_DIVERGENCE_ABS_THRESHOLD))
+                    if tip >= last_tip and median_stable:
+                        confirm += 1
+                    else:
+                        confirm = 1
+                    last_median = median
+                    last_tip = tip
+
+                    node.logger.app_log.warning(
+                        f"Status: DIFFICULTY DIVERGENCE detected (confirm {confirm}/{N_CONFIRM}) — "
+                        f"local={local} peer_median={median} samples={n} tip={tip}")
+
+                    if confirm < N_CONFIRM:
+                        continue
+
+                    # CONFIRMED. ALWAYS loud-log + plugin alert (the safe default action).
+                    node.logger.app_log.warning(
+                        f"Status: DIFFICULTY DIVERGENCE CONFIRMED — local={local} vs peer_median={median} "
+                        f"({n} height-matched peers). This node's cached difficulty disagrees with the network.")
+                    try:
+                        node.plugin_manager.execute_action_hook(
+                            'diff_divergence',
+                            {'local': local, 'median': median, 'samples': n, 'tip': tip})
+                    except Exception:
+                        pass
+
+                    # OPT-IN: pause mining (a wrong local difficulty orphan-binds our blocks either way).
+                    if getattr(node, "diff_divergence_pause_mining", False) and not node.mining_paused:
+                        node.mining_paused = True
+                        node.logger.app_log.warning(
+                            "Status: difficulty divergence — MINING PAUSED (diff_divergence_pause_mining). "
+                            "Auto-clears on the next CLEAN peer-quorum reading.")
+
+                    # OPT-IN: guarded self-heal (cooldown / max-heals / bounded-depth / once-per-boot).
+                    if getattr(node, "diff_divergence_autoheal", False):
+                        state = _chain_ops.diffheal_state_read(node)
+                        ok, reason = _chain_ops.diffheal_guards_ok(node, state)
+                        if not ok:
+                            node.logger.app_log.warning(
+                                f"Status: difficulty-heal SUPPRESSED ({reason}) — staying advisory-only "
+                                f"(NO rollback, NO restart). Manual intervention may be required.")
+                        else:
+                            target = _chain_ops.diffheal_target(node, state)
+                            if target is None:
+                                node.logger.app_log.warning(
+                                    "Status: difficulty-heal target not permitted (depth/anti-sybil) — advisory-only")
+                            elif _chain_ops.diffheal_arm(node, target):
+                                node.logger.app_log.warning(
+                                    "Status: difficulty-heal armed — requesting clean restart to apply rollback+resync")
+                                node.IS_STOPPING = True   # graceful stop; systemd auto-restarts -> startup consumes rollback_to
+                                break
+                except Exception as e:
+                    node.logger.app_log.warning(f"diff-divergence loop: {type(e).__name__}: {e}")
+        threading.Thread(target=_difficulty_divergence_loop, daemon=True, name="diff-divergence").start()
 
     while True:
         if node.IS_STOPPING:
