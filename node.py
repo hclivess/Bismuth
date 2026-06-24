@@ -1771,6 +1771,13 @@ if __name__ == "__main__":
                 node.logger.app_log.warning(f"diff-divergence: could not open DB handle: {e}")
                 _ddb = None
             interval = max(60, int(getattr(node, "diff_divergence_interval", 300)))
+            # Positive startup confirmation (the detector is otherwise SILENT on a healthy CLEAN reading, so a
+            # plain log can't distinguish "running + healthy" from "never started"). One line per boot.
+            node.logger.app_log.warning(
+                "Status: difficulty-divergence detector started [#23] — detect=%s pause_mining=%s autoheal=%s "
+                "interval=%ss (first check after a %ss startup grace; acts only on a 3-cycle confirmed divergence)"
+                % (getattr(node, "diff_divergence_detect", True), getattr(node, "diff_divergence_pause_mining", False),
+                   getattr(node, "diff_divergence_autoheal", False), interval, interval))
             grace = time.time() + interval        # startup grace: let the tip + peers settle before judging
             confirm = 0                           # N_confirm debounce counter
             last_median = None
