@@ -51,12 +51,17 @@ def _units(v):
     return int(v)
 
 
+def _fold(acc, addr, recip, amt, fee, reward):
+    """Single source of truth for the credit/debit folding, shared by the per-block apply path (12-column
+    rows, via _accumulate) and the column-narrowed full rebuild — so both produce identical totals."""
+    acc.setdefault(recip, [0, 0])[0] += amt + reward   # recipient credited amount + reward
+    acc.setdefault(addr, [0, 0])[1] += amt + fee       # sender debited amount + fee
+
+
 def _accumulate(rows, acc):
-    """Fold a block's rows into ``acc`` (address -> [credit_units, debit_units])."""
+    """Fold a block's 12-column rows into ``acc`` (address -> [credit_units, debit_units])."""
     for r in rows:
-        amt, fee, reward = _units(r[_AMOUNT]), _units(r[_FEE]), _units(r[_REWARD])
-        acc.setdefault(r[_RECIP], [0, 0])[0] += amt + reward   # recipient credited amount + reward
-        acc.setdefault(r[_ADDR], [0, 0])[1] += amt + fee       # sender debited amount + fee
+        _fold(acc, r[_ADDR], r[_RECIP], _units(r[_AMOUNT]), _units(r[_FEE]), _units(r[_REWARD]))
     return acc
 
 
@@ -112,8 +117,13 @@ class BalanceIndex:
         bit-matches ledger_balance3 — i.e. the concluded dev/HN rewards are already baked into balances,
         exactly what the hard-fork snapshot will persist when the mirror blocks are dropped."""
         acc = {}
-        for r in cursor.execute("SELECT * FROM transactions"):
-            _accumulate([r], acc)
+        # Column-narrowed: pull only the 5 fields _fold needs instead of SELECT * — avoids dragging every
+        # row's ~1KB public_key + signature blobs across the sqlite->Python boundary, which was the
+        # dominant cost of this full-ledger rebuild on the 23GB chain (it runs at boot AND on every reorg).
+        # Still scans EVERY row with no height filter, so the result stays byte-identical to ledger_balance3.
+        for addr, recip, amt, fee, reward in cursor.execute(
+                "SELECT address, recipient, amount, fee, reward FROM transactions"):
+            _fold(acc, addr, recip, _units(amt), _units(fee), _units(reward))
         with self.store.txn(write=True) as txn:
             txn.drop(self.db)                          # fresh rebuild
             for addr, (c, d) in acc.items():

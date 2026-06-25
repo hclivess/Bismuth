@@ -32,13 +32,22 @@ _GIB = 1024 ** 3
 _H, _TS, _ADDR, _RECIP, _AMOUNT, _SIG, _PUB, _HASH, _FEE, _REWARD, _OP, _OF = range(12)
 
 
+def _txid_fields(h, ts, addr, recip, amount_field, op, of, fork_height):
+    """The canonical content txid from individual fields — the single source of truth shared by
+    ``txid_of`` (12-column rows, the apply path) and the column-narrowed rebuild, so both derive
+    byte-identical ids. ``amount_field`` is the raw stored amount; ledger_value reconstructs it
+    storage-mode-agnostically and it is signed as '%.8f' into the binary pre-image (tx_id_at)."""
+    amount_str = '%.8f' % amounts.ledger_value(amount_field)
+    return bismuth_serialize.tx_id_at(int(h), fork_height, str(ts), str(addr),
+                                      str(recip), amount_str, str(op), str(of))
+
+
 def txid_of(row, fork_height):
     """The canonical content txid of a stored/converted 12-field ledger row, fork-aware (== the id
     essentials.format_raw_tx surfaces): post-fork the binary-pre-image txid (tx_id_v2_s via tx_id_at),
     over the SIGNED '%.8f' amount string reconstructed storage-mode-agnostically by amounts.ledger_value."""
-    amount_str = '%.8f' % amounts.ledger_value(row[_AMOUNT])
-    return bismuth_serialize.tx_id_at(int(row[_H]), fork_height, str(row[_TS]), str(row[_ADDR]),
-                                      str(row[_RECIP]), amount_str, str(row[_OP]), str(row[_OF]))
+    return _txid_fields(row[_H], row[_TS], row[_ADDR], row[_RECIP], row[_AMOUNT], row[_OP], row[_OF],
+                        fork_height)
 
 
 class TxidIndex:
@@ -77,8 +86,14 @@ class TxidIndex:
             if fork_height is None:
                 return 0
             n = 0
-            for r in cursor.execute("SELECT * FROM transactions WHERE block_height >= ?", (int(fork_height),)):
-                txn.put(self.db, self._key(txid_of(r, fork_height)), int(r[_H]).to_bytes(8, "big"))
+            # Column-narrowed: pull only the 7 fields the content-txid needs instead of SELECT * — avoids
+            # hauling every post-fork row's public_key + signature blobs through Python while re-hashing.
+            for r in cursor.execute(
+                    "SELECT block_height, timestamp, address, recipient, amount, operation, openfield "
+                    "FROM transactions WHERE block_height >= ?", (int(fork_height),)):
+                txn.put(self.db,
+                        self._key(_txid_fields(r[0], r[1], r[2], r[3], r[4], r[5], r[6], fork_height)),
+                        int(r[0]).to_bytes(8, "big"))
                 n += 1
             return n
 

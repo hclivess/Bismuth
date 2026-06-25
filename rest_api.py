@@ -1288,8 +1288,19 @@ def _make_handler(node):
                     if tx.get("txid") == txid:
                         return tx
                 raise _NotFound("no transaction matching {} at/after height {}".format(txid, start_h))
-            rows = db.fetchall(db.h, "SELECT * FROM transactions WHERE signature LIKE ? LIMIT 1",
-                               (txid + "%",))
+            # A bare `signature LIKE 'prefix%'` is a FULL-TABLE scan of the 23GB ledger (no plain signature
+            # index exists; and LIMIT 1 does not help the not-found case — it scans to the very end). Seek
+            # via the existing TXID4_Index (db_migrations.py: index on substr(signature,1,4)) for any prefix
+            # >= 4 chars, exactly like digest._signature_exists_in_ledger / the mempool SQL — turning the
+            # scan into an index seek + a tiny same-prefix bucket scan. Sub-4-char prefixes (rare/degenerate)
+            # fall back to the legacy scan.
+            if len(txid) >= 4:
+                rows = db.fetchall(db.h,
+                                   "SELECT * FROM transactions WHERE substr(signature,1,4)=substr(?1,1,4) "
+                                   "AND signature LIKE ?2 LIMIT 1", (txid, txid + "%"))
+            else:
+                rows = db.fetchall(db.h, "SELECT * FROM transactions WHERE signature LIKE ? LIMIT 1",
+                                   (txid + "%",))
             if not rows:
                 raise _NotFound("no transaction matching {}".format(txid))
             return essentials.format_raw_tx(rows[0], fh)

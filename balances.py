@@ -42,14 +42,19 @@ def balanceget(node, balance_address, db_handler):
     # `except: <value> = 0` guards below are a code smell — a conversion error silently ZEROES a balance
     # instead of failing loudly. Replace with the maintained integer balance index (phase 4) and narrow
     # the exception handling once amounts are integer end-to-end.
+    # ONE recipient-side scan feeds BOTH the credit (amount) and the reward accumulators. Previously this
+    # function issued TWO separate full-history `WHERE recipient = ?` scans of the 23GB ledger (one for
+    # amount here, one for reward below); they read the identical row set, so we fetch (amount, reward)
+    # once into recipient_entries. The two accumulators keep SEPARATE try/except blocks so the failure
+    # semantics are byte-identical to before (a conversion error still zeroes only its own accumulator).
     try:
-        db_handler.execute_param(db_handler.h, "SELECT amount FROM transactions WHERE recipient = ?;", (balance_address,))
-        entries = db_handler.h.fetchall()
+        db_handler.execute_param(db_handler.h, "SELECT amount, reward FROM transactions WHERE recipient = ?;", (balance_address,))
+        recipient_entries = db_handler.h.fetchall()
     except:
-        entries = []
+        recipient_entries = []
 
     try:
-        for entry in entries:
+        for entry in recipient_entries:
             credit_ledger = quantize_eight(credit_ledger) + amounts.ledger_value(entry[0])
             credit_ledger = 0 if credit_ledger is None else credit_ledger
     except:
@@ -83,14 +88,8 @@ def balanceget(node, balance_address, db_handler):
     rewards = Decimal("0")
 
     try:
-        db_handler.execute_param(db_handler.h, "SELECT reward FROM transactions WHERE recipient = ?;", (balance_address,))
-        entries = db_handler.h.fetchall()
-    except:
-        entries = []
-
-    try:
-        for entry in entries:
-            rewards = quantize_eight(rewards) + amounts.ledger_value(entry[0])
+        for entry in recipient_entries:
+            rewards = quantize_eight(rewards) + amounts.ledger_value(entry[1])
             rewards = 0 if str(rewards) == "0E-8" else rewards
             rewards = 0 if rewards is None else rewards
     except:
