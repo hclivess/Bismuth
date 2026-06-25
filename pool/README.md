@@ -27,12 +27,12 @@ python3 pool/optipoolware.py                   # pool server on :8525  (Ctrl-C s
 python3 pool/optiexplorer.py                   # dashboard on http://0.0.0.0:9080
 ```
 
-The pool needs its payout keypair (`privkey.der` / `pubkey.der`) and `pool.txt` in its working dir.
+The pool needs its payout keypair (`privkey.der` / `pubkey.der`) and `pool.toml` in its working dir.
 
 Miners run `optihash` (no node needed — just a Bismuth address):
 
 ```bash
-cd pool/optihash && python3 optihash.py        # reads miner.txt
+cd pool/optihash && python3 optihash.py        # reads miner.toml
 ```
 
 ## hf2 readiness
@@ -50,7 +50,7 @@ signal (+ the VM state root) into the coinbase — mirroring the node's `miner.p
 
 ## Configuration
 
-### `pool.txt` (pool server + dashboard)
+### `pool.toml` (pool server + dashboard)
 
 | Key | Meaning |
 |---|---|
@@ -64,7 +64,7 @@ signal (+ the VM state root) into the coinbase — mirroring the node's `miner.p
 
 `fork_signal` comes from the **node's** config (`config.txt`), shared via the node's `options`.
 
-### `optihash/miner.txt` (miner)
+### `optihash/miner.toml` (miner)
 
 | Key | Meaning |
 |---|---|
@@ -88,9 +88,9 @@ signal (+ the VM state root) into the coinbase — mirroring the node's `miner.p
 
 ## Files
 
-- **Run from the repo root:** `pool/optipoolware.py`, `pool/optiexplorer.py`, `pool/pool.txt` (+ the
+- **Run from the repo root:** `pool/optipoolware.py`, `pool/optiexplorer.py`, `pool/pool.toml` (+ the
   pool's `privkey.der`/`pubkey.der`).
-- **Miner:** `pool/optihash/optihash.py` + `miner.txt`. In-repo it imports the node's modernized
+- **Miner:** `pool/optihash/optihash.py` + `miner.toml`. In-repo it imports the node's modernized
   `connections` + `mining_heavy3` via a sys.path bootstrap; packaged standalone, ship those two modules
   (and the Heavy3 binary) alongside it.
 

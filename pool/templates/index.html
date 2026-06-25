@@ -58,6 +58,11 @@
         <div class="card kpi"><div class="v" id="k_shares">—</div><div class="k">Shares this round</div></div>
         <div class="card kpi"><div class="v" id="k_blocks">—</div><div class="k">Blocks this round</div></div>
         <div class="card kpi"><div class="v" id="k_rps">—</div><div class="k">Reward / share</div></div>
+        <div class="card kpi"><div class="v" id="k_roundage">—</div><div class="k">Round age (min)</div></div>
+        <div class="card kpi"><div class="v" id="k_lastblock">—</div><div class="k">Last block found</div></div>
+        <div class="card kpi"><div class="v" id="k_reward">—</div><div class="k">Block reward (BIS)</div></div>
+        <div class="card kpi"><div class="v" id="k_mined">—</div><div class="k">Mined (recent, BIS)</div></div>
+        <div class="card kpi"><div class="v" id="k_paid">—</div><div class="k">Paid out (recent, BIS)</div></div>
       </div>
     </section>
 
@@ -70,14 +75,18 @@
         <div class="card kpi"><div class="v"><span class="badge" id="n_fork">—</span></div><div class="k">HF2 fork</div></div>
         <div class="card kpi"><div class="v" id="n_forkh">—</div><div class="k">Fork height</div></div>
         <div class="card kpi"><div class="v" id="n_tofork">—</div><div class="k">Blocks to fork</div></div>
+        <div class="card kpi"><div class="v" id="n_hash">—</div><div class="k">Network hashrate</div></div>
+        <div class="card kpi"><div class="v" id="n_btime">—</div><div class="k">Block time (s)</div></div>
+        <div class="card kpi"><div class="v" id="n_peers">—</div><div class="k">Node peers</div></div>
+        <div class="card kpi"><div class="v" id="n_mempool">—</div><div class="k">Mempool (pending)</div></div>
       </div>
     </section>
 
     <section>
       <h2>Active miners</h2>
       <div class="card" style="padding:0;overflow:auto">
-        <table><thead><tr><th>Address</th><th class="num">Shares</th><th class="num">kH/s</th><th>Last worker</th><th class="num">Workers</th></tr></thead>
-        <tbody id="t_miners"><tr><td colspan="5" class="dim">loading…</td></tr></tbody></table>
+        <table><thead><tr><th>Address</th><th class="num">Shares</th><th class="num">Share %</th><th class="num">kH/s</th><th>Last worker</th><th class="num">Workers</th></tr></thead>
+        <tbody id="t_miners"><tr><td colspan="6" class="dim">loading…</td></tr></tbody></table>
       </div>
     </section>
 
@@ -121,19 +130,28 @@
       $('k_hash').textContent = num(p.hashrate_mhs,3); $('k_miners').textContent = num(p.miners);
       $('k_workers').textContent = num(p.workers); $('k_shares').textContent = num(p.shares_round);
       $('k_blocks').textContent = num(p.blocks_round); $('k_rps').textContent = p.reward_per_share || '—';
+      $('k_roundage').textContent = num(p.round_age_min,1);
+      $('k_lastblock').textContent = p.last_block ? (p.last_block.height + ' (' + num(p.last_block.age_min,0) + 'm)') : '—';
+      $('k_reward').textContent = (p.block_reward!=null) ? num(p.block_reward,2) : '—';
+      $('k_mined').textContent = num(p.mined_total,2); $('k_paid').textContent = num(p.paid_total,2);
       $('n_height').textContent = num(n.height); $('n_diff').textContent = num(n.difficulty,2);
+      $('n_hash').textContent = (n.network_hashrate!=null) ? num(n.network_hashrate,2) : '—';
+      $('n_btime').textContent = (n.block_time!=null) ? num(n.block_time,1) : '—';
+      $('n_peers').textContent = num(n.peers); $('n_mempool').textContent = num(n.mempool);
       $('n_forkh').textContent = (n.fork_height ?? '—');
       $('n_tofork').textContent = (n.blocks_to_fork!=null && n.blocks_to_fork>0) ? num(n.blocks_to_fork) : (n.fork_active ? 'active' : '—');
       const pow = $('n_pow'); pow.textContent = n.pow || '—'; pow.className = 'badge ' + (n.pow==='blake2b'?'ok':'warn');
       const fk = $('n_fork'); fk.textContent = n.fork_active ? 'ACTIVE' : (n.fork_locked_in ? 'locked-in' : 'pre-fork');
       fk.className = 'badge ' + ((n.fork_active||n.fork_locked_in) ? 'ok' : 'warn');
       rows('t_miners', (d.miners||[]).map(m =>
-        `<tr><td class="mono">${trunc(m.address)}</td><td class="num">${num(m.shares)}</td><td class="num">${num(m.hashrate_khs)}</td><td class="mono">${m.last_worker||''}</td><td class="num">${num(m.workers)}</td></tr>`), 5, 'no active miners');
+        `<tr><td class="mono">${trunc(m.address)}</td><td class="num">${num(m.shares)}</td><td class="num">${num(m.share_pct,1)}%</td><td class="num">${num(m.hashrate_khs)}</td><td class="mono">${m.last_worker||''}</td><td class="num">${num(m.workers)}</td></tr>`), 6, 'no active miners');
       rows('t_pending', (d.pending||[]).map(x =>
         `<tr><td class="mono">${trunc(x.address)}</td><td class="num mono">${x.reward}</td></tr>`), 2, 'nothing pending');
       rows('t_payouts', (d.payouts||[]).map(x =>
         `<tr><td class="mono">${trunc(x.recipient)}</td><td class="num mono">${x.amount}</td><td class="num">${x.height??''}</td><td>${x.time||''}</td></tr>`), 4, 'no recent payouts');
-      $('updated').textContent = 'updated ' + new Date().toLocaleTimeString();
+      $('updated').textContent = 'updated ' + new Date().toLocaleTimeString()
+        + (n.node_version ? ' · node ' + n.node_version : '')
+        + (n.uptime ? ' · up ' + Math.floor(n.uptime/3600) + 'h' : '');
     }
     refresh(); setInterval(refresh, 15000);
   </script>

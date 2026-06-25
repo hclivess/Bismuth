@@ -1,0 +1,10 @@
+# Optipoolware pool configuration (TOML). Used by optipoolware.py and optiexplorer.py.
+mine_diff   = 96         # pool share difficulty (static)
+min_payout  = 100000     # minimum balance (BIS) before the hourly autopayout pays an address
+pool_fee    = 1          # pool fee, percent
+alt_fee     = 1          # fee to the alternate address, percent
+alt_add     = "92563981cc1e70d160c176edf368ea4bbc1d8d5ba63aceee99ef6ebd"  # alt-fee + fallback share address
+worker_time = 10         # seconds between the pool refreshing blockhash/diff/fork state from the node
+m_timeout   = 5          # minutes without a share before a worker's hashrate counts as 0
+mining_ip   = "127.0.0.1"  # public address miners connect to (shown on the dashboard's "connect" panel)
+mining_port = 8525         # the pool server port miners connect to

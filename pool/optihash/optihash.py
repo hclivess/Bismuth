@@ -18,26 +18,18 @@ import mining_heavy3 as mining
 
 __version__ = '0.3.1'
 
-# load config
-lines = [line.rstrip('\n') for line in open('miner.txt')]
-for line in lines:
-    if "port=" in line:
-        port = line.split('=')[1]
-    if "mining_ip=" in line:
-        mining_ip_conf = line.split('=')[1]
-    if "mining_threads=" in line:
-        mining_threads_conf = line.split('=', 1)[1].strip()   # was str.strip(charset) — a char-set bug
-    if "tor=" in line:
-        tor_conf = int(line.split('=', 1)[1].strip())          # was str.strip(charset) — a char-set bug
-    if "miner_address=" in line:
-        self_address = line.split('=')[1]
-    if "nonce_time=" in line:
-        nonce_time = int(line.split('=')[1])
-    if "miner_name=" in line:
-        mname = line.split('=')[1]
-    if "hashcount=" in line:
-        hashcount = int(line.split('=')[1])
-
+# load config (miner.toml — stdlib tomllib; typed, resolved next to this script)
+import tomllib
+with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "miner.toml"), "rb") as _f:
+    _mc = tomllib.load(_f)
+port = _mc["port"]
+mining_ip_conf = _mc["mining_ip"]
+mining_threads_conf = _mc["mining_threads"]
+tor_conf = int(_mc.get("tor", 0))
+self_address = _mc["miner_address"]
+nonce_time = int(_mc["nonce_time"])
+mname = _mc["miner_name"]
+hashcount = int(_mc["hashcount"])
 # load config
 
 bin_format_dict = dict((x, format(ord(x), '8b').replace(' ', '0')) for x in '0123456789abcdef')

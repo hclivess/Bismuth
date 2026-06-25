@@ -54,50 +54,20 @@ app_log.addHandler(ch)
 
 print("Pool Address: {}".format(address))
 
-# load config
+# load config (pool.toml — stdlib tomllib; typed, with defaults)
+import tomllib
+_pool_cfg = {}
 try:
-
-    lines = [line.rstrip('\n') for line in open('pool.txt')]
-    for line in lines:
-        try:
-            if "mine_diff=" in line:
-                mdiff = int(line.split('=')[1])
-        except Exception as e:
-            mdiff = 65
-        try:
-            if "min_payout=" in line:
-                min_payout = float(line.split('=')[1])
-        except Exception as e:
-            min_payout = 1
-        try:
-            if "pool_fee=" in line:
-                pool_fee = float(line.split('=')[1])
-        except Exception as e:
-            pool_fee = 0
-        try:
-            if "alt_fee=" in line:
-                alt_fee = float(line.split('=')[1])
-        except Exception as e:
-            alt_fee = 0
-        try:
-            if "worker_time=" in line:
-                w_time = int(line.split('=')[1])
-        except Exception as e:
-            w_time = 10
-        try:
-            if "alt_add=" in line:
-                alt_add = str(line.split('=')[1])
-        except Exception as e:
-            alt_add = "92563981cc1e70d160c176edf368ea4bbc1d8d5ba63aceee99ef6ebd"
-
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "pool.toml"), "rb") as _f:
+        _pool_cfg = tomllib.load(_f)
 except Exception as e:
-    min_payout = 1
-    mdiff = 65
-    pool_fee = 0
-    alt_fee = 0
-    w_time = 10
-    alt_add = "92563981cc1e70d160c176edf368ea4bbc1d8d5ba63aceee99ef6ebd"
-# load config
+    print("pool.toml not loaded ({}); using defaults".format(e))
+mdiff = int(_pool_cfg.get("mine_diff", 65))
+min_payout = float(_pool_cfg.get("min_payout", 1))
+pool_fee = float(_pool_cfg.get("pool_fee", 0))
+alt_fee = float(_pool_cfg.get("alt_fee", 0))
+w_time = int(_pool_cfg.get("worker_time", 10))
+alt_add = str(_pool_cfg.get("alt_add", "92563981cc1e70d160c176edf368ea4bbc1d8d5ba63aceee99ef6ebd"))
 
 # --- hf2 fork awareness (doc/18-D / doc/22 / doc/39) ----------------------------------------------
 # Mirror the node's miner._new_pow + _coinbase_prefix WITHOUT a node object, by reading the node's REST

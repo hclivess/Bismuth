@@ -1,0 +1,10 @@
+# optihash miner configuration (TOML).
+port           = 8525        # the pool's port
+mining_ip      = "127.0.0.1" # the pool's address
+mining_threads = 4           # number of mining processes
+tor            = 0           # 1 = route via a local Tor SOCKS proxy (127.0.0.1:9050)
+miner_address  = "92563981cc1e70d160c176edf368ea4bbc1d8d5ba63aceee99ef6ebd"  # rewards go here
+max_diff       = 150         # maximum share difficulty the miner will work at
+miner_name     = "maccaspacca"  # base worker name (thread number is appended)
+nonce_time     = 10          # seconds to mine before fetching fresh work
+hashcount      = 20000       # nonce-array sizing per cycle

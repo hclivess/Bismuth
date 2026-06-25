@@ -45,21 +45,19 @@ except Exception:
     POOL_ADDRESS = ""
 
 
-def _pool_txt(key, default, cast=str):
-    try:
-        for line in open(os.path.join(_HERE, "pool.txt")):
-            if line.strip().startswith(key + "="):
-                return cast(line.split("=", 1)[1].strip())
-    except Exception:
-        pass
-    return default
+import tomllib
+_pool_cfg = {}
+try:
+    with open(os.path.join(_HERE, "pool.toml"), "rb") as _f:
+        _pool_cfg = tomllib.load(_f)
+except Exception:
+    pass
 
-
-M_TIMEOUT = _pool_txt("m_timeout", 5, int)         # minutes; hashrate older than this counts as 0
-POOL_FEE = _pool_txt("pool_fee", 1, float)
-MIN_PAYOUT = _pool_txt("min_payout", 100000, float)
-MINING_IP = _pool_txt("mining_ip", NODE_IP)
-MINING_PORT = _pool_txt("port", "8525")
+M_TIMEOUT = int(_pool_cfg.get("m_timeout", 5))      # minutes; hashrate older than this counts as 0
+POOL_FEE = float(_pool_cfg.get("pool_fee", 1))
+MIN_PAYOUT = float(_pool_cfg.get("min_payout", 100000))
+MINING_IP = str(_pool_cfg.get("mining_ip", NODE_IP))
+MINING_PORT = str(_pool_cfg.get("mining_port", 8525))
 
 
 # --- node REST (cached so the dashboard never hammers the node) ----------------------------------
@@ -78,15 +76,26 @@ def _network_and_ledger():
     now = time.time()
     if _CACHE["data"] is not None and (now - _CACHE["t"]) < _CACHE_TTL:
         return _CACHE["data"]
-    out = {"height": None, "difficulty": None, "fork": {}, "last_block_age": None,
-           "coinbase": [], "payouts": []}
+    out = {"height": None, "difficulty": None, "network_hashrate": None, "block_time": None,
+           "peers": None, "node_version": None, "uptime": None, "mempool": None,
+           "fork": {}, "coinbase": [], "payouts": []}
     try:
         st = _rest("/status")
         out["height"] = st.get("blocks") or st.get("block_height")
+        out["peers"] = st.get("connections")
+        out["node_version"] = st.get("node_version")
+        out["uptime"] = st.get("uptime")
     except Exception:
         pass
     try:
-        out["difficulty"] = _rest("/difficulty").get("difficulty")
+        df = _rest("/difficulty")
+        out["difficulty"] = df.get("difficulty")
+        out["network_hashrate"] = df.get("hashrate")
+        out["block_time"] = df.get("block_time") or df.get("time_to_generate")
+    except Exception:
+        pass
+    try:
+        out["mempool"] = _rest("/mempool").get("count")
     except Exception:
         pass
     try:
@@ -182,12 +191,27 @@ def build_stats():
 
     # this round's reward = pool coinbase rewards since the oldest unpaid share
     bt = pool["block_threshold"]
-    round_reward = sum(c["reward"] for c in net["coinbase"]
-                       if (c["timestamp"] or 0) and float(c["timestamp"]) >= bt)
-    blocks_round = sum(1 for c in net["coinbase"]
-                       if (c["timestamp"] or 0) and float(c["timestamp"]) >= bt)
+    now = time.time()
+    cb = sorted(net["coinbase"], key=lambda c: float(c.get("timestamp") or 0), reverse=True)
+    round_reward = sum(c["reward"] for c in cb if c.get("timestamp") and float(c["timestamp"]) >= bt)
+    blocks_round = sum(1 for c in cb if c.get("timestamp") and float(c["timestamp"]) >= bt)
     shares_total = pool["shares_total"] or 0
     rps = (round_reward / shares_total) if shares_total else 0
+
+    last_block = None
+    if cb:
+        c0 = cb[0]
+        last_block = {"height": c0.get("height"), "reward": c0.get("reward"),
+                      "age_min": round((now - float(c0["timestamp"])) / 60, 1) if c0.get("timestamp") else None}
+    block_reward = cb[0].get("reward") if cb else None
+    mined_total = round(sum(c["reward"] for c in net["coinbase"]), 8)
+    paid_total = round(sum(float(p.get("amount") or 0) for p in net["payouts"]), 8)
+
+    miners = []
+    for m in pool["miners"]:
+        m = dict(m)
+        m["share_pct"] = round(m["shares"] / shares_total * 100, 1) if shares_total else 0
+        miners.append(m)
 
     pending = []
     if round_reward > 0:
@@ -198,6 +222,9 @@ def build_stats():
     return {
         "network": {
             "height": net["height"], "difficulty": net["difficulty"],
+            "network_hashrate": net.get("network_hashrate"), "block_time": net.get("block_time"),
+            "peers": net.get("peers"), "mempool": net.get("mempool"),
+            "node_version": net.get("node_version"), "uptime": net.get("uptime"),
             "fork_height": fork.get("fork_height"), "fork_active": fork.get("active"),
             "fork_locked_in": fork.get("locked_in"),
             "blocks_to_fork": (int(fork["fork_height"]) - int(net["height"]))
@@ -210,13 +237,15 @@ def build_stats():
             "hashrate_mhs": round(pool["pool_hashrate_khs"] / 1000.0, 3),
             "miners": len(pool["miners"]), "workers": pool["workers"],
             "shares_round": shares_total, "blocks_round": blocks_round,
-            "round_reward": round(round_reward, 8),
-            "reward_per_share": "%.8f" % rps,
+            "round_reward": round(round_reward, 8), "reward_per_share": "%.8f" % rps,
+            "round_age_min": round((now - bt) / 60, 1),
+            "last_block": last_block, "block_reward": block_reward,
+            "mined_total": mined_total, "paid_total": paid_total,
         },
-        "miners": pool["miners"],
+        "miners": miners,
         "payouts": net["payouts"][:80],
         "pending": pending,
-        "generated": int(time.time()),
+        "generated": int(now),
     }
 
 
