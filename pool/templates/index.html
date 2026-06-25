@@ -1,172 +1,141 @@
 <!DOCTYPE html>
-<html>
+<html lang="en" data-theme="dark">
 <head>
-    <title>pool.bismuth.online</title>
-
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/css/bootstrap.min.css" integrity="sha384-PsH8R72JQ3SOdhVi3uxftmaW6Vc51MKb0q5P2rRUpPvrszuE4W1povHYgTpBfshb" crossorigin="anonymous">
-    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/js/bootstrap.min.js" integrity="sha384-alpBpkh1PFOepccYVYDB4do5UnbKysX5WZXm3XxPqe5iKTfUKjNkCk9SaVuEZflJ" crossorigin="anonymous"></script>
-
-    <div class="container"> 
-        <a class="navbar-brand" href="#"><img src="http://bismuth.cz/wp-content/uploads/2017/03/b3.png" width="50" height="50"><span id="currency"></span></a>
-    </div>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0d1117">
+  <title>Bismuth Mining Pool</title>
+  <style>
+    :root { --bg:#0d1117; --card:#161b22; --line:#2b3240; --fg:#e6edf3; --mut:#8b949e; --accent:#6cb4ff; --ok:#3fb950; --warn:#d29922; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+    a { color:var(--accent); text-decoration:none; }
+    header { background:linear-gradient(180deg,#16263a,transparent); border-bottom:1px solid var(--line); padding:22px 0; }
+    .wrap { max-width:1100px; margin:0 auto; padding:0 18px; }
+    h1 { margin:0; font-size:22px; letter-spacing:.3px; }
+    h1 .b { color:var(--accent); }
+    .sub { color:var(--mut); font-size:13px; margin-top:4px; }
+    section { margin:26px 0; }
+    h2 { font-size:15px; text-transform:uppercase; letter-spacing:.6px; color:var(--mut); margin:0 0 12px; }
+    .grid { display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; }
+    .kpi .v { font-size:26px; font-weight:600; }
+    .kpi .k { color:var(--mut); font-size:12px; text-transform:uppercase; letter-spacing:.5px; margin-top:4px; }
+    .badge { display:inline-block; padding:2px 8px; border-radius:20px; font-size:12px; font-weight:600; }
+    .badge.ok { background:rgba(63,185,80,.15); color:var(--ok); }
+    .badge.warn { background:rgba(210,153,34,.15); color:var(--warn); }
+    table { width:100%; border-collapse:collapse; font-size:14px; }
+    th,td { text-align:left; padding:9px 10px; border-bottom:1px solid var(--line); }
+    th { color:var(--mut); font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.4px; }
+    td.mono,.mono { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+    tr:hover td { background:rgba(108,180,255,.05); }
+    .connect code { background:#0b1622; border:1px solid var(--line); border-radius:6px; padding:2px 6px; }
+    .num { text-align:right; }
+    footer { color:var(--mut); font-size:12px; text-align:center; padding:26px 0; border-top:1px solid var(--line); }
+    .dim { color:var(--mut); }
+  </style>
 </head>
 <body>
+  <header><div class="wrap">
+    <h1><span class="b">⛏ Bismuth</span> Mining Pool</h1>
+    <div class="sub">live dashboard · refreshes every 15s · <span id="updated" class="dim">—</span></div>
+  </div></header>
 
-    <div class="container"> 
-        <section class="panel panel-default clearfix">
-            <div class="panel-heading">   
-                    <h4>Pool Configuration</h4>
-            </div>
-            <div>
-            Welcome to the optipoolware public Bismuth pool
-            <br>Config details in your miner.txt:
-            <br>mining_ip=78.28.250.81
-            <br>miner_address=your mining address
-            <br>Download miner:https://github.com/maccaspacca/Optipoolware
-            </div>
-        </section>
-    <!-- </div>
+  <div class="wrap">
+    <section class="connect card">
+      <h2>Connect a miner</h2>
+      <div>Point <code>optihash</code> at <code class="mono" id="c_ip">—</code> · pool fee <span id="c_fee">—</span>% ·
+        min payout <span id="c_min">—</span> BIS</div>
+      <div class="dim" style="margin-top:6px">Pool address: <span class="mono" id="c_addr">—</span></div>
+    </section>
 
-    <div class="container" -->
-        <!-- <div id="node_alerts" class="alert alert-danger hidden"></div> -->
-        <div class="container">
-            <section class="panel panel-default">
-                <div class="panel-heading">
-                    <h4>Recent Miners</h4>
-                </div>
+    <section>
+      <h2>Pool overview</h2>
+      <div class="grid">
+        <div class="card kpi"><div class="v" id="k_hash">—</div><div class="k">Pool hashrate (MH/s)</div></div>
+        <div class="card kpi"><div class="v" id="k_miners">—</div><div class="k">Active miners</div></div>
+        <div class="card kpi"><div class="v" id="k_workers">—</div><div class="k">Active workers</div></div>
+        <div class="card kpi"><div class="v" id="k_shares">—</div><div class="k">Shares this round</div></div>
+        <div class="card kpi"><div class="v" id="k_blocks">—</div><div class="k">Blocks this round</div></div>
+        <div class="card kpi"><div class="v" id="k_rps">—</div><div class="k">Reward / share</div></div>
+      </div>
+    </section>
 
-                <div class="table table-responsive">
-                        <table id="active_miners" class="table table-hover">
-                                <thead>
-                                    <tr>
-                                        <th class="text-left">Address</th>
-                                        <th class="text-center">Number of shares</th>
-                                        <th class="text-center">Current Hashrate</th>
-                                        <th class="text-center">Last worker</th>
-                                        <th class="text-center">Workers</th>
-                                        <th></th>
-                                    </tr>
-                                    {% for n in recentminers %}
+    <section>
+      <h2>Network &amp; HF2 fork status</h2>
+      <div class="grid">
+        <div class="card kpi"><div class="v" id="n_height">—</div><div class="k">Block height</div></div>
+        <div class="card kpi"><div class="v" id="n_diff">—</div><div class="k">Network difficulty</div></div>
+        <div class="card kpi"><div class="v"><span class="badge" id="n_pow">—</span></div><div class="k">Heavy3 PoW</div></div>
+        <div class="card kpi"><div class="v"><span class="badge" id="n_fork">—</span></div><div class="k">HF2 fork</div></div>
+        <div class="card kpi"><div class="v" id="n_forkh">—</div><div class="k">Fork height</div></div>
+        <div class="card kpi"><div class="v" id="n_tofork">—</div><div class="k">Blocks to fork</div></div>
+      </div>
+    </section>
 
-                                        <tr>
-                                            <th>{{n[0]}}</th>
-                                            <th>{{n[1]}}</th>
-                                            <th>{{n[2]}}</th>
-                                            <th>{{n[3]}}</th>
-                                            <th>{{n[4]}}</th>
-                                            
-                                        </tr>
-                                    {% endfor %}
-                                </thead>        
-                        </table>
-                </div>
-            </section>
-        </div>
+    <section>
+      <h2>Active miners</h2>
+      <div class="card" style="padding:0;overflow:auto">
+        <table><thead><tr><th>Address</th><th class="num">Shares</th><th class="num">kH/s</th><th>Last worker</th><th class="num">Workers</th></tr></thead>
+        <tbody id="t_miners"><tr><td colspan="5" class="dim">loading…</td></tr></tbody></table>
+      </div>
+    </section>
 
+    <section>
+      <h2>Pending payouts (before fees)</h2>
+      <div class="card" style="padding:0;overflow:auto">
+        <table><thead><tr><th>Address</th><th class="num">Pending (BIS)</th></tr></thead>
+        <tbody id="t_pending"><tr><td colspan="2" class="dim">—</td></tr></tbody></table>
+      </div>
+    </section>
 
-        <div class="container">
-            <section class="panel panel-default">
-                <div class="panel-heading">
-                    <h4>Block and Pool Stats for this round</h4>
-                </div>
+    <section>
+      <h2>Recent payouts</h2>
+      <div class="card" style="padding:0;overflow:auto">
+        <table><thead><tr><th>Recipient</th><th class="num">Amount</th><th class="num">Block</th><th>Time (UTC)</th></tr></thead>
+        <tbody id="t_payouts"><tr><td colspan="4" class="dim">—</td></tr></tbody></table>
+      </div>
+    </section>
+  </div>
 
-                <div class="table table-responsive">
-                        <table id="active_miners" class="table table-hover">
-                                <thead>
-                                    {% for stat in bpstats %}
-                                    <tr>
-                                        <th width='50%'>{{stat[0]}}</th>
-                                        <td class='text-left'>{{stat[1]}}</td>
-                                    </tr>
-                                    <tr>
-                                        <th width='50%'>Shares total</th>
-                                        <td class='text-left'>{{stat[2]}}</td>
-                                    </tr>
-                                    <tr>
-                                        <th width='50%'>Reward per share (before fees)</th>
-                                        <td class='text-left'>{{stat[3]}}</td>
-                                    </tr>
-                                    <tr>
-                                        <th width='50%'>Mined rewards for this round</th>
-                                        <td class='text-left'>{{stat[4]}}</td>
-                                    </tr>
-                                    <tr>
-                                        <th width='50%'>Est pool hashrate (mh/s)</th>
-                                        <td class='text-left'>{{stat[5]}}</td>
-                                    </tr>
-                                    <tr>
-                                        <th width='50%'>Worker Count</th>
-                                        <td class='text-left'>{{stat[6]}}</td>
-                                    </tr>
-                                    {% endfor %}
-                                </thead>        
-                        </table>
-                </div>
-            </section>
-        </div>
+  <footer>Optipoolware · powered by <a href="https://github.com/hclivess/Bismuth">Bismuth</a></footer>
 
+  <script>
+    const $ = id => document.getElementById(id);
+    const trunc = a => a ? (a.length > 16 ? a.slice(0,10)+'…'+a.slice(-4) : a) : '—';
+    const num = (n,d=0) => (n===null||n===undefined||n==='') ? '—' : Number(n).toLocaleString(undefined,{maximumFractionDigits:d});
 
-        <div class="container">
-            <section class="panel panel-default clearfix">
-                <div class="panel-heading">
-                    <h4>Pending Payouts (before fees)</h4>
-                </div>
-                <div class="table table-responsive">
-                    <table id="pending payouts" class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>Address</th>
-                                <th>Bismuth Reward</th>
-                            </tr>
-                        </thead>
-                        {% for payout in payoutsfees %}
-                        <tr>
-                            <td>{{payout[0]}}</td>
-                            <td>{{payout[1]}}</td>
-                        </tr>
-                        {% endfor %}
-                    </table>
-                    
-                </div>
-                
-            </section>
-        </div>
+    function rows(tbody, list, cols, empty) {
+      const el = $(tbody);
+      if (!list || !list.length) { el.innerHTML = `<tr><td colspan="${cols}" class="dim">${empty}</td></tr>`; return; }
+      el.innerHTML = list.join('');
+    }
 
-        <div class="container">
-            <section class="panel panel-default clearfix">
-                <div class="panel-heading">
-                    <h4>Recent Payouts</h4>
-                </div>
-                <div class="table table-responsive">
-                    <table id="pending payouts" class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th class="text-left">Address</th>
-                                <th class="text-right">Bismuth reward</th>
-                                <th class="text-right">Block height</th>
-                                <th class="text-right">Time</th>
-                            </tr>
-                        </thead>
-                        {% for payout in payouts %}
-                        <tr>
-                            <td>{{payout[10]}}</td>
-                            <td class='text-right'>{{payout[1]}}</td>"
-                            <td class='text-right'>{{payout[2]}}</td>"
-                            <td class='text-right'>{{payout[3]}}</td>"
-                            
-                        </tr>
-                        {% endfor %}
-
-
-                    </table>
-                    
-                </div>
-                
-            </section>
-        </div>
-    
-
-
-
+    async function refresh() {
+      let d;
+      try { d = await (await fetch('/api/stats', {cache:'no-store'})).json(); }
+      catch (e) { $('updated').textContent = 'node unreachable — retrying'; return; }
+      const p = d.pool || {}, n = d.network || {};
+      $('c_ip').textContent = (p.mining_ip||'') + ':' + (p.mining_port||'');
+      $('c_fee').textContent = p.fee; $('c_min').textContent = num(p.min_payout); $('c_addr').textContent = p.address || '—';
+      $('k_hash').textContent = num(p.hashrate_mhs,3); $('k_miners').textContent = num(p.miners);
+      $('k_workers').textContent = num(p.workers); $('k_shares').textContent = num(p.shares_round);
+      $('k_blocks').textContent = num(p.blocks_round); $('k_rps').textContent = p.reward_per_share || '—';
+      $('n_height').textContent = num(n.height); $('n_diff').textContent = num(n.difficulty,2);
+      $('n_forkh').textContent = (n.fork_height ?? '—');
+      $('n_tofork').textContent = (n.blocks_to_fork!=null && n.blocks_to_fork>0) ? num(n.blocks_to_fork) : (n.fork_active ? 'active' : '—');
+      const pow = $('n_pow'); pow.textContent = n.pow || '—'; pow.className = 'badge ' + (n.pow==='blake2b'?'ok':'warn');
+      const fk = $('n_fork'); fk.textContent = n.fork_active ? 'ACTIVE' : (n.fork_locked_in ? 'locked-in' : 'pre-fork');
+      fk.className = 'badge ' + ((n.fork_active||n.fork_locked_in) ? 'ok' : 'warn');
+      rows('t_miners', (d.miners||[]).map(m =>
+        `<tr><td class="mono">${trunc(m.address)}</td><td class="num">${num(m.shares)}</td><td class="num">${num(m.hashrate_khs)}</td><td class="mono">${m.last_worker||''}</td><td class="num">${num(m.workers)}</td></tr>`), 5, 'no active miners');
+      rows('t_pending', (d.pending||[]).map(x =>
+        `<tr><td class="mono">${trunc(x.address)}</td><td class="num mono">${x.reward}</td></tr>`), 2, 'nothing pending');
+      rows('t_payouts', (d.payouts||[]).map(x =>
+        `<tr><td class="mono">${trunc(x.recipient)}</td><td class="num mono">${x.amount}</td><td class="num">${x.height??''}</td><td>${x.time||''}</td></tr>`), 4, 'no recent payouts');
+      $('updated').textContent = 'updated ' + new Date().toLocaleTimeString();
+    }
+    refresh(); setInterval(refresh, 15000);
+  </script>
 </body>
 </html>
