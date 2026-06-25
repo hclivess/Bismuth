@@ -92,6 +92,88 @@ def test_apply_then_rollback_is_neutral(tmp_path):
         idx.close()
 
 
+# --------------------------------------------------------------------------- KV-seam migration (doc/26 stage 1)
+def test_lmdb_on_disk_bytes_identical_to_direct_lmdb(tmp_path):
+    """The migrated BalanceIndex (open_store lmdb) writes the EXACT same key/value bytes as a direct
+    lmdb.open() store using the store's ORIGINAL convention: raw-address key, msgpack [credit, debit]
+    value. Funds-sensitive store -> a running node must read its existing LMDB file unchanged."""
+    lmdb = pytest.importorskip("lmdb")
+    try:
+        import msgpack
+
+        def _orig_pack(o):
+            return msgpack.packb(o, use_bin_type=True)
+    except ImportError:  # pragma: no cover
+        import json
+
+        def _orig_pack(o):
+            return json.dumps(o).encode()
+
+    idx = BalanceIndex(str(tmp_path / "bi"), map_size=64 * 1024 * 1024)
+    try:
+        # B credited 100; A credited 40 debited 110; C debited 45
+        idx.apply_rows([_row(7, "A", "B", 100, fee=10), _row(7, "C", "A", 40, fee=5)])
+    finally:
+        idx.close()
+
+    env = lmdb.open(str(tmp_path / "bi"), subdir=True, max_dbs=1, readonly=True, lock=False)
+    db = env.open_db(b"bal")
+    on_disk = {}
+    with env.begin() as t:
+        for k, v in t.cursor(db=db):
+            on_disk[bytes(k)] = bytes(v)
+    env.close()
+
+    # reconstruct expected bytes from the pre-migration convention: key=addr.encode(), val=msgpack[c,d]
+    expected = {
+        b"A": _orig_pack([40, 100 + 10]),   # credited 40, debited amount 100 + fee 10
+        b"B": _orig_pack([100, 0]),
+        b"C": _orig_pack([0, 40 + 5]),
+    }
+    assert on_disk == expected
+
+
+def _drive_balance_index(backend, tmp_path, name):
+    """Identical workload against a BalanceIndex on the given backend; return observable results."""
+    ledger = str(tmp_path / (name + "_ledger.db"))
+    _make_int_ledger(ledger)
+    idx = BalanceIndex(str(tmp_path / name), map_size=64 * 1024 * 1024, backend=backend)
+    try:
+        rebuilt = idx.rebuild_from_ledger(ledger)
+        snap = {a: idx.get_balance_units(a) for a in ("miner", "alice", "bob")}
+        count_after_rebuild = idx.count()
+        # apply a fresh block, then roll it back -> net neutral
+        block = [_row(7, "alice", "bob", 100, fee=10), _row(7, "miner", "alice", 40, fee=5)]
+        idx.apply_rows(block)
+        applied = {a: idx.get_balance_units(a) for a in ("miner", "alice", "bob")}
+        idx.rollback_rows(block)
+        rolled = {a: idx.get_balance_units(a) for a in ("miner", "alice", "bob")}
+        return {
+            "rebuilt": rebuilt,
+            "snap": snap,
+            "count": count_after_rebuild,
+            "applied": applied,
+            "rolled": rolled,
+        }
+    finally:
+        idx.close()
+
+
+def test_backend_swappable_lmdb_equals_sqlite(tmp_path):
+    """The SAME BalanceIndex, driven identically on lmdb vs sqlite-kv via open_store(backend=...), yields
+    identical results — proving the KV seam (get/put, drop via rebuild, stat via count) is engine-
+    independent for this funds-sensitive store. [doc/26 storage stage 1]"""
+    pytest.importorskip("lmdb")
+    res_lmdb = _drive_balance_index("lmdb", tmp_path, "bi_lmdb")
+    res_sqlite = _drive_balance_index("sqlite-kv", tmp_path, "bi_sqlite")
+    assert res_lmdb == res_sqlite, \
+        "BalanceIndex results differ across backends -> seam not engine-independent"
+    # sanity: the workload is non-trivial and rollback is neutral
+    assert res_lmdb["rebuilt"] >= 3
+    assert res_lmdb["snap"] == res_lmdb["rolled"]
+    assert res_lmdb["applied"] != res_lmdb["snap"]
+
+
 def test_bitmatches_ledger_on_regnet(client, tmp_path):
     # create varied real balances on the live regnet node, then mine to clear the mempool
     client.mine(3)

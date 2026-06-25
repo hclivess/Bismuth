@@ -19,30 +19,24 @@ is why this step depends on the integer cutover.
 Storage only / standalone here: it is rebuildable from the ledger and exposes apply/rollback, but is
 NOT yet wired into the digester's commit path (that lands behind a config flag, replay-validated).
 
-Deps: ``lmdb`` (required), ``msgpack`` (optional — JSON fallback).
+Migrated onto the engine-agnostic KV abstraction (``kvstore.open_store``, doc/26 storage stage 1): the
+underlying KV engine (LMDB <-> MDBX <-> sqlite-kv) is now a single ``backend=`` factory arg instead of a
+direct ``lmdb.open()`` call. The public method surface AND the on-disk byte format are UNCHANGED — the
+key is still the raw address bytes and the value the same msgpack ``[credit_units, debit_units]`` list
+(``Codec`` from kvstore is the exact same msgpack ``use_bin_type=True`` / JSON-fallback the store used
+before) — so the bit-match-vs-``ledger_balance3`` parity proof in the tests holds byte-for-byte on the
+lmdb backend, and the SAME store now also runs on sqlite-kv (proving the seam is engine-independent).
+
+Deps: ``kvstore`` (which needs ``lmdb`` for the lmdb backend; ``msgpack`` optional — JSON fallback).
 """
-import lmdb
+from kvstore import Codec, KVStore, open_store
 
-try:
-    import msgpack
-
-    def _pack(o):
-        return msgpack.packb(o, use_bin_type=True)
-
-    def _unpack(b):
-        return msgpack.unpackb(b, raw=False)
-except ImportError:  # pragma: no cover
-    import json
-
-    def _pack(o):
-        return json.dumps(o).encode()
-
-    def _unpack(b):
-        return json.loads(b)
+_pack = Codec.pack
+_unpack = Codec.unpack
 
 import amounts
 
-_GIB = 1024 ** 3
+_GIB = KVStore.GIB
 
 # field indices in a 12-column ledger row
 _ADDR, _RECIP, _AMOUNT, _FEE, _REWARD = 2, 3, 4, 8, 9
@@ -67,25 +61,25 @@ def _accumulate(rows, acc):
 
 
 class BalanceIndex:
-    def __init__(self, path, map_size=4 * _GIB, readonly=False, sync=True):
-        # lock=True even when readonly so a separate process (a test, or a tool) can read the index
-        # consistently while the node maintains it.
-        self.env = lmdb.open(path, subdir=True, max_dbs=1, map_size=map_size,
-                             readonly=readonly, lock=True, sync=sync, metasync=sync)
-        self.db = self.env.open_db(b"bal")
+    def __init__(self, path, map_size=4 * _GIB, readonly=False, sync=True, backend="lmdb"):
+        self.store = open_store(backend, path, dbs=["bal"], map_size=map_size,
+                                readonly=readonly, sync=sync)
+        self.db = self.store.open_db("bal")
+        # kept for back-compat with callers/tests that introspect the env directly (lmdb backend only)
+        self.env = getattr(self.store, "env", None)
 
     def _get(self, txn, addr):
-        v = txn.get(_key(addr), db=self.db)
+        v = txn.get(self.db, _key(addr))
         if v is None:
             return 0, 0
         c, d = _unpack(v)
         return int(c), int(d)
 
     def _apply(self, acc, sign):
-        with self.env.begin(write=True) as txn:
+        with self.store.txn(write=True) as txn:
             for addr, (dc, dd) in acc.items():
                 c, d = self._get(txn, addr)
-                txn.put(_key(addr), _pack([c + sign * dc, d + sign * dd]), db=self.db)
+                txn.put(self.db, _key(addr), _pack([c + sign * dc, d + sign * dd]))
 
     # --- maintenance --------------------------------------------------------
     def apply_rows(self, rows):
@@ -120,15 +114,15 @@ class BalanceIndex:
         acc = {}
         for r in cursor.execute("SELECT * FROM transactions"):
             _accumulate([r], acc)
-        with self.env.begin(write=True) as txn:
-            txn.drop(self.db, delete=False)            # fresh rebuild
+        with self.store.txn(write=True) as txn:
+            txn.drop(self.db)                          # fresh rebuild
             for addr, (c, d) in acc.items():
-                txn.put(_key(addr), _pack([c, d]), db=self.db)
+                txn.put(self.db, _key(addr), _pack([c, d]))
         return len(acc)
 
     # --- read ---------------------------------------------------------------
     def get_balance_units(self, address):
-        with self.env.begin() as txn:
+        with self.store.txn() as txn:
             c, d = self._get(txn, address)
         return c - d
 
@@ -137,8 +131,7 @@ class BalanceIndex:
         return amounts.to_decimal(self.get_balance_units(address))
 
     def count(self):
-        with self.env.begin() as txn:
-            return txn.stat(db=self.db)["entries"]
+        return self.store.stat(self.db)["entries"]
 
     def close(self):
-        self.env.close()
+        self.store.close()

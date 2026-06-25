@@ -17,39 +17,31 @@ the tests. Append-only, with height-based ``rollback`` for chain reorgs.
 This is the foundation for phase 7; it does not yet replace the node's read/write path (that lands
 behind a config flag, replay-validated, in a later step).
 
-Deps: ``lmdb`` (required), ``msgpack`` (optional — JSON fallback, larger).
+Migrated onto the engine-agnostic KV abstraction (``kvstore.open_store``, doc/26 storage stage 1): the
+four sub-dbs (blocks/hashes/pk/pkr) are opened through ``open_store`` and every env.begin()/cursor goes
+through ``KVStore.txn()``/``KVTxn``, so the underlying engine (LMDB<->MDBX<->sqlite-kv) is a one-arg
+``backend=`` choice. The public method surface AND the on-disk byte format are UNCHANGED:
+  * blocks  : big-endian uint64 height -> ``Codec.pack`` msgpack {"h":..,"t":[..]} (same packer as before)
+  * hashes  : block_hash bytes         -> big-endian uint64 height (raw bytes)
+  * pk      : blake2b-32(public_key)   -> id BE uint64 (raw bytes)
+  * pkr     : id BE uint64             -> public_key bytes (raw bytes)
+So a running node reads its existing LMDB files unchanged, and ``verify_against_sqlite`` /
+storage_backend's cross_check still hold byte-for-byte. The pubkey-dedup id assignment (next id = current
+``pk`` entry count, within the SAME write txn) uses ``KVTxn.count``; the concurrent readonly-reader
+integration test relies on lock=True even when readonly — both preserved through the seam.
+
+Deps: ``kvstore`` (which needs ``lmdb`` for the lmdb backend; ``msgpack`` optional — JSON fallback).
 """
 import hashlib
-import struct
 
-import lmdb
+from kvstore import Codec, KVStore, open_store
 
-try:
-    import msgpack
+_pack = Codec.pack
+_unpack = Codec.unpack
+_hk = Codec.hkey
+_uh = Codec.unhkey
 
-    def _pack(o):
-        return msgpack.packb(o, use_bin_type=True)
-
-    def _unpack(b):
-        return msgpack.unpackb(b, raw=False, strict_map_key=False)
-except ImportError:  # pragma: no cover - fallback path
-    import json
-
-    def _pack(o):
-        return json.dumps(o, separators=(",", ":")).encode()
-
-    def _unpack(b):
-        return json.loads(b)
-
-_GIB = 1024 ** 3
-
-
-def _hk(height):
-    return struct.pack(">Q", int(height))   # ordered key: lexicographic == numeric
-
-
-def _uh(key):
-    return struct.unpack(">Q", key)[0]
+_GIB = KVStore.GIB
 
 
 class BlockStore:
@@ -57,18 +49,20 @@ class BlockStore:
     # timestamp,address,recipient,amount,signature,public_key,block_hash,fee,reward,operation,openfield)
     _PK = 5
 
-    def __init__(self, path, map_size=64 * _GIB, readonly=False, sync=True):
+    def __init__(self, path, map_size=64 * _GIB, readonly=False, sync=True, backend="lmdb"):
         # lock=True even when readonly: it registers in the reader table so a separate process can read
         # the store consistently WHILE the node writes it (the integration test does exactly this).
-        self.env = lmdb.open(path, subdir=True, max_dbs=4, map_size=map_size,
-                             readonly=readonly, lock=True, sync=sync, metasync=sync)
-        self.blocks = self.env.open_db(b"blocks")
-        self.hashes = self.env.open_db(b"hashes")
+        self.store = open_store(backend, path, dbs=["blocks", "hashes", "pk", "pkr"],
+                                map_size=map_size, readonly=readonly, sync=sync, lock=True)
+        self.blocks = self.store.open_db("blocks")
+        self.hashes = self.store.open_db("hashes")
         # Public-key dedup: the 1068-byte RSA public key is 1:1 with the sender address and repeats on
         # every tx, so store each distinct key ONCE and reference it by a small integer id. Transparent
         # + lossless: get_block re-expands the id to the original key string.
-        self.pk = self.env.open_db(b"pk")     # public_key bytes -> id (BE uint64)
-        self.pkr = self.env.open_db(b"pkr")   # id (BE uint64) -> public_key bytes
+        self.pk = self.store.open_db("pk")     # public_key bytes -> id (BE uint64)
+        self.pkr = self.store.open_db("pkr")   # id (BE uint64) -> public_key bytes
+        # kept for back-compat with callers/tests that introspect the raw env directly (lmdb backend only)
+        self.env = getattr(self.store, "env", None)
 
     @staticmethod
     def _bh(block_hash):
@@ -83,13 +77,13 @@ class BlockStore:
         # 511-byte max key size, so it can't be the key directly. blake2b-256 collisions are negligible,
         # and verify_against_sqlite would catch any anyway. The full key is stored as the value in pkr.
         hkey = hashlib.blake2b(pkb, digest_size=32).digest()
-        v = txn.get(hkey, db=self.pk)
+        v = txn.get(self.pk, hkey)
         if v is not None:
             nid = _uh(v)
         else:
-            nid = txn.stat(db=self.pk)["entries"]
-            txn.put(hkey, _hk(nid), db=self.pk)
-            txn.put(_hk(nid), pkb, db=self.pkr)
+            nid = txn.count(self.pk)
+            txn.put(self.pk, hkey, _hk(nid))
+            txn.put(self.pkr, _hk(nid), pkb)
         cache[pk] = nid
         return nid
 
@@ -98,7 +92,7 @@ class BlockStore:
         out = []
         for t in rec["t"]:
             t = list(t)
-            pkb = txn.get(_hk(t[self._PK]), db=self.pkr)
+            pkb = txn.get(self.pkr, _hk(t[self._PK]))
             if pkb is not None:
                 t[self._PK] = pkb.decode()
             out.append([height] + t)
@@ -109,7 +103,7 @@ class BlockStore:
         """Store an iterable of ``(height, block_hash, full_rows)`` in one transaction.
         ``full_rows`` are 12-field ledger rows; block_height is dropped (the key) and the public key is
         replaced by its dedup id."""
-        with self.env.begin(write=True) as txn:
+        with self.store.txn(write=True) as txn:
             cache = {}
             for height, block_hash, rows in items:
                 txs = []
@@ -117,30 +111,29 @@ class BlockStore:
                     t = list(r[1:])
                     t[self._PK] = self._pubkey_id(txn, t[self._PK], cache)
                     txs.append(t)
-                txn.put(_hk(height), _pack({"h": block_hash, "t": txs}), db=self.blocks)
-                txn.put(self._bh(block_hash), _hk(height), db=self.hashes)
+                txn.put(self.blocks, _hk(height), _pack({"h": block_hash, "t": txs}))
+                txn.put(self.hashes, self._bh(block_hash), _hk(height))
 
     def put_block(self, height, block_hash, rows):
         self.put_blocks([(height, block_hash, rows)])
 
     def rollback(self, to_height):
         """Delete every block with height > ``to_height`` (a reorg). Returns the count removed."""
-        with self.env.begin(write=True) as txn:
-            cur = txn.cursor(db=self.blocks)
+        with self.store.txn(write=True) as txn:
             to_delete = []
-            if cur.set_range(_hk(int(to_height) + 1)):
-                for k, v in cur:                       # collect first (don't mutate while iterating)
-                    to_delete.append((bytes(k), self._bh(_unpack(v)["h"])))
+            # collect first (don't mutate while iterating); range from to_height+1 to the end
+            for k, v in txn.range(self.blocks, start=_hk(int(to_height) + 1)):
+                to_delete.append((bytes(k), self._bh(_unpack(v)["h"])))
             for block_key, hash_key in to_delete:
-                txn.delete(block_key, db=self.blocks)
-                txn.delete(hash_key, db=self.hashes)
+                txn.delete(self.blocks, block_key)
+                txn.delete(self.hashes, hash_key)
         return len(to_delete)
 
     # --- read --------------------------------------------------------------
     def get_block(self, height):
         """Full 12-field ledger rows for ``height`` (block_height re-prepended, pubkey re-expanded)."""
-        with self.env.begin() as txn:
-            v = txn.get(_hk(height), db=self.blocks)
+        with self.store.txn() as txn:
+            v = txn.get(self.blocks, _hk(height))
             if v is None:
                 return None
             return self._expand(txn, height, _unpack(v))
@@ -153,9 +146,9 @@ class BlockStore:
         weights = []
         lo = max(1, int(tip_height) - int(window) + 1)
         unit = max(1, int(w_unit))
-        with self.env.begin() as txn:
+        with self.store.txn() as txn:
             for h in range(lo, int(tip_height) + 1):
-                v = txn.get(_hk(h), db=self.blocks)
+                v = txn.get(self.blocks, _hk(h))
                 if v is None:
                     continue
                 rows = _unpack(v)["t"]
@@ -164,37 +157,34 @@ class BlockStore:
         return weights
 
     def block_hash(self, height):
-        with self.env.begin() as txn:
-            v = txn.get(_hk(height), db=self.blocks)
+        with self.store.txn() as txn:
+            v = txn.get(self.blocks, _hk(height))
         return _unpack(v)["h"] if v is not None else None
 
     def height_by_hash(self, block_hash):
-        with self.env.begin() as txn:
-            v = txn.get(self._bh(block_hash), db=self.hashes)
+        with self.store.txn() as txn:
+            v = txn.get(self.hashes, self._bh(block_hash))
         return _uh(v) if v is not None else None
 
     def blocks_in_range(self, start, end):
         """Yield ``(height, full_rows)`` for heights in [start, end], ascending."""
-        with self.env.begin() as txn:
-            cur = txn.cursor(db=self.blocks)
-            if cur.set_range(_hk(start)):
-                for k, v in cur:
-                    h = _uh(k)
-                    if h > end:
-                        break
-                    yield h, self._expand(txn, h, _unpack(v))
+        with self.store.txn() as txn:
+            # end-inclusive: range() is end-exclusive, so bound to end+1 (matches the old h>end break)
+            for k, v in txn.range(self.blocks, start=_hk(start), end=_hk(int(end) + 1)):
+                h = _uh(k)
+                yield h, self._expand(txn, h, _unpack(v))
 
     def tip(self):
-        with self.env.begin() as txn:
-            cur = txn.cursor(db=self.blocks)
-            return _uh(cur.key()) if cur.last() else None
+        with self.store.txn() as txn:
+            for k, _v in txn.range(self.blocks, reverse=True):
+                return _uh(k)
+            return None
 
     def count(self):
-        with self.env.begin() as txn:
-            return txn.stat(db=self.blocks)["entries"]
+        return self.store.stat(self.blocks)["entries"]
 
     def close(self):
-        self.env.close()
+        self.store.close()
 
 
 # --- build / validate against the legacy SQLite ledger ---------------------------------------------

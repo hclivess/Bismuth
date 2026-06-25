@@ -105,6 +105,12 @@ class KVTxn:
     def iterate(self, db, prefix=b""):  # pragma: no cover
         raise NotImplementedError
 
+    def count(self, db):  # pragma: no cover
+        """Entry count of `db` AS SEEN INSIDE THIS txn (reflects uncommitted puts in the current write
+        txn — unlike KVStore.stat which opens a separate read snapshot). Used by stores that assign a
+        monotonic id = current entry count within the same write txn (block_store's pubkey dedup)."""
+        raise NotImplementedError
+
     def drop(self, db):  # pragma: no cover
         """Clear ALL entries in `db` (keep the empty sub-db). The drop+re-index rebuild primitive."""
         raise NotImplementedError
@@ -127,6 +133,16 @@ class KVStore:
         raise NotImplementedError
 
     def sync(self):  # pragma: no cover
+        raise NotImplementedError
+
+    def copy_to(self, dst_path, compact=True):  # pragma: no cover
+        """Consistent ONLINE copy of the whole store into ``dst_path`` (created/cleared by the backend),
+        usable WHILE a writer is active — the snapshot/bootstrap primitive (scripts/snapshot.py). Each
+        backend uses its own MVCC-consistent copy (LMDB ``env.copy``; SQLite online backup) so a plain
+        cp of a mid-write file is never produced. ``compact`` drops free pages where the backend supports
+        it (LMDB); ignored otherwise. The copy is left in the backend's native on-disk layout under
+        ``dst_path`` (LMDB subdir with data.mdb; sqlite-kv dir with kv.sqlite), byte-readable by reopening
+        the same backend at ``dst_path``."""
         raise NotImplementedError
 
     def close(self):  # pragma: no cover
@@ -213,6 +229,9 @@ class _LmdbTxn(KVTxn):
                 return
             yield k, v
 
+    def count(self, db):
+        return self._t.stat(db)["entries"]   # reflects uncommitted puts in this write txn
+
     def drop(self, db):
         self._t.drop(db, delete=False)   # clear all entries, keep the (empty) sub-db
 
@@ -238,12 +257,16 @@ class _LmdbTxnCtx:
 
 
 class LmdbKVStore(KVStore):
-    def __init__(self, path, *, dbs, map_size, readonly=False, sync=True):
+    def __init__(self, path, *, dbs, map_size, readonly=False, sync=True, lock=None):
         import lmdb
         names = list(dbs) if dbs else []
+        # lock defaults to (not readonly). A store may force lock=True even when readonly so a separate
+        # READER process registers in LMDB's reader table and can read consistently WHILE the node
+        # writes (block_store's concurrent-reader integration test relies on exactly this).
+        use_lock = (not readonly) if lock is None else bool(lock)
         self.env = lmdb.open(
             path, subdir=True, max_dbs=max(1, len(names)), map_size=map_size,
-            readonly=readonly, lock=not readonly, sync=sync, metasync=sync,
+            readonly=readonly, lock=use_lock, sync=sync, metasync=sync,
         )
         self._dbs = {name: self.env.open_db(name.encode()) for name in names}
 
@@ -261,6 +284,17 @@ class LmdbKVStore(KVStore):
 
     def sync(self):
         self.env.sync(True)
+
+    def copy_to(self, dst_path, compact=True):
+        # LMDB's env.copy takes an MVCC snapshot, so it is consistent even while the node writes; a raw cp
+        # would capture a mid-write mmap. compact=True drops free pages so the bootstrap is small. The dst
+        # must be a fresh empty directory (LMDB subdir convention) — same precondition the snapshot tool had.
+        import os
+        if os.path.exists(dst_path):
+            import shutil
+            shutil.rmtree(dst_path)
+        os.makedirs(dst_path)
+        self.env.copy(dst_path, compact=compact)
 
     def close(self):
         self.env.close()
@@ -324,6 +358,9 @@ class _SqliteTxn(KVTxn):
         for k, v in self._conn.execute(sql, params):
             yield bytes(k), bytes(v)
 
+    def count(self, db):
+        return self._conn.execute('SELECT COUNT(*) FROM "%s"' % db).fetchone()[0]
+
     def drop(self, db):
         self._conn.execute('DELETE FROM "%s"' % db)   # clear all rows, keep the (empty) table
 
@@ -367,7 +404,9 @@ class _SqliteTxnCtx:
 
 
 class SqliteKVStore(KVStore):
-    def __init__(self, path, *, dbs, map_size=None, readonly=False, sync=True):
+    def __init__(self, path, *, dbs, map_size=None, readonly=False, sync=True, lock=None):
+        # `lock` accepted for a uniform factory signature; sqlite-kv has no LMDB-style reader-table lock
+        # file (WAL already gives concurrent read snapshots), so it is intentionally a no-op here.
         import os
         import sqlite3
         self._sqlite3 = sqlite3
@@ -438,6 +477,26 @@ class SqliteKVStore(KVStore):
         finally:
             c.close()
 
+    def copy_to(self, dst_path, compact=True):
+        # SQLite's online backup API copies a transactionally CONSISTENT image even while a writer keeps
+        # working (it re-copies pages mutated mid-backup), the same guarantee env.copy gives LMDB; a raw cp
+        # of a WAL-mode file would capture a half-written snapshot. compact is a no-op here (sqlite-kv's
+        # WITHOUT ROWID tables have no LMDB-style free-page list to drop). The copy lands at dst_path's
+        # kv.sqlite so reopening open_store('sqlite-kv', dst_path) reads it back unchanged.
+        import os
+        if os.path.exists(dst_path):
+            import shutil
+            shutil.rmtree(dst_path)
+        os.makedirs(dst_path)
+        dst_file = os.path.join(dst_path, "kv.sqlite")
+        src = self._connect()
+        dst = self._sqlite3.connect(dst_file)
+        try:
+            src.backup(dst)
+        finally:
+            dst.close()
+            src.close()
+
     def close(self):
         return  # no persistent connection — each txn/op opens and closes its own
 
@@ -450,7 +509,7 @@ class MdbxKVStore(KVStore):
     a binding exists this reuses the LMDB txn shape almost verbatim; until then it raises on
     construction only."""
 
-    def __init__(self, path, *, dbs, map_size, readonly=False, sync=True):
+    def __init__(self, path, *, dbs, map_size, readonly=False, sync=True, lock=None):
         try:
             import mdbx  # noqa: F401  (libmdbx python binding; optional)
         except ImportError as e:  # pragma: no cover - exercised only without a binding
@@ -474,14 +533,16 @@ _BACKENDS = {
 }
 
 
-def open_store(backend, path, *, dbs, map_size=2 * KVStore.GIB, readonly=False, sync=True):
+def open_store(backend, path, *, dbs, map_size=2 * KVStore.GIB, readonly=False, sync=True, lock=None):
     """Open a KVStore on ``backend`` in {lmdb, mdbx, sqlite-kv}. ``dbs`` is the list of named sub-dbs;
-    ``map_size`` is the LMDB/MDBX map size (ignored by sqlite-kv). This is the single seam the node's
-    stores construct through, so swapping the engine is a one-arg change."""
+    ``map_size`` is the LMDB/MDBX map size (ignored by sqlite-kv). ``lock`` overrides the default LMDB
+    locking (None => not readonly); set lock=True to keep a readonly reader in the reader table while a
+    writer is active (no-op on sqlite-kv). This is the single seam the node's stores construct through,
+    so swapping the engine is a one-arg change."""
     try:
         cls = _BACKENDS[backend]
     except KeyError:
         raise ValueError(
             "unknown KV backend %r (choose from %s)" % (backend, ", ".join(sorted(_BACKENDS)))
         )
-    return cls(path, dbs=dbs, map_size=map_size, readonly=readonly, sync=sync)
+    return cls(path, dbs=dbs, map_size=map_size, readonly=readonly, sync=sync, lock=lock)

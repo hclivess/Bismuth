@@ -31,16 +31,32 @@ This is a derived, rebuildable index: it never touches the canonical ledger and 
 consensus. It is built incrementally from ``token_anchor()`` / ``alias_anchor()`` by the scanners in
 ``tokensv2`` / ``aliases`` (a fresh store has anchor 0 → first pass backfills the whole chain).
 
-Deps: ``lmdb`` (required). Values are JSON (small, readable; mirrors shieldedv1).
+Migrated onto the engine-agnostic KV abstraction (``kvstore.open_store``, doc/26 storage stage 1): the 11
+sub-dbs are opened through ``KVStore`` and every ``env.begin()``/cursor becomes a ``store.txn()``/``KVTxn``
+call, so the underlying engine (LMDB<->MDBX<->sqlite-kv) is a one-arg ``backend=`` choice. The public method
+surface AND the on-disk byte format are UNCHANGED: keys stay the same raw byte layout (token\0party\0HQ,
+big-endian heights, ...) and the values stay JSON / decimal-string / b"" bytes EXACTLY as before — the JSON
+values are written via ``json.dumps`` with the identical separators, NOT routed through ``Codec`` (which is
+msgpack), so a running node reads its existing LMDB files unchanged. Ordered prefix/range scans go through
+``KVTxn.iterate``/``range`` (which forward the raw lmdb cursor, same byte order), and the per-db entry count
+in ``stats()`` uses ``KVStore.stat(db)`` (available on both backends).
+
+Deps: ``kvstore`` (which needs ``lmdb`` for the default backend). Values are JSON (small, readable; mirrors
+shieldedv1).
 """
 import json
 import os
 import struct
 
+from kvstore import open_store
+
 __version__ = "0.1.0"
 
 _GIB = 1024 ** 3
 _SEP = b"\x00"
+
+_DBS = ["meta", "tokreg", "seen", "cred", "deb", "addrtok", "tokset",
+        "journal", "alias_fwd", "alias_rev", "ajournal"]
 
 
 def _hbe(height) -> bytes:
@@ -68,52 +84,55 @@ class TokenIndex:
     method is its own atomic write txn, so a crash mid-pass just re-scans from the anchor (idempotent via
     the registry / txid dedup). Reorg rollback is a height range-delete + counter/refcount adjustment."""
 
-    def __init__(self, path: str, map_size: int = 4 * _GIB, readonly: bool = False):
-        import lmdb
+    def __init__(self, path: str, map_size: int = 4 * _GIB, readonly: bool = False, sync: bool = True,
+                 backend: str = "lmdb"):
         self.path = path
-        self.env = lmdb.open(path, subdir=True, max_dbs=12, map_size=map_size, readonly=readonly, lock=True)
-        self.meta = self.env.open_db(b"meta")
-        self.tokreg = self.env.open_db(b"tokreg")
-        self.seen = self.env.open_db(b"seen")
-        self.cred = self.env.open_db(b"cred")
-        self.deb = self.env.open_db(b"deb")
-        self.addrtok = self.env.open_db(b"addrtok")
-        self.tokset = self.env.open_db(b"tokset")
-        self.journal = self.env.open_db(b"journal")
-        self.alias_fwd = self.env.open_db(b"alias_fwd")
-        self.alias_rev = self.env.open_db(b"alias_rev")
-        self.ajournal = self.env.open_db(b"ajournal")
+        # max_dbs=12 historically (11 named + headroom); the seam opens exactly the named sub-dbs.
+        self.store = open_store(backend, path, dbs=_DBS, map_size=map_size, readonly=readonly, sync=sync)
+        self.meta = self.store.open_db("meta")
+        self.tokreg = self.store.open_db("tokreg")
+        self.seen = self.store.open_db("seen")
+        self.cred = self.store.open_db("cred")
+        self.deb = self.store.open_db("deb")
+        self.addrtok = self.store.open_db("addrtok")
+        self.tokset = self.store.open_db("tokset")
+        self.journal = self.store.open_db("journal")
+        self.alias_fwd = self.store.open_db("alias_fwd")
+        self.alias_rev = self.store.open_db("alias_rev")
+        self.ajournal = self.store.open_db("ajournal")
+        # kept for back-compat with callers/tests that introspect the env directly (lmdb backend only)
+        self.env = getattr(self.store, "env", None)
 
     # ---- meta helpers ----------------------------------------------------
     def _get_int(self, txn, db, key, default=0):
-        v = txn.get(key, db=db)
+        v = txn.get(db, key)
         return int(v) if v is not None else default
 
     def _next_seq(self, txn) -> int:
         seq = self._get_int(txn, self.meta, b"seq", 0) + 1
-        txn.put(b"seq", str(seq).encode(), db=self.meta)
+        txn.put(self.meta, b"seq", str(seq).encode())
         return seq
 
     def _bump_anchor(self, txn, key, height):
         if int(height) > self._get_int(txn, self.meta, key, 0):
-            txn.put(key, str(int(height)).encode(), db=self.meta)
+            txn.put(self.meta, key, str(int(height)).encode())
 
     def token_anchor(self) -> int:
-        with self.env.begin() as txn:
+        with self.store.txn() as txn:
             return self._get_int(txn, self.meta, b"tok_anchor", 0)
 
     def alias_anchor(self) -> int:
-        with self.env.begin() as txn:
+        with self.store.txn() as txn:
             return self._get_int(txn, self.meta, b"alias_anchor", 0)
 
     # ---- token registry / dedup reads (used by the scanner) --------------
     def has_token(self, token: str) -> bool:
-        with self.env.begin() as txn:
-            return txn.get(token.encode(), db=self.tokreg) is not None
+        with self.store.txn() as txn:
+            return txn.get(self.tokreg, token.encode()) is not None
 
     def has_txid(self, txid: str) -> bool:
-        with self.env.begin() as txn:
-            return txn.get(txid.encode(), db=self.seen) is not None
+        with self.store.txn() as txn:
+            return txn.get(self.seen, txid.encode()) is not None
 
     # ---- bounded credit/debit (the EXACT overspend-check sums) ------------
     def _sum_party(self, db, token: str, party: str, height, inclusive: bool) -> int:
@@ -121,15 +140,11 @@ class TokenIndex:
         Mirrors ``SELECT sum(amount) ... WHERE token=? AND <recipient|address>=? AND block_height <|<= ?``."""
         prefix = _party_prefix(token, party)
         total = 0
-        with self.env.begin() as txn:
-            cur = txn.cursor(db=db)
-            if cur.set_range(prefix):
-                for k, v in cur:
-                    if not k.startswith(prefix):
-                        break
-                    h = struct.unpack(">QQ", k[-16:])[0]
-                    if (h <= height) if inclusive else (h < height):
-                        total += int(v)
+        with self.store.txn() as txn:
+            for k, v in txn.iterate(db, prefix=prefix):
+                h = struct.unpack(">QQ", k[-16:])[0]
+                if (h <= height) if inclusive else (h < height):
+                    total += int(v)
         return total
 
     def token_credit(self, token: str, address: str, below_height) -> int:
@@ -150,21 +165,21 @@ class TokenIndex:
         except (TypeError, ValueError):
             supply = 0
         tb, xb = token.encode(), txid.encode()
-        with self.env.begin(write=True) as txn:
-            if txn.get(tb, db=self.tokreg) is not None or txn.get(xb, db=self.seen) is not None:
+        with self.store.txn(write=True) as txn:
+            if txn.get(self.tokreg, tb) is not None or txn.get(self.seen, xb) is not None:
                 return False
             seq = self._next_seq(txn)
-            txn.put(tb, json.dumps({"h": int(height), "ts": ts, "issuer": issuer,
-                                    "txid": txid, "supply": supply}).encode(), db=self.tokreg)
-            txn.put(xb, b"", db=self.seen)
+            txn.put(self.tokreg, tb, json.dumps({"h": int(height), "ts": ts, "issuer": issuer,
+                                                 "txid": txid, "supply": supply}).encode())
+            txn.put(self.seen, xb, b"")
             # issuance: recipient=issuer credited the supply, address='issued' debited it (legacy mirror)
-            txn.put(_party_key(token, issuer, height, seq), str(supply).encode(), db=self.cred)
-            txn.put(_party_key(token, "issued", height, seq), str(supply).encode(), db=self.deb)
+            txn.put(self.cred, _party_key(token, issuer, height, seq), str(supply).encode())
+            txn.put(self.deb, _party_key(token, "issued", height, seq), str(supply).encode())
             self._incr_addrtok(txn, issuer, token, +1)
             self._incr_addrtok(txn, "issued", token, +1)
             self._incr_count(txn, self.tokset, tb, +1)
-            txn.put(_hq(height, seq), json.dumps({"k": "issue", "tok": token, "rcp": issuer,
-                    "adr": "issued", "amt": supply, "txid": txid}).encode(), db=self.journal)
+            txn.put(self.journal, _hq(height, seq), json.dumps({"k": "issue", "tok": token, "rcp": issuer,
+                    "adr": "issued", "amt": supply, "txid": txid}).encode())
             self._bump_anchor(txn, b"tok_anchor", height)
             return True
 
@@ -173,18 +188,18 @@ class TokenIndex:
         links both addresses to the token, counts one ``tokset`` row. Idempotent on txid."""
         amount = int(amount)
         xb = txid.encode()
-        with self.env.begin(write=True) as txn:
-            if txn.get(xb, db=self.seen) is not None:
+        with self.store.txn(write=True) as txn:
+            if txn.get(self.seen, xb) is not None:
                 return False
             seq = self._next_seq(txn)
-            txn.put(xb, b"", db=self.seen)
-            txn.put(_party_key(token, recipient, height, seq), str(amount).encode(), db=self.cred)
-            txn.put(_party_key(token, sender, height, seq), str(amount).encode(), db=self.deb)
+            txn.put(self.seen, xb, b"")
+            txn.put(self.cred, _party_key(token, recipient, height, seq), str(amount).encode())
+            txn.put(self.deb, _party_key(token, sender, height, seq), str(amount).encode())
             self._incr_addrtok(txn, sender, token, +1)
             self._incr_addrtok(txn, recipient, token, +1)
             self._incr_count(txn, self.tokset, token.encode(), +1)
-            txn.put(_hq(height, seq), json.dumps({"k": "transfer", "tok": token, "rcp": recipient,
-                    "adr": sender, "amt": amount, "txid": txid, "ts": ts}).encode(), db=self.journal)
+            txn.put(self.journal, _hq(height, seq), json.dumps({"k": "transfer", "tok": token, "rcp": recipient,
+                    "adr": sender, "amt": amount, "txid": txid, "ts": ts}).encode())
             self._bump_anchor(txn, b"tok_anchor", height)
             return True
 
@@ -192,12 +207,12 @@ class TokenIndex:
         """Record an INVALID transfer as a no-op (legacy inserts an empty placeholder row): mark the txid
         seen so it is never reprocessed, journal it (kind=noop) so a rollback re-opens it. No balance/links."""
         xb = txid.encode()
-        with self.env.begin(write=True) as txn:
-            if txn.get(xb, db=self.seen) is not None:
+        with self.store.txn(write=True) as txn:
+            if txn.get(self.seen, xb) is not None:
                 return False
             seq = self._next_seq(txn)
-            txn.put(xb, b"", db=self.seen)
-            txn.put(_hq(height, seq), json.dumps({"k": "noop", "txid": txid}).encode(), db=self.journal)
+            txn.put(self.seen, xb, b"")
+            txn.put(self.journal, _hq(height, seq), json.dumps({"k": "noop", "txid": txid}).encode())
             self._bump_anchor(txn, b"tok_anchor", height)
             return True
 
@@ -205,16 +220,16 @@ class TokenIndex:
         key = address.encode() + _SEP + token.encode()
         n = self._get_int(txn, self.addrtok, key, 0) + delta
         if n > 0:
-            txn.put(key, str(n).encode(), db=self.addrtok)
+            txn.put(self.addrtok, key, str(n).encode())
         else:
-            txn.delete(key, db=self.addrtok)
+            txn.delete(self.addrtok, key)
 
     def _incr_count(self, txn, db, key: bytes, delta: int):
         n = self._get_int(txn, db, key, 0) + delta
         if n > 0:
-            txn.put(key, str(n).encode(), db=db)
+            txn.put(db, key, str(n).encode())
         else:
-            txn.delete(key, db=db)
+            txn.delete(db, key)
 
     # ---- token reads (the query surface: tokensget / /api/tokens / /api/token) ----
     def token_balance(self, token: str, address: str) -> int:
@@ -228,13 +243,9 @@ class TokenIndex:
         the node iterates: a list of 1-tuples ``[(token,), ...]``."""
         prefix = address.encode() + _SEP
         out = []
-        with self.env.begin() as txn:
-            cur = txn.cursor(db=self.addrtok)
-            if cur.set_range(prefix):
-                for k, _ in cur:
-                    if not k.startswith(prefix):
-                        break
-                    out.append((k[len(prefix):].decode(),))
+        with self.store.txn() as txn:
+            for k, _ in txn.iterate(self.addrtok, prefix=prefix):
+                out.append((k[len(prefix):].decode(),))
         return out
 
     def token_txs_for_address(self, address: str, limit: int = 100):
@@ -246,20 +257,15 @@ class TokenIndex:
         self-transfer appears in both cred and deb under the same (height, seq) and is deduped."""
         tokens = [t for (t,) in self.tokens_user(address)]
         rows = {}                                          # (height,seq) bytes -> row, dedups self-sends
-        with self.env.begin() as txn:
+        with self.store.txn() as txn:
             for token in tokens:
                 prefix = _party_prefix(token, address)
                 for db in (self.cred, self.deb):
-                    cur = txn.cursor(db=db)
-                    if not cur.set_range(prefix):
-                        continue
-                    for k, _v in cur:
-                        if not k.startswith(prefix):
-                            break
+                    for k, _v in txn.iterate(db, prefix=prefix):
                         hq = bytes(k[-16:])                 # == _hq(height, seq) == the journal key
                         if hq in rows:
                             continue
-                        rec = txn.get(hq, db=self.journal)
+                        rec = txn.get(self.journal, hq)
                         if not rec:
                             continue
                         j = json.loads(rec)
@@ -276,26 +282,21 @@ class TokenIndex:
         """{party: Σ amount} over all of a token's cred/deb rows (the GROUP BY recipient/address queries)."""
         prefix = _party_prefix(token)
         sums = {}
-        with self.env.begin() as txn:
-            cur = txn.cursor(db=db)
-            if cur.set_range(prefix):
-                for k, v in cur:
-                    if not k.startswith(prefix):
-                        break
-                    party = k[len(prefix):-17].decode()      # strip token\0 ... and the \0 + 16-byte tail
-                    sums[party] = sums.get(party, 0) + int(v)
+        with self.store.txn() as txn:
+            for k, v in txn.iterate(db, prefix=prefix):
+                party = k[len(prefix):-17].decode()      # strip token\0 ... and the \0 + 16-byte tail
+                sums[party] = sums.get(party, 0) + int(v)
         return sums
 
     def token_transfers(self, token: str) -> int:
-        with self.env.begin() as txn:
+        with self.store.txn() as txn:
             return self._get_int(txn, self.tokset, token.encode(), 0)
 
     def tokens_list(self, limit: int = 500):
         """All tokens ranked by row count desc (``/api/tokens``): [{"token","transfers"}]."""
         rows = []
-        with self.env.begin() as txn:
-            cur = txn.cursor(db=self.tokset)
-            for k, v in cur:
+        with self.store.txn() as txn:
+            for k, v in txn.iterate(self.tokset):
                 rows.append((k.decode(), int(v)))
         rows.sort(key=lambda r: -r[1])
         return rows[:limit]
@@ -333,71 +334,67 @@ class TokenIndex:
         each op's cred/deb/addrtok/count/registry/seen effects, and reset the anchor to height-1. Mirrors
         the legacy ``DELETE FROM tokens WHERE block_height >= ?`` (so a later reindex re-applies the range)."""
         floor = _hbe(int(height))
-        with self.env.begin(write=True) as txn:
-            cur = txn.cursor(db=self.journal)
-            entries = []
-            if cur.set_range(floor):
-                for k, v in cur:
-                    entries.append((bytes(k), json.loads(v)))
+        with self.store.txn(write=True) as txn:
+            entries = [(bytes(k), json.loads(v)) for k, v in txn.range(self.journal, start=floor)]
             for jk, op in entries:
                 h, seq = struct.unpack(">QQ", jk)
                 kind = op["k"]
                 if kind in ("issue", "transfer"):
                     token = op["tok"]
-                    txn.delete(_party_key(token, op["rcp"], h, seq), db=self.cred)
-                    txn.delete(_party_key(token, op["adr"], h, seq), db=self.deb)
+                    txn.delete(self.cred, _party_key(token, op["rcp"], h, seq))
+                    txn.delete(self.deb, _party_key(token, op["adr"], h, seq))
                     self._incr_addrtok(txn, op["rcp"], token, -1)
                     self._incr_addrtok(txn, op["adr"], token, -1)
                     self._incr_count(txn, self.tokset, token.encode(), -1)
                     if kind == "issue":
-                        txn.delete(token.encode(), db=self.tokreg)
-                    txn.delete(op["txid"].encode(), db=self.seen)
+                        txn.delete(self.tokreg, token.encode())
+                    txn.delete(self.seen, op["txid"].encode())
                 else:  # noop
-                    txn.delete(op["txid"].encode(), db=self.seen)
-                txn.delete(jk, db=self.journal)
-            txn.put(b"tok_anchor", str(max(0, int(height) - 1)).encode(), db=self.meta)
+                    txn.delete(self.seen, op["txid"].encode())
+                txn.delete(self.journal, jk)
+            txn.put(self.meta, b"tok_anchor", str(max(0, int(height) - 1)).encode())
 
     # ---- alias writes ----------------------------------------------------
     def has_alias(self, alias: str) -> bool:
-        with self.env.begin() as txn:
-            return txn.get(alias.encode(), db=self.alias_fwd) is not None
+        with self.store.txn() as txn:
+            return txn.get(self.alias_fwd, alias.encode()) is not None
 
     def register_alias(self, height, address: str, alias: str) -> bool:
         """Register ``alias -> address`` (first claimant wins; idempotent if already registered)."""
         ab = alias.encode()
-        with self.env.begin(write=True) as txn:
-            if txn.get(ab, db=self.alias_fwd) is not None:
+        with self.store.txn(write=True) as txn:
+            if txn.get(self.alias_fwd, ab) is not None:
                 self._bump_anchor(txn, b"alias_anchor", height)
                 return False
             seq = self._next_seq(txn)
-            txn.put(ab, json.dumps({"a": address, "h": int(height)}).encode(), db=self.alias_fwd)
-            txn.put(address.encode() + _SEP + _hbe(height) + _SEP + ab, b"", db=self.alias_rev)
-            txn.put(_hq(height, seq), json.dumps({"al": alias, "a": address}).encode(), db=self.ajournal)
+            txn.put(self.alias_fwd, ab, json.dumps({"a": address, "h": int(height)}).encode())
+            txn.put(self.alias_rev, address.encode() + _SEP + _hbe(height) + _SEP + ab, b"")
+            txn.put(self.ajournal, _hq(height, seq), json.dumps({"al": alias, "a": address}).encode())
             self._bump_anchor(txn, b"alias_anchor", height)
             return True
 
     def alias_owner(self, alias: str):
         """Current owner address of ``alias``, or None if unclaimed/free."""
-        with self.env.begin() as txn:
-            v = txn.get(alias.encode(), db=self.alias_fwd)
+        with self.store.txn() as txn:
+            v = txn.get(self.alias_fwd, alias.encode())
         return json.loads(v)["a"] if v is not None else None
 
     def transfer_alias(self, height, sender: str, recipient: str, alias: str) -> bool:
         """Move ``alias`` ownership sender -> recipient (alias:transfer). No-op unless ``sender`` is the
         current owner. Records a reorg-undo entry carrying the prior owner + height so a rollback restores it."""
         ab = alias.encode()
-        with self.env.begin(write=True) as txn:
-            cur = txn.get(ab, db=self.alias_fwd)
+        with self.store.txn(write=True) as txn:
+            cur = txn.get(self.alias_fwd, ab)
             if cur is None or json.loads(cur)["a"] != sender:
                 self._bump_anchor(txn, b"alias_anchor", height)
                 return False
             prev_h = int(json.loads(cur)["h"])
             seq = self._next_seq(txn)
-            txn.put(ab, json.dumps({"a": recipient, "h": int(height)}).encode(), db=self.alias_fwd)
-            txn.delete(sender.encode() + _SEP + _hbe(prev_h) + _SEP + ab, db=self.alias_rev)
-            txn.put(recipient.encode() + _SEP + _hbe(height) + _SEP + ab, b"", db=self.alias_rev)
-            txn.put(_hq(height, seq), json.dumps({"k": "transfer", "al": alias, "a": recipient,
-                    "prev": sender, "prev_h": prev_h}).encode(), db=self.ajournal)
+            txn.put(self.alias_fwd, ab, json.dumps({"a": recipient, "h": int(height)}).encode())
+            txn.delete(self.alias_rev, sender.encode() + _SEP + _hbe(prev_h) + _SEP + ab)
+            txn.put(self.alias_rev, recipient.encode() + _SEP + _hbe(height) + _SEP + ab, b"")
+            txn.put(self.ajournal, _hq(height, seq), json.dumps({"k": "transfer", "al": alias, "a": recipient,
+                    "prev": sender, "prev_h": prev_h}).encode())
             self._bump_anchor(txn, b"alias_anchor", height)
             return True
 
@@ -405,37 +402,33 @@ class TokenIndex:
         """Release ``alias`` (alias:free) so it can be claimed again. No-op unless ``sender`` is the current
         owner. The reorg-undo entry restores the prior owner on a rollback."""
         ab = alias.encode()
-        with self.env.begin(write=True) as txn:
-            cur = txn.get(ab, db=self.alias_fwd)
+        with self.store.txn(write=True) as txn:
+            cur = txn.get(self.alias_fwd, ab)
             if cur is None or json.loads(cur)["a"] != sender:
                 self._bump_anchor(txn, b"alias_anchor", height)
                 return False
             prev_h = int(json.loads(cur)["h"])
             seq = self._next_seq(txn)
-            txn.delete(ab, db=self.alias_fwd)
-            txn.delete(sender.encode() + _SEP + _hbe(prev_h) + _SEP + ab, db=self.alias_rev)
-            txn.put(_hq(height, seq), json.dumps({"k": "free", "al": alias,
-                    "prev": sender, "prev_h": prev_h}).encode(), db=self.ajournal)
+            txn.delete(self.alias_fwd, ab)
+            txn.delete(self.alias_rev, sender.encode() + _SEP + _hbe(prev_h) + _SEP + ab)
+            txn.put(self.ajournal, _hq(height, seq), json.dumps({"k": "free", "al": alias,
+                    "prev": sender, "prev_h": prev_h}).encode())
             self._bump_anchor(txn, b"alias_anchor", height)
             return True
 
     # ---- alias reads -----------------------------------------------------
     def addfromalias(self, alias: str) -> str:
-        with self.env.begin() as txn:
-            v = txn.get(alias.encode(), db=self.alias_fwd)
+        with self.store.txn() as txn:
+            v = txn.get(self.alias_fwd, alias.encode())
         return json.loads(v)["a"] if v is not None else "No alias"
 
     def _aliases_for(self, address: str):
         """Every alias of ``address`` in registration (height) order — the suffix of the alias_rev keys."""
         prefix = address.encode() + _SEP
         out = []
-        with self.env.begin() as txn:
-            cur = txn.cursor(db=self.alias_rev)
-            if cur.set_range(prefix):
-                for k, _ in cur:
-                    if not k.startswith(prefix):
-                        break
-                    out.append(k[len(prefix) + 8 + 1:].decode())   # strip address\0 + 8B height + \0
+        with self.store.txn() as txn:
+            for k, _ in txn.iterate(self.alias_rev, prefix=prefix):
+                out.append(k[len(prefix) + 8 + 1:].decode())   # strip address\0 + 8B height + \0
         return out
 
     def aliases_of(self, address: str) -> list:
@@ -462,12 +455,8 @@ class TokenIndex:
         ``alias=`` and ``alias:register``), ``alias:transfer`` and ``alias:free``. Ops are undone in REVERSE
         (newest first) so a register->transfer->free stack on one alias unwinds to the correct prior state."""
         floor = _hbe(int(height))
-        with self.env.begin(write=True) as txn:
-            cur = txn.cursor(db=self.ajournal)
-            entries = []
-            if cur.set_range(floor):
-                for k, v in cur:
-                    entries.append((bytes(k), json.loads(v)))
+        with self.store.txn(write=True) as txn:
+            entries = [(bytes(k), json.loads(v)) for k, v in txn.range(self.ajournal, start=floor)]
             for jk, op in reversed(entries):
                 h = struct.unpack(">QQ", jk)[0]
                 kind = op.get("k", "register")              # legacy entries have no "k" -> register
@@ -475,34 +464,36 @@ class TokenIndex:
                 if kind == "register":
                     address = op["a"]
                     # only drop the forward map if THIS registration is the one that currently holds it
-                    fwd = txn.get(ab, db=self.alias_fwd)
+                    fwd = txn.get(self.alias_fwd, ab)
                     if fwd is not None and json.loads(fwd).get("h") == h:
-                        txn.delete(ab, db=self.alias_fwd)
-                    txn.delete(address.encode() + _SEP + _hbe(h) + _SEP + ab, db=self.alias_rev)
+                        txn.delete(self.alias_fwd, ab)
+                    txn.delete(self.alias_rev, address.encode() + _SEP + _hbe(h) + _SEP + ab)
                 elif kind == "transfer":
                     # this op moved the alias to op["a"] at h; restore it to the prior owner
                     new_owner, prev, prev_h = op["a"], op["prev"], int(op["prev_h"])
-                    txn.delete(new_owner.encode() + _SEP + _hbe(h) + _SEP + ab, db=self.alias_rev)
-                    txn.put(ab, json.dumps({"a": prev, "h": prev_h}).encode(), db=self.alias_fwd)
-                    txn.put(prev.encode() + _SEP + _hbe(prev_h) + _SEP + ab, b"", db=self.alias_rev)
+                    txn.delete(self.alias_rev, new_owner.encode() + _SEP + _hbe(h) + _SEP + ab)
+                    txn.put(self.alias_fwd, ab, json.dumps({"a": prev, "h": prev_h}).encode())
+                    txn.put(self.alias_rev, prev.encode() + _SEP + _hbe(prev_h) + _SEP + ab, b"")
                 elif kind == "free":
                     prev, prev_h = op["prev"], int(op["prev_h"])
-                    txn.put(ab, json.dumps({"a": prev, "h": prev_h}).encode(), db=self.alias_fwd)
-                    txn.put(prev.encode() + _SEP + _hbe(prev_h) + _SEP + ab, b"", db=self.alias_rev)
-                txn.delete(jk, db=self.ajournal)
-            txn.put(b"alias_anchor", str(max(0, int(height) - 1)).encode(), db=self.meta)
+                    txn.put(self.alias_fwd, ab, json.dumps({"a": prev, "h": prev_h}).encode())
+                    txn.put(self.alias_rev, prev.encode() + _SEP + _hbe(prev_h) + _SEP + ab, b"")
+                txn.delete(self.ajournal, jk)
+            txn.put(self.meta, b"alias_anchor", str(max(0, int(height) - 1)).encode())
 
     # ---- stats / lifecycle -----------------------------------------------
     def stats(self) -> dict:
-        with self.env.begin() as txn:
-            return {"tokens": txn.stat(self.tokreg)["entries"],
-                    "aliases": txn.stat(self.alias_fwd)["entries"],
-                    "tok_anchor": self._get_int(txn, self.meta, b"tok_anchor", 0),
-                    "alias_anchor": self._get_int(txn, self.meta, b"alias_anchor", 0)}
+        with self.store.txn() as txn:
+            tok_anchor = self._get_int(txn, self.meta, b"tok_anchor", 0)
+            alias_anchor = self._get_int(txn, self.meta, b"alias_anchor", 0)
+        return {"tokens": self.store.stat(self.tokreg)["entries"],
+                "aliases": self.store.stat(self.alias_fwd)["entries"],
+                "tok_anchor": tok_anchor,
+                "alias_anchor": alias_anchor}
 
     def close(self):
         try:
-            self.env.close()
+            self.store.close()
         except Exception:
             pass
 

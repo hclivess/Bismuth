@@ -159,3 +159,146 @@ def test_alias_rollback(ti):
     ti.aliases_rollback(3)
     assert ti.addfromalias("alice") == "No alias"
     assert ti.alias_anchor() == 2
+
+
+# --- KV seam: byte-identity + backend swappability (doc/26 storage stage 1) -----------------------
+import json as _json      # noqa: E402
+import struct as _struct  # noqa: E402
+
+
+def test_on_disk_bytes_identical_to_direct_lmdb(tmp_path):
+    """After migrating onto kvstore.open_store, the LMDB env the store writes must be BYTE-IDENTICAL to what
+    the pre-migration direct-lmdb store wrote: the same 11 named sub-dbs, the same raw key layout
+    (token\\0party\\0HQ, big-endian heights), and JSON / decimal-string / b"" values unchanged (NOT routed
+    through msgpack Codec). A running node must read its existing LMDB files unchanged."""
+    import lmdb
+    ti = ti_mod.TokenIndex(str(tmp_path / "tidx"), map_size=64 * 1024 * 1024)
+    try:
+        ti.register_issue(5, 1000, "tokx", "ADDR_A", "tx_issue", "1000000")
+        ti.apply_transfer(8, 2000, "tokx", "ADDR_A", "ADDR_B", "tx_t1", 400000)
+        ti.mark_noop(9, "tx_bad")
+        ti.register_alias(3, "ALICE", "alice")
+    finally:
+        ti.close()
+
+    # read the raw on-disk bytes back out of the env the store wrote, per named sub-db
+    env = lmdb.open(str(tmp_path / "tidx"), subdir=True, max_dbs=12, readonly=True, lock=False)
+    on_disk = {}
+    for name in ti_mod._DBS:
+        db = env.open_db(name.encode(), create=False)
+        with env.begin() as t:
+            on_disk[name] = {bytes(k): bytes(v) for k, v in t.cursor(db=db)}
+    env.close()
+
+    sep = ti_mod._SEP
+    hq = lambda h, s: _struct.pack(">QQ", h, s)             # noqa: E731
+    hbe = lambda h: _struct.pack(">Q", h)                   # noqa: E731
+
+    # seq order: issue=1, transfer=2, noop=3, alias register=4
+    assert on_disk["meta"] == {
+        b"seq": b"4", b"tok_anchor": b"9", b"alias_anchor": b"3",
+    }
+    assert on_disk["tokreg"] == {
+        b"tokx": _json.dumps({"h": 5, "ts": 1000, "issuer": "ADDR_A",
+                              "txid": "tx_issue", "supply": 1000000}).encode(),
+    }
+    assert on_disk["seen"] == {b"tx_issue": b"", b"tx_t1": b"", b"tx_bad": b""}
+    assert on_disk["cred"] == {
+        b"tokx" + sep + b"ADDR_A" + sep + hq(5, 1): b"1000000",
+        b"tokx" + sep + b"ADDR_B" + sep + hq(8, 2): b"400000",
+    }
+    assert on_disk["deb"] == {
+        b"tokx" + sep + b"issued" + sep + hq(5, 1): b"1000000",
+        b"tokx" + sep + b"ADDR_A" + sep + hq(8, 2): b"400000",
+    }
+    assert on_disk["addrtok"] == {
+        b"ADDR_A" + sep + b"tokx": b"2", b"issued" + sep + b"tokx": b"1",
+        b"ADDR_B" + sep + b"tokx": b"1",
+    }
+    assert on_disk["tokset"] == {b"tokx": b"2"}
+    assert on_disk["journal"] == {
+        hq(5, 1): _json.dumps({"k": "issue", "tok": "tokx", "rcp": "ADDR_A",
+                               "adr": "issued", "amt": 1000000, "txid": "tx_issue"}).encode(),
+        hq(8, 2): _json.dumps({"k": "transfer", "tok": "tokx", "rcp": "ADDR_B",
+                               "adr": "ADDR_A", "amt": 400000, "txid": "tx_t1", "ts": 2000}).encode(),
+        hq(9, 3): _json.dumps({"k": "noop", "txid": "tx_bad"}).encode(),
+    }
+    assert on_disk["alias_fwd"] == {
+        b"alice": _json.dumps({"a": "ALICE", "h": 3}).encode(),
+    }
+    assert on_disk["alias_rev"] == {b"ALICE" + sep + hbe(3) + sep + b"alice": b""}
+    assert on_disk["ajournal"] == {
+        hq(3, 4): _json.dumps({"al": "alice", "a": "ALICE"}).encode(),
+    }
+
+
+def _drive(backend, path):
+    """Identical token+alias workload against a TokenIndex on the given backend; return observable results
+    across the full surface (issuance, overspend sums, holders/paging, reverse index, tx history, rollback,
+    alias register/transfer/free + rollback)."""
+    ti = ti_mod.TokenIndex(path, map_size=64 * 1024 * 1024, backend=backend)
+    try:
+        ti.register_issue(5, 1000, "tokx", "A", "tx_issue", "1000000")
+        ti.apply_transfer(8, 2000, "tokx", "A", "B", "tx_t1", 400000)
+        ti.apply_transfer(10, 3000, "tokx", "A", "C", "tx_c_in", 100)
+        ti.mark_noop(9, "tx_bad")
+        ti.register_alias(3, "ALICE", "alice")
+        ti.register_alias(4, "ALICE", "al2")
+        ti.register_alias(6, "BOB", "bob")
+        ti.transfer_alias(7, "BOB", "CAROL", "bob")
+        out = {
+            "has_token": ti.has_token("tokx"),
+            "has_txid": ti.has_txid("tx_t1"),
+            "anchor": ti.token_anchor(),
+            "alias_anchor": ti.alias_anchor(),
+            "bal_A": ti.token_balance("tokx", "A"),
+            "bal_B": ti.token_balance("tokx", "B"),
+            "credit_C_same": ti.token_credit("tokx", "C", 10),
+            "credit_C_later": ti.token_credit("tokx", "C", 11),
+            "debit_A": ti.token_debit("tokx", "A", 10),
+            "tokens_user_B": ti.tokens_user("B"),
+            "detail": ti.token_detail("tokx"),
+            "page": ti.token_detail("tokx", limit=2, offset=1),
+            "list": ti.tokens_list(),
+            "txs_A": ti.token_txs_for_address("A"),
+            "transfers": ti.token_transfers("tokx"),
+            "alias_owner_bob": ti.alias_owner("bob"),
+            "addfromalias": ti.addfromalias("alice"),
+            "aliasget_ALICE": ti.aliasget("ALICE"),
+            "aliasesget": ti.aliasesget(["ALICE", "NOBODY"]),
+            "stats": ti.stats(),
+        }
+        ti.tokens_rollback(9)
+        ti.aliases_rollback(7)            # undo the bob->carol transfer
+        out["after_tok_rollback_balA"] = ti.token_balance("tokx", "A")
+        out["after_tok_rollback_balC"] = ti.token_balance("tokx", "C")
+        out["after_tok_anchor"] = ti.token_anchor()
+        out["after_has_txid_cin"] = ti.has_txid("tx_c_in")
+        out["after_alias_owner_bob"] = ti.alias_owner("bob")   # restored to BOB
+        out["after_alias_anchor"] = ti.alias_anchor()
+        return out
+    finally:
+        ti.close()
+
+
+@pytest.mark.parametrize("backend", ["lmdb", "sqlite-kv"])
+def test_backend_swappable_smoke(backend, tmp_path):
+    """Each backend independently produces the expected results through the open_store(backend=...) seam."""
+    res = _drive(backend, str(tmp_path / ("tidx_" + backend)))
+    assert res["bal_A"] == 599900 and res["bal_B"] == 400000
+    assert res["credit_C_same"] == 0 and res["credit_C_later"] == 100
+    assert res["detail"]["holder_count"] == 3 and res["detail"]["supply"] == 1000000
+    assert res["transfers"] == 3
+    assert res["after_tok_rollback_balA"] == 600000   # h=8 (<9) transfer survives, h=10 reopened
+    assert res["after_has_txid_cin"] is False
+    assert res["after_alias_owner_bob"] == "BOB"      # transfer at h=7 undone
+    assert res["stats"] == {"tokens": 1, "aliases": 3, "tok_anchor": 10, "alias_anchor": 7}
+
+
+def test_swappability_lmdb_equals_sqlite(tmp_path):
+    """The SAME TokenIndex run on a 2nd engine (sqlite-kv) yields IDENTICAL observable results to lmdb —
+    proving the KV seam is engine-independent for this store (incl. prefix iterate, height range, the JSON
+    journal rollbacks and KVStore.stat). [doc/26 storage stage 1]"""
+    res_lmdb = _drive("lmdb", str(tmp_path / "tidx_lmdb"))
+    res_sqlite = _drive("sqlite-kv", str(tmp_path / "tidx_sqlite"))
+    assert res_lmdb == res_sqlite, "TokenIndex results differ across backends -> seam not engine-independent"

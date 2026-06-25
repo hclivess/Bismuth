@@ -44,23 +44,23 @@ def snapshot_db(src, dst):
         raise RuntimeError("snapshot integrity_check FAILED for %s: %s" % (dst, result))
 
 
-def snapshot_lmdb(src_dir, dst_dir):
-    """Online, consistent copy of a LMDB store — the POST-HARDFORK stores (the LMDB block store, the
-    balance index). LMDB's ``env.copy`` takes an MVCC snapshot, so it is consistent even while the node
-    writes; a raw cp would capture a mid-write mmap. ``compact=True`` drops free pages so the bootstrap
-    is small. Returns the path that should go into the tarball."""
-    import lmdb
-    if os.path.exists(dst_dir):
-        import shutil
-        shutil.rmtree(dst_dir)
-    os.makedirs(dst_dir)
-    # readonly + lock=False: a second reader alongside the node's writer; max_dbs high enough for the
-    # store's named sub-DBs (block store uses blocks+pubkeys, balance index uses one).
-    env = lmdb.open(src_dir, readonly=True, lock=False, subdir=True, max_dbs=16)
+def snapshot_lmdb(src_dir, dst_dir, backend="lmdb"):
+    """Online, consistent copy of a KV store — the POST-HARDFORK stores (the LMDB block store, the
+    balance index). Routed through the engine-agnostic KV seam (``kvstore.open_store`` -> ``KVStore.copy_to``,
+    doc/26 storage stage 1) so the snapshot tool is engine-independent: the LMDB backend takes an MVCC
+    ``env.copy`` snapshot (consistent even while the node writes, a raw cp would capture a mid-write mmap),
+    and copy_to drops free pages (compact=True) so the bootstrap is small. Swapping the engine here is a
+    one-arg ``backend=`` change. Leaves the copy at ``dst_dir`` in the backend's native layout."""
+    from kvstore import open_store
+    # readonly + lock=False: a second reader alongside the node's writer (lock=False is the snapshot tool's
+    # standalone-reader convention — it never registers in LMDB's reader table). dbs=[] so we open the env
+    # WITHOUT touching named sub-DBs (copy_to duplicates the whole env regardless of which sub-DBs we name,
+    # so the prior max_dbs=16 / blocks+pubkeys enumeration is unnecessary).
+    store = open_store(backend, src_dir, dbs=[], readonly=True, lock=False)
     try:
-        env.copy(dst_dir, compact=True)
+        store.copy_to(dst_dir, compact=True)
     finally:
-        env.close()
+        store.close()
 
 
 def main():

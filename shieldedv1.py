@@ -29,6 +29,7 @@ from hashlib import sha224, sha256
 import coincurve as cc
 
 import amounts
+from kvstore import open_store
 
 __version__ = "0.2.0"
 
@@ -327,31 +328,43 @@ class ShieldedState:
     Sub-DBs: notes (note_id->json), notes_h (height||note_id), kimg (image->height), kimg_h
     (height||image), flows (height||seq->delta), meta (pool / counts / flow seq). Writes are buffered per
     block and flushed ATOMICALLY in one txn at commit() (so a block's shield ops are all-or-nothing); begin()
-    drops any partial buffer from a failed prior apply."""
+    drops any partial buffer from a failed prior apply.
+
+    Migrated onto the engine-agnostic KV abstraction (``kvstore.open_store``, doc/26 storage stage 1): the 6
+    sub-dbs are opened through ``KVStore`` and every ``env.begin()``/cursor becomes a ``store.txn()``/``KVTxn``
+    call, so the underlying engine (LMDB<->MDBX<->sqlite-kv) is a one-arg ``backend=`` choice. The public
+    method surface AND the on-disk byte format are UNCHANGED: the 6 named sub-dbs, the raw key layout
+    (note_id/image bytes, big-endian height||key, big-endian height||seq), and the JSON / big-endian-height /
+    decimal-string / b"" values are written EXACTLY as before (NOT routed through the msgpack Codec), so a
+    running node reads its existing LMDB files unchanged. Reorg range-scans go through ``KVTxn.range`` (which
+    forwards the raw lmdb cursor, same byte order)."""
 
     _GIB = 1024 ** 3
 
-    def __init__(self, path: str, map_size: int = 4 * 1024 ** 3, readonly: bool = False):
-        import lmdb
+    def __init__(self, path: str, map_size: int = 4 * 1024 ** 3, readonly: bool = False,
+                 sync: bool = True, backend: str = "lmdb"):
         self.path = path
-        self.env = lmdb.open(path, subdir=True, max_dbs=6, map_size=map_size, readonly=readonly, lock=True)
-        self.notes_db = self.env.open_db(b"notes")
-        self.notes_h = self.env.open_db(b"notes_h")
-        self.kimg_db = self.env.open_db(b"kimg")
-        self.kimg_h = self.env.open_db(b"kimg_h")
-        self.flows_db = self.env.open_db(b"flows")
-        self.meta_db = self.env.open_db(b"meta")
+        self.store = open_store(backend, path, dbs=["notes", "notes_h", "kimg", "kimg_h", "flows", "meta"],
+                                map_size=map_size, readonly=readonly, sync=sync)
+        self.notes_db = self.store.open_db("notes")
+        self.notes_h = self.store.open_db("notes_h")
+        self.kimg_db = self.store.open_db("kimg")
+        self.kimg_h = self.store.open_db("kimg_h")
+        self.flows_db = self.store.open_db("flows")
+        self.meta_db = self.store.open_db("meta")
+        # kept for back-compat with callers/tests that introspect the env directly (lmdb backend only)
+        self.env = getattr(self.store, "env", None)
         self._pending = []
 
     # --- meta (pool total + counts + flow sequence) -----------------------
     def _meta(self, txn, key, default=0):
-        v = txn.get(key, db=self.meta_db)
+        v = txn.get(self.meta_db, key)
         return int(v) if v is not None else default
 
     # --- reads (committed state; used by validate_block BEFORE apply) -----
     def note(self, note_id_hex: str):
-        with self.env.begin() as txn:
-            v = txn.get(note_id_hex.encode(), db=self.notes_db)
+        with self.store.txn() as txn:
+            v = txn.get(self.notes_db, note_id_hex.encode())
         if v is None:
             return None
         d = json.loads(v)
@@ -359,19 +372,19 @@ class ShieldedState:
                 "r_pub": d["R"], "p_pub": d["P"], "memo": d.get("memo", ""), "commitment": d["C"]}
 
     def has_note(self, note_id_hex: str) -> bool:
-        with self.env.begin() as txn:
-            return txn.get(note_id_hex.encode(), db=self.notes_db) is not None
+        with self.store.txn() as txn:
+            return txn.get(self.notes_db, note_id_hex.encode()) is not None
 
     def has_key_image(self, image_hex: str) -> bool:
-        with self.env.begin() as txn:
-            return txn.get(image_hex.encode(), db=self.kimg_db) is not None
+        with self.store.txn() as txn:
+            return txn.get(self.kimg_db, image_hex.encode()) is not None
 
     def pool_units(self) -> int:
-        with self.env.begin() as txn:
+        with self.store.txn() as txn:
             return self._meta(txn, b"pool", 0)
 
     def stats(self) -> dict:
-        with self.env.begin() as txn:
+        with self.store.txn() as txn:
             return {"notes": self._meta(txn, b"nnotes", 0), "key_images": self._meta(txn, b"nki", 0),
                     "pool_units": self._meta(txn, b"pool", 0)}
 
@@ -406,7 +419,7 @@ class ShieldedState:
         (a note_id / key image already present is a no-op — read-your-writes within the txn)."""
         if not self._pending:
             return
-        with self.env.begin(write=True) as txn:
+        with self.store.txn(write=True) as txn:
             pool = self._meta(txn, b"pool", 0)
             nnotes = self._meta(txn, b"nnotes", 0)
             nki = self._meta(txn, b"nki", 0)
@@ -414,24 +427,24 @@ class ShieldedState:
             for kind, key, height, payload in self._pending:
                 if kind == "note":
                     kb = key.encode()
-                    if txn.get(kb, db=self.notes_db) is None:
-                        txn.put(kb, json.dumps(payload).encode(), db=self.notes_db)
-                        txn.put(_hbe(height) + kb, b"", db=self.notes_h)
+                    if txn.get(self.notes_db, kb) is None:
+                        txn.put(self.notes_db, kb, json.dumps(payload).encode())
+                        txn.put(self.notes_h, _hbe(height) + kb, b"")
                         nnotes += 1
                 elif kind == "kimg":
                     kb = key.encode()
-                    if txn.get(kb, db=self.kimg_db) is None:
-                        txn.put(kb, _hbe(height), db=self.kimg_db)
-                        txn.put(_hbe(height) + kb, b"", db=self.kimg_h)
+                    if txn.get(self.kimg_db, kb) is None:
+                        txn.put(self.kimg_db, kb, _hbe(height))
+                        txn.put(self.kimg_h, _hbe(height) + kb, b"")
                         nki += 1
                 else:  # flow
                     seq += 1
-                    txn.put(_hbe(height) + _hbe(seq), str(int(payload)).encode(), db=self.flows_db)
+                    txn.put(self.flows_db, _hbe(height) + _hbe(seq), str(int(payload)).encode())
                     pool += int(payload)
-            txn.put(b"pool", str(pool).encode(), db=self.meta_db)
-            txn.put(b"nnotes", str(nnotes).encode(), db=self.meta_db)
-            txn.put(b"nki", str(nki).encode(), db=self.meta_db)
-            txn.put(b"flowseq", str(seq).encode(), db=self.meta_db)
+            txn.put(self.meta_db, b"pool", str(pool).encode())
+            txn.put(self.meta_db, b"nnotes", str(nnotes).encode())
+            txn.put(self.meta_db, b"nki", str(nki).encode())
+            txn.put(self.meta_db, b"flowseq", str(seq).encode())
         self._pending = []
 
     def rollback_under(self, height: int):
@@ -440,46 +453,34 @@ class ShieldedState:
         value. Range-scans the height-ordered secondary keys, so it is O(rolled-back rows), not a full scan."""
         self._pending = []                          # discard any unflushed batch first
         floor = _hbe(int(height))
-        with self.env.begin(write=True) as txn:
+        with self.store.txn(write=True) as txn:
             pool = self._meta(txn, b"pool", 0)
             nnotes = self._meta(txn, b"nnotes", 0)
             nki = self._meta(txn, b"nki", 0)
             # notes: height||note_id >= floor
-            cur = txn.cursor(db=self.notes_h)
-            removed = []
-            if cur.set_range(floor):
-                for k, _ in cur:
-                    removed.append(bytes(k))
+            removed = [bytes(k) for k, _ in txn.range(self.notes_h, start=floor)]
             for k in removed:
-                txn.delete(k, db=self.notes_h)
-                if txn.delete(k[8:], db=self.notes_db):
+                txn.delete(self.notes_h, k)
+                if txn.delete(self.notes_db, k[8:]):
                     nnotes -= 1
             # key images: height||image >= floor
-            cur = txn.cursor(db=self.kimg_h)
-            removed = []
-            if cur.set_range(floor):
-                for k, _ in cur:
-                    removed.append(bytes(k))
+            removed = [bytes(k) for k, _ in txn.range(self.kimg_h, start=floor)]
             for k in removed:
-                txn.delete(k, db=self.kimg_h)
-                if txn.delete(k[8:], db=self.kimg_db):
+                txn.delete(self.kimg_h, k)
+                if txn.delete(self.kimg_db, k[8:]):
                     nki -= 1
             # flows: height||seq >= floor  (subtract their deltas from the pool total)
-            cur = txn.cursor(db=self.flows_db)
-            fdel = []
-            if cur.set_range(floor):
-                for k, v in cur:
-                    fdel.append((bytes(k), int(v)))
+            fdel = [(bytes(k), int(v)) for k, v in txn.range(self.flows_db, start=floor)]
             for k, delta in fdel:
                 pool -= delta
-                txn.delete(k, db=self.flows_db)
-            txn.put(b"pool", str(pool).encode(), db=self.meta_db)
-            txn.put(b"nnotes", str(max(0, nnotes)).encode(), db=self.meta_db)
-            txn.put(b"nki", str(max(0, nki)).encode(), db=self.meta_db)
+                txn.delete(self.flows_db, k)
+            txn.put(self.meta_db, b"pool", str(pool).encode())
+            txn.put(self.meta_db, b"nnotes", str(max(0, nnotes)).encode())
+            txn.put(self.meta_db, b"nki", str(max(0, nki)).encode())
 
     def close(self):
         try:
-            self.env.close()
+            self.store.close()
         except Exception:
             pass
 

@@ -103,6 +103,89 @@ def test_long_pubkey_roundtrip(tmp_path):
         s.close()
 
 
+def _exercise(s):
+    """Run the full read/write/rollback surface against a BlockStore, returning a snapshot dict of
+    every public result. Backend-agnostic so it can be compared across lmdb and sqlite-kv."""
+    s.put_blocks([_block(h, ntx=(h % 3) + 1) for h in (1, 2, 3, 10, 11)])
+    s.put_blocks([_block(100), _block(9)])
+    snap = {
+        "tip": s.tip(),
+        "count": s.count(),
+        "block_5": s.get_block(5),          # absent
+        "block_2": s.get_block(2),
+        "block_100": s.get_block(100),
+        "hash_3": s.block_hash(3),
+        "height_of_hash_11": s.height_by_hash("hash%08d" % 11),
+        "range_2_11": list(s.blocks_in_range(2, 11)),
+        "weights": s.recent_block_weights(100, 5),
+    }
+    removed = s.rollback(10)
+    snap["rollback_removed"] = removed
+    snap["tip_after"] = s.tip()
+    snap["count_after"] = s.count()
+    snap["block_100_after"] = s.get_block(100)
+    snap["height_of_11_after"] = s.height_by_hash("hash%08d" % 11)
+    return snap
+
+
+def test_swappability_lmdb_equals_sqlite(tmp_path):
+    """The SAME BlockStore, byte-identical public results on lmdb and on sqlite-kv — proves the engine is
+    a one-arg factory choice (the seam), not baked into the store."""
+    s_lmdb = BlockStore(str(tmp_path / "bs_lmdb"), map_size=SMALL, backend="lmdb")
+    s_sql = BlockStore(str(tmp_path / "bs_sql"), map_size=SMALL, backend="sqlite-kv")
+    try:
+        res_lmdb = _exercise(s_lmdb)
+        res_sql = _exercise(s_sql)
+        assert res_lmdb == res_sql
+        # sanity: the snapshot actually carries the expected shape
+        assert res_lmdb["tip"] == 100 and res_lmdb["count"] == 7
+        assert res_lmdb["rollback_removed"] == 2 and res_lmdb["tip_after"] == 10  # 11 & 100 removed
+        assert res_lmdb["block_100_after"] is None
+    finally:
+        s_lmdb.close()
+        s_sql.close()
+
+
+def test_on_disk_bytes_identical_to_direct_lmdb(tmp_path):
+    """The migrated BlockStore (open_store lmdb) writes the EXACT same key/value bytes a node already has
+    on disk: big-endian height keys, the same msgpack {"h","t"} block value, raw hash->height, and the
+    blake2b-keyed pubkey dedup tables. Read the four sub-dbs back with a RAW direct lmdb txn and pin the
+    bytes, so a running node reads its existing files unchanged."""
+    import struct as _struct
+
+    import lmdb as _lmdb
+    import block_store as _bs
+
+    s = BlockStore(str(tmp_path / "bs"), map_size=SMALL)
+    try:
+        s.put_blocks([_block(h, ntx=2) for h in (1, 2)])
+    finally:
+        s.close()
+
+    env = _lmdb.open(str(tmp_path / "bs"), subdir=True, max_dbs=4, readonly=True, lock=False)
+    blocks = env.open_db(b"blocks"); hashes = env.open_db(b"hashes")
+    pk = env.open_db(b"pk"); pkr = env.open_db(b"pkr")
+    with env.begin() as txn:
+        # height keys are big-endian uint64
+        k1 = _struct.pack(">Q", 1)
+        raw = txn.get(k1, db=blocks)
+        assert raw is not None
+        rec = _bs._unpack(raw)                       # same msgpack codec the store uses
+        assert rec["h"] == "hash%08d" % 1
+        assert len(rec["t"]) == 2
+        # pubkey id is dedup'd: tx public-key field replaced by a small int id (0/1)
+        assert rec["t"][0][BlockStore._PK] in (0, 1)
+        # hashes: block_hash bytes -> BE height
+        assert txn.get(b"hash%08d" % 1, db=hashes) == k1
+        # pk table keyed by blake2b-32(public_key); pkr maps id -> raw pubkey bytes
+        import hashlib as _hl
+        hkey0 = _hl.blake2b(b"pubkey0", digest_size=32).digest()
+        assert txn.get(hkey0, db=pk) is not None
+        nid = _struct.unpack(">Q", txn.get(hkey0, db=pk))[0]
+        assert txn.get(_struct.pack(">Q", nid), db=pkr) == b"pubkey0"
+    env.close()
+
+
 def test_build_and_verify_against_sqlite(tmp_path):
     ledger = str(tmp_path / "ledger.db")
     conn = sqlite3.connect(ledger)
