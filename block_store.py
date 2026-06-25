@@ -36,6 +36,7 @@ import hashlib
 
 import addrbytes
 import sigbytes
+import txfields
 from kvstore import Codec, KVStore, open_store
 
 _pack = Codec.pack
@@ -104,6 +105,15 @@ class BlockStore:
             t[2] = addrbytes.unpack_addr(t[2])          # recipient
             if isinstance(t[4], (bytes, bytearray, memoryview)):
                 t[4] = sigbytes.to_wire(bytes(t[4]))    # signature: packed blob -> wire string
+            # tx-fields (doc/40): timestamp + amount/fee/reward are varint when post-fork (bytes), else legacy
+            if isinstance(t[0], (bytes, bytearray, memoryview)):
+                t[0] = txfields.unpack_timestamp(bytes(t[0]))
+            if isinstance(t[3], (bytes, bytearray, memoryview)):
+                t[3] = txfields.unpack_num(bytes(t[3]))     # amount
+            if isinstance(t[7], (bytes, bytearray, memoryview)):
+                t[7] = txfields.unpack_num(bytes(t[7]))     # fee
+            if isinstance(t[8], (bytes, bytearray, memoryview)):
+                t[8] = txfields.unpack_num(bytes(t[8]))     # reward
             out.append([height] + t)
         return out
 
@@ -135,6 +145,10 @@ class BlockStore:
                         t[4] = sigbytes.pack_from_wire(t[4], addr_str)   # signature -> packed blob
                         t[1] = addrbytes.pack_addr(t[1])                 # address   -> packed blob
                         t[2] = addrbytes.pack_addr(t[2])                 # recipient -> packed blob
+                        t[0] = txfields.pack_timestamp(t[0])             # timestamp -> varint centiseconds
+                        t[3] = txfields.pack_num(t[3])                   # amount -> varint units
+                        t[7] = txfields.pack_num(t[7])                   # fee    -> varint units
+                        t[8] = txfields.pack_num(t[8])                   # reward -> varint units
                     txs.append(t)
                 txn.put(self.blocks, _hk(height), _pack({"h": block_hash, "t": txs}))
                 txn.put(self.hashes, self._bh(block_hash), _hk(height))

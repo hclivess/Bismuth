@@ -10,8 +10,29 @@ Status: **design complete + foundational codecs implemented & tested**; the cons
 |---|---|---|
 | Signature codec (per-scheme true bytes, RSA single-b64, 0x40 recoverable hex, 0x00 opaque fallback) | **implemented + tested** | `sigbytes.py`, `tests/test_storage_codecs.py` |
 | Address/recipient codec (tagged union + verbatim 0xFF fallback, round-trip guarded) | **implemented + tested** | `addrbytes.py`, `tests/test_storage_codecs.py` |
-| `block_store` write/read wiring of the two codecs (fork-gated by destination height) | **wired + tested**; production flip still behind the §Validation replay gates | `block_store.py` `put_blocks`/`_expand`, `storage_backend.py` `LmdbWriteBackend`, `node.py` |
-| tx-fields / block-header / coinbase / vm / indexes / plugin / mempool / difficulty true-bytes | designed + verified (this doc) | per-domain sections |
+| `block_store` write/read wiring of the codecs (fork-gated by destination height) | **wired + tested**; production flip still behind the §Validation replay gates | `block_store.py` `put_blocks`/`_expand`, `storage_backend.py` `LmdbWriteBackend`, `node.py` |
+| tx-fields codec (timestamp varint + amount/fee/reward integer units, storage-mode aware) | **implemented + wired + tested** | `txfields.py`, `tests/test_storage_codecs.py`, `block_store.py` |
+| block-header / coinbase / vm / indexes / plugin / mempool / difficulty true-bytes | designed + verified (this doc) | per-domain sections |
+
+### Probe finding (drove the tx-fields simplification)
+
+Direct probes of the consensus path proved that **the `0` vs `0.00000000` question and the signature
+handling are already resolved at the hf2 consensus level**, so the storage layer must preserve
+*consensus-equivalence*, not the legacy SQLite byte-form:
+- `block_hash_v2` and `tx_id_v2_s` funnel every amount through `_v2_units` (integer atomic units), so `'0'`
+  and `'0.00000000'` produce the **identical** block hash and txid (the legacy sha224 was form-sensitive —
+  that is the historical "mess", now frozen). 
+- Post-fork the signature signs the **content txid** via ecrecover (single-sig pubkey dropped); dedup is
+  keyed on the content txid, not `signature[:56]` (that is pre-fork only).
+
+Therefore `txfields.py` stores **integer units** (varint) and reconstructs the canonical string on read —
+`'0'` reconstructs as `'0.00000000'` (decimal mode), a deliberate, consensus-safe normalization. No
+per-field `BARE/FIXED8/RAWTEXT` render-mode tag (the byte-for-byte-SQLite design above) is needed; that
+complexity was solving a legacy-SQLite-parity problem hf2 already dissolves. The correctness gate for the
+money fields is **consensus-equivalence** (`block_hash_at`/`tx_id_at` recompute, which is form-invariant),
+not byte-identity against the retiring SQLite row. Timestamp reconstructs byte-identically (`'%.2f'`). The
+codec is **storage-mode aware** (`amounts.LEDGER_INTEGER`): decimal → `to_units`/`from_units`; integer →
+`int`/`str(units)` (the residual fix — in integer mode the stored string already IS units).
 
 The two codecs are now wired into `block_store`: `put_blocks(items, fork_height=None)` packs the
 signature/address/recipient fields to true bytes for blocks at `height >= fork_height` (msgpack codec

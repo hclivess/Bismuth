@@ -170,3 +170,47 @@ def test_addr_str_transition_guard():
 def test_addr_verbatim_length_bound():
     with pytest.raises(ValueError):
         addrbytes.pack_addr("x" * 256)        # > 255 utf-8 bytes (can't happen post [:56] truncation)
+
+
+# --------------------------------------------------------------------------- tx-fields (numeric) codec
+import amounts
+import txfields
+
+
+def test_timestamp_roundtrip_byte_identical():
+    for ts in ["1750000000.00", "1600000000.01", "0.00", "1234567890.99"]:
+        blob = txfields.pack_timestamp(ts)
+        assert txfields.unpack_timestamp(blob) == ts          # exact '%.2f' reconstruction
+
+
+@pytest.mark.parametrize("s", ["1.00000000", "0.01000000", "5.00000000", "0.50000000",
+                               "99999999.99999999", "0.00000001"])
+def test_num_decimal_canonical_roundtrip(s):
+    blob = txfields.pack_num(s)
+    assert txfields.unpack_num(blob) == s                      # '%.8f' forms are byte-identical
+
+
+def test_num_zero_normalizes_consensus_safe():
+    # '0' is normalized to '0.00000000' — consensus-safe (both -> 0 units -> identical hash/txid)
+    blob = txfields.pack_num("0")
+    got = txfields.unpack_num(blob)
+    assert got == "0.00000000"
+    assert amounts.to_units(got) == amounts.to_units("0") == 0   # consensus equivalence
+
+
+def test_num_integer_storage_mode_roundtrip():
+    # in LEDGER_INTEGER mode the stored field IS a bare units string; to_units must NOT be applied
+    orig = amounts.LEDGER_INTEGER
+    amounts.LEDGER_INTEGER = True
+    try:
+        for s in ["0", "1", "500000000", "9007199254740993"]:
+            blob = txfields.pack_num(s)
+            assert txfields.unpack_num(blob) == s             # bare-units string round-trips exactly
+    finally:
+        amounts.LEDGER_INTEGER = orig
+
+
+def test_varint_minimal_encoding_enforced():
+    assert txfields.uvarint_decode(txfields.uvarint_encode(300)) == (300, 2)
+    with pytest.raises(ValueError):
+        txfields.uvarint_decode(b"\x80\x00")                  # non-minimal (overlong) zero
