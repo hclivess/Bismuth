@@ -20,7 +20,11 @@ Asserts, using ONLY the REST API surfaces (never opening the LMDB dirs directly)
                            * balance  (/api/balance/<addr>)         -> balance_index @ primary
                            * tx height(/api/transaction/<txid>)     -> txid_index
                            * block bodies by height (/api/block/...) -> block_store
-                           * vm state root (/api/vm/contracts)       -> vm_state  (best-effort)
+                           * vm state root + contract storage (/api/vm/...) -> vm_state
+                           * token supply + holders (/api/token/<name>) -> token_index (tokens_aliases PLUGIN)
+                           * shield notes/key_images/pool (/api/shield/stats) -> shieldedv1 (CORE sidecar)
+                       The vm / token / shield checks run on POPULATED state: node A deploys a contract,
+                       issues+transfers a token, and shield:mints a note (all post-fork) BEFORE B/C sync.
   3. DETECTOR          — every node's /api/difficulty agrees (the #23 difficulty-divergence detector reads
                           CLEAN: no false divergence on a healthy multi-node net).
 
@@ -184,8 +188,60 @@ def test_multinode_integration(tmp_path):
                     vm_deployed = True
         except Exception as e:
             print("vm deploy best-effort skipped:", e)
+
+        # --- populate token_index (tokens_aliases PLUGIN): issue a token to self, then transfer some to a
+        # 2nd holder. token_index has NO fork gate, but we are already post-fork so every projected row lands
+        # in the window B/C reconstruct over REST. Poll for projection (mempool/mining is async).
+        token_name = None
+        token_recip = "bb" * 28  # 56-hex placeholder 2nd holder (token_index keys by address string)
+        try:
+            tname = "mntok"
+            ca.send(ca.address, 1, "token:issue", "%s:1000000" % tname)   # issuer credited = recipient (self)
+            issued = False
+            for _ in range(8):
+                ca.mine(2); time.sleep(0.2)
+                try:
+                    if (_rest(A_R, "token/%s" % tname) or {}).get("supply"):
+                        issued = True; break
+                except Exception:
+                    pass
+            if issued:
+                ca.send(token_recip, 1, "token:transfer", "%s:250" % tname)   # move 250 to the 2nd holder
+                for _ in range(8):
+                    ca.mine(2); time.sleep(0.2)
+                    try:
+                        if (_rest(A_R, "token/%s" % tname) or {}).get("holder_count", 0) >= 2:
+                            token_name = tname; break
+                    except Exception:
+                        pass
+        except Exception as e:
+            print("token populate best-effort skipped:", e)
+
+        # --- populate shieldedv1 (CORE consensus sidecar): a shield:mint deposits transparent BIS into the
+        # pool and creates one stealth note. This is the lightest populating tx (no ring / no key image) and
+        # MUST be post-fork (shield: rules are inert pre-hf2). Mirrors tests/test_shielded.py::_mint.
+        shield_note = None
+        try:
+            import shieldedv1 as sh
+            sstats = _rest(A_R, "shield/stats")
+            sfh = sstats.get("fork_height")
+            if sstats.get("enabled") and sfh is not None and _tip_via_rest(A_R) > int(sfh):
+                note = sh.make_output(sh.new_keypair()["address"], "20")
+                ca.send(sh.SHIELD_SINK, 20, sh.OP_MINT, json.dumps(note))
+                for _ in range(8):
+                    ca.mine(2); time.sleep(0.2)
+                    try:
+                        nd = _rest(A_R, "shield/note/%s" % note["note_id"])
+                        if nd and nd.get("note_id"):
+                            shield_note = note; break
+                    except Exception:
+                        pass
+        except Exception as e:
+            print("shield populate best-effort skipped:", e)
+
         a_tip = _tip_via_rest(A_R)
-        print("A tip after mining (vm_deployed=%s, vm_addr=%s): %d" % (vm_deployed, vm_contract_addr, a_tip))
+        print("A tip after mining (vm=%s/%s, token=%s, shield=%s): %d"
+              % (vm_deployed, vm_contract_addr, token_name, bool(shield_note), a_tip))
 
         # --- nodes B and C: empty ledgers, catch up from A over REST ONLY ------------------------------
         src = {"BISMUTH_API_SYNC": "1", "BISMUTH_API_SYNC_SOURCE": "127.0.0.1:%d" % A_R}
@@ -297,6 +353,54 @@ def test_multinode_integration(tmp_path):
                        % (vm_contract_addr, slot["A"], roots["A"]))
         print("STORE AGREEMENT", vm_note)
 
+        # --- token_index (tokens_aliases PLUGIN): the projected token supply + holder set agree across nodes.
+        # B/C never received these txs over a socket — their plugin re-projected them from the api_sync'd
+        # blocks into an independently-built LMDB store, so identical supply/holders proves cross-node agreement.
+        if token_name:
+            tok = {nm: _rest(p, "token/%s" % token_name) for nm, p in ports.items()}
+            sup = {nm: t.get("supply") for nm, t in tok.items()}
+            assert sup["A"] == sup["B"] == sup["C"] == 1000000, "token supply disagrees/unexpected: %s" % sup
+            hold = {nm: sorted((h["address"], h["balance"]) for h in t.get("holders", [])) for nm, t in tok.items()}
+            assert hold["A"] == hold["B"] == hold["C"], "token holders disagree across nodes: %s" % hold
+            assert tok["A"].get("holder_count") >= 2, "expected >=2 token holders, got %s" % tok["A"].get("holder_count")
+            print("STORE AGREEMENT token_index ok: token '%s' supply=%s holders=%s identical across A,B,C"
+                  % (token_name, sup["A"], hold["A"]))
+        else:
+            print("STORE AGREEMENT token_index: SKIPPED (token did not land)")
+
+        # --- shieldedv1 (CORE consensus sidecar): the shielded note/key-image/pool state agrees across nodes.
+        # Shield is consensus-wired, so B/C re-validate+apply the mint during digestion of the api_sync'd block
+        # (a divergent shield state would have RAISED and broken chain parity above); this asserts the observable
+        # projection matches too. No single state-root exists, so compare the (notes,key_images,pool_units) triple.
+        if shield_note:
+            import shieldedv1 as sh
+            import amounts
+            sst = {nm: _rest(p, "shield/stats") for nm, p in ports.items()}
+            trip = {nm: (s["notes"], s["key_images"], s["pool_units"]) for nm, s in sst.items()}
+            assert trip["A"] == trip["B"] == trip["C"], "shield stats disagree across nodes: %s" % trip
+            assert sst["A"]["notes"] >= 1 and sst["A"]["pool_units"] >= shield_note["amt"], \
+                "unexpected shield state: %s" % sst["A"]
+            # the specific minted note resolves identically on every node
+            nds = {nm: _rest(p, "shield/note/%s" % shield_note["note_id"]) for nm, p in ports.items()}
+            assert nds["A"] == nds["B"] == nds["C"], "shield note record disagrees across nodes"
+            # SHIELD_SINK transparent balance agrees across nodes ...
+            sinks = {nm: _rest(p, "balance/%s" % sh.SHIELD_SINK)["balance"] for nm, p in ports.items()}
+            assert sinks["A"] == sinks["B"] == sinks["C"], "SHIELD_SINK balance disagrees across nodes: %s" % sinks
+            # ... and the doc/22 supply-safety invariant holds (pool_units == transparent SHIELD_SINK balance)
+            assert sst["A"]["pool_units"] == amounts.to_units(ca.balance(sh.SHIELD_SINK)), \
+                "supply-safety broken: pool_units %s != SHIELD_SINK balance" % sst["A"]["pool_units"]
+            print("STORE AGREEMENT shieldedv1 ok: stats(notes,ki,pool)=%s + note %s + pool==sink identical across A,B,C"
+                  % (trip["A"], shield_note["note_id"][:12]))
+        else:
+            print("STORE AGREEMENT shieldedv1: SKIPPED (shield mint did not land)")
+
+        # Coverage guard: this test EXISTS to prove POPULATED shield/token state agrees across nodes. The fork
+        # always activates here (mine(16) crosses fork=10), so REQUIRE the population to have happened — that
+        # stops the coverage from silently degrading to a vacuous pass if a future change breaks shield/token.
+        if fork_height is not None and tip > int(fork_height):
+            assert token_name, "token population did not land despite active fork — coverage would be vacuous"
+            assert shield_note, "shield mint did not land despite active fork — coverage would be vacuous"
+
         # === 3. DETECTOR: /api/difficulty agrees across the cluster (no false divergence) ===============
         diffs = {nm: float(_rest(p, "difficulty").get("difficulty")) for nm, p in ports.items()}
         spread = max(diffs.values()) - min(diffs.values())
@@ -344,7 +448,7 @@ def test_multinode_integration(tmp_path):
             print("DETECTOR in-process drive skipped (cluster /api/difficulty already agrees %s): %s" % (diffs, e))
 
         print("\nALL CHECKS PASSED: 3-node chain parity + block_store/balance_index/txid_index"
-              " agreement + vm_state root + detector CLEAN at tip %d" % tip)
+              " agreement + vm_state + token_index + shieldedv1 (populated) + detector CLEAN at tip %d" % tip)
     finally:
         for proc, log, _ in procs:
             try:
