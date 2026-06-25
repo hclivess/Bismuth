@@ -71,11 +71,31 @@ validates `new_pow=True` → builds a signalling coinbase → node accepts); the
 the node enforces post-activation; and the exact activation-boundary `(tip+1) >= fork_height` off-by-one.
 Deploy Stage 1 and confirm against a synced node **before** the fork.
 
-## 6. Invariants preserved (the pool still talks to the node + miners)
+## 6. Node communication: 100% REST (no legacy socket to the node)
 
-`connections` length-prefixed-JSON framing; node socket commands (`getwork`, `block`, `blocklast`,
-`diffget`, `api_mempool`, `mpinsert`); the coinbase reward tx tuple shape and the 9-field share tuple. Only
-the **value** of the coinbase openfield gains the hf2 prefix.
+The pool now talks to the node **entirely over the REST API** — no `connections` socket calls to the node
+remain (via the `_node_get`/`_node_post` helpers). Off the old socket commands:
+
+| was (socket) | now (REST) |
+|---|---|
+| `blocklast` / `diffget` (worker) | `GET /api/status` + `/api/difficulty` |
+| `api_mempool` (coinbase build) | `GET /api/mempool` |
+| `mpinsert` (payouts) | `POST /api/transaction` |
+| fork state | `GET /api/fork` (+ `/api/vm/contracts`) |
+| `block` (submit mined block) | **`POST /api/block`** (new) |
+
+**`POST /api/block`** (node, `rest_api.py`) is the REST transport for the legacy socket `block` command:
+it routes the submitted block through the **identical `digest_block` path** (no new consensus logic) with
+the same mainnet guards (allowed/whitelist, ≥5 connections, not mid-digest, synced), gated by
+`rest_api_write` so it is **inert on prod by default**. The pool POSTs the found block to its local node
+(which propagates it); the old socket peer-broadcast stays only as a fallback when REST is unavailable.
+Run the node with `rest_api=True` + `rest_api_write=True`. *(Verified live on regnet: 403 without
+rest_api_write, 400 on a missing block, malformed block routes to `digest_block` → graceful
+`accepted: false`.)*
+
+**Invariants preserved:** the coinbase reward tx tuple shape, the 9-field share tuple, and the digest path
+are unchanged. The `connections` socket framing remains only for the pool's OWN miner protocol
+(`getwork`/`block` from miners → the pool) — the pool's server, separate from the node API.
 
 ## 7. Running
 

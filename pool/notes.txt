@@ -29,17 +29,24 @@ Web explorer (optiexplorer.py, port 9080)
   hf2 fork status, and the pool's coinbase rewards/payouts all come from the node REST (cached 20s).
   Pool/miner/share state comes from shares.db / archive.db.
 
-Post-fork direction: REST API replacing the legacy socket
-- The project is migrating write/read paths OFF the legacy `connections` socket ONTO the node REST API
-  (rest_api.py do_POST: "Post-hardfork, transaction submission moves OFF the legacy socket onto REST").
-- Already REST today (the pool uses these): work/state reads — /api/status (height/hash/peers),
-  /api/difficulty (diff/hashrate/block_time), /api/fork, /api/mempool, /api/address/<pool>/transactions;
-  and TX submission — POST /api/transaction (rest_api_write) for payouts.
-- STILL socket-only (the gap for fully-REST mining): submitting a MINED BLOCK. There is no POST /api/block
-  endpoint yet — the /api/block/* routes are read-only — so optipoolware still broadcasts found blocks via
-  the socket "block" command (optipoolware.py ~L653). Fully-REST pool mining needs the node to add a
-  block-submission REST endpoint; then the pool's broadcast migrates to it. (The miner<->pool getwork/block
-  protocol is the pool's own socket protocol, separate from the node — moving that to HTTP is optional.)
+Node communication: 100% REST API (no legacy socket to the node)
+- optipoolware.py talks to the node ONLY over the REST API now (the _node_get/_node_post helpers); there
+  are NO `connections` socket calls to the node left. Mapping:
+    worker blocklast/diffget  -> GET /api/status + /api/difficulty
+    coinbase mempool pull      -> GET /api/mempool
+    payout submit (mpinsert)   -> POST /api/transaction
+    fork state                 -> GET /api/fork (+ /api/vm/contracts for the post-fork state root)
+    block submit               -> POST /api/block   (NEW node endpoint — see below)
+- Requires the node started with rest_api=True (reads) AND rest_api_write=True (the POST endpoints).
+- POST /api/block (node, rest_api.py): the REST transport for the legacy socket "block" command. It routes
+  the submitted block through the IDENTICAL digest_block path (no new validation) with the same mainnet
+  guards (allowed/whitelist, >=5 connections, not mid-digest, synced); gated by rest_api_write so it is
+  INERT on prod by default. The pool POSTs the found block to its local node, which then propagates it; the
+  old socket peer-broadcast remains only as a fallback when REST is unavailable/disabled. Verified live on
+  regnet: 403 without rest_api_write, 400 on a missing block, and a malformed block routes to digest_block
+  (graceful "accepted: false"). The full valid-block accept across the fork still needs live validation.
+- The miner<->pool getwork/block protocol is the pool's OWN socket protocol (the pool's server for miners),
+  separate from the node API — moving that to HTTP is a possible future change.
 
 Other
 - The pool server stops cleanly on Ctrl-C / SIGTERM now (the old "use alt-F4 on Windows" bug is fixed:

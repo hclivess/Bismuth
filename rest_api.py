@@ -394,6 +394,12 @@ def _make_handler(node):
                     payload = self._read_body_json()
                     db = self._db()
                     return self._write(200, self._submit_transaction(db, payload))
+                if route == ["block"]:
+                    if not getattr(node, "rest_api_write", False):
+                        raise _Forbidden("block submission is disabled; start the node with rest_api_write=True")
+                    payload = self._read_body_json()
+                    db = self._db()
+                    return self._write(200, self._submit_block(db, payload))
                 raise _NotFound("unknown endpoint")
             except _NotFound as e:
                 self._write(404, {"error": "not_found", "detail": str(e)})
@@ -453,6 +459,35 @@ def _make_handler(node):
             txids = [bismuth_serialize.tx_id_v2_s(tx[0], tx[1], tx[2], tx[3], tx[6], tx[7]) if post_fork
                      else tx[4][:56] for tx in txs]
             return {"submitted": len(txs), "txids": txids, "result": result}
+
+        def _submit_block(self, db, payload):
+            """Submit a MINED block over REST — the consensus-neutral REST transport for the legacy socket
+            'block' command (post-hf2 mining moves off the socket; doc/39, issue #380). It routes the block
+            through the IDENTICAL digest_block path the socket handler uses (NO new validation logic) and
+            applies the SAME guards as node.py's socket 'block' handler. Gated by rest_api_write."""
+            from digest import digest_block
+            segments = payload.get("block") if isinstance(payload, dict) else payload
+            if not (isinstance(segments, list) and segments):
+                raise _BadRequest("provide 'block': the mined block (a list of one block = a list of "
+                                  "tx arrays incl. the signed coinbase), exactly as the socket 'block' command")
+            peer_ip = self.client_address[0] if self.client_address else "127.0.0.1"
+            if not node.peers.is_allowed(peer_ip, "block"):
+                raise _Forbidden("%s is not allowed for block submission (see the 'allowed'/whitelist config)" % peer_ip)
+            # mirror node.py's socket 'block' mainnet guards exactly
+            if node.is_mainnet:
+                if len(node.peers.connection_pool) < 5 and not node.peers.is_whitelisted(peer_ip):
+                    raise _BadRequest("insufficient connections to the network")
+                if node.db_lock.locked():
+                    raise _BadRequest("node is digesting; retry shortly")
+                if node.last_block < node.peers.consensus_max - 3:
+                    raise _BadRequest("node not synced (at %s, need >= %s); block would orphan"
+                                      % (node.last_block, node.peers.consensus_max - 3))
+            try:
+                # sdef is vestigial in the digest path (peers.warning ignores it); pass None.
+                digest_block(node, segments, None, peer_ip, db)
+            except ValueError as e:
+                return {"accepted": False, "reason": str(e)}
+            return {"accepted": True, "block_height": node.last_block, "block_hash": node.last_block_hash}
 
         # --- helpers -------------------------------------------------------
         def _db(self):

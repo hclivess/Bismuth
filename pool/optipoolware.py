@@ -79,6 +79,24 @@ alt_add = str(_pool_cfg.get("alt_add", "92563981cc1e70d160c176edf368ea4bbc1d8d5b
 import fork
 import urllib.request
 
+# ALL node communication is over the node's REST API (doc/15) — no legacy socket calls to the node.
+# Requires the node started with rest_api=True (reads) + rest_api_write=True (payout + block submit).
+REST_PORT = int(getattr(config, "rest_api_port", 5659))
+REST_BASE = "http://%s:%d/api" % (node_ip_conf, REST_PORT)
+
+
+def _node_get(path, timeout=10):
+    with urllib.request.urlopen(REST_BASE + path, timeout=timeout) as _r:
+        return json.load(_r)
+
+
+def _node_post(path, body, timeout=15):
+    _req = urllib.request.Request(REST_BASE + path, data=json.dumps(body).encode("utf-8"),
+                                  headers={"Content-Type": "application/json"}, method="POST")
+    with urllib.request.urlopen(_req, timeout=timeout) as _r:
+        return json.load(_r)
+
+
 new_pow = False        # blake2b Heavy3 active for the block being mined?
 cb_prefix = ""         # coinbase-openfield prefix: fork.FORK2_SIGNAL ("hf2") [+ VM state root post-fork]
 
@@ -88,18 +106,13 @@ def _refresh_fork_state(tip_height):
     pre-fork (False, "") if the node REST is unreachable, so the pool keeps working."""
     global new_pow, cb_prefix
     try:
-        rest_port = int(getattr(config, "rest_api_port", 5659))
-        base = "http://%s:%d" % (node_ip_conf, rest_port)
-        with urllib.request.urlopen(base + "/api/fork", timeout=5) as r:
-            fk = json.load(r)
-        fh = fk.get("fork_height")
+        fh = _node_get("/fork").get("fork_height")
         np = fh is not None and (int(tip_height) + 1) >= int(fh)
         prefix = fork.FORK2_SIGNAL if getattr(config, "fork_signal", False) else ""
         if np:
             # post-fork the coinbase MUST also commit the VM pre-state root (doc/19); fetch it from the node
             try:
-                with urllib.request.urlopen(base + "/api/vm/contracts", timeout=5) as r:
-                    sr = json.load(r).get("state_root")
+                sr = _node_get("/vm/contracts").get("state_root")
                 if sr:
                     import vm_engine
                     prefix += vm_engine.embed_state_root(sr, "")
@@ -265,19 +278,16 @@ def payout(payout_threshold,myfee,othfee):
                 mytxid = txid.decode("utf-8")
                 tx_submit = (str(timestamp), str(address), str(recipient), '%.8f' % float(claim - fee), str(signature_enc.decode("utf-8")), str(public_key_hashed.decode("utf-8")), str(keep), str(openfield)) #float kept for compatibility
 
-                t = socks.socksocket()
-                t.connect((node_ip_conf, int(port)))  # connect to local node
-
-                connections.send(t, "mpinsert", 10)
-                connections.send(t, [tx_submit], 10)
-                reply = connections.receive(t, 10)
+                # submit the payout over REST (was the socket mpinsert command)
+                try:
+                    reply = _node_post("/transaction", {"transaction": list(tx_submit)})
+                    print("Payout {} submitted via REST: {}".format(mytxid, reply))
+                except Exception as e:
+                    reply = "REST submit failed: {}".format(e)
+                    print(reply)
             else:
                 print("Invalid signature")
                 reply = "Invalid signature"
-
-                print("Transaction sent with txid: {}".format(mytxid))
-
-            t.close()
 
             s.execute("UPDATE shares SET paid = 1 WHERE address = ?",(recipient,))
             shares.commit()
@@ -410,38 +420,27 @@ def worker(s_time):
     global new_diff
     global new_hash
     global new_time
-    doclean = 0
-
-    n = socks.socksocket()
-    n.connect((node_ip_conf, int(port)))  # connect to local node
 
     while True:
 
         time.sleep(s_time)
-        #doclean +=1
 
         try:
 
             app_log.warning("Worker task...")
-            connections.send(n, "blocklast", 10)
-            blocklast = connections.receive(n, 10)
-
-            connections.send(n, "diffget", 10)
-            diff = connections.receive(n, 10)
-
-            new_hash = blocklast[7]
-            new_time = blocklast[1]
-            new_diff = math.floor(diff[1])
+            # node REST instead of the socket blocklast/diffget commands
+            st = _node_get("/status")
+            new_hash = st.get("last_block_hash")
+            new_time = st.get("server_timestamp")
+            new_diff = math.floor(float(_node_get("/difficulty").get("difficulty")))
             # hf2: refresh new_pow + the coinbase prefix from the node for the block we're about to mine
-            _refresh_fork_state(blocklast[0])
+            _refresh_fork_state(st.get("blocks"))
 
             app_log.warning("Difficulty = {}".format(str(new_diff)))
             app_log.warning("Blockhash = {}".format(str(new_hash)))
-            # print("Worker")
 
         except Exception as e:
             app_log.warning(str(e))
-    n.close()
 
 # TODO: for tests only
 #os.remove('shares.db')
@@ -561,47 +560,24 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                         app_log.warning("Difficulty requirement satisfied for mining")
                         app_log.warning("Sending block to nodes")
 
-                        cn = options.Get()
-                        cn.read()
-                        cport = cn.port
-                        try:
-                            cnode_ip_conf = cn.node_ip_conf
-                        except:
-                            cnode_ip_conf = cn.node_ip
-
-                        #ctor_conf = cn.tor_conf
-                        cversion = cn.version
-
-                        if cversion == "testnet":
-                            cport = "2829"
-                            m_peer_file = "peers_test.txt"
-                        else:
-                            m_peer_file = "peers.txt"
-
-                        app_log.warning("Local node ip {} on port {}".format(cnode_ip_conf, cport))
-
-                        m = socks.socksocket()
-                        m.connect((cnode_ip_conf, int(cport)))  # connect to local node
-                        connections.send(m, "api_mempool", 10)
-                        result = connections.receive(m, 10)
-                        app_log.warning("I have got to receive mempool")
-                        m.close()
+                        # pull the mempool from the node over REST (was the socket api_mempool command);
+                        # m_peer_file comes from the module-level config (peers.txt / peers_test.txt).
+                        result = _node_get("/mempool").get("transactions", [])
+                        app_log.warning("Pulled {} mempool tx(s) from the node".format(len(result)))
 
                         # include data
                         block_send = []
-                        del block_send[:]  # empty
                         removal_signature = []
-                        del removal_signature[:]  # empty
 
                         app_log.warning("prepare empty block and clear data")
 
-                        for dbdata in result:
+                        for d in result:
                             transaction = (
-                                str(dbdata[0]), str(dbdata[1][:56]), str(dbdata[2][:56]), '%.8f' % float(dbdata[3]),
-                                str(dbdata[4]), str(dbdata[5]), str(dbdata[6]),
-                                str(dbdata[7]))  # create tuple
+                                str(d["timestamp"]), str(d["address"][:56]), str(d["recipient"][:56]),
+                                '%.8f' % float(d["amount"]), str(d["signature"]), str(d["public_key"]),
+                                str(d["operation"]), str(d["openfield"]))  # create tuple
                             block_send.append(transaction)  # append tuple to list for each run
-                            removal_signature.append(str(dbdata[4]))  # for removal after successful mining
+                            removal_signature.append(str(d["signature"]))  # for removal after successful mining
 
                         # claim reward
                         transaction_reward = tuple
@@ -625,39 +601,55 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                                 block_send = new_list  # make it a list of lists
                                 app_log.warning(block_send)
 
+                        # Prefer the node's REST POST /api/block (post-hf2 mining moves off the legacy
+                        # socket; doc/39, issue #380). Submit once to the LOCAL node, which then propagates
+                        # the block to the network. Fall back to the socket peer-broadcast below if REST is
+                        # unavailable / disabled / rejects (so this works against old nodes too).
+                        submitted_via_rest = False
+                        try:
+                            _res = _node_post("/block", {"block": block_send})
+                            if _res.get("accepted"):
+                                submitted_via_rest = True
+                                app_log.warning("Block submitted via REST /api/block: height={} hash={}".format(
+                                    _res.get("block_height"), _res.get("block_hash")))
+                            else:
+                                app_log.warning("REST /api/block rejected ({}); falling back to socket broadcast"
+                                                .format(_res.get("reason")))
+                        except Exception as e:
+                            app_log.warning("REST /api/block unavailable ({}); falling back to socket broadcast".format(e))
+
                         global peer_dict
                         peer_dict = {}
 
-                        with open(m_peer_file) as f:
-                            peer_dict =  json.load(f)
+                        if not submitted_via_rest:
+                            with open(m_peer_file) as f:
+                                peer_dict =  json.load(f)
 
-                            app_log.warning(peer_dict)
+                                app_log.warning(peer_dict)
 
-                            for k, v in peer_dict.items():
-                                peer_ip = k
-                                # app_log.info(HOST)
-                                peer_port = int(v)
-                                # app_log.info(PORT)
-                                # connect to all nodes
+                                for k, v in peer_dict.items():
+                                    peer_ip = k
+                                    peer_port = int(v)
+                                    # connect to all nodes
 
-                                try:
-                                    s = socks.socksocket()
-                                    s.settimeout(0.3)
-                                    #if ctor_conf == 1:
-                                    #    s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                                    s.connect((peer_ip, int(peer_port)))  # connect to node in peerlist
-                                    app_log.warning("Connected")
+                                    try:
+                                        s = socks.socksocket()
+                                        s.settimeout(0.3)
+                                        #if ctor_conf == 1:
+                                        #    s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+                                        s.connect((peer_ip, int(peer_port)))  # connect to node in peerlist
+                                        app_log.warning("Connected")
 
-                                    app_log.warning("Miner: Proceeding to submit mined block")
+                                        app_log.warning("Miner: Proceeding to submit mined block")
 
-                                    connections.send(s, "block", 10)
-                                    #connections.send(s, address, 10)
-                                    connections.send(s, block_send, 10)
+                                        connections.send(s, "block", 10)
+                                        #connections.send(s, address, 10)
+                                        connections.send(s, block_send, 10)
 
-                                    app_log.warning("Miner: Block submitted to {}".format(peer_ip))
-                                except Exception as e:
-                                    app_log.warning("Miner: Could not submit block to {} because {}".format(peer_ip, e))
-                                    pass
+                                        app_log.warning("Miner: Block submitted to {}".format(peer_ip))
+                                    except Exception as e:
+                                        app_log.warning("Miner: Could not submit block to {} because {}".format(peer_ip, e))
+                                        pass
 
                     if diff < mdiff:
                         diff_shares = diff
