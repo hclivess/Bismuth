@@ -12,7 +12,26 @@ Status: **design complete + foundational codecs implemented & tested**; the cons
 | Address/recipient codec (tagged union + verbatim 0xFF fallback, round-trip guarded) | **implemented + tested** | `addrbytes.py`, `tests/test_storage_codecs.py` |
 | `block_store` write/read wiring of the codecs (fork-gated by destination height) | **wired + tested**; production flip still behind the §Validation replay gates | `block_store.py` `put_blocks`/`_expand`, `storage_backend.py` `LmdbWriteBackend`, `node.py` |
 | tx-fields codec (timestamp varint + amount/fee/reward integer units, storage-mode aware) | **implemented + wired + tested** | `txfields.py`, `tests/test_storage_codecs.py`, `block_store.py` |
-| block-header / coinbase / vm / indexes / plugin / mempool / difficulty true-bytes | designed + verified (this doc) | per-domain sections |
+| difficulty store (closes the misc-table gap: difficulty_e10/solvetime/cumulative_work, deterministic work) | **implemented + tested** (codec); env+wiring staged | `diff_work.py`, `diff_store.py`, `tests/test_storage_codecs.py` |
+| core-indexes (txid_index raw-32 key, block_store `hashes` raw-digest key, balance_index u128 LE) | **implemented + tested** | `txid_index.py`, `block_store.py`, `balance_index.py`, tests re-baselined |
+| vm | storage **already true-bytes** (raw `addr:word` keys, raw 32-byte balances); surface-A (openfield root) rides with coinbase; surface-B (key fold) **rejected** (state_root reorder) |
+| coinbase | **blocked** — can't drop the coinbase sig/pubkey until doc/29 §2.C changes the *wire* pre-image (else forks the block hash) |
+| block-header txids forward list / mempool LMDB record / plugin-stores (token-amount varint, shielded raw nullifiers) | designed + verified (this doc); larger/consensus-sensitive, staged with per-domain validation | per-domain sections |
+
+### Multinode validation (the storage changes proven across nodes)
+
+The 3-node regnet integration test (`tests/test_multinode_integration.py`, `BISMUTH_RUN_MULTINODE=1`),
+with `block_store` + `balance_index`=primary + `txid_index` enabled and mining **across the fork**, passed
+with all storage agreements green:
+- `CHAIN PARITY ok: blocks 1..27 byte-identical across A,B,C`
+- `block_store ok: bodies at heights [1,2,13,26,27] identical across A,B,C` — the `_expand` reconstruction
+  of the packed sig/address/tx-fields + raw `hashes` keys agrees byte-for-byte across 3 independently-built
+  stores, **including post-fork heights** (where the packing actually runs).
+- `balance_index ok` (u128 LE) · `txid_index ok: 3 post-fork txid height(s) identical` (raw-32 keys) ·
+  `vm_state` · `token_index` · `shieldedv1` all agree · difficulty detector clean (median 16.0).
+The 2-node signature harness (`tests/test_two_node_signatures.py`, `BISMUTH_RUN_TWONODE=1`) also passed —
+every signing scheme verifies and syncs across 2 nodes. So the post-fork true-bytes storage is
+consensus-equivalent across nodes, not just in single-process unit tests.
 
 ### Probe finding (drove the tx-fields simplification)
 
