@@ -1,0 +1,4 @@
+miner.py will not work with optipoolware, you need to use the provided optihash.py which has miner.txt for configuration.
+optihash.py can be run from a device without bismuth installed providing you have python 3.5 (as per wallet) and connections.py
+There are compiled executables for windows and linux
+The linux executable was compiled with nuitka on ubuntu 16.04 lts

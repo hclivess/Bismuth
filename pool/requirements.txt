@@ -1,0 +1,7 @@
+pyinstaller
+flask
+pycryptodome
+simple-crypt
+PySocks
+requests
+tornado

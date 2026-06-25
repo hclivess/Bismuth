@@ -1,0 +1,9 @@
+port=8525
+mining_ip=127.0.0.1
+mining_threads=4
+tor=0
+miner_address=92563981cc1e70d160c176edf368ea4bbc1d8d5ba63aceee99ef6ebd
+max_diff=150
+miner_name=maccaspacca
+nonce_time=10
+hashcount=20000

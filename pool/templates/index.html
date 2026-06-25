@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>pool.bismuth.online</title>
+
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/css/bootstrap.min.css" integrity="sha384-PsH8R72JQ3SOdhVi3uxftmaW6Vc51MKb0q5P2rRUpPvrszuE4W1povHYgTpBfshb" crossorigin="anonymous">
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/js/bootstrap.min.js" integrity="sha384-alpBpkh1PFOepccYVYDB4do5UnbKysX5WZXm3XxPqe5iKTfUKjNkCk9SaVuEZflJ" crossorigin="anonymous"></script>
+
+    <div class="container"> 
+        <a class="navbar-brand" href="#"><img src="http://bismuth.cz/wp-content/uploads/2017/03/b3.png" width="50" height="50"><span id="currency"></span></a>
+    </div>
+</head>
+<body>
+
+    <div class="container"> 
+        <section class="panel panel-default clearfix">
+            <div class="panel-heading">   
+                    <h4>Pool Configuration</h4>
+            </div>
+            <div>
+            Welcome to the optipoolware public Bismuth pool
+            <br>Config details in your miner.txt:
+            <br>mining_ip=78.28.250.81
+            <br>miner_address=your mining address
+            <br>Download miner:https://github.com/maccaspacca/Optipoolware
+            </div>
+        </section>
+    <!-- </div>
+
+    <div class="container" -->
+        <!-- <div id="node_alerts" class="alert alert-danger hidden"></div> -->
+        <div class="container">
+            <section class="panel panel-default">
+                <div class="panel-heading">
+                    <h4>Recent Miners</h4>
+                </div>
+
+                <div class="table table-responsive">
+                        <table id="active_miners" class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th class="text-left">Address</th>
+                                        <th class="text-center">Number of shares</th>
+                                        <th class="text-center">Current Hashrate</th>
+                                        <th class="text-center">Last worker</th>
+                                        <th class="text-center">Workers</th>
+                                        <th></th>
+                                    </tr>
+                                    {% for n in recentminers %}
+
+                                        <tr>
+                                            <th>{{n[0]}}</th>
+                                            <th>{{n[1]}}</th>
+                                            <th>{{n[2]}}</th>
+                                            <th>{{n[3]}}</th>
+                                            <th>{{n[4]}}</th>
+                                            
+                                        </tr>
+                                    {% endfor %}
+                                </thead>        
+                        </table>
+                </div>
+            </section>
+        </div>
+
+
+        <div class="container">
+            <section class="panel panel-default">
+                <div class="panel-heading">
+                    <h4>Block and Pool Stats for this round</h4>
+                </div>
+
+                <div class="table table-responsive">
+                        <table id="active_miners" class="table table-hover">
+                                <thead>
+                                    {% for stat in bpstats %}
+                                    <tr>
+                                        <th width='50%'>{{stat[0]}}</th>
+                                        <td class='text-left'>{{stat[1]}}</td>
+                                    </tr>
+                                    <tr>
+                                        <th width='50%'>Shares total</th>
+                                        <td class='text-left'>{{stat[2]}}</td>
+                                    </tr>
+                                    <tr>
+                                        <th width='50%'>Reward per share (before fees)</th>
+                                        <td class='text-left'>{{stat[3]}}</td>
+                                    </tr>
+                                    <tr>
+                                        <th width='50%'>Mined rewards for this round</th>
+                                        <td class='text-left'>{{stat[4]}}</td>
+                                    </tr>
+                                    <tr>
+                                        <th width='50%'>Est pool hashrate (mh/s)</th>
+                                        <td class='text-left'>{{stat[5]}}</td>
+                                    </tr>
+                                    <tr>
+                                        <th width='50%'>Worker Count</th>
+                                        <td class='text-left'>{{stat[6]}}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </thead>        
+                        </table>
+                </div>
+            </section>
+        </div>
+
+
+        <div class="container">
+            <section class="panel panel-default clearfix">
+                <div class="panel-heading">
+                    <h4>Pending Payouts (before fees)</h4>
+                </div>
+                <div class="table table-responsive">
+                    <table id="pending payouts" class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Address</th>
+                                <th>Bismuth Reward</th>
+                            </tr>
+                        </thead>
+                        {% for payout in payoutsfees %}
+                        <tr>
+                            <td>{{payout[0]}}</td>
+                            <td>{{payout[1]}}</td>
+                        </tr>
+                        {% endfor %}
+                    </table>
+                    
+                </div>
+                
+            </section>
+        </div>
+
+        <div class="container">
+            <section class="panel panel-default clearfix">
+                <div class="panel-heading">
+                    <h4>Recent Payouts</h4>
+                </div>
+                <div class="table table-responsive">
+                    <table id="pending payouts" class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th class="text-left">Address</th>
+                                <th class="text-right">Bismuth reward</th>
+                                <th class="text-right">Block height</th>
+                                <th class="text-right">Time</th>
+                            </tr>
+                        </thead>
+                        {% for payout in payouts %}
+                        <tr>
+                            <td>{{payout[10]}}</td>
+                            <td class='text-right'>{{payout[1]}}</td>"
+                            <td class='text-right'>{{payout[2]}}</td>"
+                            <td class='text-right'>{{payout[3]}}</td>"
+                            
+                        </tr>
+                        {% endfor %}
+
+
+                    </table>
+                    
+                </div>
+                
+            </section>
+        </div>
+    
+
+
+
+</body>
+</html>
