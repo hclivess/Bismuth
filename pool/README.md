@@ -43,7 +43,10 @@ m_timeout= if a miner does not send a share within this many minutes the hashrat
 
 # optiexplorer.py
 
-This is a reference pool web interface that displays stats and block information for miners. It uses Flask run over tornado as a microframework
+This is a reference pool web interface (port 9080) that displays live pool/network stats. It is pure
+**stdlib `http.server`** (no Flask, no Tornado): it serves a dark auto-refreshing dashboard at `/` and a
+JSON API at `/api/stats`, reading network height/difficulty + **hf2 fork status** and the pool's
+rewards/payouts from the node's REST API (it no longer scans the ledger). See `doc/39-pool-mining.md`.
 
 # optihash.py
 

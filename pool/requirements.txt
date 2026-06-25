@@ -1,7 +1,6 @@
+# Optipoolware deps. The web explorer is now pure stdlib (http.server) — no flask, no tornado.
 pyinstaller
-flask
 pycryptodome
 simple-crypt
 PySocks
 requests
-tornado
