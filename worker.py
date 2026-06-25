@@ -25,6 +25,15 @@ import mempool as mp
 from difficulty import *
 from libs import client
 
+# Bound each outbound dial so a dead/filtered peer cannot hang this worker in connect() for the OS TCP
+# SYN-retry window (~tens of seconds, up to ~127s with the default tcp_syn_retries=6). That hang,
+# multiplied across the stale peers a node accumulates while it was down, is what stalled sync-resume
+# for minutes after a restart. 5s matches the peer-file liveness probe (peers_storage). It is applied to
+# the connect() only and dropped immediately after, since the framed protocol re-asserts its own
+# blocking/timeouts on every send/receive (connections.setblocking). Tor keeps its prior unbounded
+# behaviour — onion-routed connects legitimately exceed a few seconds.
+DIAL_TIMEOUT = 5
+
 
 def sendsync(sdef, peer_ip, status, node):
     """ Save peer_ip to peerlist and send `sendsync`
@@ -76,7 +85,11 @@ def worker(host, port, node):
         if node.tor:
             s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
         # s.setblocking(0)
+        # Cap the dial (clearnet only) so a dead peer can't hold this worker in connect() for the OS
+        # SYN-retry window; restore blocking right after so the framed sync protocol is unaffected.
+        s.settimeout(None if node.tor else DIAL_TIMEOUT)
         s.connect((host, port))
+        s.settimeout(None)
         node.logger.app_log.info(f"Outbound: Connected to {this_client}")
         client_instance_worker.connected = True
 

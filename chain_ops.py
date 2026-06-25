@@ -741,8 +741,17 @@ def sequencing_check(node, db_handler):
             # perform test on misc table
             y = None
 
+            # Bound the difficulty (misc) scan to the same recent tail the transactions scan above already
+            # uses (>= sequencing_last anchor) instead of re-reading every misc row from 300000 to the tip
+            # on EVERY boot — the dominant cost of the startup sequencing scan on a large mainnet ledger.
+            # Deep history below the anchor is immutable and was validated on the boot that advanced the
+            # anchor; any NEW gap/dup lives at/after it (and the live autoheal loop guards the tip). When no
+            # anchor file exists (sequencing_last == 0) this is max(300000, 0) == 300000 — unchanged, so a
+            # first/unanchored boot still does the original full difficulty scan (no regression).
+            misc_floor = max(300000, sequencing_last)
+
             for row in c.execute("SELECT block_height FROM misc WHERE block_height > ? ORDER BY block_height ASC",
-                                 (300000,)):
+                                 (misc_floor,)):
                 y_init = row[0]
 
                 if y is None:
