@@ -1,4 +1,52 @@
-miner.py will not work with optipoolware, you need to use the provided optihash.py which has miner.txt for configuration.
-optihash.py can be run from a device without bismuth installed providing you have python 3.5 (as per wallet) and connections.py
-There are compiled executables for windows and linux
-The linux executable was compiled with nuitka on ubuntu 16.04 lts
+Optipoolware — maintainer notes (current)
+=========================================
+Full docs: ../doc/39-pool-mining.md  ·  user guide: README.md
+
+Miner
+- Use optihash/optihash.py (NOT the node's miner.py). Config is optihash/miner.toml (TOML, was miner.txt).
+- Needs Python 3.11+ (stdlib tomllib for config) and the node's connections.py + mining_heavy3.py + the
+  Heavy3 binary. Run in-repo it finds them automatically (a sys.path bootstrap points at the repo root);
+  packaged standalone, ship those two modules + the Heavy3 bin alongside the executable. No node needed
+  to mine (just a Bismuth address), but the pool it connects to does need a node.
+
+Config: all TOML now (no more .txt)
+- pool.toml  (optipoolware.py + optiexplorer.py)
+- optihash/miner.toml  (optihash.py)
+- parsed with stdlib tomllib — typed, with defaults; no third-party config dep.
+
+hf2 readiness (see doc/39)
+- The Heavy3 inner hash switches sha224 -> blake2b at the fork; new_pow + the coinbase fork-signal prefix
+  are threaded pool -> getwork -> miner -> diffme_heavy3, mirroring the node's mining_heavy3 + miner.py.
+- new_pow / fork_height come from the node REST /api/fork; signalling follows the node's fork_signal flag.
+- Until activation it behaves exactly as pre-hf2 (new_pow=False, no signal) — zero change today.
+- NOT validated end-to-end across the fork here (no node+miners+fork). Validate on a live pool BEFORE the
+  fork: the blake2b share path, the post-activation VM state-root commitment, and the activation boundary.
+
+Web explorer (optiexplorer.py, port 9080)
+- Pure stdlib http.server now — NO Flask, NO Tornado (dropped from requirements). Serves a dark
+  auto-refreshing dashboard at / and a JSON API at /api/stats.
+- Does NOT scan static/ledger.db anymore — network height/difficulty/hashrate/block-time, peers, mempool,
+  hf2 fork status, and the pool's coinbase rewards/payouts all come from the node REST (cached 20s).
+  Pool/miner/share state comes from shares.db / archive.db.
+
+Post-fork direction: REST API replacing the legacy socket
+- The project is migrating write/read paths OFF the legacy `connections` socket ONTO the node REST API
+  (rest_api.py do_POST: "Post-hardfork, transaction submission moves OFF the legacy socket onto REST").
+- Already REST today (the pool uses these): work/state reads — /api/status (height/hash/peers),
+  /api/difficulty (diff/hashrate/block_time), /api/fork, /api/mempool, /api/address/<pool>/transactions;
+  and TX submission — POST /api/transaction (rest_api_write) for payouts.
+- STILL socket-only (the gap for fully-REST mining): submitting a MINED BLOCK. There is no POST /api/block
+  endpoint yet — the /api/block/* routes are read-only — so optipoolware still broadcasts found blocks via
+  the socket "block" command (optipoolware.py ~L653). Fully-REST pool mining needs the node to add a
+  block-submission REST endpoint; then the pool's broadcast migrates to it. (The miner<->pool getwork/block
+  protocol is the pool's own socket protocol, separate from the node — moving that to HTTP is optional.)
+
+Other
+- The pool server stops cleanly on Ctrl-C / SIGTERM now (the old "use alt-F4 on Windows" bug is fixed:
+  it serves in the main thread with a KeyboardInterrupt handler instead of blocking in thread.join()).
+- Standalone Windows / Linux / macOS executables are built by the repo's release CI and attached to each
+  GitHub release (the old hand-built nuitka-on-Ubuntu-16.04 binaries are no longer the process).
+- Invariants that must NOT change (the pool still talks to the node + miners): the connections wire
+  framing, the node socket commands (getwork/block/blocklast/diffget/api_mempool/mpinsert), the coinbase
+  reward tx tuple shape, and the 9-field share tuple. Only the VALUE of the coinbase openfield gains the
+  hf2 prefix.
