@@ -19,76 +19,61 @@ Standalone here: store + ``extract_from_ledger`` (lift the existing negative row
 balance-equivalence proof in the tests. Wiring the digester to write here instead of negative rows
 (and the balance path to read here) lands behind a config flag, replay-validated.
 
-Deps: ``lmdb`` (required), ``msgpack`` (optional — JSON fallback).
+This store has been migrated onto the engine-agnostic KV abstraction (``kvstore.open_store``, doc/26
+stage 1): the underlying KV engine (LMDB / MDBX / sqlite-kv) is now a single factory arg instead of a
+direct ``lmdb.open()`` call. The public method surface AND the on-disk byte format are UNCHANGED — the
+key is still the big-endian uint64 height and the value the same msgpack list-of-[sender, recipient,
+amount, mirror_hash] entries — so the balance-equivalence parity proof in the tests holds byte-for-byte
+on the lmdb backend, and the SAME store now also runs on sqlite-kv (proving the seam). ``Codec`` from
+kvstore centralizes the (de)serialization (same msgpack / JSON-fallback the store used before).
+
+Deps: ``kvstore`` (which needs ``lmdb`` for the lmdb backend; ``msgpack`` optional — JSON fallback).
 """
-import struct
+from kvstore import Codec, KVStore, open_store
 
-import lmdb
+_GIB = KVStore.GIB
 
-try:
-    import msgpack
-
-    def _pack(o):
-        return msgpack.packb(o, use_bin_type=True)
-
-    def _unpack(b):
-        return msgpack.unpackb(b, raw=False)
-except ImportError:  # pragma: no cover
-    import json
-
-    def _pack(o):
-        return json.dumps(o).encode()
-
-    def _unpack(b):
-        return json.loads(b)
-
-_GIB = 1024 ** 3
-
-
-def _hk(height):
-    return struct.pack(">Q", int(height))
-
-
-def _uh(key):
-    return struct.unpack(">Q", key)[0]
+_pack = Codec.pack
+_unpack = Codec.unpack
+_hk = Codec.hkey
+_uh = Codec.unhkey
 
 
 class RewardChain:
-    def __init__(self, path, map_size=2 * _GIB, readonly=False, sync=True):
-        self.env = lmdb.open(path, subdir=True, max_dbs=1, map_size=map_size,
-                             readonly=readonly, lock=not readonly, sync=sync, metasync=sync)
-        self.db = self.env.open_db(b"rewards")
+    def __init__(self, path, map_size=2 * _GIB, readonly=False, sync=True, backend="lmdb"):
+        self.store = open_store(backend, path, dbs=["rewards"], map_size=map_size,
+                                readonly=readonly, sync=sync)
+        self.db = self.store.open_db("rewards")
+        # kept for back-compat with callers/tests that introspect the env directly (lmdb backend only)
+        self.env = getattr(self.store, "env", None)
 
     def add(self, height, sender, recipient, amount_units, mirror_hash=""):
         """Append a reward entry for (positive) block ``height``."""
-        with self.env.begin(write=True) as txn:
-            v = txn.get(_hk(height), db=self.db)
+        with self.store.txn(write=True) as txn:
+            v = txn.get(self.db, _hk(height))
             entries = _unpack(v) if v is not None else []
             entries.append([sender, recipient, int(amount_units), mirror_hash])
-            txn.put(_hk(height), _pack(entries), db=self.db)
+            txn.put(self.db, _hk(height), _pack(entries))
 
     def entries_for(self, height):
-        with self.env.begin() as txn:
-            v = txn.get(_hk(height), db=self.db)
+        with self.store.txn() as txn:
+            v = txn.get(self.db, _hk(height))
         return _unpack(v) if v is not None else []
 
     def all_entries(self):
         """Yield (height, sender, recipient, amount_units, mirror_hash) over the whole sidechain."""
-        with self.env.begin() as txn:
-            for k, v in txn.cursor(db=self.db):
+        with self.store.txn() as txn:
+            for k, v in txn.iterate(self.db):
                 h = _uh(k)
                 for sender, recipient, amount, mh in _unpack(v):
                     yield h, sender, recipient, int(amount), mh
 
     def rollback(self, to_height):
         """Drop reward entries for blocks above ``to_height`` (reorg)."""
-        with self.env.begin(write=True) as txn:
-            cur = txn.cursor(db=self.db)
-            keys = []
-            if cur.set_range(_hk(int(to_height) + 1)):
-                keys = [bytes(k) for k, _ in cur]
+        with self.store.txn(write=True) as txn:
+            keys = [k for k, _ in txn.range(self.db, start=_hk(int(to_height) + 1))]
             for k in keys:
-                txn.delete(k, db=self.db)
+                txn.delete(self.db, k)
         return len(keys)
 
     def balance_delta_units(self, address):
@@ -117,8 +102,7 @@ class RewardChain:
         return n
 
     def count_blocks(self):
-        with self.env.begin() as txn:
-            return txn.stat(db=self.db)["entries"]
+        return self.store.stat(self.db)["entries"]
 
     def close(self):
-        self.env.close()
+        self.store.close()
