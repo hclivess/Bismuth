@@ -1,0 +1,78 @@
+name: release
+
+# Build standalone node executables for Windows, Linux and macOS and attach them to the GitHub Release.
+# Fires automatically when a v* tag is pushed; also runnable on demand (workflow_dispatch) for an
+# existing tag — the workflow definition is read from the default branch, so it can build a tag whose
+# commit predates this file.
+#
+# PyInstaller (onefile) is used for reproducible cross-platform CI builds. Python 3.11 is pinned because
+# the ed25519 sdist's bundled versioneer is broken on 3.12 (configparser.SafeConfigParser/readfp); 3.11
+# installs it cleanly. The local Nuitka recipe (compile_nuitka.cmd + setup.iss) remains for a compiled
+# Windows build + Inno installer.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to build + attach binaries for (e.g. v4.6.0.1)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build ${{ matrix.label }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            label: linux-x86_64
+            ext: ''
+          - os: windows-latest
+            label: windows-x86_64
+            ext: '.exe'
+          - os: macos-latest
+            label: macos-arm64
+            ext: ''
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          # the node's runtime deps (same set as requirements-node.txt; ed25519 builds fine on 3.11)
+          pip install PySocks pycryptodomex requests base58 coincurve cryptography lmdb msgpack dilithium-py ed25519
+          pip install pyinstaller
+
+      - name: Build node executable
+        shell: bash
+        run: |
+          pyinstaller --onefile --name bismuth-node \
+            --collect-all Cryptodome --collect-all coincurve --collect-all lmdb --collect-all dilithium_py \
+            --collect-submodules polysign --collect-submodules ed25519 \
+            node.py
+
+      - name: Stage asset
+        shell: bash
+        run: |
+          mkdir -p out
+          cp "dist/bismuth-node${{ matrix.ext }}" "out/bismuth-node-${{ matrix.label }}${{ matrix.ext }}"
+
+      - name: Attach to the GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          files: out/bismuth-node-${{ matrix.label }}${{ matrix.ext }}
+          fail_on_unmatched_files: true

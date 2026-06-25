@@ -111,4 +111,10 @@ default `python3 -m pytest -v` run skips all six (latest full run: **790 passed,
   source download + bootstrap, hypernode plugin). Note: firewall config is commented out and the node
   is expected to start post-reboot via an external mechanism.
 - `compile_nuitka.cmd` + `setup.iss` — Windows: compile `node`/`node_stop`/`commands` with Nuitka and
-  build an Inno Setup installer.
+  build an Inno Setup installer (local/manual build).
+- `.github/workflows/release.yml` — **automated release binaries.** On a `v*` tag push (or manual
+  `workflow_dispatch` for an existing tag) it builds a standalone `node` executable for **Windows, Linux
+  and macOS** with PyInstaller (onefile, Python 3.11 — ed25519's sdist is broken on 3.12) and uploads
+  them to the GitHub Release. Trigger for an existing tag:
+  `gh workflow run release.yml -f tag=vX.Y.Z`. The node still needs a `config.txt` in its working dir
+  (copy `config.txt.example`); a clearnet node needs nothing else.
