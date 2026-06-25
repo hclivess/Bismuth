@@ -34,6 +34,8 @@ Deps: ``kvstore`` (which needs ``lmdb`` for the lmdb backend; ``msgpack`` option
 """
 import hashlib
 
+import addrbytes
+import sigbytes
 from kvstore import Codec, KVStore, open_store
 
 _pack = Codec.pack
@@ -88,34 +90,57 @@ class BlockStore:
         return nid
 
     def _expand(self, txn, height, rec):
-        """Rebuild the full 12-field rows for a block, re-expanding the public-key id to the key str."""
+        """Rebuild the full 12-field rows for a block: re-expand the public-key id to the key str, and
+        rebuild the hf2 Stage-4 TRUE-BYTES fields (signature, address, recipient) to their exact wire
+        strings. Dispatch is by VALUE TYPE — a packed field is ``bytes`` (post-fork), a legacy field is
+        ``str`` and passes through untouched (so pre-fork rows are byte-identical by construction; doc/40)."""
         out = []
         for t in rec["t"]:
             t = list(t)
             pkb = txn.get(self.pkr, _hk(t[self._PK]))
             if pkb is not None:
                 t[self._PK] = pkb.decode()
+            t[1] = addrbytes.unpack_addr(t[1])          # address: bytes -> str, str -> str (legacy)
+            t[2] = addrbytes.unpack_addr(t[2])          # recipient
+            if isinstance(t[4], (bytes, bytearray, memoryview)):
+                t[4] = sigbytes.to_wire(bytes(t[4]))    # signature: packed blob -> wire string
             out.append([height] + t)
         return out
 
     # --- write -------------------------------------------------------------
-    def put_blocks(self, items):
+    def put_blocks(self, items, fork_height=None):
         """Store an iterable of ``(height, block_hash, full_rows)`` in one transaction.
         ``full_rows`` are 12-field ledger rows; block_height is dropped (the key) and the public key is
-        replaced by its dedup id."""
+        replaced by its dedup id.
+
+        hf2 Stage-4 (doc/40): a block whose DESTINATION height is ``>= fork_height`` (and fork_height is
+        not None) stores the signature/address/recipient fields as TRUE BYTES (sigbytes/addrbytes) instead
+        of base64/text; ``_expand`` rebuilds the exact wire strings on read. ``fork_height=None`` (the
+        default, used by build_from_sqlite/verify_against_sqlite and any pre-fork write) keeps every field
+        as the legacy ``str`` — byte-identical to the current store."""
         with self.store.txn(write=True) as txn:
             cache = {}
             for height, block_hash, rows in items:
+                post_fork = fork_height is not None and int(height) >= int(fork_height)
+                if post_fork and Codec.backend != "msgpack":
+                    # the JSON-fallback codec cannot serialize the raw bytes blobs (doc/40 C6)
+                    raise RuntimeError("post-fork true-bytes block storage requires the msgpack codec "
+                                       "(kvstore); the JSON fallback cannot store raw signature/address bytes")
                 txs = []
                 for r in rows:
                     t = list(r[1:])
                     t[self._PK] = self._pubkey_id(txn, t[self._PK], cache)
+                    if post_fork:
+                        addr_str = str(r[2])                              # full-row address (12-field row)
+                        t[4] = sigbytes.pack_from_wire(t[4], addr_str)   # signature -> packed blob
+                        t[1] = addrbytes.pack_addr(t[1])                 # address   -> packed blob
+                        t[2] = addrbytes.pack_addr(t[2])                 # recipient -> packed blob
                     txs.append(t)
                 txn.put(self.blocks, _hk(height), _pack({"h": block_hash, "t": txs}))
                 txn.put(self.hashes, self._bh(block_hash), _hk(height))
 
-    def put_block(self, height, block_hash, rows):
-        self.put_blocks([(height, block_hash, rows)])
+    def put_block(self, height, block_hash, rows, fork_height=None):
+        self.put_blocks([(height, block_hash, rows)], fork_height=fork_height)
 
     def rollback(self, to_height):
         """Delete every block with height > ``to_height`` (a reorg). Returns the count removed."""

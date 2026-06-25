@@ -10,10 +10,25 @@ Status: **design complete + foundational codecs implemented & tested**; the cons
 |---|---|---|
 | Signature codec (per-scheme true bytes, RSA single-b64, 0x40 recoverable hex, 0x00 opaque fallback) | **implemented + tested** | `sigbytes.py`, `tests/test_storage_codecs.py` |
 | Address/recipient codec (tagged union + verbatim 0xFF fallback, round-trip guarded) | **implemented + tested** | `addrbytes.py`, `tests/test_storage_codecs.py` |
-| `block_store` write/read wiring of the two codecs (fork-gated) | staged (needs straddling-regnet replay) | `block_store.py` `put_blocks`/`_expand` |
+| `block_store` write/read wiring of the two codecs (fork-gated by destination height) | **wired + tested**; production flip still behind the §Validation replay gates | `block_store.py` `put_blocks`/`_expand`, `storage_backend.py` `LmdbWriteBackend`, `node.py` |
 | tx-fields / block-header / coinbase / vm / indexes / plugin / mempool / difficulty true-bytes | designed + verified (this doc) | per-domain sections |
 
-The two implemented codecs are pure and storage-only: they are **not yet called on the consensus path**, so they cannot affect any block today. Their round-trip (lossless-reconstruction) invariant is proven in isolation by 26 passing tests.
+The two codecs are now wired into `block_store`: `put_blocks(items, fork_height=None)` packs the
+signature/address/recipient fields to true bytes for blocks at `height >= fork_height` (msgpack codec
+required), and `_expand` rebuilds the exact wire strings on read, dispatching by value type (`bytes` =
+packed, `str` = legacy passthrough). `LmdbWriteBackend` reads the node's **live** `fork_height` at append
+time, so the gate is by destination height with no second signal. **`fork_height=None` (mainnet today,
+and the default used by `build_from_sqlite`/`verify_against_sqlite`) keeps every field as the legacy
+`str` — byte-identical to the current store, inert on prod.**
+
+Tested: 26 codec round-trip tests + new `block_store` post-fork tests (realistic values pack to raw bytes
+and reconstruct byte-for-byte; a pre-fork block stays legacy `str`; synthetic non-canonical values
+round-trip via the verbatim/opaque fallback; straddling chain). The wider storage/serialization/fork
+suite (block_store, storage_backend cross_check, characterization, replay, kvstore, balance/txid index,
+integer storage, signature types, reward chain, LWMA, fork transition, consensus invariants, regnet
+dual-PoW mine, digest/mempool/REST) is green. The deeper production go-live gate — a full straddling
+regnet chain mined **with `block_store` enabled** plus `replay_verify` 0-mismatch + `cross_check`
+byte-for-byte — remains as specified in §Validation before any consensus-read flip.
 
 ## Miner & pool impact: NONE (verified)
 

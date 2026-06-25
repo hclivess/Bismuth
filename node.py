@@ -1719,7 +1719,7 @@ if __name__ == "__main__":
                     bs_path = _os.path.join(_os.path.dirname(node.ledger_path) or ".", "blockstore")
                     node.block_store = block_store.BlockStore(bs_path)
                     import storage_backend as _sb
-                    node.block_writer = _sb.LmdbWriteBackend(node.block_store)   # stage-4 write seam (doc/26)
+                    node.block_writer = _sb.LmdbWriteBackend(node.block_store, node)   # stage-4 write seam (doc/26); node -> live fork_height gate (doc/40)
                     node.logger.app_log.warning(
                         f"Status: block store enabled at {bs_path} (tip {node.block_store.tip()})")
                 except Exception as e:

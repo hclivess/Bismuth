@@ -196,11 +196,15 @@ class LmdbWriteBackend(StorageWriteBackend):
     `block_store`'s atomic ops (a crash leaves the store at a clean block boundary, so the tip is an
     unambiguous recovery floor — the property that retires the SQLite lockstep once SQLite is gone)."""
 
-    def __init__(self, block_store):
+    def __init__(self, block_store, node=None):
         self.store = block_store
+        # node is read (not captured) so fork_height is the LIVE value at append time — the destination-
+        # height gate for hf2 Stage-4 true-bytes storage (doc/40). node=None => fork_height None => legacy.
+        self._node = node
 
     def append_block(self, height, block_hash, rows):
-        self.store.put_block(height, block_hash, rows)
+        fork_height = getattr(self._node, "fork_height", None) if self._node is not None else None
+        self.store.put_block(height, block_hash, rows, fork_height=fork_height)
 
     def rollback(self, to_height):
         return self.store.rollback(to_height)

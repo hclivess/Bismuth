@@ -212,3 +212,71 @@ def test_build_and_verify_against_sqlite(tmp_path):
             assert "block 10" in str(e)
     finally:
         s.close()
+
+
+# --------------------------------------------------------------------------- hf2 Stage-4 true-bytes wiring
+import base64
+
+import addrbytes
+import sigbytes
+
+
+def _row_real(h, i, bh, addr, recip, sig):
+    """A 12-field ledger row with realistic address/recipient/signature so the Stage-4 codecs pack them."""
+    return [h, "%.2f" % (1600000000 + h), addr, recip, 0.5 + i, sig,
+            "pubkey%d" % i, bh, 0.01, 1.0 if i == 0 else 0, "op%d" % i, "openfield_%d_%d" % (h, i)]
+
+
+def _rsa_addr(seed):
+    return ("%064x" % seed)[:56]            # 56 lowercase hex -> RSA / 0x00 address family
+
+
+def test_postfork_truebytes_roundtrip_realistic(tmp_path):
+    """Post-fork (height >= fork_height) packs signature/address/recipient to TRUE BYTES; get_block
+    rebuilds the exact 12-field rows byte-for-byte."""
+    s = BlockStore(str(tmp_path / "bs"), map_size=SMALL)
+    try:
+        bh = "hash%08d" % 50
+        addr = _rsa_addr(0xAB)
+        recip = _rsa_addr(0xCD)
+        sig = base64.b64encode(b"\x07" * 64).decode()          # canonical base64 (RSA-family wire)
+        rows = [_row_real(50, 0, bh, addr, recip, sig),
+                _row_real(50, 1, bh, addr, recip, base64.b64encode(b"\x09" * 128).decode())]
+        s.put_block(50, bh, rows, fork_height=40)              # 50 >= 40 -> post-fork
+
+        # round-trip is byte-identical
+        assert s.get_block(50) == rows
+
+        # the stored value actually carries RAW BYTES, not base64 text (true-bytes, not A-hex)
+        with s.store.txn() as txn:
+            rec = block_store._unpack(txn.get(s.blocks, block_store._hk(50)))
+        t0 = rec["t"][0]
+        assert isinstance(t0[4], (bytes, bytearray)), "signature should be stored as raw bytes"
+        assert isinstance(t0[1], (bytes, bytearray)), "address should be stored as raw bytes"
+        assert isinstance(t0[2], (bytes, bytearray)), "recipient should be stored as raw bytes"
+        assert t0[4][0] == sigbytes.TAG_RSA           # RSA scheme tag
+        assert t0[1][0] == addrbytes.TAG_HEX          # 56-hex address tag
+    finally:
+        s.close()
+
+
+def test_postfork_straddling_and_fallback(tmp_path):
+    """A pre-fork block stores legacy str (byte-identical); a post-fork block packs. Both reconstruct.
+    Synthetic non-canonical values still round-trip via the verbatim/opaque fallback."""
+    s = BlockStore(str(tmp_path / "bs"), map_size=SMALL)
+    try:
+        # pre-fork block (height 5 < fork_height 40): legacy str path
+        _, bh5, rows5 = _block(5, ntx=2)
+        s.put_block(5, bh5, rows5, fork_height=40)
+        assert s.get_block(5) == rows5
+        with s.store.txn() as txn:
+            rec5 = block_store._unpack(txn.get(s.blocks, block_store._hk(5)))
+        assert isinstance(rec5["t"][0][4], str)       # legacy: signature stays a str
+        assert isinstance(rec5["t"][0][1], str)       # legacy: address stays a str
+
+        # post-fork block with SYNTHETIC values ("addr0"/"sig_..") -> verbatim/opaque fallback, lossless
+        _, bh45, rows45 = _block(45, ntx=2)
+        s.put_block(45, bh45, rows45, fork_height=40)
+        assert s.get_block(45) == rows45              # fallback still round-trips byte-for-byte
+    finally:
+        s.close()
