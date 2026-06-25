@@ -10,6 +10,31 @@ and the consensus-touching work waits behind the fork it was designed for.
 
 ---
 
+## What's new in 4.6.0
+
+Continuation of the modernization, same rule (consensus only changes at a signalled fork). New since the
+4.5.0.x series — see `doc/CHANGELOG-2026-06.md` for the commit-anchored detail:
+
+- **One-command node onboarding** ✅ — `git clone … && sudo ./install_node.sh`: all deps, the
+  `bismuth-node` service, and an **auto-bootstrapped ledger** on first run (no manual download). The
+  website "Run a node" page now reflects this.
+- **TOML configuration** ✅ — `config.toml` via stdlib `tomllib` (zero new dep), fully backward-compatible
+  with `config.txt`; non-destructive `scripts/migrate_config.py`. (doc/11)
+- **Modern Tor / onion routing** ✅ — tri-state `tor` (off/external/**managed**): the node can launch and
+  own its own tor with an ephemeral v3 hidden service; `install_node.sh --tor` bundles it. Default off /
+  clearnet-unaffected. (doc/38)
+- **Faster restarts & lighter queries** ✅ — fixed the multi-minute sync-resume (bounded peer dial +
+  bounded startup difficulty scan) and narrowed the heavy full-ledger rebuild scans; a full heavy-query
+  audit for current + post-fork growth. (doc/37)
+- **Engine-agnostic storage seam** 🕒 — all 8 LMDB stores behind one `kvstore` factory (LMDB↔MDBX↔sqlite
+  swap is a one-arg change), validated across a 3-node cluster. (doc/26, 36)
+- **Difficulty-divergence detector + guarded self-heal** ✅ — recurrence-prevention for the difficulty
+  corruption class, with a permanent restart-loop guard. (doc/35)
+- **Decentralized dApp suite** 🕒 — on-chain-refereed multiplayer poker (mental-poker deal, tournaments,
+  spectator betting), AMM/router/DEX, all on the gated RISC-V VM. (doc/24, 28, 32–34)
+
+---
+
 ## Highlights
 
 - **Run the node as a systemd service** — no more `screen`/`nohup`.
