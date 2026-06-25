@@ -9,11 +9,11 @@ fork-transition still needs live validation on a real pool + miners (see §5).**
 
 | File | Role |
 |---|---|
-| `optipoolware.py` | the pool **server** — `ThreadingTCPServer` (port 8525) speaking the `connections` wire protocol; `getwork`/`block` to miners; builds + broadcasts blocks; hourly PPLNS payouts. |
+| `optipoolware.py` | the pool **server** — a stdlib `http.server` (port 8525): `GET /work` + `POST /share` to miners; builds blocks; submits to the node over REST; hourly PPLNS payouts. |
 | `optihash/optihash.py` | the bundled **CPU miner** miners run (gets work, hashes, submits shares). |
 | `optiexplorer.py` | the **web dashboard** (port 9080) — now pure stdlib `http.server`. |
 | `templates/index.html` | the dashboard UI (self-contained dark page, no CDN/Jinja). |
-| `pool.txt` / `optihash/miner.txt` | pool / miner config. |
+| `pool.toml` / `optihash/miner.toml` | pool / miner config (stdlib `tomllib`, typed; replaced the old `.txt`). |
 
 It imports the node's modules from the repo root (`connections`, `mining_heavy3`, `options`, `essentials`,
 `fork`, `vm_engine`) — so it uses the node's **already-hf2-ready** `mining_heavy3` directly.
@@ -94,16 +94,19 @@ rest_api_write, 400 on a missing block, malformed block routes to `digest_block`
 `accepted: false`.)*
 
 **Invariants preserved:** the coinbase reward tx tuple shape, the 9-field share tuple, and the digest path
-are unchanged. The `connections` socket framing remains only for the pool's OWN miner protocol
-(`getwork`/`block` from miners → the pool) — the pool's server, separate from the node API.
+are unchanged. The **miner↔pool protocol is now HTTP too**: the pool runs a stdlib `http.server`
+(`GET /work` → the work package; `POST /share` → a found nonce, JSON both ways) and the bundled miner
+uses `urllib` — no `socketserver`, no `socks`, no `connections` on the miner side. The **only** socket
+call left anywhere in the pool is the optional block-broadcast **fallback** used when the node REST is
+unavailable. So the pool stack is now HTTP/REST end to end.
 
 ## 7. Running
 
 ```bash
-# pool server (needs a running node + the pool's privkey.der/pubkey.der + pool.txt)
+# pool server (needs a running node + the pool's privkey.der/pubkey.der + pool.toml)
 cd pool && python3 optipoolware.py
 # web dashboard (reads the node REST; default node rest_api_port 5659)
 cd pool && python3 optiexplorer.py        # http://0.0.0.0:9080
-# a miner (edit optihash/miner.txt: pool ip/port, miner_address, threads)
+# a miner (edit optihash/miner.toml: pool ip/port, miner_address, threads)
 cd pool/optihash && python3 optihash.py
 ```

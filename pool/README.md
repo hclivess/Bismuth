@@ -74,25 +74,31 @@ signal (+ the VM state root) into the coinbase — mirroring the node's `miner.p
 | `nonce_time` | seconds to mine before fetching fresh work |
 | `miner_name` | base worker name (the thread number is appended) |
 | `hashcount` | nonce-array sizing per cycle (typical `20000`) |
-| `tor` | `1` to route via a local Tor SOCKS proxy |
+| `tor` | reserved (the HTTP miner uses plain `urllib`; to hide a miner, run it behind a `torsocks`/proxy wrapper) |
 
 ## How it works
 
-1. The miner asks the pool for work: `(blockhash, share-diff, pool address, net-diff, [hf2 prefix, new_pow])`.
-2. It Heavy3-hashes `pool_address + openfield + blockhash` (sha224 pre-fork / blake2b post-fork) until a
-   nonce meets the share difficulty, then submits it to the pool.
+The pool↔miner protocol is **HTTP/JSON** (the pool runs a stdlib `http.server`; the miner uses `urllib`):
+
+1. `GET /work` → `{blockhash, diff, pool_address, netdiff, cb_prefix, new_pow}`.
+2. The miner Heavy3-hashes `pool_address + openfield + blockhash` (sha224 pre-fork / blake2b post-fork,
+   `openfield = cb_prefix + nonce`) until a nonce meets the share difficulty, then `POST /share`
+   (the found nonce as JSON).
 3. The pool validates the share against the node's `mining_heavy3` (same algo the node consensus uses); if
-   it meets the **network** difficulty it pulls the mempool, builds + RSA-signs the coinbase, and
-   broadcasts the block to its peers.
+   it meets the **network** difficulty it pulls the mempool from the node, builds + RSA-signs the coinbase,
+   and submits the block to the node via **`POST /api/block`** (socket broadcast only as a fallback).
 4. Shares are recorded in `shares.db`; the autopayout thread pays out hourly per PPLNS, minus fees.
+
+Everything the pool sends to the node is REST (status/difficulty/mempool/transaction/fork/block); it never
+opens a socket to the node and never reads the ledger directly.
 
 ## Files
 
 - **Run from the repo root:** `pool/optipoolware.py`, `pool/optiexplorer.py`, `pool/pool.toml` (+ the
   pool's `privkey.der`/`pubkey.der`).
-- **Miner:** `pool/optihash/optihash.py` + `miner.toml`. In-repo it imports the node's modernized
-  `connections` + `mining_heavy3` via a sys.path bootstrap; packaged standalone, ship those two modules
-  (and the Heavy3 binary) alongside it.
+- **Miner:** `pool/optihash/optihash.py` + `miner.toml`. It talks to the pool over HTTP and only needs the
+  node's `mining_heavy3` (the Heavy3 PoW), resolved from the repo root via a sys.path bootstrap; packaged
+  standalone, ship `mining_heavy3` + the Heavy3 binary alongside it.
 
 Standalone executables for Windows / Linux / macOS are produced by the repo's release CI and attached to
 each GitHub release.

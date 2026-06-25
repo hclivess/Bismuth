@@ -3,17 +3,18 @@
 # Copyright Hclivess, Primedigger, Maccaspacca, SylvainDeaure 2017
 # .
 
-import time, socks, sys, os, math
+import time, sys, os, math, json
+import urllib.request
 from multiprocessing import Process, freeze_support, Queue
 from random import getrandbits
 from hashlib import sha224, blake2b   # hf2: dual-algo Heavy3 inner hash (sha224 pre-fork, blake2b post-fork)
 
-# Resolve the node's modernized `connections` + `mining_heavy3` from the repo root when the miner runs
-# in-repo (pool/optihash/ -> repo root). Standalone miners keep these modules alongside the binary.
+# The miner talks to the POOL over HTTP now (no socket / connections). It still needs the node's
+# `mining_heavy3` (the Heavy3 PoW); resolve it from the repo root when run in-repo (pool/optihash/ ->
+# repo root). Standalone miners keep mining_heavy3 + the Heavy3 binary alongside the executable.
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
-import connections
 import mining_heavy3 as mining
 
 __version__ = '0.3.1'
@@ -92,29 +93,24 @@ def miner(q, pool_address, db_block_hash, diff, mining_condition, netdiff, hq, t
                             print("Thread {} solved work in {} cycles - YAY!".format(q, tries))
                             wname = "{}{}".format(mname, str(q))
                             print("{} running at {} kh/s".format(wname,str(h1)))
-                            block_send = []
-                            del block_send[:]  # empty
                             block_timestamp = '%.2f' % time.time()
-                            block_send.append((block_timestamp, nonce, db_block_hash, netdiff, xdiffx, dh, mname, thr, str(q)))
-                            print("Sending solution: {}".format(block_send))
+                            share = {"miner_address": self_address, "block_timestamp": block_timestamp,
+                                     "nonce": nonce, "blockhash": db_block_hash, "netdiff": netdiff,
+                                     "sdiff": xdiffx, "rate": dh, "worker_base": mname,
+                                     "workers": thr, "worker_num": str(q)}
+                            print("Sending solution: {}".format(share))
                             tries = 0
-                            # submit mined nonce to pool
+                            # submit the share to the pool over HTTP (was the socket 'block' command)
                             try:
-                                s1 = socks.socksocket()
-                                if tor_conf == 1:
-                                    s1.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                                s1.connect((mining_ip_conf, int(port)))  # connect to pool
-                                print("Miner: connected to pool, proceeding to submit solution")
-                                connections.send(s1, "block", 10)
-                                connections.send(s1, self_address, 10)
-                                connections.send(s1, block_send, 10)
-                                print("Miner: solution submitted to pool")
-                                time.sleep(0.2)
-                                s1.close()
-
+                                _req = urllib.request.Request(
+                                    "http://%s:%s/share" % (mining_ip_conf, port),
+                                    data=json.dumps(share).encode("utf-8"),
+                                    headers={"Content-Type": "application/json"}, method="POST")
+                                with urllib.request.urlopen(_req, timeout=10) as _r:
+                                    _resp = json.load(_r)
+                                print("Miner: solution submitted to pool: {}".format(_resp))
                             except Exception as e:
-                                print("Miner: Could not submit solution to pool")
-                                pass
+                                print("Miner: Could not submit solution to pool: {}".format(e))
             except Exception as e:
                 # DON'T re-raise: a stray iteration error must not kill the worker for the rest of
                 # nonce_time and skip hq.put below — that previously deadlocked runit()'s hq.get().
@@ -134,22 +130,16 @@ def runit():
     while True:
         try:
 
-            s = socks.socksocket()
-            if tor_conf == 1:
-                s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-            s.connect((mining_ip_conf, int(port)))  # connect to pool
-            connections.send(s, "getwork", 10)
-            work_pack = connections.receive(s, 10)
-            wp = work_pack[-1]
-            db_block_hash = (wp[0])
-            diff = int((wp[1]))
-            paddress = (wp[2])
-            netdiff = int((wp[3]))
-            # hf2: APPEND-ONLY fields (a pre-hf2 4-tuple pool still parses) — the fork-signal coinbase
-            # prefix to mine into the openfield, and whether the blake2b PoW is active for this block.
-            cb_prefix = wp[4] if len(wp) > 4 else ""
-            new_pow = bool(wp[5]) if len(wp) > 5 else False
-            s.close()
+            # GET work from the pool over HTTP (was the socket 'getwork' command)
+            with urllib.request.urlopen("http://%s:%s/work" % (mining_ip_conf, port), timeout=10) as _r:
+                wp = json.load(_r)
+            db_block_hash = wp["blockhash"]
+            diff = int(wp["diff"])
+            paddress = wp["pool_address"]
+            netdiff = int(wp["netdiff"])
+            # hf2: the fork-signal coinbase prefix to fold into the openfield + whether blake2b PoW is active
+            cb_prefix = wp.get("cb_prefix", "")
+            new_pow = bool(wp.get("new_pow", False))
 
             diff_hex = math.floor((diff / 8) - 1)
             mining_condition = db_block_hash[0:diff_hex]

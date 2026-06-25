@@ -4,7 +4,9 @@
 # for license see LICENSE file
 # .
 
-import socketserver, connections, time, options, log, sqlite3, socks, hashlib, random, re, essentials, base64, sys, os, math
+import connections, time, options, log, sqlite3, socks, hashlib, random, re, essentials, base64, sys, os, math
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer   # miner<->pool is HTTP now
+from urllib.parse import urlparse
 from Cryptodome import Random
 from Cryptodome.Hash import SHA
 from Cryptodome.Signature import PKCS1_v1_5
@@ -158,10 +160,6 @@ def payout(payout_threshold,myfee,othfee):
     shares.text_factory = str
     s = shares.cursor()
 
-    conn = sqlite3.connect(ledger_path_conf)
-    conn.text_factory = str
-    c = conn.cursor()
-
     #get sum of all shares not paid
     s.execute("SELECT sum(shares) FROM shares WHERE paid != 1")
     shares_total = s.fetchone()[0]
@@ -175,10 +173,14 @@ def payout(payout_threshold,myfee,othfee):
         block_threshold = time.time()
     #get block threshold
 
-    #get eligible blocks
+    #get eligible blocks (the pool's mined coinbase rewards) from the node REST — NOT a ledger.db scan
     reward_list = []
-    for row in c.execute("SELECT * FROM transactions WHERE address = ? AND CAST(timestamp AS INTEGER) >= ? AND reward != 0", (address,) + (block_threshold,)):
-        reward_list.append(float(row[9]))
+    try:
+        for t in _node_get("/address/%s/transactions?limit=500" % address).get("transactions", []):
+            if float(t.get("reward") or 0) != 0 and float(t.get("timestamp") or 0) >= block_threshold:
+                reward_list.append(float(t["reward"]))
+    except Exception as e:
+        app_log.warning("payout: could not read pool rewards from the node REST: {}".format(e))
 
     super_total = sum(reward_list)
     #get eligible blocks
@@ -472,231 +474,164 @@ if checkdb():
     payout(min_payout,pool_fee,alt_fee)
 """
 
-class MyTCPHandler(socketserver.BaseRequestHandler):
-
-    def handle(self):
-        key = RSA.importKey(private_key_readable)
-
-        self.allow_reuse_address = True
-
-        peer_ip = self.request.getpeername()[0]
+# RSA key used to sign the coinbase reward tx (imported once)
+_signing_key = RSA.importKey(private_key_readable)
 
 
+def _build_work():
+    """The work package handed to a miner (was the socket 'getwork' reply). hf2: cb_prefix + new_pow tell
+    the miner to fold the fork-signal into the openfield and switch sha224->blake2b."""
+    return {"blockhash": new_hash, "diff": mdiff, "pool_address": address,
+            "netdiff": new_diff, "cb_prefix": cb_prefix, "new_pow": new_pow}
+
+
+def process_share(miner_address, sh):
+    """Validate a miner's submitted share and, if it meets the NETWORK difficulty, build + sign + submit
+    the block (via the node REST POST /api/block, socket broadcast as fallback). Record the share. Returns
+    a result dict. (This is the old socket 'block' handler, now driven by the HTTP /share endpoint.)"""
+    if not s_test(miner_address):
+        app_log.warning("Bad miner address - using the default (alt_add)")
+        miner_address = alt_add
+
+    block_timestamp = str(sh.get("block_timestamp"))
+    nonce = str(sh.get("nonce"))
+    mine_hash = str(sh.get("blockhash"))
+    mrate = sh.get("rate", 0)
+    bname = str(sh.get("worker_base", ""))
+    wnum = sh.get("workers", 1)
+    wstr = str(sh.get("worker_num", ""))
+    wname = "{}{}".format(bname, wstr)
+
+    if not n_test(nonce):
+        app_log.warning("Bad nonce format from miner")
+        return {"accepted": False, "reason": "bad nonce format"}
+    app_log.warning("Solution from {}: nonce={} claimed_diff={}".format(miner_address, nonce, sh.get("sdiff")))
+
+    diff = new_diff
+    db_block_hash = mine_hash
+    # hf2: validate with the SAME algo the node consensus uses (the submitted nonce already includes the
+    # miner's cb_prefix, so it IS the coinbase openfield: diffme_heavy3 hashes address+openfield+blockhash).
+    real_diff = mining.diffme_heavy3(address, nonce, db_block_hash, new_pow=new_pow)
+
+    block_found = real_diff >= int(diff)
+    if block_found:
+        app_log.warning("Network difficulty met -- building + submitting block")
+        result = _node_get("/mempool").get("transactions", [])
+        app_log.warning("Pulled {} mempool tx(s) from the node".format(len(result)))
+        block_send = []
+        for d in result:
+            block_send.append((
+                str(d["timestamp"]), str(d["address"][:56]), str(d["recipient"][:56]),
+                '%.8f' % float(d["amount"]), str(d["signature"]), str(d["public_key"]),
+                str(d["operation"]), str(d["openfield"])))
+        # claim reward (only this tuple is signed)
+        transaction_reward = (str(block_timestamp), str(address[:56]), str(address[:56]),
+                              '%.8f' % float(0), "0", str(nonce))
+        h = SHA.new(str(transaction_reward).encode("utf-8"))
+        signer = PKCS1_v1_5.new(_signing_key)
+        signature = signer.sign(h)
+        signature_enc = base64.b64encode(signature)
+        if signer.verify(h, signature):
+            block_send.append((str(block_timestamp), str(address[:56]), str(address[:56]), '%.8f' % float(0),
+                               str(signature_enc.decode("utf-8")), str(public_key_hashed.decode("utf-8")),
+                               "0", str(nonce)))  # mining reward tx
+            if not any(isinstance(el, list) for el in block_send):
+                block_send = [block_send]   # make it a list of lists
+
+        # submit to the node over REST POST /api/block (doc/39); socket peer-broadcast as fallback
+        submitted_via_rest = False
         try:
-            data = connections.receive(self.request, 10)
-
-            app_log.warning("Received: {} from {}".format(data, peer_ip))  # will add custom ports later
-
-            if data == "getwork":  # sends the miner the blockhash and mining diff for shares
-
-                work_send = []
-                # hf2: APPEND-ONLY fields [4]=cb_prefix [5]=new_pow so an un-upgraded miner reading [0:4]
-                # still works; an hf2 miner folds cb_prefix into the openfield and switches to blake2b.
-                work_send.append((new_hash, mdiff, address, mdiff, cb_prefix, new_pow))
-
-                connections.send(self.request, work_send, 10)
-
-                print("Work package sent.... {}".format(str(new_hash)))
-
-            elif data == "block":  # from miner to node
-
-                # sock
-                #s1 = socks.socksocket()
-                #if tor_conf == 1:
-                #	s1.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                #s1.connect(("127.0.0.1", int(port)))  # connect to local node,
-                # sock
-
-
-                # receive nonce from miner
-                miner_address = connections.receive(self.request, 10)
-
-                if not s_test(miner_address):
-
-                    app_log.warning("Bad Miner Address Detected - Changing to default")
-                    miner_address = alt_add
-                    #s1.close()
-
-                else:
-
-                    app_log.warning("Received a solution from miner {} ({})".format(peer_ip,miner_address))
-
-                    block_nonce = connections.receive(self.request, 10)
-                    block_timestamp = (block_nonce[-1][0])
-                    nonce = (block_nonce[-1][1])
-                    mine_hash = ((block_nonce[-1][2])) # block hash claimed
-                    ndiff = ((block_nonce[-1][3])) # network diff when mined
-                    sdiffs = ((block_nonce[-1][4])) # actual diff mined
-                    mrate = ((block_nonce[-1][5])) # total hash rate in khs
-                    bname = ((block_nonce[-1][6])) # base worker name
-                    wnum = ((block_nonce[-1][7])) # workers
-                    wstr = ((block_nonce[-1][8])) # worker number
-                    wname = "{}{}".format(bname, wstr) # worker name
-
-                    app_log.warning("Mined nonce details: {}".format(block_nonce))
-                    app_log.warning("Claimed hash: {}".format(mine_hash))
-                    app_log.warning("Claimed diff: {}".format(sdiffs))
-
-                    if not n_test(nonce):
-                        app_log.warning("Bad Nonce Format Detected - Closing Connection")
-                        self.close
-                    app_log.warning("Processing nonce.....")
-
-                    diff = new_diff
-                    db_block_hash = mine_hash
-
-                    # hf2: validate the share with the SAME algo the node consensus uses for this height.
-                    # The submitted `nonce` already includes the miner's cb_prefix, so it IS the coinbase
-                    # openfield and diffme_heavy3 hashes address + openfield + db_block_hash (== node).
-                    real_diff = mining.diffme_heavy3(address, nonce, db_block_hash, new_pow=new_pow)
-                    """
-                    mining_hash = bin_convert_orig(hashlib.sha224((address + nonce + db_block_hash).encode("utf-8")).hexdigest())
-                    mining_condition = bin_convert_orig(db_block_hash)[0:diff]
-
-                    if mining_condition in mining_hash:
-                    """
-                    if real_diff >= int(diff):
-
-                        app_log.warning("Difficulty requirement satisfied for mining")
-                        app_log.warning("Sending block to nodes")
-
-                        # pull the mempool from the node over REST (was the socket api_mempool command);
-                        # m_peer_file comes from the module-level config (peers.txt / peers_test.txt).
-                        result = _node_get("/mempool").get("transactions", [])
-                        app_log.warning("Pulled {} mempool tx(s) from the node".format(len(result)))
-
-                        # include data
-                        block_send = []
-                        removal_signature = []
-
-                        app_log.warning("prepare empty block and clear data")
-
-                        for d in result:
-                            transaction = (
-                                str(d["timestamp"]), str(d["address"][:56]), str(d["recipient"][:56]),
-                                '%.8f' % float(d["amount"]), str(d["signature"]), str(d["public_key"]),
-                                str(d["operation"]), str(d["openfield"]))  # create tuple
-                            block_send.append(transaction)  # append tuple to list for each run
-                            removal_signature.append(str(d["signature"]))  # for removal after successful mining
-
-                        # claim reward
-                        transaction_reward = tuple
-                        transaction_reward = (str(block_timestamp), str(address[:56]), str(address[:56]), '%.8f' % float(0), "0", str(nonce))  # only this part is signed!
-                        print(transaction_reward)
-
-                        h = SHA.new(str(transaction_reward).encode("utf-8"))
-                        signer = PKCS1_v1_5.new(key)
-                        signature = signer.sign(h)
-                        signature_enc = base64.b64encode(signature)
-
-                        if signer.verify(h, signature) == True:
-                            app_log.warning("Signature valid")
-
-                            block_send.append((str(block_timestamp), str(address[:56]), str(address[:56]), '%.8f' % float(0), str(signature_enc.decode("utf-8")), str(public_key_hashed.decode("utf-8")), "0", str(nonce)))  # mining reward tx
-                            app_log.warning("Block to send: {}".format(block_send))
-
-                            if not any(isinstance(el, list) for el in block_send):  # if it's not a list of lists (only the mining tx and no others)
-                                new_list = []
-                                new_list.append(block_send)
-                                block_send = new_list  # make it a list of lists
-                                app_log.warning(block_send)
-
-                        # Prefer the node's REST POST /api/block (post-hf2 mining moves off the legacy
-                        # socket; doc/39, issue #380). Submit once to the LOCAL node, which then propagates
-                        # the block to the network. Fall back to the socket peer-broadcast below if REST is
-                        # unavailable / disabled / rejects (so this works against old nodes too).
-                        submitted_via_rest = False
-                        try:
-                            _res = _node_post("/block", {"block": block_send})
-                            if _res.get("accepted"):
-                                submitted_via_rest = True
-                                app_log.warning("Block submitted via REST /api/block: height={} hash={}".format(
-                                    _res.get("block_height"), _res.get("block_hash")))
-                            else:
-                                app_log.warning("REST /api/block rejected ({}); falling back to socket broadcast"
-                                                .format(_res.get("reason")))
-                        except Exception as e:
-                            app_log.warning("REST /api/block unavailable ({}); falling back to socket broadcast".format(e))
-
-                        global peer_dict
-                        peer_dict = {}
-
-                        if not submitted_via_rest:
-                            with open(m_peer_file) as f:
-                                peer_dict =  json.load(f)
-
-                                app_log.warning(peer_dict)
-
-                                for k, v in peer_dict.items():
-                                    peer_ip = k
-                                    peer_port = int(v)
-                                    # connect to all nodes
-
-                                    try:
-                                        s = socks.socksocket()
-                                        s.settimeout(0.3)
-                                        #if ctor_conf == 1:
-                                        #    s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
-                                        s.connect((peer_ip, int(peer_port)))  # connect to node in peerlist
-                                        app_log.warning("Connected")
-
-                                        app_log.warning("Miner: Proceeding to submit mined block")
-
-                                        connections.send(s, "block", 10)
-                                        #connections.send(s, address, 10)
-                                        connections.send(s, block_send, 10)
-
-                                        app_log.warning("Miner: Block submitted to {}".format(peer_ip))
-                                    except Exception as e:
-                                        app_log.warning("Miner: Could not submit block to {} because {}".format(peer_ip, e))
-                                        pass
-
-                    if diff < mdiff:
-                        diff_shares = diff
-                    else:
-                        diff_shares = mdiff
-
-                    shares = sqlite3.connect('shares.db')
-                    shares.text_factory = str
-                    s = shares.cursor()
-
-                    # protect against used share resubmission
-                    execute_param(s, ("SELECT nonce FROM nonces WHERE nonce = ?"), (nonce,))
-
-                    try:
-                        result = s.fetchone()[0]
-                        app_log.warning("Miner trying to reuse a share, ignored")
-                    except:
-                        # protect against used share resubmission
-                        """
-                        mining_condition = bin_convert_orig(db_block_hash)[0:diff_shares] #floor set by pool
-                        if mining_condition in mining_hash:
-                        """
-                        if real_diff >= diff_shares:
-                            app_log.warning("Difficulty requirement satisfied for saving shares \n")
-
-                            execute_param(s, ("INSERT INTO nonces VALUES (?)"), (nonce,))
-                            commit(shares)
-
-                            timestamp = '%.2f' % time.time()
-
-                            s.execute("INSERT INTO shares VALUES (?,?,?,?,?,?,?,?)", (str(miner_address), str(1), timestamp, "0", str(mrate), bname, str(wnum), wname))
-                            shares.commit()
-
-                        else:
-                            app_log.warning("Difficulty requirement not satisfied for anything \n")
-
-                    s.close()
-
-            self.request.close()
+            _res = _node_post("/block", {"block": block_send})
+            if _res.get("accepted"):
+                submitted_via_rest = True
+                app_log.warning("Block submitted via REST /api/block: height={} hash={}".format(
+                    _res.get("block_height"), _res.get("block_hash")))
+            else:
+                app_log.warning("REST /api/block rejected ({}); falling back to socket broadcast"
+                                .format(_res.get("reason")))
         except Exception as e:
-            app_log.error("Error: {}".format(e))
+            app_log.warning("REST /api/block unavailable ({}); falling back to socket broadcast".format(e))
+        if not submitted_via_rest:
+            try:
+                with open(m_peer_file) as f:
+                    peer_dict = json.load(f)
+                for k, v in peer_dict.items():
+                    try:
+                        s = socks.socksocket()
+                        s.settimeout(0.3)
+                        s.connect((k, int(v)))
+                        connections.send(s, "block", 10)
+                        connections.send(s, block_send, 10)
+                        app_log.warning("Block submitted to {}".format(k))
+                    except Exception as e:
+                        app_log.warning("Could not submit block to {}: {}".format(k, e))
+            except Exception as e:
+                app_log.warning("Socket broadcast failed: {}".format(e))
+
+    # record the share
+    diff_shares = diff if diff < mdiff else mdiff
+    saved = False
+    duplicate = False
+    shares = sqlite3.connect('shares.db')
+    shares.text_factory = str
+    s = shares.cursor()
+    execute_param(s, ("SELECT nonce FROM nonces WHERE nonce = ?"), (nonce,))
+    try:
+        s.fetchone()[0]
+        app_log.warning("Miner trying to reuse a share, ignored")
+        duplicate = True
+    except Exception:
+        if real_diff >= diff_shares:
+            execute_param(s, ("INSERT INTO nonces VALUES (?)"), (nonce,))
+            commit(shares)
+            timestamp = '%.2f' % time.time()
+            s.execute("INSERT INTO shares VALUES (?,?,?,?,?,?,?,?)",
+                      (str(miner_address), str(1), timestamp, "0", str(mrate), bname, str(wnum), wname))
+            shares.commit()
+            saved = True
+        else:
+            app_log.warning("Difficulty requirement not satisfied for anything")
+    s.close()
+    return {"accepted": saved, "block_found": block_found, "real_diff": real_diff,
+            "duplicate": duplicate, "share_diff": diff_shares}
+
+
+def _make_pool_handler():
+    class PoolHandler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def log_message(self, *a):
             pass
-    app_log.warning("Starting up...")
 
+        def _send(self, code, obj):
+            body = json.dumps(obj).encode("utf-8")
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
 
-class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
-    pass
+        def do_GET(self):
+            parts = [p for p in urlparse(self.path).path.split("/") if p]
+            if parts == ["work"]:                 # was the socket 'getwork' command
+                self._send(200, _build_work())
+            else:
+                self._send(404, {"error": "not found"})
+
+        def do_POST(self):
+            parts = [p for p in urlparse(self.path).path.split("/") if p]
+            if parts != ["share"]:                # was the socket 'block' command (miner submitting a share)
+                self._send(404, {"error": "not found"})
+                return
+            try:
+                n = int(self.headers.get("Content-Length") or 0)
+                sh = json.loads(self.rfile.read(n) or b"{}") if n > 0 else {}
+                self._send(200, process_share(str(sh.get("miner_address", "")), sh))
+            except Exception as e:
+                app_log.error("Share processing error: {}".format(e))
+                self._send(500, {"error": str(e)})
+
+    return PoolHandler
 
 
 if __name__ == "__main__":
@@ -724,7 +659,7 @@ if __name__ == "__main__":
         # Bind + serve in the MAIN thread so Ctrl-C / SIGTERM shut the pool down cleanly. The old pattern
         # (serve_forever in a daemon thread + server_thread.join()) blocked the main thread in join(),
         # which swallowed Ctrl-C — the README "won't stop with Ctrl-C on Windows" known-issue.
-        server = ThreadedTCPServer((HOST, PORT), MyTCPHandler)
+        server = ThreadingHTTPServer((HOST, PORT), _make_pool_handler())
         server.daemon_threads = True
         ip, port = server.server_address
         app_log.warning("Pool server listening on {}:{}".format(ip, port))

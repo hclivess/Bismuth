@@ -45,8 +45,10 @@ Node communication: 100% REST API (no legacy socket to the node)
   old socket peer-broadcast remains only as a fallback when REST is unavailable/disabled. Verified live on
   regnet: 403 without rest_api_write, 400 on a missing block, and a malformed block routes to digest_block
   (graceful "accepted: false"). The full valid-block accept across the fork still needs live validation.
-- The miner<->pool getwork/block protocol is the pool's OWN socket protocol (the pool's server for miners),
-  separate from the node API — moving that to HTTP is a possible future change.
+- The miner<->pool protocol is HTTP too now: the pool runs a stdlib http.server (GET /work -> the work
+  package; POST /share -> a found nonce, JSON both ways) and optihash uses urllib. No socketserver, no
+  socks, no connections on the miner side. The pool stack is HTTP/REST end to end; the ONLY socket left is
+  the block-broadcast fallback in process_share (used only when the node REST is unavailable).
 
 Other
 - The pool server stops cleanly on Ctrl-C / SIGTERM now (the old "use alt-F4 on Windows" bug is fixed:
