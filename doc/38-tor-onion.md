@@ -75,13 +75,18 @@ the manager logs one loud `FALLING BACK TO CLEARNET` warning and the node contin
 `tor_required=True` it raises and refuses to start, so a privacy-critical operator is never silently
 deanonymized. Either way it is **bounded — never a hang, never a retry-spin**.
 
-## Migrating
+## Installing
+
+The node installer bundles Tor for you (the right way — it installs your distro's `tor` package so it
+keeps getting security updates; we deliberately do **not** vendor a tor binary in the repo):
 
 ```bash
-sudo apt install tor          # the C binary — required for any tor mode
-pip install stem              # only for managed mode (optional; clearnet nodes skip it)
-# then set tor=managed (and optionally tor_onion=True) in config.toml / config.txt
+sudo ./install_node.sh --tor   # installs the tor binary (apt/dnf/yum/brew) + the stem controller lib
 ```
+
+Or manually: `sudo apt install tor` (the C binary — required for any tor mode) + `pip install stem` (only
+for managed mode; clearnet nodes skip it). Then set `tor=managed` (and optionally `tor_onion=True` for
+inbound) in `config.toml` / `config.txt`. A clearnet node needs none of this.
 
 ## Security notes
 

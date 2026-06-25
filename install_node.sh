@@ -14,6 +14,7 @@
 #   sudo ./install_node.sh --service-name bismuth-testnet   # custom unit name
 #   sudo ./install_node.sh --regnet        # service runs a regnet node (node.py regnet) for testing
 #   sudo ./install_node.sh --no-apt        # skip apt (deps already present / non-Debian)
+#   sudo ./install_node.sh --tor           # also install Tor (the tor pkg + stem) for tor=managed (doc/38)
 #
 # Idempotent: safe to re-run. It will NOT restart an already-running node unless --restart is given.
 set -euo pipefail
@@ -26,6 +27,7 @@ RUN_USER="${SUDO_USER:-root}"               # service User=; default root to mat
 START_MODE="auto"                           # auto | no | restart
 DEPS_ONLY=0
 DO_APT=1
+WITH_TOR=0                                  # --tor: also install the tor binary + stem (doc/38)
 NODE_ARGS=""                                # extra args to `node.py` (e.g. "regnet")
 DESC="Bismuth node (mainnet)"
 
@@ -35,6 +37,7 @@ while [[ $# -gt 0 ]]; do
     --restart)       START_MODE="restart" ;;
     --deps-only)     DEPS_ONLY=1 ;;
     --no-apt)        DO_APT=0 ;;
+    --tor)           WITH_TOR=1 ;;
     --service-name)  SERVICE_NAME="$2"; shift ;;
     --regnet)        NODE_ARGS="regnet"; DESC="Bismuth node (regnet)" ;;
     --user)          RUN_USER="$2"; shift ;;
@@ -108,6 +111,31 @@ else
   fi
   "$PYTHON" -c 'import ed25519' || die "ed25519 still missing after patched install — a node cannot sync ed25519 blocks."
   log "ed25519 OK"
+fi
+
+# ---- 2b. optional Tor for tor=managed (doc/38) ----------------------------
+# We do NOT vendor a tor binary in the repo (platform matrix + you must get tor's security updates from
+# your distro). Instead --tor installs the distro 'tor' package + the 'stem' controller lib. The node
+# stays clearnet by default; the operator opts in by setting tor=managed in config.toml/config.txt.
+if [[ $WITH_TOR -eq 1 ]]; then
+  log "installing Tor (managed onion routing, doc/38)…"
+  if command -v tor >/dev/null; then
+    log "tor binary already present ($(command -v tor))"
+  elif [[ $DO_APT -eq 1 ]] && command -v apt-get >/dev/null; then
+    apt-get install -y -qq tor >/dev/null 2>&1 && log "tor installed (apt)" || warn "apt could not install tor"
+  elif command -v dnf  >/dev/null; then
+    dnf install -y -q tor >/dev/null 2>&1 && log "tor installed (dnf)" || warn "dnf could not install tor"
+  elif command -v yum  >/dev/null; then
+    yum install -y -q tor >/dev/null 2>&1 && log "tor installed (yum)" || warn "yum could not install tor"
+  else
+    warn "no supported package manager detected — install the 'tor' package manually."
+  fi
+  "${PIP[@]}" stem >/dev/null 2>&1 && log "stem (tor controller lib) installed" || warn "could not pip-install stem"
+  if command -v tor >/dev/null; then
+    log "Tor ready — set tor=managed (and tor_onion=True for inbound) in config.toml/config.txt (doc/38)."
+  else
+    warn "tor binary not found — managed mode will fall back to clearnet until tor is installed."
+  fi
 fi
 
 # ---- 3. sanity: every import a full node needs actually resolves -----------

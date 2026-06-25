@@ -187,6 +187,39 @@ deliberately off in the normal suite; the prod node stayed synced throughout.
 
 ---
 
+## 5. Prod slow-resume fix + heavy-query audit (doc/37)
+
+A mainnet restart took ~13 min to resume syncing. Root-caused from the boot log (the recompression guess
+was **refuted** — skipped in ~2 ms) to two unrelated causes, both fixed, then a codebase-wide audit of
+similar heavy queries (worse as the chain grows post-fork).
+
+| Commit | What |
+| --- | --- |
+| `196f8998` | worker.py: cap the outbound dial at `DIAL_TIMEOUT=5s` (clearnet) — a dead peer no longer hangs the worker in `connect()` for the OS SYN-retry window (~127s), the ~9.6 min "stuck 1 block behind" phase. chain_ops.sequencing_check: bound the `misc` difficulty scan to `max(300000, sequencing_last)` instead of re-reading 300000→tip every boot (~3.5 min). |
+| `9324ffaa` | Behaviour-preserving scan-narrowing: `balance_index`/`txid_index` rebuilds `SELECT *`→only the needed columns (the dominant boot cost; no longer drags every row's pubkey/sig blobs through Python); REST `/api/transaction` signature fallback → `TXID4_Index` seek instead of a full-table `LIKE`; `balanceget` 3→2 full-history scans. |
+| `cc559849` | **doc/37** — the standing heavy-query reference: index baseline, fixes, the `ledger_balance3` consensus guardrail, deferred items with rationale, the post-fork degradation watchlist, and 2 correctness blockers (recompress not integer-safe; balances blanket-except). |
+
+**Verification:** storage parity 18/18 + balanceget/tx-lookup/REST 40/40; the full suite stayed green; prod synced throughout (audit was source-only — no prod-ledger scan).
+
+## 6. Config modernized to TOML (doc/11)
+
+| Commit | What |
+| --- | --- |
+| `96fe943f` | `options.py` reads **`config.toml`** via stdlib `tomllib` (zero new runtime dep), preferring `config.toml`/`config_custom.toml` with a **byte-identical `config.txt` fallback** (same precedence, same `BISMUTH_IGNORE_CONFIG_CUSTOM` gate, same `Config` surface → no consumer changes). `scripts/migrate_config.py` is a non-destructive, self-verifying migrator; `config.toml.example` generated from it; 6/6 hermetic tests; doc/11. |
+
+**Why TOML, not YAML:** `tomllib` is stdlib (3.11+), so reading adds no dependency; YAML would add PyYAML and its coercion footguns (Norway `no`→False) on consensus-affecting flags.
+
+## 7. Tor/onion modernized + bundled via the installer (doc/38)
+
+| Commit | What |
+| --- | --- |
+| `706ea79d` | The outbound-only `setproxy(9050)` bolt-on → a tri-state `tor` (off/external/**managed**) in a new `tor_manager.py`: stem-launched tor + ephemeral v3 onion + auto-SOCKS + bootstrap gating + graceful clearnet fallback (or `tor_required` fail-fast). Single proxy source-of-truth (off → byte-identical clearnet). 20/20 tests (managed via a mocked controller — no real tor in CI). |
+| _(this batch)_ | `install_node.sh --tor` installs the distro `tor` package + `stem` (we do NOT vendor a binary — the distro package gets security updates). **doc/38** + `web/site/index.html` "Run a node" rewritten to the one-command installer with auto-bootstrap (the obsolete manual ledger-download / pip steps removed). |
+
+**Honest scope:** real onion routing still needs the tor C binary + the live Tor network; "managed" only removes the manual torrc/daemon burden. Validate managed mode against a real tor before production; `external` mode preserves the field-proven behaviour.
+
+---
+
 ### Notes
 - The KVStore seam now has its own page: **[doc/36](36-kvstore-engine-seam.md)** (the definitive
   reference for `kvstore.py` — interface, factory, backends, the migration table, and what is *not*

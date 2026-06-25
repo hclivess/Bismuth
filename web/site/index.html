@@ -110,29 +110,39 @@
 
     <section class='mb-5' id='run'>
       <h2 class='h4 mb-3'>⛏️ Run a node</h2>
+      <p class='text-secondary mb-3'>One command. The installer pulls every dependency (including the
+        ed25519 / ecdsa signer libs mainnet needs), registers a <code>systemd</code> service that starts on
+        boot, and the node <strong>auto-bootstraps a recent ledger snapshot on first run</strong> — so it
+        starts near the chain tip, not from genesis. No manual downloads, no pip juggling.</p>
       <div class='row g-4'>
         <div class='col-lg-7'>
           <div class='card bg-body-tertiary border-secondary-subtle h-100'><div class='card-body'>
-            <h3 class='h6 card-title'>Ledger bootstrap</h3>
-            <p class='text-secondary small mb-2'>A recent mainnet snapshot so a new node starts near the chain
-              tip instead of syncing from genesis. A fresh node auto-bootstraps from this URL on first start;
-              to apply it manually:</p>
-            <pre class='mb-2'><code>cd Bismuth
-curl -L -o static/ledger.db.tar.gz https://bismuth.cz/ledger.tar.gz
-tar xzf static/ledger.db.tar.gz -C static/
-python3 node.py</code></pre>
-            <a href='/ledger.tar.gz' class='btn btn-sm btn-outline-info'>⬇&nbsp; Download ledger.tar.gz</a>
+            <h3 class='h6 card-title'>Install &amp; run (Linux)</h3>
+            <pre class='mb-2'><code>git clone https://github.com/hclivess/Bismuth
+cd Bismuth
+sudo ./install_node.sh</code></pre>
+            <p class='text-secondary small mb-0'>That's it. Deps, the <code>bismuth-node</code> service, and
+              the ledger bootstrap are handled for you — check it with
+              <code>systemctl status bismuth-node</code>.</p>
           </div></div>
         </div>
         <div class='col-lg-5'>
-          <div class='card bg-body-tertiary border-warning-subtle h-100'><div class='card-body'>
-            <h3 class='h6 card-title text-warning-emphasis'>⚠️ Full node needs the non-RSA signer libs</h3>
-            <p class='text-secondary small mb-2'>mainnet carries ed25519 / ecdsa transactions; without these
-              the node rejects those blocks and cannot sync:</p>
-            <pre class='mb-0'><code>pip install coincurve ed25519</code></pre>
+          <div class='card bg-body-tertiary border-secondary-subtle h-100'><div class='card-body'>
+            <h3 class='h6 card-title'>Options</h3>
+            <ul class='list-unstyled small mb-0 text-secondary'>
+              <li class='mb-2'><code>--tor</code> — also install Tor for private onion routing
+                (<code>tor=managed</code>)</li>
+              <li class='mb-2'><code>--regnet</code> — a local regtest node for development</li>
+              <li class='mb-2'><code>--no-start</code> / <code>--restart</code> — control the service</li>
+              <li class='mb-0'>Idempotent &amp; re-runnable; won't disturb a running node unless you ask.</li>
+            </ul>
           </div></div>
         </div>
       </div>
+      <p class='text-secondary small mt-3 mb-0'>Advanced: the fresh-sync bootstrap pulls
+        <a href='/ledger.tar.gz'>ledger.tar.gz</a> automatically; to seed from your own snapshot set
+        <code>bootstrap_file</code> / <code>bootstrap_url</code> in <code>config.toml</code>. All settings:
+        <a href='https://github.com/hclivess/Bismuth/blob/main/doc/11-configuration.md'>doc/11</a>.</p>
     </section>
 
     <section class='mb-5'>
