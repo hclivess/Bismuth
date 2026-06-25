@@ -15,6 +15,16 @@ privacy pool carried in the `operation`/`openfield` of ordinary Bismuth transact
 properties that made the prototype unsafe as money, by validating the pool **in consensus** instead of
 in a per-user sidecar app.
 
+> **Naming & placement (why `shieldedv1.py`, why core).** Shielded value lives in **node core**
+> (`shieldedv1.py` at the repo root, imported directly by `digest.py`) — **not** as a plugin — because it
+> is **consensus-wired**: `validate_block` *rejects* a block that carries an invalid `shield:` tx. The
+> modern plugin contract (doc/27, `on_block`) is for already-validated, consensus-*inert* projections,
+> which is precisely why **tokens/aliases** are a plugin (doc/27) and shielded value is not. The `v1`
+> suffix is a **consensus-protocol generation** marker (this in-core scheme, successor to the off-chain
+> prototype above; a future *incompatible* redesign of the shielded wire format would be `shieldedv2`) —
+> **not** a maturity/draft flag. The feature *stages* (1 stealth · 2 ring · 3 RingCT) are per-tx
+> **version tags inside this one module** (`v1`/`v2`/`v3`), not separate files.
+
 **Shielded itself** adds only optional `shield:` operations; it does not touch the rules for transparent
 transactions. PoW and block format are **unchanged**, and mining is untouched: shielded transactions are
 ordinary signed transactions with a known `operation`, and the extra validation runs in the digest path

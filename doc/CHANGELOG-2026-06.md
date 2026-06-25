@@ -157,6 +157,36 @@ the engine-seam stage, not the SQLite retirement.
 
 ---
 
+## 4. Multi-node verification of the migrated stores + shield/token placement (doc/12, 22)
+
+After the engine-seam migration (§3), the migrated stores were validated **across independent nodes**,
+not only in single-process unit tests — "do two nodes that built their stores independently agree?" is
+the question that actually matters for consensus.
+
+| Commit | What |
+| --- | --- |
+| `49ea7e03` | `tests/test_multinode_integration.py` — a **3-node** regnet cluster: A mines a fork-crossing chain; B and C start with empty ledgers and reconstruct it over REST `api_sync` (regnet refuses socket peering by design). Asserts blocks `1..tip` are **byte-identical** across A/B/C, and that each migrated KVStore store agrees cross-node — `block_store` bodies, `balance_index`, `txid_index` heights, `vm_state` root + a deployed RISC-V contract's storage — plus the #23 detector reads CLEAN. Gated behind `BISMUTH_RUN_MULTINODE=1`. |
+| `afe4cd39` | Docstring fix: the header had lumped `shieldedv1` + `token_index` in with the four core KVStore side-indexes. Corrected — `shieldedv1` is **core** (opened in `node.py`, consensus-wired); `token_index` is owned by the **`tokens_aliases` plugin** (doc/27), never constructed by node core. |
+| `7c7c5888` | **Populated-state** coverage for the two flag-gated stores: node A (post-fork) issues + transfers a token and `shield:mint`s a note, then the test asserts `/api/token/<name>` (supply + holder set) and `/api/shield/stats` (notes/key_images/pool_units + the doc/22 `pool == sink` supply-safety invariant + the specific note record) are **byte-identical across A/B/C**. A coverage guard *requires* the population to have landed when the fork is active, so the check can't silently degrade to a vacuous empty-state pass. |
+
+**Shield-vs-token placement (clarified, not changed).** A code-and-docs investigation this session
+confirmed the current architecture is correct and matches intent: **shielded value is core** and
+consensus-wired (`shieldedv1.py`, imported by `digest.validate_block`, doc/22); **tokens/aliases are a
+plugin** (`plugins/tokens_aliases`, doc/27 — a consensus-inert projection node core only defers to);
+**both default off** (`shield=False`, `token_index=False` in `options.py`) and are hf2-height-gated
+inert pre-fork. The `shieldedv1` name is a consensus-protocol **generation** marker, not a
+prototype/maturity flag (see doc/22 "Naming & placement"). **No code change was warranted.**
+
+**Verification:** the gated 3-node test passes (`BISMUTH_RUN_MULTINODE=1 python3 -m pytest
+tests/test_multinode_integration.py`) — re-run several times (~10–22 s), with the populated token/shield
+checks firing on real values (token supply 1,000,000 + per-holder balances; shield pool = 20 BIS, the
+`pool == sink` invariant). The **full suite is green: 790 passed, 6 skipped, 0 failed** (8.5 min, run
+**serially** so a single regnet test node never I/O-starves the live prod mainnet node). The 6 skips are
+exactly the env-gated multi-process node tests (`BISMUTH_RUN_MULTINODE` ×1, `BISMUTH_RUN_TWONODE` ×5),
+deliberately off in the normal suite; the prod node stayed synced throughout.
+
+---
+
 ### Notes
 - The KVStore seam now has its own page: **[doc/36](36-kvstore-engine-seam.md)** (the definitive
   reference for `kvstore.py` — interface, factory, backends, the migration table, and what is *not*

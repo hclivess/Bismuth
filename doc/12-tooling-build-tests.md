@@ -69,6 +69,32 @@ environments.
 CI (`.travis.yml`) runs on Python 3.12, installs `requirements-node.txt` + `tests/requirements.txt`,
 copies the regnet config, and runs `python -m pytest -v`.
 
+## Gated multi-process node tests
+
+A handful of tests spin up **multiple real `node.py` processes** to validate behavior that only emerges
+*across* nodes. They are **off by default** — they would otherwise spawn concurrent node processes, which
+on a machine also running a live mainnet node can I/O-starve it and yield spurious failures — and each is
+enabled by an env flag:
+
+| Test | Enable with | Proves |
+|---|---|---|
+| `tests/test_multinode_integration.py` | `BISMUTH_RUN_MULTINODE=1` | **3-node** cluster (A mines a fork-crossing chain; B/C `api_sync` over REST). Blocks `1..tip` byte-identical across A/B/C, and every migrated KVStore store agrees cross-node — `block_store`, `balance_index`, `txid_index`, `vm_state` (with a deployed RISC-V contract), plus **populated** `token_index` (issue+transfer) and `shieldedv1` (`shield:mint`) state; #23 detector CLEAN ([26](26-storage-postfork.md), [36](36-kvstore-engine-seam.md)) |
+| `tests/test_two_node_api_sync.py` | `BISMUTH_RUN_TWONODE=1` | two-node REST `api_sync` catch-up + chain parity |
+| `tests/test_sync_from_genesis.py` | `BISMUTH_RUN_TWONODE=1` | genesis-up sync with assume-valid / checkpoints ([30](30-genesis-sync-exceptions.md)) |
+| `tests/test_autoheal.py` | `BISMUTH_RUN_TWONODE=1` | #23 difficulty self-heal across two nodes ([35](35-difficulty-divergence-selfheal.md)) |
+| `tests/test_two_node_diff_selfheal.py` | `BISMUTH_RUN_TWONODE=1` | difficulty-divergence detection + heal across a real peer pair |
+| `tests/test_two_node_signatures.py` | `BISMUTH_RUN_TWONODE=1` | post-fork signature acceptance across two nodes ([18](18-hardfork-hf2.md)) |
+
+```bash
+# the 3-node store-agreement test
+BISMUTH_RUN_MULTINODE=1 python3 -m pytest tests/test_multinode_integration.py -v
+# all two-node tests
+BISMUTH_RUN_TWONODE=1 python3 -m pytest tests/test_two_node_*.py tests/test_sync_from_genesis.py tests/test_autoheal.py -v
+```
+
+These run regnet (`node.py regnet2`) on isolated ports/dirs and **never touch a mainnet ledger**. The
+default `python3 -m pytest -v` run skips all six (latest full run: **790 passed, 6 skipped, 0 failed**).
+
 ## Chain snapshot / maintenance tooling (`static/`)
 
 | Script | Purpose |
