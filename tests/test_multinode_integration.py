@@ -4,8 +4,11 @@ Multi-node regnet integration test (doc/26 KVStore storage seam) — the 3-node 
 This is the heavier sibling of tests/test_two_node_api_sync.py. It brings up a THREE-node regnet cluster
 (no socket peering — regnet refuses it by design; api_sync over REST is the ONLY multi-node path) and proves
 that the just-migrated KVStore-backed LMDB stores produce IDENTICAL results across independently-built
-ledgers. Each node constructs its own block_store / balance_index / txid_index / vm_state / shieldedv1 /
-token_index (via kvstore.open_store) from config_custom.txt and serves consensus reads off those LMDB indexes.
+ledgers. config_custom.txt turns on, per node: the four core rebuildable side-indexes that were migrated
+onto kvstore.open_store (block_store / balance_index / txid_index / vm_state), PLUS shieldedv1 (a CORE,
+consensus-wired module opened directly in node.py — not a plugin) and token_index (owned by the optional
+tokens_aliases PLUGIN, doc/27 — node core never constructs it; it arrives as a plugin service). The
+KVStore-backed indexes serve the consensus reads; this test exercises all of them across the cluster.
 
     A  socket 4070 / REST 4071   — mines a chain CROSSING the regnet hf2 fork, deploys a vm: contract
     B  socket 4072 / REST 4073   — api_sync=ON from A's REST (empty ledger -> reconstructs A's chain)
