@@ -1,9 +1,50 @@
 # 11 — Configuration reference
 
-`options.Get().read()` loads `config.txt`, overrides with `config_custom.txt` if present, then reads
+`options.Get().read()` loads the base config, overrides it with an optional custom config, then reads
 `mandatory_message.json`. Unknown keys are ignored; every key is copied onto `node.*` at startup.
-Values are typed per the loader (`int`, `bool` — false for `false/0/""/no` —, `list` comma-split,
-`dict` JSON, else `str`).
+
+## Config formats: `config.toml` (preferred) and legacy `config.txt` (still supported)
+
+The node reads **two interchangeable formats** — modern **TOML** and the original `key=value` text:
+
+| Layer | Modern (preferred) | Legacy (fallback) |
+|---|---|---|
+| Base | `config.toml` | `config.txt` |
+| Override | `config_custom.toml` | `config_custom.txt` |
+
+`read()` prefers the `.toml` file in each layer and falls back to the `.txt` file when no `.toml` is
+present, so **an existing node with only `config.txt` is completely unaffected** — the legacy path is
+byte-identical to before. The precedence is unchanged: **base → custom override →
+`mandatory_message.json`**, with `BISMUTH_IGNORE_CONFIG_CUSTOM=1` skipping the custom layer (how the
+systemd mainnet unit ignores a stray regnet `config_custom.*`). Both formats funnel into the same typed
+`Config` object, so every consumer and every `node.*` attribute is identical regardless of format.
+
+**Why TOML:** reading it uses stdlib **`tomllib`** (Python 3.11+; the node targets 3.12), so it adds
+**zero runtime dependency** — the decisive factor for a consensus node. It also avoids YAML's
+type-coercion footguns (the Norway `no`→False problem, implicit numeric/version coercion) that are
+dangerous for consensus-affecting flags like `fork_signal` / `version_allow`. In TOML, scalars map 1:1,
+comma-lists (`version_allow`, `banlist`, `whitelist`, `mempool_allowed`) become **arrays**, the JSON
+dicts (`light_ip`, `mandatory_message`) become **tables**, and `port` stays a **string** (an int like
+`port = 5658` is accepted and coerced to `"5658"`). See `config.toml.example`.
+
+**Type note:** the legacy `bool` false-set (`false/0/""/no`) applies only to the `.txt` path — TOML uses
+real `true`/`false`. Otherwise the two formats produce an identical Config (asserted in
+`tests/test_config_toml.py`).
+
+### Migrating
+
+```bash
+python scripts/migrate_config.py --check    # verify only: would config.toml load identically?
+python scripts/migrate_config.py            # write config.toml from config.txt (refuses to clobber; --force to override)
+python scripts/migrate_config.py --custom   # also convert config_custom.txt -> config_custom.toml
+```
+
+The migrator is **non-destructive**: it reuses the node's own loader so the emitted values match exactly,
+writes only the keys you actually set (not the backfilled defaults), verifies the result round-trips to an
+identical Config before writing, and **leaves `config.txt` in place** — important because the GPU miner
+(`gpuminer/opencl_alt/options.py`) and `legacy_sync_probe.py` still read `config.txt` only. It needs no
+extra dependency (a tiny built-in TOML serializer covers the whole schema). Env-var overrides
+(`node.py`, `BISMUTH_*`) are format-agnostic and unchanged.
 
 ## Keys
 

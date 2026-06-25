@@ -14,6 +14,11 @@ import os
 import os.path as path
 from sys import exit
 
+try:
+    import tomllib  # stdlib on Python 3.11+ (the node targets 3.12); read-only TOML parser
+except ImportError:  # pragma: no cover - older interpreters degrade gracefully to legacy config.txt
+    tomllib = None
+
 
 class Get:
     # "param_name":["type"] or "param_name"=["type","property_name"]
@@ -175,50 +180,85 @@ class Get:
         },  # setup here by safety, but will use the json if present for easier updates.
     }
 
-    def load_file(self, filename):
-        # print("Loading",filename)
-        with open(filename) as fp:
-            for line in fp:
-                if "=" in line:
-                    left, right = map(str.strip, line.rstrip("\n").split("="))
-                    if "mempool_ram_conf" == left:
-                        print(
-                            "Inconsistent config, param is now mempool_ram in config.txt"
-                        )
-                        exit()
-                    if not left in self.vars:
-                        # Warn for unknown param?
-                        continue
-                    params = self.vars[left]
-                    if params[0] == "int":
-                        right = int(right)
-                    elif params[0] == "dict":
-                        try:
-                            right = json.loads(right)
-                        except:  # compatibility
-                            right = [item.strip() for item in right.split(",")]
-                    elif params[0] == "list":
-                        right = [item.strip() for item in right.split(",")]
-                    elif params[0] == "bool":
-                        if right.lower() in ["false", "0", "", "no"]:
-                            right = False
-                        else:
-                            right = True
+    def _set_from_raw(self, left, right):
+        """Coerce a raw STRING value (the legacy key=value format) per the ``vars`` schema and set it.
+        Unknown keys are silently skipped; the renamed-property edge (params[1]) is honored. Extracted
+        verbatim from the old load_file body so the text path is byte-identical."""
+        if "mempool_ram_conf" == left:
+            print(
+                "Inconsistent config, param is now mempool_ram in config.txt"
+            )
+            exit()
+        if not left in self.vars:
+            # Warn for unknown param?
+            return
+        params = self.vars[left]
+        if params[0] == "int":
+            right = int(right)
+        elif params[0] == "dict":
+            try:
+                right = json.loads(right)
+            except:  # compatibility
+                right = [item.strip() for item in right.split(",")]
+        elif params[0] == "list":
+            right = [item.strip() for item in right.split(",")]
+        elif params[0] == "bool":
+            if right.lower() in ["false", "0", "", "no"]:
+                right = False
+            else:
+                right = True
 
-                    else:
-                        # treat as "str"
-                        pass
-                    if len(params) > 1:
-                        # deal with properties that do not match the config name.
-                        left = params[1]
-                    setattr(self, left, right)
+        else:
+            # treat as "str"
+            pass
+        if len(params) > 1:
+            # deal with properties that do not match the config name.
+            left = params[1]
+        setattr(self, left, right)
+
+    def _finalize(self):
+        """Shared loader tail: hardcode genesis + backfill any schema key the file did not set from
+        ``defaults``. Runs after EVERY load_file / load_toml, so both formats yield an identical Config."""
         # Default genesis to keep compatibility
         self.genesis = "4edadac9093d9326ee4b17f869b14f1a2534f96f9c5d7b48dc9acaed"
         for key, default in self.defaults.items():
             if key not in self.__dict__:
                 setattr(self, key, default)
-
         # print(self.__dict__)
+
+    def load_file(self, filename):
+        """Legacy key=value loader (config.txt / config_custom.txt). Behaviour-identical to before; the
+        per-key coercion now lives in _set_from_raw and the genesis/defaults tail in _finalize."""
+        # print("Loading",filename)
+        with open(filename) as fp:
+            for line in fp:
+                if "=" in line:
+                    left, right = map(str.strip, line.rstrip("\n").split("="))
+                    self._set_from_raw(left, right)
+        self._finalize()
+
+    def load_toml(self, filename):
+        """Modern TOML loader (config.toml / config_custom.toml). TOML yields NATIVE types, so values are
+        taken AS-IS when they already match the schema type — no string re-coercion (and so none of the
+        legacy false-set / Norway-style footguns). The only cross-type edge is ``port`` (schema type str)
+        which an operator may write as an int. Unknown keys are skipped exactly like the legacy loader, and
+        load terminates in the SAME _finalize — so a config.toml and the equivalent config.txt produce a
+        byte-identical Config object (asserted in tests/test_config_toml.py)."""
+        if tomllib is None:  # pragma: no cover
+            raise RuntimeError("TOML config requires Python 3.11+ (tomllib); use config.txt instead")
+        with open(filename, "rb") as fp:
+            data = tomllib.load(fp)
+        for left, value in data.items():
+            if not left in self.vars:
+                continue
+            params = self.vars[left]
+            if params[0] == "str" and not isinstance(value, str):
+                value = str(value)   # e.g. TOML `port = 5658` (int) -> "5658" (schema type is str)
+            if len(params) > 1:
+                # deal with properties that do not match the config name.
+                left = params[1]
+            setattr(self, left, value)
+        self._finalize()
 
     def read(self):
         # config.txt is gitignored (it holds the node's live/local settings, incl. rest_api). If it has
@@ -229,13 +269,21 @@ class Get:
             import shutil
             shutil.copyfile("config.txt.example", "config.txt")
             print("config.txt was missing -- restored it from config.txt.example")
-        # first of all, load from default config so we have all needed params
-        self.load_file("config.txt")
+        # Base layer: prefer the modern config.toml when the operator has opted in by creating one (doc/11);
+        # otherwise the legacy config.txt path is byte-identical to before, so an existing node is untouched.
+        if tomllib is not None and path.exists("config.toml"):
+            self.load_toml("config.toml")
+        else:
+            self.load_file("config.txt")
         # then override with optional custom config (the regnet test harness drops in config_custom.txt).
         # BISMUTH_IGNORE_CONFIG_CUSTOM=1 lets the systemd mainnet service ignore a leftover test override
-        # so it always boots mainnet regardless of a stray config_custom.txt (see scripts/install-node-service.sh).
-        if path.exists("config_custom.txt") and not os.environ.get("BISMUTH_IGNORE_CONFIG_CUSTOM"):
-            self.load_file("config_custom.txt")
+        # so it always boots mainnet regardless of a stray config_custom.* (see scripts/install-node-service.sh).
+        # Same 3-layer precedence as before; config_custom.toml is preferred over .txt when present.
+        if not os.environ.get("BISMUTH_IGNORE_CONFIG_CUSTOM"):
+            if tomllib is not None and path.exists("config_custom.toml"):
+                self.load_toml("config_custom.toml")
+            elif path.exists("config_custom.txt"):
+                self.load_file("config_custom.txt")
         file_name = "./mandatory_message.json"
         if path.isfile(file_name):
             try:
