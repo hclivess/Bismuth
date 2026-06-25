@@ -94,20 +94,14 @@ def test_apply_then_rollback_is_neutral(tmp_path):
 
 # --------------------------------------------------------------------------- KV-seam migration (doc/26 stage 1)
 def test_lmdb_on_disk_bytes_identical_to_direct_lmdb(tmp_path):
-    """The migrated BalanceIndex (open_store lmdb) writes the EXACT same key/value bytes as a direct
-    lmdb.open() store using the store's ORIGINAL convention: raw-address key, msgpack [credit, debit]
-    value. Funds-sensitive store -> a running node must read its existing LMDB file unchanged."""
+    """hf2 Stage-4 (doc/40): the BalanceIndex value is now two fixed u128 LITTLE-endian counters
+    (credit_units, debit_units) — TRUE bytes, not a msgpack list. This re-baselines the on-disk-bytes
+    characterization lock to the new format (a deliberate, fork-gated format break). The address key is
+    unchanged (raw address bytes, C5)."""
     lmdb = pytest.importorskip("lmdb")
-    try:
-        import msgpack
 
-        def _orig_pack(o):
-            return msgpack.packb(o, use_bin_type=True)
-    except ImportError:  # pragma: no cover
-        import json
-
-        def _orig_pack(o):
-            return json.dumps(o).encode()
+    def _be(c, d):  # the new raw value: two u128 little-endian
+        return c.to_bytes(16, "little") + d.to_bytes(16, "little")
 
     idx = BalanceIndex(str(tmp_path / "bi"), map_size=64 * 1024 * 1024)
     try:
@@ -124,13 +118,14 @@ def test_lmdb_on_disk_bytes_identical_to_direct_lmdb(tmp_path):
             on_disk[bytes(k)] = bytes(v)
     env.close()
 
-    # reconstruct expected bytes from the pre-migration convention: key=addr.encode(), val=msgpack[c,d]
     expected = {
-        b"A": _orig_pack([40, 100 + 10]),   # credited 40, debited amount 100 + fee 10
-        b"B": _orig_pack([100, 0]),
-        b"C": _orig_pack([0, 40 + 5]),
+        b"A": _be(40, 100 + 10),   # credited 40, debited amount 100 + fee 10
+        b"B": _be(100, 0),
+        b"C": _be(0, 40 + 5),
     }
     assert on_disk == expected
+    # every value is the fixed 32-byte true-bytes form, never msgpack
+    assert all(len(v) == 32 for v in on_disk.values())
 
 
 def _drive_balance_index(backend, tmp_path, name):

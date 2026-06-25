@@ -69,7 +69,17 @@ class BlockStore:
 
     @staticmethod
     def _bh(block_hash):
-        return block_hash.encode() if isinstance(block_hash, str) else block_hash
+        # hf2 Stage-4 (doc/40 core-indexes §3): the `hashes` reverse-index key is the RAW digest (28B sha224
+        # pre-fork / 32B blake2b post-fork), not its 56/64-hex .encode() (2x). Deterministic + tolerant: a
+        # valid hex hash -> raw bytes; a non-hex string (synthetic test fixture) -> utf-8 fallback; bytes pass
+        # through. The same _bh is used on write AND lookup, so the key is consistent and height_by_hash on
+        # malformed API input never raises (it falls back, then misses).
+        if isinstance(block_hash, str):
+            try:
+                return bytes.fromhex(block_hash)
+            except ValueError:
+                return block_hash.encode()
+        return block_hash
 
     def _pubkey_id(self, txn, pk, cache):
         """Map a public key to its dedup id, assigning a new one (next = count) if unseen."""

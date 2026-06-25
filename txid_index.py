@@ -60,7 +60,15 @@ class TxidIndex:
 
     @staticmethod
     def _key(txid):
-        return txid.encode() if isinstance(txid, str) else txid
+        # hf2 Stage-4 (doc/40 C3): store the raw 32-byte blake2b content txid, not its 64-hex .encode()
+        # (2x). Deterministic + tolerant: a valid hex string -> raw bytes; a non-hex string (test fixture /
+        # sentinel) -> utf-8 fallback; raw bytes pass through. Lookup uses the same _key, so it is consistent.
+        if isinstance(txid, str):
+            try:
+                return bytes.fromhex(txid)
+            except ValueError:
+                return txid.encode()
+        return txid
 
     # --- maintenance --------------------------------------------------------
     def apply_rows(self, rows, fork_height):

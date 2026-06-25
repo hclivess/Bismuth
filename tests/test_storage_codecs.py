@@ -214,3 +214,48 @@ def test_varint_minimal_encoding_enforced():
     assert txfields.uvarint_decode(txfields.uvarint_encode(300)) == (300, 2)
     with pytest.raises(ValueError):
         txfields.uvarint_decode(b"\x80\x00")                  # non-minimal (overlong) zero
+
+
+# --------------------------------------------------------------------------- difficulty / work record
+import diff_store
+import diff_work
+
+
+def test_work_units_deterministic_and_monotone():
+    assert diff_work.work_units(diff_store.diff_to_e10("16")) == 256        # 2**8
+    assert diff_work.work_units(diff_store.diff_to_e10("50")) == 33554432   # 2**25
+    assert diff_work.work_units(diff_store.diff_to_e10("100")) == 1125899906842624  # 2**50
+    assert diff_work.work_units(0) == 0
+    # strictly increasing in difficulty
+    ws = [diff_work.work_units(diff_store.diff_to_e10(str(d))) for d in (16, 24, 50, 100)]
+    assert ws == sorted(ws) and len(set(ws)) == 4
+
+
+def test_diff_e10_roundtrip_grid():
+    for s in ("16.0", "24", "50.0", "118.4732615334", "0.0000000001"):
+        e10 = diff_store.diff_to_e10(s)
+        from decimal import Decimal
+        assert diff_store.e10_to_diff(e10) == Decimal(s).quantize(Decimal("0.0000000001"))
+
+
+def test_diff_record_roundtrip_fixed_head():
+    blob, cw = diff_store.make_record("118.4732615334", prev_ts=1000.0, this_ts=1063.0,
+                                      prev_cumulative_work=999)
+    assert len(blob) == diff_store.HEAD_LEN               # clean fixed 28-byte record, no legacy tail
+    rec = diff_store.unpack_record(blob)
+    assert rec["difficulty_e10"] == diff_store.diff_to_e10("118.4732615334")
+    assert rec["solvetime"] == 63
+    assert rec["cumulative_work"] == cw == 999 + diff_work.work_units(rec["difficulty_e10"])
+
+
+def test_diff_text_rendered_from_integer_grid():
+    # post-fork the canonical difficulty string is generated from difficulty_e10 (no legacy '16' vs '16.0')
+    blob = diff_store.pack_record(diff_store.diff_to_e10("16.0"), 60, 1)
+    assert diff_store.difficulty_text(blob) == "16.0000000000"
+    assert int(float(diff_store.difficulty_text(blob))) == 16   # consensus reads int(float(...)), safe
+
+
+def test_diff_cumulative_work_u128():
+    big = (1 << 100) + 7
+    blob = diff_store.pack_record(diff_store.diff_to_e10("100"), 60, big)
+    assert diff_store.unpack_record(blob)["cumulative_work"] == big   # u128 limbs round-trip

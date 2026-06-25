@@ -31,10 +31,24 @@ Deps: ``kvstore`` (which needs ``lmdb`` for the lmdb backend; ``msgpack`` option
 """
 from kvstore import Codec, KVStore, open_store
 
-_pack = Codec.pack
-_unpack = Codec.unpack
-
 import amounts
+
+
+# hf2 Stage-4 (doc/40 core-indexes §2): the balance value is two fixed-width u128 LITTLE-endian counters
+# (credit_units, debit_units) — TRUE bytes, not a msgpack list (~19B -> 32B fixed, branch-free decode).
+# Credit/debit are cumulative running sums (unbounded-growing), so u128 gives ceiling-free headroom. The
+# non-negativity guard makes the running-total invariant explicit and converts the silent OverflowError
+# (negative -> to_bytes) into a loud, named error if a future caller ever rolls back out of apply order.
+def _pack(cd):
+    c, d = cd
+    if c < 0 or d < 0:
+        raise ValueError("balance_index running totals must stay non-negative: c=%d d=%d" % (c, d))
+    return c.to_bytes(16, "little") + d.to_bytes(16, "little")
+
+
+def _unpack(v):
+    v = bytes(v)
+    return int.from_bytes(v[:16], "little"), int.from_bytes(v[16:], "little")
 
 _GIB = KVStore.GIB
 
