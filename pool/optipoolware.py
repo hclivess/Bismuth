@@ -759,16 +759,19 @@ if __name__ == "__main__":
 
         HOST, PORT = "0.0.0.0", pool_port
 
-        # Create the server thread handler, binding to localhost on port above
+        # Bind + serve in the MAIN thread so Ctrl-C / SIGTERM shut the pool down cleanly. The old pattern
+        # (serve_forever in a daemon thread + server_thread.join()) blocked the main thread in join(),
+        # which swallowed Ctrl-C — the README "won't stop with Ctrl-C on Windows" known-issue.
         server = ThreadedTCPServer((HOST, PORT), MyTCPHandler)
+        server.daemon_threads = True
         ip, port = server.server_address
-
-        server_thread = threading.Thread(target=server.serve_forever)
-
-        server_thread.daemon = True
-        server_thread.start()
-        server_thread.join()
-        server.shutdown()
-        server.server_close()
+        app_log.warning("Pool server listening on {}:{}".format(ip, port))
+        try:
+            server.serve_forever()
+        except KeyboardInterrupt:
+            app_log.warning("Ctrl-C received — shutting down pool...")
+        finally:
+            server.shutdown()
+            server.server_close()
     finally:
         mining.mining_close()
