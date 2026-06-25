@@ -3,13 +3,18 @@
 # Copyright Hclivess, Primedigger, Maccaspacca, SylvainDeaure 2017
 # .
 
-import time, socks, connections, sys, os, math
+import time, socks, sys, os, math
 from multiprocessing import Process, freeze_support, Queue
 from random import getrandbits
 from hashlib import sha224, blake2b   # hf2: dual-algo Heavy3 inner hash (sha224 pre-fork, blake2b post-fork)
 
+# Resolve the node's modernized `connections` + `mining_heavy3` from the repo root when the miner runs
+# in-repo (pool/optihash/ -> repo root). Standalone miners keep these modules alongside the binary.
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import connections
 import mining_heavy3 as mining
-#import annealing
 
 __version__ = '0.3.1'
 
@@ -21,9 +26,9 @@ for line in lines:
     if "mining_ip=" in line:
         mining_ip_conf = line.split('=')[1]
     if "mining_threads=" in line:
-        mining_threads_conf = line.strip('mining_threads=')
+        mining_threads_conf = line.split('=', 1)[1].strip()   # was str.strip(charset) — a char-set bug
     if "tor=" in line:
-        tor_conf = int(line.strip('tor='))
+        tor_conf = int(line.split('=', 1)[1].strip())          # was str.strip(charset) — a char-set bug
     if "miner_address=" in line:
         self_address = line.split('=')[1]
     if "nonce_time=" in line:
@@ -42,21 +47,9 @@ def bin_convert(string):
     return ''.join(bin_format_dict[x] for x in string)
 
 
-def bin_convert_orig(string):
-    return ''.join(format(ord(x), '8b').replace(' ', '0') for x in string)
-
-
-def diffme(pool_address, nonce, db_block_hash):
-    # minimum possible diff
-    diff = 60
-    # will return 0 for diff < 60
-    diff_result = 0
-    mining_hash = bin_convert(sha224((pool_address + nonce + db_block_hash).encode("utf-8")).hexdigest())
-    mining_condition = bin_convert(db_block_hash)
-    while mining_condition[:diff] in mining_hash:
-        diff_result = diff
-        diff += 1
-    return diff_result
+# NOTE: the old standalone diffme() + bin_convert_orig() were removed — they were dead (their only call
+# sites were commented out) and hardcoded sha224, a post-hf2 wrong-algo footgun. The authoritative diff
+# check is mining_heavy3.diffme_heavy3(..., new_pow=) (the SAME function the node consensus uses).
 
 
 def miner(q, pool_address, db_block_hash, diff, mining_condition, netdiff, hq, thr, dh, cb_prefix="", new_pow=False):
@@ -72,6 +65,7 @@ def miner(q, pool_address, db_block_hash, diff, mining_condition, netdiff, hq, t
         # Computed once here so the hot pre-filter below stays branch-free. Mirrors mining_heavy3.diffme_heavy3.
         _pow_digest = (lambda b: blake2b(b, digest_size=28).digest()) if new_pow else (lambda b: sha224(b).digest())
         timeout = time.time() + nonce_time
+        h1 = 0   # ensure hq.put(h1) below is always defined, even if the loop never produces a rate
         # print(pool_address)
         while time.time() < timeout:
             try:
@@ -130,9 +124,10 @@ def miner(q, pool_address, db_block_hash, diff, mining_condition, netdiff, hq, t
                                 print("Miner: Could not submit solution to pool")
                                 pass
             except Exception as e:
-                print(e)
+                # DON'T re-raise: a stray iteration error must not kill the worker for the rest of
+                # nonce_time and skip hq.put below — that previously deadlocked runit()'s hq.get().
+                print("Miner: worker iteration error: {}".format(e))
                 time.sleep(0.1)
-                raise
         hq.put(str(h1))
     finally:
         if process_mmap:
@@ -170,19 +165,27 @@ def runit():
             instances = range(int(mining_threads_conf))
             thr = int(mining_threads_conf)
 
+            procs = []
             for q in instances:
                 p = Process(target=miner, args=(str(q + 1), paddress, db_block_hash, diff, mining_condition,  netdiff, hq, thr, dh, cb_prefix, new_pow))
                 p.daemon = True
                 p.start()
+                procs.append(p)   # was: only the LAST p was kept, so join/terminate ran on it N times
             print("{} miners searching for solutions at difficulty {} and condition {}".format(mining_threads_conf,str(diff),str(mining_condition)))
 
             time.sleep(nonce_time)
 
-            for q in instances:
-                p.join()
+            for p in procs:
+                p.join(timeout=5)
                 p.terminate()
 
-            results = [int(hq.get()) for q in instances]
+            # timeout-bounded so a dead/exited worker that never put a rate can't block runit() forever
+            results = []
+            for _ in procs:
+                try:
+                    results.append(int(hq.get(timeout=5)))
+                except Exception:
+                    results.append(0)
             dh = sum(results)
             print("Current total hash rate is {} kh/s".format(str(dh)))
 
