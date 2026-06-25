@@ -259,14 +259,16 @@ def payout(payout_threshold,myfee,othfee):
             verifier = PKCS1_v1_5.new(key)
             if verifier.verify(h, signature) == True:
                 app_log.info("Signature valid, submitting payout transaction")
-                txid = signature_enc[:56]
-                mytxid = txid.decode("utf-8")
+                # legacy label only; post-hf2 the canonical txid is blake2b(content), so prefer the
+                # node's returned txid (POST /api/transaction -> {"txids": [...]}) over this slice.
+                mytxid = signature_enc[:56].decode("utf-8")
                 tx_submit = (str(timestamp), str(address), str(recipient), '%.8f' % float(claim - fee), str(signature_enc.decode("utf-8")), str(public_key_hashed.decode("utf-8")), str(keep), str(openfield)) #float kept for compatibility
 
                 # submit the payout over REST (was the socket mpinsert command)
                 try:
                     reply = _node_post("/transaction", {"transaction": list(tx_submit)})
-                    app_log.info("Payout {} submitted via REST: {}".format(mytxid, reply))
+                    node_txid = (reply.get("txids") or [None])[0] if isinstance(reply, dict) else None
+                    app_log.info("Payout {} submitted via REST: {}".format(node_txid or mytxid, reply))
                 except Exception as e:
                     reply = "REST submit failed: {}".format(e)
                     app_log.warning(reply)
