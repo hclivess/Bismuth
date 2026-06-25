@@ -105,6 +105,10 @@ class KVTxn:
     def iterate(self, db, prefix=b""):  # pragma: no cover
         raise NotImplementedError
 
+    def drop(self, db):  # pragma: no cover
+        """Clear ALL entries in `db` (keep the empty sub-db). The drop+re-index rebuild primitive."""
+        raise NotImplementedError
+
 
 class KVStore:
     """Engine-agnostic store. ``open_db(name)`` returns an opaque db-handle; ``txn(write=...)`` is a
@@ -208,6 +212,9 @@ class _LmdbTxn(KVTxn):
             if not k.startswith(prefix):
                 return
             yield k, v
+
+    def drop(self, db):
+        self._t.drop(db, delete=False)   # clear all entries, keep the (empty) sub-db
 
 
 class _LmdbTxnCtx:
@@ -316,6 +323,9 @@ class _SqliteTxn(KVTxn):
             params = ()
         for k, v in self._conn.execute(sql, params):
             yield bytes(k), bytes(v)
+
+    def drop(self, db):
+        self._conn.execute('DELETE FROM "%s"' % db)   # clear all rows, keep the (empty) table
 
 
 def _prefix_upper(prefix):

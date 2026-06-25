@@ -129,6 +129,30 @@ def test_rebuild_from_cursor(tmp_path):
         conn.close()
 
 
+@pytest.mark.parametrize("backend", ["lmdb", "sqlite-kv"])
+def test_backend_swappable(tmp_path, backend):
+    """The SAME TxidIndex runs identically on a 2nd engine through open_store(backend=...) — proving the KV
+    seam (incl. the new drop via rebuild, apply, rollback's iterate) is engine-independent for this store.
+    Both backends must produce the identical canonical txid->height results. [doc/26 storage stage 1]"""
+    conn = _make_ledger(str(tmp_path / "ledger.db"))
+    idx = TxidIndex(str(tmp_path / ("txi_" + backend)), map_size=64 * 1024 * 1024, backend=backend)
+    try:
+        assert idx.rebuild_from_cursor(conn.cursor(), FORK) == 3   # drop + reindex -> FORK, FORK+1, FORK+3
+        assert idx.count() == 3
+        assert idx.height_of(txid_of(_row(FORK, A, B, "3.00000000"), FORK)) == FORK
+        r = _row(FORK + 9, A, C, "7.00000000")
+        assert idx.apply_rows([r], FORK) == 1
+        tr = txid_of(r, FORK)
+        assert idx.contains(tr) and idx.contains(tr, max_height=FORK + 9)
+        assert not idx.contains(tr, max_height=FORK + 8)
+        assert idx.rollback(FORK + 2) == 2                          # drops FORK+3 and FORK+9
+        assert idx.count() == 2
+        assert idx.height_of(tr) is None
+    finally:
+        idx.close()
+        conn.close()
+
+
 def test_rollback_drops_above_tip(tmp_path):
     idx = TxidIndex(str(tmp_path / "txi"), map_size=64 * 1024 * 1024)
     try:

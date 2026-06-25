@@ -14,9 +14,14 @@ slice, not a content hash), so only rows at height >= fork_height are indexed. L
 a rebuildable projection — maintained on apply, rebuilt from the ledger on a reorg — never authoritative
 on its own until a flag (txid_index_consensus) flips the dedup read onto it after a clean shadow period.
 
-Deps: ``lmdb`` (required). Mirrors balance_index.py conventions.
+Migrated onto the engine-agnostic KV abstraction (``kvstore.open_store``, doc/26 storage stage 1): the
+txid->height map is stored through KVStore, so swapping the underlying engine (LMDB<->MDBX<->sqlite-kv) is
+a one-arg ``backend=`` change. Keys are the raw txid bytes and values the 8-byte big-endian height — raw
+bytes, no Codec — so the on-disk format is byte-identical to the pre-migration store.
+
+Deps: ``kvstore`` (which needs ``lmdb`` for the default backend).
 """
-import lmdb
+from kvstore import open_store
 
 import amounts
 import bismuth_serialize
@@ -37,10 +42,12 @@ def txid_of(row, fork_height):
 
 
 class TxidIndex:
-    def __init__(self, path, map_size=4 * _GIB, readonly=False, sync=True):
-        self.env = lmdb.open(path, subdir=True, max_dbs=1, map_size=map_size,
-                             readonly=readonly, lock=True, sync=sync, metasync=sync)
-        self.db = self.env.open_db(b"txid")
+    def __init__(self, path, map_size=4 * _GIB, readonly=False, sync=True, backend="lmdb"):
+        self.store = open_store(backend, path, dbs=["txid"], map_size=map_size,
+                                readonly=readonly, sync=sync)
+        self.db = self.store.open_db("txid")
+        # kept for back-compat with callers/tests that introspect the env directly (lmdb backend only)
+        self.env = getattr(self.store, "env", None)
 
     @staticmethod
     def _key(txid):
@@ -53,25 +60,25 @@ class TxidIndex:
         if fork_height is None:
             return 0
         n = 0
-        with self.env.begin(write=True) as txn:
+        with self.store.txn(write=True) as txn:
             for r in rows:
                 h = int(r[_H])
                 if h <= 0 or h < int(fork_height):
                     continue
-                txn.put(self._key(txid_of(r, fork_height)), h.to_bytes(8, "big"), db=self.db)
+                txn.put(self.db, self._key(txid_of(r, fork_height)), h.to_bytes(8, "big"))
                 n += 1
         return n
 
     def rebuild_from_cursor(self, cursor, fork_height):
         """(Re)build from an open ledger cursor — startup + post-reorg path. Drops and re-indexes every
         post-fork positive-height tx. With fork_height None (pre-fork mainnet) the index is empty."""
-        with self.env.begin(write=True) as txn:
-            txn.drop(self.db, delete=False)
+        with self.store.txn(write=True) as txn:
+            txn.drop(self.db)
             if fork_height is None:
                 return 0
             n = 0
             for r in cursor.execute("SELECT * FROM transactions WHERE block_height >= ?", (int(fork_height),)):
-                txn.put(self._key(txid_of(r, fork_height)), int(r[_H]).to_bytes(8, "big"), db=self.db)
+                txn.put(self.db, self._key(txid_of(r, fork_height)), int(r[_H]).to_bytes(8, "big"))
                 n += 1
             return n
 
@@ -80,18 +87,17 @@ class TxidIndex:
         path (matches balance_index's rebuild-on-reorg); callers that have a cursor should prefer
         rebuild_from_cursor. This standalone form scans the value set."""
         keep = int(keep_height)
-        with self.env.begin(write=True) as txn:
-            cur = txn.cursor(db=self.db)
-            stale = [k for k, v in cur if int.from_bytes(v, "big") > keep]
+        with self.store.txn(write=True) as txn:
+            stale = [k for k, v in txn.iterate(self.db) if int.from_bytes(v, "big") > keep]
             for k in stale:
-                txn.delete(k, db=self.db)
+                txn.delete(self.db, k)
         return len(stale)
 
     # --- read ---------------------------------------------------------------
     def height_of(self, txid):
         """The confirmed height of `txid`, or None if not on the indexed (post-fork) chain."""
-        with self.env.begin() as txn:
-            v = txn.get(self._key(txid), db=self.db)
+        with self.store.txn() as txn:
+            v = txn.get(self.db, self._key(txid))
         return int.from_bytes(v, "big") if v is not None else None
 
     def contains(self, txid, max_height=None):
@@ -103,8 +109,7 @@ class TxidIndex:
         return True if max_height is None else h <= int(max_height)
 
     def count(self):
-        with self.env.begin() as txn:
-            return txn.stat(db=self.db)["entries"]
+        return self.store.stat(self.db)["entries"]
 
     def close(self):
-        self.env.close()
+        self.store.close()
