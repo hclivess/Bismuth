@@ -82,12 +82,17 @@ def worker(host, port, node):
 
         s = socks.socksocket()
 
-        if node.tor:
-            s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+        # Route through Tor when a mode is active; tor_manager is the single source of truth for the SOCKS
+        # endpoint (None on clearnet / not-ready -> direct connect, byte-identical to before). doc/38
+        _tm = getattr(node, "tor_manager", None)
+        proxy = _tm.get_proxy() if _tm is not None else None
+        if proxy:
+            s.setproxy(socks.PROXY_TYPE_SOCKS5, proxy[0], proxy[1])
         # s.setblocking(0)
-        # Cap the dial (clearnet only) so a dead peer can't hold this worker in connect() for the OS
-        # SYN-retry window; restore blocking right after so the framed sync protocol is unaffected.
-        s.settimeout(None if node.tor else DIAL_TIMEOUT)
+        # Bound the dial so a dead peer can't hang this worker in connect() for the OS SYN-retry window:
+        # clearnet uses DIAL_TIMEOUT, tor uses the configurable tor_dial_timeout (was an unbounded None).
+        # Restored to blocking right after connect so the framed sync protocol is unaffected.
+        s.settimeout(getattr(node, "tor_dial_timeout", 30) if proxy else DIAL_TIMEOUT)
         s.connect((host, port))
         s.settimeout(None)
         node.logger.app_log.info(f"Outbound: Connected to {this_client}")

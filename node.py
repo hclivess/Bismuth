@@ -1321,7 +1321,26 @@ if __name__ == "__main__":
     node.ledger_path = config.ledger_path
     node.hyper_path = config.hyper_path
     node.hyper_recompress = config.hyper_recompress
-    node.tor = config.tor
+    # Tor (doc/38): config.tor is the tri-state mode string (off|external|managed). Keep node.tor as a
+    # back-compat truthy bool (any active tor mode) so legacy `if node.tor:` readers still work; node.tor_mode
+    # carries the actual mode. On a clearnet node (tor=off, incl. the live mainnet node) tor_manager stays
+    # None and the optional `stem` dep is never imported — behaviour is byte-identical to before.
+    node.tor_mode = config.tor
+    node.tor = (config.tor != "off")
+    node.tor_socks_host = config.tor_socks_host
+    node.tor_socks_port = config.tor_socks_port
+    node.tor_control_port = config.tor_control_port
+    node.tor_binary = config.tor_binary
+    node.tor_onion = config.tor_onion
+    node.tor_onion_key = config.tor_onion_key
+    node.tor_required = config.tor_required
+    node.tor_dial_timeout = config.tor_dial_timeout
+    node.tor_data_dir = config.tor_data_dir
+    node.tor_manager = None
+    if node.tor_mode != "off":
+        import tor_manager
+        node.tor_manager = tor_manager.TorManager(node)
+        node.tor_manager.launch()   # graceful clearnet fallback, or fail-fast when tor_required=True
     node.ram = config.ram
     node.version_allow = config.version_allow
     node.reveal_address = config.reveal_address
@@ -1543,9 +1562,23 @@ if __name__ == "__main__":
             # TODO: until here, we are in single user mode.
             # All the above goes into a "bootup" function, with methods from single_user module only.
 
-            if not node.tor:
+            # Bind the inbound listener for clearnet (off), and for managed mode WITH a published v3 onion
+            # (bind loopback — the onion virtport forwards to it). external mode (and managed without an
+            # onion) still suppresses the listener to conceal identity, exactly as before. doc/38
+            _tm = getattr(node, "tor_manager", None)
+            _onion = _tm.onion_address() if _tm is not None else None
+            if node.tor_mode == "off":
+                bind_host = "0.0.0.0"
+                _bind_listener = True
+            elif node.tor_mode == "managed" and node.tor_onion and _onion:
+                bind_host = "127.0.0.1"   # reachable only via the onion virtport
+                _bind_listener = True
+            else:
+                _bind_listener = False
+
+            if _bind_listener:
                 # Port 0 means to select an arbitrary unused port
-                host, port = "0.0.0.0", int(node.port)
+                host, port = bind_host, int(node.port)
 
                 ThreadedTCPServer.allow_reuse_address = True
                 ThreadedTCPServer.daemon_threads = True
@@ -1562,10 +1595,11 @@ if __name__ == "__main__":
                 server_thread.daemon = True
                 server_thread.start()
 
-                node.logger.app_log.warning("Status: Server loop running.")
+                node.logger.app_log.warning("Status: Server loop running.%s"
+                                            % ((" inbound onion=%s" % _onion) if _onion else ""))
 
             else:
-                node.logger.app_log.warning("Status: Not starting a local server to conceal identity on Tor network")
+                node.logger.app_log.warning("Status: Not starting a public local server to conceal identity on Tor network")
 
             # start connection manager
             connection_manager = connectionmanager.ConnectionManager(node, mp)

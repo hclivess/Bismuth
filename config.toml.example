@@ -35,3 +35,10 @@ trace_db_calls = false
 heavy3_path = "./heavy3a.bin"
 rest_api = true
 rest_api_port = 5659
+
+# Tor / onion routing (doc/38). Default off (clearnet). tor = "external" uses an existing tor daemon;
+# tor = "managed" launches + owns tor (needs `pip install stem` + the tor binary). v3 onion via tor_onion.
+# tor = "managed"
+# tor_onion = true
+# tor_socks_port = 9050
+# tor_required = false

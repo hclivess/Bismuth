@@ -20,6 +20,19 @@ except ImportError:  # pragma: no cover - older interpreters degrade gracefully 
     tomllib = None
 
 
+def _coerce_tor_mode(value):
+    """Tri-state Tor mode, backward-compatible with the old boolean tor flag (doc/38):
+    False/0/no/off/'' -> 'off' (clearnet, the default); True/1/yes/on/external -> 'external'
+    (route through an existing daemon, the old tor=True behavior); 'managed' -> 'managed'
+    (the node launches+owns its own tor); anything unrecognized -> 'off' (safe: never silently routes)."""
+    s = str(value).strip().lower()
+    if s == "managed":
+        return "managed"
+    if s in ("external", "true", "1", "yes", "on"):
+        return "external"
+    return "off"
+
+
 class Get:
     # "param_name":["type"] or "param_name"=["type","property_name"]
     vars = {
@@ -40,7 +53,16 @@ class Get:
         "hyper_recompress": ["bool", "hyper_recompress"],
         "full_ledger": ["bool", "full_ledger"],
         "ban_threshold": ["int"],
-        "tor": ["bool", "tor"],
+        "tor": ["str", "tor"],            # tri-state: off | external | managed (doc/38); coerced from the old bool
+        "tor_socks_host": ["str"],
+        "tor_socks_port": ["int"],
+        "tor_control_port": ["int"],
+        "tor_binary": ["str"],
+        "tor_onion": ["bool"],
+        "tor_onion_key": ["str"],
+        "tor_required": ["bool"],
+        "tor_dial_timeout": ["int"],
+        "tor_data_dir": ["str"],
         "debug_level": ["str", "debug_level"],
         "allowed": ["str", "allowed"],
         "ram": ["bool", "ram"],
@@ -121,6 +143,16 @@ class Get:
         "rollback_depth": 30,  # max blocks the node will roll back to rejoin a longer chain (see doc/14)
         "rest_api": False,     # opt-in modern parallel REST API (see doc/15); off by default
         "rest_api_port": 5659,
+        "tor": "off",          # Tor mode (doc/38): off (clearnet) | external | managed; default clearnet
+        "tor_socks_host": "127.0.0.1",
+        "tor_socks_port": 9050,   # external-mode SOCKS port (the old hardcoded default); managed derives its own
+        "tor_control_port": 0,    # 0 = auto (managed)
+        "tor_binary": "",         # empty = discover 'tor' on PATH
+        "tor_onion": False,       # managed: publish an ephemeral v3 hidden service for inbound
+        "tor_onion_key": "static/tor_onion_key",  # persist the onion key for a stable .onion (0600)
+        "tor_required": False,    # False = graceful clearnet fallback on tor failure; True = fail-fast
+        "tor_dial_timeout": 30,   # bounded connect under tor (replaces the old unbounded None)
+        "tor_data_dir": "",       # empty = a node-owned dir for managed tor's DataDirectory
         "rest_api_write": False,  # POST /api/transaction (tx submission over REST, the post-hardfork path); off by default
         "rest_api_proxy": True,   # GET /api/proxy same-origin relay so the https explorer can browse http nodes (read-only, SSRF-guarded); on by default
         "rest_api_geo": True,     # GET /api/stats/geo peer geolocation for the node map (ip-api.com, server-side cached); on by default
@@ -192,6 +224,10 @@ class Get:
         if not left in self.vars:
             # Warn for unknown param?
             return
+        if left == "tor":
+            # tri-state Tor mode, backward-compatible with the legacy boolean (doc/38)
+            setattr(self, "tor", _coerce_tor_mode(right))
+            return
         params = self.vars[left]
         if params[0] == "int":
             right = int(right)
@@ -250,6 +286,10 @@ class Get:
             data = tomllib.load(fp)
         for left, value in data.items():
             if not left in self.vars:
+                continue
+            if left == "tor":
+                # tri-state Tor mode (accepts a TOML bool or a string), doc/38
+                setattr(self, "tor", _coerce_tor_mode(value))
                 continue
             params = self.vars[left]
             if params[0] == "str" and not isinstance(value, str):

@@ -6,6 +6,10 @@
 # Now the minimal modules needed for a node only install
 
 PySocks
+# OPTIONAL (Tor, doc/38): `stem` is only needed for tor=managed (auto-launch tor + ephemeral v3 onion).
+# Lazy-imported, NEVER touched by a clearnet (tor=off) node. Uncomment + `pip install stem` to use it;
+# the tor C binary is also required for any tor mode (apt/brew install tor) — there is no daemon-free Tor.
+# stem
 pycryptodomex
 requests
 base58

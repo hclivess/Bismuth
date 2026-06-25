@@ -37,8 +37,10 @@ class PeersStorageMixin:
                     s = socks.socksocket()
                     try:
                         s.settimeout(5)
-                        if self.config.tor:
-                            s.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+                        _tm = getattr(self.node, "tor_manager", None)   # doc/38: single proxy source; None on clearnet
+                        _proxy = _tm.get_proxy() if _tm is not None else None
+                        if _proxy:
+                            s.setproxy(socks.PROXY_TYPE_SOCKS5, _proxy[0], _proxy[1])
                         if strict:
                             s.connect((ip, int(port)))
                             connections.send(s, "getversion")
@@ -137,8 +139,10 @@ class PeersStorageMixin:
                         s_purge = socks.socksocket()
                         try:
                             s_purge.settimeout(5)
-                            if self.config.tor:
-                                s_purge.setproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+                            _tm = getattr(self.node, "tor_manager", None)   # doc/38: single proxy source; None on clearnet
+                            _proxy = _tm.get_proxy() if _tm is not None else None
+                            if _proxy:
+                                s_purge.setproxy(socks.PROXY_TYPE_SOCKS5, _proxy[0], _proxy[1])
                             s_purge.connect((ip, int(port)))
                         finally:
                             # Probe socket must be closed even when connect() raises (the common
