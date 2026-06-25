@@ -10,6 +10,12 @@
 > harness** and are deferred (see Next stages). The endgame of doc/16: retire the 2014-era SQLite trio
 > **post-fork**, single LMDB store canonical. Consensus serialization is fork-gated (doc/29); legacy SQLite
 > keeps working **pre-fork** for old peers.
+>
+> **DB-engine seam:** all 8 LMDB stores now open through one `open_store(backend, …)` factory
+> (`kvstore.py`) instead of hand-rolled `lmdb.open()` calls, making the KV engine a one-arg choice
+> (`lmdb` | `mdbx` | `sqlite-kv`) with byte-identical on-disk format — see **[doc/36](36-kvstore-engine-seam.md)**.
+> That is a code-level *engine* seam; it does not change *which* data lives in LMDB vs SQLite (that is this
+> doc's staged migration).
 
 ## 1. What's there today — the "H1/H2/H3" architecture, and why it isn't ideal
 
