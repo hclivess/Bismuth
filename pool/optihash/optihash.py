@@ -3,7 +3,7 @@
 # Copyright Hclivess, Primedigger, Maccaspacca, SylvainDeaure 2017
 # .
 
-import time, sys, os, math, json
+import time, sys, os, math, json, logging
 import urllib.request
 from multiprocessing import Process, freeze_support, Queue
 from random import getrandbits
@@ -33,6 +33,11 @@ mname = _mc["miner_name"]
 hashcount = int(_mc["hashcount"])
 # load config
 
+# Logger (no raw print anywhere). Console output for the miner; worker processes inherit this on fork,
+# and re-run this on spawn (Windows), so every process logs consistently.
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", datefmt="%H:%M:%S")
+app_log = logging.getLogger("optihash")
+
 bin_format_dict = dict((x, format(ord(x), '8b').replace(' ', '0')) for x in '0123456789abcdef')
 
 
@@ -59,7 +64,6 @@ def miner(q, pool_address, db_block_hash, diff, mining_condition, netdiff, hq, t
         _pow_digest = (lambda b: blake2b(b, digest_size=28).digest()) if new_pow else (lambda b: sha224(b).digest())
         timeout = time.time() + nonce_time
         h1 = 0   # ensure hq.put(h1) below is always defined, even if the loop never produces a rate
-        # print(pool_address)
         while time.time() < timeout:
             try:
                 t1 = time.time()
@@ -80,7 +84,6 @@ def miner(q, pool_address, db_block_hash, diff, mining_condition, netdiff, hq, t
                 except Exception as e:
                     h1 = 1
                 if possibles:
-                    # print(possibles)
                     for nonce in possibles:
                         # add the seed back to get a full 128 bits nonce; hf2: prepend cb_prefix so the
                         # submitted nonce IS the coinbase openfield (cb_prefix+seed+nonce) the node expects.
@@ -90,15 +93,14 @@ def miner(q, pool_address, db_block_hash, diff, mining_condition, netdiff, hq, t
                         if xdiffx < diff:
                             pass
                         else:
-                            print("Thread {} solved work in {} cycles - YAY!".format(q, tries))
                             wname = "{}{}".format(mname, str(q))
-                            print("{} running at {} kh/s".format(wname,str(h1)))
+                            app_log.info("Thread {} solved work in {} cycles ({} kh/s)".format(q, tries, h1))
                             block_timestamp = '%.2f' % time.time()
                             share = {"miner_address": self_address, "block_timestamp": block_timestamp,
                                      "nonce": nonce, "blockhash": db_block_hash, "netdiff": netdiff,
                                      "sdiff": xdiffx, "rate": dh, "worker_base": mname,
                                      "workers": thr, "worker_num": str(q)}
-                            print("Sending solution: {}".format(share))
+                            app_log.info("Submitting solution from {}".format(wname))
                             tries = 0
                             # submit the share to the pool over HTTP (was the socket 'block' command)
                             try:
@@ -108,13 +110,13 @@ def miner(q, pool_address, db_block_hash, diff, mining_condition, netdiff, hq, t
                                     headers={"Content-Type": "application/json"}, method="POST")
                                 with urllib.request.urlopen(_req, timeout=10) as _r:
                                     _resp = json.load(_r)
-                                print("Miner: solution submitted to pool: {}".format(_resp))
+                                app_log.info("Solution accepted by pool: {}".format(_resp))
                             except Exception as e:
-                                print("Miner: Could not submit solution to pool: {}".format(e))
+                                app_log.error("Could not submit solution to pool: {}".format(e))
             except Exception as e:
                 # DON'T re-raise: a stray iteration error must not kill the worker for the rest of
                 # nonce_time and skip hq.put below — that previously deadlocked runit()'s hq.get().
-                print("Miner: worker iteration error: {}".format(e))
+                app_log.warning("Worker iteration error: {}".format(e))
                 time.sleep(0.1)
         hq.put(str(h1))
     finally:
@@ -153,7 +155,7 @@ def runit():
                 p.daemon = True
                 p.start()
                 procs.append(p)   # was: only the LAST p was kept, so join/terminate ran on it N times
-            print("{} miners searching for solutions at difficulty {} and condition {}".format(mining_threads_conf,str(diff),str(mining_condition)))
+            app_log.info("{} miners searching for solutions at difficulty {} and condition {}".format(mining_threads_conf, str(diff), str(mining_condition)))
 
             time.sleep(nonce_time)
 
@@ -169,11 +171,10 @@ def runit():
                 except Exception:
                     results.append(0)
             dh = sum(results)
-            print("Current total hash rate is {} kh/s".format(str(dh)))
+            app_log.info("Current total hash rate is {} kh/s".format(str(dh)))
 
         except Exception as e:
-            print(e)
-            print("Miner: Unable to connect to pool check your connection or IP settings.")
+            app_log.error("Unable to reach pool ({}); check your connection or IP settings".format(e))
             time.sleep(1)
 
 

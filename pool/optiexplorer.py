@@ -12,6 +12,7 @@
 #   GET /            -> the dashboard HTML (templates/index.html), which fetch()es /api/stats and refreshes.
 #   GET /api/stats   -> JSON: { network, miners, round, payouts, pending } for the dashboard / external use.
 import json
+import logging
 import os
 import sqlite3
 import sys
@@ -29,6 +30,9 @@ import options  # noqa: E402
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = 9080
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", datefmt="%H:%M:%S")
+app_log = logging.getLogger("optiexplorer")
 
 # --- config -------------------------------------------------------------------------------------
 _cfg = options.Get()
@@ -287,8 +291,9 @@ def _make_handler():
 if __name__ == "__main__":
     httpd = ThreadingHTTPServer(("0.0.0.0", PORT), _make_handler())
     httpd.daemon_threads = True
-    print("Optipool explorer on http://0.0.0.0:%d  (node REST %s, pool %s)" % (PORT, REST_BASE, POOL_ADDRESS[:16]))
+    app_log.info("Optipool explorer on http://0.0.0.0:%d  (node REST %s, pool %s)" % (PORT, REST_BASE, POOL_ADDRESS[:16]))
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
+        app_log.info("Shutting down")
         httpd.shutdown()

@@ -27,6 +27,14 @@ ledger_path_conf = "static/ledger.db"
 debug_level_conf = config.debug_level
 version = config.version
 
+# Logger up-front so every line in this module goes through it (no raw print anywhere).
+# File log via the node's log factory; a stdout StreamHandler mirrors INFO+ to the console.
+app_log = log.log("pool.log", debug_level_conf)
+ch = logging.StreamHandler(sys.stdout)
+ch.setLevel(logging.INFO)
+ch.setFormatter(logging.Formatter('%(asctime)s %(funcName)s(%(lineno)d) %(message)s'))
+app_log.addHandler(ch)
+
 if version == "testnet":
     port = "2829"
     m_peer_file = "peers_test.txt"
@@ -34,27 +42,11 @@ if version == "testnet":
 else:
     m_peer_file = "peers.txt"
 
-print("Peers file: {}".format(m_peer_file))
+app_log.info("Peers file: {}".format(m_peer_file))
 
+key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, address, keyfile = essentials.keys_load("privkey.der", "pubkey.der")
 
-# print(version)
-
-# load config
-
-#key, public_key_readable, private_key_readable, _, _, public_key_hashed, address = essentials.keys_load ("privkey.der", "pubkey.der")
-key, public_key_readable, private_key_readable, encrypted, unlocked, public_key_hashed, address, keyfile = essentials.keys_load ("privkey.der", "pubkey.der")
-
-app_log = log.log("pool.log", debug_level_conf)
-
-# This part is what goes on console.
-ch = logging.StreamHandler(sys.stdout)
-ch.setLevel(logging.WARNING)
-formatter = logging.Formatter('%(asctime)s %(funcName)s(%(lineno)d) %(message)s')
-ch.setFormatter(formatter)
-app_log.addHandler(ch)
-
-
-print("Pool Address: {}".format(address))
+app_log.info("Pool Address: {}".format(address))
 
 # load config (pool.toml — stdlib tomllib; typed, with defaults)
 import tomllib
@@ -63,7 +55,7 @@ try:
     with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "pool.toml"), "rb") as _f:
         _pool_cfg = tomllib.load(_f)
 except Exception as e:
-    print("pool.toml not loaded ({}); using defaults".format(e))
+    app_log.warning("pool.toml not loaded ({}); using defaults".format(e))
 mdiff = int(_pool_cfg.get("mine_diff", 65))
 min_payout = float(_pool_cfg.get("min_payout", 1))
 pool_fee = float(_pool_cfg.get("pool_fee", 0))
@@ -124,14 +116,6 @@ def _refresh_fork_state(tip_height):
     except Exception:
         new_pow, cb_prefix = False, ""
 
-#m = socks.socksocket()
-#m.connect((node_ip_conf, int(port)))  # connect to local node
-#connections.send(m, "api_mempool", 10)
-#tresult = connections.receive(m, 10)
-#m.close()
-
-#print(tresult)
-
 bin_format_dict = dict((x, format(ord(x), '8b').replace(' ', '0')) for x in '0123456789abcdef')
 
 def percentage(percent, whole):
@@ -153,8 +137,8 @@ def checkdb():
 
 def payout(payout_threshold,myfee,othfee):
 
-    print("Minimum payout is {} Bismuth".format(str(payout_threshold)))
-    print("Current pool fee is {} Percent".format(str(myfee)))
+    app_log.info("Minimum payout is {} Bismuth".format(str(payout_threshold)))
+    app_log.info("Current pool fee is {} Percent".format(str(myfee)))
 
     shares = sqlite3.connect('shares.db')
     shares.text_factory = str
@@ -240,7 +224,7 @@ def payout(payout_threshold,myfee,othfee):
         except:
             reward_per_share = 0
 
-        print(reward_per_share)
+        app_log.info("Reward per share: {}".format(reward_per_share))
 
         paylist = []
         for p in payadd:
@@ -252,7 +236,7 @@ def payout(payout_threshold,myfee,othfee):
 
         payout_passed = 0
         for r in paylist:
-            print(r)
+            app_log.info("Paying {}".format(r))
             recipient = r[0]
             claim = float(r[1])
 
@@ -270,12 +254,11 @@ def payout(payout_threshold,myfee,othfee):
             signer = PKCS1_v1_5.new(key)
             signature = signer.sign(h)
             signature_enc = base64.b64encode(signature)
-            print("Encoded Signature: {}".format(signature_enc.decode("utf-8")))
-
+            app_log.info("Encoded signature: {}".format(signature_enc.decode("utf-8")))
 
             verifier = PKCS1_v1_5.new(key)
             if verifier.verify(h, signature) == True:
-                print("The signature is valid, proceeding to send transaction")
+                app_log.info("Signature valid, submitting payout transaction")
                 txid = signature_enc[:56]
                 mytxid = txid.decode("utf-8")
                 tx_submit = (str(timestamp), str(address), str(recipient), '%.8f' % float(claim - fee), str(signature_enc.decode("utf-8")), str(public_key_hashed.decode("utf-8")), str(keep), str(openfield)) #float kept for compatibility
@@ -283,12 +266,12 @@ def payout(payout_threshold,myfee,othfee):
                 # submit the payout over REST (was the socket mpinsert command)
                 try:
                     reply = _node_post("/transaction", {"transaction": list(tx_submit)})
-                    print("Payout {} submitted via REST: {}".format(mytxid, reply))
+                    app_log.info("Payout {} submitted via REST: {}".format(mytxid, reply))
                 except Exception as e:
                     reply = "REST submit failed: {}".format(e)
-                    print(reply)
+                    app_log.warning(reply)
             else:
-                print("Invalid signature")
+                app_log.warning("Invalid signature, skipping payout")
                 reply = "Invalid signature"
 
             s.execute("UPDATE shares SET paid = 1 WHERE address = ?",(recipient,))
