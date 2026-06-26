@@ -36,7 +36,31 @@ Pre-fork forms are byte-identical to today's store. Commits are on `hclivess/mai
 
 **Net effect on a post-fork tx record:** one `txrec` blob carrying a varint timestamp, two varint address indices (into the per-block dict), varint integer amount/fee/reward, a raw per-scheme signature, a varint pubkey dedup id (or nothing — single-sig pubkeys are dropped), and length-prefixed operation/openfield. The block hash and addresses are hoisted/deduped to the block envelope; pubkeys are deduped store-once.
 
-**The one remaining big lever — pubkey-by-reference (a consensus change, viable in this hardfork).** What is *not* yet removed is the RSA / ML-DSA / multisig public key on the **wire and in the block-hash pre-image** (single-sig secp256k1/ED25519 already carry none — recovered via ecrecover / from-address). Storage already dedups it (pk/pkr, store-once), but every such tx still puts the full key on the wire. A consensus **address→key registry** (first tx from an address carries the key and registers it; later txs reference it by address) would drop it from the wire entirely for repeat senders. The Stage-4 *storage* review **deprioritized** this — not because it is impossible, but because (a) as a *storage* change it buys nothing (the store already dedups losslessly), and (b) it adds genuine consensus machinery: a reorg-rollback-able registry, a new "unknown key reference" reject path, and — in the naive same-block form — an intra-block tx-ordering dependency Bismuth has never had. **Since hf2 is an explicit consensus break, this is back on the table** as its own consensus stage; the **prior-block-only** registry variant (a tx may reference by address only if the key was registered in an *earlier* block; otherwise it carries the key) sidesteps the intra-block-ordering objection and keeps the registry append-only/rollback-clean. It earns its own adversarial review + multinode pass before landing (see doc/29 §2.C / the pubkey domain).
+**Pubkey-by-reference — IMPLEMENTED (consensus stage, commit 87bb4faa).** The RSA / ML-DSA / multisig
+public key is now dropped from the **wire and the block-hash pre-image** for repeat senders (single-sig
+secp256k1/ED25519 already carry none). A consensus **address→key registry** (`pubkey_registry.py`) is built
+only from confirmed **prior** blocks: the first tx from an address carries the key inline (and registers
+it); later txs set `public_key=""` and are resolved by address. `signerfactory.verify_tx_signature`
+resolves the omitted key and **rejects an unregistered reference** (the one new consensus rule); the
+resolved key flows through the same per-scheme verifier whose **address-rebuild equality check is the
+security anchor** (the address is a one-way commitment to the key for every scheme, so a wrong key can
+never be registered or resolved). Multisig drops the whole redeem script.
+
+This was **designed + 3-way adversarially red-teamed before any code** (key-substitution, reorg/registry-
+desync, intra-block reference, multisig key-swap, unregistered reference — all rejected; core
+cryptographically sound). The must-fixes are folded in: **height-gated** validity (not a per-node flag);
+**both** verify callers threaded (digest_tx + mempool); rebuild from the **full ledger** cursor
+(`db_handler.h`, never the pruned hyper `.c`, so ancient first-registrations survive pruning); reorg
+rollback via deterministic `rebuild_from_cursor` on every path; **first-appearance-only**; **wire-verbatim**
+storage; and the block hash commits the **empty** wire field (registry-independent → fork-safe). The
+prior-block-only timing (register at commit, resolve against the committed tip) removes any intra-block
+ordering dependency. Fork-gated; pre-fork byte-identical. Flag `pk_registry_consensus = off|shadow|primary`.
+
+Validated: unit (register/rollback/`rebuild==apply` determinism + resolve/reject) + **3-node regnet
+multinode at `pk_registry_consensus=primary`** (registry built on all nodes, `register_from_block` with
+HALT-on-error every block, chain parity 1..27 byte-identical ⇒ registration deterministic across nodes) +
+regression (2-node + full suite, registry off by default). Producers default to **inline** (omission is
+opt-in — wallet/sync/pool), so the feature is dormant until a producer references; optipool unaffected.
 
 **Optipool compat:** the bundled pool is fully decoupled from all of the above (block_store / txrec / sync_codec / the binary transport are node-internal); it uses only the stable JSON REST endpoints and the unchanged 8-field consensus wire form. Verified, pool compiles clean.
 
