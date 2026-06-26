@@ -13,7 +13,6 @@ block_store re-expands it), so get_block / cross_check / verify_against_sqlite s
 Gated by the CALLER on node.fork_height (post-fork blocks store txrec; pre-fork stay legacy lists).
 """
 import amounts
-import addrbytes
 import sigbytes
 import txfields
 from txfields import uvarint_encode as _uv, uvarint_decode as _ud
@@ -41,26 +40,30 @@ def _rd4(buf, i):
     return buf[i + 4:i + 4 + n], i + 4 + n
 
 
-def pack_row(t):
-    """Pack an 11-field stored row (public_key already replaced by its dedup id) into one bytes blob.
+def pack_row(t, addr_idx, recip_idx):
+    """Pack an 11-field stored row (public_key already a dedup id) into one bytes blob. ``addr_idx`` /
+    ``recip_idx`` are this tx's address / recipient positions in the BLOCK's per-block address dict (the
+    envelope ``"a"`` list) — stored as varint indices instead of the inline ~30-byte address blob, so a
+    repeated address (self-spend, change, a sender with several txs in the block) costs ~1 byte not ~30.
 
     Layout (all little-endian / self-delimiting):
       timestamp   varint cs           amount/fee/reward  varint units (txfields)
-      address     u8 len + addr blob  recipient          u8 len + addr blob
+      addr_idx    varint              recip_idx          varint   (-> envelope "a" dict)
       signature   sigbytes blob (tag||u16len||raw, self-delimiting)
       pubkey_id   varint              (block_hash is NOT stored — hoisted to the block envelope)
       operation   u8 len + utf8       openfield          u32 len + raw bytes
 
-    Note: the u8 length prefixes (address, operation) rely on the consensus-layer truncation upstream
-    (address/recipient [:56], operation [:30]) keeping these fields well under 255 bytes; the cap is an
-    inherited invariant, not re-enforced here (_lp1 raises if ever handed > 255 bytes).
+    Note: the u8 length prefixes (operation; the "a"-dict address blobs) rely on the consensus-layer
+    truncation upstream (address/recipient [:56], operation [:30]) staying under 255 bytes — an inherited
+    invariant, not re-enforced here (_lp1 raises if ever handed > 255 bytes). t[1] (address string) is still
+    used to derive the signature scheme tag.
     """
     out = bytearray()
     out += txfields.pack_timestamp(t[0])                       # timestamp
-    out += _lp1(addrbytes.pack_addr(t[1]))                     # address
-    out += _lp1(addrbytes.pack_addr(t[2]))                     # recipient
+    out += _uv(int(addr_idx))                                  # address  -> index into envelope "a"
+    out += _uv(int(recip_idx))                                 # recipient -> index into envelope "a"
     out += txfields.pack_num(t[3])                             # amount
-    out += sigbytes.pack_from_wire(t[4], t[1])                 # signature (addr -> scheme tag)
+    out += sigbytes.pack_from_wire(t[4], t[1])                 # signature (addr string -> scheme tag)
     out += _uv(int(t[5]))                                      # public_key dedup id
     # block_hash (t[6]) is NOT stored: it is identical for every tx in a block and equals the block-store
     # envelope hash, so block_store._expand fills it from there (one source of truth, ~33B/tx saved).
@@ -73,12 +76,14 @@ def pack_row(t):
 
 
 def unpack_row(blob):
-    """Inverse of pack_row -> the 11-field row (public_key as the dedup id; block_store re-expands it)."""
+    """Inverse of pack_row -> the 11-field row with address (index 1) and recipient (index 2) as INTEGER
+    indices into the block's "a" dict; block_store._expand resolves them to address strings and re-expands
+    the public_key dedup id. block_hash (index 6) is a None placeholder filled from the envelope hash."""
     buf = bytes(blob)
     i = 0
     cs, i = _ud(buf, i); timestamp = txfields.unpack_timestamp(_uv(cs))
-    ab, i = _rd1(buf, i); address = addrbytes.unpack_addr(ab)
-    rb, i = _rd1(buf, i); recipient = addrbytes.unpack_addr(rb)
+    addr_idx, i = _ud(buf, i)
+    recip_idx, i = _ud(buf, i)
     au, i = _ud(buf, i); amount = str(au) if amounts.LEDGER_INTEGER else amounts.from_units(au)
     slen = int.from_bytes(buf[i + 1:i + 3], "little")          # signature self-delimiting (tag+u16+raw)
     sig = sigbytes.to_wire(buf[i:i + 3 + slen]); i += 3 + slen
@@ -87,9 +92,7 @@ def unpack_row(blob):
     ru, i = _ud(buf, i); reward = str(ru) if amounts.LEDGER_INTEGER else amounts.from_units(ru)
     ob, i = _rd1(buf, i); operation = ob.decode("utf-8")
     fb, i = _rd4(buf, i); openfield = fb.decode("utf-8")
-    # block_hash (index 6) is a placeholder (None) — block_store._expand fills it from the envelope hash
-    # (it is identical for every tx in the block, so it is not stored per tx).
-    return [timestamp, address, recipient, amount, sig, pkid, None, fee, reward, operation, openfield]
+    return [timestamp, addr_idx, recip_idx, amount, sig, pkid, None, fee, reward, operation, openfield]
 
 
 def openfield_of(blob):

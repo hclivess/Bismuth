@@ -69,6 +69,19 @@ class BlockStore:
         self.env = getattr(self.store, "env", None)
 
     @staticmethod
+    def _addr_ref(a, block_addrs, addr_index):
+        """Intra-block address dedup: return ``a``'s index in this block's address dict (the envelope "a"
+        list), appending its packed addrbytes blob on first sight. A repeated address (self-spend / change /
+        a sender with several txs in the block) then costs a ~1-byte varint index instead of a ~30-byte blob."""
+        a = str(a)
+        j = addr_index.get(a)
+        if j is None:
+            j = len(block_addrs)
+            addr_index[a] = j
+            block_addrs.append(addrbytes.pack_addr(a))
+        return j
+
+    @staticmethod
     def _fromhex_or(s):
         # raw digest bytes for a valid hex hash; the original value otherwise (non-hex test fixture / bytes)
         if isinstance(s, str):
@@ -120,13 +133,18 @@ class BlockStore:
         # once and stamp it into each tx's hoisted block_hash slot (doc/40: per-tx block_hash not stored).
         env_h = rec["h"]
         block_hash_hex = bytes(env_h).hex() if isinstance(env_h, (bytes, bytearray)) else env_h
+        # per-block address dict (the "a" list): decode each packed address ONCE, then index into it (the
+        # intra-block address dedup). Absent on legacy/pre-fork records.
+        addr_dict = [addrbytes.unpack_addr(ab) for ab in rec.get("a", [])]
         out = []
         for elem in rec["t"]:
             if isinstance(elem, (bytes, bytearray, memoryview)):
                 t = txrec.unpack_row(bytes(elem))       # post-fork: one txrec blob -> 11-field row (pk=id)
+                t[1] = addr_dict[t[1]]                  # address:   resolve the "a"-dict index
+                t[2] = addr_dict[t[2]]                  # recipient: resolve the "a"-dict index
                 t[6] = block_hash_hex                   # fill the hoisted per-tx block_hash from the envelope
             else:
-                t = list(elem)                          # pre-fork: legacy 11-field list (block_hash present)
+                t = list(elem)                          # pre-fork: legacy 11-field list (addresses inline)
             pkb = txn.get(self.pkr, _hk(t[self._PK]))   # re-expand the public-key dedup id (both forms)
             if pkb is not None:
                 t[self._PK] = pkb.decode()
@@ -155,19 +173,26 @@ class BlockStore:
                         "the JSON fallback cannot serialize the raw txrec/signature/address byte blobs — "
                         "install msgpack or set the kvstore backend accordingly before the fork height")
                 txs = []
+                block_addrs, addr_index = [], {}                        # per-block address dict (the "a" list)
                 for r in rows:
                     t = list(r[1:])
                     t[self._PK] = self._pubkey_id(txn, t[self._PK], cache)
                     if post_fork:
                         # hf2 Stage-4 (doc/40 tx-fields model B): the ENTIRE row collapses to one txrec
                         # blob (a single msgpack `bin` element) instead of an 11-field list — kills the
-                        # per-element msgpack framing (~20B/tx). All field codecs reused inside txrec.
-                        txs.append(txrec.pack_row(t))
+                        # per-element msgpack framing (~20B/tx). Address + recipient are stored as varint
+                        # indices into the per-block "a" dict (intra-block address dedup).
+                        ai = self._addr_ref(t[1], block_addrs, addr_index)
+                        ri = self._addr_ref(t[2], block_addrs, addr_index)
+                        txs.append(txrec.pack_row(t, ai, ri))
                     else:
                         txs.append(t)                                    # pre-fork: legacy 11-field list
-                # envelope block hash: raw digest post-fork (block_hash() reconstructs hex on read)
-                h_store = self._fromhex_or(block_hash) if post_fork else block_hash
-                txn.put(self.blocks, _hk(height), _pack({"h": h_store, "t": txs}))
+                if post_fork:
+                    # envelope: raw block hash (block_hash() reconstructs hex) + the per-block address dict
+                    txn.put(self.blocks, _hk(height),
+                            _pack({"h": self._fromhex_or(block_hash), "a": block_addrs, "t": txs}))
+                else:
+                    txn.put(self.blocks, _hk(height), _pack({"h": block_hash, "t": txs}))
                 txn.put(self.hashes, self._bh(block_hash), _hk(height))
 
     def put_block(self, height, block_hash, rows, fork_height=None):

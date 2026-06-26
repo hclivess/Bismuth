@@ -318,14 +318,12 @@ def test_txrec_row_roundtrip():
          bytes(range(65)).hex(), 0, "hash-not-hex", "0", "5.00000000", "vm:call", ""],  # recoverable sig, non-hex bh
     ]
     for r in rows:
-        blob = txrec.pack_row(r)
+        blob = txrec.pack_row(r, 3, 7)                      # address/recipient stored as "a"-dict indices
         got = txrec.unpack_row(blob)
-        assert got[1] == r[1] and got[2] == r[2]           # address / recipient exact
+        assert got[1] == 3 and got[2] == 7                 # address/recipient = dict indices (block_store resolves)
         assert got[5] == r[5]                              # pubkey dedup id
         assert got[4] == r[4]                              # signature wire form (base64 / recoverable hex)
+        assert got[6] is None                              # block_hash hoisted -> placeholder
         assert got[9] == r[9] and got[10] == r[10]         # operation / openfield
         assert amounts.to_units(got[3]) == amounts.to_units(r[3])   # amount consensus-equivalent
-    # block_hash is NOT stored in the blob (hoisted to the block envelope) -> None placeholder; block_store
-    # ._expand fills it from the envelope hash, identical for every tx in the block.
-    assert txrec.unpack_row(txrec.pack_row(rows[0]))[6] is None
-    assert txrec.openfield_of(txrec.pack_row(rows[0])) == "of"
+    assert txrec.openfield_of(txrec.pack_row(rows[0], 0, 1)) == "of"

@@ -233,7 +233,9 @@ def _row_real(h, i, bh, addr, recip, sig, amount="0.50000000", fee="0.01000000",
 
 
 def _rsa_addr(seed):
-    return ("%064x" % seed)[:56]            # 56 lowercase hex -> RSA / 0x00 address family
+    # 56 lowercase hex (RSA / 0x00 family), DISTINCT per seed: seed in the high nibbles, zero-padded, so the
+    # [:56] truncation keeps it distinct (a right-aligned "%064x" would collide for all small seeds).
+    return ("%x" % seed).ljust(56, "0")[:56]
 
 
 def _eight(r):  # the 8-field consensus tuple from a 12-field row (ts,addr,recip,amount,sig,pk,op,openfield)
@@ -265,9 +267,12 @@ def test_postfork_truebytes_roundtrip_realistic(tmp_path):
         # the blob decodes back to the exact row fields (pubkey as the dedup id), and packs the scheme tags
         import txrec
         dec = txrec.unpack_row(bytes(t0))
-        assert dec[0] == rows[0][1] and dec[2] == rows[0][3] and dec[3] == "1.23456789"   # ts, recip, amount
+        assert dec[0] == rows[0][1] and dec[3] == "1.23456789"      # timestamp, amount
+        assert isinstance(dec[1], int) and isinstance(dec[2], int)  # address/recipient = "a"-dict indices
         assert dec[6] is None                          # block_hash NOT stored per tx (hoisted to envelope)
-        assert s.get_block(50)[0][7] == bh             # _expand fills it from the envelope hash
+        # intra-block address dedup: 2 txs share the same addr+recip -> "a" has exactly 2 entries (not 4)
+        assert len(rec["a"]) == 2
+        assert s.get_block(50)[0][7] == bh             # _expand resolves addresses + fills block_hash
         # consolidated blob is far smaller than a per-field msgpack list of the same row
         legacy = block_store._pack(rows[0][1:])
         assert len(block_store._pack(t0)) < len(legacy)
@@ -318,5 +323,28 @@ def test_postfork_straddling_and_fallback(tmp_path):
                    "op%d" % i, "of_%d" % i] for i in range(2)]
         s.put_block(45, bh45, rows45, fork_height=40)
         assert s.get_block(45) == rows45              # fallback + canonical money round-trip byte-for-byte
+    finally:
+        s.close()
+
+
+def test_postfork_address_ref_dedup(tmp_path):
+    """Intra-block address dedup: a self-spend (recipient == sender) plus a second tx from the same sender
+    collapse to a tiny per-block "a" dict; get_block still reconstructs the exact rows."""
+    s = BlockStore(str(tmp_path / "bs"), map_size=SMALL)
+    try:
+        bh = "%064x" % 70
+        a = _rsa_addr(0x1)          # sender
+        b = _rsa_addr(0x2)          # a distinct recipient
+        sig = base64.b64encode(b"\x07" * 64).decode()
+        rows = [
+            _row_real(70, 0, bh, a, a, sig),                 # self-spend: recipient == sender
+            _row_real(70, 1, bh, a, b, sig),                 # same sender, new recipient
+        ]
+        s.put_block(70, bh, rows, fork_height=40)
+        assert s.get_block(70) == rows                       # exact reconstruction
+        with s.store.txn() as txn:
+            rec = block_store._unpack(txn.get(s.blocks, block_store._hk(70)))
+        # only TWO distinct addresses across the block (a, b) -> "a" dict has 2 entries, not 4
+        assert len(rec["a"]) == 2
     finally:
         s.close()
