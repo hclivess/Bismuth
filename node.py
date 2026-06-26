@@ -60,6 +60,7 @@ import time
 from decimal import Decimal
 
 import amounts
+import bismuth_serialize
 import essentials
 import mempool as mp
 import mining_heavy3
@@ -1247,7 +1248,10 @@ def verify(db_handler):
             db_public_key_b64encoded = str(row[6])[:essentials.MAX_TX_PUBKEY_LEN]
             db_operation = str(row[10])[:30]
             db_openfield = str(row[11])  # no limit for backward compatibility
-            db_transaction = str((db_timestamp, db_address, db_recipient, db_amount, db_operation, db_openfield)).encode("utf-8")
+            # Centralized consensus pre-image (the legacy 6-field signing buffer) — byte-identical to the
+            # old inline str((...)).encode(), now sourced from the single frozen authority in bismuth_serialize.
+            db_transaction = bismuth_serialize.signature_buffer(
+                db_timestamp, db_address, db_recipient, db_amount, db_operation, db_openfield)
             # Fork-aware (doc/29 §6 bug 1): at/after fork_height an ordinary single-sig secp256k1 row is
             # verified by ecrecover over the content txid (public key dropped); pre-fork rows + post-fork
             # RSA/ED25519/multisig keep the legacy buffer+pubkey check. The old unconditional

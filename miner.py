@@ -20,6 +20,7 @@ from random import getrandbits
 from Cryptodome.Hash import SHA
 from Cryptodome.Signature import PKCS1_v1_5
 
+import bismuth_serialize
 import fork
 import mempool as mp
 import mining_heavy3 as mining
@@ -111,8 +112,10 @@ def _build_block(node, nonce):
     if _post_fork:
         sig_field, pub = "", ""
     else:
-        reward_tx = (str(ts), str(addr[:56]), str(addr[:56]), '%.8f' % 0.0, "0", str(nonce))   # only this is signed
-        h = SHA.new(str(reward_tx).encode("utf-8"))
+        # The signed pre-image is the frozen 6-field signing buffer (byte-identical to the old inline
+        # str((...)).encode()), sourced from the single consensus authority instead of re-spelled here.
+        h = SHA.new(bismuth_serialize.signature_buffer(
+            str(ts), str(addr[:56]), str(addr[:56]), '%.8f' % 0.0, "0", str(nonce)))
         sig_field = base64.b64encode(PKCS1_v1_5.new(node.keys.key).sign(h)).decode("utf-8")
         pub = node.keys.public_key_b64encoded
         pub = pub.decode("utf-8") if isinstance(pub, (bytes, bytearray)) else str(pub)

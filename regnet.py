@@ -16,6 +16,7 @@ from hashlib import sha224, blake2b
 from random import getrandbits
 
 import amounts
+import bismuth_serialize
 import connections
 import mempool as mp
 import mining_heavy3 as mining
@@ -166,9 +167,11 @@ def generate_one_block(blockhash, mempool_txs, node, db_handler):
                         block_send.append((str(block_timestamp), str(ADDRESS[:56]), str(ADDRESS[:56]),
                                            '%.8f' % float(0), "", "", "0", str(nonce)))  # sig-less coinbase
                     else:
-                        transaction_reward = (str(block_timestamp), str(ADDRESS[:56]), str(ADDRESS[:56]),
-                                              '%.8f' % float(0), "0", str(nonce))  # only this part is signed!
-                        hash = SHA.new(str(transaction_reward).encode("utf-8"))
+                        # frozen 6-field signing buffer via the single consensus authority (byte-identical
+                        # to the old inline str((...)).encode())
+                        hash = SHA.new(bismuth_serialize.signature_buffer(
+                            str(block_timestamp), str(ADDRESS[:56]), str(ADDRESS[:56]),
+                            '%.8f' % float(0), "0", str(nonce)))
                         signer = PKCS1_v1_5.new(KEY)
                         signature_enc = base64.b64encode(signer.sign(hash))
                         block_send.append((str(block_timestamp), str(ADDRESS[:56]), str(ADDRESS[:56]), '%.8f' % float(0),

@@ -17,6 +17,7 @@ import json
 
 import logging
 import mining_heavy3 as mining
+import bismuth_serialize
 
 config = options.Get()
 config.read()
@@ -262,7 +263,8 @@ def payout(payout_threshold,myfee,othfee):
             transaction = (str(timestamp), str(address), str(recipient), '%.8f' % float(claim - fee), str(keep), str(openfield))  # this is signed
             # print transaction
 
-            h = SHA.new(str(transaction).encode("utf-8"))
+            # signed over the frozen 6-field buffer (byte-identical to str(transaction).encode())
+            h = SHA.new(bismuth_serialize.signature_buffer(*transaction))
             signer = PKCS1_v1_5.new(key)
             signature = signer.sign(h)
             signature_enc = base64.b64encode(signature)
@@ -538,9 +540,10 @@ def process_share(miner_address, sh):
             if not any(isinstance(el, list) for el in block_send):
                 block_send = [block_send]
         else:
-            transaction_reward = (str(block_timestamp), str(address[:56]), str(address[:56]),
-                                  '%.8f' % float(0), "0", str(nonce))   # only this tuple is signed
-            h = SHA.new(str(transaction_reward).encode("utf-8"))
+            # frozen 6-field signing buffer via the single consensus authority (byte-identical to the
+            # old inline str((...)).encode())
+            h = SHA.new(bismuth_serialize.signature_buffer(
+                str(block_timestamp), str(address[:56]), str(address[:56]), '%.8f' % float(0), "0", str(nonce)))
             signer = PKCS1_v1_5.new(_signing_key)
             signature_enc = base64.b64encode(signer.sign(h))
             block_send.append((str(block_timestamp), str(address[:56]), str(address[:56]), '%.8f' % float(0),

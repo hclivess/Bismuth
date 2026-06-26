@@ -25,6 +25,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 import connections  # noqa: E402  (in-tree wire protocol)
+import bismuth_serialize  # noqa: E402  (frozen consensus signing buffer)
 
 PORT = 3030
 _failures = 0
@@ -93,7 +94,7 @@ def check_signature_reintegration():
     check("essentials.sign_rsa returns a signed 8-tuple",
           isinstance(signed, tuple) and len(signed) == 8)
 
-    buffer = str((ts, address, address, "%.8f" % 1.0, "", "")).encode("utf-8")
+    buffer = bismuth_serialize.signature_buffer(ts, address, address, "%.8f" % 1.0, "", "")
     try:
         SignerFactory.verify_bis_signature(signed[4], pub_b64.decode(), buffer, address)
         verified = True

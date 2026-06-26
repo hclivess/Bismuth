@@ -69,6 +69,16 @@ V2_VERSION = 0x01         # so a v2 and a legacy pre-image can never alias even 
 V2_OPENFIELD_MAX = 100000  # consensus cap (matches digest_tx truncation), u32 length prefix
 
 
+def _utf8(x) -> bytes:
+    """Canonical UTF-8 bytes of ONE consensus field. ``bytes``/``bytearray`` pass through UNCHANGED — so an
+    already-encoded field (a raw openfield, a nonce) is never re-stringified into its Python repr, the trap
+    in a bare ``str(x).encode()`` (``str(b'abc')`` -> ``"b'abc'"``). Anything else is stringified then UTF-8
+    encoded. One coercion used by every variable v2 field, so the signing and block-hash pre-images can never
+    diverge on how a value becomes bytes. Byte-identical to the old per-field idioms whenever the field is a
+    ``str`` or ``bytes`` (the only forms the consensus path feeds), so it moves no frozen vector."""
+    return bytes(x) if isinstance(x, (bytes, bytearray)) else str(x).encode("utf-8")
+
+
 def _v2_lp(b: bytes, width: int) -> bytes:
     """A length-prefixed field: `width`-byte little-endian byte-length, then the raw bytes."""
     return len(b).to_bytes(width, "little") + b
@@ -80,14 +90,11 @@ def signature_buffer_v2(timestamp_cs, address, recipient, amount_units, operatio
     legacy '%.2f' precision), ``amount_units`` = integer atomic units (1 BIS = 1e8). Deterministic,
     little-endian, length-prefixed; signature/public_key excluded. Layout:
     MAGIC u8 | VERSION u8 | ts_cs u64 | amount u64 | addr(lp u8) | recip(lp u8) | op(lp u8) | openfield(lp u32)."""
-    addr_b = str(address).encode("utf-8")
-    recip_b = str(recipient).encode("utf-8")
-    op_b = str(operation).encode("utf-8")
-    of_b = openfield.encode("utf-8") if isinstance(openfield, str) else bytes(openfield)
     return (bytes((V2_MAGIC, V2_VERSION))
             + int(timestamp_cs).to_bytes(8, "little")
             + int(amount_units).to_bytes(8, "little")
-            + _v2_lp(addr_b, 1) + _v2_lp(recip_b, 1) + _v2_lp(op_b, 1) + _v2_lp(of_b, 4))
+            + _v2_lp(_utf8(address), 1) + _v2_lp(_utf8(recipient), 1)
+            + _v2_lp(_utf8(operation), 1) + _v2_lp(_utf8(openfield), 4))
 
 
 def tx_id_v2(timestamp_cs, address, recipient, amount_units, operation, openfield) -> str:
@@ -119,20 +126,18 @@ def _v2_tx_bytes(tx, is_coinbase=False) -> bytes:
     never by a signature, so the two fields are dead weight; dropping them from the pre-image is what lets the
     coinbase be sent/stored sig-less. amount==0 and recipient==address are still committed below; the nonce
     rides in the openfield. (Pre-fork uses the frozen legacy block_hash, so this only affects post-fork.)"""
-    of = tx[7]
-    of_b = of.encode("utf-8") if isinstance(of, str) else bytes(of)
     head = (_v2_ts_cs(tx[0]).to_bytes(8, "little")
             + _v2_units(tx[3]).to_bytes(8, "little")
-            + _v2_lp(str(tx[1]).encode("utf-8"), 1)      # address
-            + _v2_lp(str(tx[2]).encode("utf-8"), 1))     # recipient
+            + _v2_lp(_utf8(tx[1]), 1)      # address
+            + _v2_lp(_utf8(tx[2]), 1))     # recipient
     if is_coinbase:
         sigpub = b""                                     # §2.C: coinbase omits signature + public_key
     else:
-        sigpub = (_v2_lp(str(tx[4]).encode("utf-8"), 2)  # signature
-                  + _v2_lp(str(tx[5]).encode("utf-8"), 2))  # public_key
+        sigpub = (_v2_lp(_utf8(tx[4]), 2)  # signature
+                  + _v2_lp(_utf8(tx[5]), 2))  # public_key
     return (head + sigpub
-            + _v2_lp(str(tx[6]).encode("utf-8"), 1)      # operation
-            + _v2_lp(of_b, 4))                           # openfield
+            + _v2_lp(_utf8(tx[6]), 1)      # operation
+            + _v2_lp(_utf8(tx[7]), 4))     # openfield
 
 
 def block_hash_v2(transaction_list_converted, previous_hash: str) -> str:
