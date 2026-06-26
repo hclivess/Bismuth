@@ -251,6 +251,41 @@ def ledger_balance3(address, cache, db_handler):
     return cache[address]
 
 
+# === coinbase maturity (doc/42) — hf2 consensus, gated by the CALLER on fork_height ================
+# A coinbase REWARD is not spendable until it is `maturity` blocks deep (BTC-style maturity in an ACCOUNT
+# model: a height-aware spendable-balance carve-out, not an output lock). Protects recipients of a
+# freshly-spent reward from a reorg that unwinds it. PER-NETWORK consensus constant (like REGNET_DIFF / the
+# fork windows) — deliberately NOT node.rollback_depth (a per-node config + a soft bound rollback_consensus
+# can exceed). Mainnet/testnet 100 (~1.7h at ~1-min blocks; clear of the 30 normal-reorg bound and of deep
+# recovery). Regnet uses a tiny value so short test chains can still mine-then-spend. Tune mainnet ONLY
+# before hf2 activation.
+COINBASE_MATURITY = 100
+COINBASE_MATURITY_REGNET = 2
+
+
+def coinbase_maturity(is_regnet: bool) -> int:
+    """The per-network coinbase maturity depth (doc/42)."""
+    return COINBASE_MATURITY_REGNET if is_regnet else COINBASE_MATURITY
+
+
+def immature_coinbase(address, validate_height, cursor, maturity, app_log=None):
+    """doc/42: the Decimal sum of coinbase REWARD credited to `address` in blocks not yet `maturity` deep at
+    `validate_height` (i.e. block_height > validate_height - maturity) — the portion of the balance that is
+    NOT yet spendable. `maturity` is the per-network depth (see coinbase_maturity). Bounded to the recent
+    window via the block_height index (never a full-history scan). Mode-aware amount decode, matching
+    ledger_balance3. Callers gate on post-fork; this returns the raw immature total and does not itself
+    check the fork height."""
+    cutoff = int(validate_height) - int(maturity)
+    cur = execute_param_c(cursor,
+        "SELECT SUM(reward) FROM transactions WHERE recipient = ? AND reward != 0 AND block_height > ?",
+        (address, cutoff), app_log)
+    row = cur.fetchone()
+    raw = row[0] if row else None
+    if not raw:
+        return Decimal(0)
+    return quantize_eight(amounts.to_decimal(raw) if amounts.LEDGER_INTEGER else Decimal(raw))
+
+
 def ledger_balance3_original(address, cache, db_handler):
     """Keep original implementation as fallback if needed"""
     if address in cache:

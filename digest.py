@@ -27,7 +27,7 @@ import mempool as mp
 import mining_heavy3
 import validation_exceptions
 from difficulty import difficulty
-from essentials import checkpoint_set, ledger_balance3
+from essentials import checkpoint_set, ledger_balance3, immature_coinbase
 from fork import Fork
 import tokensv2 as tokens
 
@@ -404,11 +404,21 @@ class BlockProcessor:
         # rescue / fork-edge balance edit replay from genesis instead of halting the sync here.
         _ovr_h = (getattr(node, "last_block", 0) or 0) + 1
         _ovr_trusted = validation_exceptions.in_trusted_prefix(node, _ovr_h)
-        if quantize_eight(balance_pre) < quantize_eight(amount) and not _ovr_trusted:
+        # doc/42: post-fork a coinbase reward is unspendable until COINBASE_MATURITY blocks deep — carve the
+        # immature reward slice out of the spendable balance (account-model maturity). Pre-fork: no carve-out
+        # (immature = 0), so this is byte-identical below the fork.
+        _fh_mat = getattr(node, "fork_height", None)
+        _immature = (immature_coinbase(address, _ovr_h, self.db_handler.c,
+                                       essentials.coinbase_maturity(getattr(node, "is_regnet", False)),
+                                       node.logger.app_log)
+                     if (_fh_mat is not None and _ovr_h >= _fh_mat) else Decimal(0))
+        _spendable = quantize_eight(balance_pre - _immature)
+        if _spendable < quantize_eight(amount) and not _ovr_trusted:
             if not validation_exceptions.is_exempt(node, _ovr_h, validation_exceptions.OVERSPEND):
-                raise ValueError(f"{address} sending more than owned: {amount}/{balance_pre}")
+                raise ValueError(f"{address} sending more than spendable: {amount}/{_spendable} "
+                                 f"(balance {balance_pre}, immature coinbase {_immature})")
             validation_exceptions.note(node, _ovr_h, validation_exceptions.OVERSPEND,
-                                       f"{address} {amount}/{balance_pre}")
+                                       f"{address} {amount}/{_spendable} immature {_immature}")
 
         if quantize_eight(balance) - quantize_eight(fees) < 0 and not _ovr_trusted:
             if not validation_exceptions.is_exempt(node, _ovr_h, validation_exceptions.OVERSPEND):

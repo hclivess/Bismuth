@@ -496,6 +496,15 @@ class Mempool(MempoolQueriesMixin):
                         balance = credit - debit - fees + rewards - quantize_eight(mempool_amount)
                         balance_pre = credit - debit_ledger - fees + rewards
 
+                        # doc/42: post-fork, carve the IMMATURE coinbase reward out of the spendable balance
+                        # (mirror the authoritative digest check, so an immature-spend is rejected at admission
+                        # rather than left to fail at block validation). Pre-fork (fork_height None): no carve-out.
+                        if self.fork_height is not None and (last_block + 1) >= self.fork_height:
+                            _mat = essentials.coinbase_maturity(self.config.version == 'regnet')
+                            _immature = essentials.immature_coinbase(mempool_address, last_block + 1, c, _mat, self.app_log)
+                            balance -= _immature
+                            balance_pre -= _immature
+
                         fee = essentials.fee_calculate(mempool_openfield, mempool_operation, last_block)
 
                         # print("Balance", balance, fee)
