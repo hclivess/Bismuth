@@ -48,8 +48,12 @@ def pack_row(t):
       timestamp   varint cs           amount/fee/reward  varint units (txfields)
       address     u8 len + addr blob  recipient          u8 len + addr blob
       signature   sigbytes blob (tag||u16len||raw, self-delimiting)
-      pubkey_id   varint              block_hash         u8 flag(0 hex/1 verbatim) + u8 len + bytes
+      pubkey_id   varint              (block_hash is NOT stored — hoisted to the block envelope)
       operation   u8 len + utf8       openfield          u32 len + raw bytes
+
+    Note: the u8 length prefixes (address, operation) rely on the consensus-layer truncation upstream
+    (address/recipient [:56], operation [:30]) keeping these fields well under 255 bytes; the cap is an
+    inherited invariant, not re-enforced here (_lp1 raises if ever handed > 255 bytes).
     """
     out = bytearray()
     out += txfields.pack_timestamp(t[0])                       # timestamp
@@ -58,12 +62,8 @@ def pack_row(t):
     out += txfields.pack_num(t[3])                             # amount
     out += sigbytes.pack_from_wire(t[4], t[1])                 # signature (addr -> scheme tag)
     out += _uv(int(t[5]))                                      # public_key dedup id
-    bh = t[6]                                                  # block_hash: raw digest if hex, else verbatim
-    try:
-        raw = bytes.fromhex(bh) if isinstance(bh, str) else bytes(bh)
-        out += b"\x00" + _lp1(raw)
-    except (ValueError, TypeError):
-        out += b"\x01" + _lp1(str(bh).encode("utf-8"))
+    # block_hash (t[6]) is NOT stored: it is identical for every tx in a block and equals the block-store
+    # envelope hash, so block_store._expand fills it from there (one source of truth, ~33B/tx saved).
     out += txfields.pack_num(t[7])                             # fee
     out += txfields.pack_num(t[8])                             # reward
     out += _lp1(str(t[9]).encode("utf-8"))                     # operation (cap 30)
@@ -83,13 +83,13 @@ def unpack_row(blob):
     slen = int.from_bytes(buf[i + 1:i + 3], "little")          # signature self-delimiting (tag+u16+raw)
     sig = sigbytes.to_wire(buf[i:i + 3 + slen]); i += 3 + slen
     pkid, i = _ud(buf, i)
-    hflag = buf[i]; i += 1
-    hb, i = _rd1(buf, i); block_hash = hb.hex() if hflag == 0 else hb.decode("utf-8")
     fu, i = _ud(buf, i); fee = str(fu) if amounts.LEDGER_INTEGER else amounts.from_units(fu)
     ru, i = _ud(buf, i); reward = str(ru) if amounts.LEDGER_INTEGER else amounts.from_units(ru)
     ob, i = _rd1(buf, i); operation = ob.decode("utf-8")
     fb, i = _rd4(buf, i); openfield = fb.decode("utf-8")
-    return [timestamp, address, recipient, amount, sig, pkid, block_hash, fee, reward, operation, openfield]
+    # block_hash (index 6) is a placeholder (None) — block_store._expand fills it from the envelope hash
+    # (it is identical for every tx in the block, so it is not stored per tx).
+    return [timestamp, address, recipient, amount, sig, pkid, None, fee, reward, operation, openfield]
 
 
 def openfield_of(blob):

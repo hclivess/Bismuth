@@ -116,12 +116,17 @@ class BlockStore:
         rebuild the hf2 Stage-4 TRUE-BYTES fields (signature, address, recipient) to their exact wire
         strings. Dispatch is by VALUE TYPE — a packed field is ``bytes`` (post-fork), a legacy field is
         ``str`` and passes through untouched (so pre-fork rows are byte-identical by construction; doc/40)."""
+        # the block hash is stored ONCE in the envelope (raw post-fork / hex pre-fork); reconstruct the hex
+        # once and stamp it into each tx's hoisted block_hash slot (doc/40: per-tx block_hash not stored).
+        env_h = rec["h"]
+        block_hash_hex = bytes(env_h).hex() if isinstance(env_h, (bytes, bytearray)) else env_h
         out = []
         for elem in rec["t"]:
             if isinstance(elem, (bytes, bytearray, memoryview)):
                 t = txrec.unpack_row(bytes(elem))       # post-fork: one txrec blob -> 11-field row (pk=id)
+                t[6] = block_hash_hex                   # fill the hoisted per-tx block_hash from the envelope
             else:
-                t = list(elem)                          # pre-fork: legacy 11-field list (all str)
+                t = list(elem)                          # pre-fork: legacy 11-field list (block_hash present)
             pkb = txn.get(self.pkr, _hk(t[self._PK]))   # re-expand the public-key dedup id (both forms)
             if pkb is not None:
                 t[self._PK] = pkb.decode()
@@ -145,8 +150,10 @@ class BlockStore:
                 post_fork = fork_height is not None and int(height) >= int(fork_height)
                 if post_fork and Codec.backend != "msgpack":
                     # the JSON-fallback codec cannot serialize the raw bytes blobs (doc/40 C6)
-                    raise RuntimeError("post-fork true-bytes block storage requires the msgpack codec "
-                                       "(kvstore); the JSON fallback cannot store raw signature/address bytes")
+                    raise RuntimeError(
+                        "post-fork true-bytes block storage requires kvstore backend=msgpack (or mdbx); "
+                        "the JSON fallback cannot serialize the raw txrec/signature/address byte blobs — "
+                        "install msgpack or set the kvstore backend accordingly before the fork height")
                 txs = []
                 for r in rows:
                     t = list(r[1:])

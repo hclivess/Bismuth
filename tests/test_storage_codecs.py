@@ -325,7 +325,7 @@ def test_txrec_row_roundtrip():
         assert got[4] == r[4]                              # signature wire form (base64 / recoverable hex)
         assert got[9] == r[9] and got[10] == r[10]         # operation / openfield
         assert amounts.to_units(got[3]) == amounts.to_units(r[3])   # amount consensus-equivalent
-    # non-hex block_hash survives via the verbatim flag; hex reconstructs to hex
-    assert txrec.unpack_row(txrec.pack_row(rows[0]))[6] == "%064x" % 7
-    assert txrec.unpack_row(txrec.pack_row(rows[1]))[6] == "hash-not-hex"
+    # block_hash is NOT stored in the blob (hoisted to the block envelope) -> None placeholder; block_store
+    # ._expand fills it from the envelope hash, identical for every tx in the block.
+    assert txrec.unpack_row(txrec.pack_row(rows[0]))[6] is None
     assert txrec.openfield_of(txrec.pack_row(rows[0])) == "of"

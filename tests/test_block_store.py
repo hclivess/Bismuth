@@ -266,7 +266,8 @@ def test_postfork_truebytes_roundtrip_realistic(tmp_path):
         import txrec
         dec = txrec.unpack_row(bytes(t0))
         assert dec[0] == rows[0][1] and dec[2] == rows[0][3] and dec[3] == "1.23456789"   # ts, recip, amount
-        assert dec[6] == bh                            # per-tx block_hash reconstructs to hex
+        assert dec[6] is None                          # block_hash NOT stored per tx (hoisted to envelope)
+        assert s.get_block(50)[0][7] == bh             # _expand fills it from the envelope hash
         # consolidated blob is far smaller than a per-field msgpack list of the same row
         legacy = block_store._pack(rows[0][1:])
         assert len(block_store._pack(t0)) < len(legacy)
