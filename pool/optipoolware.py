@@ -62,6 +62,11 @@ pool_fee = float(_pool_cfg.get("pool_fee", 0))
 alt_fee = float(_pool_cfg.get("alt_fee", 0))
 w_time = int(_pool_cfg.get("worker_time", 10))
 alt_add = str(_pool_cfg.get("alt_add", "92563981cc1e70d160c176edf368ea4bbc1d8d5ba63aceee99ef6ebd"))
+# hf2 pubkey-by-reference (doc/40): a pool pays from ONE RSA address thousands of times, so its ~736-byte
+# base64 pubkey on every payout is the single biggest per-tx wire waste. When this is on AND the node
+# confirms the pool address is registered (a prior confirmed payout), omit the pubkey (public_key="") and
+# let the node resolve it by address. Default OFF + fail-closed: carry inline whenever unsure.
+pubkey_by_reference = bool(_pool_cfg.get("pubkey_by_reference", False))
 
 # --- hf2 fork awareness (doc/18-D / doc/22 / doc/39) ----------------------------------------------
 # Mirror the node's miner._new_pow + _coinbase_prefix WITHOUT a node object, by reading the node's REST
@@ -262,7 +267,16 @@ def payout(payout_threshold,myfee,othfee):
                 # legacy label only; post-hf2 the canonical txid is blake2b(content), so prefer the
                 # node's returned txid (POST /api/transaction -> {"txids": [...]}) over this slice.
                 mytxid = signature_enc[:56].decode("utf-8")
-                tx_submit = (str(timestamp), str(address), str(recipient), '%.8f' % float(claim - fee), str(signature_enc.decode("utf-8")), str(public_key_hashed.decode("utf-8")), str(keep), str(openfield)) #float kept for compatibility
+                # hf2 pubkey-by-reference (doc/40): omit the pool's RSA pubkey when the node confirms it is
+                # registered (a prior confirmed payout). Fail-closed: any uncertainty -> carry inline.
+                pub_field = str(public_key_hashed.decode("utf-8"))
+                if pubkey_by_reference:
+                    try:
+                        if _node_get("/pubkey/%s" % address).get("registered"):
+                            pub_field = ""        # registered -> the node resolves the key by address
+                    except Exception:
+                        pass                      # node unreachable / no registry -> inline (safe default)
+                tx_submit = (str(timestamp), str(address), str(recipient), '%.8f' % float(claim - fee), str(signature_enc.decode("utf-8")), pub_field, str(keep), str(openfield)) #float kept for compatibility
 
                 # submit the payout over REST (was the socket mpinsert command)
                 try:

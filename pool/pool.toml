@@ -5,6 +5,9 @@ pool_fee    = 1          # pool fee, percent
 alt_fee     = 1          # fee to the alternate address, percent
 alt_add     = "92563981cc1e70d160c176edf368ea4bbc1d8d5ba63aceee99ef6ebd"  # alt-fee + fallback share address
 worker_time = 10         # seconds between the pool refreshing blockhash/diff/fork state from the node
+pubkey_by_reference = false  # hf2 (doc/40): once the node has the pubkey registry + the pool address is
+                             # registered, omit the pool's RSA pubkey from payouts (node resolves it by
+                             # address) — saves ~736 B/payout. Safe to leave false; fail-closed to inline.
 m_timeout   = 5          # minutes without a share before a worker's hashrate counts as 0
 mining_ip   = "127.0.0.1"  # public address miners connect to (shown on the dashboard's "connect" panel)
 mining_port = 8525         # the pool server port miners connect to

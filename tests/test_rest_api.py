@@ -329,3 +329,15 @@ def test_nodes_dedup_merges_host_and_hostport():
     assert m["185.100.232.5"]["reputation"] == 20
     # a pool-only peer (no opinion/version yet) still shows, as connected with blanks
     assert m["207.246.101.70"]["connected"] is True and m["207.246.101.70"]["version"] is None
+
+
+def test_rest_pubkey_registry_endpoint(client):
+    # hf2 pubkey-by-reference: the registry membership endpoint is wired and returns the documented shape.
+    code, body = _get("/pubkey/abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcab")
+    assert code == 200
+    assert set(body) >= {"address", "registered", "available"}
+    assert isinstance(body["registered"], bool) and isinstance(body["available"], bool)
+    # the welcome page advertises it
+    _, idx = _get("")
+    assert any("/api/pubkey/" in k for k in idx.get("endpoints", idx).get("methods", {})) or \
+        "/api/pubkey/{address}" in json.dumps(idx)

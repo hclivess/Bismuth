@@ -339,6 +339,8 @@ def _make_handler(node):
                     return self._write(200, self._address_txs(db, route[1], query))
                 if route == ["fork"]:
                     return self._write(200, self._fork(db))
+                if route[:1] == ["pubkey"] and len(route) == 2:
+                    return self._write(200, self._pubkey(route[1]))
                 if route == ["supply"]:
                     return self._write(200, self._supply(db))
                 if route[:1] == ["stats"] and len(route) == 2:
@@ -558,6 +560,7 @@ def _make_handler(node):
                         "/api/alias/{name}": "resolve an alias to its owner address: {alias, address}",
                         "/api/aliases/{address}": "all aliases owned by an address: {address, count, aliases}",
                         "/api/fork": "hf2 auto-fork readiness: signalling run, lock-in, activation height",
+                        "/api/pubkey/{address}": "hf2 pubkey-by-reference: is the address's key registered (safe to omit on the wire)",
                         "/api/shield/stats": "shielded pool (doc/22): note/nullifier counts, pool value, sink",
                         "/api/shield/note/{note_id}": "public fields of a shielded note (nothing decryptable)",
                         "POST /api/transaction": "submit a signed tx (needs rest_api_write=True); body "
@@ -700,6 +703,19 @@ def _make_handler(node):
                 return status, json.loads(raw or b"null")
             except Exception:
                 return 502, {"error": "proxy_bad_json"}
+
+        def _pubkey(self, address):
+            """hf2 pubkey-by-reference (doc/40): whether ``address`` already has a public key registered
+            from a prior confirmed block — so a producer (wallet / pool) knows it can safely OMIT the key
+            on the wire (``public_key=""``) and have the node resolve it by address. ``registered=false``
+            also when the registry is not built (pre-fork / flag off), so the caller must carry the key
+            INLINE (fail-closed)."""
+            reg = getattr(node, "pk_registry", None)
+            if reg is None:
+                return {"address": address, "registered": False, "available": False}
+            fseen = reg.first_seen(address)
+            return {"address": address, "registered": fseen is not None,
+                    "available": True, "first_height": fseen}
 
         def _fork(self, db):
             import fork
