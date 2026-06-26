@@ -16,7 +16,17 @@ Status: **design complete + foundational codecs implemented & tested**; the cons
 | core-indexes (txid_index raw-32 key, block_store `hashes` raw-digest key, balance_index u128 LE) | **implemented + tested** | `txid_index.py`, `block_store.py`, `balance_index.py`, tests re-baselined |
 | vm | storage **already true-bytes** (raw `addr:word` keys, raw 32-byte balances); surface-A (openfield root) rides with coinbase; surface-B (key fold) **rejected** (state_root reorder) |
 | coinbase | **blocked** — can't drop the coinbase sig/pubkey until doc/29 §2.C changes the *wire* pre-image (else forks the block hash) |
-| block-header txids forward list / mempool LMDB record / plugin-stores (token-amount varint, shielded raw nullifiers) | designed + verified (this doc); larger/consensus-sensitive, staged with per-domain validation | per-domain sections |
+| plugin-stores: shielded raw-byte note_id / key-image (nullifier) keys | **implemented + tested + multinode-validated** | `shieldedv1.py` `_kb`, `tests/test_shielded_kvstore.py` |
+| block-header txids forward list / mempool LMDB record / plugin token-amount varint | designed + verified (this doc); staged | per-domain sections |
+
+**Shielded nullifier raw keys (consensus-sensitive — landed with its own multinode pass).** The shielded
+sidecar now stores note_id (32-byte blake2b) and key-image (33-byte compressed point — the spent-set /
+nullifier) as RAW bytes, not 64/66-hex `.encode()`. Set membership is preserved because add/check/rollback
+all funnel through one `_kb` helper, and the key image is already canonicalized to compressed form by
+`_verify_ring` (shieldedv1.py:625) BEFORE the spent-set check — so no compressed-vs-uncompressed
+double-spend bypass is introduced. Shielded is post-fork-only + rebuildable (no legacy data to migrate).
+Validated by the full shielded suite (spends/key-images/rollback) + the 3-node integration test
+(`shieldedv1` stats + note identical across A,B,C).
 
 ### Multinode validation (the storage changes proven across nodes)
 
