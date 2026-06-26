@@ -104,13 +104,20 @@ def _build_block(node, nonce):
                            str(m[4]), str(m[5]), str(m[6]), str(m[7])))
     ts = '%.2f' % time.time()
     addr = node.keys.address
-    reward_tx = (str(ts), str(addr[:56]), str(addr[:56]), '%.8f' % 0.0, "0", str(nonce))   # only this is signed
-    h = SHA.new(str(reward_tx).encode("utf-8"))
-    signature = base64.b64encode(PKCS1_v1_5.new(node.keys.key).sign(h))
-    pub = node.keys.public_key_b64encoded
-    pub = pub.decode("utf-8") if isinstance(pub, (bytes, bytearray)) else str(pub)
+    # hf2 §2.C coinbase compaction: post-fork the coinbase carries NO signature + NO public key (authorized
+    # by PoW + the reward formula; the node enforces empty). Pre-fork it is RSA-signed as before.
+    _fh = getattr(node, "fork_height", None)
+    _post_fork = _fh is not None and (node.last_block + 1) >= _fh
+    if _post_fork:
+        sig_field, pub = "", ""
+    else:
+        reward_tx = (str(ts), str(addr[:56]), str(addr[:56]), '%.8f' % 0.0, "0", str(nonce))   # only this is signed
+        h = SHA.new(str(reward_tx).encode("utf-8"))
+        sig_field = base64.b64encode(PKCS1_v1_5.new(node.keys.key).sign(h)).decode("utf-8")
+        pub = node.keys.public_key_b64encoded
+        pub = pub.decode("utf-8") if isinstance(pub, (bytes, bytearray)) else str(pub)
     block_send.append((str(ts), str(addr[:56]), str(addr[:56]), '%.8f' % 0.0,
-                       str(signature.decode("utf-8")), str(pub), "0", str(nonce)))   # the coinbase
+                       str(sig_field), str(pub), "0", str(nonce)))   # the coinbase
     return block_send
 
 

@@ -523,14 +523,19 @@ def process_share(miner_address, sh):
                 str(d["timestamp"]), str(d["address"][:56]), str(d["recipient"][:56]),
                 '%.8f' % float(d["amount"]), str(d["signature"]), str(d["public_key"]),
                 str(d["operation"]), str(d["openfield"])))
-        # claim reward (only this tuple is signed)
-        transaction_reward = (str(block_timestamp), str(address[:56]), str(address[:56]),
-                              '%.8f' % float(0), "0", str(nonce))
-        h = SHA.new(str(transaction_reward).encode("utf-8"))
-        signer = PKCS1_v1_5.new(_signing_key)
-        signature = signer.sign(h)
-        signature_enc = base64.b64encode(signature)
-        if signer.verify(h, signature):
+        # claim reward. hf2 §2.C coinbase compaction: post-fork (new_pow) the coinbase carries NO signature
+        # + public key (PoW + reward formula authorize it; the node enforces empty). Pre-fork: RSA-signed.
+        if new_pow:
+            block_send.append((str(block_timestamp), str(address[:56]), str(address[:56]), '%.8f' % float(0),
+                               "", "", "0", str(nonce)))  # sig-less coinbase
+            if not any(isinstance(el, list) for el in block_send):
+                block_send = [block_send]
+        else:
+            transaction_reward = (str(block_timestamp), str(address[:56]), str(address[:56]),
+                                  '%.8f' % float(0), "0", str(nonce))   # only this tuple is signed
+            h = SHA.new(str(transaction_reward).encode("utf-8"))
+            signer = PKCS1_v1_5.new(_signing_key)
+            signature_enc = base64.b64encode(signer.sign(h))
             block_send.append((str(block_timestamp), str(address[:56]), str(address[:56]), '%.8f' % float(0),
                                str(signature_enc.decode("utf-8")), str(public_key_hashed.decode("utf-8")),
                                "0", str(nonce)))  # mining reward tx

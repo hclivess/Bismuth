@@ -86,11 +86,26 @@ class BlockProcessor:
         txi_mode = getattr(node, "txid_index_consensus", "off")
         shadow_txid = post_fork and txi_mode != "off" and txi is not None
 
-        for entry in block:
+        n_tx = block_instance.tx_count
+        for idx, entry in enumerate(block):
             entry_signature = entry[4]
+            # hf2 §2.C: the coinbase (last tx) is sig-less post-fork. It is authorized by PoW + the reward
+            # formula, and PoW (over the parent hash) makes it per-block unique, so it cannot be replayed —
+            # skip the empty-signature reject AND the signature-replay checks for it. (Keep its empty slot in
+            # signature_list so the in-block tx-count check stays correct; only the coinbase may be empty,
+            # because a NON-coinbase empty signature is still rejected below.)
+            is_coinbase = post_fork and (idx == n_tx - 1)
 
             if not entry_signature:
-                raise ValueError(f"Empty signature from {self.peer_ip}")
+                if not is_coinbase:
+                    raise ValueError(f"Empty signature from {self.peer_ip}")
+                signature_list.append(entry_signature)
+                if shadow_txid:
+                    txid_list.append(bismuth_serialize.tx_id_at(
+                        block_instance.block_height_new, node.fork_height,
+                        str(entry[0]), str(entry[1]), str(entry[2]), str(entry[3]),
+                        str(entry[6]), str(entry[7])))
+                continue
 
             signature_list.append(entry_signature)
 
@@ -198,8 +213,12 @@ class BlockProcessor:
             # curated SIGNATURE waiver (manual coin-rescue / fork-edge tx) lets a known-irregular tx through.
             height = block_instance.block_height_new
             _verify_sig = not validation_exceptions.assume_valid_skip_signature(self.node, height)
+            # hf2 §2.C: the coinbase (last tx) is sig-less post-fork — flag it so verify_tx_signature
+            # authorizes it by PoW + reward formula instead of a signature.
+            _is_coinbase = (tx_index == block_instance.tx_count - 1)
             try:
-                tx.validate(self.node, self.node.last_block_timestamp, height, verify_signature=_verify_sig)
+                tx.validate(self.node, self.node.last_block_timestamp, height, verify_signature=_verify_sig,
+                            is_coinbase=_is_coinbase)
             except ValueError:
                 if not validation_exceptions.is_exempt(self.node, height, validation_exceptions.SIGNATURE,
                                                        tx.received_signature_enc):
@@ -277,6 +296,12 @@ class BlockProcessor:
                 block_instance.mining_reward = self.calculate_mining_reward(block_instance)
                 reward = '{:.8f}'.format(Decimal(block_instance.mining_reward) + sum(fees_block))
                 fee = 0
+                # hf2 §2.C anti-inflation invariant (documented guard, not the anchor): with the coinbase
+                # signature dropped, the reward FORMULA is the sole amount authority. The credited reward is
+                # RECOMPUTED above (never read from the tx) and the wire amount is forced to 0 — assert it as
+                # defense-in-depth so a future refactor cannot let a wire value inflate supply.
+                if float(transaction[3]) != 0:
+                    raise ValueError("coinbase wire amount must be 0 (got %s)" % str(transaction[3]))
             else:
                 # Regular transaction
                 reward = 0

@@ -221,10 +221,29 @@ def test_v2_and_legacy_preimages_cannot_alias():
 
 def test_consensus_block_hash_v2_is_frozen():
     import bismuth_serialize
+    # hf2 §2.C: the LAST tx is the coinbase — its signature + public_key are OMITTED from the v2 pre-image.
+    # A lone tx is therefore treated as a (sig-less) coinbase; pinned to the §2.C value.
     txs = [("1500000000.00", "a", "r", "0.00000000", "sig", "pk", "0", "of")]
     h = bismuth_serialize.block_hash_v2(txs, "ab" * 32)   # 64-hex post-fork parent
-    assert h == "3fa7eebf31b44f6c1851a969ac3ead838ea845fd1d0988b7b2490a9b37e337ec"
+    assert h == "9ba713210b18733816148ea6a1e1daab6a636690a6a548bc936db5c18c51ed30"
     assert len(h) == 64
+
+
+def test_consensus_block_hash_v2_coinbase_drops_sig():
+    """hf2 §2.C coinbase compaction: the last tx (coinbase) omits signature+public_key from the block-hash
+    pre-image — so the hash is INVARIANT to the coinbase sig/pubkey, but a non-coinbase tx's sig still
+    matters. Frozen vector pins the compact form."""
+    import bismuth_serialize as B
+    normal = ("1500000000.00", "a", "r", "1.00000000", "sig1", "pk1", "op", "of")
+    cb = ("1500000000.00", "miner", "miner", "0.00000000", "CBSIG", "CBPK", "0", "nonce")
+    h = B.block_hash_v2([normal, cb], "ab" * 32)
+    assert h == "908ea3336cda8a6fc8ecbd9a122c60f13fdf47cfd246b098403e61d6fae7a441"
+    # coinbase sig/pubkey dropped -> hash unchanged when they differ (even empty)
+    assert B.block_hash_v2([normal, ("1500000000.00", "miner", "miner", "0.00000000", "", "", "0", "nonce")],
+                           "ab" * 32) == h
+    # a NON-coinbase tx's signature still affects the hash
+    assert B.block_hash_v2([("1500000000.00", "a", "r", "1.00000000", "sigX", "pk1", "op", "of"), cb],
+                           "ab" * 32) != h
 
 
 def test_block_hash_dispatch_selects_by_height():

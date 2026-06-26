@@ -109,20 +109,28 @@ def _v2_units(amount) -> int:
     return int((Decimal(str(amount)).quantize(Decimal("0.00000001")) * 100000000).to_integral_value())
 
 
-def _v2_tx_bytes(tx) -> bytes:
+def _v2_tx_bytes(tx, is_coinbase=False) -> bytes:
     """Canonical binary encoding of ONE converted 8-field tx tuple for the block hash (doc/29 §2.B):
     (timestamp, address, recipient, amount, signature, public_key, operation, openfield). timestamp ->
-    integer centiseconds, amount -> integer atomic units; all variable fields length-prefixed, little-
-    endian. NOTE: signature/public_key are encoded AS STORED (still base64 in this stage); the raw-byte +
-    pubkey-by-reference refinement (doc/29 §2.C) lands later, before mainnet hf2 lock-in."""
+    integer centiseconds, amount -> integer atomic units; all variable fields length-prefixed, little-endian.
+
+    hf2 §2.C COINBASE COMPACTION: the last tx (``is_coinbase``) OMITS the signature + public_key entirely
+    (no length prefixes either). The coinbase carries no value and is authorized by PoW + the reward formula,
+    never by a signature, so the two fields are dead weight; dropping them from the pre-image is what lets the
+    coinbase be sent/stored sig-less. amount==0 and recipient==address are still committed below; the nonce
+    rides in the openfield. (Pre-fork uses the frozen legacy block_hash, so this only affects post-fork.)"""
     of = tx[7]
     of_b = of.encode("utf-8") if isinstance(of, str) else bytes(of)
-    return (_v2_ts_cs(tx[0]).to_bytes(8, "little")
+    head = (_v2_ts_cs(tx[0]).to_bytes(8, "little")
             + _v2_units(tx[3]).to_bytes(8, "little")
             + _v2_lp(str(tx[1]).encode("utf-8"), 1)      # address
-            + _v2_lp(str(tx[2]).encode("utf-8"), 1)      # recipient
-            + _v2_lp(str(tx[4]).encode("utf-8"), 2)      # signature
-            + _v2_lp(str(tx[5]).encode("utf-8"), 2)      # public_key
+            + _v2_lp(str(tx[2]).encode("utf-8"), 1))     # recipient
+    if is_coinbase:
+        sigpub = b""                                     # §2.C: coinbase omits signature + public_key
+    else:
+        sigpub = (_v2_lp(str(tx[4]).encode("utf-8"), 2)  # signature
+                  + _v2_lp(str(tx[5]).encode("utf-8"), 2))  # public_key
+    return (head + sigpub
             + _v2_lp(str(tx[6]).encode("utf-8"), 1)      # operation
             + _v2_lp(of_b, 4))                           # openfield
 
@@ -132,10 +140,12 @@ def block_hash_v2(transaction_list_converted, previous_hash: str) -> str:
     integer amount + integer timestamp, replacing sha224(str(8-tuples)+prev). Deterministic and stronger
     than the legacy repr (explicit lengths -> two implementations can't diverge on quoting/escaping).
     previous_hash: a 64-hex post-fork parent is taken as raw bytes; the FIRST post-fork block's parent is
-    the last pre-fork 56-hex sha224 hash -> encoded as UTF-8 (one-time boundary case)."""
-    pre = len(transaction_list_converted).to_bytes(4, "little")
-    for tx in transaction_list_converted:
-        pre += _v2_tx_bytes(tx)
+    the last pre-fork 56-hex sha224 hash -> encoded as UTF-8 (one-time boundary case).
+    The LAST tx is the coinbase (§2.C): its signature + public_key are omitted from the pre-image."""
+    n = len(transaction_list_converted)
+    pre = n.to_bytes(4, "little")
+    for i, tx in enumerate(transaction_list_converted):
+        pre += _v2_tx_bytes(tx, is_coinbase=(i == n - 1))
     prev = str(previous_hash)
     if len(prev) == 64:
         try:

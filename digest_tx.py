@@ -63,8 +63,9 @@ class Transaction:
         if index == tx_count - 1:
             if float(self.received_amount) != 0:
                 raise ValueError("Coinbase (Mining) transaction must have zero amount")
-            if not address_is_rsa(self.received_address):
-                raise ValueError("Coinbase (Mining) transaction only supports legacy RSA Bismuth addresses")
+            # hf2 §2.C: the coinbase is PoW-authorized (no signature), so ANY address scheme can mine. The
+            # legacy RSA-only restriction is enforced PRE-FORK only, in validate() (which knows the fork
+            # height); removing it here lets ecdsa / ED25519 / ML-DSA / multisig miners win blocks post-fork.
 
             # Return miner transaction data
             miner_tx = MinerTransaction()
@@ -76,7 +77,7 @@ class Transaction:
         return None
 
     def validate(self, node, last_block_timestamp: float, block_height: int = None,
-                 verify_signature: bool = True) -> None:
+                 verify_signature: bool = True, is_coinbase: bool = False) -> None:
         """Validate transaction elements. Raises ValueError on invalid transaction.
 
         ``block_height`` is the height this tx is being validated INTO; it fork-gates the signature scheme
@@ -112,6 +113,11 @@ class Transaction:
             return   # assume-valid fast-path (doc/30): trusted history, signature re-check skipped
         fork_height = getattr(node, "fork_height", None)
         post_fork = fork_height is not None and block_height is not None and block_height >= fork_height
+        # hf2 §2.C: PRE-FORK the coinbase must be a legacy RSA address (frozen rule — a non-upgraded node
+        # rejects a non-RSA coinbase, so an upgraded node must too, for chain-split safety). POST-FORK any
+        # valid scheme may mine (already address_validate'd above; PoW + reward formula authorize it).
+        if is_coinbase and not post_fork and not address_is_rsa(self.received_address):
+            raise ValueError("pre-fork coinbase (mining) transaction must be a legacy RSA address")
         SignerFactory.verify_tx_signature(
             post_fork,
             self.received_timestamp,
@@ -123,6 +129,7 @@ class Transaction:
             self.received_signature_enc,
             self.received_public_key_b64encoded,
             registry=getattr(node, "pk_registry", None),   # doc/40 pubkey-by-reference resolution
+            is_coinbase=is_coinbase,                        # doc/29 §2.C coinbase compaction (sig-less)
         )
 
     def to_tuple(self) -> tuple:

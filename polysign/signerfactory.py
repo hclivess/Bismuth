@@ -216,7 +216,8 @@ class SignerFactory:
 
     @classmethod
     def verify_tx_signature(cls, post_fork: bool, timestamp, address, recipient, amount,
-                            operation, openfield, signature, public_key, registry=None) -> None:
+                            operation, openfield, signature, public_key, registry=None,
+                            is_coinbase=False) -> None:
         """Single fork-aware tx-signature verification used by BOTH the digester and the mempool.
 
         Post-hf2, an ordinary single-sig secp256k1 sender uses the Ethereum-shape model: the signature
@@ -225,6 +226,16 @@ class SignerFactory:
         and post-fork RSA / ED25519 / native-multisig — keeps the legacy scheme: verify the signature over
         the frozen ``signature_buffer`` against the explicit public key. (The content-hash txid is the
         canonical id for ALL post-fork txs regardless of which signing scheme verified them.)"""
+        if post_fork and is_coinbase:
+            # hf2 coinbase compaction (doc/29 §2.C): the mining-reward tx carries NO signature and NO
+            # public key. Authorization = PoW (binds address+openfield+blockhash, miner.py:87) + the reward
+            # FORMULA (the node recomputes amount+fees, digest.py:277-278 — never trusts a wire amount).
+            # The signature was dead weight (it signed amount='0.00000000', not the real reward). ENFORCE
+            # empty here (must come BEFORE the single-sig / pubkey-by-reference branches: an RSA coinbase
+            # with an empty pubkey would otherwise fall into pubkey-by-reference and reject).
+            if str(signature or "").strip() != "" or str(public_key or "").strip() != "":
+                raise ValueError("post-fork coinbase must carry empty signature and public key")
+            return
         if post_fork and cls.is_single_sig_ecdsa(address):
             # audit L-1: the recoverable path DROPS the public key (the signer is recovered via ecrecover),
             # so a non-empty public_key is unverified malleability noise — reject it rather than ignore it.

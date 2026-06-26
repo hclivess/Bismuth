@@ -159,21 +159,22 @@ def generate_one_block(blockhash, mempool_txs, node, db_handler):
                         removal_signature.append(str(mpdata[4]))  # for removal after successful mining
                     # claim reward
                     block_timestamp = '%.2f' % time.time()
-                    transaction_reward = (str(block_timestamp), str(ADDRESS[:56]), str(ADDRESS[:56]),
-                                          '%.8f' % float(0), "0", str(nonce))  # only this part is signed!
-                    # node.logger.app_log.warning transaction_reward
-
-                    hash = SHA.new(str(transaction_reward).encode("utf-8"))
-                    signer = PKCS1_v1_5.new(KEY)
-                    signature = signer.sign(hash)
-                    signature_enc = base64.b64encode(signature)
-
-                    if signer.verify(hash, signature):
-                        node.logger.app_log.warning("Signature valid")
+                    # hf2 §2.C coinbase compaction: post-fork the coinbase carries NO signature + public key
+                    # (PoW + reward formula authorize it; the node enforces empty). Pre-fork: RSA-signed.
+                    _fh = getattr(node, "fork_height", None)
+                    if _fh is not None and (node.last_block + 1) >= _fh:
+                        block_send.append((str(block_timestamp), str(ADDRESS[:56]), str(ADDRESS[:56]),
+                                           '%.8f' % float(0), "", "", "0", str(nonce)))  # sig-less coinbase
+                    else:
+                        transaction_reward = (str(block_timestamp), str(ADDRESS[:56]), str(ADDRESS[:56]),
+                                              '%.8f' % float(0), "0", str(nonce))  # only this part is signed!
+                        hash = SHA.new(str(transaction_reward).encode("utf-8"))
+                        signer = PKCS1_v1_5.new(KEY)
+                        signature_enc = base64.b64encode(signer.sign(hash))
                         block_send.append((str(block_timestamp), str(ADDRESS[:56]), str(ADDRESS[:56]), '%.8f' % float(0),
                                            str(signature_enc.decode("utf-8")), str(PUBLIC_KEY_B64ENCODED.decode("utf-8")),
                                            "0", str(nonce)))  # mining reward tx
-                        node.logger.app_log.warning("Block to send: {}".format(block_send))
+                    node.logger.app_log.warning("Block to send: {}".format(block_send))
                     # calc hash
 
                     new_hash = DIGEST_BLOCK(node, [block_send], None, 'regtest',  db_handler)
