@@ -259,3 +259,45 @@ def test_diff_cumulative_work_u128():
     big = (1 << 100) + 7
     blob = diff_store.pack_record(diff_store.diff_to_e10("100"), 60, big)
     assert diff_store.unpack_record(blob)["cumulative_work"] == big   # u128 limbs round-trip
+
+
+# --------------------------------------------------------------------------- binary sync transport codec
+import sync_codec
+
+
+def test_sync_codec_roundtrip_byte_identical():
+    import base58
+    rsa_addr = "ab" * 28                       # 56-hex RSA address
+    ec_addr = "Bis1" + base58.b58encode(bytes([7]) * 24).decode()
+    blocks = [
+        {"block_height": 26, "block_hash": "%064x" % 0xabc,   # post-fork 64-hex blake2b
+         "transactions": [
+             ["1750000000.00", rsa_addr, ec_addr, "1.23456789",
+              base64.b64encode(b"\x07" * 64).decode(), base64.b64encode(b"\x09" * 140).decode(),
+              "", "hello-openfield"],
+             ["1750000001.50", ec_addr, rsa_addr, "0.00000000",
+              bytes(range(65)).hex(), "", "vm:call", ""],   # recoverable-hex sig, dropped pubkey, op set
+         ]},
+        {"block_height": 27, "block_hash": "cd" * 28,        # pre-fork 56-hex sha224
+         "transactions": [
+             ["1750000099.00", rsa_addr, rsa_addr, "9000000.50000000",
+              base64.b64encode(b"\x01" * 64).decode(), base64.b64encode(b"\x02" * 140).decode(), "", "x"],
+         ]},
+    ]
+    blob = sync_codec.encode_blocks(blocks)
+    assert blob[:4] == sync_codec.MAGIC
+    got = sync_codec.decode_blocks(blob)
+    assert got == blocks                         # byte-identical reconstruction (digester-safe)
+
+
+def test_sync_codec_smaller_than_json():
+    import json
+    rsa_addr = "ab" * 28
+    blocks = [{"block_height": h, "block_hash": "%064x" % h,
+               "transactions": [["1750000000.00", rsa_addr, rsa_addr, "1.00000000",
+                                 base64.b64encode(b"\x07" * 64).decode(),
+                                 base64.b64encode(b"\x09" * 140).decode(), "", ""]] * 5}
+              for h in range(50)]
+    blob = sync_codec.encode_blocks(blocks)
+    js = json.dumps({"blocks": blocks}).encode()
+    assert len(blob) < len(js) * 0.75            # binary ~0.6-0.72 of JSON uncompressed (more for RSA pubkeys)

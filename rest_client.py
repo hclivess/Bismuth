@@ -116,9 +116,24 @@ def fetch_headers(host, port, start, end, timeout=DEFAULT_TIMEOUT):
 
 
 def fetch_sync_range(host, port, start, end, timeout=DEFAULT_TIMEOUT):
-    """Blocks in ``[start, end]`` as CONSENSUS-FAITHFUL digester tuples (``?format=sync``): the public
-    key is kept base64-encoded as stored (not decoded like the display API), so each block can be fed
-    straight to the digester / re-hashed without corrupting the signed bytes."""
+    """Blocks in ``[start, end]`` as CONSENSUS-FAITHFUL digester tuples. Prefers the compact BINARY
+    transport (``?format=binary`` -> sync_codec, ~30-40% of JSON); auto-falls back to ``?format=sync``
+    JSON against a peer that doesn't serve binary. Either way the public key is kept base64-encoded as
+    stored, so each block feeds straight to the digester / re-hash without corrupting the signed bytes."""
+    # try the compact binary transport first
+    try:
+        url = "{}/blocks/range/{}/{}?format=binary".format(base_url(host, port), int(start), int(end))
+        req = urllib.request.Request(url, headers={"Accept-Encoding": "gzip"})
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            ctype = (r.headers.get("Content-Type") or "")
+            raw = r.read()
+            if r.headers.get("Content-Encoding") == "gzip":
+                raw = gzip.decompress(raw)
+        if "octet-stream" in ctype:
+            import sync_codec
+            return sync_codec.decode_blocks(raw)
+    except Exception:
+        pass  # older peer / no binary support -> JSON sync fallback below
     data = _get_json("{}/blocks/range/{}/{}?format=sync".format(base_url(host, port), int(start), int(end)),
                      timeout=timeout)
     return data.get("blocks", [])

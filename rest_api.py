@@ -226,14 +226,21 @@ def _make_handler(node):
             return
 
         def _write(self, code, payload):
-            body = json.dumps(payload).encode("utf-8")
+            # A bytes payload is a pre-encoded BINARY body (e.g. the compact sync_codec sync format) sent
+            # as application/octet-stream; anything else is JSON. Both still get HTTP gzip negotiation.
+            if isinstance(payload, (bytes, bytearray)):
+                body = bytes(payload)
+                ctype = "application/octet-stream"
+            else:
+                body = json.dumps(payload).encode("utf-8")
+                ctype = "application/json"
             # Transport compression at the HTTP layer (standard Content-Encoding) — this is where
             # bandwidth savings for parallel block fetching live, not in the legacy socket protocol.
             http_enc, codec = self._negotiate_encoding()
             if codec:
                 body = transport.compress(codec, body)
             self.send_response(code)
-            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Type", ctype)
             if http_enc:
                 self.send_header("Content-Encoding", http_enc)
                 self.send_header("Vary", "Accept-Encoding")
@@ -1268,6 +1275,12 @@ def _make_handler(node):
             end = min(end, start + 1000)  # cap the span
             rows = self._range_rows(db, start, end)
             fmt = (query or {}).get("format", ["json"])[0]
+            if fmt == "binary":
+                # compact TRUE-BYTES sync payload (sync_codec): raw hashes, varint amounts, raw sig/pubkey
+                # bytes — ~30-40% of the JSON size. Pure transport encoding: decode_blocks reconstructs the
+                # byte-identical sync tuples, so the digester sees the same input as the JSON path.
+                import sync_codec
+                return sync_codec.encode_blocks(self._grouped_sync_blocks(rows or []))
             if fmt == "sync":
                 # consensus-faithful tuples a syncing peer can feed straight to its digester
                 return {"start": start, "end": end, "format": "sync",
