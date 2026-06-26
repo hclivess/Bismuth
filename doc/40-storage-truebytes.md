@@ -1,23 +1,44 @@
 # doc/40 - hf2 Stage-4: TRUE-BYTES LMDB storage for every storage type
 
-Status: **design complete + foundational codecs implemented & tested**; the consensus-path wiring is staged behind the validation gates in the Validation section. This is Stage 4 of the one hf2 serialization rework (doc/29): retire the base64/hex/text at-rest forms across the LMDB store for true bytes, gated on the single `node.fork_height` by destination height. **Pre-fork (`fork_height is None`, i.e. mainnet today) every path is byte-identical to the current store - inert on prod until on-chain lock-in.**
+Status: **implemented + multinode-validated** across all the compaction stages below (the production
+consensus-read flip still sits behind the §Validation replay gates). This is Stage 4 of the one hf2
+serialization rework (doc/29): retire the base64/hex/text at-rest forms across the LMDB store for true
+bytes, gated on the single `node.fork_height` by destination height. **Pre-fork (`fork_height is None`, i.e.
+mainnet today) every path is byte-identical to the current store - inert on prod until on-chain lock-in.**
 
 > How this spec was produced: 10 storage domains + 1 gap domain were each designed, adversarially red-teamed for consensus / reorg / byte-identity / A-hex safety, then corrected and re-verified in a second round against a pinned shared-conventions contract. The review caught real consensus-forking defects (dropping the coinbase sig/pubkey while the frozen `_v2_tx_bytes` block-hash pre-image still commits to them; folding the VM storage key would reorder `state_root()`; RSA is *single* base64, not double) - all fixed below. Residual per-domain items are listed as implementation checklists.
 
-## Implementation status (this commit)
+## Implemented compaction stages (shipped, in order)
 
-| Piece | Status | Where |
-|---|---|---|
-| Signature codec (per-scheme true bytes, RSA single-b64, 0x40 recoverable hex, 0x00 opaque fallback) | **implemented + tested** | `sigbytes.py`, `tests/test_storage_codecs.py` |
-| Address/recipient codec (tagged union + verbatim 0xFF fallback, round-trip guarded) | **implemented + tested** | `addrbytes.py`, `tests/test_storage_codecs.py` |
-| `block_store` write/read wiring of the codecs (fork-gated by destination height) | **wired + tested**; production flip still behind the §Validation replay gates | `block_store.py` `put_blocks`/`_expand`, `storage_backend.py` `LmdbWriteBackend`, `node.py` |
-| tx-fields codec (timestamp varint + amount/fee/reward integer units, storage-mode aware) | **implemented + wired + tested** | `txfields.py`, `tests/test_storage_codecs.py`, `block_store.py` |
-| difficulty store (closes the misc-table gap: difficulty_e10/solvetime/cumulative_work, deterministic work) | **implemented + tested** (codec); env+wiring staged | `diff_work.py`, `diff_store.py`, `tests/test_storage_codecs.py` |
-| core-indexes (txid_index raw-32 key, block_store `hashes` raw-digest key, balance_index u128 LE) | **implemented + tested** | `txid_index.py`, `block_store.py`, `balance_index.py`, tests re-baselined |
-| vm | storage **already true-bytes** (raw `addr:word` keys, raw 32-byte balances); surface-A (openfield root) rides with coinbase; surface-B (key fold) **rejected** (state_root reorder) |
-| coinbase | **blocked** — can't drop the coinbase sig/pubkey until doc/29 §2.C changes the *wire* pre-image (else forks the block hash) |
-| plugin-stores: shielded raw-byte note_id / key-image (nullifier) keys | **implemented + tested + multinode-validated** | `shieldedv1.py` `_kb`, `tests/test_shielded_kvstore.py` |
-| block-header txids forward list / mempool LMDB record / plugin token-amount varint | designed + verified (this doc); staged | per-domain sections |
+Every stage is fork-gated on `node.fork_height` (post-fork only) and validated by the storage unit/
+characterization suites + the 3-node multinode integration (and the 2-node API-sync for the transport).
+Pre-fork forms are byte-identical to today's store. Commits are on `hclivess/main`.
+
+| # | Stage | What it compacts | Module(s) | Saving | Commit |
+|---|---|---|---|---|---|
+| 1 | **Signature true-bytes** | per-scheme base64 / RSA single-b64 / recoverable-hex → raw bytes + 1-byte tag; `0x00` opaque fallback | `sigbytes.py` | ~24–48% / sig | `55fd4b40` |
+| 2 | **Address/recipient true-bytes** | base58 / 56-hex → raw tagged union; `0xFF` verbatim fallback (genesis/sinks) | `addrbytes.py` | ~23–47% / addr | `55fd4b40` |
+| 3 | **block_store codec wiring** | sig+address packed in `put_blocks`/`_expand`, fork-gated by destination height | `block_store.py`, `storage_backend.py`, `node.py` | — | `51a82f74` |
+| 4 | **tx-fields true-bytes** | timestamp → varint cs; amount/fee/reward → varint integer units (storage-mode aware; `0`→`0.00000000` consensus-safe normalization) | `txfields.py` | ~50–60% / field | `80e47241` |
+| 5 | **Difficulty store** | the missing SQLite `misc` table → fixed 28-byte record (difficulty_e10 / solvetime / u128 cumulative_work), deterministic integer work | `diff_work.py`, `diff_store.py` | unblocks retiring SQLite | `948958a8` |
+| 6 | **Core indexes** | `txid_index` raw-32 key (was 64-hex), `block_store.hashes` raw-digest key (was 56/64-hex), `balance_index` two u128 LE (was msgpack list) | `txid_index.py`, `block_store.py`, `balance_index.py` | ~50% on index keys | `948958a8` |
+| 7 | **Shielded raw keys** (consensus-sensitive) | note_id (32B) + key-image/nullifier (33B compressed point) → raw bytes (was 64/66-hex), set-membership preserved, bypass-safe | `shieldedv1.py` `_kb` | ~50% / key | `e064f39a` |
+| 8 | **Binary sync transport** | `/api/blocks/range?format=binary`: JSON+hex sync payload → raw-byte binary (negotiated, JSON fallback) | `sync_codec.py`, `rest_api.py`, `rest_client.py` | ~0.6–0.72× JSON | `1e29d4e7` |
+| 9 | **Block-hash raw bytes** | per-tx `block_hash` + envelope `"h"` → raw 32B (was 64-hex), reconstructed to hex on read | `block_store.py` | 32B / tx + 32B / block | `4bf73ef2` |
+| 10 | **txrec consolidation** | the 11-field msgpack list → ONE concatenated blob per tx (kills per-element array framing) | `txrec.py`, `block_store.py` | ~20B / tx | `b6dfddaa` |
+| 11 | **Block-hash hoist** | per-tx `block_hash` no longer stored — filled from the envelope hash on read (one source of truth) | `txrec.py`, `block_store.py` | ~33B / tx | `28fc87d2` |
+| 12 | **Address-ref dedup** | address+recipient → varint indices into a per-block address dict; a repeat (self-spend / change / repeated sender) costs ~1B not ~30B | `txrec.py`, `block_store.py` | ~30B / repeat | `ec71d163` |
+
+**Not applicable / blocked:**
+- **vm** — storage is *already* true-bytes (raw `addr:word` keys, raw 32-byte balances). Surface-A (the openfield VM-root) rides with coinbase; surface-B (the storage-key fold) was **rejected** by review (would reorder `state_root()` → fork).
+- **coinbase compaction** — **blocked**: can't drop the coinbase sig/pubkey until doc/29 §2.C changes the *wire* pre-image, else `_v2_tx_bytes` (which still commits to them) forks the block hash.
+- **plugin token-amount varint / mempool LMDB record** — designed (this doc), staged; low/marginal value.
+
+**Net effect on a post-fork tx record:** one `txrec` blob carrying a varint timestamp, two varint address indices (into the per-block dict), varint integer amount/fee/reward, a raw per-scheme signature, a varint pubkey dedup id (or nothing — single-sig pubkeys are dropped), and length-prefixed operation/openfield. The block hash and addresses are hoisted/deduped to the block envelope; pubkeys are deduped store-once.
+
+**The one remaining big lever — pubkey-by-reference (a consensus change, viable in this hardfork).** What is *not* yet removed is the RSA / ML-DSA / multisig public key on the **wire and in the block-hash pre-image** (single-sig secp256k1/ED25519 already carry none — recovered via ecrecover / from-address). Storage already dedups it (pk/pkr, store-once), but every such tx still puts the full key on the wire. A consensus **address→key registry** (first tx from an address carries the key and registers it; later txs reference it by address) would drop it from the wire entirely for repeat senders. The Stage-4 *storage* review **deprioritized** this — not because it is impossible, but because (a) as a *storage* change it buys nothing (the store already dedups losslessly), and (b) it adds genuine consensus machinery: a reorg-rollback-able registry, a new "unknown key reference" reject path, and — in the naive same-block form — an intra-block tx-ordering dependency Bismuth has never had. **Since hf2 is an explicit consensus break, this is back on the table** as its own consensus stage; the **prior-block-only** registry variant (a tx may reference by address only if the key was registered in an *earlier* block; otherwise it carries the key) sidesteps the intra-block-ordering objection and keeps the registry append-only/rollback-clean. It earns its own adversarial review + multinode pass before landing (see doc/29 §2.C / the pubkey domain).
+
+**Optipool compat:** the bundled pool is fully decoupled from all of the above (block_store / txrec / sync_codec / the binary transport are node-internal); it uses only the stable JSON REST endpoints and the unchanged 8-field consensus wire form. Verified, pool compiles clean.
 
 **Shielded nullifier raw keys (consensus-sensitive — landed with its own multinode pass).** The shielded
 sidecar now stores note_id (32-byte blake2b) and key-image (33-byte compressed point — the spent-set /
