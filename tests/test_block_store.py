@@ -245,7 +245,7 @@ def test_postfork_truebytes_roundtrip_realistic(tmp_path):
     TRUE BYTES; get_block rebuilds the exact 12-field rows byte-for-byte (canonical money strings)."""
     s = BlockStore(str(tmp_path / "bs"), map_size=SMALL)
     try:
-        bh = "hash%08d" % 50
+        bh = "%064x" % 50                                      # valid 64-hex blake2b-style hash
         addr = _rsa_addr(0xAB)
         recip = _rsa_addr(0xCD)
         sig = base64.b64encode(b"\x07" * 64).decode()          # canonical base64 (RSA-family wire)
@@ -254,6 +254,7 @@ def test_postfork_truebytes_roundtrip_realistic(tmp_path):
         s.put_block(50, bh, rows, fork_height=40)              # 50 >= 40 -> post-fork
 
         assert s.get_block(50) == rows                         # byte-identical for canonical inputs
+        assert s.block_hash(50) == bh                          # envelope hash reconstructs to hex
 
         # the stored value carries RAW BYTES, not text (true-bytes, not A-hex)
         with s.store.txn() as txn:
@@ -264,6 +265,8 @@ def test_postfork_truebytes_roundtrip_realistic(tmp_path):
         assert isinstance(t0[0], (bytes, bytearray))  # timestamp: varint bytes
         assert isinstance(t0[3], (bytes, bytearray))  # amount:    varint bytes
         assert isinstance(t0[8], (bytes, bytearray))  # reward:    varint bytes
+        assert isinstance(t0[6], (bytes, bytearray)) and len(t0[6]) == 32   # per-tx block_hash: raw 32B
+        assert isinstance(rec["h"], (bytes, bytearray)) and len(rec["h"]) == 32  # envelope hash: raw 32B
         # amount stored as a few varint bytes, not a 10-char '%.8f' string
         assert len(t0[3]) <= 6
     finally:

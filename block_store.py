@@ -68,6 +68,16 @@ class BlockStore:
         self.env = getattr(self.store, "env", None)
 
     @staticmethod
+    def _fromhex_or(s):
+        # raw digest bytes for a valid hex hash; the original value otherwise (non-hex test fixture / bytes)
+        if isinstance(s, str):
+            try:
+                return bytes.fromhex(s)
+            except ValueError:
+                return s
+        return s
+
+    @staticmethod
     def _bh(block_hash):
         # hf2 Stage-4 (doc/40 core-indexes §3): the `hashes` reverse-index key is the RAW digest (28B sha224
         # pre-fork / 32B blake2b post-fork), not its 56/64-hex .encode() (2x). Deterministic + tolerant: a
@@ -124,6 +134,8 @@ class BlockStore:
                 t[7] = txfields.unpack_num(bytes(t[7]))     # fee
             if isinstance(t[8], (bytes, bytearray, memoryview)):
                 t[8] = txfields.unpack_num(bytes(t[8]))     # reward
+            if isinstance(t[6], (bytes, bytearray, memoryview)):
+                t[6] = bytes(t[6]).hex()                    # per-tx block_hash: raw -> hex
             out.append([height] + t)
         return out
 
@@ -159,8 +171,11 @@ class BlockStore:
                         t[3] = txfields.pack_num(t[3])                   # amount -> varint units
                         t[7] = txfields.pack_num(t[7])                   # fee    -> varint units
                         t[8] = txfields.pack_num(t[8])                   # reward -> varint units
+                        t[6] = self._fromhex_or(t[6])                    # per-tx block_hash -> raw 32B
                     txs.append(t)
-                txn.put(self.blocks, _hk(height), _pack({"h": block_hash, "t": txs}))
+                # envelope block hash: raw digest post-fork (block_hash() reconstructs hex on read)
+                h_store = self._fromhex_or(block_hash) if post_fork else block_hash
+                txn.put(self.blocks, _hk(height), _pack({"h": h_store, "t": txs}))
                 txn.put(self.hashes, self._bh(block_hash), _hk(height))
 
     def put_block(self, height, block_hash, rows, fork_height=None):
@@ -208,7 +223,10 @@ class BlockStore:
     def block_hash(self, height):
         with self.store.txn() as txn:
             v = txn.get(self.blocks, _hk(height))
-        return _unpack(v)["h"] if v is not None else None
+        if v is None:
+            return None
+        h = _unpack(v)["h"]
+        return bytes(h).hex() if isinstance(h, (bytes, bytearray)) else h   # raw envelope -> hex on read
 
     def height_by_hash(self, block_hash):
         with self.store.txn() as txn:
