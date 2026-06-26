@@ -30,18 +30,24 @@ PORT = 3030
 
 
 @pytest.fixture(autouse=True)
-def _isolate_ledger_integer():
-    """``amounts.LEDGER_INTEGER`` is a PROCESS-GLOBAL storage-mode switch. The shielded/ringct suites flip
-    it to True in their setup helpers (shielded value is integer-units) and historically never restored it,
-    leaking integer mode into later-collected files (e.g. test_storage_codecs' decimal-mode vectors) and
-    failing them only in a full-suite run. Snapshot it before every test and restore after, so no test can
-    leak the global to another — current or future offenders are isolated at the root."""
+def _isolate_process_globals():
+    """Snapshot/restore PROCESS-GLOBALS that individual tests mutate, so no test can leak shared state to a
+    later-collected one (failures of this class only surface in a full-suite run, not in isolation).
+
+    * ``amounts.LEDGER_INTEGER`` — storage-mode switch. The shielded/ringct suites flip it to True in their
+      setup helpers (shielded value is integer-units) and historically never restored it, leaking integer
+      mode into later decimal-mode codec vectors.
+    * the ``'root'`` logger level — ``log.log()`` raises it (e.g. to DEBUG) and the log tests don't restore
+      it; harmless today (nothing asserts on the level) but a latent cross-test flake, foreclosed here."""
+    import logging
     import amounts
-    saved = amounts.LEDGER_INTEGER
+    saved_int = amounts.LEDGER_INTEGER
+    saved_lvl = logging.getLogger("root").level
     try:
         yield
     finally:
-        amounts.LEDGER_INTEGER = saved
+        amounts.LEDGER_INTEGER = saved_int
+        logging.getLogger("root").setLevel(saved_lvl)
 
 
 def _port_open():
