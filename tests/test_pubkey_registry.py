@@ -108,3 +108,38 @@ def test_verify_resolves_registered_key_into_verifier(tmp_path, monkeypatch):
         assert captured["addr"] == rsa_addr
     finally:
         r.close()
+
+
+# --------------------------------------------------- real-crypto end-to-end by-reference (multisig, fast keys)
+def test_by_reference_end_to_end_multisig_real_crypto(tmp_path):
+    """Full chain with REAL secp256k1/multisig crypto (not stubbed): a first-use multisig spend carries the
+    redeem inline (registers the address); a later spend OMITS it (public_key="") and is resolved from the
+    registry and verified by the real SignerMultisig (whose redeem->address check is the binding anchor)."""
+    import coincurve as cc
+    from multisig_wallet import MultisigAccount
+
+    owners = [cc.PrivateKey() for _ in range(3)]          # 2-of-3
+    acct = MultisigAccount.from_owners(owners, 2)
+    tx = acct.sign_transaction(owners[:2], "1750000000.00", "recipient_addr", 1.5)
+    ts, addr, recip, amt, sig, redeem, op, of = tx
+
+    r = PubkeyRegistry(str(tmp_path / "pk"))
+    try:
+        # 1) first-use: redeem carried INLINE -> verifies (no resolution needed)
+        SignerFactory.verify_tx_signature(True, ts, addr, recip, amt, op, of, sig, redeem, registry=r)
+
+        # 2) register the address->redeem from this block (commit-time)
+        row = [1, ts, addr, recip, amt, sig, redeem, "bh", "0", "0", op, of]
+        assert r.register_from_block([row], fork_height=1) == 1
+        assert r.get(addr) == redeem.encode()
+
+        # 3) BY-REFERENCE: the same spend with public_key="" resolves the redeem from the registry and the
+        #    REAL multisig verifier accepts it (the redeem->address binding holds on the resolved key).
+        SignerFactory.verify_tx_signature(True, ts, addr, recip, amt, op, of, sig, "", registry=r)
+
+        # 4) a DIFFERENT (unregistered) multisig address, by-reference -> rejected (the new consensus rule)
+        other = MultisigAccount.from_owners([cc.PrivateKey() for _ in range(3)], 2)
+        with pytest.raises(ValueError, match="unregistered address"):
+            SignerFactory.verify_tx_signature(True, ts, other.address, recip, amt, op, of, sig, "", registry=r)
+    finally:
+        r.close()
