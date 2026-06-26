@@ -135,7 +135,7 @@ def test_on_disk_bytes_identical_to_direct_lmdb(tmp_path):
     env.close()
 
     hbe = sh._hbe
-    kb = nid.encode()
+    kb = sh._kb(nid)            # hf2 Stage-4: note_id stored as RAW 32 bytes, not its 64-hex .encode()
     payload = {"h": height, "tok": note["tok"], "amt": int(note["amt"]),
                "R": note["R"], "P": note["P"], "memo": note.get("memo", ""), "C": note["c"]}
 

@@ -318,6 +318,20 @@ def _hbe(height) -> bytes:
     return struct.pack(">Q", int(height))      # ordered height key: lexicographic == numeric
 
 
+def _kb(hex_or_bytes):
+    """hf2 Stage-4 (doc/40): store the note_id / key-image as RAW bytes, not its 64/66-hex .encode() (2x).
+    The note_id is a 32-byte blake2b digest; the key image is a 33-byte COMPRESSED secp256k1 point already
+    canonicalized by _verify_ring (so the spent-set dedup is bypass-safe). Deterministic + tolerant: valid
+    hex -> raw, non-hex -> utf-8 fallback, bytes pass through; add/check/rollback all funnel through it, so
+    set membership is preserved."""
+    if isinstance(hex_or_bytes, str):
+        try:
+            return bytes.fromhex(hex_or_bytes)
+        except ValueError:
+            return hex_or_bytes.encode()
+    return hex_or_bytes
+
+
 class ShieldedState:
     """Decoy/scan note set + key-image spent-set + pool flow ledger for one ledger — an **LMDB** store (NO
     SQLite, the post-fork storage architecture, doc/26). A deterministic projection of the chain's shield:
@@ -364,7 +378,7 @@ class ShieldedState:
     # --- reads (committed state; used by validate_block BEFORE apply) -----
     def note(self, note_id_hex: str):
         with self.store.txn() as txn:
-            v = txn.get(self.notes_db, note_id_hex.encode())
+            v = txn.get(self.notes_db, _kb(note_id_hex))
         if v is None:
             return None
         d = json.loads(v)
@@ -373,11 +387,11 @@ class ShieldedState:
 
     def has_note(self, note_id_hex: str) -> bool:
         with self.store.txn() as txn:
-            return txn.get(self.notes_db, note_id_hex.encode()) is not None
+            return txn.get(self.notes_db, _kb(note_id_hex)) is not None
 
     def has_key_image(self, image_hex: str) -> bool:
         with self.store.txn() as txn:
-            return txn.get(self.kimg_db, image_hex.encode()) is not None
+            return txn.get(self.kimg_db, _kb(image_hex)) is not None
 
     def pool_units(self) -> int:
         with self.store.txn() as txn:
@@ -426,13 +440,13 @@ class ShieldedState:
             seq = self._meta(txn, b"flowseq", 0)
             for kind, key, height, payload in self._pending:
                 if kind == "note":
-                    kb = key.encode()
+                    kb = _kb(key)
                     if txn.get(self.notes_db, kb) is None:
                         txn.put(self.notes_db, kb, json.dumps(payload).encode())
                         txn.put(self.notes_h, _hbe(height) + kb, b"")
                         nnotes += 1
                 elif kind == "kimg":
-                    kb = key.encode()
+                    kb = _kb(key)
                     if txn.get(self.kimg_db, kb) is None:
                         txn.put(self.kimg_db, kb, _hbe(height))
                         txn.put(self.kimg_h, _hbe(height) + kb, b"")
