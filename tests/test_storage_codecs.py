@@ -172,6 +172,12 @@ def test_addr_verbatim_length_bound():
         addrbytes.pack_addr("x" * 256)        # > 255 utf-8 bytes (can't happen post [:56] truncation)
 
 
+def test_addr_verbatim_truncated_blob_raises():
+    # a torn/truncated verbatim record (declared len exceeds the buffer) must raise, not silently return short
+    with pytest.raises(ValueError):
+        addrbytes.unpack_addr(bytes((addrbytes.TAG_VERBATIM, 0x20)) + b"abc")   # claims 32, has 3
+
+
 # --------------------------------------------------------------------------- tx-fields (numeric) codec
 import amounts
 import txfields
@@ -327,3 +333,25 @@ def test_txrec_row_roundtrip():
         assert got[9] == r[9] and got[10] == r[10]         # operation / openfield
         assert amounts.to_units(got[3]) == amounts.to_units(r[3])   # amount consensus-equivalent
     assert txrec.openfield_of(txrec.pack_row(rows[0], 0, 1)) == "of"
+
+
+def test_txrec_truncated_signature_raises():
+    # a blob that ends right where the u16 signature length should be must raise (bounds check), not IndexError
+    import base58
+    ec = "Bis1" + base58.b58encode(bytes([7]) * 24).decode()
+    row = ["1750000000.00", "ab" * 28, ec, "1.23456789",
+           base64.b64encode(b"\x07" * 64).decode(), 5, "%064x" % 7, "0.01000000", "0", "", "of"]
+    blob = txrec.pack_row(row, 3, 7)
+    # truncate so timestamp/idx/idx/amount decode but the signature header is gone
+    for cut in range(6, 12):
+        with pytest.raises(ValueError):
+            txrec.unpack_row(blob[:cut])
+
+
+def test_sync_codec_truncated_signature_raises():
+    tx = ["1750000000.00", "ab" * 28, "cd" * 28, "1.00000000",
+          base64.b64encode(b"\x09" * 64).decode(), "pk", "", "of"]
+    enc = sync_codec.encode_blocks([{"block_height": 1, "block_hash": "ab" * 14, "transactions": [tx]}])
+    # lop off the tail so a tx's signature header is missing -> ValueError, never a raw IndexError
+    with pytest.raises(ValueError):
+        sync_codec.decode_blocks(enc[:len(sync_codec.MAGIC) + 8])

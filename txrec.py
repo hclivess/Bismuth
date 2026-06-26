@@ -31,12 +31,20 @@ def _lp4(b):
 
 
 def _rd1(buf, i):
+    if i + 1 > len(buf):
+        raise ValueError("txrec truncated reading u8 length at %d" % i)
     n = buf[i]
+    if i + 1 + n > len(buf):
+        raise ValueError("txrec truncated: u8 field len %d past end at %d" % (n, i))
     return buf[i + 1:i + 1 + n], i + 1 + n
 
 
 def _rd4(buf, i):
+    if i + 4 > len(buf):
+        raise ValueError("txrec truncated reading u32 length at %d" % i)
     n = int.from_bytes(buf[i:i + 4], "little")
+    if i + 4 + n > len(buf):
+        raise ValueError("txrec truncated: u32 field len %d past end at %d" % (n, i))
     return buf[i + 4:i + 4 + n], i + 4 + n
 
 
@@ -85,6 +93,8 @@ def unpack_row(blob):
     addr_idx, i = _ud(buf, i)
     recip_idx, i = _ud(buf, i)
     au, i = _ud(buf, i); amount = str(au) if amounts.LEDGER_INTEGER else amounts.from_units(au)
+    if i + 3 > len(buf):                                       # bounds-check before reading the u16 sig len
+        raise ValueError("txrec truncated: no signature length at offset %d" % i)
     slen = int.from_bytes(buf[i + 1:i + 3], "little")          # signature self-delimiting (tag+u16+raw)
     sig = sigbytes.to_wire(buf[i:i + 3 + slen]); i += 3 + slen
     pkid, i = _ud(buf, i)

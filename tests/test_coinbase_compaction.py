@@ -31,6 +31,14 @@ def test_postfork_coinbase_must_be_empty():
         _v(True, "ab" * 28, "", "SOMEPUB", is_coinbase=True)
 
 
+def test_postfork_coinbase_recipient_must_equal_miner():
+    # the reward is credited to the PoW-bound miner address; a coinbase naming a different recipient is
+    # malformed and rejected (defense-in-depth — the reward credits the address regardless).
+    with pytest.raises(ValueError, match="recipient must equal the miner address"):
+        SignerFactory.verify_tx_signature(True, "1750000000.00", "ab" * 28, "cd" * 28, "0.00000000",
+                                          "0", "nonce", "", "", is_coinbase=True)
+
+
 def test_prefork_coinbase_unaffected():
     # pre-fork the coinbase is NOT given the empty-sig carve-out (is_coinbase only matters post-fork);
     # it goes through the legacy verifier like any tx (here it would try to verify the bogus sig -> raise,

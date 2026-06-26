@@ -1437,7 +1437,11 @@ if __name__ == "__main__":
     node.balance_index_consensus = getattr(config, "balance_index_consensus", "off")  # doc/26 stage 4: off|shadow|primary
     node.txid_index_consensus = getattr(config, "txid_index_consensus", "off")  # doc/26 stage 4: off|shadow|primary (the dup-sig replay read off SQLite)
     node.txid_index = None                             # the LMDB txid->height projection, built at startup when txid_index_consensus != off
-    node.pk_registry_consensus = getattr(config, "pk_registry_consensus", "off")  # doc/40: off|shadow|primary (pubkey-by-reference)
+    # doc/40 pubkey-by-reference: "off" never builds/consults the registry; any non-off value ("shadow",
+    # "primary") builds it at startup and enforces it post-fork. There is no build-but-don't-enforce window
+    # for THIS rollout — pre-fork every tx carries its inline pubkey (registry is never the authority), and
+    # the fork height itself is the flip to mandatory resolution — so "shadow" is reserved and aliases primary.
+    node.pk_registry_consensus = getattr(config, "pk_registry_consensus", "off")
     node.pk_registry = None                            # the LMDB address->pubkey registry, built at startup when pk_registry_consensus != off
     node.parity_strict = getattr(config, "parity_strict", False)  # doc/26 stage 4: raise (not warn) on a parity mismatch
     node.vm_enabled = config.vm                         # opt-in decentralized-apps VM (doc/17); POST-FORK only

@@ -29,6 +29,21 @@ REGNET_PARAM = "regnet2"
 PORT = 3030
 
 
+@pytest.fixture(autouse=True)
+def _isolate_ledger_integer():
+    """``amounts.LEDGER_INTEGER`` is a PROCESS-GLOBAL storage-mode switch. The shielded/ringct suites flip
+    it to True in their setup helpers (shielded value is integer-units) and historically never restored it,
+    leaking integer mode into later-collected files (e.g. test_storage_codecs' decimal-mode vectors) and
+    failing them only in a full-suite run. Snapshot it before every test and restore after, so no test can
+    leak the global to another — current or future offenders are isolated at the root."""
+    import amounts
+    saved = amounts.LEDGER_INTEGER
+    try:
+        yield
+    finally:
+        amounts.LEDGER_INTEGER = saved
+
+
 def _port_open():
     s = socket.socket()
     s.settimeout(0.3)

@@ -240,6 +240,13 @@ def payout(payout_threshold,myfee,othfee):
             paylist.append([alt_add,at])
 
         payout_passed = 0
+        # Canonical fee: track the node's live base_fee (/api/fee) via essentials.fee_calculate so post-fork
+        # congestion pricing (fee_dynamics) is honoured. Pre-fork base_fee is the static BASE_FEE, so this
+        # equals the old 0.01 + len(openfield)/100000. Queried once per run (openfield is the constant "pool").
+        try:
+            _base_fee = (_node_get("/fee") or {}).get("base_fee")
+        except Exception:
+            _base_fee = None                     # node unreachable -> essentials falls back to static BASE_FEE
         for r in paylist:
             app_log.info("Paying {}".format(r))
             recipient = r[0]
@@ -248,7 +255,7 @@ def payout(payout_threshold,myfee,othfee):
             payout_passed = 1
             openfield = "pool"
             keep = 0
-            fee = float('%.8f' % float(0.01 + (float(len(openfield)) / 100000) + (keep)))  # 0.01 + openfield fee + keep fee
+            fee = float(essentials.fee_calculate(openfield, operation=str(keep), base_fee=_base_fee))
             #make payout
 
             timestamp = '%.2f' % time.time()

@@ -36,12 +36,20 @@ def _lp4(b):                       # u32 LE length-prefixed bytes
 
 
 def _rd1(buf, i):
+    if i + 1 > len(buf):
+        raise ValueError("sync payload truncated reading u8 length at %d" % i)
     n = buf[i]; i += 1
+    if i + n > len(buf):
+        raise ValueError("sync payload truncated: u8 field len %d past end at %d" % (n, i))
     return buf[i:i + n], i + n
 
 
 def _rd4(buf, i):
+    if i + 4 > len(buf):
+        raise ValueError("sync payload truncated reading u32 length at %d" % i)
     n = int.from_bytes(buf[i:i + 4], "little"); i += 4
+    if i + n > len(buf):
+        raise ValueError("sync payload truncated: u32 field len %d past end at %d" % (n, i))
     return buf[i:i + n], i + n
 
 
@@ -60,8 +68,12 @@ def _pack_pubkey(pk):
 
 
 def _unpack_pubkey(buf, i):
+    if i + 1 > len(buf):
+        raise ValueError("sync payload truncated reading pubkey flag at %d" % i)
     flag = buf[i]; i += 1
     n, i = _ud(buf, i)
+    if i + n > len(buf):
+        raise ValueError("sync payload truncated: pubkey len %d past end at %d" % (n, i))
     body = buf[i:i + n]; i += n
     if flag == 0:
         import base64
@@ -92,6 +104,8 @@ def _decode_tx(buf, i):
     r, i = _rd1(buf, i); recip = addrbytes.unpack_addr(r)
     units, i = _ud(buf, i); amount = amounts.from_units(units)           # consensus_amount form
     # signature: tag(1) + u16 len(2) + raw
+    if i + 3 > len(buf):
+        raise ValueError("sync tx truncated: no signature length at offset %d" % i)
     slen = int.from_bytes(buf[i + 1:i + 3], "little"); sblob = buf[i:i + 3 + slen]; i += 3 + slen
     sig = sigbytes.to_wire(sblob)
     pubkey, i = _unpack_pubkey(buf, i)
@@ -129,6 +143,8 @@ def decode_blocks(buf):
     blocks = []
     for _ in range(nblocks):
         height, i = _ud(buf, i)
+        if i + 1 > len(buf):
+            raise ValueError("sync payload truncated reading block-hash flag at %d" % i)
         hflag = buf[i]; i += 1
         hb, i = _rd1(buf, i)
         block_hash = hb.hex() if hflag == 0 else hb.decode("utf-8")

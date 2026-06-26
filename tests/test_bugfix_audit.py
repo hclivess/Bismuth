@@ -59,6 +59,9 @@ class _PeersStub(PeersStorageMixin):
         self.peer_dict = {}
         self.peersync_lock = threading.Lock()
         self.config = types.SimpleNamespace(accept_peers=accept_peers, tor=tor)
+        # peersync reads self.node.tor_manager (doc/38 single proxy source) — the real Peers always sets
+        # self.node (peershandler.py); clearnet has no tor_manager so probing uses a direct socket.
+        self.node = types.SimpleNamespace(tor_manager=None, IS_STOPPING=False)
 
 
 def _install_fake_socket(monkeypatch, connect_raises):

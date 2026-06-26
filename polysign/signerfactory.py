@@ -235,6 +235,11 @@ class SignerFactory:
             # with an empty pubkey would otherwise fall into pubkey-by-reference and reject).
             if str(signature or "").strip() != "" or str(public_key or "").strip() != "":
                 raise ValueError("post-fork coinbase must carry empty signature and public key")
+            if str(recipient) != str(address):
+                # the reward is credited to the miner address (PoW-bound); a coinbase paying elsewhere is
+                # malformed. (Defense-in-depth: harmless today since the reward credits the address, but a
+                # clean reject keeps the coinbase canonical.)
+                raise ValueError("post-fork coinbase recipient must equal the miner address")
             return
         if post_fork and cls.is_single_sig_ecdsa(address):
             # audit L-1: the recoverable path DROPS the public key (the signer is recovered via ecrecover),

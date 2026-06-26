@@ -104,5 +104,7 @@ def unpack_addr(value):
         return base58.b58encode(body).decode()
     if tag == TAG_VERBATIM:
         n = body[0]
+        if n > len(body) - 1:        # detect a torn/truncated blob instead of silently returning short
+            raise ValueError("verbatim address length %d exceeds buffer %d" % (n, len(body) - 1))
         return body[1:1 + n].decode("utf-8")
     raise ValueError("unknown address tag 0x%02x" % tag)

@@ -65,5 +65,12 @@ def test_pubkey_address(client):
     client.mine(1)
     sleep(0.3)
     last = client.command("blocklastjson")
-    pubkey = b64decode(last["public_key"]).decode("utf-8")
-    assert hashlib.sha224(pubkey.encode("utf-8")).hexdigest() == client.address
+    if not last["public_key"]:
+        # hf2 §2.C compact coinbase: once regnet has crossed the fork, the mining-reward tx is authorized
+        # by PoW + the reward formula and carries NO public key and NO signature. The legacy
+        # address==sha224(pubkey) binding no longer applies to the coinbase (it moves to the pubkey
+        # registry / ordinary txs); assert the compaction is well-formed instead.
+        assert not last["signature"], "post-fork coinbase must carry an empty signature too"
+    else:
+        pubkey = b64decode(last["public_key"]).decode("utf-8")
+        assert hashlib.sha224(pubkey.encode("utf-8")).hexdigest() == client.address

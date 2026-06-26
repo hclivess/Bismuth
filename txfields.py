@@ -47,7 +47,10 @@ def uvarint_decode(buf, i=0):
     shift = 0
     result = 0
     start = i
+    n = len(buf)
     while True:
+        if i >= n:                          # truncated/corrupt blob -> clean ValueError, never a bare IndexError
+            raise ValueError("varint runs past end of buffer at offset %d" % i)
         b = buf[i]
         i += 1
         result |= (b & 0x7F) << shift
