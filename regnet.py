@@ -122,14 +122,21 @@ def generate_one_block(blockhash, mempool_txs, node, db_handler):
                     return int.from_bytes(blake2b(b, digest_size=28).digest() if new_pow
                                           else sha224(b).digest(), 'big')
 
-                _sr_fh = getattr(node, "fork_height", None)
                 _sr = getattr(node, "vm_state_root", None)
-                if _sr_fh is not None and getattr(node, "hdd_block", 0) + 1 >= _sr_fh and _sr:
-                    import vm_engine
-                    seed = _signal + vm_engine.embed_state_root(_sr, '%0x' % getrandbits(48))
+                if new_pow:
+                    # doc/41: PoW grinds a BARE nonce (prefix = ADDRESS only). The signal + "vmsr"<root>
+                    # commitment rides in the public_key slot, NOT the PoW pre-image / openfield.
+                    commitment = _signal
+                    if _sr:
+                        import vm_engine
+                        commitment += vm_engine.embed_state_root(_sr, "")
+                    seed = ""
+                    prefix = ADDRESS
                 else:
+                    # pre-fork: signal + entropy ride in the openfield and ARE the PoW seed (legacy).
+                    commitment = ""
                     seed = _signal + ('%0x' % getrandbits(128 - 32))
-                prefix = ADDRESS + seed
+                    prefix = ADDRESS + seed
                 # print("node heavy", node.heavy)
                 if node.heavy:
                     possibles = [nonce for nonce in try_arr if
@@ -140,7 +147,7 @@ def generate_one_block(blockhash, mempool_txs, node, db_handler):
                                  mining_condition in (
                                      mining.anneal3_regnet(mining.MMAP, _inner(prefix + nonce + blockhash)))]
                 if possibles:
-                    nonce = seed + possibles[0]
+                    nonce = possibles[0] if new_pow else seed + possibles[0]
                     node.logger.app_log.warning("Generate got a block in {} tries len {}".format(i, len(possibles)))
                     # assemble block with mp data
                     txs = []
@@ -160,12 +167,12 @@ def generate_one_block(blockhash, mempool_txs, node, db_handler):
                         removal_signature.append(str(mpdata[4]))  # for removal after successful mining
                     # claim reward
                     block_timestamp = '%.2f' % time.time()
-                    # hf2 §2.C coinbase compaction: post-fork the coinbase carries NO signature + public key
-                    # (PoW + reward formula authorize it; the node enforces empty). Pre-fork: RSA-signed.
-                    _fh = getattr(node, "fork_height", None)
-                    if _fh is not None and (node.last_block + 1) >= _fh:
+                    # doc/41: post-fork the coinbase is PoW-authorized (never signed). nonce -> freed
+                    # signature slot, "vmsr"<root>[+signal] commitment -> freed public_key slot, and
+                    # operation+openfield left empty (free-form). Pre-fork: RSA-signed (legacy).
+                    if new_pow:
                         block_send.append((str(block_timestamp), str(ADDRESS[:56]), str(ADDRESS[:56]),
-                                           '%.8f' % float(0), "", "", "0", str(nonce)))  # sig-less coinbase
+                                           '%.8f' % float(0), str(nonce), str(commitment), "", ""))  # doc/41 coinbase
                     else:
                         # frozen 6-field signing buffer via the single consensus authority (byte-identical
                         # to the old inline str((...)).encode())

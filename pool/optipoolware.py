@@ -487,8 +487,11 @@ _signing_key = RSA.importKey(private_key_readable)
 
 
 def _build_work():
-    """The work package handed to a miner (was the socket 'getwork' reply). hf2: cb_prefix + new_pow tell
-    the miner to fold the fork-signal into the openfield and switch sha224->blake2b."""
+    """The work package handed to a miner (was the socket 'getwork' reply). new_pow switches sha224->blake2b.
+    cb_prefix is the signal[+state-root] commitment: PRE-fork the miner folds it into the openfield/nonce it
+    grinds; POST-fork (doc/41) the miner grinds a BARE nonce and the POOL places cb_prefix in the coinbase
+    public_key slot (it is NOT part of the PoW). NOTE: the external miner clients (optihash/clminer/gpuminer)
+    must honor this bare-nonce post-fork rule — coordinated with their doc/41 update."""
     return {"blockhash": new_hash, "diff": mdiff, "pool_address": address,
             "netdiff": new_diff, "cb_prefix": cb_prefix, "new_pow": new_pow}
 
@@ -517,8 +520,10 @@ def process_share(miner_address, sh):
 
     diff = new_diff
     db_block_hash = mine_hash
-    # hf2: validate with the SAME algo the node consensus uses (the submitted nonce already includes the
-    # miner's cb_prefix, so it IS the coinbase openfield: diffme_heavy3 hashes address+openfield+blockhash).
+    # Validate with the SAME algo the node consensus uses: diffme_heavy3 hashes address+nonce+blockhash.
+    # Pre-fork the submitted nonce includes the miner's cb_prefix (it IS the coinbase openfield); post-fork
+    # (doc/41) it is a BARE nonce — the cb_prefix is the state-root commitment the pool puts in the public_key
+    # slot, NOT part of the PoW. Either way the node re-runs this exact hash over the stored nonce.
     real_diff = mining.diffme_heavy3(address, nonce, db_block_hash, new_pow=new_pow)
 
     block_found = real_diff >= int(diff)
@@ -532,11 +537,12 @@ def process_share(miner_address, sh):
                 str(d["timestamp"]), str(d["address"][:56]), str(d["recipient"][:56]),
                 '%.8f' % float(d["amount"]), str(d["signature"]), str(d["public_key"]),
                 str(d["operation"]), str(d["openfield"])))
-        # claim reward. hf2 §2.C coinbase compaction: post-fork (new_pow) the coinbase carries NO signature
-        # + public key (PoW + reward formula authorize it; the node enforces empty). Pre-fork: RSA-signed.
+        # claim reward. doc/41: post-fork (new_pow) the coinbase is PoW-authorized (never signed) — the bare
+        # PoW nonce goes in the freed signature slot, the "vmsr"<root>[+signal] commitment (cb_prefix) in the
+        # freed public_key slot, and operation+openfield are left empty (free-form). Pre-fork: RSA-signed.
         if new_pow:
             block_send.append((str(block_timestamp), str(address[:56]), str(address[:56]), '%.8f' % float(0),
-                               "", "", "0", str(nonce)))  # sig-less coinbase
+                               str(nonce), str(cb_prefix), "", ""))  # doc/41 coinbase (nonce|commitment)
             if not any(isinstance(el, list) for el in block_send):
                 block_send = [block_send]
         else:

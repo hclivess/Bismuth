@@ -109,10 +109,11 @@ def test_pool_block_and_payout():
         pool._refresh_fork_state(st["blocks"])
         assert pool.new_pow is True, "pool did not observe post-fork state"
 
-        # --- mine a valid PoW nonce (openfield = cb_prefix + suffix, like a real miner) ---
+        # --- mine a valid PoW nonce. doc/41: post-fork the miner grinds a BARE nonce (the cb_prefix
+        # state-root commitment rides in the coinbase public_key slot, added by the pool, NOT in the PoW) ---
         nonce = None
         for _ in range(2_000_000):
-            cand = pool.cb_prefix + ("%016x" % random.getrandbits(64))
+            cand = "%016x" % random.getrandbits(64)
             if pool.mining.diffme_heavy3(pool.address, cand, pool.new_hash, new_pow=pool.new_pow) >= pool.new_diff:
                 nonce = cand
                 break

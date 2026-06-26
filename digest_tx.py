@@ -70,7 +70,11 @@ class Transaction:
             # Return miner transaction data
             miner_tx = MinerTransaction()
             miner_tx.q_block_timestamp = self.q_received_timestamp
+            # PoW nonce source is fork-dependent and resolved at PoW-check time (this method has no
+            # fork height): pre-fork the nonce rides in the openfield; post-fork (doc/41) it rides in the
+            # freed signature slot, leaving the openfield as free miner data.
             miner_tx.nonce = self.received_openfield[:128]
+            miner_tx.nonce_v2 = (self.received_signature_enc or "")[:128]
             miner_tx.miner_address = self.received_address
             return miner_tx
 
@@ -151,7 +155,8 @@ class MinerTransaction:
 
     def __init__(self):
         self.q_block_timestamp = 0
-        self.nonce = None
+        self.nonce = None        # pre-fork PoW nonce source: the coinbase openfield
+        self.nonce_v2 = None     # doc/41 post-fork PoW nonce source: the coinbase signature slot
         self.miner_address = None
 
 

@@ -79,16 +79,19 @@ def mine_nonce(node, db_handler):
     diff_hex = max(1, int(math.floor((diff / 8) - 1)))
     target = blockhash[0:diff_hex]
     anneal = mining.anneal3 if node.heavy else mining.anneal3_regnet
-    prefix = _coinbase_prefix(node)
+    # doc/41: post-fork the PoW grinds a BARE nonce — the coinbase openfield is now free miner data and the
+    # state-root commitment rides in the public_key slot, so neither is part of the PoW pre-image. Pre-fork
+    # the mined value is the openfield = prefix(signal[+root]) + nonce, exactly as before.
+    prefix = "" if new_pow else _coinbase_prefix(node)
     attempts = 0
     while not node.IS_STOPPING:
         for _ in range(HASHCOUNT):
             attempts += 1
-            openfield = prefix + ('%0x' % getrandbits(64))           # the coinbase openfield = prefix + nonce
-            data = (address + openfield + blockhash).encode("utf-8")
+            mined = prefix + ('%0x' % getrandbits(64))               # post-fork: bare nonce; pre-fork: prefix+nonce
+            data = (address + mined + blockhash).encode("utf-8")
             raw = blake2b(data, digest_size=28).digest() if new_pow else sha224(data).digest()
             if target in str(anneal(mining.MMAP, int.from_bytes(raw, 'big'))):
-                return blockhash, openfield
+                return blockhash, mined
         if node.last_block_hash != blockhash:     # tip advanced while mining -> abandon, caller re-mines
             return None
         if attempts > 400000:                     # safety cap so a command never hangs
@@ -97,30 +100,35 @@ def mine_nonce(node, db_handler):
     return None
 
 
-def _build_block(node, nonce):
-    """Assemble [pending mempool txs..., signed coinbase] in the exact shape the digester expects."""
+def _build_block(node, mined):
+    """Assemble [pending mempool txs..., coinbase] in the exact shape the digester expects. ``mined`` is
+    what mine_nonce returned: post-fork the bare PoW nonce; pre-fork the openfield (prefix+nonce)."""
     block_send = []
     for m in mp.MEMPOOL.fetchall(mp.SQL_SELECT_TX_TO_SEND)[:MAX_TX_PER_BLOCK]:
         block_send.append((str(m[0]), str(m[1][:56]), str(m[2][:56]), '%.8f' % float(m[3]),
                            str(m[4]), str(m[5]), str(m[6]), str(m[7])))
     ts = '%.2f' % time.time()
     addr = node.keys.address
-    # hf2 §2.C coinbase compaction: post-fork the coinbase carries NO signature + NO public key (authorized
-    # by PoW + the reward formula; the node enforces empty). Pre-fork it is RSA-signed as before.
     _fh = getattr(node, "fork_height", None)
     _post_fork = _fh is not None and (node.last_block + 1) >= _fh
     if _post_fork:
-        sig_field, pub = "", ""
+        # doc/41: the coinbase is PoW-authorized (never signed). The freed signature slot carries the PoW
+        # NONCE and the freed public_key slot the "vmsr"<root>[+signal] commitment; operation+openfield are
+        # left empty (free-form miner data, no longer holding consensus payloads). _coinbase_prefix builds
+        # the same signal[+state-root] string as before — it now rides in the public_key slot, not openfield.
+        block_send.append((str(ts), str(addr[:56]), str(addr[:56]), '%.8f' % 0.0,
+                           str(mined), str(_coinbase_prefix(node)), "", ""))   # the coinbase (doc/41)
     else:
         # The signed pre-image is the frozen 6-field signing buffer (byte-identical to the old inline
         # str((...)).encode()), sourced from the single consensus authority instead of re-spelled here.
+        # Pre-fork the nonce rides in the openfield (``mined``).
         h = SHA.new(bismuth_serialize.signature_buffer(
-            str(ts), str(addr[:56]), str(addr[:56]), '%.8f' % 0.0, "0", str(nonce)))
+            str(ts), str(addr[:56]), str(addr[:56]), '%.8f' % 0.0, "0", str(mined)))
         sig_field = base64.b64encode(PKCS1_v1_5.new(node.keys.key).sign(h)).decode("utf-8")
         pub = node.keys.public_key_b64encoded
         pub = pub.decode("utf-8") if isinstance(pub, (bytes, bytearray)) else str(pub)
-    block_send.append((str(ts), str(addr[:56]), str(addr[:56]), '%.8f' % 0.0,
-                       str(sig_field), str(pub), "0", str(nonce)))   # the coinbase
+        block_send.append((str(ts), str(addr[:56]), str(addr[:56]), '%.8f' % 0.0,
+                           str(sig_field), str(pub), "0", str(mined)))   # the coinbase (pre-fork, signed)
     return block_send
 
 

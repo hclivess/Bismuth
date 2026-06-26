@@ -1,5 +1,7 @@
-"""hf2 §2.C coinbase compaction: the mining-reward (coinbase) tx carries NO signature + public key
-post-fork (authorized by PoW + the reward formula), and ANY address scheme may mine.
+"""hf2 coinbase (§2.C + doc/41): the mining-reward (coinbase) tx is authorized by PoW + the reward
+formula and is NEVER signature-verified, so ANY address scheme may mine. doc/41 repurposes its freed
+signature/public_key slots as the mining header (slot4=PoW nonce, slot5="vmsr"<root> commitment) — they
+are no longer required empty; the verifier treats them as opaque.
 
 Run with: python3 -m pytest tests/test_coinbase_compaction.py -v
 """
@@ -23,12 +25,12 @@ def test_postfork_coinbase_empty_sig_accepted_any_scheme():
         _v(True, addr, "", "", is_coinbase=True)      # empty sig+pubkey -> accepted, no raise
 
 
-def test_postfork_coinbase_must_be_empty():
-    # a coinbase that smuggles a signature or pubkey post-fork is rejected (defense-in-depth)
-    with pytest.raises(ValueError, match="empty signature and public key"):
-        _v(True, "ab" * 28, "SOMESIG", "", is_coinbase=True)
-    with pytest.raises(ValueError, match="empty signature and public key"):
-        _v(True, "ab" * 28, "", "SOMEPUB", is_coinbase=True)
+def test_postfork_coinbase_carries_mining_header():
+    # doc/41: the post-fork coinbase REUSES its sig/pubkey slots as the mining header (slot4=nonce,
+    # slot5="vmsr"<root> commitment). They are no longer required empty — the verifier accepts them as
+    # opaque (the nonce is PoW-checked and the root enforced in digest.py). Recipient==address still holds.
+    _v(True, "ab" * 28, "deadbeefnonce", "vmsr" + "ab" * 32, is_coinbase=True)   # mining header -> accepted
+    _v(True, "ab" * 28, "", "", is_coinbase=True)                               # empty also still accepted
 
 
 def test_postfork_coinbase_recipient_must_equal_miner():
@@ -47,10 +49,11 @@ def test_prefork_coinbase_unaffected():
         _v(False, "ab" * 28, "notarealsig", "notarealpub", is_coinbase=True)
 
 
-def test_block_hash_v2_omits_coinbase_sig():
-    # the §2.C pre-image drops the coinbase (last tx) sig+pubkey -> hash invariant to them
+def test_block_hash_v2_commits_coinbase_mining_header():
+    # doc/41: the coinbase sig/pubkey slots now carry the committed mining header (nonce, commitment), so
+    # the block hash DOES depend on them — a forged nonce or state-root commitment changes the hash.
     import bismuth_serialize as B
     normal = ("1750000000.00", "a", "r", "1.00000000", "s", "p", "op", "of")
-    cb_a = ("1750000000.00", "m", "m", "0.00000000", "SIGA", "PUBA", "0", "nonce")
-    cb_b = ("1750000000.00", "m", "m", "0.00000000", "", "", "0", "nonce")
-    assert B.block_hash_v2([normal, cb_a], "ab" * 32) == B.block_hash_v2([normal, cb_b], "ab" * 32)
+    cb_a = ("1750000000.00", "m", "m", "0.00000000", "NONCEA", "vmsrROOTA", "", "")
+    cb_b = ("1750000000.00", "m", "m", "0.00000000", "NONCEB", "vmsrROOTB", "", "")
+    assert B.block_hash_v2([normal, cb_a], "ab" * 32) != B.block_hash_v2([normal, cb_b], "ab" * 32)

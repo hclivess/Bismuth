@@ -1,21 +1,25 @@
 # doc/41 — hf2: free-form coinbase `operation`/`openfield` (miners carry no mandatory message)
 
-**Status:** DESIGN / NOT YET IMPLEMENTED — blocked on a reconciliation decision (see "Conflict" below).
+**Status:** IMPLEMENTED + regnet-validated end-to-end (node consensus + solo miner + regnet + pool server).
 Gated on `node.fork_height` (folds into the single hf2 fork — no new signal). Builds on doc/29
 (binary/integer serialization) and doc/19 (coinbase VM state-root commitment).
 
-> **⚠ Conflict with shipped hf2 §2.C (must resolve before implementing).** doc/29 §2.C already ships a
-> rule that the post-fork coinbase's `signature`+`public_key` wire slots are **EMPTY**, and
-> `SignerFactory.verify_tx_signature` actively REJECTS a post-fork coinbase that puts anything in them
-> ("must be empty signature and public key" — defense-in-depth, with tests in
-> `tests/test_coinbase_compaction.py`). This design REUSES exactly those slots for the mining header
-> (nonce + commitment), which REVERSES that rule. hf2 is not yet activated on mainnet, so the reversal
-> is legitimate (pre-activation refinement), but it is a deliberate consensus-rule change that must be
-> made as ONE unit — serialization core + `SignerFactory` rule + miner/poolware/regnet construction +
-> digest readers + the §2.C tests inverted — and validated end-to-end on regnet (post-fork mining
-> round-trip). That heavy validation should run when no other agent is mining concurrently (spurious
-> failures otherwise). Until then this stays a design doc; only the byte-identical serialization
-> *centralization* groundwork has shipped.
+> **Resolved — supersedes the shipped hf2 §2.C "coinbase slots must be empty" rule.** §2.C had merely
+> emptied the coinbase `signature`+`public_key` slots to trim spam; it was not a load-bearing invariant
+> (the coinbase is authorized by PoW + the reward formula). doc/41 REUSES those freed slots for the mining
+> header (slot[4]=PoW nonce, slot[5]="vmsr"<root>[+signal] commitment), which is what frees
+> `operation`/`openfield` to be optional free-form miner data. hf2 is not yet active on mainnet, so this
+> pre-activation refinement landed as ONE unit: serialization core + `SignerFactory` rule (no longer
+> requires empty; recipient==address kept) + digest readers (nonce from slot[4], state root from slot[5],
+> coinbase never sig-verified/replay-checked) + miner.py/regnet.py/optipoolware.py construction + the
+> fork-signal reader reading per-era (openfield pre-fork, public_key post-fork) + the §2.C tests inverted.
+> Validated on live regnet: test_hf2_fork_transition, test_vm_post_fork, test_regnet_dual_pow,
+> test_fork_wiring, test_pool_integration.
+>
+> **Follow-up (NOT in this change):** the GPU miner HOST drivers. `gpuminer/optihash.py` (CUDA, pool
+> miner) submits a BARE nonce and the pool builds the coinbase — already doc/41-compatible; it only needs
+> the background agent's blake2b-Heavy3 `new_pow` port. `gpuminer/opencl_alt/miner.py` (solo miner) builds
+> its OWN coinbase, so it needs the doc/41 construction — but it cannot be GPU-tested in CI.
 
 ## Goal
 

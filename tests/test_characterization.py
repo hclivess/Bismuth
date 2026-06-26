@@ -196,18 +196,21 @@ def test_consensus_block_hash_is_frozen():
 
 def test_consensus_signature_buffer_v2_is_frozen():
     import bismuth_serialize
-    # canonical little-endian binary pre-image: MAGIC|VERSION|ts_cs(u64)|amount(u64)|lp(addr,recip,op)|lp(of,u32)
+    # canonical LE binary pre-image (doc/41 v0x02):
+    # MAGIC|VERSION|ts_cs(u64)|amount(u64)|lp(addr,recip,u8)|FLAGS(u8)|lp(op,u32)|lp(of,u32) — op/of omit-when-empty
     buf = bismuth_serialize.signature_buffer_v2(150000000000, "Bis1aaaa", "bbbb",
                                                 100000000, "vm:call", "x")
-    assert buf.hex() == ("b201005cb2ec2200000000e1f50500000000"
-                         "084269733161616161046262626207766d3a63616c6c0100000078")
+    assert buf.hex() == ("b202005cb2ec2200000000e1f5050000000008426973316161616104626262620307000000"
+                         "766d3a63616c6c0100000078")
     assert buf[0] == bismuth_serialize.V2_MAGIC and buf[1] == bismuth_serialize.V2_VERSION
+    # omit-when-empty: a tx carrying neither operation nor openfield ends in a single cleared FLAGS byte
+    assert bismuth_serialize.signature_buffer_v2(150000000000, "a", "b", 100000000, "", "")[-1] == 0x00
 
 
 def test_consensus_tx_id_v2_is_frozen():
     import bismuth_serialize
     assert (bismuth_serialize.tx_id_v2(150000000000, "Bis1aaaa", "bbbb", 100000000, "vm:call", "x")
-            == "53b11e1ba5cfb4194ca66063a9944e9a46588a6b434bae634878cff841164a20")
+            == "ce9a23d510cda2145ac8b7c629be7d21517701a4b49bb433ef02845c912a3dd6")
 
 
 def test_v2_and_legacy_preimages_cannot_alias():
@@ -221,26 +224,29 @@ def test_v2_and_legacy_preimages_cannot_alias():
 
 def test_consensus_block_hash_v2_is_frozen():
     import bismuth_serialize
-    # hf2 §2.C: the LAST tx is the coinbase — its signature + public_key are OMITTED from the v2 pre-image.
-    # A lone tx is therefore treated as a (sig-less) coinbase; pinned to the §2.C value.
+    # doc/41: the LAST tx is the coinbase — its sig/pubkey slots carry the committed MINING HEADER
+    # (nonce, commitment). A lone tx is therefore treated as that coinbase; pinned to the v0x02 value.
     txs = [("1500000000.00", "a", "r", "0.00000000", "sig", "pk", "0", "of")]
     h = bismuth_serialize.block_hash_v2(txs, "ab" * 32)   # 64-hex post-fork parent
-    assert h == "9ba713210b18733816148ea6a1e1daab6a636690a6a548bc936db5c18c51ed30"
+    assert h == "7237e4d3264524509b2f8bf365fd8cf1960a3728b59735d46047c179df3da74a"
     assert len(h) == 64
 
 
-def test_consensus_block_hash_v2_coinbase_drops_sig():
-    """hf2 §2.C coinbase compaction: the last tx (coinbase) omits signature+public_key from the block-hash
-    pre-image — so the hash is INVARIANT to the coinbase sig/pubkey, but a non-coinbase tx's sig still
-    matters. Frozen vector pins the compact form."""
+def test_consensus_block_hash_v2_coinbase_commits_mining_header():
+    """doc/41: the coinbase repurposes its sig/pubkey slots as the MINING HEADER — slot[4]=PoW nonce,
+    slot[5]=commitment ("vmsr"<root>[+vote]). Both are COMMITTED to the block hash (so neither can be
+    ground/forged), while operation+openfield become free-form miner data. Frozen vector pins the form."""
     import bismuth_serialize as B
     normal = ("1500000000.00", "a", "r", "1.00000000", "sig1", "pk1", "op", "of")
-    cb = ("1500000000.00", "miner", "miner", "0.00000000", "CBSIG", "CBPK", "0", "nonce")
+    cb = ("1500000000.00", "miner", "miner", "0.00000000", "NONCE1", "vmsrROOT", "", "")
     h = B.block_hash_v2([normal, cb], "ab" * 32)
-    assert h == "908ea3336cda8a6fc8ecbd9a122c60f13fdf47cfd246b098403e61d6fae7a441"
-    # coinbase sig/pubkey dropped -> hash unchanged when they differ (even empty)
-    assert B.block_hash_v2([normal, ("1500000000.00", "miner", "miner", "0.00000000", "", "", "0", "nonce")],
-                           "ab" * 32) == h
+    assert h == "c60bc7acad1a4e822812b7ed1d8b952eba162bcac43c0c403459d9bf815b9f67"
+    # the coinbase nonce (slot[4]) is now COMMITTED -> changing it changes the hash
+    assert B.block_hash_v2([normal, ("1500000000.00", "miner", "miner", "0.00000000", "NONCE2", "vmsrROOT", "", "")],
+                           "ab" * 32) != h
+    # the mining commitment (slot[5]) is now COMMITTED -> changing it changes the hash
+    assert B.block_hash_v2([normal, ("1500000000.00", "miner", "miner", "0.00000000", "NONCE1", "vmsrOTHER", "", "")],
+                           "ab" * 32) != h
     # a NON-coinbase tx's signature still affects the hash
     assert B.block_hash_v2([("1500000000.00", "a", "r", "1.00000000", "sigX", "pk1", "op", "of"), cb],
                            "ab" * 32) != h

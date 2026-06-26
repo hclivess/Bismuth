@@ -65,8 +65,16 @@ def block_hash(transaction_list_converted, previous_hash: str) -> str:
 # fields for signing/hashing — it is not a wire format (the wire stays the 8-field tuple), so no decoder
 # is needed on the consensus path.
 V2_MAGIC = 0xB2            # 0xB2 can't begin a legacy pre-image (legacy starts with ASCII '(' = 0x28),
-V2_VERSION = 0x01         # so a v2 and a legacy pre-image can never alias even if a gate were missed.
-V2_OPENFIELD_MAX = 100000  # consensus cap (matches digest_tx truncation), u32 length prefix
+V2_VERSION = 0x02         # so a v2 and a legacy pre-image can never alias even if a gate were missed.
+                          # v0x02 (doc/41): operation/openfield are omit-when-empty (FLAGS byte) and the
+                          # coinbase carries its mining header in the freed sig/pubkey slots. v0x01 never
+                          # activated on mainnet (staged), so bumping the layout here is not live-consensus.
+V2_OPENFIELD_MAX = 100000  # legacy/mempool anti-DoS bound for NON-coinbase txs; the post-fork coinbase
+                           # openfield is uncapped free-form miner data (doc/41). u32 length prefix.
+
+# doc/41 free-form (operation, openfield) flag bits — shared by the signing and block-hash pre-images.
+V2_F_OPERATION = 0x01
+V2_F_OPENFIELD = 0x02
 
 
 def _utf8(x) -> bytes:
@@ -84,17 +92,36 @@ def _v2_lp(b: bytes, width: int) -> bytes:
     return len(b).to_bytes(width, "little") + b
 
 
+def _v2_opof(operation, openfield) -> bytes:
+    """doc/41: the trailing free-form (operation, openfield) of a v2 pre-image, OMIT-WHEN-EMPTY. A single
+    FLAGS u8 (bit0=operation present, bit1=openfield present) precedes only the present fields, each
+    u32-length-prefixed and UNCAPPED. An empty or absent field contributes just its (cleared) flag bit, so
+    a tx carrying neither costs one byte, and "absent" can never alias "present-but-empty". Used by BOTH the
+    signing pre-image (signature_buffer_v2) and the block-hash pre-image (_v2_tx_bytes) so the two can never
+    drift out of lockstep."""
+    op_b = b"" if operation is None else _utf8(operation)
+    of_b = b"" if openfield is None else _utf8(openfield)
+    flags = (V2_F_OPERATION if op_b else 0) | (V2_F_OPENFIELD if of_b else 0)
+    out = bytes((flags,))
+    if op_b:
+        out += _v2_lp(op_b, 4)
+    if of_b:
+        out += _v2_lp(of_b, 4)
+    return out
+
+
 def signature_buffer_v2(timestamp_cs, address, recipient, amount_units, operation, openfield) -> bytes:
     """Post-hf2 canonical BINARY transaction pre-image (doc/29 §2.A): the exact bytes a post-fork
     signature signs and ``tx_id_v2`` hashes. ``timestamp_cs`` = integer centiseconds (preserves the
     legacy '%.2f' precision), ``amount_units`` = integer atomic units (1 BIS = 1e8). Deterministic,
-    little-endian, length-prefixed; signature/public_key excluded. Layout:
-    MAGIC u8 | VERSION u8 | ts_cs u64 | amount u64 | addr(lp u8) | recip(lp u8) | op(lp u8) | openfield(lp u32)."""
+    little-endian, length-prefixed; signature/public_key excluded. Layout (doc/41):
+    MAGIC u8 | VERSION u8 | ts_cs u64 | amount u64 | addr(lp u8) | recip(lp u8) | FLAGS u8 | [op(lp u32)] | [of(lp u32)]
+    — operation/openfield are omit-when-empty via FLAGS (see _v2_opof)."""
     return (bytes((V2_MAGIC, V2_VERSION))
             + int(timestamp_cs).to_bytes(8, "little")
             + int(amount_units).to_bytes(8, "little")
             + _v2_lp(_utf8(address), 1) + _v2_lp(_utf8(recipient), 1)
-            + _v2_lp(_utf8(operation), 1) + _v2_lp(_utf8(openfield), 4))
+            + _v2_opof(operation, openfield))
 
 
 def tx_id_v2(timestamp_cs, address, recipient, amount_units, operation, openfield) -> str:
@@ -121,23 +148,23 @@ def _v2_tx_bytes(tx, is_coinbase=False) -> bytes:
     (timestamp, address, recipient, amount, signature, public_key, operation, openfield). timestamp ->
     integer centiseconds, amount -> integer atomic units; all variable fields length-prefixed, little-endian.
 
-    hf2 §2.C COINBASE COMPACTION: the last tx (``is_coinbase``) OMITS the signature + public_key entirely
-    (no length prefixes either). The coinbase carries no value and is authorized by PoW + the reward formula,
-    never by a signature, so the two fields are dead weight; dropping them from the pre-image is what lets the
-    coinbase be sent/stored sig-less. amount==0 and recipient==address are still committed below; the nonce
-    rides in the openfield. (Pre-fork uses the frozen legacy block_hash, so this only affects post-fork.)"""
+    hf2 §2.C / doc/41 COINBASE: the last tx (``is_coinbase``) is PoW-authorized, never signed, so its
+    signature + public_key wire slots are repurposed as the MINING HEADER and committed here — slot[4] =
+    PoW nonce, slot[5] = mining commitment ("vmsr"<root>[+"hf2" vote], doc/19+doc/41). Both are
+    u8-length-prefixed and HASHED, so neither the nonce nor the state-root commitment can be ground/forged.
+    This frees operation+openfield to be free-form, optional, uncapped miner data (omit-when-empty via
+    _v2_opof). (Pre-fork uses the frozen legacy block_hash, so this only affects post-fork.)"""
     head = (_v2_ts_cs(tx[0]).to_bytes(8, "little")
             + _v2_units(tx[3]).to_bytes(8, "little")
             + _v2_lp(_utf8(tx[1]), 1)      # address
             + _v2_lp(_utf8(tx[2]), 1))     # recipient
     if is_coinbase:
-        sigpub = b""                                     # §2.C: coinbase omits signature + public_key
+        mid = (_v2_lp(_utf8(tx[4]), 1)     # PoW nonce (freed signature slot)
+               + _v2_lp(_utf8(tx[5]), 1))  # mining commitment (freed public_key slot)
     else:
-        sigpub = (_v2_lp(_utf8(tx[4]), 2)  # signature
-                  + _v2_lp(_utf8(tx[5]), 2))  # public_key
-    return (head + sigpub
-            + _v2_lp(_utf8(tx[6]), 1)      # operation
-            + _v2_lp(_utf8(tx[7]), 4))     # openfield
+        mid = (_v2_lp(_utf8(tx[4]), 2)     # signature
+               + _v2_lp(_utf8(tx[5]), 2))  # public_key
+    return head + mid + _v2_opof(tx[6], tx[7])           # doc/41: omit-when-empty operation + openfield
 
 
 def block_hash_v2(transaction_list_converted, previous_hash: str) -> str:

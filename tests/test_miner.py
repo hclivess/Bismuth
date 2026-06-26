@@ -39,7 +39,11 @@ def test_miner_coinbase_carries_hf2_signal(client):
     blk = _get("/api/block/height/%d" % client.block_height())
     cb = [t for t in blk["transactions"] if float(t.get("reward") or 0) != 0]
     of = (cb[0].get("openfield") if cb else "") or ""
-    assert "hf2" in of, "coinbase missing the hf2 readiness signal: %r" % of[:24]
+    pubkey = (cb[0].get("pubkey") if cb else "") or ""
+    # doc/41: pre-fork the readiness signal rides in the openfield; post-fork the coinbase openfield is
+    # free miner data and the signal rides in the public_key commitment slot ("hf2"+"vmsr"<root>).
+    assert "hf2" in of or "hf2" in pubkey, \
+        "coinbase missing the hf2 readiness signal: openfield=%r pubkey=%r" % (of[:24], pubkey[:24])
 
 
 def test_dual_algo_pow_switches(client):

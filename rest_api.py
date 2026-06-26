@@ -741,11 +741,25 @@ def _make_handler(node):
             # has_fork_signal's substring test). Then fork_status's scan is an in-memory set loop (~1s) with an
             # IDENTICAL result, vs ~1000s of point queries (the old tens-of-seconds cost). 'hf2' contains a
             # non-hex char so the nonce/state-root hex in the openfield can never false-match. Cached per tip.
-            db.execute_param(db.c,
-                "SELECT t.block_height FROM transactions t "
-                "JOIN (SELECT block_height, MAX(rowid) mr FROM transactions "
-                "      WHERE block_height >= 1 AND block_height <= ? GROUP BY block_height) m "
-                "ON t.rowid = m.mr WHERE t.openfield LIKE ?", (int(tip), "%" + fork.FORK2_SIGNAL + "%"))
+            # doc/41: the fork signal moved coinbase slots at activation. BELOW fork_height it rides in the
+            # openfield (legacy; the nonce/root hex there can't false-match 'hf2'); AT/AFTER fork_height the
+            # coinbase openfield is free miner data and the signal rides in the public_key commitment
+            # ("hf2"+"vmsr"<root>) — so match per-era to avoid both misses (post-fork) and false hits (a
+            # pre-fork RSA b64 pubkey can contain 'hf2'; free post-fork openfield can too). Pre-activation
+            # (fork_height None) every block is pre-fork -> openfield only, byte-identical to before.
+            _ff = getattr(node, "fork_height", None)
+            _cb_join = ("SELECT t.block_height FROM transactions t "
+                        "JOIN (SELECT block_height, MAX(rowid) mr FROM transactions "
+                        "      WHERE block_height >= 1 AND block_height <= ? GROUP BY block_height) m "
+                        "ON t.rowid = m.mr WHERE ")
+            _sig = "%" + fork.FORK2_SIGNAL + "%"
+            if _ff is None:
+                db.execute_param(db.c, _cb_join + "t.openfield LIKE ?", (int(tip), _sig))
+            else:
+                db.execute_param(db.c, _cb_join +
+                                 "((t.block_height < ? AND t.openfield LIKE ?) "
+                                 " OR (t.block_height >= ? AND t.public_key LIKE ?))",
+                                 (int(tip), int(_ff), _sig, int(_ff), _sig))
             sigset = set(int(r[0]) for r in db.c.fetchall())
             result = fork.fork_status(lambda h: int(h) in sigset, tip, window,
                                       getattr(node, "fork_boundary", fork.FORK2_BOUNDARY),

@@ -227,14 +227,14 @@ class SignerFactory:
         the frozen ``signature_buffer`` against the explicit public key. (The content-hash txid is the
         canonical id for ALL post-fork txs regardless of which signing scheme verified them.)"""
         if post_fork and is_coinbase:
-            # hf2 coinbase compaction (doc/29 §2.C): the mining-reward tx carries NO signature and NO
-            # public key. Authorization = PoW (binds address+openfield+blockhash, miner.py:87) + the reward
-            # FORMULA (the node recomputes amount+fees, digest.py:277-278 — never trusts a wire amount).
-            # The signature was dead weight (it signed amount='0.00000000', not the real reward). ENFORCE
-            # empty here (must come BEFORE the single-sig / pubkey-by-reference branches: an RSA coinbase
-            # with an empty pubkey would otherwise fall into pubkey-by-reference and reject).
-            if str(signature or "").strip() != "" or str(public_key or "").strip() != "":
-                raise ValueError("post-fork coinbase must carry empty signature and public key")
+            # hf2 coinbase (doc/29 §2.C + doc/41): the mining-reward tx is NEVER signature-verified.
+            # Authorization = PoW (binds address+nonce+blockhash, miner.py) + the reward FORMULA (the node
+            # recomputes amount+fees, digest.py — never trusts a wire amount). doc/41 repurposes the freed
+            # signature/public_key slots as the MINING HEADER (slot[4]=PoW nonce, slot[5]="vmsr"<root>
+            # commitment), so they are NO LONGER required empty — they carry the nonce + state-root
+            # commitment (the nonce is PoW-checked, the root is enforced against ours in digest.py). They
+            # are opaque here; we only keep the coinbase canonical (must come BEFORE the single-sig /
+            # pubkey-by-reference branches so the header is never mistaken for a key/signature).
             if str(recipient) != str(address):
                 # the reward is credited to the miner address (PoW-bound); a coinbase paying elsewhere is
                 # malformed. (Defense-in-depth: harmless today since the reward credits the address, but a

@@ -69,17 +69,17 @@ def test_vm_deploy_and_call_post_fork(client):
     root = _get("/api/vm/contracts").get("state_root")
     assert root and len(root) == 64, "expected a 32-byte state root, got %r" % root
 
-    # ENFORCEMENT: a post-fork coinbase COMMITS the root in its openfield, and the digest validated it
-    # (the chain only advanced because every block's committed root matched). Check a quiet block.
+    # ENFORCEMENT: a post-fork coinbase COMMITS the root in its public_key slot (doc/41 mining header),
+    # and the digest validated it (the chain only advanced because every block's committed root matched).
     client.mine(2)
     sleep(0.3)
     cur_root = _get("/api/vm/contracts")["state_root"]
     blk = _get("/api/block/height/%d" % client.block_height())
     cb = [t for t in blk["transactions"] if float(t.get("reward") or 0) != 0]
-    of = (cb[0].get("openfield") if cb else "") or ""
+    commitment = (cb[0].get("pubkey") if cb else "") or ""   # doc/41: "vmsr"<root> rides in the public_key slot (JSON key 'pubkey')
     import vm_engine
-    committed = vm_engine.extract_state_root(of)            # rides after the hf2 signal in the openfield
-    assert committed is not None, "coinbase does not commit a state root: %r" % of[:24]
+    committed = vm_engine.extract_state_root(commitment)
+    assert committed is not None, "coinbase does not commit a state root: %r" % commitment[:24]
     assert committed == cur_root, "coinbase root %s != node root %s" % (committed, cur_root)
 
 

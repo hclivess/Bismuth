@@ -96,9 +96,12 @@ class BlockProcessor:
             # because a NON-coinbase empty signature is still rejected below.)
             is_coinbase = post_fork and (idx == n_tx - 1)
 
-            if not entry_signature:
-                if not is_coinbase:
-                    raise ValueError(f"Empty signature from {self.peer_ip}")
+            # doc/41: the post-fork coinbase's signature slot now carries the PoW NONCE (not a signature)
+            # and its public_key slot the state-root commitment. It is authorized by PoW + the reward
+            # formula, so it is NEVER signature-verified or replay-checked — whether that slot is empty
+            # (pre-doc/41 compact form) or holds the nonce. Handle it first; a NON-coinbase empty signature
+            # is still rejected below. (Keep the coinbase slot in signature_list for the tx-count check.)
+            if is_coinbase:
                 signature_list.append(entry_signature)
                 if shadow_txid:
                     txid_list.append(bismuth_serialize.tx_id_at(
@@ -106,6 +109,9 @@ class BlockProcessor:
                         str(entry[0]), str(entry[1]), str(entry[2]), str(entry[3]),
                         str(entry[6]), str(entry[7])))
                 continue
+
+            if not entry_signature:
+                raise ValueError(f"Empty signature from {self.peer_ip}")
 
             signature_list.append(entry_signature)
 
@@ -437,11 +443,14 @@ class BlockProcessor:
         """Verify the proof of work for the block."""
         _ufh = getattr(self.node, "fork_height", None)
         new_pow = _ufh is not None and block_instance.block_height_new >= _ufh   # blake2b Heavy3 from hf2 (doc/18-D, bundled)
+        # doc/41: post-fork the PoW nonce lives in the coinbase signature slot (nonce_v2); pre-fork it
+        # rides in the openfield (nonce). Same gate as new_pow, so they switch together.
+        nonce = miner_tx.nonce_v2 if new_pow else miner_tx.nonce
         if self.node.is_mainnet or self.node.is_testnet:
             return mining_heavy3.check_block(
                 block_instance.block_height_new,
                 miner_tx.miner_address,
-                miner_tx.nonce,
+                nonce,
                 self.node.last_block_hash,
                 diff[0],
                 tx.received_timestamp,
@@ -457,7 +466,7 @@ class BlockProcessor:
             return mining_heavy3.check_block(
                 block_instance.block_height_new,
                 miner_tx.miner_address,
-                miner_tx.nonce,
+                nonce,
                 self.node.last_block_hash,
                 regnet.REGNET_DIFF,
                 tx.received_timestamp,
@@ -703,7 +712,9 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
             for _t in processor.block_transactions:
                 try:
                     if _t[9] and float(_t[9]) != 0:                  # coinbase = the reward tx
-                        _claimed = vm_engine.extract_state_root(_t[11])
+                        # doc/41: post-fork the state-root commitment rides in the public_key slot (_t[6]),
+                        # not the openfield (this whole branch is already gated to post-fork heights).
+                        _claimed = vm_engine.extract_state_root(_t[6])
                         break
                 except (ValueError, TypeError):
                     continue
