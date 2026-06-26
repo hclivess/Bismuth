@@ -21,18 +21,19 @@
 >   (single-sig secp256k1 signs/verifies the binary txid via ecrecover), `vm_engine` (contract address),
 >   the REST `POST` echo, and the lite client. RSA/ED25519/multisig keep their legacy buffer **signing**
 >   (their canonical id is still the binary txid). Full regnet suite green.
-> - ◑ **Stage 3** — pubkey compaction. A rigorous design pass (§Stage 3 below) **REJECTED the consensus
->   address→key registry** (pubkey-by-reference): it would add the first-ever intra-block tx-ordering
->   dependency + a reorg/snapshot-fragile consensus registry + a state-dependent reject path, only to
->   compress RSA/ML-DSA keys **whose repetition `block_store` already dedupes losslessly** — a bad trade. And
->   A-hex raw-byte wire encoding *grows* the text fields (hex 2× vs base64 1.33×); the real raw-byte win needs
->   true-bytes in the Stage-4 store rewrite. **Shipped: the stateless ED25519 pubkey drop** (`signerfactory.
->   is_single_sig_ed25519` + `SignerED25519.public_key_from_address` — recovered from the address like
->   secp256k1 ecrecover; rejects a non-empty pubkey post-fork; `tests/test_hf2_ed25519_drop.py`). BOTH
->   single-sig schemes now drop their pubkey post-fork.
-> - ◻ **Stage 4** — coinbase compaction + raw-byte (true-bytes / A-bin) sig+pubkey as part of an LMDB
->   store-primary rewrite (where raw bytes are a real storage win, not the A-hex regression) + M-3/M-4 dedup.
->   GPU kernels (bis.cu/bismuth.cl) must be ported to blake2b before any mainnet hf2 signal. All in the one fork.
+> - ✅ **Stage 3** — pubkey compaction. The single-sig pubkey drops shipped (secp256k1 ecrecover + ED25519
+>   `public_key_from_address`). The consensus **address→key registry (pubkey-by-reference)** was first
+>   *deprioritized* as a storage change (block_store already dedups losslessly) — but as a hf2 *consensus*
+>   change it IS the real wire win, and it **SHIPPED** (commit 87bb4faa, doc/40 stage 13): the prior-block-only
+>   registry resolves an omitted RSA/ML-DSA/multisig key by address, rejecting an unregistered reference; the
+>   address↔key binding (each verifier rebuilds the address from the resolved key) is the security anchor.
+>   Red-teamed (inflation/forgery/reorg) + 3-node multinode validated.
+> - ✅ **Stage 4** — **coinbase compaction SHIPPED** (commit f7826513, §2.D below): the coinbase sig+pubkey are
+>   dropped from the wire + v2 pre-image + storage (PoW + reward formula authorize it), and the RSA-only
+>   mining restriction is lifted post-fork (any scheme mines). Red-teamed (inflation-safe) + regnet multinode
+>   validated. Remaining for hf2 lock-in: GPU kernels (bis.cu/bismuth.cl) ported to blake2b before any mainnet
+>   signal; and the typed/binary WIRE-protocol modernization (the tx is still the 8-field string tuple on the
+>   wire) is the largest remaining piece. All in the one fork.
 
 # Bismuth hf2 — Binary/Integer Serialization Rework: Authoritative Engineering Spec
 
@@ -168,9 +169,17 @@ Per-scheme matrix (drives whether the pubkey can be omitted):
 
 Approx per-tx savings: secp256k1 ~1.7KB → ~65B; ED25519 pubkey→0, sig 88→64B; RSA-after-first pubkey 1068→0, sig 684b64→256B raw; ML-DSA-65-after-first pubkey ~2.6KB→0.
 
-### 2.D Coinbase compaction
+### 2.D Coinbase compaction — ✅ IMPLEMENTED (commit f7826513, doc/40 stage 14)
 
-The coinbase carries no value and is authorized by **PoW + reward rules, never a spend signature** (`doc/18:160-164`); its RSA sig+pubkey are dead weight. Compact record (last tx of the block):
+The coinbase carries no value and is authorized by **PoW + reward rules, never a spend signature** (`doc/18:160-164`); its RSA sig+pubkey are dead weight (the signature even signed `amount='0.00000000'`, not the real reward). 3-way adversarially red-teamed first; verdict **inflation-safe** (the node RECOMPUTES the reward via `calculate_mining_reward+fees`, `digest.py:277-278`, and forces the wire amount to 0 — a miner never controls it).
+
+**What shipped (simpler than the binary-record sketch below):** the coinbase keeps the normal 8-field tuple shape but with an **empty `signature` and `public_key`**. The compaction is done by *omitting* those two fields from the v2 block-hash pre-image (`bismuth_serialize._v2_tx_bytes`, `is_coinbase=(i==n-1)` in `block_hash_v2`) and by producers sending them empty post-fork — no separate parsed binary record (re-parsing "hf2"/"vmsr" out of the openfield was rejected as fragile). The openfield (signal + VM root + nonce) stays as-is; the storage layer (txrec) stores the empty fields naturally. Consensus changes: `signerfactory.verify_tx_signature(is_coinbase=)` enforces empty sig+pubkey + skips the per-scheme verify; `digest.check_duplicate_signatures` skips the empty-sig reject/replay for the coinbase (THE blocker the design originally missed); `digest_tx.validate` keeps RSA-only **pre-fork** but allows **any scheme post-fork**.
+
+**MULTI-SCHEME MINING:** the legacy `address_is_rsa` coinbase restriction (`digest_tx.py:66`) is **lifted post-fork** — since the coinbase needs no signature, ecdsa / ED25519 / ML-DSA / multisig addresses can all mine. (Pre-fork stays RSA-only, frozen, for chain-split safety.) Validated: `test_coinbase_compaction`, characterization (rebaselined), `test_regnet_dual_pow`, 3-node multinode (sig-less coinbases across the fork, chain parity byte-identical), 2-node signatures.
+
+---
+
+The original compact-binary-record design (NOT shipped — kept for reference; the omit-from-pre-image approach above was chosen instead):
 ```
 u8      version            0x01 = hf2 compact coinbase
 u32 LE  timestamp_cs       round(block_ts*100); == block timestamp gate (digest.py:506)

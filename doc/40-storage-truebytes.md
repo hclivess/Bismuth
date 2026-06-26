@@ -28,11 +28,13 @@ Pre-fork forms are byte-identical to today's store. Commits are on `hclivess/mai
 | 10 | **txrec consolidation** | the 11-field msgpack list → ONE concatenated blob per tx (kills per-element array framing) | `txrec.py`, `block_store.py` | ~20B / tx | `b6dfddaa` |
 | 11 | **Block-hash hoist** | per-tx `block_hash` no longer stored — filled from the envelope hash on read (one source of truth) | `txrec.py`, `block_store.py` | ~33B / tx | `28fc87d2` |
 | 12 | **Address-ref dedup** | address+recipient → varint indices into a per-block address dict; a repeat (self-spend / change / repeated sender) costs ~1B not ~30B | `txrec.py`, `block_store.py` | ~30B / repeat | `ec71d163` |
+| 13 | **pubkey-by-reference** (consensus) | RSA/ML-DSA/multisig pubkey dropped from wire+pre-image for repeat senders, resolved by address from a prior-block registry | `pubkey_registry.py`, `signerfactory.py` | ~0.5–2.6 KB / repeat send | `87bb4faa` |
+| 14 | **coinbase compaction + multi-scheme mining** (consensus) | coinbase sig+pubkey dropped from wire+pre-image+storage (PoW + reward-formula authorize it); RSA-only mining restriction lifted post-fork (any scheme mines) | `bismuth_serialize.py`, `signerfactory.py`, `digest.py`, `digest_tx.py`, miner/pool/regnet | ~736 B–2.6 KB / block | `f7826513` |
 
-**Not applicable / blocked:**
+**Not applicable / staged:**
 - **vm** — storage is *already* true-bytes (raw `addr:word` keys, raw 32-byte balances). Surface-A (the openfield VM-root) rides with coinbase; surface-B (the storage-key fold) was **rejected** by review (would reorder `state_root()` → fork).
-- **coinbase compaction** — **blocked**: can't drop the coinbase sig/pubkey until doc/29 §2.C changes the *wire* pre-image, else `_v2_tx_bytes` (which still commits to them) forks the block hash.
 - **plugin token-amount varint / mempool LMDB record** — designed (this doc), staged; low/marginal value.
+- **typed/binary wire protocol** — the consensus tx is still the 8-field STRING tuple on the wire (hence the `'%.8f'`/`str()`/`.decode()` conversions in digest/miner/pool). The hash/sign pre-image, storage, and sync transport are binary; the *wire object* is the largest remaining modernization (its own consensus cycle).
 
 **Net effect on a post-fork tx record:** one `txrec` blob carrying a varint timestamp, two varint address indices (into the per-block dict), varint integer amount/fee/reward, a raw per-scheme signature, a varint pubkey dedup id (or nothing — single-sig pubkeys are dropped), and length-prefixed operation/openfield. The block hash and addresses are hoisted/deduped to the block envelope; pubkeys are deduped store-once.
 
@@ -130,12 +132,15 @@ byte-for-byte — remains as specified in §Validation before any consensus-read
 The bundled miner (`pool/optihash/optihash.py`) and pool (`pool/optipoolware.py`) need **zero** changes for this storage rework - it is node-internal and every form they consume is reconstructed byte-identically at the boundary:
 
 - The pool reads `/api/fork`, `/api/vm/contracts.state_root`, `/api/status.last_block_hash`, `/api/difficulty`, `/api/mempool`, `/api/address/<a>/transactions` - all canonical wire/hex forms (C-RECON keeps these stable at the REST boundary).
-- The pool builds the same 8-field wire coinbase and RSA-signs the reward over the legacy buffer (doc/29 Stage 2); the node compacts it on *storage*, transparently.
 - The miner treats `blockhash` as an opaque string in the Heavy3 PoW input, so the 56->64-hex blake2b block-hash change just flows through (already covered by the dual-algo PoW work).
 
-**Cosmetic fix applied this commit:** the pool payout log used `signature_enc[:56]` (the *legacy* txid slice); post-fork the canonical txid is `blake2b(content)`, so the pool now prefers the node's returned `txids[0]` from `POST /api/transaction`. Log-only, no consensus impact.
+**Coinbase (updated, stage 14):** the pool + bundled miner + regnet miner now build the coinbase with an
+**empty signature + public key post-fork** (`new_pow`/`fork_height`-gated) — the node authorizes it by PoW +
+the reward formula and **enforces** empty. Pre-fork they RSA-sign as before, so optipool stays byte-compatible
+until the fork. The node-side enforcement is the backstop. (Also: the pool payout log now uses the node's
+returned canonical `txids[0]` instead of the legacy `signature_enc[:56]` slice.)
 
-**Forward item:** once doc/29 §2.C drops the dead RSA sig+pubkey from the coinbase *wire* form, the pool could stop RSA-signing the coinbase reward. Until then it keeps signing it (see Coinbase).
+The producer changes are minimal + fork-gated; the rest of the pool/miner are untouched by the storage rework.
 
 ---
 
