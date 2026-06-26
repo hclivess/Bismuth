@@ -20,7 +20,9 @@ Two kinds of modernization, and they must not be confused:
 `fork.py` carries the scheduler (`dynamic_fork_height`, `tests/test_dynamic_fork.py`):
 
 1. Upgraded miners stamp `FORK2_SIGNAL` ("hf2") into their **coinbase openfield** (free-form block
-   data — no rule change to *start* signalling).
+   data — no rule change to *start* signalling). The fork-signal reader is per-era: it reads the
+   openfield pre-fork (where lock-in signalling happens) and the coinbase **`public_key` slot**
+   post-fork (→ doc/41).
 2. Every node counts the signal from the **same chain**, so the activation height is computed
    identically everywhere — **deterministic, no off-chain peer survey, no split risk**.
 3. When the trailing window (`FORK2_WINDOW`, 1000) is **all-signalled**, the fork **locks in**; it
@@ -166,11 +168,13 @@ the **consensus pre-image string form is the freeze point**: pin it at fork so t
 across every node regardless of `ledger_integer_amounts` mode. (If a future fork ever wants the integer
 pre-image, that is a distinct, separately-characterized change — out of scope here.)
 
-**8. Coinbase / reward tx.** The mining reward tx is special-cased today: zero amount, RSA miner
-address, "only this is signed" with the nonce as openfield (`miner.py:103-112`). It still gets a
-content-hash txid (it has the six fields), but it is not an ecrecover single-sig spend (it carries no
-value and is validated by PoW + reward rules, not a sender signature). Leave its identity path as-is
-beyond computing the new txid for indexing.
+**8. Coinbase / reward tx.** The mining reward tx is special-cased: zero amount, RSA miner
+address, never signature-verified (PoW + reward rules authorize it, not a sender signature). It still
+gets a content-hash txid (it has the six fields), but it is not an ecrecover single-sig spend. Leave its
+identity path as-is beyond computing the new txid for indexing. **Note (→ doc/41):** post-fork the
+coinbase carries its mining header in the freed slots — the nonce in the `signature` slot and
+`"vmsr"<root>`[+`hf2`] in the `public_key` slot — and `operation`/`openfield` become optional,
+uncapped, free-form miner data. (Pre-fork the nonce rode in the openfield, `miner.py:103-112`.)
 
 **Map — every txid PRODUCER (`signature[:56]`) to change (file:line):**
 - `essentials.format_raw_tx` `txid: raw[5][:56]` — `essentials.py:65-77` (the linchpin: feeds
@@ -269,7 +273,8 @@ unit-testable against recorded solvetime series before activation.
 ### E. Decentralized-apps VM — ✅ **implemented, fork-gated, tested**
 A post-fork smart-contract layer: a SINGLE deterministic **RISC-V (RV32I)** engine (`bismuth_riscv.py`),
 a contract-state store (`vm_state.py`: code + storage + custody balances), `vm:deploy`/`vm:call`
-execution (`vm_engine.py`), a consensus-committed **state root** the miner embeds in the coinbase and the
+execution (`vm_engine.py`), a consensus-committed **state root** the miner embeds in the coinbase
+(post-fork in the `public_key` slot, → doc/41) and the
 digester REJECTS on mismatch, and **value custody** so contracts hold and release real BIS
 rollback-deterministically — the BIP-199 HTLC flagship, end-to-end. *Risk: moderate* — main-layer
 execution, but inert pre-fork and the enforced root turns any non-determinism into a caught

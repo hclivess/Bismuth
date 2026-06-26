@@ -64,8 +64,9 @@ deliberately-scheduled event, activated by `fork.dynamic_fork_height`: upgraded 
 into their coinbase, every node computes the activation height identically from the chain (no split),
 and the new rules switch on at the next round-1000 boundary. Bundle: integer/binary serialization +
 content-hash txid (which also now anchors the VM contract address) + canonical raw-byte sig/pubkey
-encoding + pubkey-by-reference + coinbase compaction — the full serialization rework folds into this
-**single** hf2 fork (no second signal), specified in [doc/29](29-hf2-serialization-v2.md) with **Stage 0
+encoding + pubkey-by-reference + coinbase compaction (the freed coinbase slots repurposed as a free-form
+mining header — nonce + state-root/signal, [doc/41](41-hf2-coinbase-free-fields.md)) — the full
+serialization rework folds into this **single** hf2 fork (no second signal), specified in [doc/29](29-hf2-serialization-v2.md) with **Stage 0
 shipped** (`bismuth_serialize.signature_buffer_v2` / `tx_id_v2`, dormant); the reward-sidechain cutover;
 and the **LWMA difficulty** (symmetric, delicate, deterministically calculable — the fix for the brutal
 up-only ratchet); and the **blake2b Heavy3 PoW swap** (bundled into the same single fork since 2026-06-12 —

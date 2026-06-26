@@ -166,6 +166,13 @@
     Wasteful: the reward is consensus-derived (needs no repeated key) and the nonce deserves its own
     field. The fork should give the coinbase a compact, purpose-built encoding (Bitcoin-style special
     coinbase).
+    - ✅ **Free-form coinbase fields + mining header — IMPLEMENTED + regnet-validated (doc/41).** Post-fork
+      the PoW nonce moves into the coinbase's **signature** slot and the `"vmsr"<root>` + optional `"hf2"`
+      signal into its **public_key** slot (both freed by compaction), so `operation`/`openfield` become
+      **optional, uncapped, free-form** miner data — nothing is enforced on them. The coinbase stays
+      PoW-authorized and is never signature-verified (`recipient == address` still enforced); the v2
+      pre-image gains an omit-when-empty flag (version `0x01`→`0x02`). See
+      [`41-hf2-coinbase-free-fields.md`](41-hf2-coinbase-free-fields.md).
 
   The current retarget (`difficulty.py:difficulty()`) needs replacing:
   the **per-block jumps are too steep** and the **approach is convoluted**. Concretely — the steep

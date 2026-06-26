@@ -28,17 +28,27 @@ fork** (doc/18-D). The pool + miner now mirror the node's `miner.py` / `mining_h
   is passed end to end; the 1 GB anneal + substring difficulty are unchanged.
 - **`new_pow` source.** The pool's `_refresh_fork_state()` reads the node REST `/api/fork` each block and
   sets `new_pow = (tip+1) >= fork_height`, exactly like `miner._new_pow`.
-- **Coinbase signal coupling.** The coinbase openfield is `cb_prefix + nonce`, where `cb_prefix` =
-  `fork.FORK2_SIGNAL` (`"hf2"`) when signalling, plus the **VM pre-state root** post-fork
-  (`vm_engine.embed_state_root`, fetched from `/api/vm/contracts`). The miner mines over
-  `address + (cb_prefix+seed+nonce) + blockhash` — byte-identical to the node's PoW input — and submits
-  that openfield, so the node both validates the PoW and detects the signal.
+- **Coinbase mining header (→ see [doc/41](41-hf2-coinbase-free-fields.md)).** doc/41 SUPERSEDES the old
+  "fold the nonce + `cb_prefix` into the coinbase openfield" scheme. Post-fork the miner grinds a **BARE
+  nonce** over `address + nonce + blockhash` (the PoW formula is unchanged); the **pool** places its
+  `cb_prefix` commitment — `fork.FORK2_SIGNAL` (`"hf2"`) when signalling, plus the **VM pre-state root**,
+  `vm_engine.embed_state_root`, fetched from `/api/vm/contracts` — into the coinbase **public_key slot**,
+  and the bare nonce into the coinbase **signature slot**. `operation`/`openfield` are left free-form
+  (optional, uncapped). So the node reads the nonce from the signature slot and the state-root + signal
+  from the public_key slot, never the openfield. The pool **server** (`optipoolware.py`) is updated for
+  this and validated by `tests/test_pool_integration.py`.
 - **getwork is append-only.** The work tuple gains `[4]=cb_prefix [5]=new_pow`; an un-upgraded miner that
-  reads only `[0:4]` still works.
+  reads only `[0:4]` still works. Post-fork the pool stamps `cb_prefix` into the coinbase public_key slot
+  itself, so a miner only has to return a bare nonce.
 
 **Signalling** is controlled by the node's own `fork_signal` config flag (the pool reads
 `config.fork_signal`); set it on the pool's node to vote the fork in. **Until activation,
 `new_pow=False`/`cb_prefix=""`, so the pool behaves exactly as pre-hf2 — zero change on mainnet today.**
+
+> **Miner-client status (doc/41 follow-up).** The pool **server** is doc/41-ready; the external miner
+> **clients** (`gpuminer/optihash.py` CUDA, `gpuminer/opencl_alt/miner.py`) still need the coordinated
+> blake2b + bare-nonce port (a background agent's work). `optihash` already submits a bare nonce, so it is
+> doc/41-compatible once moved onto blake2b.
 
 ## 3. Cleanup (Stage 2)
 

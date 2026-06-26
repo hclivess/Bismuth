@@ -167,7 +167,8 @@ signal, every node computes the same activation height from the chain (`fork.dyn
 on the single `node.fork_height`), and the new rules switch on at the next round boundary — **never add a
 second fork signal**. The bundle: binary/integer serialization + content-hash txid (also the VM contract
 address, and the signature now signs the txid) + raw-byte sig/pubkey + pubkey-by-reference + coinbase
-compaction; LWMA difficulty; blake2b Heavy3 PoW swap; VM mandatory state-root commitment; shielded/RingCT;
+compaction (the freed coinbase slots repurposed as a free-form mining header, [`41`](41-hf2-coinbase-free-fields.md));
+LWMA difficulty; blake2b Heavy3 PoW swap; VM mandatory state-root commitment; shielded/RingCT;
 native multisig senders. Serialization Stage 0–2 are live-but-dormant; later stages staged. See
 [`18`](18-hardfork-hf2.md) and the authoritative serialization spec [`29`](29-hf2-serialization-v2.md).
 Operational gate: the GPU miner kernels (`gpuminer/`) are sha224-only and must be ported to blake2b

@@ -201,7 +201,7 @@ Verified against the codebase:
 
 - `bismuth_serialize.signature_buffer()` signs over exactly `(timestamp, address, recipient, amount, operation, openfield)`. **`block_hash` is not an input.**
 - Post-fork, `verify_tx_signature` signs `tx_id_v2_s` over the **same six content fields** (`polysign/signerfactory.py`). Block hash is absent in both schemes.
-- For a coinbase (`digest_tx.py`): `amount` is forced to `0`, `recipient`/`address` are the miner address, and the PoW `nonce` lives in `openfield[:128]`.
+- For a coinbase (`digest_tx.py`): `amount` is forced to `0`, `recipient`/`address` are the miner address, and the PoW `nonce` lives in `openfield[:128]` (pre-fork; **[doc/41](41-hf2-coinbase-free-fields.md)** relocates the post-fork nonce into the coinbase `signature` slot and the `"vmsr"<root>`+signal into the `public_key` slot, leaving `operation`/`openfield` optional free-form).
 - The `block_hash` itself (`block_hash_at`, `digest.py`) is `sha224`/`blake2b` over the **whole transaction list + previous hash** — it is **not signed by the miner**.
 
 ### 5.2 Why the proof is non-forgeable — *only after* the hf2 binding fix
@@ -215,6 +215,8 @@ Verified against the codebase:
 > **Consequence:** as originally designed the proof is **forgeable / replayable and is a framing weapon against honest miners.** It cannot be called non-forgeable, cannot be gossiped as a "proof," and cannot drive any cross-node penalty.
 >
 > **The fix (consensus change, folds into the single `hf2` fork):** make the coinbase signature commit to the block. Concretely, fold the `block_hash` (equivalently: the parent hash + the merkle/`block_hash_at` root of the transaction list) **into the coinbase signed pre-image**. This dovetails with the already-decided hf2 work: hf2 already makes the signature sign the content `txid` (see the txid-nado decision) and reworks serialization; binding the coinbase signature to the block hash is the same class of change and **must ride the same single `hf2` fork** — never a second fork signal.
+>
+> **doc/41 interaction (post-fork coinbase has no signature).** [doc/41](41-hf2-coinbase-free-fields.md) repurposes the post-fork coinbase `signature` slot to carry the PoW **nonce** and the `public_key` slot to carry the `"vmsr"<root>`+signal mining header — the coinbase is PoW-authorized and **never signature-verified**. So the binding admission above cannot be "the coinbase signature commits to the block hash" post-fork; the hf2 binding must instead attach the block-hash commitment to the coinbase **mining header** (the `public_key`-slot commitment), or bind a distinct miner-signed artifact. This sharpens Open question #2 (RSA-forever for coinbases?) below.
 >
 > **Until that lands, equivocation is not provable on this chain.** Therefore:
 > - **Phase 1 is downgraded** from "non-forgeable fraud proof" to a **two-distinct-blocks-same-coinbase heuristic, used for *local* fork-choice distrust only** — never gossiped as a proof, never feeding a blacklist other nodes act on. Every "non-forgeable"/"proof" claim is re-labeled "advisory heuristic" pre-fork.

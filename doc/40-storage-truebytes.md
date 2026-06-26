@@ -134,11 +134,14 @@ The bundled miner (`pool/optihash/optihash.py`) and pool (`pool/optipoolware.py`
 - The pool reads `/api/fork`, `/api/vm/contracts.state_root`, `/api/status.last_block_hash`, `/api/difficulty`, `/api/mempool`, `/api/address/<a>/transactions` - all canonical wire/hex forms (C-RECON keeps these stable at the REST boundary).
 - The miner treats `blockhash` as an opaque string in the Heavy3 PoW input, so the 56->64-hex blake2b block-hash change just flows through (already covered by the dual-algo PoW work).
 
-**Coinbase (updated, stage 14):** the pool + bundled miner + regnet miner now build the coinbase with an
-**empty signature + public key post-fork** (`new_pow`/`fork_height`-gated) — the node authorizes it by PoW +
-the reward formula and **enforces** empty. Pre-fork they RSA-sign as before, so optipool stays byte-compatible
-until the fork. The node-side enforcement is the backstop. (Also: the pool payout log now uses the node's
-returned canonical `txids[0]` instead of the legacy `signature_enc[:56]` slice.)
+**Coinbase (updated, stage 14 → superseded by [doc/41](41-hf2-coinbase-free-fields.md)):** the pool +
+bundled miner + regnet miner now build the post-fork coinbase with a **mining header in the freed sig/pubkey
+slots** (`new_pow`/`fork_height`-gated): the **signature slot carries the PoW nonce** and the **public_key
+slot carries `"vmsr"<root>` + optional `"hf2"` signal**, with `operation`/`openfield` left as optional,
+uncapped, free-form miner data. The node authorizes the coinbase by PoW + the reward formula and **never
+signature-verifies** it (it enforces `recipient == address`; the earlier "slots must be empty" rule is gone).
+Pre-fork they RSA-sign as before, so optipool stays byte-compatible until the fork. (Also: the pool payout log
+now uses the node's returned canonical `txids[0]` instead of the legacy `signature_enc[:56]` slice.)
 
 The producer changes are minimal + fork-gated; the rest of the pool/miner are untouched by the storage rework.
 
@@ -669,9 +672,11 @@ rather than silently mis-decoding a `bytes` blob that was actually legacy text �
 
 ### 5. Edge cases and fallbacks
 
-- **Empty signature** (some coinbase/legacy rows): `raw = b""`, `sig_len = 0`, blob = `tag||0x0000`;
-  read rebuilds `""`. The post-fork coinbase is compacted separately (doc/29 §2.D) and carries no
-  signature.
+- **Empty signature** (some legacy rows): `raw = b""`, `sig_len = 0`, blob = `tag||0x0000`;
+  read rebuilds `""`. The post-fork coinbase is compacted separately (doc/29 §2.D); per
+  [doc/41](41-hf2-coinbase-free-fields.md) its `signature` slot carries the **PoW nonce** and its
+  `public_key` slot the **`"vmsr"<root>` + signal** mining header (not empty), reconstructed
+  byte-identically on read.
 - **Recoverable single-sig with non-65-byte hex (tag 0x40):** rejected at the digester
   (`signer_ecdsa.py:160-161`, gate `digest_tx.py:114`) before it can reach storage.
 - **Non-canonical legacy base64/hex (theoretical):** detected by the **write-time self-check**
@@ -1564,6 +1569,14 @@ So the boundary reduces to: *a v2 block can have a legacy parent*; the strict le
 ## 5. Coinbase compaction  `[coinbase]`
 
 ## hf2 Stage-4 — Coinbase Compaction (doc/29 §2.D, true-bytes LMDB form) — REVISED
+
+> **Superseded field layout — see [doc/41](41-hf2-coinbase-free-fields.md).** This section assumes the
+> pre-doc/41 post-fork coinbase, where the PoW nonce + `"vmsr"<root>` + `"hf2"` signal ride packed in
+> `openfield` and the sig/pubkey slots are empty. doc/41 relocates that mining header into the freed slots
+> (**signature slot = nonce**, **public_key slot = `"vmsr"<root>` + signal**) and makes `operation`/`openfield`
+> optional free-form. The compaction below stays a lossless `block_store` reconstruction, but the derivation
+> must now read nonce/root/signal from the sig/pubkey slots (and rebuild the doc/41 v2 pre-image), not from an
+> openfield-packed string.
 
 > Obeys the SHARED CROSS-DOMAIN CONVENTIONS verbatim. In particular C0 (one fork
 > signal, gate-by-destination-height, pre-fork byte-identity frozen, A-hex ban,

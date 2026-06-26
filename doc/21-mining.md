@@ -8,8 +8,11 @@ is the longest prefix of the block hash's bits that appears as a *substring* of 
 
 ## Who builds a block
 
-A block = the pending mempool transactions + a **coinbase** (the miner's reward tx) whose **openfield**
-carries the mined nonce. Bismuth blocks are built by the entity that mines them:
+A block = the pending mempool transactions + a **coinbase** (the miner's reward tx) that carries the
+mined nonce. Pre-fork the nonce rides in the coinbase **openfield**; **post-fork it moves to the
+coinbase `signature` slot** and the VM state-root commitment to the `public_key` slot, freeing
+`operation`/`openfield` as free-form miner data (→ see **doc/41**). Bismuth blocks are built by the
+entity that mines them:
 
 | Component | File | Role |
 |---|---|---|
@@ -27,18 +30,24 @@ reference a pool patch follows).
 Enable with `mine=True` and a funded wallet; it runs in its own thread (`mining_loop`), serialised with
 sync via `db_lock`. Each block:
 
-1. `mine_nonce` — search a winning coinbase openfield on the current tip (no lock; pure compute). The
-   openfield = a **fixed prefix** (the readiness signals + post-fork the VM state root) + the mined nonce.
+1. `mine_nonce` — search a winning coinbase nonce on the current tip (no lock; pure compute).
+   **Pre-fork** the mined value is a coinbase `openfield` = a **fixed prefix** (the readiness signals +
+   the VM state root) + the nonce. **Post-fork** (→ doc/41) the nonce goes to the coinbase `signature`
+   slot and `"vmsr"<root>`[+`hf2`] to the `public_key` slot; `openfield` is no longer assembled.
 2. acquire `db_lock`, **re-check the tip** (discard if it moved while mining),
 3. `_build_block` — `[pending mempool txs…, signed coinbase]` in the exact tuple shape the digester wants,
 4. `digest_block` — validate + commit (it manages `db_lock` release).
 
-The coinbase openfield prefix (`_coinbase_prefix`):
+The mining-header payloads (pre-fork the coinbase openfield prefix `_coinbase_prefix`; post-fork the
+`signature`/`public_key` mining header per doc/41):
 - `hf2` — hard-fork readiness for the WHOLE bundle, incl. the modernised PoW, if `fork_signal=True` (doc/18).
 - `vmsr`+root — the committed VM state root, **mandatory** once hf2 is active (doc/19).
 
-The node detections **search** for these markers, so the concatenation order is not fragile, and they all
-ride inside the PoW-hashed nonce, so PoW still validates over the whole thing.
+Pre-fork these (with the nonce) all ride inside the single PoW-hashed `openfield` string, and the node
+detections **search** for the markers so the concatenation order is not fragile. **Post-fork** (→ doc/41)
+the nonce sits in the `signature` slot and `"vmsr"<root>`[+`hf2`] in the `public_key` slot; both stay
+committed to the block-hash pre-image, so PoW and the state-root guard keep their teeth. The PoW
+pre-image FORMAT (`address + nonce + block_hash`) is unchanged — only WHERE the nonce is stored moved.
 
 ## Dual-algo PoW — the modernisation (doc/18-D, bundled into hf2)
 

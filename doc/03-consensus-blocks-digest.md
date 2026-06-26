@@ -28,17 +28,24 @@ characterization tests (see [14](14-known-issues-and-improvements.md)) passing i
       `verify_bis_signature(sig, pubkey_b64, buffer, address)` over the explicit public key, where
       `buffer = str((timestamp, address, recipient, amount, operation, openfield)).encode()` (multisig
       requires M-of-N DER sigs over that frozen buffer — it does **not** sign the txid). The
-      **last** transaction in the block is the coinbase/mining tx (amount 0, RSA sender, nonce =
-      first 128 chars of its openfield).
+      **last** transaction in the block is the coinbase/mining tx (amount 0). Pre-fork it has an RSA
+      sender and the nonce is the first 128 chars of its openfield; **post-fork (→ see
+      [doc/41](41-hf2-coinbase-free-fields.md)) the coinbase carries a mining header in its freed slots —
+      the `signature` slot holds the bare PoW nonce and the `public_key` slot holds the VM state-root
+      commitment `"vmsr"<root>` (+ optional `"hf2"` signal) — so it is never signature-verified or
+      replay-checked, and its `operation`/`openfield` are optional free-form miner data.**
    4. **Block timestamp ordering** — coinbase timestamp must be strictly greater than
       `node.last_block_timestamp`.
    5. **Duplicate-signature check** — no signature may already exist in the on-disk or RAM ledger,
-      and there are no intra-block duplicates.
+      and there are no intra-block duplicates. (Post-fork the coinbase's `signature` slot holds the PoW
+      nonce, not a signature, and is exempt from this replay check — see [doc/41](41-hf2-coinbase-free-fields.md).)
    6. **Difficulty** — `difficulty(node, db_handler)` returns the 8-tuple; stored in `node.difficulty`.
    7. **Block hash** — `sha224(str(transaction_list_converted) + last_block_hash)`.
    8. **Duplicate-block check** — reject if `block_hash` already exists.
    9. **Proof-of-Work** — `mining_heavy3.check_block(height, miner_address, nonce, last_block_hash,
-      diff, …, new_pow=…)` where `new_pow` is true once `height >= node.fork_height` (the single
+      diff, …, new_pow=…)` (the `nonce` is read post-fork from the coinbase `signature` slot rather than
+      its openfield — see [doc/41](41-hf2-coinbase-free-fields.md)) where `new_pow` is true once
+      `height >= node.fork_height` (the single
       hf2 fork — the PoW swap is bundled into it), selecting the modernised blake2b Heavy3
       (see [04](04-pow-and-difficulty.md)).
    10. **Balances & fees** — for every non-coinbase tx: enforce the per-block tx-age window, sum the
@@ -51,8 +58,9 @@ characterization tests (see [14](14-known-issues-and-improvements.md)) passing i
    13. **Post-fork reject checks** — once `block_height >= node.fork_height` (the dynamic hf2 fork; all
        three are inert pre-fork and on regnet/when state is absent), still BEFORE the commit:
        - **VM state-root** (`digest.py` ~545): the coinbase MUST commit the pre-state VM root
-         (`vm_engine.extract_state_root`); a missing root, or one `!= node.vm_state_root`, raises and
-         rejects the block (see [19](19-vm.md)).
+         (`vm_engine.extract_state_root`, read post-fork from the coinbase **public_key** slot — see
+         [doc/41](41-hf2-coinbase-free-fields.md)); a missing root, or one `!= node.vm_state_root`, raises
+         and rejects the block (see [19](19-vm.md)).
        - **Multisig timing** (`digest.py` ~572): a multisig SENDER address
          (`SignerFactory.address_is_multisig`) is only accepted at/after `fork_height`; any multisig
          spend at a lower height raises (chain-split safety — receiving INTO a multisig is always fine).
@@ -83,7 +91,10 @@ A transaction is rejected unless all hold:
 - per-block tx-age window: ≤ 2 h before the block timestamp from block 1,450,000 onward (was 24 h);
 - sender can afford `amount` and the block's cumulative debits + fees.
 
-Coinbase tx additionally: must be last, amount exactly 0, RSA sender address.
+Coinbase tx additionally: must be last, amount exactly 0; pre-fork an RSA sender address. **Post-fork
+the coinbase is unsigned — its `signature`/`public_key` slots instead carry the mining header (PoW nonce
++ VM state-root commitment), so it is not signature-verified (→ see
+[doc/41](41-hf2-coinbase-free-fields.md)).**
 
 No `operation` whitelist exists — any ≤30-char string is allowed. `token:issue`/`token:transfer`
 and `openfield` starting with `alias=` trigger feature processing and fee surcharges.
@@ -132,7 +143,9 @@ rollback). This is a **fixed-height** fork — nothing here reads `node.fork_hei
 
 **2. Dynamic `hf2` fork (`node.fork_height`, signal-activated)** — the modern single bundle. Its height
 is **not** a constant: it is derived deterministically from an on-chain miner signal
-(`FORK2_SIGNAL = "hf2"` in coinbase openfields; `dynamic_fork_height` locks in after a
+(`FORK2_SIGNAL = "hf2"` — read pre-fork from coinbase openfields, post-fork from the coinbase public_key
+slot beside the VM state-root commitment, → see [doc/41](41-hf2-coinbase-free-fields.md);
+`dynamic_fork_height` locks in after a
 `FORK2_WINDOW`-block run and activates a `FORK2_BURY`-buried round boundary later) and persisted to a
 sidecar. `node.fork_height` is `None` until lock-in, so every rule below is inert on mainnet pre-fork.
 Everything bundled into hf2 gates on `block_height >= node.fork_height`: the blake2b Heavy3 PoW swap

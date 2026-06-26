@@ -31,7 +31,9 @@
 > - ✅ **Stage 4** — **coinbase compaction SHIPPED** (commit f7826513, §2.D below): the coinbase sig+pubkey are
 >   dropped from the wire + v2 pre-image + storage (PoW + reward formula authorize it), and the RSA-only
 >   mining restriction is lifted post-fork (any scheme mines). Red-teamed (inflation-safe) + regnet multinode
->   validated. Remaining for hf2 lock-in: GPU kernels (bis.cu/bismuth.cl) ported to blake2b before any mainnet
+>   validated. **→ superseded by doc/41:** the freed sig/pubkey slots now carry a **mining header** (nonce +
+>   `"vmsr"`/`"hf2"` commitment) instead of being empty, and the v2 pre-image bumped to `VERSION 0x02` with
+>   omit-when-empty operation/openfield (§2.0, §2.A, §2.D). Remaining for hf2 lock-in: GPU kernels (bis.cu/bismuth.cl) ported to blake2b before any mainnet
 >   signal; and the typed/binary WIRE-protocol modernization (the tx is still the 8-field string tuple on the
 >   wire) is the largest remaining piece. All in the one fork.
 
@@ -72,6 +74,7 @@ All multi-byte integers are **unsigned, little-endian** unless a field is explic
 
 ### 2.0 Shared primitives
 - `MAGIC = 0xB2`, `VERSION = 0x01`. `0xB2` cannot begin a legacy pre-image (legacy starts with ASCII `(` = `0x28`, `tests/test_characterization.py:182`), so legacy and v2 can never alias even un-gated.
+  > **→ superseded by doc/41:** `VERSION` is now **`0x02`**. The v2 pre-image bumped `0x01 → 0x02` when `operation`/`openfield` became **omit-when-empty** (a `FLAGS` byte selects presence; helper `_v2_opof` in `bismuth_serialize.py`). See §2.A.
 - `timestamp_cs` = `int((Decimal(ts).quantize(Decimal("0.01"))) * 100)` — centiseconds. Quantize-to-2dp happens **before** scaling, matching `quantize_two` (`digest_tx.py:48`, `quantizer.py:25-31`). Preserves the legacy `'%.2f'` precision exactly with zero float drift. **u64** (years to ~5.8e9).
 - `amount_units` = `amounts.to_units(amount)` (`amounts.py:23-25`), 1 BIS = 1e8. **u64 fixed width** (max 1.8e19 units ≫ supply). Fixed (not varint) because money math must have no canonicality footgun. Negative is unrepresentable; zero = `00*8` (legal: coinbase/zero-value carriers).
 - Addresses encoded as the **canonical address-string bytes** (ASCII/UTF-8), length-prefixed — NOT decoded to raw key bytes. Rationale: the string is what every signer's `public_key_to_address` emits and what `address_validate` checks (`signerfactory.py:116-131`); raw form differs per scheme. Max length ≤ 60 (RSA 56 hex `signerfactory.py:49`; Bism multisig up to 60 `signerfactory.py:54`), so **u8** prefix suffices.
@@ -79,6 +82,12 @@ All multi-byte integers are **unsigned, little-endian** unless a field is explic
 - `openfield`: raw opaque bytes, **u32** length prefix (cap 100000, `digest_tx.py:60`; RingCT ~95KB `ringct.py:42` — u16 would overflow). Length is a **byte** count, not char count (fixes the latent char-vs-byte slice ambiguity in `digest_tx.py:60`; the fee/weight path already counts bytes, `fee_dynamics.py:31`).
 
 ### 2.A Transaction pre-image (signing + txid) — `signature_buffer_v2`
+
+> **→ superseded by doc/41 (VERSION + omit-when-empty).** `VERSION` is now `0x02`, and `operation`/`openfield` are **omit-when-empty** behind a `FLAGS` byte. The live layout is:
+> ```
+> MAGIC | VERSION | ts_cs(u64) | amount(u64) | addr(lp u8) | recip(lp u8) | FLAGS(u8) | [op(lp u32)] | [of(lp u32)]
+> ```
+> `FLAGS` bit0 = operation present, bit1 = openfield present (helper `_v2_opof`, `bismuth_serialize.py`); an absent field contributes zero bytes (its length prefix is omitted too). The op/of length prefixes are both **u32 LE** when present. The pre-1.0 layout below is retained for reference.
 
 ```
 off   field            width   notes
@@ -111,7 +120,9 @@ B2 01                                            MAGIC, VERSION
 ```
 Total = 2+8+8+(1+34)+(1+56)+(1+7)+(4+1) = **123 bytes**. `txid = blake2b(those 123 bytes, 32).hex()`.
 
-**Decoder rejection (consensus):** MAGIC≠0xB2 or VERSION≠0x01; truncation; **trailing bytes** after openfield; `of_len > 100000`; any prefix overrunning the buffer; address/recipient failing `address_validate` (`digest_tx.py:97-100`); amount decodes only as u64 (no negative bit pattern).
+> **→ superseded by doc/41:** under v0x02 the second byte is `02`, a `FLAGS` byte (here `0x03` — both present) sits after the recipient, and the op length prefix is u32 (`07 00 00 00`); a tx with empty op/of carries `FLAGS=0x00` and omits both fields. The v2 characterization vectors were regenerated accordingly.
+
+**Decoder rejection (consensus):** MAGIC≠0xB2 or VERSION≠0x02 (was `0x01` pre-doc/41); truncation; **trailing bytes** after the last present field; `of_len > 100000`; any prefix overrunning the buffer; address/recipient failing `address_validate` (`digest_tx.py:97-100`); amount decodes only as u64 (no negative bit pattern).
 
 ### 2.B Block-hash binary encoding — `block_hash_v2`
 
@@ -169,11 +180,19 @@ Per-scheme matrix (drives whether the pubkey can be omitted):
 
 Approx per-tx savings: secp256k1 ~1.7KB → ~65B; ED25519 pubkey→0, sig 88→64B; RSA-after-first pubkey 1068→0, sig 684b64→256B raw; ML-DSA-65-after-first pubkey ~2.6KB→0.
 
-### 2.D Coinbase compaction — ✅ IMPLEMENTED (commit f7826513, doc/40 stage 14)
+### 2.D Coinbase compaction — ✅ IMPLEMENTED (commit f7826513, doc/40 stage 14) — **→ superseded by doc/41**
+
+> **→ superseded by doc/41 (mining-header-in-freed-slots).** The empty-coinbase model below is no longer current. The freed `signature`/`public_key` slots now carry a **mining header** instead of being left empty, and `operation`/`openfield` become optional uncapped free-form miner data. See the doc/41 note after the next paragraph.
 
 The coinbase carries no value and is authorized by **PoW + reward rules, never a spend signature** (`doc/18:160-164`); its RSA sig+pubkey are dead weight (the signature even signed `amount='0.00000000'`, not the real reward). 3-way adversarially red-teamed first; verdict **inflation-safe** (the node RECOMPUTES the reward via `calculate_mining_reward+fees`, `digest.py:277-278`, and forces the wire amount to 0 — a miner never controls it).
 
 **What shipped (simpler than the binary-record sketch below):** the coinbase keeps the normal 8-field tuple shape but with an **empty `signature` and `public_key`**. The compaction is done by *omitting* those two fields from the v2 block-hash pre-image (`bismuth_serialize._v2_tx_bytes`, `is_coinbase=(i==n-1)` in `block_hash_v2`) and by producers sending them empty post-fork — no separate parsed binary record (re-parsing "hf2"/"vmsr" out of the openfield was rejected as fragile). The openfield (signal + VM root + nonce) stays as-is; the storage layer (txrec) stores the empty fields naturally. Consensus changes: `signerfactory.verify_tx_signature(is_coinbase=)` enforces empty sig+pubkey + skips the per-scheme verify; `digest.check_duplicate_signatures` skips the empty-sig reject/replay for the coinbase (THE blocker the design originally missed); `digest_tx.validate` keeps RSA-only **pre-fork** but allows **any scheme post-fork**.
+
+> **What doc/41 changed (implemented + regnet-validated):** rather than leaving the coinbase sig/pubkey empty, the post-fork coinbase packs a **mining header** into those freed wire slots:
+> - **`signature` slot = the PoW nonce** (read post-fork by `digest_tx.nonce_v2` / `digest.verify_proof_of_work`, was parsed out of `openfield`).
+> - **`public_key` slot = the commitment** `"vmsr"<64-hex-state-root>` + optional `"hf2"` fork signal (the VM state root is now read here in `digest.py`, was `openfield`).
+>
+> This **frees `operation` and `openfield`** to be **optional, uncapped, free-form** miner data — a miner need not populate them. The coinbase block-hash pre-image (`_v2_tx_bytes`, `is_coinbase`) no longer omits sig/pubkey; it **commits slot[4]=nonce + slot[5]=commitment** (each u8-length-prefixed), so neither the nonce nor the state root can be ground or forged. Consensus reader/verifier changes: the coinbase is **never signature-verified or replay-checked**; `SignerFactory.verify_tx_signature` no longer requires the coinbase sig/pubkey be empty (it keeps only `recipient==address`); the fork signal is read **per-era** in `/api/fork` (`openfield` pre-fork, `public_key` post-fork). Validated end-to-end on regnet: `test_hf2_fork_transition`, `test_vm_post_fork`, `test_regnet_dual_pow`, `test_fork_wiring`, `test_pool_integration`; legacy characterization vectors unchanged, v2 vectors regenerated.
 
 **MULTI-SCHEME MINING:** the legacy `address_is_rsa` coinbase restriction (`digest_tx.py:66`) is **lifted post-fork** — since the coinbase needs no signature, ecdsa / ED25519 / ML-DSA / multisig addresses can all mine. (Pre-fork stays RSA-only, frozen, for chain-split safety.) Validated: `test_coinbase_compaction`, characterization (rebaselined), `test_regnet_dual_pow`, 3-node multinode (sig-less coinbases across the fork, chain parity byte-identical), 2-node signatures.
 

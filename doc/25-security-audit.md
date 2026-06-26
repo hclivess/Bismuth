@@ -142,7 +142,11 @@ inflation, no chain split**), coinbase RSA-lock (the ecrecover path is unreachab
   signal (post-fork PoW is blake2b); they must be ported first. See doc/21.
 - The hf2 binary/integer serialization rework is specified in **doc/29**: Stage 0 (v2 tx pre-image codec)
   + Stage 1 (binary/integer block hash, fork-gated, live + regnet-green) shipped; Stages 2-4 (binary
-  signing pre-image, pubkey-by-reference, coinbase compaction) pending before mainnet lock-in.
+  signing pre-image, pubkey-by-reference, coinbase compaction) pending before mainnet lock-in. **doc/41**
+  refines the coinbase compaction: the freed coinbase `signature`/`public_key` slots are repurposed as the
+  **mining header** (nonce + `"vmsr"<root>`+signal) rather than left empty, and `operation`/`openfield`
+  become optional free-form — the coinbase stays PoW-authorized, is never signature-verified, and remains
+  inflation-safe (the reward formula governs).
 
 The poker dApp audit lives in **doc/28** (chain-referee escrow + off-chain mental poker + on-chain hand
 evaluator); the RV32I authoring hazards it surfaced are catalogued there.
