@@ -216,7 +216,7 @@ class SignerFactory:
 
     @classmethod
     def verify_tx_signature(cls, post_fork: bool, timestamp, address, recipient, amount,
-                            operation, openfield, signature, public_key) -> None:
+                            operation, openfield, signature, public_key, registry=None) -> None:
         """Single fork-aware tx-signature verification used by BOTH the digester and the mempool.
 
         Post-hf2, an ordinary single-sig secp256k1 sender uses the Ethereum-shape model: the signature
@@ -246,5 +246,18 @@ class SignerFactory:
             buffer = bismuth_serialize.signature_buffer(timestamp, address, recipient, amount, operation, openfield)
             ed.verify_bis_signature_raw(_b64.b64decode(signature), pub, buffer, address)
             return
+        # --- hf2 pubkey-by-reference (doc/40): resolve an OMITTED pubkey by address ---
+        # Reaching here post-fork with an empty public_key means an RSA / ML-DSA / native-multisig sender is
+        # referencing its key by address (single-sig already returned above). Resolve it from the registry,
+        # which holds only keys registered in PRIOR confirmed blocks (so no intra-block reference). The
+        # resolved key is fed into the SAME per-scheme verify_bis_signature below, whose address-rebuild
+        # equality check is the security anchor (a wrong/tampered key can never match the address).
+        if post_fork and str(public_key or "").strip() == "":
+            if registry is None:
+                raise ValueError("pubkey-by-reference tx but no registry available")
+            resolved = registry.get(address)
+            if resolved is None:
+                raise ValueError("referencing unregistered address is invalid")  # NEW consensus reject
+            public_key = resolved.decode("utf-8") if isinstance(resolved, (bytes, bytearray)) else resolved
         buffer = bismuth_serialize.signature_buffer(timestamp, address, recipient, amount, operation, openfield)
         cls.verify_bis_signature(signature, public_key, buffer, address)

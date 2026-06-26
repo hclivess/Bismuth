@@ -74,6 +74,16 @@ def _rebuild_derived_state(node, db_handler, keep_height):
             if getattr(node, "txid_index_consensus", "off") != "off":
                 raise
             node.logger.app_log.warning(f"txid index rollback rebuild failed: {e}")
+    # hf2 pubkey-by-reference (doc/40): rebuild the address->pubkey registry from the FULL ledger cursor
+    # (db_handler.h, NOT the pruned .c) so a post-reorg by-reference tx can never resolve a key registered
+    # in a block above the new tip. Deterministic full reconstruction; HALT (not drift) when consensus-on.
+    if getattr(node, "pk_registry", None) is not None:
+        try:
+            node.pk_registry.rebuild_from_cursor(db_handler.h, getattr(node, "fork_height", None))
+        except Exception as e:
+            if getattr(node, "pk_registry_consensus", "off") != "off":
+                raise
+            node.logger.app_log.warning(f"pubkey registry rollback rebuild failed: {e}")
     # the VM contract state is a re-executable projection of the chain's vm: txs — rebuild it from the
     # rolled-back ledger and recompute the committed state root (deterministic, post-fork only).
     if getattr(node, "vm_state", None) is not None and getattr(node, "fork_height", None) is not None:

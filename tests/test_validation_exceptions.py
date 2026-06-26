@@ -273,7 +273,7 @@ def test_already_in_ledger_waived_scoped_to_signature():
 def _patch_verify(monkeypatch):
     """verify_tx_signature that rejects only signatures starting with BADSIG."""
     from polysign.signerfactory import SignerFactory
-    def fake(post_fork, ts, addr, rec, amt, op, of, sig, pub):
+    def fake(post_fork, ts, addr, rec, amt, op, of, sig, pub, *a, **k):  # *a/**k: tolerate registry= kwarg
         if str(sig).startswith("BADSIG"):
             raise ValueError("bad signature (test)")
         return True

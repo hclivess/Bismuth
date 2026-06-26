@@ -28,6 +28,7 @@ rpc_ethereum_port=8546
 balance_index=True
 balance_index_consensus=primary
 txid_index_consensus=primary
+pk_registry_consensus=primary
 parity_strict=True
 vm=True
 shield=True

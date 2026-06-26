@@ -564,6 +564,7 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
         try:
             if mp.MEMPOOL is not None:
                 mp.MEMPOOL.fork_height = node.fork_height
+                mp.MEMPOOL.pk_registry = getattr(node, "pk_registry", None)   # doc/40 pubkey-by-reference
         except Exception:
             pass
 
@@ -837,6 +838,18 @@ def process_block_data(node, data, processor, db_handler, peer_ip) -> str:
                     raise
                 node.logger.app_log.warning(
                     f"txid index maintain failed at {block_instance.block_height_new}: {e}")
+
+        # hf2 pubkey-by-reference (doc/40): register this block's first-appearance RSA/ML-DSA/multisig keys
+        # AFTER the block is fully validated (prior-block-only invariant — a same-block reference cannot
+        # resolve). Like the other consensus projections: HALT (not drift) when pk_registry_consensus != off.
+        if getattr(node, "pk_registry", None) is not None:
+            try:
+                node.pk_registry.register_from_block(processor.block_transactions, node.fork_height)
+            except Exception as e:
+                if getattr(node, "pk_registry_consensus", "off") != "off":
+                    raise
+                node.logger.app_log.warning(
+                    f"pubkey registry maintain failed at {block_instance.block_height_new}: {e}")
 
         # Log success
         node.logger.app_log.warning(

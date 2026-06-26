@@ -122,6 +122,7 @@ class Transaction:
             self.received_openfield,
             self.received_signature_enc,
             self.received_public_key_b64encoded,
+            registry=getattr(node, "pk_registry", None),   # doc/40 pubkey-by-reference resolution
         )
 
     def to_tuple(self) -> tuple:

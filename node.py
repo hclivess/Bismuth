@@ -1259,7 +1259,8 @@ def verify(db_handler):
                 # legacy buffer+pubkey otherwise — the same authority the digester/mempool use.
                 SignerFactory.verify_tx_signature(post_fork, db_timestamp, db_address, db_recipient,
                                                   db_amount, db_operation, db_openfield,
-                                                  db_signature_enc, db_public_key_b64encoded)
+                                                  db_signature_enc, db_public_key_b64encoded,
+                                                  registry=getattr(node, "pk_registry", None))
             except Exception as e:
                 sha_hash = SHA.new(db_transaction)
                 try:
@@ -1436,6 +1437,8 @@ if __name__ == "__main__":
     node.balance_index_consensus = getattr(config, "balance_index_consensus", "off")  # doc/26 stage 4: off|shadow|primary
     node.txid_index_consensus = getattr(config, "txid_index_consensus", "off")  # doc/26 stage 4: off|shadow|primary (the dup-sig replay read off SQLite)
     node.txid_index = None                             # the LMDB txid->height projection, built at startup when txid_index_consensus != off
+    node.pk_registry_consensus = getattr(config, "pk_registry_consensus", "off")  # doc/40: off|shadow|primary (pubkey-by-reference)
+    node.pk_registry = None                            # the LMDB address->pubkey registry, built at startup when pk_registry_consensus != off
     node.parity_strict = getattr(config, "parity_strict", False)  # doc/26 stage 4: raise (not warn) on a parity mismatch
     node.vm_enabled = config.vm                         # opt-in decentralized-apps VM (doc/17); POST-FORK only
     node.vm_state = None                               # the contract state store, built at startup if enabled
@@ -1676,6 +1679,30 @@ if __name__ == "__main__":
                 except Exception as e:
                     node.logger.app_log.warning("Status: txid index could not start: {}".format(e))
                     node.txid_index = None
+
+            # hf2 pubkey-by-reference (doc/40): address -> public-key registry. Off unless
+            # pk_registry_consensus != "off". Lets post-fork RSA/ML-DSA/multisig repeat senders OMIT the
+            # key on the wire (resolved by address). POST-FORK only; rebuilt at startup + on every reorg
+            # from the FULL ledger cursor (db_handler.h, NOT the pruned hyper .c — first-registration of
+            # ancient addresses must survive pruning), maintained on commit.
+            if getattr(node, "pk_registry_consensus", "off") != "off":
+                try:
+                    import os as _os
+                    import pubkey_registry as _pkr_mod
+                    pkr_path = _os.path.join(_os.path.dirname(node.ledger_path) or ".", "pkregistry")
+                    node.pk_registry = _pkr_mod.PubkeyRegistry(pkr_path)
+                    _pkrb = dbhandler.DbHandler(node.index_db, node.ledger_path, node.hyper_path, node.ram,
+                                                node.ledger_ram_file, node.logger,
+                                                trace_db_calls=node.trace_db_calls)
+                    try:
+                        n = node.pk_registry.rebuild_from_cursor(_pkrb.h, node.fork_height)
+                        node.logger.app_log.warning("Status: pubkey registry ({}), rebuilt {} addresses".format(
+                            node.pk_registry_consensus, n))
+                    finally:
+                        _pkrb.close()
+                except Exception as e:
+                    node.logger.app_log.warning("Status: pubkey registry could not start: {}".format(e))
+                    node.pk_registry = None
 
             # optional decentralized-apps VM contract-state store (doc/17). Off unless vm=True. The store
             # persists on disk and the digester maintains it as it processes blocks (POST-FORK only) and

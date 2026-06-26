@@ -122,6 +122,7 @@ class Get:
         "balance_index": ["bool"],
         "balance_index_consensus": ["str"],
         "txid_index_consensus": ["str"],
+        "pk_registry_consensus": ["str"],
         "parity_strict": ["bool"],
         "vm": ["bool"],
         "shield": ["bool"],

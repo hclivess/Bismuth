@@ -74,6 +74,9 @@ class Mempool(MempoolQueriesMixin):
             # hf2: the digester mirrors node.fork_height here each pass so mempool admission can bind a
             # tx's signing scheme to its DESTINATION block height. None = pre-fork / not yet locked in.
             self.fork_height = None
+            # hf2 pubkey-by-reference (doc/40): the digester mirrors node.pk_registry here so mempool can
+            # resolve a by-reference tx's omitted pubkey by address (same authority the digester uses).
+            self.pk_registry = None
 
             self.testnet = testnet
 
@@ -403,7 +406,8 @@ class Mempool(MempoolQueriesMixin):
                             SignerFactory.verify_tx_signature(
                                 mempool_post_fork, mempool_timestamp, mempool_address, mempool_recipient,
                                 mempool_amount, mempool_operation, mempool_openfield,
-                                mempool_signature_enc, mempool_public_key_b64encoded)
+                                mempool_signature_enc, mempool_public_key_b64encoded,
+                                registry=self.pk_registry)
                         except Exception as e:
                             mempool_result.append(f"Mempool: Signature did not match for address ({e})")
                             continue
