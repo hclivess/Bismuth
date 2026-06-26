@@ -113,6 +113,19 @@ and locked by `tests/test_characterization.py`.
 `"vmsr"<root>[+"hf2"]` → public_key slot; leave `operation`/`openfield` empty unless the operator
 chooses to stamp their own data. The miner no longer assembles a packed `openfield` string.
 
+## First consumer of the freed openfield — the accuser attestation (doc/31 §5.2)
+
+The freed coinbase `openfield` is not just "free for the miner to ignore"; it is the carrier for the
+post-fork equivocation-slashing artifact. A **staked** miner attaches a `consensus_key`-signed
+**attestation** over the block identity `blake2b(height ‖ parent_hash ‖ tx_commitment)`, laid out as a
+trailing TLV `ATTEST_MARKER ‖ keyref ‖ sig` in the coinbase `openfield`. `tx_commitment` is the
+`block_hash_at` pre-image with the attestation region itself excluded (so it never signs itself).
+
+This is what makes [doc/31](31-accuser.md)'s equivocation proof non-forgeable post-fork: the coinbase
+has no signature to bind (this doc removed it), so the binding admission moves to this separate,
+optional, key-attributable attestation — which exists *because* doc/41 freed the openfield. Unstaked
+PoW miners attach nothing. (Design only; gated on hf2 + `staking.py`, neither active yet.)
+
 ## Safety / invariants
 
 - One fork only (hf2); no second signal. Pre-fork serialization, PoW, VM, and fork-signal reads are

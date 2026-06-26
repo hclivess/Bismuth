@@ -12,10 +12,10 @@ This document is the *post-review* design. The adversarial review found one crit
 
 > **[REVIEW: Cx/Hx/Mx/Lx]** — explains the original design, the finding, and the resulting change.
 
-The headline reversal: **the coinbase signature in Bismuth does not commit to the block hash**, so an equivocation "proof" is *forgeable by signature-lifting* until a consensus change binds the signature to the block. Consequently:
+The headline reversal: **the coinbase signature in Bismuth does not commit to the block hash** (and post-fork, per doc/41, the coinbase has no signature at all), so an equivocation "proof" is *forgeable by signature-lifting* until a consensus change binds a **staked-miner attestation** to the block (§5.2). Consequently:
 
 - **Phase 1 ships as a purely local, advisory, non-gossiped heuristic** — it never drives a network-propagated blacklist or peer ban.
-- **The genuinely non-forgeable proof, network gossip, and any cross-node penalty are deferred to `hf2`**, alongside the signature-binding consensus change and the staking bond.
+- **The genuinely non-forgeable proof, network gossip, and any cross-node penalty are deferred to `hf2`**, alongside the staked-miner attestation consensus change (§5.2) and the staking bond.
 
 This is a more honest split than the original "detect/prove/propagate now, slash later." Detection runs now; *trustworthy* proof and propagation are part of hf2.
 
@@ -49,7 +49,7 @@ The accuser therefore extracts maximum value from P3 and feeds it into Bismuth's
 - **Soft reorg-depth cap** — `essentials.checkpoint_set` / `rollback_allowed` / `rollback_consensus`: deep rollbacks require a reputable-peer supermajority.
 - **Peer reputation** — `peers_reputation.py`: `PENALTY_INVALID_BLOCK = 40`, auto-ban at `REP_BAN_BELOW = -50`.
 
-> **The honest framing (post-review).** The original §8 rationale claimed "P3 ships now, no consensus change." That is **false on this codebase**: P3's binding admission requires the signature to commit to the conflicting message, and Bismuth's coinbase signature does *not* commit to the block hash (see [§5.2](#52-why-the-proof-is-non-forgeable--only-after-the-hf2-binding-fix)). So the truthful statement is: **the *detection heuristic* ships now (local, advisory); the *binding P3 proof* and everything built on it ship in hf2.**
+> **The honest framing (post-review).** The original §8 rationale claimed "P3 ships now, no consensus change." That is **false on this codebase**: P3's binding admission requires a signature that commits to the conflicting block, and Bismuth's coinbase signature does *not* (and post-fork the coinbase has no signature at all — see [§5.2](#52-why-the-proof-is-non-forgeable--only-after-the-hf2-binding-fix)). The hf2 fix supplies that admission as a **staked-miner attestation** (a baker-style consensus-key signature over the block identity, carried in doc/41's freed coinbase openfield). So the truthful statement is: **the *detection heuristic* ships now (local, advisory); the *binding P3 proof* and everything built on it ship in hf2.**
 
 ---
 
@@ -85,7 +85,7 @@ The accuser therefore extracts maximum value from P3 and feeds it into Bismuth's
 
 **Definition.** Two blocks `A`, `B` with `A.block_height == B.block_height`, `A.miner_address == B.miner_address`, `A.block_hash != B.block_hash`, **and** — *this is the part Bismuth cannot honor today* — two **distinct signatures**, each committing to its own distinct block, both verifying against that miner's key.
 
-> **[REVIEW: C1, M2]** The original definition triggered on "same miner, same height, two different block hashes, each carrying a coinbase signature that verifies." The review showed (a) the coinbase signature does **not** commit to the block hash, so a single lifted signature satisfies the trigger for two unrelated blocks (forgeable), and (b) **honest pool re-templating** at the same height (adding one more mempool tx, re-broadcasting) routinely produces *a different block hash with the same coinbase signature* — a false positive against honest pools. **The trigger is therefore redefined to require two distinct signatures each binding their own block**, which is only achievable after the hf2 binding fix in [§5.2](#52-why-the-proof-is-non-forgeable--only-after-the-hf2-binding-fix). Pre-fork, the same-coinbase-different-hash event is treated as a *weak local advisory heuristic only*, never a proof.
+> **[REVIEW: C1, M2]** The original definition triggered on "same miner, same height, two different block hashes, each carrying a coinbase signature that verifies." The review showed (a) the coinbase signature does **not** commit to the block hash, so a single lifted signature satisfies the trigger for two unrelated blocks (forgeable), and (b) **honest pool re-templating** at the same height (adding one more mempool tx, re-broadcasting) routinely produces *a different block hash with the same coinbase signature* — a false positive against honest pools. **The trigger is therefore redefined to require two distinct staked-miner attestations each binding their own block** (§5.2), which is only achievable after the hf2 attestation rule. Pre-fork, the same-coinbase-different-hash event is treated as a *weak local advisory heuristic only*, never a proof.
 
 A re-broadcast or independently re-mined **byte-identical** block (same hash) is never an offense.
 
@@ -149,7 +149,7 @@ It feeds **local reputation policy only** (down-rank + refuse-as-PoW-fork-choice
 }
 ```
 
-Each `block_x` carries exactly the inputs needed to reconstruct the **signed pre-image of the coinbase** and verify the signature, i.e. the inputs `SignerFactory.verify_tx_signature()` consumes (`polysign/signerfactory.py`): `timestamp, address, recipient, amount, operation, openfield, signature, public_key` — **plus** the `block_hash` the coinbase must commit to *after the hf2 binding fix*.
+Each `block_x` carries exactly the inputs needed to reconstruct the **attestation pre-image** `blake2b(height ‖ parent_hash ‖ tx_commitment)` and verify the attestation signature against the registered staking key: the `height`, `parent_hash`, the transaction set (to recompute `tx_commitment` = the `block_hash_at` pre-image with the openfield-attestation region excluded), and the `keyref ‖ sig` lifted from the coinbase openfield. (Post-fork the coinbase itself has no signature; the binding artifact is the attestation, §5.2.)
 
 ### 4.2 Hard size and structural bounds
 
@@ -189,7 +189,7 @@ def verify_equivocation(proof) -> bool:
 
 ### 4.4 Why this is non-forgeable — and why only post-fork
 
-The argument the original design made — *"only the holder of the key could have produced both signatures over two distinct block hashes"* — is the correct argument, **but it only holds if each signature actually commits to its block hash.** On today's Bismuth it does not. See the dedicated section below.
+The argument the original design made — *"only the holder of the key could have produced both signatures over two distinct block hashes"* — is the correct argument, **but it only holds if each signature actually commits to its block.** On today's Bismuth the coinbase signature does not (and post-fork there is no coinbase signature at all) — so the commitment is carried by a separate **staked-miner attestation** over the block identity. See the dedicated section below.
 
 ---
 
@@ -214,9 +214,20 @@ Verified against the codebase:
 >
 > **Consequence:** as originally designed the proof is **forgeable / replayable and is a framing weapon against honest miners.** It cannot be called non-forgeable, cannot be gossiped as a "proof," and cannot drive any cross-node penalty.
 >
-> **The fix (consensus change, folds into the single `hf2` fork):** make the coinbase signature commit to the block. Concretely, fold the `block_hash` (equivalently: the parent hash + the merkle/`block_hash_at` root of the transaction list) **into the coinbase signed pre-image**. This dovetails with the already-decided hf2 work: hf2 already makes the signature sign the content `txid` (see the txid-nado decision) and reworks serialization; binding the coinbase signature to the block hash is the same class of change and **must ride the same single `hf2` fork** — never a second fork signal.
+> **The fix (consensus change, folds into the single `hf2` fork) — a miner ATTESTATION, not a coinbase signature.** The original sketch ("fold `block_hash` into the coinbase *signed pre-image*") is dead on the post-fork chain: [doc/41](41-hf2-coinbase-free-fields.md) makes the post-fork coinbase **PoW-authorized and signature-less** (its signature/public_key slots carry the PoW nonce + `"vmsr"<root>` state-root commitment, never a spend signature). There is no coinbase signature to bind. doc/41 *also* frees `operation`/`openfield` as optional, uncapped miner data — and that is exactly the carrier we use.
 >
-> **doc/41 interaction (post-fork coinbase has no signature).** [doc/41](41-hf2-coinbase-free-fields.md) repurposes the post-fork coinbase `signature` slot to carry the PoW **nonce** and the `public_key` slot to carry the `"vmsr"<root>`+signal mining header — the coinbase is PoW-authorized and **never signature-verified**. So the binding admission above cannot be "the coinbase signature commits to the block hash" post-fork; the hf2 binding must instead attach the block-hash commitment to the coinbase **mining header** (the `public_key`-slot commitment), or bind a distinct miner-signed artifact. This sharpens Open question #2 (RSA-forever for coinbases?) below.
+> A miner who wants to be **accountable** (a STAKED miner) attaches an **attestation** to the coinbase `openfield` — a signature by their **consensus/staking key** over the block's identity:
+>
+> ```
+> attest = consensus_key.sign( blake2b( height ‖ parent_hash ‖ tx_commitment ) )
+> # carried in the free coinbase openfield as:  ATTEST_MARKER ‖ keyref ‖ sig
+> ```
+>
+> where `tx_commitment` is the `block_hash_at` pre-image computed with **the attestation bytes themselves excluded** (the attestation can never sign itself — it commits to the block *minus* its own openfield-attestation region). This is a SEPARATE artifact from block authorization: **PoW still authorizes the block**; the attestation only makes the producer *accountable*. So it does not reverse doc/41's sig-less coinbase — it rides in precisely the free space doc/41 created, and dovetails with the single `hf2` fork (never a second fork signal).
+>
+> The attestation commits to (height, parent, tx set) and is signed by the miner's key, so it fixes BOTH defects the lifted-signature attack exploited: it is **non-forgeable** (an attacker cannot sign as the victim) and **un-frameable** (the old reuse worked only because the coinbase signature committed to nothing block-specific; the attestation commits to the whole block).
+>
+> **Mandatory only for staked miners; at most one attestation per height.** Unstaked PoW miners attach nothing, have zero slashing exposure, and may re-template freely (their re-broadcasts are never accusations). A staked miner MUST attach a valid attestation for the block to be credited to its bond, and MUST attest **at most one block per height** — attesting two distinct blocks at one height is the slashable offense. (This is what cleanly removes the honest-re-template false positive of §3.1: an unstaked re-template carries no attestation, and a staked miner accepts the one-per-height constraint as the price of the bond.)
 >
 > **Until that lands, equivocation is not provable on this chain.** Therefore:
 > - **Phase 1 is downgraded** from "non-forgeable fraud proof" to a **two-distinct-blocks-same-coinbase heuristic, used for *local* fork-choice distrust only** — never gossiped as a proof, never feeding a blacklist other nodes act on. Every "non-forgeable"/"proof" claim is re-labeled "advisory heuristic" pre-fork.
@@ -224,7 +235,7 @@ Verified against the codebase:
 
 ### 5.3 The corrected guarantee
 
-After the hf2 binding fix: the coinbase signature commits to the block hash, so two *distinct* signatures over two *distinct* block hashes at one height, both verifying against the same key, can only have been produced by the key holder. The verifier needs nothing but the two blobs and Bismuth's existing signature machinery — no chain replay, no "which fork won." Fault attaches to a **key**, not an IP. *That* is the binding admission, and it exists only post-fork.
+After the hf2 attestation rule: a staked miner's attestation commits to the block identity `(height, parent_hash, tx_commitment)`, so two *distinct* attestations over two *distinct* block identities at one height, both verifying against the same **consensus/staking key**, can only have been produced by the key holder. The verifier needs nothing but the two blocks and the staking-key registry — no chain replay, no "which fork won." Fault attaches to a **key** (the staking key) — not an IP, and not the coinbase (which has no key post-fork). *That* is the binding admission, and it exists only post-fork, only for staked miners.
 
 ---
 
@@ -311,7 +322,7 @@ Activates only when all three exist: (a) the §5.2 coinbase-signature-binds-bloc
 The system must **never** punish honest behavior, and **never** let one message harm the network.
 
 1. **Two DIFFERENT blocks required.** `observe()` returns `None` when `prior.block_hash == witness.block_hash`. A re-broadcast or independently re-mined identical block is not an offense.
-2. **Two DISTINCT signatures required (post-fork).** *[REVIEW: C1/M2]* After the binding fix, a single lifted signature can no longer fabricate a second block, and honest pool re-templating (same coinbase signature, different block) no longer trips the trigger. Pre-fork, the same-coinbase-different-hash event is *advisory only*.
+2. **Two DISTINCT attestations required (post-fork).** *[REVIEW: C1/M2]* After the attestation rule, a single lifted attestation can no longer fabricate a second block (it commits to the block identity), and honest re-templating no longer trips the trigger (unstaked re-templates carry no attestation; staked miners attest ≤1 block/height). Pre-fork, the same-coinbase-different-hash event is *advisory only*.
 3. **Honest reorgs / orphans are never an offense.** The index keys on `(miner_address, height)`; two *different* miners at height H is normal forking and yields nothing.
 4. **No fault attribution for deep reorgs.** The over-deep/checkpoint-violating detector emits only a `ReorgAlert` (reputation + the already-existing fork-choice), never an `EquivocationProof`. An honest partition heal costs proposing peers reputation but is never slashed.
 5. **No network-wide blacklist from one message.** *[REVIEW: C2]* No `miner_blacklist` drives cross-node fork-choice or peer-banning. The only effect is "don't build on the one provably double-signed block," and peer bans require a demonstrably invalid *block the peer served*.
@@ -344,7 +355,7 @@ Two config flags gate the subsystem, both default `False` (inert on mainnet):
 
 **Stage 2a (parallel, independent of the accuser flag) — rollback difficulty self-heal.** Fold difficulty into `_rebuild_derived_state` + post-rollback assertion. Closes the task-#21 corruption class. **This is the most directly motivated piece (§1.1) and ships first/independently.**
 
-**Stage 3 — hf2 binding fix.** Land the coinbase-signature-binds-block-hash consensus change (§5.2) inside the single `hf2` fork, alongside the existing hf2 txid/serialization work. *Only after this is the proof non-forgeable.*
+**Stage 3 — hf2 attestation rule.** Land the staked-miner attestation consensus change (§5.2) inside the single `hf2` fork, alongside the existing hf2 txid/serialization work and doc/41's freed openfield (the attestation's carrier). *Only after this is the proof non-forgeable.*
 
 **Stage 4 — gossip + REST, gated on hf2.** Add `accusation` / `accusationsreq` socket commands and the two REST endpoints behind `node.accuser_gossip` AND `node.fork_height`. Nodes share and independently verify genuine proofs. Anti-DoS (§7.2) is mandatory here.
 
@@ -355,8 +366,8 @@ Two config flags gate the subsystem, both default `False` (inert on mainnet):
 Regnet has no `MAINNET_CHECKPOINTS` (`_checkpoints` returns `{}` for regnet), so window logic is exercised via the `node.checkpoints` override.
 
 - **Heuristic injection (Stage 0/1):** mine two blocks at the same height with the *same* regnet miner key but different transaction sets → distinct hashes, same address. Assert `observe()` emits a *local advisory* and, pre-binding-fix, returns **no proof**.
-- **Proof injection (Stage 3+):** with the binding fix active, produce two genuinely distinct-signature blocks at one height → `observe()` returns a proof; `verify_equivocation` passes.
-- **Forgery / framing test (the C1 regression test):** lift a victim miner's coinbase signature onto a second same-height block built by the attacker. **Pre-fix:** assert the old trigger would have fired (documenting the vulnerability). **Post-fix:** assert `verify_equivocation` returns `False` (signatures bind distinct blocks, the lifted one fails). This test must exist and pass before gossip is enabled.
+- **Proof injection (Stage 3+):** with the attestation rule active, produce two genuinely distinct-attestation blocks at one height under the same staking key → `observe()` returns a proof; `verify_equivocation` passes.
+- **Forgery / framing test (the C1 regression test):** lift a victim miner's attestation onto a second same-height block built by the attacker. **Pre-fix:** assert the old trigger would have fired (documenting the vulnerability). **Post-fix:** assert `verify_equivocation` returns `False` (the attestation commits to the block identity, so the lifted one fails to verify against the second block). This test must exist and pass before gossip is enabled.
 - **Negative tests:** (a) re-mine identical block → no proof; (b) two *different* miners at one height → no proof; (c) honest pool re-template (same coinbase sig, different block) → no proof post-fix; (d) tampered signature → `verify_equivocation` False → relayer penalized.
 - **Anti-DoS tests:** flood `POST /api/accusation` with structurally-bad and crypto-bad proofs; assert rate-limit kicks in, dedup-on-`(miner,height)` prevents repeat verifies, and CPU stays bounded.
 - **Gossip test (Stage 4):** 2-node regnet harness — inject a genuine proof on node A; assert node B independently verifies and re-gossips; assert A bans the source of a bogus injection. Observe the live-regnet gotchas: poll for inclusion / `mpclear` under mempool contention; never full-scan the prod ledger; keep test procs off the prod node's I/O.
@@ -366,10 +377,10 @@ Regnet has no `MAINNET_CHECKPOINTS` (`_checkpoints` returns `{}` for regnet), so
 
 ## 12. Open questions
 
-1. **Exact coinbase binding form (Stage 3).** Sign the full `block_hash`, or sign `(previous_hash, merkle_root_of_txs)`? The latter is cheaper to include in the proof pre-image and composes with the hf2 serialization rework — but it must be exactly what `block_hash_at` commits to, to avoid a second collision surface.
-2. **RSA-forever for coinbases?** (M1) Will coinbase remain RSA-only post-hf2, or migrate to secp256k1 with the rest of hf2? This decides whether the secp256k1 branch in `verify_equivocation` is live or dead code for accusations, and whether RSA canonical-encoding pinning is a permanent requirement.
+1. **Exact attestation pre-image (Stage 3).** Resolved in shape (§5.2): `blake2b(height ‖ parent_hash ‖ tx_commitment)`, where `tx_commitment` is the `block_hash_at` pre-image with the openfield-attestation region excluded. Remaining detail: define the exact byte layout of "openfield with the attestation region excluded" so two implementations agree (e.g. attestation is a fixed-position trailing TLV in the coinbase openfield, and `tx_commitment` hashes the openfield truncated at the `ATTEST_MARKER`). Must be a stable function of the block independent of the attestation bytes.
+2. **~~RSA-forever for coinbases?~~ RESOLVED by doc/41.** The post-fork coinbase has **no key at all** (PoW-authorized; sig/pubkey slots hold the nonce + state-root commitment). So the accusation key is *not* the coinbase key — it is a separate, scheme-agnostic **consensus/staking key** (secp256k1 / ED25519 / RSA, miner's choice) registered with the staking bond. `verify_equivocation` verifies the attestation against that registered key; no RSA-canonical-encoding pinning is forced on the coinbase.
 3. **Slashing economics (H3).** What is the bond size `B`, the reward fraction `R`, and the burn fraction, such that `R ≪ equivocation gain` holds for the worst-case double-spend? This is a launch precondition for Phase 2 and depends on `staking.py` parameters that do not yet exist.
 4. **Accusation tx fee / spam economics on-chain (Stage 5).** Should the `accuser:equivocation` op be fee-exempt (to not penalize honest reporters) while still bounded against spam, given that an invalid one is cheaply rejected at validation?
 5. **Window length vs. checkpoint cadence.** The slashing window is bounded below by the last checkpoint. Is the checkpoint cadence frequent enough that the window is long enough to catch real offenses, but short enough to bound proof-corpus memory?
 6. **Cross-restart corpus authority.** Persisted proofs (LMDB) are deterministic given gossip, but who is authoritative on first sync — should a newly-synced node trust a peer's `GET /api/accusations` corpus, or independently re-verify all of it (re-incurring verify cost, mitigated by §7.2 dedup)?
-7. **Does the binding fix interact with the txid-nado change?** hf2 already makes the signature sign the content `txid`. Confirm that adding the block-hash commitment to the coinbase pre-image does not double-commit or conflict with the nado txid model — ideally the txid model already transitively binds enough block context that the coinbase fix is a small delta.
+7. **Does the attestation interact with the txid-nado change?** Largely decoupled now: the attestation is a *separate* miner artifact over the block identity `(height, parent_hash, tx_commitment)` — it is **not** a transaction signature, so it does not touch the per-tx content-`txid` (nado) model and cannot double-commit with it. Open detail: `tx_commitment` should reuse the `block_hash_at` pre-image (which already aggregates the per-tx content) so the attestation transitively binds the same tx set the block hash does, with no second collision surface.
