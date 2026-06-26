@@ -37,6 +37,7 @@ import hashlib
 import addrbytes
 import sigbytes
 import txfields
+import txrec
 from kvstore import Codec, KVStore, open_store
 
 _pack = Codec.pack
@@ -116,26 +117,14 @@ class BlockStore:
         strings. Dispatch is by VALUE TYPE — a packed field is ``bytes`` (post-fork), a legacy field is
         ``str`` and passes through untouched (so pre-fork rows are byte-identical by construction; doc/40)."""
         out = []
-        for t in rec["t"]:
-            t = list(t)
-            pkb = txn.get(self.pkr, _hk(t[self._PK]))
+        for elem in rec["t"]:
+            if isinstance(elem, (bytes, bytearray, memoryview)):
+                t = txrec.unpack_row(bytes(elem))       # post-fork: one txrec blob -> 11-field row (pk=id)
+            else:
+                t = list(elem)                          # pre-fork: legacy 11-field list (all str)
+            pkb = txn.get(self.pkr, _hk(t[self._PK]))   # re-expand the public-key dedup id (both forms)
             if pkb is not None:
                 t[self._PK] = pkb.decode()
-            t[1] = addrbytes.unpack_addr(t[1])          # address: bytes -> str, str -> str (legacy)
-            t[2] = addrbytes.unpack_addr(t[2])          # recipient
-            if isinstance(t[4], (bytes, bytearray, memoryview)):
-                t[4] = sigbytes.to_wire(bytes(t[4]))    # signature: packed blob -> wire string
-            # tx-fields (doc/40): timestamp + amount/fee/reward are varint when post-fork (bytes), else legacy
-            if isinstance(t[0], (bytes, bytearray, memoryview)):
-                t[0] = txfields.unpack_timestamp(bytes(t[0]))
-            if isinstance(t[3], (bytes, bytearray, memoryview)):
-                t[3] = txfields.unpack_num(bytes(t[3]))     # amount
-            if isinstance(t[7], (bytes, bytearray, memoryview)):
-                t[7] = txfields.unpack_num(bytes(t[7]))     # fee
-            if isinstance(t[8], (bytes, bytearray, memoryview)):
-                t[8] = txfields.unpack_num(bytes(t[8]))     # reward
-            if isinstance(t[6], (bytes, bytearray, memoryview)):
-                t[6] = bytes(t[6]).hex()                    # per-tx block_hash: raw -> hex
             out.append([height] + t)
         return out
 
@@ -163,16 +152,12 @@ class BlockStore:
                     t = list(r[1:])
                     t[self._PK] = self._pubkey_id(txn, t[self._PK], cache)
                     if post_fork:
-                        addr_str = str(r[2])                              # full-row address (12-field row)
-                        t[4] = sigbytes.pack_from_wire(t[4], addr_str)   # signature -> packed blob
-                        t[1] = addrbytes.pack_addr(t[1])                 # address   -> packed blob
-                        t[2] = addrbytes.pack_addr(t[2])                 # recipient -> packed blob
-                        t[0] = txfields.pack_timestamp(t[0])             # timestamp -> varint centiseconds
-                        t[3] = txfields.pack_num(t[3])                   # amount -> varint units
-                        t[7] = txfields.pack_num(t[7])                   # fee    -> varint units
-                        t[8] = txfields.pack_num(t[8])                   # reward -> varint units
-                        t[6] = self._fromhex_or(t[6])                    # per-tx block_hash -> raw 32B
-                    txs.append(t)
+                        # hf2 Stage-4 (doc/40 tx-fields model B): the ENTIRE row collapses to one txrec
+                        # blob (a single msgpack `bin` element) instead of an 11-field list — kills the
+                        # per-element msgpack framing (~20B/tx). All field codecs reused inside txrec.
+                        txs.append(txrec.pack_row(t))
+                    else:
+                        txs.append(t)                                    # pre-fork: legacy 11-field list
                 # envelope block hash: raw digest post-fork (block_hash() reconstructs hex on read)
                 h_store = self._fromhex_or(block_hash) if post_fork else block_hash
                 txn.put(self.blocks, _hk(height), _pack({"h": h_store, "t": txs}))
@@ -216,7 +201,11 @@ class BlockStore:
                 if v is None:
                     continue
                 rows = _unpack(v)["t"]
-                ofbytes = sum(len(str(r[-1])) for r in rows)
+                # openfield length per tx: legacy list -> last field; txrec blob -> decode the openfield.
+                # Char-count of the openfield STRING either way (same semantics as the legacy list form, so
+                # the consensus base_fee weight is unchanged by the storage consolidation).
+                ofbytes = sum(len(str(txrec.openfield_of(r))) if isinstance(r, (bytes, bytearray, memoryview))
+                              else len(str(r[-1])) for r in rows)
                 weights.append(len(rows) + ofbytes // unit)
         return weights
 

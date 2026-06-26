@@ -301,3 +301,31 @@ def test_sync_codec_smaller_than_json():
     blob = sync_codec.encode_blocks(blocks)
     js = json.dumps({"blocks": blocks}).encode()
     assert len(blob) < len(js) * 0.75            # binary ~0.6-0.72 of JSON uncompressed (more for RSA pubkeys)
+
+
+# --------------------------------------------------------------------------- txrec single-blob row codec
+import txrec
+
+
+def test_txrec_row_roundtrip():
+    import base58
+    ec = "Bis1" + base58.b58encode(bytes([7]) * 24).decode()
+    rows = [
+        # 11-field stored row: ts, addr, recip, amount, sig, pubkey_id(int), block_hash, fee, reward, op, openfield
+        ["1750000000.00", "ab" * 28, ec, "1.23456789",
+         base64.b64encode(b"\x07" * 64).decode(), 5, "%064x" % 7, "0.01000000", "0", "", "of"],
+        ["1750000001.50", ec, "ab" * 28, "0",                       # amount '0' normalizes
+         bytes(range(65)).hex(), 0, "hash-not-hex", "0", "5.00000000", "vm:call", ""],  # recoverable sig, non-hex bh
+    ]
+    for r in rows:
+        blob = txrec.pack_row(r)
+        got = txrec.unpack_row(blob)
+        assert got[1] == r[1] and got[2] == r[2]           # address / recipient exact
+        assert got[5] == r[5]                              # pubkey dedup id
+        assert got[4] == r[4]                              # signature wire form (base64 / recoverable hex)
+        assert got[9] == r[9] and got[10] == r[10]         # operation / openfield
+        assert amounts.to_units(got[3]) == amounts.to_units(r[3])   # amount consensus-equivalent
+    # non-hex block_hash survives via the verbatim flag; hex reconstructs to hex
+    assert txrec.unpack_row(txrec.pack_row(rows[0]))[6] == "%064x" % 7
+    assert txrec.unpack_row(txrec.pack_row(rows[1]))[6] == "hash-not-hex"
+    assert txrec.openfield_of(txrec.pack_row(rows[0])) == "of"

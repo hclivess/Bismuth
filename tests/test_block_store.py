@@ -256,19 +256,20 @@ def test_postfork_truebytes_roundtrip_realistic(tmp_path):
         assert s.get_block(50) == rows                         # byte-identical for canonical inputs
         assert s.block_hash(50) == bh                          # envelope hash reconstructs to hex
 
-        # the stored value carries RAW BYTES, not text (true-bytes, not A-hex)
+        # txrec consolidation: each tx is ONE bytes blob (not an 11-field msgpack list), envelope hash raw
         with s.store.txn() as txn:
             rec = block_store._unpack(txn.get(s.blocks, block_store._hk(50)))
         t0 = rec["t"][0]
-        assert t0[4][0] == sigbytes.TAG_RSA           # signature: raw bytes, RSA tag
-        assert t0[1][0] == addrbytes.TAG_HEX          # address:  raw bytes, 56-hex tag
-        assert isinstance(t0[0], (bytes, bytearray))  # timestamp: varint bytes
-        assert isinstance(t0[3], (bytes, bytearray))  # amount:    varint bytes
-        assert isinstance(t0[8], (bytes, bytearray))  # reward:    varint bytes
-        assert isinstance(t0[6], (bytes, bytearray)) and len(t0[6]) == 32   # per-tx block_hash: raw 32B
+        assert isinstance(t0, (bytes, bytearray))     # a single txrec blob per tx (consolidated)
         assert isinstance(rec["h"], (bytes, bytearray)) and len(rec["h"]) == 32  # envelope hash: raw 32B
-        # amount stored as a few varint bytes, not a 10-char '%.8f' string
-        assert len(t0[3]) <= 6
+        # the blob decodes back to the exact row fields (pubkey as the dedup id), and packs the scheme tags
+        import txrec
+        dec = txrec.unpack_row(bytes(t0))
+        assert dec[0] == rows[0][1] and dec[2] == rows[0][3] and dec[3] == "1.23456789"   # ts, recip, amount
+        assert dec[6] == bh                            # per-tx block_hash reconstructs to hex
+        # consolidated blob is far smaller than a per-field msgpack list of the same row
+        legacy = block_store._pack(rows[0][1:])
+        assert len(block_store._pack(t0)) < len(legacy)
     finally:
         s.close()
 
