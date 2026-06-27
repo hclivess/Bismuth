@@ -20,7 +20,7 @@ tor = false
 allowed = "127.0.0.1,192.168.0.1,any"
 ram = false
 node_ip = "127.0.0.1"
-light_ip = { "127.0.0.1" = "5658", "bismuth.live" = "5658", "51.15.226.30" = "8150", "wallet.bismuth.online" = "8150", "wallet1.bismuth.online" = "8150", "wallet2.bismuth.online" = "8150", "wallet.bismuthplatform.de" = "8150" }
+light_ip = { "127.0.0.1" = "5658", "bismuth.live" = "5658", "51.15.226.30" = "8150", "wallet.bismuthplatform.de" = "8150" }
 reveal_address = true
 accept_peers = true
 banlist = ["127.1.2.3"]

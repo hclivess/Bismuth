@@ -4,7 +4,7 @@ Copyright 2013, Michael E. Cotterell
 Copyright 2018, EggPool
 Copyright 2018, BismuthFoundation
 
-See https://github.com/bismuthfoundation/BismuthPlugins for compatible plugins and doc.
+See doc/27-plugins.md for the plugin system and compatible plugins.
 """
 
 
@@ -292,4 +292,4 @@ class PluginManager:
 
 if __name__ == "__main__":
     print("This is Bismuth core plugin module.")
-    print("See https://github.com/bismuthfoundation/BismuthPlugins for compatible plugins and doc.")
+    print("See doc/27-plugins.md for the plugin system and compatible plugins.")

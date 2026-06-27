@@ -3,7 +3,7 @@
 #todo: rollbacks inside node; make sure delagete/ip is only allowed characters
 
 #operation: staking:register
-#last working integrated implementation: https://github.com/bismuthfoundation/Bismuth/commit/69fd3aafd31cce6def1b09ffc64c95d457243c8a
+#last working integrated implementation: https://github.com/hclivess/Bismuth/commit/69fd3aafd31cce6def1b09ffc64c95d457243c8a
 
 """Proof-of-stake registration and payout side-index (experimental).
 

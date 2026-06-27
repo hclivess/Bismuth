@@ -164,17 +164,15 @@ Detailed plan: [`doc/17-roadmap.md`](doc/17-roadmap.md). Database deep-dive: [`d
 
 ## Community & links
 
-- **Website:** https://bismuth.cz · **Explorers:** https://bismuth.online · https://bismuth.im
+- **Website:** https://bismuth.cz · **Explorers:** https://bismuth.im
 - **Hypernodes:** https://hypernodes.bismuth.live · https://bismuth.world
-- **Wallets:** [Tornado Wallet](https://github.com/bismuthfoundation/TornadoWallet) ·
-  [tk-wallet](https://github.com/bismuthfoundation/tk-wallet) ·
+- **Wallets:** [download from bismuth.cz](https://bismuth.cz) ·
   [BIS Paper Wallet](https://github.com/AngainorDev/BIS-Paper) ·
   [Android](https://github.com/redDwarf03/my_bismuth_wallet)
-- **Exchanges:** [Implementation guide](https://github.com/bismuthfoundation/Bismuth-FAQ/blob/master/Exchanges/How_to_Implement.md) ·
-  [CoinGecko](https://www.coingecko.com/en/coins/bismuth) · [CoinMarketCap](https://coinmarketcap.com/currencies/bismuth/)
+- **Exchanges:** [CoinGecko](https://www.coingecko.com/en/coins/bismuth) · [CoinMarketCap](https://coinmarketcap.com/currencies/bismuth/)
 - **Social:** [Discord](https://discord.gg/dKVZd4z) · [Reddit](https://www.reddit.com/r/cryptobismuth) ·
   [Telegram](https://t.me/cryptobismuth) · [Blog](https://hypernodes.bismuth.live/?page_id=20)
-- **Foundation:** https://github.com/bismuthfoundation
+- **Source:** https://github.com/hclivess/Bismuth
 
 ## License
 
