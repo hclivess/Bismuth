@@ -1,4 +1,4 @@
-[center][size=20pt][b][url=https://bismuth.cz/][color=royalblue]Website[/color][/url] • [url=https://explorer.bismuth.cz/][color=purple]Explorer[/color][/url] • [url=https://github.com/bismuthfoundation][color=royalblue]GitHub[/color][/url] • [url=https://discord.gg/4tB3pYJ][color=purple]Discord[/color][/url] • [url=https://hypernodes.bismuth.live/][color=royalblue]HyperNodes[/color][/url][/b][/size][/center]
+[center][size=20pt][b][url=https://bismuth.cz/][color=royalblue]Website[/color][/url] • [url=https://explorer.bismuth.cz/][color=purple]Explorer[/color][/url] • [url=https://github.com/hclivess/Bismuth][color=royalblue]GitHub[/color][/url] • [url=https://discord.gg/4tB3pYJ][color=purple]Discord[/color][/url] • [url=https://hypernodes.bismuth.live/][color=royalblue]HyperNodes[/color][/url][/b][/size][/center]
 
 [center][size=26pt][b][color=royalblue]B I S M U T H[/color] [color=purple](BIS)[/color][/b][/size][/center]
 [center][size=12pt][i]A fair-launched, from-scratch Python blockchain — no ICO, no premine — live on mainnet since 1 May 2017. Widely cited as the first blockchain written in Python — not a fork.[/i][/size][/center]
@@ -20,7 +20,7 @@
 [/list]
 [b]Activation is miner-signalled[/b] (version-bits style): upgraded miners stamp "hf2" in their coinbase, and the fork locks in once a full window of blocks signals. [b]Signal readiness by updating now.[/b]
 
-[center][size=13pt][b]Latest release: [url=https://github.com/bismuthfoundation/Bismuth/releases][color=royalblue]v4.6.0.2[/color][/url][/b] (node binaries for Windows / Linux / macOS attached)[/size][/center]
+[center][size=13pt][b]Latest release: [url=https://github.com/hclivess/Bismuth/releases][color=royalblue]v4.6.0.2[/color][/url][/b] (node binaries for Windows / Linux / macOS attached)[/size][/center]
 [hr]
 
 [center][size=20pt][b][color=purple]10 Years of Bismuth — Architectural Firsts (2017–2026)[/color][/b][/size][/center]
@@ -36,27 +36,27 @@
 
 [hr]
 [center][size=16pt][b][color=royalblue]📄 Whitepaper[/color][/b][/size][/center]
-[center][size=12pt][url=https://bismuth.cz/whitepaper.pdf][color=royalblue]English[/color][/url] • [url=https://bismuth.cz/whitepaper_cn.pdf][color=royalblue]中文 (CN)[/color][/url] • [url=http://bismuth.cz/whitepaper_kr.pdf][color=royalblue]한국어 (KR)[/color][/url] • [url=https://bismuth.cz/whitepaper_jp.pdf][color=royalblue]日本語 (JP)[/color][/url][/size][/center]
+[center][size=12pt][url=https://bismuthcoin.org/pdf/whitepaper.pdf][color=royalblue]English[/color][/url] • [url=https://bismuthcoin.org/pdf/whitepaper_cn.pdf][color=purple]中文 (CN)[/color][/url] • [url=https://bismuthcoin.org/pdf/whitepaper_kr.pdf][color=royalblue]한국어 (KR)[/color][/url] • [url=https://bismuthcoin.org/pdf/whitepaper_jp.pdf][color=purple]日本語 (JP)[/color][/url][/size][/center]
+[center][size=10pt][i]All papers: [url=https://bismuthcoin.org/docs/papers/whitepaper/][color=royalblue]bismuthcoin.org/docs/papers/whitepaper[/color][/url][/i][/size][/center]
 
 [center][size=16pt][b][color=purple]🔎 Explorers[/color][/b][/size][/center]
 [center][size=13pt][url=https://explorer.bismuth.cz/][color=royalblue]explorer.bismuth.cz[/color][/url] • [url=https://bismuth.im/][color=purple]bismuth.im[/color][/url] • [url=https://mybismuth.com/][color=royalblue]mybismuth.com[/color][/url][/size][/center]
 
 [center][size=16pt][b][color=royalblue]👛 Wallets[/color][/b][/size][/center]
-[center][size=13pt][url=https://github.com/bismuthfoundation/TornadoWallet/releases][color=royalblue]Tornado Wallet (desktop GUI)[/color][/url] • [url=https://github.com/bismuthfoundation/tk-wallet/releases][color=purple]Tk Wallet (lightweight)[/color][/url][/size][/center]
-[center][size=11pt]Wallets are also hosted on the [url=https://bismuth.cz/][color=royalblue]website[/color][/url].[/size][/center]
+[center][size=12pt]Download the Tornado (desktop GUI), Tk (lightweight) and paper wallets from the [url=https://bismuth.cz/][color=royalblue]website[/color][/url].[/size][/center]
 
 [center][size=16pt][b][color=purple]⛏️ Mine / Run a Node[/color][/b][/size][/center]
-[center][size=12pt]Node + releases: [url=https://github.com/bismuthfoundation/Bismuth][color=royalblue]github.com/bismuthfoundation/Bismuth[/color][/url][/size][/center]
-[center][size=12pt]Pool: [url=https://eggpool.net/][color=purple]Eggpool[/color][/url] • open-source miners (incl. kbkminer) on [url=https://github.com/bismuthfoundation][color=royalblue]GitHub[/color][/url][/size][/center]
+[center][size=12pt]Node + releases: [url=https://github.com/hclivess/Bismuth][color=royalblue]github.com/hclivess/Bismuth[/color][/url][/size][/center]
+[center][size=12pt]Pool: [url=https://eggpool.net/][color=purple]Eggpool[/color][/url] • open-source miners (incl. kbkminer) ship in the [url=https://github.com/hclivess/Bismuth][color=royalblue]repo[/color][/url][/size][/center]
 
 [center][size=16pt][b][color=royalblue]💱 Trading[/color][/b][/size][/center]
 [center][size=11pt]There are no exchange listings for native BIS at the moment. Wrapped BIS [b](wBIS)[/b] trades on [b]Ethereum[/b] and [b]BSC[/b] DEXs — find it via [url=https://www.dextools.io/][color=royalblue]DEXTools[/color][/url].[/size][/center]
 
-[center][size=16pt][b][color=purple]🛠️ Docs / Tools[/color][/b][/size][/center]
-[center][size=12pt][url=https://bismuthcoin.org/][color=royalblue]Documentation[/color][/url] • [url=https://github.com/bismuthfoundation/Bismuth-FAQ][color=purple]FAQ[/color][/url] • [url=https://github.com/bismuthfoundation/Bismuth-Docker][color=royalblue]Docker[/color][/url] • [url=https://github.com/maccaspacca/BismuthToolsWeb][color=purple]Web Tools[/color][/url][/size][/center]
+[center][size=16pt][b][color=purple]📚 Docs[/color][/b][/size][/center]
+[center][size=12pt][url=https://bismuthcoin.org/][color=royalblue]bismuthcoin.org[/color][/url][/size][/center]
 
 [center][size=16pt][b][color=royalblue]💬 Community[/color][/b][/size][/center]
 [center][size=12pt][url=https://discord.gg/4tB3pYJ][color=royalblue]Discord[/color][/url] • [url=https://www.reddit.com/r/cryptobismuth/][color=purple]Reddit[/color][/url] • Telegram • Mastodon — all linked from the [url=https://bismuth.cz/][color=royalblue]website[/color][/url][/size][/center]
 
 [hr]
-[center][size=11pt][color=#696969][i]Community-run since 2017 • Bismuth Foundation, 2026[/i][/color][/size][/center]
+[center][size=11pt][color=#696969][i]Bismuth — community-run since 2017.[/i][/color][/size][/center]
