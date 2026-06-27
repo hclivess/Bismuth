@@ -270,6 +270,36 @@ def _make_handler(node):
                     return http_name, codec
             return "", None
 
+        def _snapshot_info(self):
+            # doc/43: manifest of the pre-built snapshot this node serves (or {available:false}). Reading
+            # the sidecar only; never scans the live ledger. Gated by snapshot_serve.
+            if not getattr(node, "snapshot_serve", False):
+                raise _NotFound("snapshot serving disabled")
+            import snapshot_p2p
+            man = snapshot_p2p.read_manifest(getattr(node, "snapshot_path", "") or "static/ledger-snapshot.tar.gz")
+            return {"available": True, **man} if man else {"available": False}
+
+        def _send_snapshot(self):
+            # doc/43: stream the ALREADY-BUILT snapshot tarball (chunked; tar.gz is already compressed, so
+            # no HTTP re-compression). Never builds/scans on a request.
+            if not getattr(node, "snapshot_serve", False):
+                raise _NotFound("snapshot serving disabled")
+            import os, snapshot_p2p
+            path = getattr(node, "snapshot_path", "") or "static/ledger-snapshot.tar.gz"
+            man = snapshot_p2p.read_manifest(path)
+            if not man:
+                raise _NotFound("no snapshot available")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Length", str(os.path.getsize(path)))
+            self.send_header("X-Bismuth-Snapshot-Height", str(man["height"]))
+            self.send_header("X-Bismuth-Snapshot-Sha256", man["sha256"])
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            with open(path, "rb") as f:
+                for chunk in iter(lambda: f.read(1 << 20), b""):
+                    self.wfile.write(chunk)
+
         def do_GET(self):
             parsed = urlparse(self.path)
             parts = [p for p in parsed.path.split("/") if p]
@@ -293,6 +323,10 @@ def _make_handler(node):
                     return self._write(200, self._status())
                 if route == ["difficulty"]:
                     return self._write(200, self._difficulty())
+                if route == ["snapshot", "info"]:
+                    return self._write(200, self._snapshot_info())
+                if route == ["snapshot"]:
+                    return self._send_snapshot()
                 if route == ["peers"]:
                     return self._write(200, self._peers())
                 if route == ["nodes"]:

@@ -626,9 +626,25 @@ def bootstrap(node):
         elif os.path.exists(archive_path):
             node.logger.app_log.warning(f"Status: Bootstrapping from existing archive {archive_path}")
         else:
-            url = getattr(node, "bootstrap_url", "") or "https://bismuth.cz/ledger.tar.gz"
-            node.logger.app_log.warning(f"Status: No local bootstrap archive; downloading ledger from {url}")
-            download_file(url, archive_path)
+            _fetched = False
+            if getattr(node, "bootstrap_p2p", False):   # doc/43: try peers (sha256-verified) before the central host
+                try:
+                    import snapshot_p2p
+                    _cands = snapshot_p2p.candidates(node)
+                    _got = snapshot_p2p.fetch_from_peers(node, _cands, archive_path) if _cands else None
+                    if _got:
+                        node.logger.app_log.warning(
+                            f"Status: P2P snapshot verified (height {_got[1]['height']}, "
+                            f"sha256 {_got[1]['sha256'][:12]}) — bootstrapping from peers")
+                        _fetched = True
+                    else:
+                        node.logger.app_log.warning("Status: P2P snapshot unavailable; falling back to bootstrap_url")
+                except Exception as _e:
+                    node.logger.app_log.warning(f"Status: P2P snapshot attempt failed ({_e}); falling back to bootstrap_url")
+            if not _fetched:
+                url = getattr(node, "bootstrap_url", "") or "https://bismuth.cz/ledger.tar.gz"
+                node.logger.app_log.warning(f"Status: No local bootstrap archive; downloading ledger from {url}")
+                download_file(url, archive_path)
 
         with tarfile.open(archive_path) as tar:
 

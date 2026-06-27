@@ -118,6 +118,25 @@ def main():
     os.replace(tmp_tar, a.tarball)   # atomic publish: readers never see a half-written tarball
     print("snapshot ready: %s  (%.1f MB)" % (a.tarball, os.path.getsize(a.tarball) / 1e6))
 
+    # doc/43: write the P2P-snapshot manifest (height + sha256 + size) that REST /api/snapshot/info serves.
+    _height = 0
+    _led = os.path.join(a.out, "ledger.db")
+    if os.path.exists(_led):
+        _c = sqlite3.connect(_led)
+        try:
+            _row = _c.execute("SELECT max(block_height) FROM transactions").fetchone()
+            _height = (_row[0] if _row else 0) or 0
+        finally:
+            _c.close()
+    try:
+        import sys
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        import snapshot_p2p
+        _m = snapshot_p2p.write_manifest(a.tarball, _height)
+        print("manifest: %s  (height %s, sha256 %s)" % (snapshot_p2p.manifest_path(a.tarball), _m["height"], _m["sha256"][:12]))
+    except Exception as _e:
+        print("WARN: manifest not written (%s) — /api/snapshot/info will report unavailable" % _e)
+
     if not a.keep:
         import shutil
         for path, _ in made:

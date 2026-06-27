@@ -109,6 +109,10 @@ class Get:
         "ledger_integer_amounts": ["bool"],
         "bootstrap_url": ["str"],
         "bootstrap_file": ["str"],
+        "snapshot_serve": ["bool"],
+        "bootstrap_p2p": ["bool"],
+        "snapshot_path": ["str"],
+        "bootstrap_p2p_peers": ["list"],
         "block_store": ["bool"],
         "fork_signal": ["bool"],
         "fork_window": ["int"],
@@ -186,6 +190,10 @@ class Get:
         # configurable and a locally-provided archive takes precedence (see chain_ops.bootstrap).
         "bootstrap_url": "https://bismuth.cz/ledger.tar.gz",
         "bootstrap_file": "",                # path to a local bootstrap archive; if set/present, used instead of downloading
+        "snapshot_serve": False,             # doc/43: serve a pre-built snapshot tarball over /api/snapshot[/info]
+        "bootstrap_p2p": False,              # doc/43: fetch the bootstrap snapshot from peers (sha256-verified) before the central URL
+        "snapshot_path": "static/ledger-snapshot.tar.gz",  # the pre-built snapshot this node serves (build via scripts/snapshot.py)
+        "bootstrap_p2p_peers": [],           # optional explicit ["host:rest_port", ...] snapshot sources
         "block_store": False,                # opt-in: also mirror block bodies into an LMDB store (doc/17 phase 7); off by default
         "fork_signal": False,                # hf2: this node's miner stamps the readiness signal into the coinbase nonce
         "fork_window": 1000,                 # consecutive all-signalled blocks to lock in (regnet overrides small)
