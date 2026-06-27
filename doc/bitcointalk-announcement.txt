@@ -1,62 +1,51 @@
-[center][size=20pt][b][url=https://bismuth.cz/][color=royalblue]Website[/color][/url] • [url=https://explorer.bismuth.cz/][color=purple]Explorer[/color][/url] • [url=https://github.com/hclivess/Bismuth][color=royalblue]GitHub[/color][/url] • [url=https://discord.gg/4tB3pYJ][color=purple]Discord[/color][/url] • [url=https://hypernodes.bismuth.live/][color=royalblue]HyperNodes[/color][/url][/b][/size][/center]
+[center][size=20pt][b][url=https://bismuth.cz/][color=royalblue]Website[/color][/url] • [url=https://explorer.bismuth.cz/][color=purple]Explorer[/color][/url] • [url=https://github.com/hclivess/Bismuth][color=royalblue]GitHub[/color][/url] • [url=https://discord.gg/4tB3pYJ][color=purple]Discord[/color][/url][/b][/size][/center]
 
-[center][size=26pt][b][color=royalblue]B I S M U T H[/color] [color=purple](BIS)[/color][/b][/size][/center]
-[center][size=12pt][i]A fair-launched, from-scratch Python blockchain — no ICO, no premine — live on mainnet since 1 May 2017. Widely cited as the first blockchain written in Python — not a fork.[/i][/size][/center]
+[center][size=28pt][b][color=royalblue]B I S M U T H[/color] [color=purple](BIS)[/color][/b][/size][/center]
+[center][size=13pt][b]The first blockchain written in Python — fair-launched, no ICO, no premine, live since 1 May 2017.[/b][/size][/center]
+[center][size=11pt][i]Nine years on mainnet, built from scratch — and about to take its biggest leap yet.[/i][/size][/center]
 
 [hr]
-[center][size=20pt][b][color=purple]⚡ UPCOMING HARD FORK — "hf2"[/color][/b][/size][/center]
+[center][size=22pt][b][color=purple]⚡ hf2 — the biggest upgrade in Bismuth's history[/color][/b][/size][/center]
+[center][size=12pt]One hard fork, bundling a decade of modernization:[/size][/center]
 
-[center][size=13pt][b][color=red]MINERS & POOLS: ACTION REQUIRED.[/color][/b] hf2 modernises the Proof-of-Work (sha224 → [b]blake2b Heavy3[/b]). After activation, nodes and miners running old software will produce [b]invalid blocks[/b]. Update to the latest node + mining software [b]before[/b] the fork.[/size][/center]
+[b][color=blue]•[/color] Privacy[/b] — opt-in shielded transactions: stealth addresses, ring signatures, and confidential amounts (RingCT).
+[b][color=blue]•[/color] Smart contracts[/b] — a real on-chain RISC-V (RV32I) virtual machine, with a growing set of dApps.
+[b][color=blue]•[/color] Modernized PoW[/b] — blake2b Heavy3 replaces sha224 (dual-algo through the transition).
+[b][color=blue]•[/color] Lean serialization[/b] — native binary/integer transactions and blocks: smaller, faster, deterministic.
+[b][color=blue]•[/color] Coinbase overhaul[/b] — free-form fields, BTC-style coinbase maturity, and multi-scheme mining (RSA, ECDSA, ED25519, multisig, and post-quantum ML-DSA can all mine).
 
-[size=11pt][/size]
-[b]hf2 is a single bundled hard fork that brings:[/b]
-[list]
-[li][b]Modernised PoW[/b] — blake2b Heavy3 replaces sha224 (dual-algo during transition).[/li]
-[li][b]Binary / integer serialization[/b] — smaller, faster, deterministic transactions and blocks.[/li]
-[li][b]Coinbase upgrades[/b] — free-form coinbase fields, [b]coinbase maturity[/b] (block rewards become spendable only after they're buried, BTC-style), and [b]multi-scheme mining[/b] (RSA, ECDSA, ED25519, multisig and ML-DSA addresses can all mine — not just RSA).[/li]
-[li][b]Privacy[/b] — opt-in shielded transactions: stealth addresses, ring signatures, and confidential amounts (RingCT).[/li]
-[li][b]Smart contracts[/b] — an on-chain RISC-V (RV32I) virtual machine and a growing set of dApps.[/li]
-[li][b]Miner accountability[/b] — equivocation-slashing groundwork (the "accuser").[/li]
-[/list]
-[b]Activation is miner-signalled[/b] (version-bits style): upgraded miners stamp "hf2" in their coinbase, and the fork locks in once a full window of blocks signals. [b]Signal readiness by updating now.[/b]
+[center][size=13pt][b][color=red]⛏ MINERS & POOLS — ACTION REQUIRED:[/color][/b] hf2 switches the PoW to [b]blake2b Heavy3[/b]. Old miners will produce [b]invalid blocks[/b] after activation — update before the fork. Activation is [b]miner-signalled[/b]: upgraded miners stamp "hf2" and the fork locks in once the network signals.[/size][/center]
 
-[center][size=13pt][b]Latest release: [url=https://github.com/hclivess/Bismuth/releases][color=royalblue]v4.6.0.2[/color][/url][/b] (node binaries for Windows / Linux / macOS attached)[/size][/center]
+[center][size=14pt][b]» Latest release: [url=https://github.com/hclivess/Bismuth/releases][color=royalblue]v4.6.0.2[/color][/url] «[/b] — node binaries for Windows / Linux / macOS[/size][/center]
+
 [hr]
+[center][size=20pt][b][color=purple]Nine years of firsts (2017–2026)[/color][/b][/size][/center]
+[center][size=11pt]Bismuth shipped ideas years before the industry named them:[/size][/center]
 
-[center][size=20pt][b][color=purple]10 Years of Bismuth — Architectural Firsts (2017–2026)[/color][/b][/size][/center]
-[center][size=11pt]Nine years on mainnet and counting — a from-scratch chain that shipped ideas years before they had names:[/size][/center]
-[list]
-[li][b]The first blockchain written in Python[/b] — built from scratch, not a fork.[/li]
-[li][b]Semantic data / "meaning" layering[/b] — structured, layered on-chain data from the start.[/li]
-[li][b]An early plugin ecosystem[/b] — tokens, aliases, NFTs, a DEX, naming, and state channels as modular plugins.[/li]
-[li][b]On-chain sensor data[/b] — years before the industry coined "DePIN".[/li]
-[li][b]A peer-reviewed PoW difficulty controller[/b] — consensus analysis published in [i]Modeling, Identification and Control[/i] (2017–2018).[/li]
-[/list]
-[center][size=11pt]hf2 carries that tradition forward — adding on-chain privacy and smart contracts to a chain that has run, uninterrupted and community-owned, for nearly a decade.[/size][/center]
+[b][color=purple]•[/color] The first blockchain written in Python[/b] — from scratch, not a fork.
+[b][color=purple]•[/color] A semantic data / "meaning" layer[/b] — structured on-chain data from day one.
+[b][color=purple]•[/color] An early plugin ecosystem[/b] — tokens, aliases, NFTs, a DEX, naming, state channels.
+[b][color=purple]•[/color] On-chain sensor data[/b] — years before "DePIN" was a word.
+[b][color=purple]•[/color] A peer-reviewed PoW difficulty controller[/b] — published in [i]Modeling, Identification and Control[/i] (2017–2018).
 
 [hr]
 [center][size=16pt][b][color=royalblue]📄 Whitepaper[/color][/b][/size][/center]
 [center][size=12pt][url=https://bismuthcoin.org/pdf/whitepaper.pdf][color=royalblue]English[/color][/url] • [url=https://bismuthcoin.org/pdf/whitepaper_cn.pdf][color=purple]中文 (CN)[/color][/url] • [url=https://bismuthcoin.org/pdf/whitepaper_kr.pdf][color=royalblue]한국어 (KR)[/color][/url] • [url=https://bismuthcoin.org/pdf/whitepaper_jp.pdf][color=purple]日本語 (JP)[/color][/url][/size][/center]
-[center][size=10pt][i]All papers: [url=https://bismuthcoin.org/docs/papers/whitepaper/][color=royalblue]bismuthcoin.org/docs/papers/whitepaper[/color][/url][/i][/size][/center]
 
 [center][size=16pt][b][color=purple]🔎 Explorers[/color][/b][/size][/center]
-[center][size=13pt][url=https://explorer.bismuth.cz/][color=royalblue]explorer.bismuth.cz[/color][/url] • [url=https://bismuth.im/][color=purple]bismuth.im[/color][/url] • [url=https://mybismuth.com/][color=royalblue]mybismuth.com[/color][/url][/size][/center]
+[center][size=13pt][url=https://explorer.bismuth.cz/][color=royalblue]explorer.bismuth.cz[/color][/url] • [url=https://bismuth.im/][color=purple]bismuth.im[/color][/url][/size][/center]
 
 [center][size=16pt][b][color=royalblue]👛 Wallets[/color][/b][/size][/center]
-[center][size=12pt]Download the Tornado (desktop GUI), Tk (lightweight) and paper wallets from the [url=https://bismuth.cz/][color=royalblue]website[/color][/url].[/size][/center]
+[center][size=12pt][url=https://mybismuth.com/][color=royalblue]mybismuth.com[/color][/url] (web) • Tornado (desktop), Tk (lightweight) and paper wallets at the [url=https://bismuth.cz/][color=purple]website[/color][/url][/size][/center]
 
-[center][size=16pt][b][color=purple]⛏️ Mine / Run a Node[/color][/b][/size][/center]
-[center][size=12pt]Node + releases: [url=https://github.com/hclivess/Bismuth][color=royalblue]github.com/hclivess/Bismuth[/color][/url][/size][/center]
-[center][size=12pt]Pool: [url=https://eggpool.net/][color=purple]Eggpool[/color][/url] • open-source miners (incl. kbkminer) ship in the [url=https://github.com/hclivess/Bismuth][color=royalblue]repo[/color][/url][/size][/center]
+[center][size=16pt][b][color=purple]⛏️ Mine / Run a node[/color][/b][/size][/center]
+[center][size=12pt][url=https://github.com/hclivess/Bismuth][color=royalblue]github.com/hclivess/Bismuth[/color][/url] • Pool: [url=https://eggpool.net/][color=purple]Eggpool[/color][/url] • open-source miners ship in the repo[/size][/center]
 
-[center][size=16pt][b][color=royalblue]💱 Trading[/color][/b][/size][/center]
-[center][size=11pt]There are no exchange listings for native BIS at the moment. Wrapped BIS [b](wBIS)[/b] trades on [b]Ethereum[/b] and [b]BSC[/b] DEXs — find it via [url=https://www.dextools.io/][color=royalblue]DEXTools[/color][/url].[/size][/center]
+[center][size=16pt][b][color=purple]💱 Trade[/color][/b][/size][/center]
+[center][size=12pt]Wrapped BIS [b](wBIS)[/b] on [b]Ethereum[/b] and [b]BSC[/b] — via [url=https://www.dextools.io/][color=royalblue]DEXTools[/color][/url][/size][/center]
 
-[center][size=16pt][b][color=purple]📚 Docs[/color][/b][/size][/center]
-[center][size=12pt][url=https://bismuthcoin.org/][color=royalblue]bismuthcoin.org[/color][/url][/size][/center]
-
-[center][size=16pt][b][color=royalblue]💬 Community[/color][/b][/size][/center]
-[center][size=12pt][url=https://discord.gg/4tB3pYJ][color=royalblue]Discord[/color][/url] • [url=https://www.reddit.com/r/cryptobismuth/][color=purple]Reddit[/color][/url] • Telegram • Mastodon — all linked from the [url=https://bismuth.cz/][color=royalblue]website[/color][/url][/size][/center]
+[center][size=16pt][b][color=royalblue]📚 Docs & Community[/color][/b][/size][/center]
+[center][size=12pt][url=https://bismuthcoin.org/][color=royalblue]bismuthcoin.org[/color][/url] • [url=https://discord.gg/4tB3pYJ][color=purple]Discord[/color][/url] • [url=https://www.reddit.com/r/cryptobismuth/][color=royalblue]Reddit[/color][/url][/size][/center]
 
 [hr]
 [center][size=11pt][color=#696969][i]Bismuth — community-run since 2017.[/i][/color][/size][/center]
