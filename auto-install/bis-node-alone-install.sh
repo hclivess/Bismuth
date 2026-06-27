@@ -1,180 +1,113 @@
-#!/bin/bash
-# 2019 - Bismuth Foundation
-# Distributed under the MIT software license, see http://www.opensource.org/licenses/mit-license.php.
+#!/usr/bin/env bash
+#
+# Bismuth — single-node auto-installer (mainnet). Community-maintained. MIT license.
+#
+# Sets up a full Bismuth node as a systemd service on a fresh Ubuntu 22.04 / 24.04 server:
+#   * system tuning (swap, file limits, sysctl)
+#   * clones the node from github.com/hclivess/Bismuth (branch main)
+#   * a Python 3.11 venv with the node requirements — 3.11 matches CI and avoids the ed25519 sdist
+#     build break on 3.12 (Ubuntu 24.04's default python)
+#   * installs + enables the systemd service via scripts/install-node-service.sh
+#   * the node downloads the ledger bootstrap automatically on first start (bismuth.cz/ledger.tar.gz),
+#     so there is no fragile snapshot step here
+#
+# Usage (root):   bash auto-install/bis-node-alone-install.sh
+# One-liner:      curl -fsSL https://raw.githubusercontent.com/hclivess/Bismuth/main/auto-install/bis-node-alone-install.sh | sudo bash
+# Override dir:   BISMUTH_DIR=/opt/bismuth bash auto-install/bis-node-alone-install.sh
+#
+set -euo pipefail
 
-# Usage: bash ./bis-node-alone-install.sh
-# or one liner : curl https://raw.githubusercontent.com/bismuthfoundation/Bismuth/master/auto-install/bis-node-alone-install.sh|bash
-# Setup a regular Bismuth node alone on a fresh Ubuntu 18 install.
+VERSION="0.2.0"
+REPO_URL="${BISMUTH_REPO:-https://github.com/hclivess/Bismuth.git}"
+REPO_BRANCH="${BISMUTH_BRANCH:-main}"
+INSTALL_DIR="${BISMUTH_DIR:-/opt/bismuth}"
+PYVER="3.11"                       # matches CI; ed25519's sdist build is broken on 3.12
 
-# BEWARE: check configure_firewall to activate.
+log() { echo -e "\n\033[1;36m== $* ==\033[0m"; }
 
-VERSION="0.1.2"
+[ "$(id -u)" -eq 0 ] || { echo "Run as root (sudo)." >&2; exit 1; }
 
 create_swap() {
-	if [ -d /swapfile ]; then
-		echo "Swap file already there"
+	log "Swap"
+	if [ -f /swapfile ] || swapon --show 2>/dev/null | grep -q .; then
+		echo "Swap already present — skipping."
 	else
-		fallocate -l 3G /swapfile
-		chmod 600 /swapfile
-		mkswap /swapfile
-		swapon /swapfile
-		echo "/swapfile   none    swap    sw    0   0" >> /etc/fstab
-		echo "Swap file activated"
+		fallocate -l 3G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+		grep -q '/swapfile' /etc/fstab || echo "/swapfile none swap sw 0 0" >> /etc/fstab
+		echo "3G swap activated."
 	fi
 }
 
 config_os() {
-	if ! cat /etc/security/limits.conf | grep "root soft nofile 65535"; then
-        echo "root soft nofile 65535" >> /etc/security/limits.conf
-        echo "root hard nofile 65535" >> /etc/security/limits.conf
-	fi
-	if ! cat /etc/sysctl.conf | grep "fs.file-max = 100000"; then
-	    echo "fs.file-max = 100000" >> /etc/sysctl.conf
-	fi
-	if ! cat /etc/sysctl.conf | grep "vm.swappiness = 10"; then
-	    echo "vm.swappiness = 10" >> /etc/sysctl.conf
-	fi
-	if ! cat /etc/sysctl.conf | grep "vm.vfs_cache_pressure = 50"; then
-	    echo "vm.vfs_cache_pressure = 50" >> /etc/sysctl.conf
-        fi
-        sysctl -p
-	echo 1 > /proc/sys/net/ipv4/tcp_low_latency
+	log "OS tuning (file limits + sysctl)"
+	grep -q "root soft nofile 65535" /etc/security/limits.conf || {
+		echo "root soft nofile 65535" >> /etc/security/limits.conf
+		echo "root hard nofile 65535" >> /etc/security/limits.conf
+	}
+	grep -q "fs.file-max = 100000"        /etc/sysctl.conf || echo "fs.file-max = 100000"        >> /etc/sysctl.conf
+	grep -q "vm.swappiness = 10"          /etc/sysctl.conf || echo "vm.swappiness = 10"          >> /etc/sysctl.conf
+	grep -q "vm.vfs_cache_pressure = 50"  /etc/sysctl.conf || echo "vm.vfs_cache_pressure = 50"  >> /etc/sysctl.conf
+	sysctl -p || true
 }
-
-
-update_repos() {
-	echo "Updating repos..."
-    DEBIAN_FRONTEND=noninteractive apt-get -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" update
-    DEBIAN_FRONTEND=noninteractive apt-get -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" upgrade
-}
-
 
 install_dependencies() {
-	echo "Installing apt dependencies"
-	# apt update -y
-	# This may be enough,
-    # apt install ufw unzip ntpdate python3-pip sqlite3 -y
-    apt install ufw unzip ntpdate python3-pip sqlite3 build-essential python3-dev -y
-	# ntpdate ntp.ubuntu.com
-	# apt install ntp -y
-}
-
-
-configure_firewall() {
-	echo "*NOT* Configuring Firewall"
-    #ufw disable
-    #ufw allow ssh/tcp
-    #ufw limit ssh/tcp
-    # node port
-    #ufw allow 5658/tcp
-    # HN port
-    #ufw allow 6969/tcp
-    # Wallet server
-    #ufw allow 8150/tcp
-    # Websocket server
-    #ufw allow 8155/tcp
-    #ufw logging on
-    #ufw default deny incoming
-    #ufw default allow outgoing
-    #ufw --force enable
-}
-
-
-download_node() {
-	echo "Fetching Node"
-	cd
-    if [ -f ./master.zip ]; then
-        rm master.zip
+	log "APT dependencies"
+	export DEBIAN_FRONTEND=noninteractive
+	apt-get update -y
+	apt-get install -y software-properties-common ca-certificates curl git unzip sqlite3 pigz build-essential
+	# Python 3.11 via deadsnakes only if the distro doesn't already ship it (22.04/24.04 default to 3.10/3.12).
+	if ! command -v "python${PYVER}" >/dev/null 2>&1; then
+		add-apt-repository -y ppa:deadsnakes/ppa
+		apt-get update -y
 	fi
-    wget https://github.com/bismuthfoundation/Bismuth/archive/master.zip
-    unzip master.zip
-    mv Bismuth-master Bismuth
-    cd Bismuth
-    echo "Configuring node"
-    echo "ram=False" >> config_custom.txt
-    echo "full_ledger=True" >> config_custom.txt
-    echo "mempool_ram=False" >> config_custom.txt
-    echo "Downloading bootstrap"
-    cd static
-    if [ -f ./ledger-verified.tar.gz ]; then
-        rm ledger-verified.tar.gz
-	fi
-    wget https://snapshots.s3.nl-ams.scw.cloud/ledger-verified.tar.gz
-    tar -zxf ledger-verified.tar.gz
-    # Make some room
-    rm ledger-verified.tar.gz
-    echo "Getting node sentinel"
-    cd /root/Bismuth
-    wget https://gist.githubusercontent.com/EggPool/e7ad9baa2b32e4d7d3ba658a40b6d643/raw/934598c7ff815180b913d6549bd2d9688e016855/node_sentinel.py
-    echo "Installing PIP requirements"
-    pip3 install setuptools ipwhois
-    pip3 install -r requirements-node.txt
+	apt-get install -y "python${PYVER}" "python${PYVER}-venv" "python${PYVER}-dev"
 }
 
-install_plugin() {
-	echo "Installing companion plugin"
-	mkdir /root/Bismuth/plugins
-	mkdir /root/Bismuth/plugins/500_hypernode
-  cd /root/Bismuth/plugins/500_hypernode
-	wget https://raw.githubusercontent.com/bismuthfoundation/hypernode/master/node_plugin/__init__.py
-}
-
-start_node() {
-	echo "Starting node"
-	cd
-	screen -d -S node -m bash -c "cd Bismuth;python3 node.py" -X quit
-}
-
-wait_ledger() {
-	echo "Waiting for ledger to download and extract"
-	while true; do
-	 if [ ! -f /root/Bismuth/static/ledger.db ]; then
-		echo "."
-		sleep 10
-	 else
-	   break
-	 fi
-	done
-}
-
-
-add_cron_jobs() {
-	# Node sentinel
-  echo "Inserting example node sentinel cronjob, but not activated"
-	if ! crontab -l | grep "node_sentinel"; then
-	  (crontab -l ; echo "#* * * * * cd /root/Bismuth;python3 node_sentinel.py") | crontab -
+fetch_node() {
+	log "Fetch node — $REPO_URL @ $REPO_BRANCH -> $INSTALL_DIR"
+	if [ -d "$INSTALL_DIR/.git" ]; then
+		echo "Existing checkout found; updating."
+		git -C "$INSTALL_DIR" fetch --depth 1 origin "$REPO_BRANCH"
+		git -C "$INSTALL_DIR" reset --hard "origin/$REPO_BRANCH"
+	else
+		mkdir -p "$(dirname "$INSTALL_DIR")"
+		git clone --depth 1 -b "$REPO_BRANCH" "$REPO_URL" "$INSTALL_DIR"
 	fi
 }
 
-if [ "$(whoami)" != "root" ]; then
-  echo "Script must be run as root"
-  exit -1
-fi
+setup_venv() {
+	log "Python ${PYVER} venv + node requirements"
+	"python${PYVER}" -m venv "$INSTALL_DIR/venv"
+	"$INSTALL_DIR/venv/bin/pip" install -q -U pip wheel setuptools
+	"$INSTALL_DIR/venv/bin/pip" install -q -r "$INSTALL_DIR/requirements-node.txt"
+	echo "Requirements installed into $INSTALL_DIR/venv"
+}
 
-while true; do
- if [ -d /root/Bismuth ]; then
-   printf "/root/Bismuth/ already exists! The installer will delete this folder. Continue anyway?(Y/n)"
-   pID=$(ps -ef | grep node.py | awk '{print $2}' | head -n 1)
-   kill ${pID}
-   rm -rf /root/Bismuth/
-   break
- else
-   break
- fi
-done
+install_service() {
+	log "systemd service (bismuth-node)"
+	# install-node-service.sh auto-detects the repo dir and prefers $INSTALL_DIR/venv/bin/python.
+	bash "$INSTALL_DIR/scripts/install-node-service.sh"
+}
 
-cd
 create_swap
 config_os
-update_repos
 install_dependencies
-configure_firewall
-download_node
-install_plugin
+fetch_node
+setup_venv
+install_service
 
-# cron_jobs are what will launch at boot and auto-restart node - not acctivated by default.
-add_cron_jobs
+log "Done (installer v${VERSION})"
+cat <<EOF
 
+Bismuth node installed at: ${INSTALL_DIR}   (python ${PYVER} venv)
+It runs as the systemd service 'bismuth-node' and downloads the ledger bootstrap
+(https://bismuth.cz/ledger.tar.gz) automatically on first start — the initial sync takes a while.
 
-echo "Rebooting server."
-reboot
+  systemctl status  bismuth-node
+  journalctl -u bismuth-node -f      # follow sync progress
+  systemctl restart bismuth-node     # graceful
+
+Firewall is NOT configured (so we don't risk locking out SSH). If you run ufw, open:
+  ufw allow 5658/tcp     # node P2P / command socket
+  ufw allow 5659/tcp     # REST API (only if you expose it publicly)
+EOF

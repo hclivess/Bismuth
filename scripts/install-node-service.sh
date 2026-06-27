@@ -22,7 +22,9 @@ UNIT="/etc/systemd/system/${SERVICE}.service"
 
 # Repo = parent of this script's directory (scripts/ lives inside the repo).
 REPO_DIR="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
-PYTHON="$(command -v python3 || true)"
+# Prefer a repo-local venv (created by auto-install/bis-node-alone-install.sh) so the service uses the
+# pinned interpreter + deps; fall back to the system python3.
+if [ -x "$REPO_DIR/venv/bin/python" ]; then PYTHON="$REPO_DIR/venv/bin/python"; else PYTHON="$(command -v python3 || true)"; fi
 RUN_USER="${SUDO_USER:-root}"
 
 [ -f "$REPO_DIR/node.py" ] || { echo "ERROR: node.py not found in $REPO_DIR" >&2; exit 1; }
