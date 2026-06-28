@@ -128,15 +128,16 @@ sup.fn { font-size: 7.5pt; vertical-align: super; line-height: 0; }
 <p class="abstract"><span class="lead">Abstract.</span> A purely peer-to-peer settlement layer would let value move,
 and programs execute, directly between parties without any intermediary taking custody. Proof of work answers who
 may extend the ledger; it does not answer what a transaction is allowed to express. Bismuth keeps one
-account-based ledger, one memory-hard proof-of-work family, and one explicit upgrade boundary, and treats the
-transaction itself as a generic, extensible object: every payment, contract call, private transfer, name, and
-token rides the same eight-field record through one ordering, hashing, and validation path. The base layer stays
-small and auditable while the meaning above it grows &#8212; content-addressed transaction identity, deterministic
-binary serialization, a signer-agnostic verification framework, a committed RISC-V virtual machine that custodies
-real value, consensus-validated shielded transfers, and a storage model of one canonical chain plus rebuildable
-key-value projections. Several of these &#8212; the virtual machine, shielded transfers, binary serialization, and
-content-addressed identity among them &#8212; are implemented and tested but activate only at a single scheduled,
-miner-activated upgrade (hf2) and are inert on the public network until then. This document describes that system and presents the disclosures for the BIS crypto-asset
+account-based ledger and one memory-hard proof of work, and makes the transaction an abstract, extensible object: a
+payment carries only the economic fields it needs, while an optional operation and an optional data field let the
+same record also express a token, a name, a contract call, or a private transfer &#8212; every class ordered,
+validated, and committed through one consensus path, with no special-purpose block types. A transaction is identified
+by the hash of its own content; signatures are verified through a family-agnostic framework spanning classical and
+post-quantum schemes; a deterministic RISC-V virtual machine custodies and moves real value under a state root the
+network commits to; a consensus-validated shielded layer carries private transfers; and state is one canonical chain
+plus rebuildable key-value projections. This protocol is brought into force by a single miner-activated upgrade, hf2,
+whose activation status on the public network is stated in Section&#160;16; as of this edition hf2 has not activated
+on the public network, so the capabilities above are not yet live there. This document describes that system and presents the disclosures for the BIS crypto-asset
 on the template of Regulation (EU)&#160;2023/1114 (Markets in Crypto-Assets, &#8220;MiCA&#8221;), Article&#160;6
 and Annex&#160;I.</p>
 
@@ -182,20 +183,21 @@ book.</p>
 <p>The ledger is account-based. A transaction is an eight-field record &#8212; timestamp, sender, recipient,
 amount, signature, public key, an <em class="term">operation</em> string, and an <em class="term">openfield</em>
 data field. The last two fields are a deliberate extension channel: tokens, names, contract calls, and private
-transfers are expressed through them and ride the same ordering, hashing, and validation path as an ordinary
-payment, rather than fragmenting the chain into many special-purpose transaction types. Proof of work is Heavy3, a
+transfers are expressed through them and are ordered, validated, and committed through the same consensus path as an
+ordinary payment, rather than fragmenting the chain into many special-purpose transaction types. Proof of work is Heavy3, a
 memory-hard function that forces each hash attempt to read from a one-gibibyte table, blunting the advantage of
 specialized hardware over commodity machines.</p>
 
 <p>Bismuth verifies signatures through an abstraction that already supports several cryptographic families &#8212;
 RSA (the scheme in dominant use on the public network today), secp256k1, Ed25519, secp256r1, lattice-based ML-DSA,
-and native multisignature &#8212; selected by the sender&#8217;s address rather than hard-coded into consensus, which
+and native multisignature (the last three activate as spendable sender families only at hf2) &#8212; selected by the
+sender&#8217;s address rather than hard-coded into consensus, which
 positions the protocol to adopt post-quantum signatures without redefining how it thinks about identity. A
 deterministic RISC-V virtual machine that lets contracts custody and move real BIS, and a consensus-validated
-shielded layer that carries private transfers inside ordinary transactions, are implemented and tested but are inert
-on the public network until a coordinated, miner-activated upgrade called <em class="term">hf2</em> activates, which
-may never occur. Section&#160;16 states precisely what is live on the public network today and what would activate at
-that boundary.</p>
+shielded layer that carries private transfers inside ordinary transactions, take effect at the
+<em class="term">hf2</em> upgrade. As of the date of this document the public network has not activated hf2, so a
+holder should not assume those capabilities, or the other hf2 features, are live on the public network yet; their
+status is set out in Section&#160;16.</p>
 
 <p>BIS confers no claim against any person and grants no right to income, dividend, redemption, or governance. It is
 a volatile crypto-asset whose supply has no fixed maximum (Part&#160;G); its environmental footprint as a
@@ -261,7 +263,7 @@ set out in Part&#160;I.</p>
   <li><a href="#s16">16.&#160;&#160;The hf2 upgrade boundary</a></li>
   <li><a href="#s17">17.&#160;&#160;Supply and the reward schedule</a></li>
   <li class="sub"><a href="#disclosures">Crypto-asset disclosures (MiCA Annex I)</a></li>
-  <li class="sub"><a href="#partA">Part A &#8212; Person responsible for the white paper</a></li>
+  <li class="sub"><a href="#partA">Part A &#8212; Person responsible for the crypto-asset white paper</a></li>
   <li class="sub"><a href="#partB">Part B &#8212; Issuer</a></li>
   <li class="sub"><a href="#partC">Part C &#8212; Operator of the trading platform</a></li>
   <li class="sub"><a href="#partD">Part D &#8212; The crypto-asset project</a></li>
@@ -289,18 +291,19 @@ special-purpose transaction types, side systems, and execution environments, eac
 own failure modes, and its own attack surface. The base layer becomes large, and large base layers are hard to
 reason about and to maintain.</p>
 <p>Bismuth takes the opposite discipline. It answers the first question with proof of work and a single
-account-based ledger, and it answers the second by making the transaction a generic object. A transaction is an
-eight-field record whose last two fields &#8212; an <em class="term">operation</em> string and a free
-<em class="term">openfield</em> &#8212; are a narrow semantic extension channel. Tokens, names, contract calls, and
-private transfers are not new kinds of block; they are ordinary transactions carrying structured payloads, ordered,
-hashed, propagated, and archived through one validation path. The consensus engine stays small and explicit, while
-the meaning that can ride on top of it stays open-ended.</p>
-<p>This document describes the protocol as it runs today and the coordinated upgrade, called <em class="term">hf2</em>,
-that folds its modernization into a single activation boundary. It is written so that a reader can tell, at every
-point, what is consensus and what is convenience, and what is live on the public network versus implemented and
-tested but not yet activated. The same discipline governs the project: consensus byte formats are defined in one
-place and locked by characterization tests, so that a change to storage, transport, or wallet code cannot silently
-alter what the chain means. The remainder of the paper describes the ledger and its transaction model
+account-based ledger, and it answers the second by making the transaction an abstract object with two optional
+extension fields &#8212; an <em class="term">operation</em> string and a free <em class="term">openfield</em>. Tokens,
+names, contract calls, and private transfers are not new kinds of block: they are ordinary transactions whose
+operation and openfield carry the payload, ordered, validated, propagated, and committed through one consensus path.
+The base node need not understand any of them; the consensus engine stays small and explicit, while the meaning that
+can ride on top of it stays open-ended.</p>
+<p>This document describes the protocol in the form defined by its coordinated upgrade, <em class="term">hf2</em>,
+which folds the modernization of serialization, identity, proof of work, difficulty, fees, and execution into a
+single activation boundary. That is the protocol Bismuth is built to be, and the description that follows is in the
+present tense throughout; the predecessor rules that the public network runs until hf2 activates are noted where they
+differ, and the activation mechanism and its current status are set out in Section&#160;16. Consensus byte formats are
+defined in one place and locked by characterization tests, so that a change to storage, transport, or wallet code
+cannot silently alter what the chain means. The remainder of the paper describes the ledger and its transaction model
 (Sections&#160;2 and&#160;6&#8211;9), the proof of work and consensus (Sections&#160;3&#8211;5), the execution and
 privacy layers (Sections&#160;10&#8211;11), the storage, network, and wallet stack (Sections&#160;12&#8211;14), the
 cryptographic roadmap (Section&#160;15), the upgrade boundary (Section&#160;16), and issuance (Section&#160;17),
@@ -312,10 +315,11 @@ its Annex&#160;I.</p>
 A transaction names a sender, a recipient, an amount, a signature, and a public key or key reference, and it carries
 the two extension fields. On the wire it is the tuple</p>
 <pre>timestamp | sender | recipient | amount | signature | public_key | operation | openfield</pre>
-<p>and the committed ledger row adds the block height, the block hash, the fee, and the reward. Amounts are integers
-of <code>10<sup class="fn">-8</sup></code>&#160;BIS &#8212; eight decimal places, the smallest unit being one
-hundred-millionth of a BIS &#8212; and the protocol normalizes every amount to that precision before it is hashed or
-checked.</p>
+<p>and the committed ledger row adds the block height, the block hash, the fee, and the reward. Amounts are denominated
+in units of <code>10<sup class="fn">-8</sup></code>&#160;BIS &#8212; eight decimal places, the smallest unit being
+one hundred-millionth of a BIS &#8212; and every amount is normalized to that precision before it is hashed or
+checked. In the canonical post-fork bytes an amount is an integer count of those atomic units (Section&#160;6); the
+predecessor rules commit it as fixed eight-decimal text.</p>
 <p>The sender&#8217;s balance is authoritative. When a block is validated, the node does not check each transaction in
 isolation; it sums every debit and fee that each address incurs across the <em class="term">whole</em> candidate
 block and rejects the block unless each sender can cover its total. This block-cumulative rule is what prevents an
@@ -326,8 +330,14 @@ is a short namespaced command &#8212; for example <code>token:issue</code>, <cod
 <code>alias:register</code>, <code>vm:deploy</code>, <code>vm:call</code>, or <code>shield:spend</code> &#8212; and
 <code>openfield</code> carries the associated data. The base node orders and archives these transactions without
 needing to understand them; the subsystems that do understand them &#8212; the token and alias indexes, the virtual
-machine, the shielded pool &#8212; read the same canonical rows. A protocol can therefore be added at the
-interpretation layer without a new block format and without enlarging the consensus core.</p>
+machine, the shielded pool &#8212; read the same canonical rows. The base node orders and archives every class today;
+consensus validation of <code>vm:</code> and <code>shield:</code> operations activates at hf2 (Sections&#160;10,
+11, and&#160;16). A protocol can therefore be added at the
+interpretation layer without a new block format and without enlarging the consensus core. Both extension fields are
+optional: an ordinary payment carries neither, and an empty operation or openfield is dropped from the canonical
+transaction bytes entirely rather than encoded as an empty field (Section&#160;6). The eight slots in the tuple above
+are the wire and ledger shape of a transaction; the bytes it actually commits to &#8212; the content it signs and is
+identified by &#8212; exclude the signature and public key and include only the extension fields it uses.</p>
 
 <h2 id="s3">3. Proof of work: Heavy3</h2>
 <p>Bismuth secures block production with Heavy3, a memory-hard proof of work. The cost of a hash attempt is dominated
@@ -342,24 +352,23 @@ with seven consecutive words read from <code>heavy3a.bin</code> beginning at an 
 unusual but fixed rule &#8212; the length of the longest leading bit-prefix of the target derived from the previous
 block hash that appears anywhere as a substring of the annealed value&#8217;s bit-string. The measure does not change
 the probability of finding a good candidate and is verified by every node identically.</p>
-<p>Today the inner hash is SHA-224. The hf2 upgrade replaces it with BLAKE2b truncated to 28 bytes, leaving the
-table, the annealing step, and the substring measure unchanged: the modernization swaps the digest primitive without
-altering the memory-hard geometry of the work. Below the activation height the network mines and validates the
-SHA-224 form; from the activation height onward it mines and validates the BLAKE2b form (Section&#160;16).</p>
+<p>The inner hash is BLAKE2b truncated to 28 bytes. The annealing step, the lookup table, and the substring measure
+do not depend on that choice, so the digest primitive is the only part the protocol modernizes here. Before the hf2
+activation the inner hash is SHA-224: the network mines and validates the SHA-224 form below the activation height
+and the BLAKE2b form at and above it, with everything else about the work identical (Section&#160;16).</p>
 
 <h2 id="s4">4. Difficulty and block timing</h2>
-<p>The chain targets a sixty-second block interval. The live retarget is a feedback controller that estimates
-hashrate from recent solve times in a logarithmic work domain, applies a derivative term, damps the per-block
-change, and bounds it. The controller works, but on a small and bursty network it is asymmetric &#8212; it can rise
-quickly and fall only slowly &#8212; which punishes the chain when transient hashpower arrives and then leaves.</p>
-<p>The hf2 upgrade replaces the live retarget with an LWMA rule: a linearly weighted moving average of recent solve
-times whose adjustment is symmetric in the logarithmic work domain, so the chain responds to sustained fast and
-sustained slow blocks under the same law. It clamps individual solve times to resist timestamp manipulation, bounds
-the per-step change, and computes entirely in fixed-precision decimal arithmetic so that every platform derives an
-identical target. The averaging window narrows from 1,440 blocks to 60, making the response faster as well as
-symmetric. As an operational safeguard &#8212; not a consensus rule &#8212; a node also runs a background detector
-that compares its local difficulty against the median of height-matched peers and can schedule a rollback-and-resync
-if it finds itself trapped on a wrong difficulty track from corrupted local state.</p>
+<p>The chain targets a sixty-second block interval. Difficulty is retargeted by an LWMA rule: a linearly weighted
+moving average of recent solve times whose adjustment is symmetric in the logarithmic work domain, so the chain
+responds to sustained fast and sustained slow blocks under the same law. It clamps individual solve times to resist
+timestamp manipulation, bounds the per-step change, and computes entirely in fixed-precision decimal arithmetic so
+that every platform derives an identical target. The predecessor rule, which the public network runs until hf2
+activates, is a feedback controller over a 1,440-block window; it is asymmetric &#8212; quick to raise difficulty and
+slow to lower it &#8212; which punishes a small, bursty network when transient hashpower arrives and then leaves, and
+the LWMA, over a 60-block window, is the symmetric replacement (Section&#160;16).</p>
+<p>As an operational safeguard &#8212; not a consensus rule &#8212; a node also runs a background detector that
+compares its local difficulty against the median of height-matched peers and can schedule a rollback-and-resync if it
+finds itself trapped on a wrong difficulty track from corrupted local state.</p>
 
 <h2 id="s5">5. Consensus pipeline and chain selection</h2>
 <p>Every block enters the chain through one admission routine. The node rejects banned or hostile peers, takes the
@@ -374,32 +383,34 @@ opinions by a local reputation score earned from delivering valid data, and sync
 that reputable peers agree on; at equal height the competing block hashes decide. Reputation never overrides
 validation &#8212; every candidate block is independently checked for proof of work, difficulty, signatures, replay,
 and balances before it is accepted &#8212; it only hardens the choice of which peer view to trust when recovering
-from a disputed tip. A running cumulative-work total is also maintained and is staged to become an explicit
-fork-choice metric at the hf2 boundary; the live rule is height with hash tie-breaking. Validation failure at any
+from a disputed tip. A running cumulative-work total is also maintained as a shadow metric; it is not the
+fork-choice rule, which is height with block-hash tie-breaking. Validation failure at any
 stage rejects the block, penalizes the peer, and restores the tip from authoritative state; when a rollback occurs
 the chain rewinds and every auxiliary store rewinds or rebuilds with it.</p>
 
 <h2 id="s6">6. Transaction identity and serialization</h2>
-<p>A transaction needs a stable identifier and a stable set of bytes to sign and to hash. Historically Bismuth derived
-all three from string forms: a transaction is identified today by the first 56 characters of its signature field;
-the bytes a sender signs are the UTF-8 string form (the canonical repr) of the six economic fields; and a block hash is the SHA-224 of
-the concatenated string form of its transaction list and the previous block hash. These forms are frozen for the
-existing chain and remain in force on the public network.</p>
-<p>The hf2 upgrade moves new consensus objects off string representations. The post-fork transaction identifier
-becomes a content hash: a canonical preimage that excludes the signature and public key, hashed with BLAKE2b. The
-block hash moves to a binary, integer representation in which timestamps are stored as integer centiseconds, amounts
-as integer atomic units, and variable-length fields are explicitly length-prefixed, the whole hashed with BLAKE2b.
-A transaction therefore commits to its content directly, and its identity no longer depends on the incidental shape
-of an encoded signature. Continuity is preserved by height: the dispatcher chooses the legacy or post-fork byte form
-by destination block height, so a historical block remains byte-identical when replayed while a post-fork block
-hashes under the new rules. There is no global mode switch that could reinterpret old history.</p>
+<p>A transaction is identified by the hash of its own content. The identifier is a BLAKE2b hash of a canonical
+preimage that excludes the signature and public key and omits an empty operation or openfield, so a transaction
+commits to exactly the fields it uses and its identity does not depend on the incidental shape of an encoded
+signature. The block hash is a BLAKE2b hash over a binary, integer representation of the block&#8217;s transactions in
+which timestamps are integer centiseconds, amounts are integer atomic units, and every variable-length field is
+explicitly length-prefixed &#8212; a form in which two implementations cannot diverge on quoting or rounding.</p>
+<p>The predecessor rules, frozen for the existing chain, derive these from string forms instead: a transaction is
+identified by the first 56 characters of its signature, the signing buffer is the text form of the economic fields,
+and the block hash is the SHA-224 of the concatenated text form of the transaction list. Continuity across the
+boundary is preserved by height: the dispatcher selects the byte form by destination block height, so a historical
+block remains byte-identical when replayed while a block at or after the activation height hashes under the
+content-addressed rules. There is no global mode switch that could reinterpret old history (Section&#160;16).</p>
 
 <h2 id="s7">7. Signatures and the signer abstraction</h2>
 <p>Bismuth does not hard-code one signature family into consensus. Verification is routed through a signer
 abstraction in which the sender&#8217;s address selects the signer class, and the validator dispatches accordingly.
 The abstraction already implements RSA, secp256k1 ECDSA, Ed25519, NIST&#160;P-256 (secp256r1), the lattice-based
-ML-DSA family (FIPS&#160;204, parameter sets 44, 65, and 87), and native multisignature. On the public network today
-the dominant scheme is RSA: a 4096-bit key with PKCS&#160;#1&#160;v1.5 signatures, whose address is the SHA-224 hash
+ML-DSA family (FIPS&#160;204, parameter sets 44, 65, and 87), and native multisignature. Of these, RSA, secp256k1
+ECDSA, and Ed25519 are spendable on the public network today, while a spend from a secp256r1, native-multisignature,
+or ML-DSA address is a post-fork sender path that activates at hf2 and is rejected by a pre-fork node
+(Section&#160;16). The dominant scheme today is RSA: a 4096-bit key with PKCS&#160;#1&#160;v1.5 signatures, whose
+address is the SHA-224 hash
 of the public-key PEM rendered as 56 hexadecimal characters. The newer ECDSA and Ed25519 addresses use Base58Check
 encodings with a <code>Bis1</code> prefix, and native multisignature addresses use a <code>Bism</code> prefix.</p>
 <p>For ordinary single-signature secp256k1 senders, hf2 introduces a recoverable model: the sender signs the
@@ -417,26 +428,25 @@ is no other issuance path: no pre-mine, no founder allocation, and no sale creat
 authorized by the proof-of-work and reward rules, not by a sender signature, and the protocol recomputes the reward
 from a fixed formula rather than trusting the amount written into the transaction, which is designed to prevent
 minting value by misreporting it.</p>
-<p>Under hf2 the coinbase is compacted: because its signature and public-key fields are not needed to authorize a
-signed spend, they are repurposed as a mining header. The freed signature slot carries the proof-of-work nonce and
-the freed public-key slot carries the network&#8217;s commitment to the virtual-machine state root (Section&#160;10);
-both are bound into the post-fork block hash, so a miner cannot alter them without invalidating the block. hf2 also
-introduces reward maturity. Because an account-based ledger has no isolated output to lock, a freshly mined reward
-is made temporarily non-spendable: the protocol deducts immature reward from a miner&#8217;s spendable balance until
-the reward is buried by a fixed maturity window &#8212; 100 blocks on the public network, 2 on the development
-network &#8212; so that a deep reorganization cannot retroactively invalidate payments funded by a reward that the
-reorganization erases.</p>
+<p>The coinbase is compact: because it is authorized by proof of work rather than a signed spend, its signature and
+public-key slots are not needed for a signature and are repurposed as a mining header &#8212; the freed signature
+slot carries the proof-of-work nonce and the freed public-key slot carries the network&#8217;s commitment to the
+virtual-machine state root (Section&#160;10), both bound into the block hash so a miner cannot alter them without
+invalidating the block. A freshly mined reward is also subject to maturity. Because an account-based ledger has no
+isolated output to lock, the protocol deducts immature reward from a miner&#8217;s spendable balance until the reward
+is buried by a fixed maturity window &#8212; 100 blocks on the public network, 2 on the development network &#8212; so
+that a deep reorganization cannot retroactively invalidate payments funded by a reward it erases. Coinbase
+compaction, the committed state root, and reward maturity take effect at the hf2 activation (Section&#160;16).</p>
 
 <h2 id="s9">9. Fees</h2>
-<p>Transaction fees are deliberately simple. The live fee is a small base fee plus a charge proportional to the size
-of the <code>openfield</code> payload, with fixed surcharges for a few heavier operations such as issuing a token.
-The fee is paid by the sender and accrues to the miner of the block. The model discourages using the chain as bulk
-storage while leaving ordinary payments inexpensive.</p>
-<p>hf2 makes the base fee responsive to load. Instead of a fixed base, the node derives a base multiplier from the
-recent weight of blocks &#8212; a measure that reflects structural load, including payload size, rather than a plain
-transaction count &#8212; clamps it within a bounded range, and applies it to the static baseline, with additional
-surcharges for operation classes such as virtual-machine and shielded transactions whose validation burden is
-structurally higher. The result is a deterministic, congestion-sensitive floor rather than an open-ended fee market.</p>
+<p>Transaction fees are deliberately simple and are paid by the sender to the miner of the block. The base fee is
+responsive to load: the node derives a multiplier from the recent weight of blocks &#8212; a measure of structural
+load that counts payload size, not just transaction count &#8212; clamps it within a bounded range, and applies it to
+a small baseline, with additional surcharges for operation classes such as virtual-machine and shielded transactions
+whose validation burden is higher and for the size of the <code>openfield</code> payload. The result is a
+deterministic, congestion-sensitive floor rather than an open-ended fee market, and it discourages using the chain as
+bulk storage while leaving ordinary payments inexpensive. The predecessor rule, in force until hf2 activates, is a
+fixed base fee plus the same payload-size charge (Section&#160;16).</p>
 
 <h2 id="s10">10. The virtual machine</h2>
 <p>Bismuth&#8217;s contract layer is a deterministic RISC-V virtual machine implementing the RV32I integer
@@ -453,8 +463,8 @@ to the recipient. Because custody balances live in the contract state and are re
 a rollback rebuilds them exactly. Under hf2 the virtual-machine state root &#8212; a deterministic commitment over
 contract code, storage, and custody balances &#8212; becomes a consensus object: the miner commits the pre-state
 root into the coinbase header and a node rejects a block whose locally derived state root does not match, so an
-implementation bug surfaces as a visible block rejection rather than silent divergence. The virtual machine is a
-post-fork feature and is additionally opt-in; it is inert on the public network until activation.</p>
+implementation bug surfaces as a visible block rejection rather than silent divergence. The virtual machine and its
+committed state root take effect at the hf2 activation; the public network has not yet activated hf2 (Section&#160;16).</p>
 
 <h2 id="s11">11. Shielded value</h2>
 <p>The shielded layer is a consensus-validated privacy pool carried inside ordinary transactions, not a second chain.
@@ -468,26 +478,23 @@ recognize and spend a note while observers cannot link it to the recipient&#8217
 second stage spends with linkable ring signatures and key images, so the chain prevents double spends &#8212; a key
 image may appear once &#8212; without revealing which ring member was spent. The third stage hides amounts with
 RingCT: Pedersen commitments, logarithmic Bulletproof range proofs, and a multilayer ring signature, built over the
-secp256k1 curve. Like the virtual machine, the shielded layer is a post-fork, opt-in feature, inert on the public
-network until activation; its purpose is to replace an earlier off-chain prototype whose spent-set logic lived
-outside consensus, whereas the shielded layer&#8217;s validity is enforced by every full node as a consensus rule. Like the
-virtual machine, the shielded layer is inert on the public network until hf2 activates.</p>
+secp256k1 curve. The shielded layer replaces an earlier off-chain prototype whose spent-set logic lived outside
+consensus; here, validity is enforced by every full node as a consensus rule. Like the virtual machine, it takes
+effect at the hf2 activation, which the public network has not yet reached (Section&#160;16).</p>
 
 <h2 id="s12">12. Storage architecture</h2>
-<p>The reference node today keeps its authoritative state in SQLite: a ledger database for the canonical tip, a
-hyperblock database for a compacted recent history, and an index database for derived token and alias data, with the
-ledger written synchronously and the two kept within a block of each other. This is the live storage of record on
-the public network.</p>
-<p>The modernization separates canonical chain data from rebuildable projections. The chain itself is the only
-authoritative history; balances, transaction-identifier indexes, contract state, shielded notes, reward accounting,
-token balances, and alias ownership are treated as materialized views that must be reconstructible from the chain and
-removable on rollback. The keystone is an append-only block store that holds block bodies by height in a key-value
-engine (LMDB, behind an engine-agnostic seam that also supports a portable SQLite-backed key-value fallback with
-identical ordering), around which sit key-value projections for balances, identifiers, rewards, contract state,
-shielded notes, and tokens. These stores are introduced conservatively: each is written as an additive shadow
-alongside the authoritative path, off by default, and is allowed to accelerate or replace the old path only after
-replay verification re-derives the canonical block hashes from chain data and parity checks confirm it means exactly
-the same thing. On the public network SQLite remains authoritative and the key-value stores are shadow and inert.</p>
+<p>Storage separates canonical chain data from rebuildable projections. The chain itself is the only authoritative
+history; balances, transaction-identifier indexes, contract state, shielded notes, reward accounting, token balances,
+and alias ownership are materialized views that must be reconstructible from the chain and removable on rollback. The
+keystone is an append-only block store that holds block bodies by height in a key-value engine (LMDB, behind an
+engine-agnostic seam that also supports a portable SQLite-backed key-value fallback with identical ordering), around
+which sit key-value projections for balances, identifiers, rewards, contract state, shielded notes, and tokens.</p>
+<p>These stores are introduced conservatively. Each is written as an additive shadow alongside the older path and
+becomes authoritative only after replay verification re-derives the canonical block hashes from chain data and parity
+checks confirm it means exactly the same thing. The predecessor store of record, which the public network still uses,
+is a set of SQLite databases &#8212; a ledger database for the tip, a hyperblock database for compacted recent
+history, and an index database for derived data; the key-value stores run alongside it as shadows and become the read
+path as the migration completes (Section&#160;16).</p>
 
 <h2 id="s13">13. Networking and synchronization</h2>
 <p>The native peer-to-peer protocol frames each message as a JSON payload behind a fixed-width length header over
@@ -510,7 +517,9 @@ derived, so wallet features need no consensus change. Bismuth supports hierarchi
 BIP32 style with BIP39 mnemonic seeds, which derive many addresses from one secret along standard derivation paths,
 and native multisignature, in which an <em class="term">M</em>-of-<em class="term">N</em> address is derived from a
 threshold and a sorted set of owner keys, the redeem information rides in the transaction, and the node verifies that
-a sufficient threshold of distinct owners authorized the spend. A multisignature vault can equally be expressed as a
+a sufficient threshold of distinct owners authorized the spend; spending from a native-multisignature address is a
+post-fork sender path that activates at hf2 (Section&#160;16), while receiving into one is valid before activation. A
+multisignature vault can equally be expressed as a
 virtual-machine contract when programmable approval policy is wanted. A keyless browser provider exposes the wallet
 to web applications over an origin-isolated message channel without surfacing key material to the page.</p>
 
@@ -526,25 +535,26 @@ the lattice-based ML-DSA family is implemented in the reference node but is not 
 consensus, so it is not a usable post-quantum option on the public network today.</p>
 
 <h2 id="s16">16. The hf2 upgrade boundary</h2>
-<p>The changes described above as &#8220;post-fork&#8221; are not a stream of independent toggles. They are bundled
-into one upgrade, hf2, that activates at a single height, because they are coupled: serialization, signature,
-proof-of-work, difficulty, fee, and execution changes that would be unsafe to switch on piecemeal are switched on
-together. Activation is miner-driven and computed from the chain itself. Upgraded miners place a readiness marker in
-their coinbase; when a window of 1,000 consecutive blocks all carry it, the upgrade locks in at the earliest height
-that closes such a window, and activates at the next multiple of 1,000 blocks above a 30-block burial margin. The
-lock-in height is a deterministic function of confirmed history, identical on every node and independent of the
-current tip, and it is persisted alongside the ledger so a restart or resync replays the same height. There is no
-off-chain vote and no second signal: one marker governs the whole bundle, including the switch to BLAKE2b Heavy3.</p>
-<p>As of the date of this document the activation height on the public network is unset: hf2 has not locked in and is
-not active. Every feature in this paper described as post-fork &#8212; BLAKE2b Heavy3, LWMA difficulty, binary and
-integer serialization, content-addressed transaction identity and signing the identifier, recoverable secp256k1
-signatures with low-<em class="term">s</em> enforcement, coinbase compaction, reward maturity, the dynamic base fee,
-committed virtual-machine state roots, the virtual machine, the shielded layer, and key-value storage as the
-authoritative path &#8212; is implemented and exercised on the development network and in the test suite, and is
-inert on the public network until the boundary activates. Until then the public network runs the legacy rules:
-SHA-224 Heavy3, the feedback-controller difficulty, signature-derived transaction identifiers, string-form signing
-and block hashing, the static fee, and SQLite as the storage of record. This separation is deliberate and is the
-single most important fact for reading the rest of this document accurately.</p>
+<p>The protocol described in this paper is brought into force at one activation boundary, hf2, rather than through a
+stream of independent toggles. The serialization, signature, proof-of-work, difficulty, fee, and execution changes
+are coupled and would be unsafe to switch on piecemeal, so a single upgrade activates them together. Activation is
+miner-driven and computed from the chain itself: upgraded miners place a readiness marker in their coinbase, and when
+a window of 1,000 consecutive blocks all carry it, the upgrade locks in at the earliest height that closes such a
+window and activates at the next multiple of 1,000 blocks above a 30-block burial margin. The lock-in height is a
+deterministic function of confirmed history, identical on every node and independent of the current tip, and it is
+persisted alongside the ledger so a restart or resync replays the same height. There is no off-chain vote and no
+second signal: one marker governs the whole bundle.</p>
+<p>As of the date of this document, hf2 has not locked in or activated on the public network, and until it does the
+public network runs the predecessor ruleset: SHA-224 Heavy3, the feedback-controller difficulty, signature-derived
+transaction identifiers, text-form signing and block hashing, the fixed base fee, and SQLite as the store of record.
+The hf2 features &#8212; BLAKE2b Heavy3, LWMA difficulty, binary and integer serialization, content-addressed
+identity, recoverable secp256k1 signatures, coinbase compaction and reward maturity, the responsive base fee, the
+committed virtual-machine state root, the virtual machine, the shielded layer, key-value storage as the read path,
+and the base-layer sender families a pre-fork node refuses (native-multisignature, NIST&#160;P-256, and ML-DSA
+senders) &#8212; are implemented and exercised on the development network and in the test suite, but a holder should not assume
+any of them is live on the public network before activation. Activation depends on miner adoption; it may be delayed
+and is not guaranteed (Part&#160;I). This is the single most important operational fact for reading the rest of this
+document.</p>
 
 <h2 id="s17">17. Supply and the reward schedule</h2>
 <p>BIS was first mined on 1&#160;May&#160;2017 from a genesis block with no allocation to anyone; the entire supply
@@ -633,7 +643,8 @@ agent, or crypto-asset service provider has been engaged in connection with an o
 <li><b>Utility-token features.</b> Not applicable. BIS is not a utility token and is not issued against the promise of
 any good or service.</li>
 <li><b>Milestones.</b> Past: mainnet launch (May&#160;2017); the memory-hard Heavy3 proof of work; the hypernode
-layer and reward model; multi-scheme signatures and address formats; the reference virtual machine, shielded layer,
+layer and reward model; multi-scheme signatures and address formats (some sender families activate at hf2;
+Section&#160;16); the reference virtual machine, shielded layer,
 and key-value storage modernization, implemented and tested. Forthcoming: activation of the coordinated
 <em class="term">hf2</em> upgrade, which is miner-activated and computed from the chain and which, as of the date of
 this document, has not locked in or activated on the public network (Section&#160;16). The project allocates open-source development effort; it has not allocated raised funds, having raised none.</li>
@@ -697,8 +708,9 @@ Article&#160;109 (in the form specified by Commission Delegated Regulation (EU)&
 crypto-asset category &#8212; <em class="term">other crypto-asset</em> (not an ART, not an EMT); distributed-ledger
 technology &#8212; the Bismuth proof-of-work blockchain; consensus mechanism &#8212; proof of work (Section&#160;3);
 native to its own ledger (not a token issued on a third-party ledger). Functionality timing: value transfer and fee
-payment function today; the programmable (virtual-machine) and shielded functionalities are implemented and activate
-with the <em class="term">hf2</em> boundary (Section&#160;16).</li>
+payment function today; the programmable (virtual-machine) and shielded functionalities, together with the other
+protocol changes bundled into the hf2 upgrade, are implemented and activate with the <em class="term">hf2</em>
+boundary (full list and current status in Section&#160;16).</li>
 </ol>
 
 <h3 style="font-style:normal" id="partG"><span class="partlabel">Part G &#8212; Rights and obligations</span></h3>
