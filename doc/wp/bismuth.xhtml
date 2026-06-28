@@ -365,7 +365,10 @@ timestamp manipulation, bounds the per-step change, and computes entirely in fix
 that every platform derives an identical target. The predecessor rule, which the public network runs until hf2
 activates, is a feedback controller over a 1,440-block window; it is asymmetric &#8212; quick to raise difficulty and
 slow to lower it &#8212; which punishes a small, bursty network when transient hashpower arrives and then leaves, and
-the LWMA, over a 60-block window, is the symmetric replacement (Section&#160;16).</p>
+the LWMA, over a 60-block window, is the symmetric replacement (Section&#160;16). That predecessor controller was the
+subject of peer-reviewed control-systems analysis [2,&#160;3], which is cited among the prior-art
+&#8220;Other Publications&#8221; of IBM&#8217;s patent US&#160;10,880,073, <em class="term">Optimizing Performance of a
+Blockchain</em> (granted 2020) [15].</p>
 <p>As an operational safeguard &#8212; not a consensus rule &#8212; a node also runs a background detector that
 compares its local difficulty against the median of height-matched peers and can schedule a rollback-and-resync if it
 finds itself trapped on a wrong difficulty track from corrupted local state.</p>
@@ -561,11 +564,13 @@ document.</p>
 has been created as block rewards. The mining reward is a function of block height, computed by the protocol and not
 read from the coinbase. In the current era the reward declines approximately linearly with height toward a permanent
 floor of 0.5&#160;BIS per block, which it does not fall below: the reward schedule has a floor, not a terminal zero,
-so block production continues to issue BIS indefinitely. In addition, on every tenth block until block 4,380,000 the
-protocol pays a development reward equal to that block&#8217;s mining reward and a separate, declining hypernode
+so block production continues to issue BIS indefinitely. In addition, on every tenth block up to block&#160;4,380,000
+the protocol paid a development reward equal to that block&#8217;s mining reward and a separate, declining hypernode
 reward to two fixed, protocol-designated addresses &#8212; the development reward to the project&#8217;s genesis
-address and the hypernode reward to a dedicated hypernode-payout address; both of these periodic payments cease at that height, after which only the
-mining reward and transaction fees are issued.</p>
+address and the hypernode reward to a dedicated hypernode-payout address. Block&#160;4,380,000 is the HF4 boundary at
+which the HyperNode metrics layer was retired, and the chain has passed it: those periodic payments have ended, and
+issuance now consists of the mining reward &#8212; which continues to decline toward its 0.5&#160;BIS floor &#8212;
+and transaction fees.</p>
 <p>The consequence, stated plainly, is that BIS has no fixed maximum supply. Because the per-block mining reward
 floors at a positive value rather than reaching zero, total supply increases without an upper bound and continues
 indefinitely: the per-block reward never falls below 0.5&#160;BIS, so continued issuance dilutes existing holders.
@@ -642,12 +647,19 @@ of contributors under public version control at the project repository (Referenc
 agent, or crypto-asset service provider has been engaged in connection with an offer, because no offer is made.</li>
 <li><b>Utility-token features.</b> Not applicable. BIS is not a utility token and is not issued against the promise of
 any good or service.</li>
-<li><b>Milestones.</b> Past: mainnet launch (May&#160;2017); the memory-hard Heavy3 proof of work; the hypernode
-layer and reward model; multi-scheme signatures and address formats (some sender families activate at hf2;
-Section&#160;16); the reference virtual machine, shielded layer,
-and key-value storage modernization, implemented and tested. Forthcoming: activation of the coordinated
-<em class="term">hf2</em> upgrade, which is miner-activated and computed from the chain and which, as of the date of
-this document, has not locked in or activated on the public network (Section&#160;16). The project allocates open-source development effort; it has not allocated raised funds, having raised none.</li>
+<li><b>Milestones.</b> Bismuth&#8217;s mainnet was first mined on 1&#160;May&#160;2017 as a fair launch &#8212; no
+pre-mine and no initial coin offering &#8212; and was described at the time as the first blockchain written in Python.
+Its difficulty controller and block-validation method were analysed in the peer-reviewed control-systems literature
+in 2017&#8211;2018 [2,&#160;3,&#160;13]. A plugin &#8220;building-blocks&#8221; architecture and a documented corpus of
+on-chain protocols (tokens, aliases, naming, social, event sourcing) followed in 2018, alongside a design essay
+separating consensus over data from consensus over meaning [14]; a HyperNode proof-of-stake metrics layer operated
+from around block&#160;800,000. Later milestones include confidential (shielded) tokens and the first on-chain
+governance vote (2019), on-chain recording of real-world telemetry (2020), and cross-chain bridges to Ethereum and
+BNB&#160;Chain (2021). The HyperNode layer and the periodic development and hypernode rewards were retired at
+block&#160;4,380,000 (the HF4 boundary), which the chain has now passed (Section&#160;17). The current milestone is
+the coordinated <em class="term">hf2</em> upgrade described in this paper, which is miner-activated and, as of this
+edition, has not yet activated on the public network (Section&#160;16). The project is developed as open source and
+has raised no funds.</li>
 <li><b>Use of funds collected.</b> Not applicable. No funds or other crypto-assets have been collected from the
 public in connection with BIS.</li>
 </ol>
@@ -766,8 +778,11 @@ anyone may run; no person controls the network or can transfer, freeze, or rever
 <li><b>Audit of the technology.</b> The project applies replay verification (re-hashing the chain through the frozen
 serialization boundary), consensus-invariant tests, and characterization locks as continuous internal controls, and
 has conducted a documented internal adversarial security review of the modernization work, which identified and fixed
-specific defects (Reference&#160;[7]). No external, independent third-party security certification of the protocol is
-claimed; a holder should not infer one.</li>
+specific defects (Reference&#160;[7]). The chain&#8217;s difficulty-control and block-validation methods were, in
+addition, formally analysed in the peer-reviewed control-systems literature [2,&#160;3,&#160;13], and that
+difficulty-control work is cited among the prior art of IBM patent US&#160;10,880,073 [15]; this is academic and
+prior-art scrutiny of specific mechanisms, not a security certification of the protocol as a whole. No external,
+independent third-party security certification of the protocol is claimed, and a holder should not infer one.</li>
 </ol>
 
 <h3 style="font-style:normal" id="partI"><span class="partlabel">Part I &#8212; Risks</span></h3>
@@ -951,6 +966,17 @@ and other environment-related adverse impacts of the consensus mechanism).</li>
 <li><span class="refnum">[12]</span> M. Palatinus, P. Rusnak, A. Voisine, and S. Bowe, &#8220;Mnemonic code for
 generating deterministic keys,&#8221; BIP&#160;39, and P. Wuille, &#8220;Hierarchical Deterministic Wallets,&#8221;
 BIP&#160;32.</li>
+<li><span class="refnum">[13]</span> G. Hovland and J. Ku&#269;era, &#8220;Security of the Bismuth Blockchain,&#8221;
+2018.</li>
+<li><span class="refnum">[14]</span> J. Ku&#269;era, &#8220;Semantic Interpretation,&#8221; 19&#160;July&#160;2018
+&#8212; project essay on separating consensus over data from consensus over meaning.</li>
+<li><span class="refnum">[15]</span> Hwang et&#160;al. (assignee International Business Machines Corporation),
+&#8220;Optimizing Performance of a Blockchain,&#8221; U.S. Patent 10,880,073&#160;B2, granted 29&#160;December&#160;2020,
+which cites Reference&#160;[2] among its &#8220;Other Publications&#8221; prior art.</li>
+<li><span class="refnum">[16]</span> The Bismuth Foundation, &#8220;10 Years of Bismuth: Architectural Anticipation in a
+Fair-Launched Blockchain, 2017&#8211;2026,&#8221; and the project&#8217;s interview and coverage record at
+<i>www.bismuth.cz</i> &#8212; primary and self-published sources, provided for background and not as independent
+verification.</li>
 </ol>
 
 <!-- ==================== REVISION HISTORY ==================== -->
