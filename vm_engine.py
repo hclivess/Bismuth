@@ -61,6 +61,114 @@ def _caller_int(address):
 VM_SINK = hashlib.sha224(b"bismuth-vm-custody").hexdigest()   # 56-hex sink address; no private key -> unspendable
 
 
+class Host:
+    """A journaled, MULTI-contract state interface over `vm_state` for the duration of ONE top-level
+    vm:call (doc/19 — issue #384 contract-to-contract calls). Every storage / custody / code effect the
+    engine performs — for the called contract AND any it CALLs/DELEGATECALLs — routes through here and is
+    held in an in-memory working set; the bytecode never touches vm_state directly.
+
+    * Nested SYS_CALL/SYS_DELEGATECALL take a ``checkpoint()`` and ``revert()`` on the inner frame's
+      failure, so an inner revert discards ONLY its own writes (value move + storage) while the outer call
+      keeps running — EVM call semantics.
+    * ``flush()`` commits the whole working set to vm_state, called ONLY when the top-level call succeeds.
+      On a top-level revert the Host is simply dropped (nothing persisted) and the deposit is refunded, so
+      the BIS supply stays exact and the custody == sum(contract balances) double-entry holds.
+    * Determinism: the working set is seeded lazily from vm_state (the rebuildable canonical record), every
+      mutation is a pure function of on-chain data, and flush writes the same final state on every node →
+      identical state_root, replayable on reorg.
+
+    `state` is duck-typed: vm_state.VMState in production (get_code/load_storage/get_balance + deploy/
+    commit_storage/set_balance/delete_code/clear_storage), or any object with the same surface in tests."""
+
+    def __init__(self, state):
+        self.state = state
+        self._stor = {}            # addr -> {key:int}  (lazily loaded: the FULL contract storage)
+        self._stor_dirty = set()
+        self._bal = {}             # addr -> int        (lazily loaded custody balance)
+        self._bal_dirty = set()
+        self._code = {}            # addr -> bytes      (SETCODE overrides, flushed via deploy)
+        self._destroyed = set()    # addr               (SELFDESTRUCTed this call)
+        self.payouts = []          # [(to_int, amount)] external transfers + selfdestruct beneficiaries
+
+    def _ensure_stor(self, addr):
+        if addr not in self._stor:
+            self._stor[addr] = {} if addr in self._destroyed else dict(self.state.load_storage(addr))
+        return self._stor[addr]
+
+    def get_code(self, addr):
+        if addr in self._destroyed:
+            return None
+        if addr in self._code:
+            return self._code[addr]
+        return self.state.get_code(addr)
+
+    def sload(self, addr, key):
+        return self._ensure_stor(addr).get(key, 0)
+
+    def sstore(self, addr, key, val):
+        self._ensure_stor(addr)[key] = val
+        self._stor_dirty.add(addr)
+
+    def get_balance(self, addr):
+        if addr not in self._bal:
+            self._bal[addr] = 0 if addr in self._destroyed else int(self.state.get_balance(addr))
+        return self._bal[addr]
+
+    def add_balance(self, addr, delta):
+        self._bal[addr] = max(0, self.get_balance(addr) + int(delta))
+        self._bal_dirty.add(addr)
+
+    def set_code(self, addr, code):
+        self._code[addr] = bytes(code)
+        self._destroyed.discard(addr)
+
+    def destroy(self, addr):
+        self._destroyed.add(addr)
+        self._stor[addr] = {}
+        self._stor_dirty.add(addr)
+        self._bal[addr] = 0
+        self._bal_dirty.add(addr)
+        self._code.pop(addr, None)
+
+    def add_payout(self, to, amount):
+        self.payouts.append((to, amount))
+
+    def contract_storage(self, addr):
+        return dict(self._stor.get(addr, {}))
+
+    def checkpoint(self):
+        return ({a: dict(s) for a, s in self._stor.items()}, set(self._stor_dirty),
+                dict(self._bal), set(self._bal_dirty), dict(self._code),
+                set(self._destroyed), len(self.payouts))
+
+    def revert(self, t):
+        self._stor = {a: dict(s) for a, s in t[0].items()}
+        self._stor_dirty = set(t[1])
+        self._bal = dict(t[2])
+        self._bal_dirty = set(t[3])
+        self._code = dict(t[4])
+        self._destroyed = set(t[5])
+        del self.payouts[t[6]:]
+
+    def flush(self):
+        """Persist the working set to vm_state. Call ONLY on top-level success. Destroyed contracts are
+        removed (code + every storage slot + balance); SETCODE overrides are written; dirty storage and
+        balances are set to their final absolute values. External payouts are settled by the caller."""
+        for addr in self._destroyed:
+            self.state.delete_code(addr)
+            self.state.clear_storage(addr)
+            self.state.set_balance(addr, 0)
+        for addr, code in self._code.items():
+            if addr not in self._destroyed:
+                self.state.deploy(addr, code)                 # deploy() overwrites the code key = set_code
+        for addr in self._stor_dirty:
+            if addr not in self._destroyed:
+                self.state.commit_storage(addr, self._stor[addr])
+        for addr in self._bal_dirty:
+            if addr not in self._destroyed:
+                self.state.set_balance(addr, self._bal[addr])
+
+
 def _deploy(state, openfield, deploy_id):
     try:
         of = (openfield or "").strip()
@@ -72,21 +180,25 @@ def _deploy(state, openfield, deploy_id):
 
 
 def _call(state, openfield, signature, sender, recipient, amount_units, block_height):
-    """Execute one vm:call. Returns the payouts [(to_addr, amount_units)] it queued."""
+    """Execute one vm:call against a journaled Host. The call (and every contract it CALLs/DELEGATECALLs)
+    mutates only the in-memory Host; on success we flush the WHOLE working set to vm_state and return the
+    external payouts [(to_addr, amount_units)] for the digester to settle FROM the sink; on revert we drop
+    the Host (persist nothing) and refund any attached deposit so the BIS supply stays exact."""
     deposit = 0
     addr = None
     try:
         parts = (openfield or "").split(":", 1)
         addr = parts[0].strip()
         calldata = bytes.fromhex(parts[1].strip()) if len(parts) > 1 and parts[1].strip() else b""
-        stored = state.get_code(addr)
-        if not stored:
+        host = Host(state)
+        code = host.get_code(addr)
+        if not code:
             # No such contract -> nothing executes. A value-bearing call must NOT keep the BIS the ledger
             # already moved to the sink (it would be unowned), so refund the sender.
             dep = int(amount_units or 0) if recipient == VM_SINK else 0
             return [(str(sender), dep)] if dep else []
         # DEPOSIT: value carried to the custody sink funds this contract (the ledger already moved it). Credit
-        # custody BEFORE execution so the contract sees it in callvalue AND self_balance (EVM-style).
+        # custody (in the Host journal) BEFORE execution so the contract sees it in callvalue AND self_balance.
         deposit = int(amount_units or 0) if recipient == VM_SINK else 0
         if deposit > 0xFFFFFFFF:
             # The VM exposes callvalue as a 32-bit word (rv SYS_CALLVALUE returns callvalue & 0xFFFFFFFF), so a
@@ -96,33 +208,26 @@ def _call(state, openfield, signature, sender, recipient, amount_units, block_he
             # sink) — same shape as the no-contract / revert refund paths. Found by the AMM audit (doc/24 §2).
             return [(str(sender), deposit)]
         if deposit:
-            state.add_balance(addr, deposit)
-        result = rv.execute(stored, calldata=calldata, caller=_caller_int(sender),
-                            callvalue=deposit, storage=state.load_storage(addr), gas_limit=GAS_LIMIT,
-                            block_height=int(block_height or 0), self_balance=state.get_balance(addr))
+            host.add_balance(addr, deposit)
+        result = rv.execute(code, calldata=calldata, caller=_caller_int(sender), callvalue=deposit,
+                            gas_limit=GAS_LIMIT, block_height=int(block_height or 0),
+                            host=host, address=addr, depth=0)
         if not result.success:
-            # REVERT: storage is untouched, so the contract has NO record of the deposit — leaving it in
-            # custody would strand it (no slot owns it). Undo the custody credit and refund the sender, so
-            # the BIS supply stays exact and the sink's balance still mirrors the sum of contract balances.
-            if deposit:
-                state.add_balance(addr, -deposit)
-                return [(str(sender), deposit)]
-            return []
-        state.commit_storage(addr, result.storage)
+            # REVERT: the Host is dropped (nothing committed to vm_state), so the contract has NO record of
+            # the deposit — refund the sender, leaving the sink's balance mirroring the sum of contract
+            # balances and the BIS supply exact. Internal CALL value-moves vanish with the dropped Host.
+            return [(str(sender), deposit)] if deposit else []
+        # SUCCESS: persist every contract the call touched (deposits, internal value-moves, TRANSFER debits,
+        # SETCODE, SELFDESTRUCT deletions), then settle the external payouts the Host accumulated.
+        host.flush()
         payouts = []
-        for to_int, amount in result.transfers:
+        for to_int, amount in host.payouts:
             to_addr = "%056x" % (to_int & ((1 << 224) - 1))             # 56-hex address from the VM word
-            state.add_balance(addr, -int(amount))                       # debit custody (VM already checked)
             payouts.append((to_addr, int(amount)))
         return payouts
     except Exception:
-        # Any failure after the deposit was credited is an implicit revert: undo the credit and refund, so
-        # a malformed call can't strand attached value either.
+        # Any failure is an implicit revert: the un-flushed Host strands nothing, so just refund the deposit.
         if deposit and addr is not None:
-            try:
-                state.add_balance(addr, -deposit)
-            except Exception:
-                pass
             return [(str(sender), deposit)]
         return []
 

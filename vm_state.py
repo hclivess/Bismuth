@@ -94,6 +94,37 @@ class VMState:
                 txn.delete(self.bal_db, addr.encode())
         return bal
 
+    def set_balance(self, addr, value):
+        """Set a contract's custody balance to an ABSOLUTE `value` (units; clamped >= 0). The journaled
+        Host (vm_engine) computes each touched contract's final balance across a whole vm:call subtree —
+        deposits, internal CALL value-moves, TRANSFER debits, SELFDESTRUCT drains — and persists it once on
+        success, so flush sets the absolute value rather than replaying deltas."""
+        value = int(value)
+        if value < 0:
+            value = 0
+        with self.store.txn(write=True) as txn:
+            if value:
+                txn.put(self.bal_db, addr.encode(), value.to_bytes(32, "big"))
+            else:
+                txn.delete(self.bal_db, addr.encode())
+
+    # --- code/storage deletion (SELFDESTRUCT) -----------------------------
+    # set_code is just deploy() (it overwrites the code key) — SETCODE flushes through deploy(). delete_code +
+    # clear_storage are the SELFDESTRUCT primitives: they remove a contract so its state_root contribution
+    # disappears (and a later call to it finds no code). Deterministic + rebuildable: replaying the same vm:
+    # txs re-runs the same SELFDESTRUCT and reaches the identical (absent) state.
+    def delete_code(self, addr):
+        with self.store.txn(write=True) as txn:
+            txn.delete(self.code_db, addr.encode())
+
+    def clear_storage(self, addr):
+        """Delete every storage slot of `addr` (collect-then-delete, so the scan isn't mutated mid-cursor)."""
+        prefix = (addr + ":").encode()
+        with self.store.txn(write=True) as txn:
+            keys = [k for k, _ in txn.iterate(self.stor_db, prefix=prefix)]
+            for k in keys:
+                txn.delete(self.stor_db, k)
+
     def state_root(self):
         """Deterministic 32-byte root (hex) over the ENTIRE contract state — every contract's code and
         every storage slot, in sorted key order. Two nodes with identical state produce identical

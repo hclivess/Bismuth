@@ -38,6 +38,12 @@ SYS_CALLVALUE = rv.SYS_CALLVALUE
 SYS_NUMBER = rv.SYS_NUMBER
 SYS_SHA256 = rv.SYS_SHA256
 SYS_TRANSFER = rv.SYS_TRANSFER
+SYS_CALL = rv.SYS_CALL                  # contract-to-contract call (doc/19 — issue #384)
+SYS_DELEGATECALL = rv.SYS_DELEGATECALL  # run another contract's code in OUR storage/custody (proxy upgrade)
+SYS_SETCODE = rv.SYS_SETCODE            # replace this contract's OWN code (in-place mutability)
+SYS_SELFDESTRUCT = rv.SYS_SELFDESTRUCT  # pay out remaining custody + delete code/storage
+SYS_ADDRESS = rv.SYS_ADDRESS            # write this contract's own 28-byte address
+SYS_CALLER_FULL = rv.SYS_CALLER_FULL    # write the FULL 28-byte caller (collision-resistant identity)
 
 # Branch mnemonic -> the (encoder, kind) it resolves to. "b" entries take a label and get a PC-relative
 # offset computed in assemble(); everything else is absolute and emitted directly.
@@ -132,6 +138,39 @@ class Asm:
     def transfer(self, addr_ptr_reg, amt_ptr_reg):
         """SYS_TRANSFER(a0=ptr to 28-byte recipient, a1=ptr to 8-byte amount) -> a0 = 1 if queued."""
         return self.mv(A0, addr_ptr_reg).mv(A1, amt_ptr_reg).syscall(SYS_TRANSFER)
+
+    # --- contract-flexibility ECALLs (doc/19 — issue #384) ----------------
+    def call(self, callee_ptr, value_ptr, cd_ptr, cd_len, ret_ptr, ret_len):
+        """SYS_CALL: run the contract at [callee_ptr] (28-byte addr) in ITS own storage/custody, forwarding
+        the 8-byte value at [value_ptr], passing cd_len bytes of calldata at [cd_ptr], copying up to ret_len
+        bytes of the callee's RETURN word into [ret_ptr]. a0 = 1 on success else 0. Args are registers."""
+        return (self.mv(A0, callee_ptr).mv(A1, value_ptr).mv(A2, cd_ptr).mv(A3, cd_len)
+                .mv(A4, ret_ptr).mv(A5, ret_len).syscall(SYS_CALL))
+
+    def delegatecall(self, impl_ptr, cd_ptr, cd_len, ret_ptr, ret_len):
+        """SYS_DELEGATECALL: run the impl at [impl_ptr] (28-byte addr) in OUR storage/custody/identity
+        (CALLER + CALLVALUE preserved, no value moves). a0 = 1 on success else 0. Args are registers."""
+        return (self.mv(A0, impl_ptr).mv(A1, cd_ptr).mv(A2, cd_len)
+                .mv(A3, ret_ptr).mv(A4, ret_len).syscall(SYS_DELEGATECALL))
+
+    def setcode(self, code_ptr, code_len):
+        """SYS_SETCODE: replace THIS contract's own code with code_len bytes at [code_ptr] (effective next
+        call). a0 = 1 on success else 0. Gate it with your own owner check. Args are registers."""
+        return self.mv(A0, code_ptr).mv(A1, code_len).syscall(SYS_SETCODE)
+
+    def selfdestruct(self, benef_ptr_reg):
+        """SYS_SELFDESTRUCT: pay remaining custody to the 28-byte beneficiary at [benef_ptr] and delete this
+        contract's code + storage; halts (success). Arg is a register."""
+        return self.mv(A0, benef_ptr_reg).syscall(SYS_SELFDESTRUCT)
+
+    def address(self, out_ptr_reg):
+        """SYS_ADDRESS: write this contract's own 28-byte address to [out_ptr]; a0 = its 32-bit fold."""
+        return self.mv(A0, out_ptr_reg).syscall(SYS_ADDRESS)
+
+    def caller_full(self, out_ptr_reg):
+        """SYS_CALLER_FULL: write the full 28-byte caller address to [out_ptr] (collision-resistant identity
+        for ownership/admin checks; SYS_CALLER only gives the grindable low 32 bits)."""
+        return self.mv(A0, out_ptr_reg).syscall(SYS_CALLER_FULL)
 
     def store_u64_be(self, val_reg, base_reg, off=0, scratch=A6):
         """Serialize the 32-bit `val_reg` as the low word of an 8-byte BIG-ENDIAN field at [base_reg+off].
