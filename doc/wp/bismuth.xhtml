@@ -1,0 +1,953 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Bismuth: A Peer-to-Peer Settlement Layer for Programmable Value</title>
+<meta name="author" content="The Bismuth Foundation"/>
+<meta name="dcterms.modified" content="2026-06-28"/>
+<meta name="subject" content="Crypto-asset white paper prepared on the template of Regulation (EU) 2023/1114 (MiCA), Article 6 and Annex I"/>
+<style type="text/css">
+/* ============================================================================
+   Bismuth paper — typeset to reproduce the Bitcoin (2008) white paper format:
+   US Letter, ~1in margins, Times-class serif (Nimbus Roman) at 11pt, justified,
+   numbered sections, hanging-indent references, centered page numbers. The same
+   XHTML is the machine-readable substrate for MiCA Art 6(10) iXBRL delivery.
+   ========================================================================== */
+@page {
+  size: Letter;
+  margin: 25.4mm 28.5mm 22mm 28.5mm;
+  @bottom-center { content: counter(page); font-family: "Nimbus Roman","Times New Roman",serif; font-size: 10.5pt; }
+}
+
+html { -weasy-hyphens: auto; }
+body {
+  font-family: "Nimbus Roman","Times New Roman","Liberation Serif",serif;
+  font-size: 11pt; line-height: 1.30; color: #000;
+  text-align: justify; -weasy-hyphens: auto; hyphens: auto;
+}
+
+/* ---- Title block ---- */
+h1.title { text-align: center; font-size: 16.5pt; font-weight: bold; line-height: 1.18;
+  margin: 4pt 0 3pt; -weasy-hyphens: none; hyphens: none; }
+.byline { text-align: center; font-size: 11pt; line-height: 1.4; margin: 0 0 2pt; }
+.docmeta { text-align: center; font-size: 9.5pt; margin: 0 0 14pt; color:#000; }
+
+/* ---- Abstract ---- */
+.abstract { margin: 4pt 34pt 6pt 34pt; }
+.abstract .lead { font-weight: bold; }
+
+/* ---- Prominent statutory statements (MiCA Art 6(3),6(5),6(6)) ---- */
+.statement { border: 0.8pt solid #000; padding: 8pt 11pt; margin: 11pt 2pt; font-size: 10pt;
+  line-height: 1.32; text-align: justify; -weasy-hyphens: none; hyphens: none;
+  break-inside: avoid; page-break-inside: avoid; }
+.statement .h { font-weight: bold; text-transform: uppercase; font-size: 8.6pt; letter-spacing: 0.5pt;
+  display: block; margin-bottom: 4pt; }
+.statement p { margin: 0 0 5pt; text-indent: 0; }
+.statement p:last-child { margin-bottom: 0; }
+.statement ol { margin: 3pt 0 0; padding-left: 20pt; }
+.statement ol li { margin: 1.5pt 0; text-indent: 0; }
+
+/* lighter explanatory inset (not a statutory statement) */
+.note { border-left: 2pt solid #000; padding: 1pt 0 1pt 10pt; margin: 9pt 2pt 9pt 6pt; font-size: 10pt;
+  break-inside: avoid; page-break-inside: avoid; }
+.note p { text-indent: 0; margin: 0 0 5pt; }
+.note p:last-child { margin-bottom: 0; }
+.note .h { font-weight: bold; font-style: italic; }
+
+/* ---- Section headings ---- */
+h2 { font-size: 11.5pt; font-weight: bold; margin: 15pt 0 3pt; text-align: left;
+  -weasy-hyphens: none; hyphens: none; page-break-after: avoid; }
+h3 { font-size: 11pt; font-weight: bold; font-style: italic; margin: 9pt 0 2pt; text-align: left;
+  page-break-after: avoid; -weasy-hyphens: none; hyphens: none; }
+.part h2 { page-break-after: avoid; }
+
+/* ---- Body paragraphs ---- */
+p { margin: 0; text-indent: 16pt; }
+h2 + p, h3 + p, .abstract p, .statement p, .note p, p.flush,
+li > p:first-child, blockquote p, dd > p:first-child { text-indent: 0; }
+p.sp { margin-top: 7pt; }
+em.term { font-style: italic; }
+
+/* ---- Lists ---- */
+ol.steps, ul.bul { margin: 4pt 0 6pt 0; padding-left: 30pt; }
+ol.steps > li, ul.bul > li { margin: 1.5pt 0; text-align: justify; }
+ul.bul { list-style: disc; }
+ol.alpha { list-style: lower-alpha; }
+
+/* ---- MiCA disclosure parts ---- */
+.partlabel { font-variant: small-caps; font-weight: bold; letter-spacing: 0.3pt; }
+dl.disc { margin: 4pt 0 6pt; }
+dl.disc > dt { font-weight: bold; margin-top: 5pt; }
+dl.disc > dd { margin: 0 0 0 18pt; text-align: justify; }
+ol.items { margin: 3pt 0 6pt; padding-left: 22pt; }
+ol.items > li { margin: 2pt 0; text-align: justify; }
+.na { font-style: italic; }
+
+/* ---- Code ---- */
+pre { font-family: "Nimbus Mono PS","DejaVu Sans Mono",monospace; font-size: 8.6pt; line-height: 1.25;
+  margin: 5pt 0 7pt 16pt; white-space: pre-wrap; -weasy-hyphens: none; hyphens: none; }
+code { font-family: "Nimbus Mono PS","DejaVu Sans Mono",monospace; font-size: 9.3pt; }
+
+/* ---- Tables ---- */
+table.data { border-collapse: collapse; margin: 7pt auto 4pt; font-size: 9.6pt; width: 100%;
+  break-inside: avoid; page-break-inside: avoid; }
+table.data caption { caption-side: top; font-size: 9.4pt; font-style: italic; margin-bottom: 4pt; text-align: left; }
+table.data th, table.data td { border: 0.5pt solid #000; padding: 2.6pt 6pt; text-align: left; vertical-align: top;
+  -weasy-hyphens: none; hyphens: none; }
+table.data th { font-weight: bold; }
+table.data td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.tnote { font-size: 8.8pt; margin: 2pt 0 8pt; text-indent: 0; }
+
+/* ---- Table of contents ---- */
+ul.toc { list-style: none; margin: 4pt 0 0; padding: 0; font-size: 10.5pt; -weasy-hyphens: none; hyphens: none; }
+ul.toc li { margin: 1.6pt 0; }
+ul.toc li.sub { margin-left: 18pt; font-size: 10pt; }
+ul.toc a { color: #000; text-decoration: none; }
+ul.toc a::after { content: leader('.') target-counter(attr(href), page); }
+
+/* ---- References ---- */
+ol.refs { margin: 4pt 0 0; padding: 0; list-style: none; font-size: 9.8pt; line-height: 1.3; }
+ol.refs li { padding-left: 20pt; text-indent: -20pt; margin: 0 0 5pt; text-align: left;
+  -weasy-hyphens: none; hyphens: none; }
+.refnum { display: inline-block; width: 20pt; }
+
+.pb { page-break-before: always; }
+hr.rule { border: 0; border-top: 0.5pt solid #000; margin: 12pt 0; }
+sup.fn { font-size: 7.5pt; vertical-align: super; line-height: 0; }
+</style>
+</head>
+<body>
+
+<!-- ============================ TITLE BLOCK ============================ -->
+<h1 class="title">Bismuth: A Peer-to-Peer Settlement Layer<br/>for Programmable Value</h1>
+<p class="byline">The Bismuth Foundation</p>
+<p class="docmeta">www.bismuth.cz&#160;&#160;&#183;&#160;&#160;Edition 2026.1&#160;&#160;&#183;&#160;&#160;28 June 2026</p>
+
+<p class="abstract"><span class="lead">Abstract.</span> A purely peer-to-peer settlement layer would let value move,
+and programs execute, directly between parties without any intermediary taking custody. Proof of work answers who
+may extend the ledger; it does not answer what a transaction is allowed to express. Bismuth keeps one
+account-based ledger, one memory-hard proof-of-work family, and one explicit upgrade boundary, and treats the
+transaction itself as a generic, extensible object: every payment, contract call, private transfer, name, and
+token rides the same eight-field record through one ordering, hashing, and validation path. The base layer stays
+small and auditable while the meaning above it grows &#8212; content-addressed transaction identity, deterministic
+binary serialization, a signer-agnostic verification framework, a committed RISC-V virtual machine that custodies
+real value, consensus-validated shielded transfers, and a storage model of one canonical chain plus rebuildable
+key-value projections. Several of these &#8212; the virtual machine, shielded transfers, binary serialization, and
+content-addressed identity among them &#8212; are implemented and tested but activate only at a single scheduled,
+miner-activated upgrade (hf2) and are inert on the public network until then. This document describes that system and presents the disclosures for the BIS crypto-asset
+on the template of Regulation (EU)&#160;2023/1114 (Markets in Crypto-Assets, &#8220;MiCA&#8221;), Article&#160;6
+and Annex&#160;I.</p>
+
+<hr class="rule"/>
+
+<!-- ===================== MiCA Art 6(3) FIRST-PAGE STATEMENT ===================== -->
+<div class="statement">
+  <span class="h">Statement under Article 6(3) of Regulation (EU) 2023/1114</span>
+  <p>This crypto-asset white paper has not been approved by any competent authority in any Member State of the
+  European Union. The Bismuth Foundation, as the person that drew up this crypto-asset white paper,
+  is solely responsible for the content of this crypto-asset white paper.</p>
+</div>
+
+<!-- ===================== MiCA Art 6(6) MANAGEMENT BODY STATEMENT ===================== -->
+<div class="statement">
+  <span class="h">Statement of the management body (Article 6(6))</span>
+  <p>This crypto-asset white paper complies with Title&#160;II of Regulation (EU)&#160;2023/1114 and, to the best
+  of the knowledge of the management body of the Bismuth Foundation, the information presented in this crypto-asset
+  white paper is fair, clear and not misleading and this crypto-asset white paper makes no omission likely to
+  affect its import.</p>
+</div>
+
+<!-- ============================ SUMMARY (Art 6(7)) ============================ -->
+<h2 id="summary">Summary</h2>
+<div class="note">
+  <p>This summary is provided under Article&#160;6(7) of Regulation (EU)&#160;2023/1114. It should be read as an
+  introduction to this crypto-asset white paper. Any decision to purchase BIS should be based on the content of the
+  white paper as a whole and not on this summary alone. The offer of a crypto-asset, where one is made, does not
+  constitute an offer or solicitation to purchase financial instruments, and any such offer or solicitation can be
+  made only by means of a prospectus or other offer documents pursuant to applicable national law. This crypto-asset
+  white paper does not constitute a prospectus as referred to in Regulation (EU)&#160;2017/1129 or any other offer
+  document pursuant to Union or national law.</p>
+</div>
+
+<p>Bismuth is a public, permissionless, proof-of-work blockchain first mined on 1&#160;May&#160;2017. Its native
+crypto-asset is BIS. There was no pre-mine, no founder allocation, and no initial coin offering; all BIS is created
+by the protocol as a block reward. Most of each block&#8217;s reward accrues to the miner that finds the block; in
+addition, on every tenth block until block&#160;4,380,000, the protocol pays a development reward equal to that
+block&#8217;s mining reward, and a separate, declining hypernode reward, to fixed protocol-designated addresses (see
+Section&#160;17). The network is run by independent nodes and miners; no person controls settlement or the order
+book.</p>
+
+<p>The ledger is account-based. A transaction is an eight-field record &#8212; timestamp, sender, recipient,
+amount, signature, public key, an <em class="term">operation</em> string, and an <em class="term">openfield</em>
+data field. The last two fields are a deliberate extension channel: tokens, names, contract calls, and private
+transfers are expressed through them and ride the same ordering, hashing, and validation path as an ordinary
+payment, rather than fragmenting the chain into many special-purpose transaction types. Proof of work is Heavy3, a
+memory-hard function that forces each hash attempt to read from a one-gibibyte table, blunting the advantage of
+specialized hardware over commodity machines.</p>
+
+<p>Bismuth verifies signatures through an abstraction that already supports several cryptographic families &#8212;
+RSA (the scheme in dominant use on the public network today), secp256k1, Ed25519, secp256r1, lattice-based ML-DSA,
+and native multisignature &#8212; selected by the sender&#8217;s address rather than hard-coded into consensus, which
+positions the protocol to adopt post-quantum signatures without redefining how it thinks about identity. A
+deterministic RISC-V virtual machine that lets contracts custody and move real BIS, and a consensus-validated
+shielded layer that carries private transfers inside ordinary transactions, are implemented and tested but are inert
+on the public network until a coordinated, miner-activated upgrade called <em class="term">hf2</em> activates, which
+may never occur. Section&#160;16 states precisely what is live on the public network today and what would activate at
+that boundary.</p>
+
+<p>BIS confers no claim against any person and grants no right to income, dividend, redemption, or governance. It is
+a volatile crypto-asset whose supply has no fixed maximum (Part&#160;G); its environmental footprint as a
+proof-of-work asset is disclosed in Section&#160;18. The disclosures required for a crypto-asset other than an
+asset-referenced token or e-money token follow in the parts mapped to Annex&#160;I of MiCA, and the risk factors are
+set out in Part&#160;I.</p>
+
+<!-- ===================== MiCA Art 6(5) RISK STATEMENT ===================== -->
+<div class="statement">
+  <span class="h">Clear and unambiguous statement (Article 6(5))</span>
+  <p>Prospective holders are warned that:</p>
+  <ol class="alpha">
+    <li>the crypto-asset may lose its value in part or in full;</li>
+    <li>the crypto-asset may not always be transferable;</li>
+    <li>the crypto-asset may not be liquid;</li>
+    <li>BIS is not a utility token and is not offered against the promise of any good or service; it confers no
+    claim on the Bismuth Foundation or on any other person;</li>
+    <li>the crypto-asset is not covered by the investor compensation schemes under Directive 97/9/EC;</li>
+    <li>the crypto-asset is not covered by the deposit guarantee schemes under Directive 2014/49/EU.</li>
+  </ol>
+  <p>This crypto-asset white paper contains no assertions as to the future value of the crypto-asset, other than
+  the statement above (Article 6(4)).</p>
+</div>
+
+<!-- ===================== REGULATORY POSITIONING (transparency) ===================== -->
+<div class="note">
+  <p><span class="h">Regulatory positioning.</span> Bismuth is a fully decentralized proof-of-work crypto-asset
+  with no issuer and no offeror. BIS is created only as a reward for validating transactions and maintaining the
+  distributed ledger; it is not sold by, and confers no claim on, any person. In the Bismuth Foundation&#8217;s good-faith assessment, under Recital&#160;22 and
+  Article&#160;4 of MiCA the public distribution of a crypto-asset that is created as a mining reward and offered
+  for free does not require a crypto-asset white paper; a competent authority could nonetheless assess the
+  regulatory characterisation of BIS, or the standing of this document, differently. The white-paper obligation under Article&#160;5 is engaged
+  only on admission to trading, and it then falls on the person seeking admission to trading or on the operator of
+  the trading platform (Article&#160;5(3)), not on a development foundation.</p>
+  <p>The Bismuth Foundation is the core development steward of the protocol. It is not an issuer, has not conducted
+  an offer to the public, and makes no MiCA filing by publishing this document. This paper is published
+  voluntarily, drawn up on the template of Article&#160;6 and Annex&#160;I, so that holders, prospective holders,
+  and any person who may seek admission of BIS to trading have the comparable, structured, risk-aware information
+  that MiCA is designed to provide. Where Annex&#160;I assigns a disclosure to an &#8220;issuer&#8221; or
+  &#8220;offeror,&#8221; that role does not exist for Bismuth and the item is completed accordingly. Section&#160;22
+  records the document&#8217;s standing in full.</p>
+</div>
+
+<!-- ===================== CONTENTS (Art 6(8)) ===================== -->
+<h2 id="toc">Contents</h2>
+<ul class="toc">
+  <li><a href="#summary">Summary (Article 6(7))</a></li>
+  <li><a href="#s1">1.&#160;&#160;Introduction</a></li>
+  <li><a href="#s2">2.&#160;&#160;The account ledger and the abstract transaction</a></li>
+  <li><a href="#s3">3.&#160;&#160;Proof of work: Heavy3</a></li>
+  <li><a href="#s4">4.&#160;&#160;Difficulty and block timing</a></li>
+  <li><a href="#s5">5.&#160;&#160;Consensus pipeline and chain selection</a></li>
+  <li><a href="#s6">6.&#160;&#160;Transaction identity and serialization</a></li>
+  <li><a href="#s7">7.&#160;&#160;Signatures and the signer abstraction</a></li>
+  <li><a href="#s8">8.&#160;&#160;Issuance, the coinbase, and reward maturity</a></li>
+  <li><a href="#s9">9.&#160;&#160;Fees</a></li>
+  <li><a href="#s10">10.&#160;&#160;The virtual machine</a></li>
+  <li><a href="#s11">11.&#160;&#160;Shielded value</a></li>
+  <li><a href="#s12">12.&#160;&#160;Storage architecture</a></li>
+  <li><a href="#s13">13.&#160;&#160;Networking and synchronization</a></li>
+  <li><a href="#s14">14.&#160;&#160;Wallets, hierarchical keys, and multisignature</a></li>
+  <li><a href="#s15">15.&#160;&#160;Post-quantum readiness</a></li>
+  <li><a href="#s16">16.&#160;&#160;The hf2 upgrade boundary</a></li>
+  <li><a href="#s17">17.&#160;&#160;Supply and the reward schedule</a></li>
+  <li class="sub"><a href="#disclosures">Crypto-asset disclosures (MiCA Annex I)</a></li>
+  <li class="sub"><a href="#partA">Part A &#8212; Person responsible for the white paper</a></li>
+  <li class="sub"><a href="#partB">Part B &#8212; Issuer</a></li>
+  <li class="sub"><a href="#partC">Part C &#8212; Operator of the trading platform</a></li>
+  <li class="sub"><a href="#partD">Part D &#8212; The crypto-asset project</a></li>
+  <li class="sub"><a href="#partE">Part E &#8212; Admission to trading</a></li>
+  <li class="sub"><a href="#partF">Part F &#8212; The crypto-asset</a></li>
+  <li class="sub"><a href="#partG">Part G &#8212; Rights and obligations</a></li>
+  <li class="sub"><a href="#partH">Part H &#8212; Underlying technology</a></li>
+  <li class="sub"><a href="#partI">Part I &#8212; Risks</a></li>
+  <li><a href="#sustainability">18.&#160;&#160;Principal adverse environmental impacts</a></li>
+  <li><a href="#marketing">19.&#160;&#160;Marketing communications</a></li>
+  <li><a href="#ongoing">20.&#160;&#160;Notification, publication, and modification</a></li>
+  <li><a href="#format">21.&#160;&#160;Machine-readable format</a></li>
+  <li><a href="#standing">22.&#160;&#160;Standing of this document</a></li>
+  <li><a href="#refs">References</a></li>
+  <li><a href="#history">Revision history</a></li>
+</ul>
+
+<!-- ============================ NARRATIVE ============================ -->
+
+<h2 class="pb" id="s1">1. Introduction</h2>
+<p>A public blockchain has to answer two questions that are easy to confuse. The first is <em class="term">who</em>
+may extend the ledger, and in what order; the second is <em class="term">what</em> a transaction is allowed to
+express. Most designs answer the first with a consensus rule and then bolt the second onto it, growing a thicket of
+special-purpose transaction types, side systems, and execution environments, each with its own validity rules, its
+own failure modes, and its own attack surface. The base layer becomes large, and large base layers are hard to
+reason about and to maintain.</p>
+<p>Bismuth takes the opposite discipline. It answers the first question with proof of work and a single
+account-based ledger, and it answers the second by making the transaction a generic object. A transaction is an
+eight-field record whose last two fields &#8212; an <em class="term">operation</em> string and a free
+<em class="term">openfield</em> &#8212; are a narrow semantic extension channel. Tokens, names, contract calls, and
+private transfers are not new kinds of block; they are ordinary transactions carrying structured payloads, ordered,
+hashed, propagated, and archived through one validation path. The consensus engine stays small and explicit, while
+the meaning that can ride on top of it stays open-ended.</p>
+<p>This document describes the protocol as it runs today and the coordinated upgrade, called <em class="term">hf2</em>,
+that folds its modernization into a single activation boundary. It is written so that a reader can tell, at every
+point, what is consensus and what is convenience, and what is live on the public network versus implemented and
+tested but not yet activated. The same discipline governs the project: consensus byte formats are defined in one
+place and locked by characterization tests, so that a change to storage, transport, or wallet code cannot silently
+alter what the chain means. The remainder of the paper describes the ledger and its transaction model
+(Sections&#160;2 and&#160;6&#8211;9), the proof of work and consensus (Sections&#160;3&#8211;5), the execution and
+privacy layers (Sections&#160;10&#8211;11), the storage, network, and wallet stack (Sections&#160;12&#8211;14), the
+cryptographic roadmap (Section&#160;15), the upgrade boundary (Section&#160;16), and issuance (Section&#160;17),
+after which the crypto-asset disclosures required by Regulation (EU)&#160;2023/1114 follow in the parts mapped to
+its Annex&#160;I.</p>
+
+<h2 id="s2">2. The account ledger and the abstract transaction</h2>
+<p>The ledger is account-based: the protocol tracks a balance for each address rather than a set of unspent outputs.
+A transaction names a sender, a recipient, an amount, a signature, and a public key or key reference, and it carries
+the two extension fields. On the wire it is the tuple</p>
+<pre>timestamp | sender | recipient | amount | signature | public_key | operation | openfield</pre>
+<p>and the committed ledger row adds the block height, the block hash, the fee, and the reward. Amounts are integers
+of <code>10<sup class="fn">-8</sup></code>&#160;BIS &#8212; eight decimal places, the smallest unit being one
+hundred-millionth of a BIS &#8212; and the protocol normalizes every amount to that precision before it is hashed or
+checked.</p>
+<p>The sender&#8217;s balance is authoritative. When a block is validated, the node does not check each transaction in
+isolation; it sums every debit and fee that each address incurs across the <em class="term">whole</em> candidate
+block and rejects the block unless each sender can cover its total. This block-cumulative rule is what prevents an
+address from spending the same balance twice through several transactions in one block, and it is enforced before the
+block is committed.</p>
+<p>The <code>operation</code> and <code>openfield</code> fields are the heart of the design. <code>operation</code>
+is a short namespaced command &#8212; for example <code>token:issue</code>, <code>token:transfer</code>,
+<code>alias:register</code>, <code>vm:deploy</code>, <code>vm:call</code>, or <code>shield:spend</code> &#8212; and
+<code>openfield</code> carries the associated data. The base node orders and archives these transactions without
+needing to understand them; the subsystems that do understand them &#8212; the token and alias indexes, the virtual
+machine, the shielded pool &#8212; read the same canonical rows. A protocol can therefore be added at the
+interpretation layer without a new block format and without enlarging the consensus core.</p>
+
+<h2 id="s3">3. Proof of work: Heavy3</h2>
+<p>Bismuth secures block production with Heavy3, a memory-hard proof of work. The cost of a hash attempt is dominated
+not by arithmetic but by random access into a deterministic one-gibibyte table, <code>heavy3a.bin</code>, generated
+from an HMAC-DRBG seeded with a fixed description of the element bismuth and verified against sentinel values on
+load. Because the table is large and addressed pseudo-randomly, a miner must hold all of it in fast memory; because
+it is deterministic, every node can regenerate it. The intent is to keep the marginal advantage of specialized
+hardware over commodity GPUs small, so that the work stays broadly reproducible.</p>
+<p>A mining attempt forms a preimage from the miner&#8217;s address, a nonce, and the previous block hash, and hashes
+it to a 224-bit value. That value is then <em class="term">annealed</em>: its seven 32-bit words are exclusive-ORed
+with seven consecutive words read from <code>heavy3a.bin</code> beginning at an offset the hash itself selects. Difficulty is measured by an
+unusual but fixed rule &#8212; the length of the longest leading bit-prefix of the target derived from the previous
+block hash that appears anywhere as a substring of the annealed value&#8217;s bit-string. The measure does not change
+the probability of finding a good candidate and is verified by every node identically.</p>
+<p>Today the inner hash is SHA-224. The hf2 upgrade replaces it with BLAKE2b truncated to 28 bytes, leaving the
+table, the annealing step, and the substring measure unchanged: the modernization swaps the digest primitive without
+altering the memory-hard geometry of the work. Below the activation height the network mines and validates the
+SHA-224 form; from the activation height onward it mines and validates the BLAKE2b form (Section&#160;16).</p>
+
+<h2 id="s4">4. Difficulty and block timing</h2>
+<p>The chain targets a sixty-second block interval. The live retarget is a feedback controller that estimates
+hashrate from recent solve times in a logarithmic work domain, applies a derivative term, damps the per-block
+change, and bounds it. The controller works, but on a small and bursty network it is asymmetric &#8212; it can rise
+quickly and fall only slowly &#8212; which punishes the chain when transient hashpower arrives and then leaves.</p>
+<p>The hf2 upgrade replaces the live retarget with an LWMA rule: a linearly weighted moving average of recent solve
+times whose adjustment is symmetric in the logarithmic work domain, so the chain responds to sustained fast and
+sustained slow blocks under the same law. It clamps individual solve times to resist timestamp manipulation, bounds
+the per-step change, and computes entirely in fixed-precision decimal arithmetic so that every platform derives an
+identical target. The averaging window narrows from 1,440 blocks to 60, making the response faster as well as
+symmetric. As an operational safeguard &#8212; not a consensus rule &#8212; a node also runs a background detector
+that compares its local difficulty against the median of height-matched peers and can schedule a rollback-and-resync
+if it finds itself trapped on a wrong difficulty track from corrupted local state.</p>
+
+<h2 id="s5">5. Consensus pipeline and chain selection</h2>
+<p>Every block enters the chain through one admission routine. The node rejects banned or hostile peers, takes the
+ledger lock, parses and normalizes each transaction into its consensus form, checks signatures, enforces timestamp
+and replay rules, recomputes the target difficulty, rebuilds the block hash from the canonical representation,
+validates the Heavy3 proof of work, enforces the block-cumulative balance and fee rules, applies the post-fork
+feature gates where they are active, commits the block atomically, removes the confirmed transactions from the
+mempool, and advances the auxiliary indexes. Proof of work is checked only after the transaction list has been
+normalized, because both the block hash and the mining target are defined over that normalized list.</p>
+<p>The network follows the longest valid chain. A node tracks the tip height that its peers report, weighs those
+opinions by a local reputation score earned from delivering valid data, and synchronizes toward the greatest height
+that reputable peers agree on; at equal height the competing block hashes decide. Reputation never overrides
+validation &#8212; every candidate block is independently checked for proof of work, difficulty, signatures, replay,
+and balances before it is accepted &#8212; it only hardens the choice of which peer view to trust when recovering
+from a disputed tip. A running cumulative-work total is also maintained and is staged to become an explicit
+fork-choice metric at the hf2 boundary; the live rule is height with hash tie-breaking. Validation failure at any
+stage rejects the block, penalizes the peer, and restores the tip from authoritative state; when a rollback occurs
+the chain rewinds and every auxiliary store rewinds or rebuilds with it.</p>
+
+<h2 id="s6">6. Transaction identity and serialization</h2>
+<p>A transaction needs a stable identifier and a stable set of bytes to sign and to hash. Historically Bismuth derived
+all three from string forms: a transaction is identified today by the first 56 characters of its signature field;
+the bytes a sender signs are the UTF-8 string form (the canonical repr) of the six economic fields; and a block hash is the SHA-224 of
+the concatenated string form of its transaction list and the previous block hash. These forms are frozen for the
+existing chain and remain in force on the public network.</p>
+<p>The hf2 upgrade moves new consensus objects off string representations. The post-fork transaction identifier
+becomes a content hash: a canonical preimage that excludes the signature and public key, hashed with BLAKE2b. The
+block hash moves to a binary, integer representation in which timestamps are stored as integer centiseconds, amounts
+as integer atomic units, and variable-length fields are explicitly length-prefixed, the whole hashed with BLAKE2b.
+A transaction therefore commits to its content directly, and its identity no longer depends on the incidental shape
+of an encoded signature. Continuity is preserved by height: the dispatcher chooses the legacy or post-fork byte form
+by destination block height, so a historical block remains byte-identical when replayed while a post-fork block
+hashes under the new rules. There is no global mode switch that could reinterpret old history.</p>
+
+<h2 id="s7">7. Signatures and the signer abstraction</h2>
+<p>Bismuth does not hard-code one signature family into consensus. Verification is routed through a signer
+abstraction in which the sender&#8217;s address selects the signer class, and the validator dispatches accordingly.
+The abstraction already implements RSA, secp256k1 ECDSA, Ed25519, NIST&#160;P-256 (secp256r1), the lattice-based
+ML-DSA family (FIPS&#160;204, parameter sets 44, 65, and 87), and native multisignature. On the public network today
+the dominant scheme is RSA: a 4096-bit key with PKCS&#160;#1&#160;v1.5 signatures, whose address is the SHA-224 hash
+of the public-key PEM rendered as 56 hexadecimal characters. The newer ECDSA and Ed25519 addresses use Base58Check
+encodings with a <code>Bis1</code> prefix, and native multisignature addresses use a <code>Bism</code> prefix.</p>
+<p>For ordinary single-signature secp256k1 senders, hf2 introduces a recoverable model: the sender signs the
+canonical content identifier of the transaction, the signature is stored as a 65-byte recoverable encoding, the
+public key is omitted, and the validator reconstructs the signing key from the signature and message and derives the
+address from it. Low-<em class="term">s</em> normalization is enforced on this path so the encoding is canonical.
+Other families keep an explicit or by-reference public key where recovery is impossible or undesirable. The unifying
+property is that the chain always validates against one authoritative content preimage, while the wire
+representation of key material may differ by family &#8212; which is also what positions the protocol to add a
+post-quantum scheme as a dispatch-and-encoding question rather than a redesign (Section&#160;15).</p>
+
+<h2 id="s8">8. Issuance, the coinbase, and reward maturity</h2>
+<p>New BIS enters circulation through the coinbase transaction, the first reward-bearing record in each block. There
+is no other issuance path: no pre-mine, no founder allocation, and no sale created any BIS. The coinbase is
+authorized by the proof-of-work and reward rules, not by a sender signature, and the protocol recomputes the reward
+from a fixed formula rather than trusting the amount written into the transaction, which is designed to prevent
+minting value by misreporting it.</p>
+<p>Under hf2 the coinbase is compacted: because its signature and public-key fields are not needed to authorize a
+signed spend, they are repurposed as a mining header. The freed signature slot carries the proof-of-work nonce and
+the freed public-key slot carries the network&#8217;s commitment to the virtual-machine state root (Section&#160;10);
+both are bound into the post-fork block hash, so a miner cannot alter them without invalidating the block. hf2 also
+introduces reward maturity. Because an account-based ledger has no isolated output to lock, a freshly mined reward
+is made temporarily non-spendable: the protocol deducts immature reward from a miner&#8217;s spendable balance until
+the reward is buried by a fixed maturity window &#8212; 100 blocks on the public network, 2 on the development
+network &#8212; so that a deep reorganization cannot retroactively invalidate payments funded by a reward that the
+reorganization erases.</p>
+
+<h2 id="s9">9. Fees</h2>
+<p>Transaction fees are deliberately simple. The live fee is a small base fee plus a charge proportional to the size
+of the <code>openfield</code> payload, with fixed surcharges for a few heavier operations such as issuing a token.
+The fee is paid by the sender and accrues to the miner of the block. The model discourages using the chain as bulk
+storage while leaving ordinary payments inexpensive.</p>
+<p>hf2 makes the base fee responsive to load. Instead of a fixed base, the node derives a base multiplier from the
+recent weight of blocks &#8212; a measure that reflects structural load, including payload size, rather than a plain
+transaction count &#8212; clamps it within a bounded range, and applies it to the static baseline, with additional
+surcharges for operation classes such as virtual-machine and shielded transactions whose validation burden is
+structurally higher. The result is a deterministic, congestion-sensitive floor rather than an open-ended fee market.</p>
+
+<h2 id="s10">10. The virtual machine</h2>
+<p>Bismuth&#8217;s contract layer is a deterministic RISC-V virtual machine implementing the RV32I integer
+instruction set, metered by a per-call gas limit and exposing a small system-call interface for storage, the caller
+and call value, the block number, hashing, and value transfer. The design refuses the premise that each richer
+application needs its own execution model; instead one instruction set and one state-transition engine host
+higher-order applications that compile or assemble to it. Contracts are introduced by <code>vm:deploy</code>
+transactions and invoked by <code>vm:call</code>; a contract&#8217;s address is derived from the content identifier
+of its deploy transaction, so contract identity depends on transaction content rather than on a malleable signature.</p>
+<p>The defining property is that a contract can custody and move real BIS. Value sent to a contract is transferred
+into a dedicated, unspendable custody sink on the ledger and mirrored as a contract balance in the virtual-machine
+state; when a contract pays out, the node debits that balance and writes deterministic settlement rows from the sink
+to the recipient. Because custody balances live in the contract state and are reconstructed by replaying the calls,
+a rollback rebuilds them exactly. Under hf2 the virtual-machine state root &#8212; a deterministic commitment over
+contract code, storage, and custody balances &#8212; becomes a consensus object: the miner commits the pre-state
+root into the coinbase header and a node rejects a block whose locally derived state root does not match, so an
+implementation bug surfaces as a visible block rejection rather than silent divergence. The virtual machine is a
+post-fork feature and is additionally opt-in; it is inert on the public network until activation.</p>
+
+<h2 id="s11">11. Shielded value</h2>
+<p>The shielded layer is a consensus-validated privacy pool carried inside ordinary transactions, not a second chain.
+Its transfers are Bismuth transactions whose <code>shield:*</code> operations carry notes, ring members, key images,
+and commitments; their transparent envelope gives them a place in the total order while their inner cryptographic
+content determines private ownership and spend validity. The shielded state &#8212; notes, height-indexed rollback
+entries, key images, and flow accounting &#8212; lives in a dedicated key-value sidecar that rewinds or rebuilds to
+the chain tip.</p>
+<p>The design is staged. The first stage constructs stealth-address outputs so that only the intended recipient can
+recognize and spend a note while observers cannot link it to the recipient&#8217;s published shielded address. The
+second stage spends with linkable ring signatures and key images, so the chain prevents double spends &#8212; a key
+image may appear once &#8212; without revealing which ring member was spent. The third stage hides amounts with
+RingCT: Pedersen commitments, logarithmic Bulletproof range proofs, and a multilayer ring signature, built over the
+secp256k1 curve. Like the virtual machine, the shielded layer is a post-fork, opt-in feature, inert on the public
+network until activation; its purpose is to replace an earlier off-chain prototype whose spent-set logic lived
+outside consensus, whereas the shielded layer&#8217;s validity is enforced by every full node as a consensus rule. Like the
+virtual machine, the shielded layer is inert on the public network until hf2 activates.</p>
+
+<h2 id="s12">12. Storage architecture</h2>
+<p>The reference node today keeps its authoritative state in SQLite: a ledger database for the canonical tip, a
+hyperblock database for a compacted recent history, and an index database for derived token and alias data, with the
+ledger written synchronously and the two kept within a block of each other. This is the live storage of record on
+the public network.</p>
+<p>The modernization separates canonical chain data from rebuildable projections. The chain itself is the only
+authoritative history; balances, transaction-identifier indexes, contract state, shielded notes, reward accounting,
+token balances, and alias ownership are treated as materialized views that must be reconstructible from the chain and
+removable on rollback. The keystone is an append-only block store that holds block bodies by height in a key-value
+engine (LMDB, behind an engine-agnostic seam that also supports a portable SQLite-backed key-value fallback with
+identical ordering), around which sit key-value projections for balances, identifiers, rewards, contract state,
+shielded notes, and tokens. These stores are introduced conservatively: each is written as an additive shadow
+alongside the authoritative path, off by default, and is allowed to accelerate or replace the old path only after
+replay verification re-derives the canonical block hashes from chain data and parity checks confirm it means exactly
+the same thing. On the public network SQLite remains authoritative and the key-value stores are shadow and inert.</p>
+
+<h2 id="s13">13. Networking and synchronization</h2>
+<p>The native peer-to-peer protocol frames each message as a JSON payload behind a fixed-width length header over
+TCP. The public network listens on port&#160;5658, the test network on&#160;2829, and the development network
+on&#160;3030. Peers exchange version information, peer lists, synchronization triggers, heights, mempool contents,
+and freshly mined blocks. Peer management persists peer sets, limits retries, tracks bans and warnings, records peer
+opinions of the tip height, and maintains the reputation score that hardens tip selection.</p>
+<p>Alongside the socket protocol the node exposes a read-mostly HTTP interface (port&#160;5659 where enabled) that
+serves the same chain through a more parallel transport: status, difficulty, balances, blocks and ranges, headers,
+peers, fee and contract state, and an optional transaction-submission endpoint. The HTTP interface does not create a
+second validation path &#8212; submitted transactions pass through the same mempool checks as socket transactions
+&#8212; but it does enable headers-first and range-based fetches and capability discovery for faster sync. A node can
+also serve and fetch a verified ledger snapshot with a height, size, and checksum manifest, so a new node can install
+a snapshot and then validate forward from its boundary, reducing reliance on a single bootstrap host while preserving
+full verification from the snapshot onward.</p>
+
+<h2 id="s14">14. Wallets, hierarchical keys, and multisignature</h2>
+<p>Key management is a client concern: the chain cares only about addresses and signatures, not how a key was
+derived, so wallet features need no consensus change. Bismuth supports hierarchical-deterministic wallets in the
+BIP32 style with BIP39 mnemonic seeds, which derive many addresses from one secret along standard derivation paths,
+and native multisignature, in which an <em class="term">M</em>-of-<em class="term">N</em> address is derived from a
+threshold and a sorted set of owner keys, the redeem information rides in the transaction, and the node verifies that
+a sufficient threshold of distinct owners authorized the spend. A multisignature vault can equally be expressed as a
+virtual-machine contract when programmable approval policy is wanted. A keyless browser provider exposes the wallet
+to web applications over an origin-isolated message channel without surfacing key material to the page.</p>
+
+<h2 id="s15">15. Post-quantum readiness</h2>
+<p>Because the signer abstraction selects a verification family from the sender&#8217;s address rather than fixing one
+in consensus, adopting a new signature scheme is principally a matter of address dispatch and wire encoding rather
+than a redesign of how the protocol thinks about identity. The repository already carries implementations of the
+lattice-based ML-DSA family (FIPS&#160;204), with addresses that commit to the large public key by hash. This does
+not mean the network has migrated to post-quantum signatures; it means the groundwork is present, and a future
+transition is far lighter than it would be for a protocol welded permanently to one classical scheme. A holder
+concerned with long-horizon key security can already use one of the signature schemes accepted by public-network consensus today;
+the lattice-based ML-DSA family is implemented in the reference node but is not yet accepted by public-network
+consensus, so it is not a usable post-quantum option on the public network today.</p>
+
+<h2 id="s16">16. The hf2 upgrade boundary</h2>
+<p>The changes described above as &#8220;post-fork&#8221; are not a stream of independent toggles. They are bundled
+into one upgrade, hf2, that activates at a single height, because they are coupled: serialization, signature,
+proof-of-work, difficulty, fee, and execution changes that would be unsafe to switch on piecemeal are switched on
+together. Activation is miner-driven and computed from the chain itself. Upgraded miners place a readiness marker in
+their coinbase; when a window of 1,000 consecutive blocks all carry it, the upgrade locks in at the earliest height
+that closes such a window, and activates at the next multiple of 1,000 blocks above a 30-block burial margin. The
+lock-in height is a deterministic function of confirmed history, identical on every node and independent of the
+current tip, and it is persisted alongside the ledger so a restart or resync replays the same height. There is no
+off-chain vote and no second signal: one marker governs the whole bundle, including the switch to BLAKE2b Heavy3.</p>
+<p>As of the date of this document the activation height on the public network is unset: hf2 has not locked in and is
+not active. Every feature in this paper described as post-fork &#8212; BLAKE2b Heavy3, LWMA difficulty, binary and
+integer serialization, content-addressed transaction identity and signing the identifier, recoverable secp256k1
+signatures with low-<em class="term">s</em> enforcement, coinbase compaction, reward maturity, the dynamic base fee,
+committed virtual-machine state roots, the virtual machine, the shielded layer, and key-value storage as the
+authoritative path &#8212; is implemented and exercised on the development network and in the test suite, and is
+inert on the public network until the boundary activates. Until then the public network runs the legacy rules:
+SHA-224 Heavy3, the feedback-controller difficulty, signature-derived transaction identifiers, string-form signing
+and block hashing, the static fee, and SQLite as the storage of record. This separation is deliberate and is the
+single most important fact for reading the rest of this document accurately.</p>
+
+<h2 id="s17">17. Supply and the reward schedule</h2>
+<p>BIS was first mined on 1&#160;May&#160;2017 from a genesis block with no allocation to anyone; the entire supply
+has been created as block rewards. The mining reward is a function of block height, computed by the protocol and not
+read from the coinbase. In the current era the reward declines approximately linearly with height toward a permanent
+floor of 0.5&#160;BIS per block, which it does not fall below: the reward schedule has a floor, not a terminal zero,
+so block production continues to issue BIS indefinitely. In addition, on every tenth block until block 4,380,000 the
+protocol pays a development reward equal to that block&#8217;s mining reward and a separate, declining hypernode
+reward to two fixed, protocol-designated addresses &#8212; the development reward to the project&#8217;s genesis
+address and the hypernode reward to a dedicated hypernode-payout address; both of these periodic payments cease at that height, after which only the
+mining reward and transaction fees are issued.</p>
+<p>The consequence, stated plainly, is that BIS has no fixed maximum supply. Because the per-block mining reward
+floors at a positive value rather than reaching zero, total supply increases without an upper bound and continues
+indefinitely: the per-block reward never falls below 0.5&#160;BIS, so continued issuance dilutes existing holders.
+No inference about scarcity or future value should be drawn from the declining proportional rate of issuance. This is a material
+characteristic of the asset and is disclosed as such in Part&#160;F and Part&#160;G. Earlier project communications
+described a lower, bounded supply target; the figures in this document follow the emission rules as implemented in
+the protocol source, which is authoritative.</p>
+<p>The smallest unit is <code>10<sup class="fn">-8</sup></code>&#160;BIS. Reward, development, and hypernode payments
+and all balances are denominated in that unit, and no mechanism in the protocol increases or decreases an
+individual holder&#8217;s balance other than a transaction the holder authorizes, a fee they pay, or a reward they
+mine.</p>
+
+<!-- ==================== MiCA ANNEX I DISCLOSURES ==================== -->
+<h2 class="pb" id="disclosures">Crypto-asset disclosures (MiCA Annex I)</h2>
+<p>The following parts present the disclosures listed in Annex&#160;I to Regulation (EU)&#160;2023/1114 for a
+crypto-asset other than an asset-referenced token or an e-money token. Because Bismuth is fully decentralized and has
+no issuer and no offeror (see the <em class="term">Regulatory positioning</em> note in the front matter and
+Section&#160;22), items that presuppose such a person are completed by stating that the role does not exist, rather
+than by attributing it to the Bismuth Foundation. Where a disclosure would, on a formal admission to trading, belong
+to the person seeking admission or to the operator of the trading platform, that is stated. Because this crypto-asset
+white paper is drawn up by a person other than an offeror, an issuer, or an operator of a trading platform, it
+identifies the person that drew it up &#8212; the Bismuth Foundation &#8212; and the reason it did so, as required by
+Article&#160;6(1), third subparagraph, of Regulation (EU)&#160;2023/1114 (Part&#160;A and Section&#160;22).</p>
+
+<h3 style="font-style:normal" id="partA"><span class="partlabel">Part A &#8212; Person responsible for the crypto-asset white paper</span></h3>
+<ol class="items">
+<li><b>Name.</b> The Bismuth Foundation, the open-source steward of the Bismuth protocol and the preparer of this
+document.</li>
+<li><b>Legal form.</b> The Bismuth Foundation is an open-source developer collective, not a commercial issuer of BIS.
+It has not been constituted as a regulated entity for the purpose of a MiCA filing, because it is neither the issuer
+nor an offeror of BIS and makes no MiCA filing by publishing this document (Section&#160;22).</li>
+<li><b>Registered address and head office.</b> Not constituted for a MiCA filing. On any formal admission of BIS to
+trading, the registered particulars are those of the person seeking admission or the operator that draws up the white
+paper.</li>
+<li><b>Date of registration.</b> Not applicable for the reason in item&#160;2.</li>
+<li><b>Legal entity identifier.</b> The Bismuth Foundation does not hold an LEI for this purpose; none is required of
+a development steward that is neither issuer nor offeror.</li>
+<li><b>Contact.</b> Website <code>www.bismuth.cz</code>; public community channels are listed there. A monitored email
+address and telephone number for regulatory correspondence, with a stated response period, would be designated by the
+responsible person on any formal admission to trading.</li>
+<li><b>Parent company.</b> None.</li>
+<li><b>Management body.</b> The protocol is maintained by an open group of contributors under public version control;
+there is no corporate management body. The attestation in the front matter is made by the Foundation in that
+capacity, as preparer of this document.</li>
+<li><b>Business activity.</b> Non-commercial development, maintenance, and documentation of the open-source Bismuth
+protocol and reference node.</li>
+<li><b>Financial condition.</b> The Bismuth Foundation does not raise, hold, or manage purchaser funds for BIS and
+does not conduct an offer of BIS; it produces no offer-related financial statements. No financial-condition review
+under this item is applicable, because BIS is created only as a mining reward and is not sold by any person.</li>
+</ol>
+
+<h3 style="font-style:normal" id="partB"><span class="partlabel">Part B &#8212; Issuer, if different from the person responsible</span></h3>
+<p class="flush"><span class="na">Not applicable.</span> Bismuth has no issuer. BIS is created in a decentralized
+manner as a reward for validating transactions and maintaining the distributed ledger; no person has control over its
+creation, and there is no entity that issues BIS.</p>
+
+<h3 style="font-style:normal" id="partC"><span class="partlabel">Part C &#8212; Operator of the trading platform</span></h3>
+<p class="flush"><span class="na">Not applicable to this document.</span> This crypto-asset white paper is not drawn
+up by an operator of a trading platform. Where an operator admits BIS to trading on its own initiative without a
+white paper having been published, that operator must draw up the white paper (Article&#160;5(3)) and complete this
+part with its own name, legal form, registered address, date of registration, legal entity identifier, parent company
+(if any), the reason it drew up the white paper, the identity and functions of its management body, and its business
+activity.</p>
+
+<h3 style="font-style:normal" id="partD"><span class="partlabel">Part D &#8212; The crypto-asset project</span></h3>
+<ol class="items">
+<li><b>Name and ticker.</b> Project: Bismuth. Crypto-asset: BIS.</li>
+<li><b>Description.</b> Bismuth is a public, permissionless, proof-of-work blockchain with an account-based ledger and
+a generic, extensible transaction model, first mined on 1&#160;May&#160;2017. BIS is its native crypto-asset, used to
+transfer value and to pay transaction fees, and it is the unit that the protocol&#8217;s virtual machine custodies.
+Sections&#160;1&#8211;17 describe the project in technical detail.</li>
+<li><b>Persons involved.</b> The protocol is developed and maintained by the Bismuth Foundation and an open community
+of contributors under public version control at the project repository (Reference&#160;[6]). No advisor, placement
+agent, or crypto-asset service provider has been engaged in connection with an offer, because no offer is made.</li>
+<li><b>Utility-token features.</b> Not applicable. BIS is not a utility token and is not issued against the promise of
+any good or service.</li>
+<li><b>Milestones.</b> Past: mainnet launch (May&#160;2017); the memory-hard Heavy3 proof of work; the hypernode
+layer and reward model; multi-scheme signatures and address formats; the reference virtual machine, shielded layer,
+and key-value storage modernization, implemented and tested. Forthcoming: activation of the coordinated
+<em class="term">hf2</em> upgrade, which is miner-activated and computed from the chain and which, as of the date of
+this document, has not locked in or activated on the public network (Section&#160;16). The project allocates open-source development effort; it has not allocated raised funds, having raised none.</li>
+<li><b>Use of funds collected.</b> Not applicable. No funds or other crypto-assets have been collected from the
+public in connection with BIS.</li>
+</ol>
+
+<h3 style="font-style:normal" id="partE"><span class="partlabel">Part E &#8212; Admission to trading</span></h3>
+<ol class="items">
+<li>This crypto-asset white paper concerns the <b>admission to trading</b> and secondary-market circulation of an
+existing, freely created crypto-asset. It does not concern, and does not constitute, an offer of BIS to the public.</li>
+<li><b>Reasons.</b> BIS already circulates and is traded on third-party platforms outside the control of any single
+person. This document is published voluntarily to provide holders, prospective holders, and any person who may seek
+admission of BIS to trading with the structured, comparable, risk-aware information that MiCA prescribes.</li>
+<li>Amount to be raised, target subscription, and treatment of oversubscription: <span class="na">not
+applicable</span> &#8212; no offer.</li>
+<li>Issue price, subscription fee, or pricing method: <span class="na">not applicable</span> &#8212; no offer; the
+market price of BIS is determined by third-party platforms.</li>
+<li>Total number of crypto-assets offered or admitted: <span class="na">not applicable</span> as an offered quantity;
+the supply schedule is described in item&#160;8 of Part&#160;G and in Section&#160;17.</li>
+<li><b>Prospective holders.</b> BIS is permissionless; there is no targeting of, or restriction on, holders at the
+protocol level. Eligibility to acquire BIS on a given platform is subject to that platform&#8217;s and the
+holder&#8217;s jurisdiction&#8217;s rules.</li>
+<li>Reimbursement on unmet target, withdrawal, or cancellation: <span class="na">not applicable</span> &#8212; no
+offer and no purchaser funds are handled.</li>
+<li>Phases of the offer and differential pricing: <span class="na">not applicable</span>.</li>
+<li>Subscription period: <span class="na">not applicable</span>.</li>
+<li>Safeguarding of funds and crypto-assets under Article&#160;10: <span class="na">not applicable</span> &#8212; no
+funds or crypto-assets are collected or safeguarded by any person in connection with BIS.</li>
+<li>Methods of payment and of transfer of value for reimbursements: <span class="na">not applicable</span>.</li>
+<li><b>Right of withdrawal (Article&#160;13).</b> Not applicable. No offer to the public is made, and BIS is already
+admitted to trading; under Article&#160;13(4) no 14-day right of withdrawal arises on secondary-market purchases.</li>
+<li><b>Transfer to holders.</b> BIS is transferred peer-to-peer on the Bismuth network. It is acquired by mining or
+through third-party platforms, and is delivered on-chain to the holder&#8217;s address on confirmation.</li>
+<li><b>Technical requirements.</b> To hold BIS, a holder needs a Bismuth-compatible wallet controlling a Bismuth
+address (Section&#160;7) and the ability to receive transactions on the network or to withdraw from a platform.</li>
+<li>Crypto-asset service provider in charge of placement: <span class="na">not applicable</span> &#8212; no placement.</li>
+<li><b>Trading platform.</b> BIS trades on third-party platforms; market-data listings are referenced from the
+project website. This document does not itself seek admission on a named MiCA-authorized venue; on any such admission,
+the responsible person names the platform, the access method, and the costs.</li>
+<li>Expenses of the offer: <span class="na">not applicable</span>.</li>
+<li><b>Conflicts of interest.</b> Contributors to the Bismuth project may hold BIS and may mine it; they receive no
+allocation other than mining and the protocol&#8217;s development reward, which is paid to a fixed network address by
+the protocol (Section&#160;17), not by any offer.</li>
+<li><b>Applicable law and competent court.</b> The protocol is operated by a permissionless global network and is not
+governed by the law of any single jurisdiction. This voluntary document designates no governing law or competent
+court; on a formal admission to trading, the responsible person designates these.</li>
+</ol>
+
+<h3 style="font-style:normal" id="partF"><span class="partlabel">Part F &#8212; The crypto-asset</span></h3>
+<ol class="items">
+<li><b>Type.</b> BIS is a crypto-asset other than an asset-referenced token or an e-money token. It is the native coin
+of a permissionless proof-of-work blockchain. It is not an electronic money token: it is not pegged to, and is not
+redeemable at par against, any official currency. It is not an asset-referenced token: it references no currency,
+asset, or basket and seeks to maintain no stable value.</li>
+<li><b>Characteristics, classification data, and functionality.</b> BIS is fungible and divisible to eight decimal
+places. It is freely transferable on-chain, confers no claim or right against any person (Part&#160;G), and is used
+to transfer value and pay transaction fees; it is also the unit of value that the reference virtual machine custodies
+where that feature is active (Section&#160;10). For the classification of this white paper in the register kept under
+Article&#160;109 (in the form specified by Commission Delegated Regulation (EU)&#160;2025/421), the relevant data are:
+crypto-asset category &#8212; <em class="term">other crypto-asset</em> (not an ART, not an EMT); distributed-ledger
+technology &#8212; the Bismuth proof-of-work blockchain; consensus mechanism &#8212; proof of work (Section&#160;3);
+native to its own ledger (not a token issued on a third-party ledger). Functionality timing: value transfer and fee
+payment function today; the programmable (virtual-machine) and shielded functionalities are implemented and activate
+with the <em class="term">hf2</em> boundary (Section&#160;16).</li>
+</ol>
+
+<h3 style="font-style:normal" id="partG"><span class="partlabel">Part G &#8212; Rights and obligations</span></h3>
+<ol class="items">
+<li><b>Rights and obligations of the holder.</b> None are attached to BIS. BIS confers no claim against the Bismuth
+Foundation or any other person, and no right to income, dividend, interest, redemption, repayment, profit-sharing, or
+governance. A holder may hold and transfer BIS; the protocol imposes no obligation on the holder beyond paying the
+transaction fee on a transaction the holder makes.</li>
+<li><b>Modification of rights and obligations.</b> There are no attached rights to modify. The rules under which BIS
+is created and transferred are the consensus rules of the protocol, which change only through the miner-activated
+upgrade process described in Section&#160;16, identically for all holders, and not by the decision of any person.</li>
+<li>Future offers by, or crypto-assets retained by, an issuer: <span class="na">not applicable</span> &#8212; no
+issuer; no person retains an allocation of BIS.</li>
+<li>Quality and quantity of goods or services for a utility token: <span class="na">not applicable</span>.</li>
+<li>Redemption of a utility token: <span class="na">not applicable</span>.</li>
+<li><b>How BIS is acquired and sold.</b> BIS is acquired by mining or on third-party platforms and is transferred
+peer-to-peer on the Bismuth network between addresses (Section&#160;7).</li>
+<li><b>Transferability.</b> The protocol imposes no restriction on the transfer of BIS; it is freely transferable
+on-chain. Restrictions may be imposed by the platforms on which BIS trades or by a holder&#8217;s jurisdiction.</li>
+<li><b>Supply protocol.</b> BIS has no fixed maximum supply. New BIS is created only as a block reward, computed by
+the protocol from the block height. The mining reward declines approximately linearly with height to a permanent
+floor of 0.5&#160;BIS per block, below which it does not fall; on every tenth block until block&#160;4,380,000 a
+development reward and a separate, declining hypernode reward are paid to fixed network addresses, after which those
+periodic payments cease. Because the mining reward floors at a positive value rather than reaching zero, total supply
+increases without an upper bound and continues indefinitely; the per-block reward never falls below 0.5&#160;BIS,
+so continued issuance dilutes existing holders, and no inference about scarcity or future value should be drawn
+from the declining proportional rate of issuance. There is no burn, rebase, or demand-responsive supply mechanism. Section&#160;17 sets out the
+schedule.</li>
+<li>Protection and compensation schemes: <span class="na">none</span>. BIS is not covered by any value-protection or
+compensation scheme, nor by the investor compensation schemes under Directive&#160;97/9/EC or the deposit guarantee
+schemes under Directive&#160;2014/49/EU.</li>
+<li><b>Applicable law and competent court.</b> As in Part&#160;E, item&#160;19: the permissionless protocol is not
+governed by the law of a single jurisdiction; this voluntary document designates none.</li>
+</ol>
+
+<h3 style="font-style:normal" id="partH"><span class="partlabel">Part H &#8212; Underlying technology</span></h3>
+<ol class="items">
+<li><b>Technology and standards.</b> Bismuth is a permissionless distributed ledger maintained by a reference node
+written in Python (3.8 and later). The ledger is account-based; transactions are the eight-field records of
+Section&#160;2. Cryptographic primitives include SHA-224 and BLAKE2b hashing, RSA (PKCS&#160;#1&#160;v1.5),
+secp256k1 and NIST&#160;P-256 ECDSA, Ed25519, and the lattice-based ML-DSA family (FIPS&#160;204); wallets use
+BIP32/BIP39 derivation. Consensus byte formats are frozen and characterization-locked (Sections&#160;6&#8211;7). The
+reference implementation is open-source under the GNU General Public License.</li>
+<li><b>Consensus mechanism.</b> Proof of work. Blocks are produced by the memory-hard Heavy3 function described in
+Section&#160;3, targeting a sixty-second interval, with difficulty retargeting per Section&#160;4 and longest-valid-chain selection per Section&#160;5. Proof of work is the consensus mechanism whose environmental impacts are
+disclosed in Section&#160;18.</li>
+<li><b>Incentive mechanism and fees.</b> Miners are incentivized by the block reward (Section&#160;17) and by
+transaction fees (Section&#160;9). Fees are paid by the sender and accrue to the miner; the live fee is a small base
+fee plus a charge proportional to payload size.</li>
+<li><b>Operation of the ledger.</b> The distributed ledger is not operated by the Bismuth Foundation, by an issuer,
+or by any third party acting on their behalf. It is maintained by independent, permissionless nodes and miners that
+anyone may run; no person controls the network or can transfer, freeze, or reverse a holder&#8217;s BIS.</li>
+<li><b>Audit of the technology.</b> The project applies replay verification (re-hashing the chain through the frozen
+serialization boundary), consensus-invariant tests, and characterization locks as continuous internal controls, and
+has conducted a documented internal adversarial security review of the modernization work, which identified and fixed
+specific defects (Reference&#160;[7]). No external, independent third-party security certification of the protocol is
+claimed; a holder should not infer one.</li>
+</ol>
+
+<h3 style="font-style:normal" id="partI"><span class="partlabel">Part I &#8212; Risks</span></h3>
+<ol class="items">
+<li><b>Risks of the admission to trading.</b> BIS trades on third-party platforms whose pricing, liquidity,
+solvency, custody, and continued operation are outside the control of the Bismuth Foundation and of any person
+preparing this document. A platform may suspend trading, delist BIS, fail, or be compromised, and the price formed on
+a platform may not reflect any fundamental value.</li>
+<li><b>Risks of the person responsible.</b> There is no issuer. The Bismuth Foundation is a voluntary, open-source
+developer group rather than a capitalized undertaking; it could reduce or cease its activity, and it gives no
+warranty and assumes no liability for the value or function of BIS. This concentration of maintenance in a small
+group is mitigated by the protocol being open-source and permissionlessly forkable, so that development can be
+continued or replaced by others.</li>
+<li><b>Risks of the crypto-asset.</b> BIS is highly volatile and may lose its value in part or in full; it may be
+illiquid, particularly as a small-capitalization asset, and may not always be transferable. It confers no claim,
+income, or redemption right, and is not covered by any investor-compensation or deposit-guarantee scheme. Its supply
+has no fixed maximum (Part&#160;G, item&#160;8), so continued issuance exerts ongoing dilution. A holder who loses
+control of a private key loses the associated BIS irrecoverably, and on-chain transactions are irreversible once
+confirmed. The tax and regulatory treatment of acquiring, holding, and transferring BIS depends on the
+holder&#8217;s jurisdiction and may change, and the regulatory characterisation of BIS and the standing of this
+document could be assessed differently by a competent authority.</li>
+<li><b>Risks of project implementation.</b> The coordinated <em class="term">hf2</em> upgrade is miner-activated and,
+as of the date of this document, has not activated on the public network; the features it carries (the virtual
+machine, the shielded layer, BLAKE2b proof of work, and others in Section&#160;16) are inert on the public network
+until then. Activation depends on miner adoption and may be delayed, may not occur, or may surface defects on
+activation. These risks are mitigated by gating each change behind a single deterministic on-chain activation height,
+by replay-verifying every storage and serialization change to be byte-identical across the boundary, and by the
+consensus-invariant and characterization test suites; nevertheless, software of this complexity may contain defects.</li>
+<li><b>Risks of the technology, and mitigations.</b> As a proof-of-work network, Bismuth is exposed to a majority-hashrate (&#8220;51%&#8221;) attack, in which an entity controlling most mining power could reorganize recent blocks
+and attempt double-spends; the memory-hard Heavy3 function raises the cost of dedicated hardware, and reward maturity
+(activating with <em class="term">hf2</em>) and waiting for confirmations reduce the impact of shallow
+reorganizations, but the risk is material for a smaller network and mining power may concentrate. Settlement is
+probabilistic, not final, until a transaction is buried under sufficient blocks. Consensus or implementation defects
+could cause chain splits or incorrect validation; these are mitigated by the frozen, characterization-locked
+serialization boundary, replay verification, value-conservation invariant tests, and &#8212; with
+<em class="term">hf2</em> &#8212; a consensus-committed virtual-machine state root, but cannot be excluded.
+Classical RSA and elliptic-curve signatures would be vulnerable to a sufficiently capable quantum computer; the
+signer abstraction already supports the lattice-based ML-DSA family, so a migration is a dispatch-and-encoding change
+rather than a redesign (Section&#160;15), though no migration has been made. Bootstrap snapshots are verified forward
+from a checksummed boundary rather than trusted blindly. Holders bear key-management and wallet-software risk.</li>
+</ol>
+
+<!-- ==================== SUSTAINABILITY (Art 6(1)(j), RTS 2025/422) ==================== -->
+<h2 class="pb" id="sustainability">18. Principal adverse environmental impacts</h2>
+<p>Article&#160;6(1)(j) of Regulation (EU)&#160;2023/1114 requires information on the principal adverse impacts on the
+climate and other environment-related adverse impacts of the consensus mechanism used to create the crypto-asset, in
+the form specified by Commission Delegated Regulation (EU)&#160;2025/422. Bismuth uses an energy-intensive proof-of-work consensus mechanism (Section&#160;3), so these impacts are a material disclosure.</p>
+<p>For a permissionless network the exact energy and emissions figures are not directly measurable: the number,
+location, and efficiency of the machines that mine Bismuth are not known to any party. The values below are therefore
+<b>modelled estimates</b>, presented with the assumptions and method used to derive them, in the indicator structure
+of the Delegated Regulation. They are illustrative and should be refined with measured inputs; on a formal admission
+to trading the responsible person must publish the indicators with its own methodology and keep them current on a
+website (Article&#160;6(1)(j); Section&#160;20).</p>
+<table class="data">
+<caption>Table 1. Mandatory sustainability indicators (Commission Delegated Regulation (EU) 2025/422), modelled
+estimate. The 0.25&#160;MW aggregate mining power below is an unverified illustrative assumption, not a measurement:
+the network&#8217;s actual power draw is unknown and could be materially higher or lower, and the figures should be
+read as an order-of-magnitude model, not a precise account. Modelling basis: an assumed aggregate mining power draw
+of 0.25&#160;MW; continuous operation
+(8,760&#160;h/year); 525,600 blocks per year at the 60-second target; an assumed average of two economic
+transactions per block (1.05&#160;million per year); an assumed grid carbon intensity of 0.45&#160;kg&#160;CO2e/kWh
+location-based; and an assumed renewable share of 30%. Scope&#160;1 is negligible because mining nodes consume
+purchased electricity rather than combusting fuel on site.</caption>
+<tr><th>ID</th><th>Indicator</th><th>Unit</th><th>Modelled value</th></tr>
+<tr><td>S.8</td><td>Energy consumption (validation and ledger maintenance)</td><td>kWh / year</td><td class="num">2,190,000</td></tr>
+<tr><td>S.10</td><td>Renewable energy consumption (share of total)</td><td>%</td><td class="num">30.0</td></tr>
+<tr><td>S.11</td><td>Energy intensity per validated transaction</td><td>kWh / tx</td><td class="num">2.09</td></tr>
+<tr><td>S.12</td><td>Scope&#160;1 GHG emissions</td><td>tCO2e / year</td><td class="num">&#8776; 0</td></tr>
+<tr><td>S.13</td><td>Scope&#160;2 GHG emissions</td><td>tCO2e / year</td><td class="num">986</td></tr>
+<tr><td>S.14</td><td>GHG intensity per validated transaction</td><td>kg CO2e / tx</td><td class="num">0.94</td></tr>
+</table>
+<p class="tnote">Definitions follow the Delegated Regulation: &#8220;energy consumption&#8221; is the total energy used
+for transaction validation and maintenance of ledger integrity; &#8220;renewable energy&#8221; is as defined in
+Directive (EU)&#160;2018/2001; greenhouse-gas emissions are expressed in tonnes of CO2-equivalent; Scope&#160;1
+covers emissions from sources controlled by the network&#8217;s nodes and Scope&#160;2 covers emissions from the
+generation of the electricity they purchase. The estimates scale linearly with the assumed mining power and grid
+intensity and inversely with the assumed transaction count; a reader can recompute them with better inputs. The
+project does not operate the mining hardware and therefore cannot commit other parties to energy-reduction targets;
+the structural mitigation is the memory-hard design (Section&#160;3), which favours commodity hardware over dedicated
+high-power machines, and the low sixty-second block cadence of a small network.</p>
+
+<!-- ==================== MARKETING (Art 7) ==================== -->
+<h2 id="marketing">19. Marketing communications</h2>
+<p>Article&#160;7 of Regulation (EU)&#160;2023/1114 governs marketing communications relating to a crypto-asset.
+Any marketing communication concerning BIS that is disseminated by a person within the scope of MiCA must be clearly
+identifiable as a marketing communication; must be fair, clear, and not misleading; must be consistent with this
+crypto-asset white paper; must state that a crypto-asset white paper has been published and indicate the website
+address of the responsible person together with a contact telephone number and email address; and must carry the
+prescribed statement. No marketing communication may be disseminated before the white paper is published. The
+prescribed statement, with the responsible-party label adapted to the actual disseminator, reads:</p>
+<div class="statement">
+  <span class="h">Statement under Article 7(1)(e)</span>
+  <p>This crypto-asset marketing communication has not been reviewed or approved by any competent authority in any
+  Member State of the European Union. The person responsible for this crypto-asset marketing communication is
+  solely responsible for the content of this crypto-asset marketing communication.</p>
+</div>
+<p>The Bismuth Foundation does not market BIS as an investment and makes no representation as to its future value
+(Article&#160;6(4)). Because BIS has no issuer or offeror, MiCA&#8217;s marketing obligations bind whichever person,
+if any, disseminates marketing communications about BIS within scope; this document provides the white paper with
+which such communications must be consistent.</p>
+
+<!-- ==================== ONGOING OBLIGATIONS (Art 8/9/12/13) ==================== -->
+<h2 id="ongoing">20. Notification, publication, and modification</h2>
+<p>This section records how the obligations in Articles&#160;8, 9, 12, and 13 of Regulation (EU)&#160;2023/1114
+relate to this document. <b>Notification (Article&#160;8).</b> A person seeking admission of BIS to trading, or an
+operator admitting it, must notify the crypto-asset white paper to the competent authority of its home Member State
+at least 20 working days before publication. This voluntary document is not such a notification and has not been
+notified to any competent authority; it carries no date of notification because none has occurred (the front matter
+states the date of the edition instead). <b>Publication (Article&#160;9).</b> A required white paper must be
+published on a publicly accessible website before the start of admission to trading and kept available; this document
+is published on the project website (Reference&#160;[6]) and is freely accessible. <b>Modification (Article&#160;12).</b>
+A required white paper must be modified whenever a significant new factor, material mistake, or material inaccuracy
+capable of affecting the assessment of BIS arises. The Bismuth Foundation maintains this document by edition: the
+authoritative source for the protocol&#8217;s behaviour is its open-source code, and material protocol changes
+&#8212; in particular the activation of <em class="term">hf2</em> (Section&#160;16) &#8212; will be reflected in a
+revised edition, with the revision history kept at the end of the document. <b>Right of withdrawal
+(Article&#160;13).</b> No right of withdrawal arises: no offer to the public is made, and BIS is already admitted to
+trading, so under Article&#160;13(4) the 14-day withdrawal right does not apply to secondary-market purchases.</p>
+
+<!-- ==================== MACHINE-READABLE FORMAT (Art 6(10), ITS 2024/2984) ==================== -->
+<h2 id="format">21. Machine-readable format</h2>
+<p>Article&#160;6(10) of Regulation (EU)&#160;2023/1114 requires the crypto-asset white paper to be made available in
+a machine-readable format. Commission Implementing Regulation (EU)&#160;2024/2984 specifies that format as a single
+XHTML document in which the Annex&#160;I fields are marked up using the Inline&#160;XBRL (iXBRL)&#160;1.1
+specification and the ESMA MiCA reporting taxonomy, the relevant element set for a crypto-asset other than an
+asset-referenced or e-money token being that of Table&#160;2 of the Annex to that Regulation; the obligation applies
+from 23&#160;December&#160;2025. This document is authored as a single, valid XHTML file with the disclosure parts
+structured to that template, so that the Inline&#160;XBRL tags required on a formal admission can be applied to the
+existing markup without restructuring the document. The human-readable rendering and the machine-readable instance
+are one file. On a formal admission to trading, the responsible person produces the iXBRL instance against the
+published ESMA taxonomy.</p>
+
+<!-- ==================== STANDING ==================== -->
+<h2 id="standing">22. Standing of this document</h2>
+<p>This document is published voluntarily by the Bismuth Foundation on the template of Article&#160;6 and
+Annex&#160;I of Regulation (EU)&#160;2023/1114. It is drawn up so that holders, prospective holders, trading
+platforms, and competent authorities have the structured, comparable information that the Regulation is designed to
+provide. It is not a crypto-asset white paper that has been approved by, or notified to, any competent authority, and
+publishing it does not make the Bismuth Foundation an issuer, an offeror, or a person seeking admission to trading.</p>
+<p>Bismuth is fully decentralized. Under Recital&#160;22 and Article&#160;4 of MiCA, the distribution of a crypto-asset that is created as a reward for maintaining the distributed ledger and is offered for free does not require a
+crypto-asset white paper; the white-paper obligation under Article&#160;5 is engaged on admission to trading and
+falls on the person seeking admission or the operator of the trading platform (Article&#160;5(3)), and
+Article&#160;14 limits an operator&#8217;s liability where no white paper can be produced because there is no offeror.
+Where this document uses the statements that MiCA prescribes &#8212; on the first page, in the management-body
+statement, and in the marketing-communication statement &#8212; it reproduces the prescribed wording and adapts only
+the label of the responsible person to reflect that the preparer is the Foundation and not an offeror. A person who
+seeks to admit BIS to trading, or who makes an offer of BIS, becomes the responsible person under MiCA and must
+satisfy the Regulation in full, including notification (Article&#160;8), publication (Article&#160;9), the
+machine-readable format (Section&#160;21), and ongoing modification (Article&#160;12). The ultimate source of truth
+for every technical statement in this document is the protocol&#8217;s open-source code (Reference&#160;[6]); where an
+earlier project description and the code disagree, the code governs.</p>
+
+<!-- ==================== REFERENCES ==================== -->
+<h2 class="pb" id="refs">References</h2>
+<ol class="refs">
+<li><span class="refnum">[1]</span> S. Nakamoto, &#8220;Bitcoin: A Peer-to-Peer Electronic Cash System,&#8221; 2008.</li>
+<li><span class="refnum">[2]</span> G. Hovland and J. Ku&#269;era, &#8220;Nonlinear Feedback Control and Stability
+Analysis of a Proof-of-Work Blockchain,&#8221; <i>Modeling, Identification and Control</i>, vol.&#160;38,
+no.&#160;4, pp.&#160;157&#8211;165, 2017. doi:10.4173/mic.2017.4.1.</li>
+<li><span class="refnum">[3]</span> J. Ku&#269;era and G. Hovland, &#8220;Tail Removal Block Validation:
+Implementation and Analysis,&#8221; <i>Modeling, Identification and Control</i>, vol.&#160;39, no.&#160;3,
+pp.&#160;171&#8211;179, 2018. doi:10.4173/mic.2018.3.1.</li>
+<li><span class="refnum">[4]</span> National Institute of Standards and Technology, &#8220;Module-Lattice-Based
+Digital Signature Standard,&#8221; FIPS&#160;204, 2024.</li>
+<li><span class="refnum">[5]</span> A. Back, &#8220;Hashcash &#8212; A Denial of Service Counter-Measure,&#8221;
+2002.</li>
+<li><span class="refnum">[6]</span> The Bismuth Foundation, reference node and protocol source,
+<i>github.com/hclivess/Bismuth</i> and <i>www.bismuth.cz</i>.</li>
+<li><span class="refnum">[7]</span> The Bismuth Foundation, &#8220;Bismuth: Protocol and Node Architecture,&#8221;
+v2.0, 2026, and the protocol notes in the project repository (including the security-review and hard-fork notes).</li>
+<li><span class="refnum">[8]</span> Regulation (EU)&#160;2023/1114 of the European Parliament and of the Council of
+31&#160;May&#160;2023 on markets in crypto-assets (MiCA), OJ&#160;L&#160;150, 9.6.2023.</li>
+<li><span class="refnum">[9]</span> Commission Implementing Regulation (EU)&#160;2024/2984 of 29&#160;November&#160;2024
+laying down implementing technical standards for the application of Regulation (EU)&#160;2023/1114 as regards
+standard forms, formats and templates for crypto-asset white papers, OJ, 3.12.2024.</li>
+<li><span class="refnum">[10]</span> Commission Delegated Regulation (EU)&#160;2025/421 (regulatory technical
+standards on the data necessary for the classification of crypto-asset white papers, Article&#160;109(8)).</li>
+<li><span class="refnum">[11]</span> Commission Delegated Regulation (EU)&#160;2025/422 (regulatory technical
+standards on the content, methodologies and presentation of information on principal adverse impacts on the climate
+and other environment-related adverse impacts of the consensus mechanism).</li>
+<li><span class="refnum">[12]</span> M. Palatinus, P. Rusnak, A. Voisine, and S. Bowe, &#8220;Mnemonic code for
+generating deterministic keys,&#8221; BIP&#160;39, and P. Wuille, &#8220;Hierarchical Deterministic Wallets,&#8221;
+BIP&#160;32.</li>
+</ol>
+
+<!-- ==================== REVISION HISTORY ==================== -->
+<h2 id="history">Revision history</h2>
+<ul class="bul">
+<li>Edition&#160;2026.1, 28&#160;June&#160;2026: first edition drawn up on the template of Regulation
+(EU)&#160;2023/1114, Article&#160;6 and Annex&#160;I. Rewritten from the protocol source as a technical and
+disclosure document; supersedes the 2019 Bismuth white paper.</li>
+</ul>
+
+</body>
+</html>
