@@ -44,6 +44,8 @@ SYS_SETCODE = rv.SYS_SETCODE            # replace this contract's OWN code (in-p
 SYS_SELFDESTRUCT = rv.SYS_SELFDESTRUCT  # pay out remaining custody + delete code/storage
 SYS_ADDRESS = rv.SYS_ADDRESS            # write this contract's own 28-byte address
 SYS_CALLER_FULL = rv.SYS_CALLER_FULL    # write the FULL 28-byte caller (collision-resistant identity)
+SYS_KECCAK256 = rv.SYS_KECCAK256        # Ethereum keccak-256 (doc/45 bridge) — verify ETH headers/receipts
+SYS_ECRECOVER = rv.SYS_ECRECOVER        # secp256k1 ecrecover -> 20-byte ETH address (doc/45 bridge)
 
 # Branch mnemonic -> the (encoder, kind) it resolves to. "b" entries take a label and get a PC-relative
 # offset computed in assemble(); everything else is absolute and emitted directly.

@@ -38,6 +38,16 @@ CONTRACT-FLEXIBILITY ops (doc/19 — issue #384; additive, post-fork-only with t
         only exposes the low 32 bits, which is grindable (~2^32) for high-stakes access control; CALLER_FULL
         is the collision-resistant identity for ownership / admin checks (see contracts/ownable.py).
 
+CROSS-CHAIN / BRIDGE verification ops (doc/45 — additive, post-fork-only with the rest of the VM; they
+ride the single hf2 fork gate, NOT a second fork signal):
+  15 KECCAK256(a0=ptr, a1=len, a2=out ptr) -> writes the 32-byte Ethereum keccak-256 of mem[ptr:ptr+len]
+        to mem[out:out+32]. The hash Ethereum uses everywhere (RLP, Merkle-Patricia nodes, addresses) — the
+        building block for verifying Ethereum block headers / receipts inside a Bismuth contract.
+  16 ECRECOVER(a0=hash ptr(32), a1=sig ptr(65 = r|s|v), a2=out ptr(20)) -> a0 = 1 and the recovered 20-byte
+        Ethereum address written to out, or a0 = 0 (and out zeroed) on failure. secp256k1 public-key recovery
+        + keccak(pubkey)[12:], i.e. Solidity's `ecrecover`. Lets a contract authenticate an Ethereum signer
+        (tx / header / validator signatures) — the core primitive of a trustless light-client bridge.
+
 HOST: storage / custody / code all route through a `host` object (default: a one-contract in-memory host
 built from `storage`/`self_balance`, so the legacy single-contract call is byte-identical). The chain
 passes a journaled, MULTI-contract host (vm_engine.Host) keyed by the 56-hex contract `address`, which is
@@ -46,10 +56,13 @@ is still a pure function of (code, calldata, context, the host's committed state
 """
 import hashlib
 
+import coincurve                                  # secp256k1 — the same lib shielded/ringct already use; SYS_ECRECOVER
+from Cryptodome.Hash import keccak as _keccak     # Ethereum keccak-256 (NOT NIST sha3); SYS_KECCAK256 / SYS_ECRECOVER
+
 WMASK = 0xFFFFFFFF
 (SYS_HALT, SYS_RETURN, SYS_SSTORE, SYS_SLOAD, SYS_CALLER, SYS_CALLVALUE, SYS_NUMBER, SYS_SHA256,
  SYS_TRANSFER, SYS_CALL, SYS_DELEGATECALL, SYS_SETCODE, SYS_SELFDESTRUCT, SYS_ADDRESS,
- SYS_CALLER_FULL) = range(15)
+ SYS_CALLER_FULL, SYS_KECCAK256, SYS_ECRECOVER) = range(17)
 
 # --- consensus constants for the contract-flexibility ops (priced once; every node agrees) -----------
 MAX_CALL_DEPTH = 16            # hard cap on nested CALL/DELEGATECALL frames. Fires WELL before any Python
@@ -58,6 +71,8 @@ MAX_CALL_DEPTH = 16            # hard cap on nested CALL/DELEGATECALL frames. Fi
 GAS_CALL = 100                 # base cost of a CALL / DELEGATECALL (the callee's own gas adds on top)
 GAS_SETCODE = 50               # base cost of SETCODE; + 1 gas / byte of new code (bounds code-churn griefing)
 GAS_SELFDESTRUCT = 50          # cost of SELFDESTRUCT
+GAS_KECCAK256 = 60             # flat per-call, matches SHA256 (a 32-byte sponge hash of comparable cost)
+GAS_ECRECOVER = 300            # secp256k1 pubkey recovery — an EC op, priced ~5x a hash (cf. ETH's 3000-gas precompile, scaled to this VM)
 ADDR_MASK = (1 << 224) - 1     # 224-bit (28-byte / 56-hex) Bismuth address mask
 _SELF = "self"                 # sentinel address of the lone contract on the hostless (single-contract) path
 
@@ -407,6 +422,40 @@ def execute(code, calldata=b"", caller=0, callvalue=0, storage=None, gas_limit=1
                         if optr + 28 > mem_size:
                             return _result(False, b"", gas_limit - gas)
                         mem[optr:optr + 28] = (caller & ADDR_MASK).to_bytes(28, "big")
+                    elif s == SYS_KECCAK256:
+                        # Ethereum keccak-256 (NOT NIST sha3) of mem[ptr:ptr+len] -> mem[out:out+32].
+                        ptr, ln, out = reg[10] & WMASK, reg[11] & WMASK, reg[12] & WMASK
+                        if ptr + ln > mem_size or out + 32 > mem_size:
+                            return _result(False, b"", gas_limit - gas)
+                        gas -= GAS_KECCAK256
+                        kh = _keccak.new(digest_bits=256)
+                        kh.update(bytes(mem[ptr:ptr + ln]))
+                        mem[out:out + 32] = kh.digest()
+                    elif s == SYS_ECRECOVER:
+                        # secp256k1 ecrecover (Solidity-style): a0=hash ptr(32), a1=sig ptr(65 = r|s|v),
+                        # a2=out ptr(20). a0 <- 1 + recovered 20-byte ETH address at out, or 0 + zeroed out on
+                        # ANY failure. Deterministic (pure EC math; malformed input is a clean 0, never a leak).
+                        hptr, sptr, optr = reg[10] & WMASK, reg[11] & WMASK, reg[12] & WMASK
+                        if hptr + 32 > mem_size or sptr + 65 > mem_size or optr + 20 > mem_size:
+                            return _result(False, b"", gas_limit - gas)
+                        gas -= GAS_ECRECOVER
+                        _sig = bytes(mem[sptr:sptr + 65])
+                        _v = _sig[64]
+                        _recid = _v - 27 if _v >= 27 else _v       # accept ETH's 27/28 or raw 0/1 recovery id
+                        _ok = 0
+                        if _recid in (0, 1, 2, 3):
+                            try:
+                                _pub = coincurve.PublicKey.from_signature_and_message(
+                                    _sig[:64] + bytes((_recid,)), bytes(mem[hptr:hptr + 32]), hasher=None)
+                                _kh = _keccak.new(digest_bits=256)
+                                _kh.update(_pub.format(compressed=False)[1:])   # drop the 0x04 prefix
+                                mem[optr:optr + 20] = _kh.digest()[-20:]
+                                _ok = 1
+                            except Exception:
+                                _ok = 0
+                        if not _ok:
+                            mem[optr:optr + 20] = b"\x00" * 20
+                        reg[10] = _ok
                     else:
                         return _result(False, b"", gas_limit - gas)  # unknown syscall
                 else:                                               # EBREAK -> halt

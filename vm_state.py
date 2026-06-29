@@ -125,29 +125,74 @@ class VMState:
             for k in keys:
                 txn.delete(self.stor_db, k)
 
+    def _state_entries(self):
+        """The ordered list of canonical state-leaf preimages — EXACTLY the byte chunks state_root() hashes
+        (code, then storage, then balances, each in LMDB key order). state_root() (the flat consensus hash)
+        and merkle_root() (the inclusion-proof-capable Merkle commitment, doc/45 bridge Stage 2) are BOTH
+        defined over THIS identical sequence, so they commit to the same state byte-for-byte."""
+        entries = []
+        with self.store.txn() as txn:
+            for addr, code in txn.iterate(self.code_db):
+                code = bytes(code)
+                entries.append(b"C" + bytes(addr) + len(code).to_bytes(4, "big") + code)
+            for k, v in txn.iterate(self.stor_db):
+                entries.append(b"S" + bytes(k) + bytes(v))
+            for addr, bal in txn.iterate(self.bal_db):
+                entries.append(b"B" + bytes(addr) + bytes(bal))
+        return entries
+
     def state_root(self):
         """Deterministic 32-byte root (hex) over the ENTIRE contract state — every contract's code and
         every storage slot, in sorted key order. Two nodes with identical state produce identical
         roots; any divergence (a non-determinism bug) is a mismatch the digester can REJECT. Empty state
-        has a fixed root. (Not yet a Merkle trie — no inclusion proofs / incremental update; that's the
-        optimisation. This is the consensus COMMITMENT.)"""
+        has a fixed root. This flat hash is the consensus COMMITMENT; see merkle_root() for the
+        inclusion-proof-capable Merkle commitment over the SAME entries (doc/45). Byte-identical to the
+        original per-field hashing (hash.update concatenates), so the commitment is unchanged."""
         import hashlib
         h = hashlib.blake2b(digest_size=32)
-        with self.store.txn() as txn:
-            for addr, code in txn.iterate(self.code_db):
-                h.update(b"C")
-                h.update(addr)
-                h.update(len(code).to_bytes(4, "big"))
-                h.update(code)
-            for k, v in txn.iterate(self.stor_db):
-                h.update(b"S")
-                h.update(k)
-                h.update(v)
-            for addr, bal in txn.iterate(self.bal_db):
-                h.update(b"B")
-                h.update(addr)
-                h.update(bal)
+        for preimage in self._state_entries():
+            h.update(preimage)
         return h.hexdigest()
+
+    # --- Merkle commitment + inclusion proofs (doc/45 bridge Stage 2) ------
+    # ADDITIVE: the flat state_root above remains the enforced consensus commitment. The Merkle root is the
+    # same state in a tree that yields O(log n) proofs — what a remote light-client / zk verifier needs to
+    # prove a single locked-BIS entry. Wiring it in as the committed root is a later, hf2-gated step.
+    def merkle_root(self):
+        """32-byte hex Merkle root over the same entries as state_root()."""
+        import vm_merkle
+        return vm_merkle.merkle_root(self._state_entries()).hex()
+
+    def merkle_proof(self, index):
+        """{leaf, index, proof, root} proving the state entry at `index` (in _state_entries order) is in the
+        committed state; None if out of range. Verify with vm_merkle.verify_proof(bytes.fromhex(root), leaf, proof)."""
+        import vm_merkle
+        entries = self._state_entries()
+        if index < 0 or index >= len(entries):
+            return None
+        return {"leaf": entries[index], "index": index,
+                "proof": vm_merkle.merkle_proof(entries, index),
+                "root": vm_merkle.merkle_root(entries).hex()}
+
+    def merkle_prove_storage(self, addr, key):
+        """Prove contract `addr`'s storage slot `key` (the bridge's 'is this lock recorded?' query). Returns
+        the proof dict + the slot `value`, or None if the slot is unset (0-slots are stored as deletions, so
+        they are absent and not provable)."""
+        prefix = (addr + ":").encode()
+        k = prefix + int(key).to_bytes(_KEY, "big")
+        with self.store.txn() as txn:
+            v = txn.get(self.stor_db, k)
+        if v is None:
+            return None
+        preimage = b"S" + k + bytes(v)
+        entries = self._state_entries()
+        try:
+            idx = entries.index(preimage)
+        except ValueError:
+            return None
+        out = self.merkle_proof(idx)
+        out["value"] = int.from_bytes(bytes(v), "big")
+        return out
 
     # --- maintenance ------------------------------------------------------
     def clear(self):
