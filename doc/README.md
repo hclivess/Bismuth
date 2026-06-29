@@ -54,6 +54,7 @@ difficulty)** — treat those as authoritative for validation rules.
 | [18-hardfork-hf2.md](18-hardfork-hf2.md) | The bundled `hf2` hard fork: signal-activated scheduler, serialization/difficulty/PoW changes |
 | [19-vm.md](19-vm.md) | The decentralized-apps VM: RISC-V (RV32I) engine, state root, value custody, contract flexibility (CALL/DELEGATECALL/SETCODE/SELFDESTRUCT), HTLC |
 | [44-contracts.md](44-contracts.md) | **Writing Bismuth smart contracts** — complete developer manual: execution model, full syscall ABI, storage, custody, composition & upgradeability, security, testing, demo catalog |
+| [45-bridge.md](45-bridge.md) | **Non-custodial cross-chain bridge**: trustless light-client/zk peg (BIS ↔ ETH/BNB) — VM crypto syscalls (`keccak256`/`ecrecover`), the Merkle state commitment, the peg-in vault + ETH-signer verifier contracts, and the live wBIS deployments |
 | [20-post-quantum.md](20-post-quantum.md) | Post-quantum signatures: ML-DSA-65 signer, the `pq` fork path |
 | [21-mining.md](21-mining.md) | The built-in solo miner (`miner.py`) and dual-algo PoW signalling |
 | [22-shielded.md](22-shielded.md) | Shielded value: stealth addresses, ring signatures, RingCT confidential amounts (`shieldedv1.py`, `ringct.py`, `bulletproof.py`) |
