@@ -174,7 +174,7 @@ def test_trusted_prefix_skips_overspend():
     n2 = _node(last_block=5000000, assume_valid_height=4000000)
     n2.checkpoints = {4000000: "x"}
     proc2 = digest.BlockProcessor(n2, db_handler=None, peer_ip="t")
-    with pytest.raises(ValueError, match="more than owned"):
+    with pytest.raises(ValueError, match="more than spendable"):
         proc2._validate_balance(GEN, "10.00000000", Decimal("0"), Decimal("0"), {GEN: Decimal("5.0")})
 
 
@@ -209,7 +209,7 @@ def test_overspend_raises_without_waiver():
     n = _node(last_block=699999)
     proc = digest.BlockProcessor(n, db_handler=None, peer_ip="t")
     balances = {GEN: Decimal("5.0")}                      # cached -> no DB needed
-    with pytest.raises(ValueError, match="more than owned"):
+    with pytest.raises(ValueError, match="more than spendable"):
         proc._validate_balance(GEN, "10.00000000", Decimal("0"), Decimal("0"), balances)
 
 

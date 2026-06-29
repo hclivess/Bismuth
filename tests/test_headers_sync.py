@@ -14,6 +14,7 @@ from time import sleep
 
 import bismuth_serialize
 import rest_client
+import vm_engine
 from polysign.signerfactory import SignerFactory
 from quantizer import quantize_two, quantize_eight
 
@@ -58,7 +59,9 @@ def test_faithful_sync_bodies_match_headers_and_verify(client):
         # consensus-faithful: every real signed tx verifies (pubkey preserved + amount reconstructed)
         if b["block_height"] >= 2:
             for tx in b["transactions"]:
-                if tx[4] and tx[5]:  # has signature + public key
+                # skip the post-fork coinbase: its signature/public_key slots carry the mining header
+                # (nonce + "vmsr"<state root>, doc/41), not a real signature/key — it is PoW-authorized.
+                if tx[4] and tx[5] and vm_engine.extract_state_root(tx[5]) is None:
                     _verify_faithful_tx(tx)
                     verified += 1
     assert verified > 0, "expected at least one signed tx to verify against the faithful serialization"
